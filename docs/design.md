@@ -57,7 +57,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Joining | A new player starts as a new escort at the starbase | Needs a basic escort loadout |
 | Leaving | Ship, crew and cargo wait in the host's save until that player rejoins | Players need a stable identity per host save |
 | Disconnect | Ship vanishes; returns on rejoin | Release any dialogue lock; a dead player's wreck stays |
-| Disconnect mid-battle | Counts as a retreat | With too little fuel to retreat, counts as a loss |
+| Disconnect mid-battle | Counts as a retreat, with the usual fuel cost | Never a loss, as in UQM. Also applies where UQM forbids retreat, because a disconnected ship has to leave |
 | Game clock | One shared clock | Story deadlines and fleet movement are shared threats |
 | Clock rate | Constant: one fixed rate (seconds per game day, a host setting) whatever players are doing. Only story pauses and the host's pause stop it | Simple and the same for solo and co-op; more players don't make deadlines come sooner. Differs from UQM, whose rate depends on the activity (see `docs/differences.md`) |
 | Story conversations and events | Pause the game for everyone and show it to all players | Replaces the old "crucial events interrupt all" rule |
@@ -77,7 +77,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Player death | Lose crew; ship becomes a wreck at the death location | Wreck persists for revival |
 | Revival | A rescuer flies to the wreck and transfers crew, keeping at least 1 | |
 | Flagship destroyed | Game over for the whole group | Flagship can revive escorts, so the group can't get stuck |
-| Retreat | Costs some fuel | Amount to set |
+| Retreat | As in UQM 0.8.0: allowed only in encounters and the final battle, after the starbase is available, when not carrying the bomb. The ship warps out keeping its crew and can't rejoin that battle. When a player's last ship leaves, that player loses 5 fuel units, down to no lower than 0 | Each player retreats on their own. Host: AI fleet ships that retreat are out for that battle; the 5-unit cost applies when the flagship leaves |
 | Player count | Up to 4 | Keeps hosting feasible on a home connection |
 
 ## Architecture
@@ -184,7 +184,6 @@ Bugs found in play go back to the code session with the error text, a screenshot
 - [ ] Pick an original name for the engine
 - [ ] Decide whether the engine downloads the UQM content itself or players point it at their own copy
 - [ ] Define "nearby" for joining battles (same system or a hyperspace radius)
-- [ ] Set the retreat fuel cost
 - [ ] Set the constant clock rate (seconds per game day) by playtesting
 - [ ] Decide whether a rescuer must keep more than 1 crew
 - [ ] Decide whether cargo can be traded between players
