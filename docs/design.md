@@ -133,7 +133,7 @@ Draft notice text (check with a lawyer before public release):
 >
 > To play, AC2C needs the content of The Ur-Quan Masters 0.8.0: graphics, sounds, music, dialogue and voiceovers. It will be downloaded from the official Ur-Quan Masters project.
 >
-> The content is copyright © 1992, 1993, 2002 Toys for Bob, Inc. or its respective creators, based on Star Control II by Paul Reiche III and Fred Ford. It is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 2.5 license (https://creativecommons.org/licenses/by-nc-sa/2.5/). You may not use it commercially.
+> The content is copyright © 1992, 1993, 2002 Toys for Bob, Inc. or its respective creators. The game was created by Paul Reiche III and Fred Ford. It is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 2.5 license (https://creativecommons.org/licenses/by-nc-sa/2.5/). You may not use it commercially.
 >
 > AC2C is a separate, free program under the GNU GPL (version 2 or later). It is not made or endorsed by Toys for Bob, Paul Reiche III, Fred Ford or The Ur-Quan Masters project.
 >
