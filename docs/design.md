@@ -59,7 +59,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Disconnect | Ship vanishes; returns on rejoin | Release any dialogue lock; a dead player's wreck stays |
 | Disconnect mid-battle | Counts as a retreat | With too little fuel to retreat, counts as a loss |
 | Game clock | One shared clock | Story deadlines and fleet movement are shared threats |
-| Clock rate | Matches UQM where possible: 5 s per day in hyperspace and QuasiSpace, 30 s per day in a solar system, stopped everywhere else (battle, conversation, orbit, planet surface, starbase). The shared clock runs at the fastest rate any player is in | Solo play keeps UQM's timing exactly. In co-op, a player's battle or talk costs game days while another player is flying; time stops only when nobody is |
+| Clock rate | Constant: one fixed rate (seconds per game day, a host setting) whatever players are doing. Only story pauses and the host's pause stop it | Simple and the same for solo and co-op; more players don't make deadlines come sooner. Differs from UQM, whose rate depends on the activity (see `docs/differences.md`) |
 | Story conversations and events | Pause the game for everyone and show it to all players | Replaces the old "crucial events interrupt all" rule |
 | Who replies in story talks | Whoever started it; others watch | Anyone can make any choice; it affects everyone |
 | Dialogue lock | One player per alien race in conversation at a time | Applies to ordinary conversations |
@@ -185,6 +185,7 @@ Bugs found in play go back to the code session with the error text, a screenshot
 - [ ] Decide whether the engine downloads the UQM content itself or players point it at their own copy
 - [ ] Define "nearby" for joining battles (same system or a hyperspace radius)
 - [ ] Set the retreat fuel cost
+- [ ] Set the constant clock rate (seconds per game day) by playtesting
 - [ ] Decide whether a rescuer must keep more than 1 crew
 - [ ] Decide whether cargo can be traded between players
 - [ ] List the escort module set
