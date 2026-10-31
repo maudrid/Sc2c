@@ -116,7 +116,32 @@ Guests connect over the internet to the host's server; the host plays through th
 | Platforms | Windows and Linux |
 | Network | Friends over the internet, host at home; tune combat for typical home-internet lag |
 | Networking approach | Keep it simple and cheap. Use Godot's built-in multiplayer (`MultiplayerAPI` with ENet, RPCs, `MultiplayerSynchronizer` / `MultiplayerSpawner`) the same way in every activity. The host runs the whole game; clients send input and show the state they receive. A small fixed input delay instead of client-side prediction, like UQM's Super Melee netplay (default 2 frames, about 83 ms at 24 fps); the delay is a setting. Clients are trusted: no anti-cheat, no lag compensation, no encryption. Requests (buy, transfer, pick up) go through the host only to keep one copy of the data |
-| Content | Load the official UQM 0.8.0 content package from a path the player sets, or fetch it on first run (open item) |
+| Content | On first run, a screen shows the content notice and a Download button; the engine fetches the official UQM 0.8.0 packages and checks them. See "First-run content download" below |
+
+## First-run content download
+
+The engine ships without UQM content. On first run the player sees one screen with the notice below and a **Download** button.
+
+- **What is fetched:** the official UQM 0.8.0 packages from the UQM project's SourceForge downloads (`https://sourceforge.net/projects/sc2/files/UQM/0.8/`): `uqm-0.8.0-content.uqm` (required, 11.5 MB), and optionally `uqm-0.8.0-voice.uqm` (voiceovers, 115 MB) and `uqm-0.8.0-3domusic.uqm` (3DO music, 19 MB) as tick boxes.
+- **Checks:** each file's SHA-256 is pinned in the engine; a file that doesn't match is deleted and the player is told. Files are stored unchanged, so their own copyright notices stay intact.
+- **No "I agree":** CC BY-NC-SA 2.5 needs no acceptance, and section 4a forbids adding terms that restrict it. The button says Download, not Accept.
+- **Where else the notice appears:** the credits or about screen, so it stays available after the first run, and the project's download page.
+
+Draft notice text (check with a lawyer before public release):
+
+> **Game content from The Ur-Quan Masters**
+>
+> To play, AC2C needs the content of The Ur-Quan Masters 0.8.0: graphics, sounds, music, dialogue and voiceovers. It will be downloaded from the official Ur-Quan Masters project.
+>
+> The content is copyright © 1992, 1993, 2002 Toys for Bob, Inc. or its respective creators, based on Star Control II by Paul Reiche III and Fred Ford. It is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 2.5 license (https://creativecommons.org/licenses/by-nc-sa/2.5/). You may not use it commercially.
+>
+> AC2C is a separate, free program under the GNU GPL (version 2 or later). It is not made or endorsed by Toys for Bob, Paul Reiche III, Fred Ford or The Ur-Quan Masters project.
+>
+> [ ] Voiceovers (115 MB)  [ ] 3DO music (19 MB)
+>
+> **Download (11.5 MB)**
+
+The license requires keeping the copyright notices, crediting the authors and the title, linking the license, and non-commercial use (CC BY-NC-SA 2.5, sections 4a, 4c and 4d, as included in UQM's `COPYING`). UQM's own permission to copy the content "as part of a distribution of The Ur-Quan Masters" doesn't cover AC2C, which is a different program, so AC2C relies on the CC license.
 
 ## Fidelity and bugs
 
@@ -133,7 +158,7 @@ The engine is free, with optional donations for development. Creative Commons De
 
 - Never gate anything behind donations: no donor-only features, early access or faster downloads.
 - Ask for support of the engine work, not the content.
-- Keep the content download separate: the official source, or fetched by the engine on first run.
+- Keep the content download separate: the engine fetches it from the official UQM project on first run, after the player clicks Download.
 - Use a separate donation platform (Ko-fi, GitHub Sponsors or Open Collective), linked rather than in the download flow.
 - Credit Reiche, Ford and the UQM project on the download page and in the game.
 - Give the engine an original name; describe it as compatible with The Ur-Quan Masters content.
@@ -188,7 +213,7 @@ Bugs found in play go back to the code session with the error text, a screenshot
 ## Open items
 
 - [ ] Pick an original name for the engine
-- [ ] Decide whether the engine downloads the UQM content itself or players point it at their own copy
+- [x] Decide whether the engine downloads the UQM content itself or players point it at their own copy: it downloads on first run, after a click
 - [ ] Set the constant clock rate (seconds per game day) by playtesting
 - [ ] Decide whether a rescuer must keep more than 1 crew
 - [ ] Decide whether cargo can be traded between players
