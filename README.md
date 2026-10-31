@@ -4,7 +4,7 @@ A free engine for drop-in co-op play of The Ur-Quan Masters content, for up to 4
 
 Attack on Crateris is not The Ur-Quan Masters and is not made or endorsed by Toys for Bob, Paul Reiche III, Fred Ford or The Ur-Quan Masters project. It is compatible with The Ur-Quan Masters 0.8.0 content, which the game downloads separately on first run.
 
-**Status:** early development. Stage 1 (players flying around hyperspace together) is being built. See `docs/design.md` for the plan.
+**Status:** early development. Stage 1 is built: up to 4 players fly around hyperspace together, joining and leaving at will. See `docs/how-to-try/stage-1.md` to try it and `docs/design.md` for the plan.
 
 ## License
 
@@ -23,8 +23,12 @@ Contributions are welcome but optional: forks are fine, and you don't have to se
 Needs the .NET 8 SDK and the Godot 4.7.2 .NET build. On Linux, `tools/setup-toolchain.sh` installs both (run with sudo).
 
 ```
-dotnet test                                  # core tests
+dotnet build game/Crateris.Game.csproj
+godot --headless --import --path game
+dotnet test                                    # core tests
+python3 tools/test_network.py                  # host and guests, end to end
 python3 -m unittest discover -s tools/extract  # data checks
+godot --path game                              # play (solo host)
 ```
 
 ## Documents
@@ -34,3 +38,4 @@ python3 -m unittest discover -s tools/extract  # data checks
 - `docs/porting-inventory.md`: what is ported from UQM, system by system
 - `docs/uqm-data.md`: the UQM data the engine uses and how it is extracted
 - `docs/research-lobbies.md`: how other open-source games handle lobbies
+- `docs/how-to-try/`: how to try each stage

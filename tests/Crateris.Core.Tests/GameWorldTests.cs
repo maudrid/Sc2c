@@ -198,3 +198,24 @@ public class GameWorldTests
         Assert.Equal(a.Ships, b.Ships);
     }
 }
+
+public class ProtocolTests
+{
+    [Fact]
+    public void Snapshot_and_welcome_round_trip()
+    {
+        var world = GameWorld.NewGame(new GameSettings(),
+            NewGameData.Load(Path.Combine(AppContext.BaseDirectory, "data")), "h", "Host");
+        world.Join("g", "Guest");
+        world.SubmitInput("g", 1, ShipInput.Thrust);
+        world.Step();
+        var snap = world.Snapshot();
+        var back = Crateris.Core.Net.Protocol.Decode<WorldSnapshot>(Crateris.Core.Net.Protocol.Encode(snap));
+        Assert.Equal(snap.Frame, back.Frame);
+        Assert.Equal(snap.Ships, back.Ships);
+
+        var w = new Crateris.Core.Net.Protocol.Welcome(JoinResult.Rejoined, "g", 2, "hi");
+        Assert.Equal(w, Crateris.Core.Net.Protocol.Decode<Crateris.Core.Net.Protocol.Welcome>(
+            Crateris.Core.Net.Protocol.Encode(w)));
+    }
+}

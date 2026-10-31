@@ -1,0 +1,23 @@
+; Attack on Crateris (Godot 4.7). GPL-2.0-or-later; see COPYING.
+
+config_version=5
+
+[application]
+
+config/name="Attack on Crateris"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "C#")
+
+[display]
+
+window/size/viewport_width=1024
+window/size/viewport_height=768
+
+[dotnet]
+
+project/assembly_name="Crateris.Game"
+
+[physics]
+
+common/physics_ticks_per_second=24
+common/max_physics_steps_per_frame=8

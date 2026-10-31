@@ -28,6 +28,17 @@ UQM_SC2=../uqm-0.8.0/sc2 python3 -m unittest discover -s tools/extract -v
 
 The first runs 21 checks on the committed files (counts, known values, notices). The second also re-runs the extractor and confirms the committed files match the source exactly.
 
+## Reference traces from UQM's own code
+
+`tools/extract/golden_uqm.py` builds small C programs in `tools/extract/golden/` against the UQM source, linked with UQM's real code, and records what that code does into `tests/golden/`. The C# port is tested against these files (`dotnet test`), so it must match UQM exactly, not just approximately.
+
+- **`hyperspace-flight.json`:** 9 flight scenarios, frame by frame: thrusting, turning at top speed, spinning in place, running out of fuel, the fuel counter rolling over on long trips, tapping thrust, both turn keys, and fuel above tank capacity. Recorded by running UQM's `ship_preprocess`, `sis_hyper_preprocess`, `inertial_thrust`, `init_sis` and `MoveSIS`; only drawing calls are stubbed.
+- **`uqm-math.json`:** `sinetab`, `ARCTAN`, `square_root`, universe/log conversions and velocity operations.
+
+```
+python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2
+```
+
 ## Units
 
 UQM mixes several unit systems. The engine keeps UQM's units internally, so ported formulas stay exact, and converts only for display.

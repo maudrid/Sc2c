@@ -117,6 +117,8 @@ Guests connect over the internet to the host's server; the host plays through th
 | Platforms | Windows and Linux |
 | Network | Friends over the internet, host at home; tune combat for typical home-internet lag |
 | Networking approach | Keep it simple and cheap. Use Godot's built-in multiplayer (`MultiplayerAPI` with ENet, RPCs, `MultiplayerSynchronizer` / `MultiplayerSpawner`) the same way in every activity. The host runs the whole game; clients send input and show the state they receive. A small fixed input delay instead of client-side prediction, like UQM's Super Melee netplay (default 2 frames, about 83 ms at 24 fps); the delay is a setting. Clients are trusted: no anti-cheat, no lag compensation, no encryption. Requests (buy, transfer, pick up) go through the host only to keep one copy of the data |
+| Simulation | The host steps the game 24 times a second (UQM's battle frame rate) in every activity. Ported code is checked against traces recorded from UQM's own C code (`tools/extract/golden_uqm.py`, `tests/golden/`) |
+| Code layout | `src/Crateris.Core`: rules and simulation, plain C# with no Godot, tested with `dotnet test`. `game/`: the Godot project (networking, view, input). `data/`: extracted UQM data. `tools/`: extractors, setup and the network test |
 | Content | On first run, a screen shows the content notice and a Download button; the engine fetches the official UQM 0.8.0 packages and checks them. See "First-run content download" below |
 
 ## First-run content download
@@ -187,7 +189,7 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
 
 ### Build order
 
-1. Headless server with players flying around hyperspace together, joining and leaving at will.
+1. Headless server with players flying around hyperspace together, joining and leaving at will. **Built** (see `docs/how-to-try/stage-1.md`).
 2. Solar systems and planets from seeds.
 3. Story flags, conversations, dialogue locks, story pauses and the group inventory.
 4. Combat, including joining battles, one enemy at a time, and the minimap.
@@ -206,8 +208,8 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
 
 | Where | Setup | Used for |
 | --- | --- | --- |
-| Code session (cloud) | .NET SDK 8+, Godot 4 .NET build run headless | Writing code, `dotnet build`, headless tests and server runs |
-| Owner's Linux machine | .NET SDK 8+, Godot 4 .NET editor, Git | Pulling changes, playing builds, checking scenes and errors |
+| Code session (cloud) | .NET 8 SDK, Godot 4.7.2 .NET run headless (`tools/setup-toolchain.sh`) | Writing code, `dotnet build`, headless tests and server runs |
+| Owner's Linux machine | .NET 8 SDK, Godot 4.7.2 .NET editor, Git (`sudo tools/setup-toolchain.sh` installs the first two) | Pulling changes, playing builds, checking scenes and errors |
 | Owner's code editor | VSCodium with godot-tools and the free C# extension (muhammad-sammy, Open VSX) | Reading code and diffs, small fixes |
 
 Bugs found in play go back to the code session with the error text, a screenshot and the expected behaviour.
