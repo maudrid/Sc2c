@@ -59,7 +59,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Disconnect | Ship vanishes; returns on rejoin | Release any dialogue lock; a dead player's wreck stays |
 | Disconnect mid-battle | Counts as a retreat | With too little fuel to retreat, counts as a loss |
 | Game clock | One shared clock | Story deadlines and fleet movement are shared threats |
-| Clock in battles and ordinary talk | Keeps running (combat, shopping, any conversation with no story effect) | Long ordinary talks cost game days |
+| Clock rate | Matches UQM where possible: 5 s per day in hyperspace and QuasiSpace, 30 s per day in a solar system, stopped everywhere else (battle, conversation, orbit, planet surface, starbase). The shared clock runs at the fastest rate any player is in | Solo play keeps UQM's timing exactly. In co-op, a player's battle or talk costs game days while another player is flying; time stops only when nobody is |
 | Story conversations and events | Pause the game for everyone and show it to all players | Replaces the old "crucial events interrupt all" rule |
 | Who replies in story talks | Whoever started it; others watch | Anyone can make any choice; it affects everyone |
 | Dialogue lock | One player per alien race in conversation at a time | Applies to ordinary conversations |
