@@ -39,3 +39,4 @@ godot --path game                              # play (solo host)
 - `docs/uqm-data.md`: the UQM data the engine uses and how it is extracted
 - `docs/research-lobbies.md`: how other open-source games handle lobbies
 - `docs/how-to-try/`: how to try each stage
+- `docs/plans/`: plans for upcoming stages

@@ -190,7 +190,7 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
 ### Build order
 
 1. Headless server with players flying around hyperspace together, joining and leaving at will. **Built** (see `docs/how-to-try/stage-1.md`).
-2. Solar systems and planets from seeds.
+2. Solar systems and planets from seeds. Plan: `docs/plans/stage-2.md` (draft for review).
 3. Story flags, conversations, dialogue locks, story pauses and the group inventory.
 4. Combat, including joining battles, one enemy at a time, and the minimap.
 
