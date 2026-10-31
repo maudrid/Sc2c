@@ -1,0 +1,4692 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/plandata.c",
+      "src/uqm/planets/plandata.h",
+      "src/uqm/gendef.h",
+      "src/uqm/starmap.h"
+    ]
+  },
+  "_notes": [
+    "Coordinates are in universe units: 0..MAX_X_UNIVERSE. Divide by 10 for the coordinates the game shows (e.g. Sol 1752,1450 is 175.2, 145.0).",
+    "Star names are content, not code. name_postfix is an index into the game strings (STAR_STRING_BASE, gamestrings.txt), name_prefix 0 means none, otherwise index-1 into the Greek-letter numbers at STAR_NUMBER_BASE. See GetClusterName in starmap.c.",
+    "special names the generator in planets/generate/ for special systems; null means an ordinary system made by gendefault.c.",
+    "The random seed of a system is MAKE_DWORD (x, y) (GetRandomSeedForStar in planets/solarsys.c).",
+    "quasispace lists the QuasiSpace portal exits and the Arilou homeworld, in QuasiSpace coordinates."
+  ],
+  "constants": {
+    "NUM_SOLAR_SYSTEMS": 502,
+    "MAX_X_UNIVERSE": 9999,
+    "MAX_Y_UNIVERSE": 9999
+  },
+  "stars": [
+    {
+      "x": 5007,
+      "y": 35,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 74
+    },
+    {
+      "x": 708,
+      "y": 41,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 91
+    },
+    {
+      "x": 4714,
+      "y": 78,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 74
+    },
+    {
+      "x": 2187,
+      "y": 83,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 126
+    },
+    {
+      "x": 2814,
+      "y": 89,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 82
+    },
+    {
+      "x": 4244,
+      "y": 91,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 125
+    },
+    {
+      "x": 5652,
+      "y": 98,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 124
+    },
+    {
+      "x": 2939,
+      "y": 116,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 82
+    },
+    {
+      "x": 2771,
+      "y": 146,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 82
+    },
+    {
+      "x": 5313,
+      "y": 150,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 73
+    },
+    {
+      "x": 265,
+      "y": 156,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 92
+    },
+    {
+      "x": 4529,
+      "y": 169,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 74
+    },
+    {
+      "x": 4911,
+      "y": 180,
+      "size": "GIANT_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 74
+    },
+    {
+      "x": 4747,
+      "y": 221,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 74
+    },
+    {
+      "x": 9708,
+      "y": 250,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 112
+    },
+    {
+      "x": 4861,
+      "y": 262,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 74
+    },
+    {
+      "x": 2908,
+      "y": 269,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": "SHOFIXTI_DEFINED",
+      "name_prefix": 4,
+      "name_postfix": 82
+    },
+    {
+      "x": 1855,
+      "y": 270,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 81
+    },
+    {
+      "x": 7958,
+      "y": 270,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 8
+    },
+    {
+      "x": 5160,
+      "y": 280,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 73
+    },
+    {
+      "x": 570,
+      "y": 289,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 92
+    },
+    {
+      "x": 4923,
+      "y": 294,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "YEHAT_DEFINED",
+      "name_prefix": 3,
+      "name_postfix": 74
+    },
+    {
+      "x": 2820,
+      "y": 301,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 82
+    },
+    {
+      "x": 7934,
+      "y": 318,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 8
+    },
+    {
+      "x": 8062,
+      "y": 318,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 8
+    },
+    {
+      "x": 1116,
+      "y": 334,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 91
+    },
+    {
+      "x": 803,
+      "y": 337,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 91
+    },
+    {
+      "x": 1787,
+      "y": 338,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 81
+    },
+    {
+      "x": 877,
+      "y": 340,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 91
+    },
+    {
+      "x": 5338,
+      "y": 355,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 73
+    },
+    {
+      "x": 5039,
+      "y": 373,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 73
+    },
+    {
+      "x": 843,
+      "y": 380,
+      "size": "GIANT_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 91
+    },
+    {
+      "x": 4872,
+      "y": 408,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 74
+    },
+    {
+      "x": 1740,
+      "y": 423,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 81
+    },
+    {
+      "x": 4596,
+      "y": 429,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 9,
+      "name_postfix": 74
+    },
+    {
+      "x": 843,
+      "y": 431,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 91
+    },
+    {
+      "x": 2156,
+      "y": 440,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 81
+    },
+    {
+      "x": 2004,
+      "y": 441,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 81
+    },
+    {
+      "x": 530,
+      "y": 442,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 92
+    },
+    {
+      "x": 958,
+      "y": 468,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 91
+    },
+    {
+      "x": 2058,
+      "y": 475,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 81
+    },
+    {
+      "x": 304,
+      "y": 477,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 92
+    },
+    {
+      "x": 522,
+      "y": 525,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "PKUNK_DEFINED",
+      "name_prefix": 3,
+      "name_postfix": 92
+    },
+    {
+      "x": 2100,
+      "y": 554,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 81
+    },
+    {
+      "x": 134,
+      "y": 565,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 92
+    },
+    {
+      "x": 6858,
+      "y": 577,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "MYCON_TRAP_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 123
+    },
+    {
+      "x": 5014,
+      "y": 584,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 73
+    },
+    {
+      "x": 5256,
+      "y": 608,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 73
+    },
+    {
+      "x": 2411,
+      "y": 718,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 9
+    },
+    {
+      "x": 2589,
+      "y": 741,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 9
+    },
+    {
+      "x": 675,
+      "y": 742,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 91
+    },
+    {
+      "x": 9292,
+      "y": 750,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 5
+    },
+    {
+      "x": 1463,
+      "y": 779,
+      "size": "GIANT_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 80
+    },
+    {
+      "x": 3089,
+      "y": 782,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 9
+    },
+    {
+      "x": 2854,
+      "y": 787,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 9
+    },
+    {
+      "x": 3333,
+      "y": 801,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 9
+    },
+    {
+      "x": 9237,
+      "y": 821,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 5
+    },
+    {
+      "x": 9339,
+      "y": 843,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 5
+    },
+    {
+      "x": 242,
+      "y": 857,
+      "size": "GIANT_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 90
+    },
+    {
+      "x": 1515,
+      "y": 866,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 80
+    },
+    {
+      "x": 4770,
+      "y": 895,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 75
+    },
+    {
+      "x": 1412,
+      "y": 905,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 80
+    },
+    {
+      "x": 4681,
+      "y": 916,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 6,
+      "name_postfix": 75
+    },
+    {
+      "x": 9333,
+      "y": 937,
+      "size": "SUPER_GIANT_STAR",
+      "color": "YELLOW_BODY",
+      "special": "MELNORME0_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 5
+    },
+    {
+      "x": 9419,
+      "y": 942,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 5
+    },
+    {
+      "x": 230,
+      "y": 952,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 90
+    },
+    {
+      "x": 146,
+      "y": 955,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 90
+    },
+    {
+      "x": 4873,
+      "y": 968,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 75
+    },
+    {
+      "x": 1559,
+      "y": 993,
+      "size": "SUPER_GIANT_STAR",
+      "color": "RED_BODY",
+      "special": "MELNORME1_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 80
+    },
+    {
+      "x": 1895,
+      "y": 1041,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 93
+    },
+    {
+      "x": 4337,
+      "y": 1066,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 75
+    },
+    {
+      "x": 3732,
+      "y": 1067,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 122
+    },
+    {
+      "x": 1579,
+      "y": 1115,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 80
+    },
+    {
+      "x": 4875,
+      "y": 1145,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 75
+    },
+    {
+      "x": 4604,
+      "y": 1187,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 75
+    },
+    {
+      "x": 5812,
+      "y": 1208,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 72
+    },
+    {
+      "x": 1312,
+      "y": 1260,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 80
+    },
+    {
+      "x": 1916,
+      "y": 1270,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 93
+    },
+    {
+      "x": 6562,
+      "y": 1270,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 121
+    },
+    {
+      "x": 416,
+      "y": 1301,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 120
+    },
+    {
+      "x": 3958,
+      "y": 1354,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 89
+    },
+    {
+      "x": 4000,
+      "y": 1363,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 89
+    },
+    {
+      "x": 1752,
+      "y": 1450,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "SOL_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 129
+    },
+    {
+      "x": 2187,
+      "y": 1500,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 127
+    },
+    {
+      "x": 1806,
+      "y": 1507,
+      "size": "GIANT_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 128
+    },
+    {
+      "x": 5708,
+      "y": 1520,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 72
+    },
+    {
+      "x": 9469,
+      "y": 1548,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 6
+    },
+    {
+      "x": 4333,
+      "y": 1562,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 88
+    },
+    {
+      "x": 6041,
+      "y": 1562,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 72
+    },
+    {
+      "x": 9375,
+      "y": 1583,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 6
+    },
+    {
+      "x": 2881,
+      "y": 1614,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 96
+    },
+    {
+      "x": 6083,
+      "y": 1625,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 72
+    },
+    {
+      "x": 4250,
+      "y": 1645,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 88
+    },
+    {
+      "x": 650,
+      "y": 1646,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 85
+    },
+    {
+      "x": 9477,
+      "y": 1670,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 6
+    },
+    {
+      "x": 2840,
+      "y": 1676,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 96
+    },
+    {
+      "x": 9541,
+      "y": 1687,
+      "size": "GIANT_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 6
+    },
+    {
+      "x": 7395,
+      "y": 1687,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 69
+    },
+    {
+      "x": 4333,
+      "y": 1687,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "VUX_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 88
+    },
+    {
+      "x": 9559,
+      "y": 1735,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 6
+    },
+    {
+      "x": 736,
+      "y": 1737,
+      "size": "GIANT_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 85
+    },
+    {
+      "x": 1601,
+      "y": 1746,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 94
+    },
+    {
+      "x": 7395,
+      "y": 1750,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 69
+    },
+    {
+      "x": 951,
+      "y": 1770,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 85
+    },
+    {
+      "x": 1666,
+      "y": 1812,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 94
+    },
+    {
+      "x": 7187,
+      "y": 1833,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 69
+    },
+    {
+      "x": 705,
+      "y": 1838,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 85
+    },
+    {
+      "x": 1140,
+      "y": 1847,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 85
+    },
+    {
+      "x": 6467,
+      "y": 1878,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 71
+    },
+    {
+      "x": 2791,
+      "y": 1895,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 96
+    },
+    {
+      "x": 6500,
+      "y": 1916,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 71
+    },
+    {
+      "x": 5458,
+      "y": 1916,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 119
+    },
+    {
+      "x": 1048,
+      "y": 1919,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 85
+    },
+    {
+      "x": 3678,
+      "y": 1926,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 99
+    },
+    {
+      "x": 3345,
+      "y": 1931,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "START_COLONY_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 98
+    },
+    {
+      "x": 8187,
+      "y": 1937,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 7
+    },
+    {
+      "x": 3352,
+      "y": 1940,
+      "size": "SUPER_GIANT_STAR",
+      "color": "WHITE_BODY",
+      "special": "MELNORME2_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 97
+    },
+    {
+      "x": 977,
+      "y": 1953,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 85
+    },
+    {
+      "x": 4221,
+      "y": 1986,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": "MAIDENS_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 100
+    },
+    {
+      "x": 4500,
+      "y": 2000,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 100
+    },
+    {
+      "x": 6833,
+      "y": 2000,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 70
+    },
+    {
+      "x": 8163,
+      "y": 2009,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 7
+    },
+    {
+      "x": 8080,
+      "y": 2011,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 7
+    },
+    {
+      "x": 6036,
+      "y": 2035,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 71
+    },
+    {
+      "x": 6479,
+      "y": 2062,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "EGG_CASE1_DEFINED",
+      "name_prefix": 3,
+      "name_postfix": 71
+    },
+    {
+      "x": 2104,
+      "y": 2083,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "ZOQ_SCOUT_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 118
+    },
+    {
+      "x": 8062,
+      "y": 2083,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 7
+    },
+    {
+      "x": 270,
+      "y": 2187,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 79
+    },
+    {
+      "x": 6500,
+      "y": 2208,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 71
+    },
+    {
+      "x": 6291,
+      "y": 2208,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "MYCON_DEFINED",
+      "name_prefix": 5,
+      "name_postfix": 71
+    },
+    {
+      "x": 125,
+      "y": 2229,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 79
+    },
+    {
+      "x": 312,
+      "y": 2250,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 79
+    },
+    {
+      "x": 3884,
+      "y": 2262,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 99
+    },
+    {
+      "x": 742,
+      "y": 2268,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "CHMMR_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 117
+    },
+    {
+      "x": 2306,
+      "y": 2285,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 95
+    },
+    {
+      "x": 2402,
+      "y": 2309,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 95
+    },
+    {
+      "x": 6395,
+      "y": 2312,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "SUN_DEVICE_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 12
+    },
+    {
+      "x": 8875,
+      "y": 2312,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 9,
+      "name_postfix": 61
+    },
+    {
+      "x": 3551,
+      "y": 2320,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 99
+    },
+    {
+      "x": 6208,
+      "y": 2333,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 12
+    },
+    {
+      "x": 3354,
+      "y": 2354,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 99
+    },
+    {
+      "x": 9909,
+      "y": 2359,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 111
+    },
+    {
+      "x": 2298,
+      "y": 2385,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 95
+    },
+    {
+      "x": 7020,
+      "y": 2395,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 70
+    },
+    {
+      "x": 9038,
+      "y": 2407,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 61
+    },
+    {
+      "x": 9375,
+      "y": 2416,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 61
+    },
+    {
+      "x": 6500,
+      "y": 2458,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 12
+    },
+    {
+      "x": 217,
+      "y": 2509,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 78
+    },
+    {
+      "x": 3641,
+      "y": 2512,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 86
+    },
+    {
+      "x": 5625,
+      "y": 2520,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 14
+    },
+    {
+      "x": 3713,
+      "y": 2537,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "ORZ_DEFINED",
+      "name_prefix": 3,
+      "name_postfix": 86
+    },
+    {
+      "x": 3587,
+      "y": 2566,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "ANDROSYNTH_DEFINED",
+      "name_prefix": 7,
+      "name_postfix": 86
+    },
+    {
+      "x": 9291,
+      "y": 2583,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 61
+    },
+    {
+      "x": 3654,
+      "y": 2587,
+      "size": "SUPER_GIANT_STAR",
+      "color": "GREEN_BODY",
+      "special": "MELNORME3_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 86
+    },
+    {
+      "x": 3721,
+      "y": 2619,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "TAALO_PROTECTOR_DEFINED",
+      "name_prefix": 4,
+      "name_postfix": 86
+    },
+    {
+      "x": 5791,
+      "y": 2625,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 14
+    },
+    {
+      "x": 6416,
+      "y": 2625,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 12
+    },
+    {
+      "x": 6008,
+      "y": 2631,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "EGG_CASE0_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 14
+    },
+    {
+      "x": 3608,
+      "y": 2637,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 86
+    },
+    {
+      "x": 3499,
+      "y": 2648,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 87
+    },
+    {
+      "x": 9479,
+      "y": 2666,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 61
+    },
+    {
+      "x": 3668,
+      "y": 2666,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 86
+    },
+    {
+      "x": 229,
+      "y": 2666,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 78
+    },
+    {
+      "x": 8895,
+      "y": 2687,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 61
+    },
+    {
+      "x": 138,
+      "y": 2696,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 78
+    },
+    {
+      "x": 5375,
+      "y": 2729,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 116
+    },
+    {
+      "x": 6354,
+      "y": 2729,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": "EGG_CASE2_DEFINED",
+      "name_prefix": 3,
+      "name_postfix": 12
+    },
+    {
+      "x": 6458,
+      "y": 2750,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 12
+    },
+    {
+      "x": 2458,
+      "y": 2750,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 106
+    },
+    {
+      "x": 351,
+      "y": 2758,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 78
+    },
+    {
+      "x": 7083,
+      "y": 2770,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 70
+    },
+    {
+      "x": 3759,
+      "y": 2778,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 87
+    },
+    {
+      "x": 9333,
+      "y": 2791,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 61
+    },
+    {
+      "x": 3400,
+      "y": 2804,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 87
+    },
+    {
+      "x": 9469,
+      "y": 2806,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "DRUUGE_DEFINED",
+      "name_prefix": 6,
+      "name_postfix": 61
+    },
+    {
+      "x": 3619,
+      "y": 2830,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 87
+    },
+    {
+      "x": 2208,
+      "y": 2854,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 106
+    },
+    {
+      "x": 9250,
+      "y": 2854,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 61
+    },
+    {
+      "x": 672,
+      "y": 2863,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 78
+    },
+    {
+      "x": 167,
+      "y": 2875,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 78
+    },
+    {
+      "x": 4030,
+      "y": 2887,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 105
+    },
+    {
+      "x": 384,
+      "y": 2900,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 78
+    },
+    {
+      "x": 2727,
+      "y": 2951,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 106
+    },
+    {
+      "x": 4645,
+      "y": 2958,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 105
+    },
+    {
+      "x": 5625,
+      "y": 2958,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 13
+    },
+    {
+      "x": 8270,
+      "y": 2958,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 66
+    },
+    {
+      "x": 8291,
+      "y": 2979,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 66
+    },
+    {
+      "x": 6020,
+      "y": 2979,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 3,
+      "name_postfix": 13
+    },
+    {
+      "x": 6562,
+      "y": 3020,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 70
+    },
+    {
+      "x": 2011,
+      "y": 3043,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 106
+    },
+    {
+      "x": 8125,
+      "y": 3083,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 66
+    },
+    {
+      "x": 2354,
+      "y": 3166,
+      "size": "GIANT_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 106
+    },
+    {
+      "x": 3833,
+      "y": 3187,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 105
+    },
+    {
+      "x": 5812,
+      "y": 3208,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 13
+    },
+    {
+      "x": 9000,
+      "y": 3250,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 113
+    },
+    {
+      "x": 291,
+      "y": 3250,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 84
+    },
+    {
+      "x": 501,
+      "y": 3259,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 84
+    },
+    {
+      "x": 791,
+      "y": 3270,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 84
+    },
+    {
+      "x": 2354,
+      "y": 3291,
+      "size": "SUPER_GIANT_STAR",
+      "color": "RED_BODY",
+      "special": "MELNORME4_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 106
+    },
+    {
+      "x": 1104,
+      "y": 3333,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 84
+    },
+    {
+      "x": 2687,
+      "y": 3333,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 106
+    },
+    {
+      "x": 3187,
+      "y": 3375,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 107
+    },
+    {
+      "x": 1758,
+      "y": 3418,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 108
+    },
+    {
+      "x": 2520,
+      "y": 3437,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 106
+    },
+    {
+      "x": 8437,
+      "y": 3458,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 64
+    },
+    {
+      "x": 8770,
+      "y": 3458,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 64
+    },
+    {
+      "x": 3000,
+      "y": 3500,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 107
+    },
+    {
+      "x": 149,
+      "y": 3519,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 76
+    },
+    {
+      "x": 8791,
+      "y": 3541,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 64
+    },
+    {
+      "x": 2148,
+      "y": 3551,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 109
+    },
+    {
+      "x": 7375,
+      "y": 3562,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 115
+    },
+    {
+      "x": 9312,
+      "y": 3562,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 63
+    },
+    {
+      "x": 9599,
+      "y": 3583,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 63
+    },
+    {
+      "x": 9375,
+      "y": 3604,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 63
+    },
+    {
+      "x": 90,
+      "y": 3614,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 76
+    },
+    {
+      "x": 2770,
+      "y": 3625,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 107
+    },
+    {
+      "x": 8708,
+      "y": 3625,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 64
+    },
+    {
+      "x": 267,
+      "y": 3645,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 76
+    },
+    {
+      "x": 1604,
+      "y": 3645,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 108
+    },
+    {
+      "x": 2274,
+      "y": 3663,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 109
+    },
+    {
+      "x": 229,
+      "y": 3666,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "ILWRATH_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 76
+    },
+    {
+      "x": 3083,
+      "y": 3674,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 107
+    },
+    {
+      "x": 2416,
+      "y": 3687,
+      "size": "GIANT_STAR",
+      "color": "ORANGE_BODY",
+      "special": "SPATHI_DEFINED",
+      "name_prefix": 5,
+      "name_postfix": 109
+    },
+    {
+      "x": 9333,
+      "y": 3708,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 63
+    },
+    {
+      "x": 2250,
+      "y": 3708,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 109
+    },
+    {
+      "x": 288,
+      "y": 3735,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 76
+    },
+    {
+      "x": 2354,
+      "y": 3741,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 109
+    },
+    {
+      "x": 2583,
+      "y": 3750,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 109
+    },
+    {
+      "x": 4125,
+      "y": 3770,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": "SYREEN_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 114
+    },
+    {
+      "x": 166,
+      "y": 3770,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 76
+    },
+    {
+      "x": 6270,
+      "y": 3833,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 10
+    },
+    {
+      "x": 2145,
+      "y": 3916,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 110
+    },
+    {
+      "x": 6125,
+      "y": 3937,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 10
+    },
+    {
+      "x": 6291,
+      "y": 3937,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 9,
+      "name_postfix": 10
+    },
+    {
+      "x": 5937,
+      "y": 3937,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "SHIP_VAULT_DEFINED",
+      "name_prefix": 5,
+      "name_postfix": 10
+    },
+    {
+      "x": 2479,
+      "y": 3958,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 109
+    },
+    {
+      "x": 926,
+      "y": 3972,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 83
+    },
+    {
+      "x": 2062,
+      "y": 3991,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 110
+    },
+    {
+      "x": 5895,
+      "y": 4020,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 10
+    },
+    {
+      "x": 285,
+      "y": 4020,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 77
+    },
+    {
+      "x": 6062,
+      "y": 4041,
+      "size": "GIANT_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 10
+    },
+    {
+      "x": 2875,
+      "y": 4041,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 20
+    },
+    {
+      "x": 8645,
+      "y": 4062,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 65
+    },
+    {
+      "x": 860,
+      "y": 4065,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 83
+    },
+    {
+      "x": 5958,
+      "y": 4083,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 10
+    },
+    {
+      "x": 3038,
+      "y": 4083,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 20
+    },
+    {
+      "x": 291,
+      "y": 4104,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 77
+    },
+    {
+      "x": 6166,
+      "y": 4125,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 10
+    },
+    {
+      "x": 9812,
+      "y": 4145,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 62
+    },
+    {
+      "x": 8520,
+      "y": 4166,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 65
+    },
+    {
+      "x": 9573,
+      "y": 4182,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 62
+    },
+    {
+      "x": 500,
+      "y": 4187,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 77
+    },
+    {
+      "x": 2145,
+      "y": 4208,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 110
+    },
+    {
+      "x": 6208,
+      "y": 4229,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 10
+    },
+    {
+      "x": 2812,
+      "y": 4250,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 20
+    },
+    {
+      "x": 2937,
+      "y": 4306,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 20
+    },
+    {
+      "x": 9416,
+      "y": 4395,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 62
+    },
+    {
+      "x": 2875,
+      "y": 4479,
+      "size": "GIANT_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 20
+    },
+    {
+      "x": 250,
+      "y": 4583,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 26
+    },
+    {
+      "x": 7250,
+      "y": 4583,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 68
+    },
+    {
+      "x": 479,
+      "y": 4583,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 26
+    },
+    {
+      "x": 5708,
+      "y": 4604,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 104
+    },
+    {
+      "x": 479,
+      "y": 4645,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 26
+    },
+    {
+      "x": 2895,
+      "y": 4687,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 20
+    },
+    {
+      "x": 2708,
+      "y": 4708,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 20
+    },
+    {
+      "x": 562,
+      "y": 4708,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 26
+    },
+    {
+      "x": 416,
+      "y": 4717,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 26
+    },
+    {
+      "x": 5094,
+      "y": 4931,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 11
+    },
+    {
+      "x": 9000,
+      "y": 5000,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 67
+    },
+    {
+      "x": 8958,
+      "y": 5000,
+      "size": "GIANT_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 67
+    },
+    {
+      "x": 5006,
+      "y": 5011,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 11
+    },
+    {
+      "x": 7312,
+      "y": 5062,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 68
+    },
+    {
+      "x": 3679,
+      "y": 5068,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 17
+    },
+    {
+      "x": 9062,
+      "y": 5083,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 67
+    },
+    {
+      "x": 7416,
+      "y": 5083,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 3,
+      "name_postfix": 68
+    },
+    {
+      "x": 5155,
+      "y": 5122,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 11
+    },
+    {
+      "x": 3875,
+      "y": 5145,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 17
+    },
+    {
+      "x": 4937,
+      "y": 5145,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 11
+    },
+    {
+      "x": 2979,
+      "y": 5166,
+      "size": "GIANT_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 15
+    },
+    {
+      "x": 3035,
+      "y": 5178,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 15
+    },
+    {
+      "x": 3994,
+      "y": 5185,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 17
+    },
+    {
+      "x": 3541,
+      "y": 5187,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 17
+    },
+    {
+      "x": 5977,
+      "y": 5246,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 102
+    },
+    {
+      "x": 3770,
+      "y": 5250,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 17
+    },
+    {
+      "x": 1520,
+      "y": 5261,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 55
+    },
+    {
+      "x": 1613,
+      "y": 5279,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 55
+    },
+    {
+      "x": 7020,
+      "y": 5291,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 68
+    },
+    {
+      "x": 1416,
+      "y": 5315,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 55
+    },
+    {
+      "x": 2993,
+      "y": 5318,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 15
+    },
+    {
+      "x": 1425,
+      "y": 5404,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 55
+    },
+    {
+      "x": 1854,
+      "y": 5416,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 55
+    },
+    {
+      "x": 3625,
+      "y": 5437,
+      "size": "GIANT_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 16
+    },
+    {
+      "x": 3416,
+      "y": 5437,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 16
+    },
+    {
+      "x": 4000,
+      "y": 5437,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "ZOQFOT_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 18
+    },
+    {
+      "x": 6270,
+      "y": 5479,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 102
+    },
+    {
+      "x": 3583,
+      "y": 5479,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 16
+    },
+    {
+      "x": 4083,
+      "y": 5513,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 18
+    },
+    {
+      "x": 2159,
+      "y": 5614,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 55
+    },
+    {
+      "x": 3937,
+      "y": 5625,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 18
+    },
+    {
+      "x": 6014,
+      "y": 5632,
+      "size": "GIANT_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 21
+    },
+    {
+      "x": 250,
+      "y": 5687,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 25
+    },
+    {
+      "x": 3625,
+      "y": 5750,
+      "size": "GIANT_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 19
+    },
+    {
+      "x": 371,
+      "y": 5772,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 25
+    },
+    {
+      "x": 6107,
+      "y": 5785,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 21
+    },
+    {
+      "x": 9645,
+      "y": 5791,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "BURVIXESE_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 130
+    },
+    {
+      "x": 1545,
+      "y": 5818,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 54
+    },
+    {
+      "x": 3750,
+      "y": 5833,
+      "size": "GIANT_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 19
+    },
+    {
+      "x": 6301,
+      "y": 5875,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 21
+    },
+    {
+      "x": 1923,
+      "y": 5878,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 54
+    },
+    {
+      "x": 4625,
+      "y": 5895,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 131
+    },
+    {
+      "x": 152,
+      "y": 5900,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 25
+    },
+    {
+      "x": 5437,
+      "y": 5916,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 33
+    },
+    {
+      "x": 1714,
+      "y": 5926,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 54
+    },
+    {
+      "x": 6200,
+      "y": 5935,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "SAMATRA_DEFINED",
+      "name_prefix": 4,
+      "name_postfix": 21
+    },
+    {
+      "x": 6429,
+      "y": 5958,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 21
+    },
+    {
+      "x": 4729,
+      "y": 5958,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 131
+    },
+    {
+      "x": 1978,
+      "y": 5968,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "TALKING_PET_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 54
+    },
+    {
+      "x": 395,
+      "y": 5979,
+      "size": "GIANT_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 22
+    },
+    {
+      "x": 563,
+      "y": 5980,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 22
+    },
+    {
+      "x": 456,
+      "y": 5989,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 22
+    },
+    {
+      "x": 4625,
+      "y": 6000,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 131
+    },
+    {
+      "x": 6166,
+      "y": 6000,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 21
+    },
+    {
+      "x": 6496,
+      "y": 6032,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 21
+    },
+    {
+      "x": 2228,
+      "y": 6038,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 12,
+      "name_postfix": 54
+    },
+    {
+      "x": 4583,
+      "y": 6041,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 131
+    },
+    {
+      "x": 1558,
+      "y": 6058,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 54
+    },
+    {
+      "x": 1902,
+      "y": 6065,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 54
+    },
+    {
+      "x": 2159,
+      "y": 6073,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 11,
+      "name_postfix": 54
+    },
+    {
+      "x": 365,
+      "y": 6093,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 22
+    },
+    {
+      "x": 541,
+      "y": 6145,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 22
+    },
+    {
+      "x": 2200,
+      "y": 6176,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 10,
+      "name_postfix": 54
+    },
+    {
+      "x": 729,
+      "y": 6208,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 23
+    },
+    {
+      "x": 5250,
+      "y": 6229,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 33
+    },
+    {
+      "x": 8166,
+      "y": 6250,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 40
+    },
+    {
+      "x": 6215,
+      "y": 6255,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 21
+    },
+    {
+      "x": 437,
+      "y": 6270,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 22
+    },
+    {
+      "x": 5583,
+      "y": 6291,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 33
+    },
+    {
+      "x": 1881,
+      "y": 6308,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 54
+    },
+    {
+      "x": 1795,
+      "y": 6329,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 54
+    },
+    {
+      "x": 2118,
+      "y": 6379,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 9,
+      "name_postfix": 54
+    },
+    {
+      "x": 750,
+      "y": 6458,
+      "size": "GIANT_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 23
+    },
+    {
+      "x": 3716,
+      "y": 6458,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 30
+    },
+    {
+      "x": 1360,
+      "y": 6489,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 56
+    },
+    {
+      "x": 7333,
+      "y": 6500,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 40
+    },
+    {
+      "x": 3770,
+      "y": 6500,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 30
+    },
+    {
+      "x": 4500,
+      "y": 6500,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 37
+    },
+    {
+      "x": 187,
+      "y": 6520,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 24
+    },
+    {
+      "x": 125,
+      "y": 6541,
+      "size": "GIANT_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 24
+    },
+    {
+      "x": 7812,
+      "y": 6562,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 40
+    },
+    {
+      "x": 770,
+      "y": 6602,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 23
+    },
+    {
+      "x": 5910,
+      "y": 6624,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 29
+    },
+    {
+      "x": 208,
+      "y": 6625,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 24
+    },
+    {
+      "x": 2604,
+      "y": 6645,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 101
+    },
+    {
+      "x": 1578,
+      "y": 6668,
+      "size": "SUPER_GIANT_STAR",
+      "color": "GREEN_BODY",
+      "special": "MELNORME5_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 56
+    },
+    {
+      "x": 5479,
+      "y": 6687,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 33
+    },
+    {
+      "x": 375,
+      "y": 6716,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 24
+    },
+    {
+      "x": 312,
+      "y": 6728,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 24
+    },
+    {
+      "x": 6020,
+      "y": 6729,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 29
+    },
+    {
+      "x": 5062,
+      "y": 6750,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 10,
+      "name_postfix": 28
+    },
+    {
+      "x": 4208,
+      "y": 6854,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 31
+    },
+    {
+      "x": 5145,
+      "y": 6875,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 9,
+      "name_postfix": 28
+    },
+    {
+      "x": 4291,
+      "y": 6937,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 31
+    },
+    {
+      "x": 5145,
+      "y": 6958,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 28
+    },
+    {
+      "x": 7208,
+      "y": 7000,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 39
+    },
+    {
+      "x": 8625,
+      "y": 7000,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 41
+    },
+    {
+      "x": 4955,
+      "y": 7034,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 28
+    },
+    {
+      "x": 4895,
+      "y": 7041,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 28
+    },
+    {
+      "x": 4971,
+      "y": 7104,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 28
+    },
+    {
+      "x": 8666,
+      "y": 7104,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 41
+    },
+    {
+      "x": 4854,
+      "y": 7125,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 28
+    },
+    {
+      "x": 5083,
+      "y": 7145,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 28
+    },
+    {
+      "x": 7360,
+      "y": 7184,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 39
+    },
+    {
+      "x": 1020,
+      "y": 7187,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 58
+    },
+    {
+      "x": 3875,
+      "y": 7187,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 32
+    },
+    {
+      "x": 4879,
+      "y": 7201,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 28
+    },
+    {
+      "x": 4958,
+      "y": 7229,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 28
+    },
+    {
+      "x": 7125,
+      "y": 7250,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 39
+    },
+    {
+      "x": 7532,
+      "y": 7258,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 39
+    },
+    {
+      "x": 2416,
+      "y": 7291,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 101
+    },
+    {
+      "x": 3854,
+      "y": 7291,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 32
+    },
+    {
+      "x": 9687,
+      "y": 7333,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 44
+    },
+    {
+      "x": 395,
+      "y": 7458,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 60
+    },
+    {
+      "x": 4895,
+      "y": 7458,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 36
+    },
+    {
+      "x": 4645,
+      "y": 7479,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 36
+    },
+    {
+      "x": 6940,
+      "y": 7514,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 11,
+      "name_postfix": 39
+    },
+    {
+      "x": 7443,
+      "y": 7538,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 39
+    },
+    {
+      "x": 6479,
+      "y": 7541,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 38
+    },
+    {
+      "x": 7208,
+      "y": 7541,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 39
+    },
+    {
+      "x": 5791,
+      "y": 7583,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 34
+    },
+    {
+      "x": 333,
+      "y": 7625,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 60
+    },
+    {
+      "x": 5958,
+      "y": 7645,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 34
+    },
+    {
+      "x": 1041,
+      "y": 7708,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 58
+    },
+    {
+      "x": 5875,
+      "y": 7729,
+      "size": "SUPER_GIANT_STAR",
+      "color": "YELLOW_BODY",
+      "special": "MELNORME6_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 34
+    },
+    {
+      "x": 1125,
+      "y": 7791,
+      "size": "GIANT_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 58
+    },
+    {
+      "x": 4979,
+      "y": 7791,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 36
+    },
+    {
+      "x": 4958,
+      "y": 7791,
+      "size": "GIANT_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 36
+    },
+    {
+      "x": 6889,
+      "y": 7803,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 10,
+      "name_postfix": 39
+    },
+    {
+      "x": 7200,
+      "y": 7849,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 39
+    },
+    {
+      "x": 7395,
+      "y": 7854,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 39
+    },
+    {
+      "x": 9437,
+      "y": 7854,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 44
+    },
+    {
+      "x": 2836,
+      "y": 7857,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 5,
+      "name_postfix": 53
+    },
+    {
+      "x": 5375,
+      "y": 7875,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 35
+    },
+    {
+      "x": 6187,
+      "y": 7875,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 35
+    },
+    {
+      "x": 6041,
+      "y": 7916,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 35
+    },
+    {
+      "x": 5979,
+      "y": 7979,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 35
+    },
+    {
+      "x": 7083,
+      "y": 7993,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 9,
+      "name_postfix": 39
+    },
+    {
+      "x": 3270,
+      "y": 8000,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 53
+    },
+    {
+      "x": 6104,
+      "y": 8000,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 35
+    },
+    {
+      "x": 687,
+      "y": 8000,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 59
+    },
+    {
+      "x": 562,
+      "y": 8000,
+      "size": "GIANT_STAR",
+      "color": "GREEN_BODY",
+      "special": "URQUAN_WRECK_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 59
+    },
+    {
+      "x": 5645,
+      "y": 8020,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 35
+    },
+    {
+      "x": 1395,
+      "y": 8041,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 58
+    },
+    {
+      "x": 8229,
+      "y": 8041,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 43
+    },
+    {
+      "x": 2518,
+      "y": 8056,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 53
+    },
+    {
+      "x": 5875,
+      "y": 8062,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 35
+    },
+    {
+      "x": 8416,
+      "y": 8083,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 43
+    },
+    {
+      "x": 9000,
+      "y": 8229,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 44
+    },
+    {
+      "x": 3562,
+      "y": 8250,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 9,
+      "name_postfix": 53
+    },
+    {
+      "x": 5437,
+      "y": 8270,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 5,
+      "name_postfix": 48
+    },
+    {
+      "x": 1520,
+      "y": 8333,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 58
+    },
+    {
+      "x": 2771,
+      "y": 8351,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 53
+    },
+    {
+      "x": 2535,
+      "y": 8358,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "THRADD_DEFINED",
+      "name_prefix": 4,
+      "name_postfix": 53
+    },
+    {
+      "x": 3151,
+      "y": 8390,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 53
+    },
+    {
+      "x": 2362,
+      "y": 8395,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 11,
+      "name_postfix": 53
+    },
+    {
+      "x": 2822,
+      "y": 8395,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 53
+    },
+    {
+      "x": 5500,
+      "y": 8395,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 48
+    },
+    {
+      "x": 2536,
+      "y": 8504,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 2
+    },
+    {
+      "x": 2582,
+      "y": 8507,
+      "size": "SUPER_GIANT_STAR",
+      "color": "YELLOW_BODY",
+      "special": "MELNORME7_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 2
+    },
+    {
+      "x": 8625,
+      "y": 8562,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 3
+    },
+    {
+      "x": 4375,
+      "y": 8562,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 50
+    },
+    {
+      "x": 2593,
+      "y": 8569,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 2
+    },
+    {
+      "x": 2562,
+      "y": 8572,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 2
+    },
+    {
+      "x": 8492,
+      "y": 8578,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 3
+    },
+    {
+      "x": 1125,
+      "y": 8583,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 58
+    },
+    {
+      "x": 8073,
+      "y": 8588,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 46
+    },
+    {
+      "x": 8560,
+      "y": 8638,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 3
+    },
+    {
+      "x": 8750,
+      "y": 8645,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 3
+    },
+    {
+      "x": 5562,
+      "y": 8645,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 48
+    },
+    {
+      "x": 2588,
+      "y": 8653,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 14,
+      "name_postfix": 53
+    },
+    {
+      "x": 2458,
+      "y": 8666,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 10,
+      "name_postfix": 53
+    },
+    {
+      "x": 7666,
+      "y": 8666,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 46
+    },
+    {
+      "x": 2776,
+      "y": 8673,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "AQUA_HELIX_DEFINED",
+      "name_prefix": 6,
+      "name_postfix": 53
+    },
+    {
+      "x": 8630,
+      "y": 8693,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "UTWIG_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 3
+    },
+    {
+      "x": 2310,
+      "y": 8702,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 12,
+      "name_postfix": 53
+    },
+    {
+      "x": 437,
+      "y": 8770,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 57
+    },
+    {
+      "x": 8534,
+      "y": 8797,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 3,
+      "name_postfix": 3
+    },
+    {
+      "x": 8588,
+      "y": 8812,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 3
+    },
+    {
+      "x": 7187,
+      "y": 8812,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 46
+    },
+    {
+      "x": 5475,
+      "y": 8823,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 48
+    },
+    {
+      "x": 3050,
+      "y": 8833,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 1
+    },
+    {
+      "x": 2831,
+      "y": 8854,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 1
+    },
+    {
+      "x": 2300,
+      "y": 8861,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 13,
+      "name_postfix": 53
+    },
+    {
+      "x": 479,
+      "y": 8875,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 57
+    },
+    {
+      "x": 2706,
+      "y": 8910,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 1
+    },
+    {
+      "x": 333,
+      "y": 8916,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 57
+    },
+    {
+      "x": 2535,
+      "y": 8917,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 1
+    },
+    {
+      "x": 8322,
+      "y": 8934,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 45
+    },
+    {
+      "x": 8249,
+      "y": 8958,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 45
+    },
+    {
+      "x": 8375,
+      "y": 8958,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 45
+    },
+    {
+      "x": 5645,
+      "y": 8979,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 48
+    },
+    {
+      "x": 2687,
+      "y": 9000,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 1
+    },
+    {
+      "x": 8375,
+      "y": 9041,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 45
+    },
+    {
+      "x": 9960,
+      "y": 9042,
+      "size": "GIANT_STAR",
+      "color": "WHITE_BODY",
+      "special": "RAINBOW_DEFINED",
+      "name_prefix": 0,
+      "name_postfix": 42
+    },
+    {
+      "x": 7354,
+      "y": 9062,
+      "size": "DWARF_STAR",
+      "color": "BLUE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 47
+    },
+    {
+      "x": 7833,
+      "y": 9083,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 47
+    },
+    {
+      "x": 2581,
+      "y": 9105,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 1
+    },
+    {
+      "x": 7545,
+      "y": 9107,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 47
+    },
+    {
+      "x": 7414,
+      "y": 9124,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "SUPOX_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 47
+    },
+    {
+      "x": 8500,
+      "y": 9125,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 45
+    },
+    {
+      "x": 104,
+      "y": 9125,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 27
+    },
+    {
+      "x": 7889,
+      "y": 9181,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 47
+    },
+    {
+      "x": 7791,
+      "y": 9187,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 47
+    },
+    {
+      "x": 7791,
+      "y": 9229,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 47
+    },
+    {
+      "x": 4812,
+      "y": 9270,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 51
+    },
+    {
+      "x": 8500,
+      "y": 9372,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "BOMB_DEFINED",
+      "name_prefix": 6,
+      "name_postfix": 45
+    },
+    {
+      "x": 7255,
+      "y": 9374,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 11,
+      "name_postfix": 45
+    },
+    {
+      "x": 8458,
+      "y": 9393,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 45
+    },
+    {
+      "x": 1000,
+      "y": 9395,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 27
+    },
+    {
+      "x": 5711,
+      "y": 9475,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 49
+    },
+    {
+      "x": 62,
+      "y": 9479,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 27
+    },
+    {
+      "x": 5989,
+      "y": 9496,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 49
+    },
+    {
+      "x": 8000,
+      "y": 9505,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 9,
+      "name_postfix": 45
+    },
+    {
+      "x": 5329,
+      "y": 9538,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 49
+    },
+    {
+      "x": 2916,
+      "y": 9541,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 103
+    },
+    {
+      "x": 8296,
+      "y": 9548,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 45
+    },
+    {
+      "x": 5600,
+      "y": 9552,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 49
+    },
+    {
+      "x": 7664,
+      "y": 9589,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 10,
+      "name_postfix": 45
+    },
+    {
+      "x": 6125,
+      "y": 9604,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 8,
+      "name_postfix": 49
+    },
+    {
+      "x": 9144,
+      "y": 9686,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 4,
+      "name_postfix": 4
+    },
+    {
+      "x": 5781,
+      "y": 9711,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 49
+    },
+    {
+      "x": 5229,
+      "y": 9729,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 49
+    },
+    {
+      "x": 9120,
+      "y": 9741,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 3,
+      "name_postfix": 4
+    },
+    {
+      "x": 9186,
+      "y": 9741,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 2,
+      "name_postfix": 4
+    },
+    {
+      "x": 9159,
+      "y": 9745,
+      "size": "SUPER_GIANT_STAR",
+      "color": "BLUE_BODY",
+      "special": "MELNORME8_DEFINED",
+      "name_prefix": 1,
+      "name_postfix": 4
+    },
+    {
+      "x": 333,
+      "y": 9750,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 0
+    },
+    {
+      "x": 9147,
+      "y": 9790,
+      "size": "DWARF_STAR",
+      "color": "ORANGE_BODY",
+      "special": null,
+      "name_prefix": 5,
+      "name_postfix": 4
+    },
+    {
+      "x": 5704,
+      "y": 9795,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": "VUX_BEAST_DEFINED",
+      "name_prefix": 4,
+      "name_postfix": 49
+    },
+    {
+      "x": 333,
+      "y": 9812,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": "SLYLANDRO_DEFINED",
+      "name_prefix": 2,
+      "name_postfix": 27
+    },
+    {
+      "x": 1020,
+      "y": 9937,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 7,
+      "name_postfix": 27
+    },
+    {
+      "x": 83,
+      "y": 9979,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 6,
+      "name_postfix": 27
+    },
+    {
+      "x": 1937,
+      "y": 9979,
+      "size": "DWARF_STAR",
+      "color": "RED_BODY",
+      "special": null,
+      "name_prefix": 1,
+      "name_postfix": 103
+    },
+    {
+      "x": 4395,
+      "y": 9979,
+      "size": "DWARF_STAR",
+      "color": "GREEN_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 52
+    }
+  ],
+  "quasispace": [
+    {
+      "x": 4760,
+      "y": 4580,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 5020,
+      "y": 4600,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 4680,
+      "y": 4640,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 5160,
+      "y": 4660,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 5060,
+      "y": 4740,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 4580,
+      "y": 4920,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 4920,
+      "y": 4920,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 4760,
+      "y": 4960,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 4480,
+      "y": 5040,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 4660,
+      "y": 5140,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 5200,
+      "y": 5140,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 5300,
+      "y": 5280,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 5440,
+      "y": 5320,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 4880,
+      "y": 5380,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 5200,
+      "y": 5400,
+      "size": "DWARF_STAR",
+      "color": "WHITE_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    },
+    {
+      "x": 6134,
+      "y": 5900,
+      "size": "DWARF_STAR",
+      "color": "YELLOW_BODY",
+      "special": null,
+      "name_prefix": 0,
+      "name_postfix": 132
+    }
+  ]
+}

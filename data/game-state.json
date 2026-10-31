@@ -1,0 +1,2731 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/globdata.h"
+    ]
+  },
+  "_notes": [
+    "Every story flag and counter in UQM, packed as bit fields (GET_GAME_STATE / SET_GAME_STATE). In Attack on Crateris they are world state, read and written by name.",
+    "group is the section heading above the entry in globdata.h (e.g. 'Spathi states'); comment is the source comment for the entry, where there is one."
+  ],
+  "total_bits": 1238,
+  "states": [
+    {
+      "name": "SHOFIXTI_VISITS",
+      "bits": 3,
+      "group": "Shofixti states",
+      "start_bit": 0
+    },
+    {
+      "name": "SHOFIXTI_STACK1",
+      "bits": 2,
+      "group": "Shofixti states",
+      "start_bit": 3
+    },
+    {
+      "name": "SHOFIXTI_STACK2",
+      "bits": 3,
+      "group": "Shofixti states",
+      "start_bit": 5
+    },
+    {
+      "name": "SHOFIXTI_STACK3",
+      "bits": 2,
+      "group": "Shofixti states",
+      "start_bit": 8
+    },
+    {
+      "name": "SHOFIXTI_KIA",
+      "bits": 1,
+      "group": "Shofixti states",
+      "start_bit": 10
+    },
+    {
+      "name": "SHOFIXTI_BRO_KIA",
+      "bits": 1,
+      "group": "Shofixti states",
+      "start_bit": 11
+    },
+    {
+      "name": "SHOFIXTI_RECRUITED",
+      "bits": 1,
+      "group": "Shofixti states",
+      "start_bit": 12
+    },
+    {
+      "name": "SHOFIXTI_MAIDENS",
+      "bits": 1,
+      "group": "Shofixti states",
+      "start_bit": 13,
+      "comment": "Did you find the babes yet?"
+    },
+    {
+      "name": "MAIDENS_ON_SHIP",
+      "bits": 1,
+      "group": "Shofixti states",
+      "start_bit": 14
+    },
+    {
+      "name": "BATTLE_SEGUE",
+      "bits": 1,
+      "group": "Shofixti states",
+      "start_bit": 15,
+      "comment": "Set to 0 in init_xxx_comm() if communications directly follows an encounter. Set to 1 in init_xxx_comm() if the player gets to decide whether to attack or talk. Set to 1 in communication when battle follows the communication. It is still valid when uninit_xxx_comm() gets called after combat or communication."
+    },
+    {
+      "name": "PLANETARY_LANDING",
+      "bits": 1,
+      "group": "Shofixti states",
+      "start_bit": 16
+    },
+    {
+      "name": "PLANETARY_CHANGE",
+      "bits": 1,
+      "group": "Shofixti states",
+      "start_bit": 17,
+      "comment": "Flag set to 1 when the planet information for the current world is changed since it was last saved to the starinfo.dat file. Set when picking up bio, mineral, or energy nodes. When there's no current world, it should be 0."
+    },
+    {
+      "name": "SPATHI_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 18
+    },
+    {
+      "name": "SPATHI_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 21
+    },
+    {
+      "name": "FOUND_PLUTO_SPATHI",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 24,
+      "comment": "0 - Haven't met Fwiffo. 1 - Met Fwiffo on Pluto, now talking to him. 2 - Met Fwiffo on Pluto, after dialog. 3 - Met Fwiffo, and have reported to the Safe Ones on the Spathi moon that he was either killed, or that you have him on board."
+    },
+    {
+      "name": "SPATHI_SHIELDED_SELVES",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 26
+    },
+    {
+      "name": "SPATHI_CREATURES_EXAMINED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 27
+    },
+    {
+      "name": "SPATHI_CREATURES_ELIMINATED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 28
+    },
+    {
+      "name": "UMGAH_BROADCASTERS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 29
+    },
+    {
+      "name": "SPATHI_MANNER",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 30
+    },
+    {
+      "name": "SPATHI_QUEST",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 32
+    },
+    {
+      "name": "LIED_ABOUT_CREATURES",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 33
+    },
+    {
+      "name": "SPATHI_PARTY",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 35
+    },
+    {
+      "name": "KNOW_SPATHI_PASSWORD",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 36
+    },
+    {
+      "name": "ILWRATH_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 37
+    },
+    {
+      "name": "ILWRATH_CHMMR_VISITS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 40
+    },
+    {
+      "name": "ARILOU_SPACE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 41,
+      "comment": "0 if the periodically opening QuasiSpace portal is closed or closing. 1 if the periodically opening QuasiSpace portal is open or opening."
+    },
+    {
+      "name": "ARILOU_SPACE_SIDE",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 42,
+      "comment": "0 if in HyperSpace and not just emerged from the periodically opening QuasiSpace portal. 1 if in HyperSpace and just emerged from the periodically QuasiSpace portal (still on the portal). 2 if in QuasiSpace and just emerged from the periodically opening portal (still on the portal). 3 if in QuasiSpace and not just emerged from the periodically opening portal."
+    },
+    {
+      "name": "ARILOU_SPACE_COUNTER",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 44,
+      "comment": "Keeps track of how far the periodically opening QuasiSpace portal is open. (This determines the image) 0 <= ARILOU_SPACE_COUNTER <= 9 0 means totally closed. 9 means completely open."
+    },
+    {
+      "name": "LANDER_SHIELDS",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 48
+    },
+    {
+      "name": "MET_MELNORME",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 52
+    },
+    {
+      "name": "MELNORME_RESCUE_REFUSED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 53
+    },
+    {
+      "name": "MELNORME_RESCUE_COUNT",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 54
+    },
+    {
+      "name": "TRADED_WITH_MELNORME",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 57
+    },
+    {
+      "name": "WHY_MELNORME_PURPLE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 58
+    },
+    {
+      "name": "MELNORME_CREDIT0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 59
+    },
+    {
+      "name": "MELNORME_CREDIT1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 67
+    },
+    {
+      "name": "MELNORME_BUSINESS_COUNT",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 75
+    },
+    {
+      "name": "MELNORME_YACK_STACK0",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 77
+    },
+    {
+      "name": "MELNORME_YACK_STACK1",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 79
+    },
+    {
+      "name": "MELNORME_YACK_STACK2",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 81
+    },
+    {
+      "name": "MELNORME_YACK_STACK3",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 85
+    },
+    {
+      "name": "MELNORME_YACK_STACK4",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 88
+    },
+    {
+      "name": "WHY_MELNORME_BLUE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 90
+    },
+    {
+      "name": "MELNORME_ANGER",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 91
+    },
+    {
+      "name": "MELNORME_MIFFED_COUNT",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 93
+    },
+    {
+      "name": "MELNORME_PISSED_COUNT",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 95
+    },
+    {
+      "name": "MELNORME_HATE_COUNT",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 97
+    },
+    {
+      "name": "PROBE_MESSAGE_DELIVERED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 99
+    },
+    {
+      "name": "PROBE_ILWRATH_ENCOUNTER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 100
+    },
+    {
+      "name": "STARBASE_AVAILABLE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 101
+    },
+    {
+      "name": "STARBASE_VISITED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 102
+    },
+    {
+      "name": "RADIOACTIVES_PROVIDED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 103
+    },
+    {
+      "name": "LANDERS_LOST",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 104
+    },
+    {
+      "name": "GIVEN_FUEL_BEFORE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 105
+    },
+    {
+      "name": "AWARE_OF_SAMATRA",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 106
+    },
+    {
+      "name": "YEHAT_CAVALRY_ARRIVED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 107
+    },
+    {
+      "name": "URQUAN_MESSED_UP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 108
+    },
+    {
+      "name": "MOONBASE_DESTROYED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 109
+    },
+    {
+      "name": "WILL_DESTROY_BASE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 110
+    },
+    {
+      "name": "ARTIFACT_2_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 111
+    },
+    {
+      "name": "ARTIFACT_3_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 112
+    },
+    {
+      "name": "KOHR_AH_KILLED_ALL",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 113
+    },
+    {
+      "name": "STARBASE_YACK_STACK1",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 114
+    },
+    {
+      "name": "DISCUSSED_PORTAL_SPAWNER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 115
+    },
+    {
+      "name": "DISCUSSED_TALKING_PET",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 116
+    },
+    {
+      "name": "DISCUSSED_UTWIG_BOMB",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 117
+    },
+    {
+      "name": "DISCUSSED_SUN_EFFICIENCY",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 118
+    },
+    {
+      "name": "DISCUSSED_ROSY_SPHERE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 119
+    },
+    {
+      "name": "DISCUSSED_AQUA_HELIX",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 120
+    },
+    {
+      "name": "DISCUSSED_CLEAR_SPINDLE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 121
+    },
+    {
+      "name": "DISCUSSED_ULTRON",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 122
+    },
+    {
+      "name": "DISCUSSED_MAIDENS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 123
+    },
+    {
+      "name": "DISCUSSED_UMGAH_HYPERWAVE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 124
+    },
+    {
+      "name": "DISCUSSED_BURVIX_HYPERWAVE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 125
+    },
+    {
+      "name": "SYREEN_WANT_PROOF",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 126
+    },
+    {
+      "name": "PLAYER_HAVING_SEX",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 127
+    },
+    {
+      "name": "MET_ARILOU",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 128
+    },
+    {
+      "name": "DISCUSSED_TAALO_PROTECTOR",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 129
+    },
+    {
+      "name": "DISCUSSED_EGG_CASING0",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 130
+    },
+    {
+      "name": "DISCUSSED_EGG_CASING1",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 131
+    },
+    {
+      "name": "DISCUSSED_EGG_CASING2",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 132
+    },
+    {
+      "name": "DISCUSSED_SYREEN_SHUTTLE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 133
+    },
+    {
+      "name": "DISCUSSED_VUX_BEAST",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 134
+    },
+    {
+      "name": "DISCUSSED_DESTRUCT_CODE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 135
+    },
+    {
+      "name": "DISCUSSED_URQUAN_WARP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 136
+    },
+    {
+      "name": "DISCUSSED_ARTIFACT_2",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 137
+    },
+    {
+      "name": "DISCUSSED_ARTIFACT_3",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 138
+    },
+    {
+      "name": "ATTACKED_DRUUGE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 139
+    },
+    {
+      "name": "NEW_ALLIANCE_NAME",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 140
+    },
+    {
+      "name": "PORTAL_COUNTER",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 142,
+      "comment": "Set to 1 when the player opens a QuasiSpace portal. It will then be increased to 10, at which time the portal is completely open. (This determines the image)."
+    },
+    {
+      "name": "BURVIXESE_BROADCASTERS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 146
+    },
+    {
+      "name": "BURV_BROADCASTERS_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 147
+    },
+    {
+      "name": "UTWIG_BOMB",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 148
+    },
+    {
+      "name": "UTWIG_BOMB_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 149
+    },
+    {
+      "name": "AQUA_HELIX",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 150
+    },
+    {
+      "name": "AQUA_HELIX_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 151
+    },
+    {
+      "name": "SUN_DEVICE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 152
+    },
+    {
+      "name": "SUN_DEVICE_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 153
+    },
+    {
+      "name": "TAALO_PROTECTOR",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 154
+    },
+    {
+      "name": "TAALO_PROTECTOR_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 155
+    },
+    {
+      "name": "SHIP_VAULT_UNLOCKED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 156
+    },
+    {
+      "name": "SYREEN_SHUTTLE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 157
+    },
+    {
+      "name": "PORTAL_KEY",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 158
+    },
+    {
+      "name": "PORTAL_KEY_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 159
+    },
+    {
+      "name": "VUX_BEAST",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 160
+    },
+    {
+      "name": "VUX_BEAST_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 161
+    },
+    {
+      "name": "TALKING_PET",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 162
+    },
+    {
+      "name": "TALKING_PET_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 163
+    },
+    {
+      "name": "MOONBASE_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 164
+    },
+    {
+      "name": "KOHR_AH_FRENZY",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 165
+    },
+    {
+      "name": "KOHR_AH_VISITS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 166
+    },
+    {
+      "name": "KOHR_AH_BYES",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 168
+    },
+    {
+      "name": "SLYLANDRO_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 169
+    },
+    {
+      "name": "DESTRUCT_CODE_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 172
+    },
+    {
+      "name": "ILWRATH_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 173
+    },
+    {
+      "name": "ILWRATH_DECEIVED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 176
+    },
+    {
+      "name": "FLAGSHIP_CLOAKED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 177
+    },
+    {
+      "name": "MYCON_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 178
+    },
+    {
+      "name": "MYCON_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 181
+    },
+    {
+      "name": "MYCON_AMBUSH",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 184
+    },
+    {
+      "name": "MYCON_FELL_FOR_AMBUSH",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 185,
+      "comment": "Set to 1 when the Mycon have been told about Organon and are moving towards it."
+    },
+    {
+      "name": "GLOBAL_FLAGS_AND_DATA",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 186,
+      "comment": "This state seems to be used to distinguish between different places where one may have an conversation with an alien. Like home world, other world, space. Why this needs 8 bits I don't know. Only specific combinations of bits seem to be used (0, 1, or all bits). A closer investigation is desirable. - SvdB Bit 4 is set when initiating communication with the Ilwrath homeworld by means of a HyperWave Broadcaster. Bit 5 is set when initiating communication with an Ilwrath ship by means of a HyperWave Broadcaster. All bits are cleared when communication is over."
+    },
+    {
+      "name": "ORZ_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 194
+    },
+    {
+      "name": "TAALO_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 197
+    },
+    {
+      "name": "ORZ_MANNER",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 200
+    },
+    {
+      "name": "PROBE_EXHIBITED_BUG",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 202
+    },
+    {
+      "name": "CLEAR_SPINDLE_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 203
+    },
+    {
+      "name": "URQUAN_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 204
+    },
+    {
+      "name": "PLAYER_HYPNOTIZED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 207
+    },
+    {
+      "name": "VUX_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 208
+    },
+    {
+      "name": "VUX_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 211
+    },
+    {
+      "name": "ZEX_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 214
+    },
+    {
+      "name": "ZEX_IS_DEAD",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 217
+    },
+    {
+      "name": "KNOW_ZEX_WANTS_MONSTER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 218
+    },
+    {
+      "name": "UTWIG_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 219
+    },
+    {
+      "name": "UTWIG_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 222
+    },
+    {
+      "name": "BOMB_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 225
+    },
+    {
+      "name": "ULTRON_CONDITION",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 228,
+      "comment": "0 if the Supox still have the Ultron 1 if the Captain has the Ultron, completely broken 2 if the Captain has the Ultron, with 1 fix 3 if the Captain has the Ultron, with 2 fixes 4 if the Captain has the Ultron, completely restored 5 if the Ultron has been returned to the Utwig"
+    },
+    {
+      "name": "UTWIG_HAVE_ULTRON",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 231
+    },
+    {
+      "name": "BOMB_UNPROTECTED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 232
+    },
+    {
+      "name": "TAALO_UNPROTECTED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 233
+    },
+    {
+      "name": "TALKING_PET_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 234
+    },
+    {
+      "name": "TALKING_PET_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 237
+    },
+    {
+      "name": "UMGAH_ZOMBIE_BLOBBIES",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 240,
+      "comment": "The Umgah have come under the influence of the Talking Pet"
+    },
+    {
+      "name": "KNOW_UMGAH_ZOMBIES",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 241,
+      "comment": "The Captain is aware that something is up with the Umgah"
+    },
+    {
+      "name": "ARILOU_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 242
+    },
+    {
+      "name": "ARILOU_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 245
+    },
+    {
+      "name": "KNOW_ARILOU_WANT_WRECK",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 248
+    },
+    {
+      "name": "ARILOU_CHECKED_UMGAH",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 249
+    },
+    {
+      "name": "PORTAL_SPAWNER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 251
+    },
+    {
+      "name": "PORTAL_SPAWNER_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 252
+    },
+    {
+      "name": "UMGAH_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 253
+    },
+    {
+      "name": "UMGAH_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 256
+    },
+    {
+      "name": "MET_NORMAL_UMGAH",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 259
+    },
+    {
+      "name": "SYREEN_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 260
+    },
+    {
+      "name": "SYREEN_SHUTTLE_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 263
+    },
+    {
+      "name": "KNOW_SYREEN_VAULT",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 264
+    },
+    {
+      "name": "EGG_CASE0_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 265
+    },
+    {
+      "name": "SUN_DEVICE_UNGUARDED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 266
+    },
+    {
+      "name": "ROSY_SPHERE_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 267,
+      "comment": "The Rosy Sphere is aboard the flagship, i.e. It has been acquired from the Druuge, but not yet inserted in the broken Ultron. cf. ROSY_SPHERE"
+    },
+    {
+      "name": "CHMMR_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 268
+    },
+    {
+      "name": "CHMMR_EMERGING",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 271
+    },
+    {
+      "name": "CHMMR_UNLEASHED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 272
+    },
+    {
+      "name": "CHMMR_BOMB_STATE",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 273,
+      "comment": "0 - Nothing is known about the Precursor Bomb. 1 - The captain knows from the Chmmr that some extremely powerful weapon is needed to destroy the Sa-Matra. 2 - Installation of the precursor bomb has started. 3 - Left the starbase after installation of the Precursor bomb."
+    },
+    {
+      "name": "DRUUGE_DISCLAIMER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 275
+    },
+    {
+      "name": "YEHAT_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 276
+    },
+    {
+      "name": "YEHAT_REBEL_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 279
+    },
+    {
+      "name": "YEHAT_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 282
+    },
+    {
+      "name": "YEHAT_CIVIL_WAR",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 285
+    },
+    {
+      "name": "YEHAT_ABSORBED_PKUNK",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 286
+    },
+    {
+      "name": "YEHAT_SHIP_MONTH",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 287
+    },
+    {
+      "name": "YEHAT_SHIP_DAY",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 291
+    },
+    {
+      "name": "YEHAT_SHIP_YEAR",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 296
+    },
+    {
+      "name": "CLEAR_SPINDLE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 301
+    },
+    {
+      "name": "PKUNK_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 302
+    },
+    {
+      "name": "PKUNK_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 305
+    },
+    {
+      "name": "PKUNK_SHIP_MONTH",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 308,
+      "comment": "The month in PKUNK_SHIP_YEAR that new ships are available from the Pkunk."
+    },
+    {
+      "name": "PKUNK_SHIP_DAY",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 312,
+      "comment": "The day of the month in PKUNK_SHIP_MONTH in PKUNK_SHIP_YEAR that new ships are available."
+    },
+    {
+      "name": "PKUNK_SHIP_YEAR",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 317,
+      "comment": "The year that new ships are available from the Pkunk (stored as an offset from the year the game starts)."
+    },
+    {
+      "name": "PKUNK_MISSION",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 322
+    },
+    {
+      "name": "SUPOX_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 325
+    },
+    {
+      "name": "SUPOX_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 328
+    },
+    {
+      "name": "THRADD_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 331
+    },
+    {
+      "name": "THRADD_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 334
+    },
+    {
+      "name": "HELIX_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 337
+    },
+    {
+      "name": "HELIX_UNPROTECTED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 340
+    },
+    {
+      "name": "THRADD_CULTURE",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 341
+    },
+    {
+      "name": "THRADD_MISSION",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 343,
+      "comment": "0 if the Thraddash fleet hasn't left the Thraddash home world. 1 if the Thraddash are heading towards Kohr-Ah territory. 2 if the Thraddash are fighting the Kohr-Ah. 3 if the Thraddash are returning from Kohr-Ah territory. 4 if the Thraddash fleet is back at the Thraddash home world."
+    },
+    {
+      "name": "DRUUGE_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 346
+    },
+    {
+      "name": "DRUUGE_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 349
+    },
+    {
+      "name": "ROSY_SPHERE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 352,
+      "comment": "The play has or has had the Rosy Sphere. cf. ROSY_SHERE_ON_SHIP"
+    },
+    {
+      "name": "SCANNED_MAIDENS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 353
+    },
+    {
+      "name": "SCANNED_FRAGMENTS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 354
+    },
+    {
+      "name": "SCANNED_CASTER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 355
+    },
+    {
+      "name": "SCANNED_SPAWNER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 356
+    },
+    {
+      "name": "SCANNED_ULTRON",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 357
+    },
+    {
+      "name": "ZOQFOT_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 358
+    },
+    {
+      "name": "ZOQFOT_HOSTILE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 360
+    },
+    {
+      "name": "ZOQFOT_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 361
+    },
+    {
+      "name": "MET_ZOQFOT",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 364
+    },
+    {
+      "name": "ZOQFOT_DISTRESS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 365,
+      "comment": "0 if the Zoq-Fot-Pik aren't in distress 1 if the Zoq-Fot-Pik are under attack by the Kohr-Ah 2 if the Zoq-Fot-Pik have been destroyed because of this attack (not by the Kohr-Ah final victory cleansing)"
+    },
+    {
+      "name": "EGG_CASE1_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 367
+    },
+    {
+      "name": "EGG_CASE2_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 368
+    },
+    {
+      "name": "MYCON_SUN_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 369
+    },
+    {
+      "name": "ORZ_HOME_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 372
+    },
+    {
+      "name": "MELNORME_FUEL_PROCEDURE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 375
+    },
+    {
+      "name": "MELNORME_TECH_PROCEDURE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 376
+    },
+    {
+      "name": "MELNORME_INFO_PROCEDURE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 377
+    },
+    {
+      "name": "MELNORME_TECH_STACK",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 378,
+      "comment": "MELNORME_TECH_STACK is now unused"
+    },
+    {
+      "name": "MELNORME_EVENTS_INFO_STACK",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 382
+    },
+    {
+      "name": "MELNORME_ALIEN_INFO_STACK",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 387
+    },
+    {
+      "name": "MELNORME_HISTORY_INFO_STACK",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 392
+    },
+    {
+      "name": "RAINBOW_WORLD0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 397,
+      "comment": "Low byte of a bit array, one bit per rainbow world. Each bit is set if the rainbow world has been visited. The lowest bit is for the first star in the star_array with RAINBOW_DEFINED, and so on."
+    },
+    {
+      "name": "RAINBOW_WORLD1",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 405,
+      "comment": "High 2 bits of the bit array of which RAINBOW_WORLD0 is the low byte."
+    },
+    {
+      "name": "MELNORME_RAINBOW_COUNT",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 407,
+      "comment": "The number of rainbow world locations sold to the Melnorme."
+    },
+    {
+      "name": "USED_BROADCASTER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 411
+    },
+    {
+      "name": "BROADCASTER_RESPONSE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 412
+    },
+    {
+      "name": "IMPROVED_LANDER_SPEED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 413
+    },
+    {
+      "name": "IMPROVED_LANDER_CARGO",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 414
+    },
+    {
+      "name": "IMPROVED_LANDER_SHOT",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 415
+    },
+    {
+      "name": "MET_ORZ_BEFORE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 416
+    },
+    {
+      "name": "YEHAT_REBEL_TOLD_PKUNK",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 417
+    },
+    {
+      "name": "PLAYER_HAD_SEX",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 418
+    },
+    {
+      "name": "UMGAH_BROADCASTERS_ON_SHIP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 419
+    },
+    {
+      "name": "LIGHT_MINERAL_LOAD",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 420
+    },
+    {
+      "name": "MEDIUM_MINERAL_LOAD",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 423
+    },
+    {
+      "name": "HEAVY_MINERAL_LOAD",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 426
+    },
+    {
+      "name": "STARBASE_BULLETS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 429
+    },
+    {
+      "name": "STARBASE_BULLETS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 437
+    },
+    {
+      "name": "STARBASE_BULLETS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 445
+    },
+    {
+      "name": "STARBASE_BULLETS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 453
+    },
+    {
+      "name": "STARBASE_MONTH",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 461
+    },
+    {
+      "name": "STARBASE_DAY",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 465
+    },
+    {
+      "name": "CREW_SOLD_TO_DRUUGE0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 470
+    },
+    {
+      "name": "CREW_PURCHASED0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 478
+    },
+    {
+      "name": "CREW_PURCHASED1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 486
+    },
+    {
+      "name": "URQUAN_PROTECTING_SAMATRA",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 494
+    },
+    {
+      "name": "THRADDASH_BODY_COUNT",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 495
+    },
+    {
+      "name": "UTWIG_SUPOX_MISSION",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 500,
+      "comment": "0 if the Utwig and Supox fleet haven't left their home world. 1 if the U&S are on their way towards the Kohr-Ah 2 if the U&S are fighting the Kohr-Ah (first 80 days) 3 does not occur 5 if the U&S are returning home. 6 if the U&S are back at their home world."
+    },
+    {
+      "name": "SPATHI_INFO",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 503
+    },
+    {
+      "name": "ILWRATH_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 506
+    },
+    {
+      "name": "ILWRATH_GODS_SPOKEN",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 508
+    },
+    {
+      "name": "ILWRATH_WORSHIP",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 512
+    },
+    {
+      "name": "ILWRATH_FIGHT_THRADDASH",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 514
+    },
+    {
+      "name": "READY_TO_CONFUSE_URQUAN",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 515
+    },
+    {
+      "name": "URQUAN_HYPNO_VISITS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 516
+    },
+    {
+      "name": "MENTIONED_PET_COMPULSION",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 517
+    },
+    {
+      "name": "URQUAN_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 518
+    },
+    {
+      "name": "KNOW_URQUAN_STORY",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 520
+    },
+    {
+      "name": "MYCON_INFO",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 522
+    },
+    {
+      "name": "MYCON_RAMBLE",
+      "bits": 5,
+      "group": "Spathi states",
+      "start_bit": 526
+    },
+    {
+      "name": "KNOW_ABOUT_SHATTERED",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 531,
+      "comment": "0 if the player doesn't known about shattered worlds 1 if the player has encountered a shattered world 2 if the player knows that shatterred worlds are caused by Mycon deep children. 3 if the player has told the Syreen that Mycon Deep Children cause shattered worlds. Proof doesn't have to be presented yet at this time."
+    },
+    {
+      "name": "MYCON_INSULTS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 533
+    },
+    {
+      "name": "MYCON_KNOW_AMBUSH",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 536,
+      "comment": "Set to 1 when the Mycon have been butchered at Organon, just before the remaining Mycon head back home."
+    },
+    {
+      "name": "SYREEN_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 537
+    },
+    {
+      "name": "KNOW_SYREEN_WORLD_SHATTERED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 539
+    },
+    {
+      "name": "SYREEN_KNOW_ABOUT_MYCON",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 540
+    },
+    {
+      "name": "TALKING_PET_INFO",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 541
+    },
+    {
+      "name": "TALKING_PET_SUGGESTIONS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 544
+    },
+    {
+      "name": "LEARNED_TALKING_PET",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 547
+    },
+    {
+      "name": "DNYARRI_LIED",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 548,
+      "comment": "Set when the Talking Pet tells you his version of their race's history with the Ur-Quan. Cleared once you confront him about this lie."
+    },
+    {
+      "name": "SHIP_TO_COMPEL",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 549
+    },
+    {
+      "name": "ORZ_GENERAL_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 550
+    },
+    {
+      "name": "ORZ_PERSONAL_INFO",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 552
+    },
+    {
+      "name": "ORZ_ANDRO_STATE",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 555
+    },
+    {
+      "name": "REFUSED_ORZ_ALLIANCE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 557
+    },
+    {
+      "name": "PKUNK_MANNER",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 558,
+      "comment": "0 not met the Pkunk 1 fought the Pkunk, but relations are still salvagable. 2 hostile relations with the Pkunk, no way back. 3 friendly relations with the Pkunk"
+    },
+    {
+      "name": "PKUNK_ON_THE_MOVE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 560
+    },
+    {
+      "name": "PKUNK_FLEET",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 561
+    },
+    {
+      "name": "PKUNK_MIGRATE",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 563
+    },
+    {
+      "name": "PKUNK_RETURN",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 565
+    },
+    {
+      "name": "PKUNK_WORRY",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 566
+    },
+    {
+      "name": "PKUNK_INFO",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 568
+    },
+    {
+      "name": "PKUNK_WAR",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 571
+    },
+    {
+      "name": "PKUNK_FORTUNE",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 573
+    },
+    {
+      "name": "PKUNK_MIGRATE_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 576
+    },
+    {
+      "name": "PKUNK_REASONS",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 579
+    },
+    {
+      "name": "PKUNK_SWITCH",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 583
+    },
+    {
+      "name": "PKUNK_SENSE_VICTOR",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 584
+    },
+    {
+      "name": "KOHR_AH_REASONS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 585
+    },
+    {
+      "name": "KOHR_AH_PLEAD",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 587
+    },
+    {
+      "name": "KOHR_AH_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 589
+    },
+    {
+      "name": "KNOW_KOHR_AH_STORY",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 591
+    },
+    {
+      "name": "KOHR_AH_SENSES_EVIL",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 593
+    },
+    {
+      "name": "URQUAN_SENSES_EVIL",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 594
+    },
+    {
+      "name": "SLYLANDRO_PROBE_VISITS",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 595
+    },
+    {
+      "name": "SLYLANDRO_PROBE_THREAT",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 598
+    },
+    {
+      "name": "SLYLANDRO_PROBE_WRONG",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 600
+    },
+    {
+      "name": "SLYLANDRO_PROBE_ID",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 602
+    },
+    {
+      "name": "SLYLANDRO_PROBE_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 604
+    },
+    {
+      "name": "SLYLANDRO_PROBE_EXIT",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 606
+    },
+    {
+      "name": "UMGAH_HOSTILE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 608
+    },
+    {
+      "name": "UMGAH_EVIL_BLOBBIES",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 609
+    },
+    {
+      "name": "UMGAH_MENTIONED_TRICKS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 610
+    },
+    {
+      "name": "BOMB_CARRIER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 612,
+      "comment": "0 when the flagship is not in battle, or it doesn't have the enhanced precursor bomb installed. 1 when the flagship is in battle and the bomb is installed. This determines whether you can flee (if the warp escape unit is installed at all), and whether taking the ship into the Sa-Matra defense structure will trigger the end of the game."
+    },
+    {
+      "name": "THRADD_MANNER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 613
+    },
+    {
+      "name": "THRADD_INTRO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 614
+    },
+    {
+      "name": "THRADD_DEMEANOR",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 616
+    },
+    {
+      "name": "THRADD_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 619
+    },
+    {
+      "name": "THRADD_BODY_LEVEL",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 621
+    },
+    {
+      "name": "THRADD_MISSION_VISITS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 623
+    },
+    {
+      "name": "THRADD_STACK_1",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 624
+    },
+    {
+      "name": "THRADD_HOSTILE_STACK_2",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 627
+    },
+    {
+      "name": "THRADD_HOSTILE_STACK_3",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 628
+    },
+    {
+      "name": "THRADD_HOSTILE_STACK_4",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 629
+    },
+    {
+      "name": "THRADD_HOSTILE_STACK_5",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 630
+    },
+    {
+      "name": "CHMMR_STACK",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 631
+    },
+    {
+      "name": "ARILOU_MANNER",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 633
+    },
+    {
+      "name": "NO_PORTAL_VISITS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 635
+    },
+    {
+      "name": "ARILOU_STACK_1",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 636
+    },
+    {
+      "name": "ARILOU_STACK_2",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 638
+    },
+    {
+      "name": "ARILOU_STACK_3",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 639
+    },
+    {
+      "name": "ARILOU_STACK_4",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 641
+    },
+    {
+      "name": "ARILOU_STACK_5",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 642
+    },
+    {
+      "name": "ARILOU_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 644
+    },
+    {
+      "name": "ARILOU_HINTS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 646
+    },
+    {
+      "name": "DRUUGE_MANNER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 648
+    },
+    {
+      "name": "DRUUGE_SPACE_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 649
+    },
+    {
+      "name": "DRUUGE_HOME_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 651
+    },
+    {
+      "name": "DRUUGE_SALVAGE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 653
+    },
+    {
+      "name": "KNOW_DRUUGE_SLAVERS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 654
+    },
+    {
+      "name": "FRAGMENTS_BOUGHT",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 656
+    },
+    {
+      "name": "ZEX_STACK_1",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 658
+    },
+    {
+      "name": "ZEX_STACK_2",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 660
+    },
+    {
+      "name": "ZEX_STACK_3",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 662
+    },
+    {
+      "name": "VUX_INFO",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 664
+    },
+    {
+      "name": "VUX_STACK_1",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 666
+    },
+    {
+      "name": "VUX_STACK_2",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 670
+    },
+    {
+      "name": "VUX_STACK_3",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 672
+    },
+    {
+      "name": "VUX_STACK_4",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 674
+    },
+    {
+      "name": "SHOFIXTI_STACK4",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 676
+    },
+    {
+      "name": "YEHAT_REBEL_INFO",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 678
+    },
+    {
+      "name": "YEHAT_ROYALIST_INFO",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 681
+    },
+    {
+      "name": "YEHAT_ROYALIST_TOLD_PKUNK",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 682
+    },
+    {
+      "name": "NO_YEHAT_ALLY_HOME",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 683
+    },
+    {
+      "name": "NO_YEHAT_HELP_HOME",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 684
+    },
+    {
+      "name": "NO_YEHAT_INFO",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 685
+    },
+    {
+      "name": "NO_YEHAT_ALLY_SPACE",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 686
+    },
+    {
+      "name": "NO_YEHAT_HELP_SPACE",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 688
+    },
+    {
+      "name": "ZOQFOT_KNOW_MASK",
+      "bits": 4,
+      "group": "Spathi states",
+      "start_bit": 690
+    },
+    {
+      "name": "SUPOX_HOSTILE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 694
+    },
+    {
+      "name": "SUPOX_INFO",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 695
+    },
+    {
+      "name": "SUPOX_WAR_NEWS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 696
+    },
+    {
+      "name": "SUPOX_ULTRON_HELP",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 698
+    },
+    {
+      "name": "SUPOX_STACK1",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 699
+    },
+    {
+      "name": "SUPOX_STACK2",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 702
+    },
+    {
+      "name": "UTWIG_HOSTILE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 704
+    },
+    {
+      "name": "UTWIG_INFO",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 705
+    },
+    {
+      "name": "UTWIG_WAR_NEWS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 706
+    },
+    {
+      "name": "UTWIG_STACK1",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 708
+    },
+    {
+      "name": "UTWIG_STACK2",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 711
+    },
+    {
+      "name": "BOMB_INFO",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 713
+    },
+    {
+      "name": "BOMB_STACK1",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 714
+    },
+    {
+      "name": "BOMB_STACK2",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 716
+    },
+    {
+      "name": "SLYLANDRO_KNOW_BROKEN",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 718
+    },
+    {
+      "name": "PLAYER_KNOWS_PROBE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 719
+    },
+    {
+      "name": "PLAYER_KNOWS_PROGRAM",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 720
+    },
+    {
+      "name": "PLAYER_KNOWS_EFFECTS",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 721
+    },
+    {
+      "name": "PLAYER_KNOWS_PRIORITY",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 722
+    },
+    {
+      "name": "SLYLANDRO_STACK1",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 723
+    },
+    {
+      "name": "SLYLANDRO_STACK2",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 726
+    },
+    {
+      "name": "SLYLANDRO_STACK3",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 727
+    },
+    {
+      "name": "SLYLANDRO_STACK4",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 729
+    },
+    {
+      "name": "SLYLANDRO_STACK5",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 731
+    },
+    {
+      "name": "SLYLANDRO_STACK6",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 732
+    },
+    {
+      "name": "SLYLANDRO_STACK7",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 733
+    },
+    {
+      "name": "SLYLANDRO_STACK8",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 735
+    },
+    {
+      "name": "SLYLANDRO_STACK9",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 737
+    },
+    {
+      "name": "SLYLANDRO_KNOW_EARTH",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 739
+    },
+    {
+      "name": "SLYLANDRO_KNOW_EXPLORE",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 740
+    },
+    {
+      "name": "SLYLANDRO_KNOW_GATHER",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 741
+    },
+    {
+      "name": "SLYLANDRO_KNOW_URQUAN",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 742
+    },
+    {
+      "name": "RECALL_VISITS",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 744
+    },
+    {
+      "name": "SLYLANDRO_MULTIPLIER",
+      "bits": 3,
+      "group": "Spathi states",
+      "start_bit": 746
+    },
+    {
+      "name": "KNOW_SPATHI_QUEST",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 749
+    },
+    {
+      "name": "KNOW_SPATHI_EVIL",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 750
+    },
+    {
+      "name": "BATTLE_PLANET",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 751
+    },
+    {
+      "name": "ESCAPE_COUNTER",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 759
+    },
+    {
+      "name": "CREW_SOLD_TO_DRUUGE1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 767
+    },
+    {
+      "name": "PKUNK_DONE_WAR",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 775
+    },
+    {
+      "name": "SYREEN_STACK0",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 776
+    },
+    {
+      "name": "SYREEN_STACK1",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 778
+    },
+    {
+      "name": "SYREEN_STACK2",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 780
+    },
+    {
+      "name": "REFUSED_ULTRON_AT_BOMB",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 782
+    },
+    {
+      "name": "NO_TRICK_AT_SUN",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 783
+    },
+    {
+      "name": "SPATHI_STACK0",
+      "bits": 2,
+      "group": "Spathi states",
+      "start_bit": 784
+    },
+    {
+      "name": "SPATHI_STACK1",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 786
+    },
+    {
+      "name": "SPATHI_STACK2",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 787
+    },
+    {
+      "name": "ORZ_STACK0",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 788
+    },
+    {
+      "name": "ORZ_STACK1",
+      "bits": 1,
+      "group": "Spathi states",
+      "start_bit": 789
+    },
+    {
+      "name": "SHOFIXTI_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 790
+    },
+    {
+      "name": "SHOFIXTI_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 798
+    },
+    {
+      "name": "SHOFIXTI_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 806
+    },
+    {
+      "name": "SHOFIXTI_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 814
+    },
+    {
+      "name": "ZOQFOT_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 822
+    },
+    {
+      "name": "ZOQFOT_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 830
+    },
+    {
+      "name": "ZOQFOT_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 838
+    },
+    {
+      "name": "ZOQFOT_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 846
+    },
+    {
+      "name": "MELNORME0_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 854
+    },
+    {
+      "name": "MELNORME0_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 862
+    },
+    {
+      "name": "MELNORME0_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 870
+    },
+    {
+      "name": "MELNORME0_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 878
+    },
+    {
+      "name": "MELNORME1_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 886
+    },
+    {
+      "name": "MELNORME1_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 894
+    },
+    {
+      "name": "MELNORME1_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 902
+    },
+    {
+      "name": "MELNORME1_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 910
+    },
+    {
+      "name": "MELNORME2_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 918
+    },
+    {
+      "name": "MELNORME2_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 926
+    },
+    {
+      "name": "MELNORME2_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 934
+    },
+    {
+      "name": "MELNORME2_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 942
+    },
+    {
+      "name": "MELNORME3_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 950
+    },
+    {
+      "name": "MELNORME3_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 958
+    },
+    {
+      "name": "MELNORME3_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 966
+    },
+    {
+      "name": "MELNORME3_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 974
+    },
+    {
+      "name": "MELNORME4_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 982
+    },
+    {
+      "name": "MELNORME4_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 990
+    },
+    {
+      "name": "MELNORME4_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 998
+    },
+    {
+      "name": "MELNORME4_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1006
+    },
+    {
+      "name": "MELNORME5_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1014
+    },
+    {
+      "name": "MELNORME5_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1022
+    },
+    {
+      "name": "MELNORME5_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1030
+    },
+    {
+      "name": "MELNORME5_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1038
+    },
+    {
+      "name": "MELNORME6_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1046
+    },
+    {
+      "name": "MELNORME6_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1054
+    },
+    {
+      "name": "MELNORME6_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1062
+    },
+    {
+      "name": "MELNORME6_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1070
+    },
+    {
+      "name": "MELNORME7_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1078
+    },
+    {
+      "name": "MELNORME7_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1086
+    },
+    {
+      "name": "MELNORME7_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1094
+    },
+    {
+      "name": "MELNORME7_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1102
+    },
+    {
+      "name": "MELNORME8_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1110
+    },
+    {
+      "name": "MELNORME8_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1118
+    },
+    {
+      "name": "MELNORME8_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1126
+    },
+    {
+      "name": "MELNORME8_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1134
+    },
+    {
+      "name": "URQUAN_PROBE_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1142
+    },
+    {
+      "name": "URQUAN_PROBE_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1150
+    },
+    {
+      "name": "URQUAN_PROBE_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1158
+    },
+    {
+      "name": "URQUAN_PROBE_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1166
+    },
+    {
+      "name": "COLONY_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1174
+    },
+    {
+      "name": "COLONY_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1182
+    },
+    {
+      "name": "COLONY_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1190
+    },
+    {
+      "name": "COLONY_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1198
+    },
+    {
+      "name": "SAMATRA_GRPOFFS0",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1206
+    },
+    {
+      "name": "SAMATRA_GRPOFFS1",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1214
+    },
+    {
+      "name": "SAMATRA_GRPOFFS2",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1222
+    },
+    {
+      "name": "SAMATRA_GRPOFFS3",
+      "bits": 8,
+      "group": "Spathi states",
+      "start_bit": 1230
+    }
+  ]
+}

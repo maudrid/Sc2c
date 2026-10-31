@@ -1,0 +1,108 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/globdata.c",
+      "src/uqm/clock.c",
+      "src/uqm/gameev.c",
+      "src/uqm/sis.h"
+    ]
+  },
+  "_notes": [
+    "Values set by InitGameStructures (globdata.c), InitGameClock (clock.c) and AddInitialGameEvents (gameev.c) when a new game starts.",
+    "module_cost is in units of module_cost_scale resource units (price = cost * scale). Modules not listed start at 0, meaning not yet for sale.",
+    "fuel is in 1/100 units (FUEL_TANK_SCALE): 1000 is 10 units of fuel.",
+    "The flagship starts at Sol (log_x/log_y = UNIVERSE_TO_LOGX/Y of SOL_X/SOL_Y), in interplanetary flight.",
+    "slots lists the filled slots by position; every other slot starts empty (EMPTY_SLOT).",
+    "initial_events is copied from AddInitialGameEvents; the C call list is checked by tools/extract/test_data.py.",
+    "The flagship's and commander's starting names are content strings."
+  ],
+  "start_date": {
+    "year": 2155,
+    "month": 2,
+    "day": 17
+  },
+  "prices": {
+    "crew": 3,
+    "fuel": 20,
+    "module_cost_scale": 50,
+    "module_cost": {
+      "PLANET_LANDER": 10,
+      "FUSION_THRUSTER": 10,
+      "TURNING_JETS": 10,
+      "CREW_POD": 40,
+      "STORAGE_BAY": 15,
+      "FUEL_TANK": 10,
+      "DYNAMO_UNIT": 40,
+      "GUN_WEAPON": 40
+    },
+    "element_worth": {
+      "COMMON": 1,
+      "CORROSIVE": 2,
+      "BASE_METAL": 3,
+      "NOBLE": 4,
+      "RARE_EARTH": 5,
+      "PRECIOUS": 6,
+      "RADIOACTIVE": 8,
+      "EXOTIC": 25
+    }
+  },
+  "flagship": {
+    "crew": 50,
+    "fuel": 1000,
+    "landers": 1,
+    "resource_units": 0,
+    "start_star": "SOL",
+    "start_universe_x": 1752,
+    "start_universe_y": 1450,
+    "slots": {
+      "drive": {
+        "5": "FUSION_THRUSTER",
+        "6": "FUSION_THRUSTER"
+      },
+      "jet": {
+        "0": "TURNING_JETS",
+        "6": "TURNING_JETS"
+      },
+      "module": {
+        "1": "FUEL_TANK",
+        "2": "CREW_POD",
+        "8": "STORAGE_BAY",
+        "15": "GUN_WEAPON"
+      }
+    }
+  },
+  "initial_events": [
+    {
+      "event": "HYPERSPACE_ENCOUNTER_EVENT",
+      "kind": "RELATIVE",
+      "months": 0,
+      "days": 1,
+      "years": 0
+    },
+    {
+      "event": "ARILOU_ENTRANCE_EVENT",
+      "kind": "ABSOLUTE",
+      "month": 3,
+      "day": 17,
+      "year": 2155
+    },
+    {
+      "event": "KOHR_AH_VICTORIOUS_EVENT",
+      "kind": "RELATIVE",
+      "months": 0,
+      "days": 0,
+      "years": 4
+    },
+    {
+      "event": "SLYLANDRO_RAMP_UP",
+      "kind": "RELATIVE",
+      "months": 0,
+      "days": 0,
+      "years": 0
+    }
+  ]
+}

@@ -1,0 +1,2020 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/plandata.c",
+      "src/uqm/planets/plandata.h",
+      "src/uqm/planets/elemdata.h"
+    ]
+  },
+  "_notes": [
+    "One entry per planet type (PlanetFrame), not per planet. Planets themselves are generated from seeds by planets/plangen.c, calc.c and gentopo.c.",
+    "quantity_class: FEW, MODERATE or NUMEROUS (see constants); quality_class: LIGHT, MEDIUM or HEAVY. Packed as the low and high nibble of ELEMENT_ENTRY.Density.",
+    "density_class and atmosphere_class are the low and high nibble of PlanetFrame.AtmoAndDensity.",
+    "color_map_resource and color_table_resource are content resource ids (planet graphics), resolved by the client."
+  ],
+  "constants": {
+    "SMALL_ROCKY_WORLD": 0,
+    "LARGE_ROCKY_WORLD": 1,
+    "GAS_GIANT": 2,
+    "TOPO_ALGO": 0,
+    "CRATERED_ALGO": 4,
+    "GAS_GIANT_ALGO": 8,
+    "FEW": 1,
+    "MODERATE": 4,
+    "NUMEROUS": 8,
+    "LIGHT": 0,
+    "MEDIUM": 1,
+    "HEAVY": 2,
+    "NUMBER_OF_PLANET_TYPES": 59
+  },
+  "planet_types": [
+    {
+      "type": "OOLITE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "VIOLET_BODY",
+      "base_tectonics": 40,
+      "density_class": 4,
+      "atmosphere_class": 2,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "HOLMIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "ERBIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "THULIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "YTTERBIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "LUTETIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "PALLADIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "SILVER",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "IRIDIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.oolite.colortable",
+      "color_table_resource": "planet.oolite.translatetable"
+    },
+    {
+      "type": "YTTRIC_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "VIOLET_BODY",
+      "base_tectonics": 40,
+      "density_class": 4,
+      "atmosphere_class": 1,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "YTTERBIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "YTTRIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.yttric.colortable",
+      "color_table_resource": "planet.yttric.translatetable"
+    },
+    {
+      "type": "QUASI_DEGENERATE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 80,
+      "density_class": 4,
+      "atmosphere_class": 15,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "DEGENERATE_MATTER",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.quasidegenerate.colortable",
+      "color_table_resource": "planet.quasidegenerate.translatetable"
+    },
+    {
+      "type": "LANTHANIDE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "YELLOW_BODY",
+      "base_tectonics": 140,
+      "density_class": 4,
+      "atmosphere_class": 0,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "LANTHANUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "CERIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "PRASEODYMIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "NEODYMIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "PROMETHIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "SAMARIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "GADOLINIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "TERBIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.lanthanide.colortable",
+      "color_table_resource": "planet.lanthanide.translatetable"
+    },
+    {
+      "type": "TREASURE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "YELLOW_BODY",
+      "base_tectonics": 0,
+      "density_class": 5,
+      "atmosphere_class": 0,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "PALLADIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "SILVER",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "SILVER",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "IRIDIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "GOLD",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "PLATINUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.treasure.colortable",
+      "color_table_resource": "planet.treasure.translatetable"
+    },
+    {
+      "type": "UREA_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "YELLOW_BODY",
+      "base_tectonics": 140,
+      "density_class": 2,
+      "atmosphere_class": 2,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "AMMONIA",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "FORMALDEHYDE",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.urea.colortable",
+      "color_table_resource": "planet.urea.translatetable"
+    },
+    {
+      "type": "METAL_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "ORANGE_BODY",
+      "base_tectonics": 40,
+      "density_class": 4,
+      "atmosphere_class": 2,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "IRON",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "NICKEL",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "VANADIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "SILVER",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "URANIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "SULFUR",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "COPPER",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.metal.colortable",
+      "color_table_resource": "planet.metal.translatetable"
+    },
+    {
+      "type": "RADIOACTIVE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "ORANGE_BODY",
+      "base_tectonics": 0,
+      "density_class": 5,
+      "atmosphere_class": 0,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "ASTATINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "FRANCIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "RADIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "ACTINIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "THORIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "PROTACTINIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.radioactive.colortable",
+      "color_table_resource": "planet.radioactive.translatetable"
+    },
+    {
+      "type": "OPALESCENT_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "CYAN_BODY",
+      "base_tectonics": 40,
+      "density_class": 2,
+      "atmosphere_class": 15,
+      "num_faults": 400,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "SAMARIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "GADOLINIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "ARGON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "LITHIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "SILICON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "ARSENIC",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.opalescent.colortable",
+      "color_table_resource": "planet.opalescent.translatetable"
+    },
+    {
+      "type": "CYANIC_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 0,
+      "density_class": 1,
+      "atmosphere_class": 0,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "CYANOACETYLENE",
+          "quantity_class": 8,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.cyanic.colortable",
+      "color_table_resource": "planet.cyanic.translatetable"
+    },
+    {
+      "type": "ACID_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 0,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "SULFURIC_ACID",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "HYDROCHLORIC_ACID",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "FORMIC_ACID",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "HYDROCYANIC_ACID",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "PHOSPHORIC_ACID",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "NITRIC_ACID",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.acid.colortable",
+      "color_table_resource": "planet.acid.translatetable"
+    },
+    {
+      "type": "ALKALI_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 1,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "CALCIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "BARIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "STRONTIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.alkali.colortable",
+      "color_table_resource": "planet.alkali.translatetable"
+    },
+    {
+      "type": "HALIDE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 0,
+      "density_class": 2,
+      "atmosphere_class": 0,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "FLUORINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "BROMINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "BROMINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "ASTATINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "IODINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.halide.colortable",
+      "color_table_resource": "planet.halide.translatetable"
+    },
+    {
+      "type": "GREEN_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 80,
+      "density_class": 3,
+      "atmosphere_class": 2,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "PRASEODYMIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "NEODYMIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.green.colortable",
+      "color_table_resource": "planet.green.translatetable"
+    },
+    {
+      "type": "COPPER_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 0,
+      "density_class": 4,
+      "atmosphere_class": 1,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "COPPER",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "COPPER",
+          "quantity_class": 8,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.copper.colortable",
+      "color_table_resource": "planet.copper.translatetable"
+    },
+    {
+      "type": "CARBIDE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 0,
+      "num_faults": 400,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "CARBON",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "CARBON",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "CARBON",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.carbide.colortable",
+      "color_table_resource": "planet.carbide.translatetable"
+    },
+    {
+      "type": "ULTRAMARINE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "BLUE_BODY",
+      "base_tectonics": 0,
+      "density_class": 1,
+      "atmosphere_class": 2,
+      "num_faults": 200,
+      "fault_depth": 2,
+      "num_blemishes": 100,
+      "base_elevation": 100,
+      "useful_elements": [
+        {
+          "element": "KRYPTON",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "COBALT",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "HOLMIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.ultramarine.colortable",
+      "color_table_resource": "planet.ultramarine.translatetable"
+    },
+    {
+      "type": "NOBLE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "BLUE_BODY",
+      "base_tectonics": 0,
+      "density_class": 1,
+      "atmosphere_class": 0,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "NEON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "RADON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "ARGON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "KRYPTON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "XENON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "HELIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.noble.colortable",
+      "color_table_resource": "planet.noble.translatetable"
+    },
+    {
+      "type": "AZURE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "BLUE_BODY",
+      "base_tectonics": 80,
+      "density_class": 2,
+      "atmosphere_class": 1,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "INDIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "MOLYBDENUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "VANADIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.azure.colortable",
+      "color_table_resource": "planet.azure.translatetable"
+    },
+    {
+      "type": "CHONDRITE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "PURPLE_BODY",
+      "base_tectonics": 140,
+      "density_class": 3,
+      "atmosphere_class": 15,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "ETHANOL",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "FREE_RADICALS",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.chondrite.colortable",
+      "color_table_resource": "planet.chondrite.translatetable"
+    },
+    {
+      "type": "PURPLE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "PURPLE_BODY",
+      "base_tectonics": 40,
+      "density_class": 2,
+      "atmosphere_class": 0,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "RHENIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "CADMIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.purple.colortable",
+      "color_table_resource": "planet.purple.translatetable"
+    },
+    {
+      "type": "SUPER_DENSE_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "PURPLE_BODY",
+      "base_tectonics": 140,
+      "density_class": 5,
+      "atmosphere_class": 2,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "LEAD",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "OSMIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.superdense.colortable",
+      "color_table_resource": "planet.superdense.translatetable"
+    },
+    {
+      "type": "PELLUCID_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "PURPLE_BODY",
+      "base_tectonics": 0,
+      "density_class": 2,
+      "atmosphere_class": 0,
+      "num_faults": 400,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "TZO_CRYSTALS",
+          "quantity_class": 1,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.pellucid.colortable",
+      "color_table_resource": "planet.pellucid.translatetable"
+    },
+    {
+      "type": "DUST_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 40,
+      "density_class": 2,
+      "atmosphere_class": 1,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "BISMUTH",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "ALUMINUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "POTASSIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.dust.colortable",
+      "color_table_resource": "planet.dust.translatetable"
+    },
+    {
+      "type": "CRIMSON_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 0,
+      "density_class": 3,
+      "atmosphere_class": 2,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "BARIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "BORON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "BERYLLIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "BISMUTH",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "BROMINE",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.crimson.colortable",
+      "color_table_resource": "planet.crimson.translatetable"
+    },
+    {
+      "type": "CIMMERIAN_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 40,
+      "density_class": 4,
+      "atmosphere_class": 15,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "METHANE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "AMMONIA",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "METHANOL",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "LITHIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.cimmerian.colortable",
+      "color_table_resource": "planet.cimmerian.translatetable"
+    },
+    {
+      "type": "INFRARED_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 2,
+      "num_faults": 400,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "MERCURY",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.infrared.colortable",
+      "color_table_resource": "planet.infrared.translatetable"
+    },
+    {
+      "type": "SELENIC_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "WHITE_BODY",
+      "base_tectonics": 0,
+      "density_class": 2,
+      "atmosphere_class": 0,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "IRON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "ALUMINUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "CALCIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.selenic.colortable",
+      "color_table_resource": "planet.selenic.translatetable"
+    },
+    {
+      "type": "AURIC_WORLD",
+      "size": "SMALL_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "YELLOW_BODY",
+      "base_tectonics": 0,
+      "density_class": 4,
+      "atmosphere_class": 1,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "GOLD",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "GOLD",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "GOLD",
+          "quantity_class": 8,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.auric.colortable",
+      "color_table_resource": "planet.auric.translatetable"
+    },
+    {
+      "type": "FLUORESCENT_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "VIOLET_BODY",
+      "base_tectonics": 40,
+      "density_class": 4,
+      "atmosphere_class": 0,
+      "num_faults": 400,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "TECHNETIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "NEON",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "RADON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "POTASSIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.fluorescent.colortable",
+      "color_table_resource": "planet.fluorescent.translatetable"
+    },
+    {
+      "type": "ULTRAVIOLET_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "VIOLET_BODY",
+      "base_tectonics": 80,
+      "density_class": 4,
+      "atmosphere_class": 2,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "POLONIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "GOLD",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "PHOSPHORUS",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "SCANDIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.ultraviolet.colortable",
+      "color_table_resource": "planet.ultraviolet.translatetable"
+    },
+    {
+      "type": "PLUTONIC_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "YELLOW_BODY",
+      "base_tectonics": 40,
+      "density_class": 4,
+      "atmosphere_class": 2,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "BERYLLIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "BORON",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "LANTHANUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "ASTATINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "FRANCIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "TITANIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "CERIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.plutonic.colortable",
+      "color_table_resource": "planet.plutonic.translatetable"
+    },
+    {
+      "type": "RAINBOW_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "YELLOW_BODY",
+      "base_tectonics": 0,
+      "density_class": 2,
+      "atmosphere_class": 0,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 20,
+      "base_elevation": 100,
+      "useful_elements": [
+        {
+          "element": "ACTINIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "THORIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "PROTACTINIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "NEPTUNIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "PLUTONIUM",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "OZONE",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "OZONE",
+          "quantity_class": 8,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.rainbow.colortable",
+      "color_table_resource": "planet.rainbow.translatetable"
+    },
+    {
+      "type": "SHATTERED_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "ORANGE_BODY",
+      "base_tectonics": 200,
+      "density_class": 3,
+      "atmosphere_class": 15,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 185,
+      "useful_elements": [
+        {
+          "element": "PALLADIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "IRIDIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "TECHNETIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "POLONIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "SODIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "MANGANESE",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "CHROMIUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.shattered.colortable",
+      "color_table_resource": "planet.shattered.translatetable"
+    },
+    {
+      "type": "SAPPHIRE_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "CYAN_BODY",
+      "base_tectonics": 0,
+      "density_class": 2,
+      "atmosphere_class": 15,
+      "num_faults": 80,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 128,
+      "useful_elements": [
+        {
+          "element": "REISBURG_HELICES",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "RT_SUPER_FLUID",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.sapphire.colortable",
+      "color_table_resource": "planet.sapphire.translatetable"
+    },
+    {
+      "type": "ORGANIC_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "CYAN_BODY",
+      "base_tectonics": 80,
+      "density_class": 3,
+      "atmosphere_class": 0,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "FREE_RADICALS",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "FORMALDEHYDE",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "CARBON",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "CARBON_DIOXIDE",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.organic.colortable",
+      "color_table_resource": "planet.organic.translatetable"
+    },
+    {
+      "type": "XENOLITHIC_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "CYAN_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 1,
+      "num_faults": 400,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "ALUMINUM",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "PLATINUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "GERMANIUM",
+          "quantity_class": 1,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.xenolithic.colortable",
+      "color_table_resource": "planet.xenolithic.translatetable"
+    },
+    {
+      "type": "REDUX_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 0,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "BROMINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "OXYGEN",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "FLUORINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "SULFUR",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "CHLORINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "IODINE",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "ZIRCONIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.redux.colortable",
+      "color_table_resource": "planet.redux.translatetable"
+    },
+    {
+      "type": "PRIMORDIAL_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 200,
+      "density_class": 3,
+      "atmosphere_class": 2,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 10,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "CESIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "BARIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "RUBIDIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "METHANE",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "AMMONIA",
+          "quantity_class": 8,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.primordial.colortable",
+      "color_table_resource": "planet.primordial.translatetable"
+    },
+    {
+      "type": "EMERALD_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 0,
+      "density_class": 2,
+      "atmosphere_class": 15,
+      "num_faults": 80,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 128,
+      "useful_elements": [
+        {
+          "element": "AGUUTI_NODULES",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "ANTIMATTER",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.emerald.colortable",
+      "color_table_resource": "planet.emerald.translatetable"
+    },
+    {
+      "type": "CHLORINE_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 140,
+      "density_class": 3,
+      "atmosphere_class": 0,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "CHLORINE",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "CHLORINE",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "HYDROCHLORIC_ACID",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "HYDROCHLORIC_ACID",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "ZINC",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "GALLIUM",
+          "quantity_class": 1,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.chlorine.colortable",
+      "color_table_resource": "planet.chlorine.translatetable"
+    },
+    {
+      "type": "MAGNETIC_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 140,
+      "density_class": 4,
+      "atmosphere_class": 15,
+      "num_faults": 400,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "ZINC",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "NICKEL",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "MAGNETIC_MONOPOLES",
+          "quantity_class": 1,
+          "quality_class": 0
+        },
+        {
+          "element": "NIOBIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "IRON",
+          "quantity_class": 4,
+          "quality_class": 2
+        }
+      ],
+      "color_map_resource": "planet.magnetic.colortable",
+      "color_table_resource": "planet.magnetic.translatetable"
+    },
+    {
+      "type": "WATER_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "BLUE_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 1,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "IRON",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "ALUMINUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "TIN",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "LEAD",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "URANIUM",
+          "quantity_class": 1,
+          "quality_class": 0
+        },
+        {
+          "element": "MOLYBDENUM",
+          "quantity_class": 1,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.water.colortable",
+      "color_table_resource": "planet.water.translatetable"
+    },
+    {
+      "type": "TELLURIC_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "BLUE_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 2,
+      "num_faults": 250,
+      "fault_depth": 2,
+      "num_blemishes": 80,
+      "base_elevation": 200,
+      "useful_elements": [
+        {
+          "element": "IRIDIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "RUTHENIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "THALLIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.telluric.colortable",
+      "color_table_resource": "planet.telluric.translatetable"
+    },
+    {
+      "type": "HYDROCARBON_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "BLUE_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 0,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "HYDROCARBONS",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "BISMUTH",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "TANTALUM",
+          "quantity_class": 1,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.hydrocarbon.colortable",
+      "color_table_resource": "planet.hydrocarbon.translatetable"
+    },
+    {
+      "type": "IODINE_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 80,
+      "density_class": 2,
+      "atmosphere_class": 1,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "IODINE",
+          "quantity_class": 4,
+          "quality_class": 2
+        },
+        {
+          "element": "MAGNESIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "TUNGSTEN",
+          "quantity_class": 1,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.iodine.colortable",
+      "color_table_resource": "planet.iodine.translatetable"
+    },
+    {
+      "type": "VINYLOGOUS_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "PURPLE_BODY",
+      "base_tectonics": 40,
+      "density_class": 3,
+      "atmosphere_class": 15,
+      "num_faults": 400,
+      "fault_depth": 1,
+      "num_blemishes": 100,
+      "base_elevation": 190,
+      "useful_elements": [
+        {
+          "element": "TITANIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "ARSENIC",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "POTASSIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "RHENIUM",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.vinylogous.colortable",
+      "color_table_resource": "planet.vinylogous.translatetable"
+    },
+    {
+      "type": "RUBY_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 0,
+      "density_class": 2,
+      "atmosphere_class": 0,
+      "num_faults": 80,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 128,
+      "useful_elements": [
+        {
+          "element": "TZO_CRYSTALS",
+          "quantity_class": 8,
+          "quality_class": 2
+        },
+        {
+          "element": "NEUTRONIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.ruby.colortable",
+      "color_table_resource": "planet.ruby.translatetable"
+    },
+    {
+      "type": "MAGMA_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "TOPO_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 200,
+      "density_class": 4,
+      "atmosphere_class": 0,
+      "num_faults": 500,
+      "fault_depth": 1,
+      "num_blemishes": 0,
+      "base_elevation": 160,
+      "useful_elements": [
+        {
+          "element": "LEAD",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "NICKEL",
+          "quantity_class": 4,
+          "quality_class": 0
+        },
+        {
+          "element": "IRON",
+          "quantity_class": 4,
+          "quality_class": 0
+        }
+      ],
+      "color_map_resource": "planet.magma.colortable",
+      "color_table_resource": "planet.magma.translatetable"
+    },
+    {
+      "type": "MAROON_WORLD",
+      "size": "LARGE_ROCKY_WORLD",
+      "map_algorithm": "CRATERED_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 0,
+      "density_class": 2,
+      "atmosphere_class": 1,
+      "num_faults": 230,
+      "fault_depth": 2,
+      "num_blemishes": 200,
+      "base_elevation": 150,
+      "useful_elements": [
+        {
+          "element": "CESIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "SILICON",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "PHOSPHORUS",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "RHODIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        },
+        {
+          "element": "CADMIUM",
+          "quantity_class": 4,
+          "quality_class": 1
+        }
+      ],
+      "color_map_resource": "planet.maroon.colortable",
+      "color_table_resource": "planet.maroon.translatetable"
+    },
+    {
+      "type": "BLU_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "BLUE_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.bluegas.colortable",
+      "color_table_resource": "planet.bluegas.translatetable"
+    },
+    {
+      "type": "CYA_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "CYAN_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.cyangas.colortable",
+      "color_table_resource": "planet.cyangas.translatetable"
+    },
+    {
+      "type": "GRN_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "GREEN_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.greengas.colortable",
+      "color_table_resource": "planet.greengas.translatetable"
+    },
+    {
+      "type": "GRY_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "WHITE_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.greygas.colortable",
+      "color_table_resource": "planet.greygas.translatetable"
+    },
+    {
+      "type": "ORA_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "ORANGE_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.orangegas.colortable",
+      "color_table_resource": "planet.orangegas.translatetable"
+    },
+    {
+      "type": "PUR_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "PURPLE_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.purplegas.colortable",
+      "color_table_resource": "planet.purplegas.translatetable"
+    },
+    {
+      "type": "RED_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "RED_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.redgas.colortable",
+      "color_table_resource": "planet.redgas.translatetable"
+    },
+    {
+      "type": "VIO_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "VIOLET_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.violetgas.colortable",
+      "color_table_resource": "planet.violetgas.translatetable"
+    },
+    {
+      "type": "YEL_GAS_GIANT",
+      "size": "GAS_GIANT",
+      "map_algorithm": "GAS_GIANT_ALGO",
+      "color": "YELLOW_BODY",
+      "base_tectonics": 0,
+      "density_class": 0,
+      "atmosphere_class": 2,
+      "num_faults": 10,
+      "fault_depth": 2,
+      "num_blemishes": 8,
+      "base_elevation": 29,
+      "useful_elements": [],
+      "color_map_resource": "planet.yellowgas.colortable",
+      "color_table_resource": "planet.yellowgas.translatetable"
+    }
+  ]
+}

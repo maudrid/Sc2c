@@ -197,9 +197,10 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
 - The code is AI-written; the project owner playtests and reviews rather than writing code.
 - Every change comes with automated tests that run headless (`dotnet test`, or Godot with `--headless`).
 - Every change comes with a short "how to try it" note: what to run, what to do in game, what should happen.
-- Port UQM data into readable data files (for example JSON), keeping GPL notices.
+- Port UQM data into readable data files (JSON in `data/`), keeping GPL notices.
 - Build every unset number as a setting.
-- Keep `docs/design.md`, `docs/porting-inventory.md` and `docs/differences.md` current.
+- Keep `docs/design.md`, `docs/porting-inventory.md`, `docs/differences.md` and `docs/uqm-data.md` current.
+- UQM data comes into `data/` only through `tools/extract/extract_uqm.py`, never by hand, so it can be regenerated and checked against the source.
 
 ### Development setup
 

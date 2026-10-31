@@ -1,0 +1,89 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/gameev.h",
+      "src/uqm/gameev.c"
+    ]
+  },
+  "_notes": [
+    "Event ids used by the game clock (AddEvent, EventHandler in gameev.c). What each event does is code; see docs/uqm-data.md."
+  ],
+  "events": [
+    {
+      "event": "ARILOU_ENTRANCE_EVENT",
+      "id": 0
+    },
+    {
+      "event": "ARILOU_EXIT_EVENT",
+      "id": 1
+    },
+    {
+      "event": "HYPERSPACE_ENCOUNTER_EVENT",
+      "id": 2
+    },
+    {
+      "event": "KOHR_AH_VICTORIOUS_EVENT",
+      "id": 3
+    },
+    {
+      "event": "ADVANCE_PKUNK_MISSION",
+      "id": 4
+    },
+    {
+      "event": "ADVANCE_THRADD_MISSION",
+      "id": 5
+    },
+    {
+      "event": "ZOQFOT_DISTRESS_EVENT",
+      "id": 6
+    },
+    {
+      "event": "ZOQFOT_DEATH_EVENT",
+      "id": 7
+    },
+    {
+      "event": "SHOFIXTI_RETURN_EVENT",
+      "id": 8
+    },
+    {
+      "event": "ADVANCE_UTWIG_SUPOX_MISSION",
+      "id": 9
+    },
+    {
+      "event": "KOHR_AH_GENOCIDE_EVENT",
+      "id": 10
+    },
+    {
+      "event": "SPATHI_SHIELD_EVENT",
+      "id": 11
+    },
+    {
+      "event": "ADVANCE_ILWRATH_MISSION",
+      "id": 12
+    },
+    {
+      "event": "ADVANCE_MYCON_MISSION",
+      "id": 13
+    },
+    {
+      "event": "ARILOU_UMGAH_CHECK",
+      "id": 14
+    },
+    {
+      "event": "YEHAT_REBEL_EVENT",
+      "id": 15
+    },
+    {
+      "event": "SLYLANDRO_RAMP_UP",
+      "id": 16
+    },
+    {
+      "event": "SLYLANDRO_RAMP_DOWN",
+      "id": 17
+    }
+  ]
+}

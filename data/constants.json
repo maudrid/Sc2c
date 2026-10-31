@@ -1,0 +1,169 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/*.h",
+      "src/libs/timelib.h",
+      "src/uqm/pickship.c",
+      "src/uqm/starbase.c"
+    ]
+  },
+  "_notes": [
+    "Named limits and rates from UQM headers, evaluated by the compiler."
+  ],
+  "constants": {
+    "HYPERSPACE_CLOCK_RATE": {
+      "value": 5,
+      "unit": "seconds per game day"
+    },
+    "INTERPLANETARY_CLOCK_RATE": {
+      "value": 30,
+      "unit": "seconds per game day"
+    },
+    "START_YEAR": {
+      "value": 2155,
+      "unit": "year"
+    },
+    "ONE_SECOND": {
+      "value": 840,
+      "unit": "time units per second"
+    },
+    "BATTLE_FRAME_RATE": {
+      "value": 35,
+      "unit": "time units per battle frame"
+    },
+    "NUM_DRIVE_SLOTS": {
+      "value": 11,
+      "unit": "slots"
+    },
+    "NUM_JET_SLOTS": {
+      "value": 8,
+      "unit": "slots"
+    },
+    "NUM_MODULE_SLOTS": {
+      "value": 16,
+      "unit": "slots"
+    },
+    "CREW_POD_CAPACITY": {
+      "value": 50,
+      "unit": "crew"
+    },
+    "STORAGE_BAY_CAPACITY": {
+      "value": 500,
+      "unit": "cargo units"
+    },
+    "FUEL_TANK_SCALE": {
+      "value": 100,
+      "unit": "internal fuel units per fuel unit"
+    },
+    "FUEL_TANK_CAPACITY": {
+      "value": 5000,
+      "unit": "internal fuel units"
+    },
+    "HEFUEL_TANK_CAPACITY": {
+      "value": 10000,
+      "unit": "internal fuel units"
+    },
+    "FUEL_RESERVE": {
+      "value": 1000,
+      "unit": "internal fuel units"
+    },
+    "MODULE_COST_SCALE": {
+      "value": 50,
+      "unit": "resource units"
+    },
+    "CREW_EXPENSE_THRESHOLD": {
+      "value": 1000,
+      "unit": "resource units"
+    },
+    "BIO_CREDIT_VALUE": {
+      "value": 2,
+      "unit": "Melnorme credits per bio unit"
+    },
+    "MAX_BUILT_SHIPS": {
+      "value": 12,
+      "unit": "escort ships"
+    },
+    "MAX_LANDERS": {
+      "value": 10,
+      "unit": "landers"
+    },
+    "NUM_PLAYERS": {
+      "value": 2,
+      "unit": "battle sides (UQM)"
+    },
+    "NUM_SIDES": {
+      "value": 2,
+      "unit": "battle sides (UQM)"
+    },
+    "MAX_SHIPS_PER_SIDE": {
+      "value": 14,
+      "unit": "ships"
+    },
+    "MAX_ENCOUNTERS": {
+      "value": 16,
+      "unit": "hyperspace encounters"
+    },
+    "MAX_BATTLE_GROUPS": {
+      "value": 32,
+      "unit": "groups in a system"
+    },
+    "NUM_SOLAR_SYSTEMS": {
+      "value": 502,
+      "unit": "stars"
+    },
+    "MAX_X_UNIVERSE": {
+      "value": 9999,
+      "unit": "universe units"
+    },
+    "MAX_Y_UNIVERSE": {
+      "value": 9999,
+      "unit": "universe units"
+    },
+    "SOL_X": {
+      "value": 1752,
+      "unit": "universe units"
+    },
+    "SOL_Y": {
+      "value": 1450,
+      "unit": "universe units"
+    },
+    "ARILOU_SPACE_X": {
+      "value": 438,
+      "unit": "universe units"
+    },
+    "ARILOU_SPACE_Y": {
+      "value": 6372,
+      "unit": "universe units"
+    },
+    "QUASI_SPACE_X": {
+      "value": 5000,
+      "unit": "universe units"
+    },
+    "QUASI_SPACE_Y": {
+      "value": 5000,
+      "unit": "universe units"
+    },
+    "NUM_EVENTS": {
+      "value": 18,
+      "unit": "events"
+    },
+    "YEARS_TO_KOHRAH_VICTORY": {
+      "value": 4,
+      "unit": "years"
+    },
+    "RUN_AWAY_FUEL_COST": {
+      "value": 500,
+      "unit": "internal fuel units lost when the flagship flees last",
+      "defined_in": "src/uqm/pickship.c"
+    },
+    "LOST_DAYS": {
+      "value": 14,
+      "unit": "days skipped while the bomb is installed (DoTimePassage)",
+      "defined_in": "src/uqm/starbase.c"
+    }
+  }
+}

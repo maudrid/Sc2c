@@ -1,0 +1,161 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/races.h"
+    ]
+  },
+  "_notes": [
+    "Order is the *_SHIP enum, which is the order of avail_race_q (FLEET_INFO, one per race in the game).",
+    "ship_cost (RACE_SHIP_COST) is used for battle salvage: cost / 8 resource units per enemy ship destroyed (UninitEncounter, encount.c).",
+    "ip_speed (RACE_IP_SPEED) is the speed of the race's ships in solar systems (ipdisp.c).",
+    "conversation (RACE_COMMUNICATION) is the CONVERSATION id used when meeting this race."
+  ],
+  "races": [
+    {
+      "race": "ARILOU_SHIP",
+      "ship_cost": 1600,
+      "ip_speed": 80,
+      "conversation": "ARILOU_CONVERSATION"
+    },
+    {
+      "race": "CHMMR_SHIP",
+      "ship_cost": 3000,
+      "ip_speed": 54,
+      "conversation": "CHMMR_CONVERSATION"
+    },
+    {
+      "race": "HUMAN_SHIP",
+      "ship_cost": 1100,
+      "ip_speed": 48,
+      "conversation": "INVALID_CONVERSATION"
+    },
+    {
+      "race": "ORZ_SHIP",
+      "ship_cost": 2300,
+      "ip_speed": 80,
+      "conversation": "ORZ_CONVERSATION"
+    },
+    {
+      "race": "PKUNK_SHIP",
+      "ship_cost": 2000,
+      "ip_speed": 80,
+      "conversation": "PKUNK_CONVERSATION"
+    },
+    {
+      "race": "SHOFIXTI_SHIP",
+      "ship_cost": 500,
+      "ip_speed": 70,
+      "conversation": "SHOFIXTI_CONVERSATION"
+    },
+    {
+      "race": "SPATHI_SHIP",
+      "ship_cost": 1800,
+      "ip_speed": 96,
+      "conversation": "SPATHI_CONVERSATION"
+    },
+    {
+      "race": "SUPOX_SHIP",
+      "ship_cost": 1600,
+      "ip_speed": 80,
+      "conversation": "SUPOX_CONVERSATION"
+    },
+    {
+      "race": "THRADDASH_SHIP",
+      "ship_cost": 1000,
+      "ip_speed": 56,
+      "conversation": "THRADD_CONVERSATION"
+    },
+    {
+      "race": "UTWIG_SHIP",
+      "ship_cost": 2200,
+      "ip_speed": 60,
+      "conversation": "UTWIG_CONVERSATION"
+    },
+    {
+      "race": "VUX_SHIP",
+      "ship_cost": 1200,
+      "ip_speed": 42,
+      "conversation": "VUX_CONVERSATION"
+    },
+    {
+      "race": "YEHAT_SHIP",
+      "ship_cost": 2300,
+      "ip_speed": 60,
+      "conversation": "YEHAT_CONVERSATION"
+    },
+    {
+      "race": "MELNORME_SHIP",
+      "ship_cost": 3600,
+      "ip_speed": 80,
+      "conversation": "MELNORME_CONVERSATION"
+    },
+    {
+      "race": "DRUUGE_SHIP",
+      "ship_cost": 1700,
+      "ip_speed": 40,
+      "conversation": "DRUUGE_CONVERSATION"
+    },
+    {
+      "race": "ILWRATH_SHIP",
+      "ship_cost": 1000,
+      "ip_speed": 50,
+      "conversation": "ILWRATH_CONVERSATION"
+    },
+    {
+      "race": "MYCON_SHIP",
+      "ship_cost": 2100,
+      "ip_speed": 54,
+      "conversation": "MYCON_CONVERSATION"
+    },
+    {
+      "race": "SLYLANDRO_SHIP",
+      "ship_cost": 4400,
+      "ip_speed": 120,
+      "conversation": "SLYLANDRO_CONVERSATION"
+    },
+    {
+      "race": "UMGAH_SHIP",
+      "ship_cost": 700,
+      "ip_speed": 36,
+      "conversation": "UMGAH_CONVERSATION"
+    },
+    {
+      "race": "URQUAN_SHIP",
+      "ship_cost": 3000,
+      "ip_speed": 60,
+      "conversation": "URQUAN_CONVERSATION"
+    },
+    {
+      "race": "ZOQFOTPIK_SHIP",
+      "ship_cost": 600,
+      "ip_speed": 80,
+      "conversation": "ZOQFOTPIK_CONVERSATION"
+    },
+    {
+      "race": "SYREEN_SHIP",
+      "ship_cost": 1300,
+      "ip_speed": 72,
+      "conversation": "INVALID_CONVERSATION"
+    },
+    {
+      "race": "BLACK_URQUAN_SHIP",
+      "ship_cost": 3000,
+      "ip_speed": 60,
+      "conversation": "BLACKURQ_CONVERSATION"
+    },
+    {
+      "race": "YEHAT_REBEL_SHIP",
+      "ship_cost": 2300,
+      "ip_speed": 60,
+      "conversation": "YEHAT_REBEL_CONVERSATION"
+    },
+    {
+      "race": "URQUAN_DRONE_SHIP",
+      "conversation": "URQUAN_DRONE_CONVERSATION"
+    }
+  ]
+}

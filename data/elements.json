@@ -1,0 +1,717 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/plandata.c",
+      "src/uqm/planets/elemdata.h",
+      "src/uqm/globdata.c"
+    ]
+  },
+  "_notes": [
+    "worth is the starting resource-unit value per unit of cargo, set in InitGameStructures (globdata.c)."
+  ],
+  "categories": [
+    {
+      "category": "COMMON",
+      "worth": 1
+    },
+    {
+      "category": "CORROSIVE",
+      "worth": 2
+    },
+    {
+      "category": "BASE_METAL",
+      "worth": 3
+    },
+    {
+      "category": "NOBLE",
+      "worth": 4
+    },
+    {
+      "category": "RARE_EARTH",
+      "worth": 5
+    },
+    {
+      "category": "PRECIOUS",
+      "worth": 6
+    },
+    {
+      "category": "RADIOACTIVE",
+      "worth": 8
+    },
+    {
+      "category": "EXOTIC",
+      "worth": 25
+    }
+  ],
+  "elements": [
+    {
+      "id": 0,
+      "element": "HYDROGEN",
+      "category": "COMMON"
+    },
+    {
+      "id": 1,
+      "element": "HELIUM",
+      "category": "COMMON"
+    },
+    {
+      "id": 2,
+      "element": "LITHIUM",
+      "category": "COMMON"
+    },
+    {
+      "id": 3,
+      "element": "BERYLLIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 4,
+      "element": "BORON",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 5,
+      "element": "CARBON",
+      "category": "COMMON"
+    },
+    {
+      "id": 6,
+      "element": "NITROGEN",
+      "category": "COMMON"
+    },
+    {
+      "id": 7,
+      "element": "OXYGEN",
+      "category": "CORROSIVE"
+    },
+    {
+      "id": 8,
+      "element": "FLUORINE",
+      "category": "CORROSIVE"
+    },
+    {
+      "id": 9,
+      "element": "NEON",
+      "category": "NOBLE"
+    },
+    {
+      "id": 10,
+      "element": "SODIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 11,
+      "element": "MAGNESIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 12,
+      "element": "ALUMINUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 13,
+      "element": "SILICON",
+      "category": "COMMON"
+    },
+    {
+      "id": 14,
+      "element": "PHOSPHORUS",
+      "category": "COMMON"
+    },
+    {
+      "id": 15,
+      "element": "SULFUR",
+      "category": "CORROSIVE"
+    },
+    {
+      "id": 16,
+      "element": "CHLORINE",
+      "category": "CORROSIVE"
+    },
+    {
+      "id": 17,
+      "element": "ARGON",
+      "category": "NOBLE"
+    },
+    {
+      "id": 18,
+      "element": "POTASSIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 19,
+      "element": "CALCIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 20,
+      "element": "SCANDIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 21,
+      "element": "TITANIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 22,
+      "element": "VANADIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 23,
+      "element": "CHROMIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 24,
+      "element": "MANGANESE",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 25,
+      "element": "IRON",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 26,
+      "element": "COBALT",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 27,
+      "element": "NICKEL",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 28,
+      "element": "COPPER",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 29,
+      "element": "ZINC",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 30,
+      "element": "GALLIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 31,
+      "element": "GERMANIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 32,
+      "element": "ARSENIC",
+      "category": "COMMON"
+    },
+    {
+      "id": 33,
+      "element": "SELENIUM",
+      "category": "COMMON"
+    },
+    {
+      "id": 34,
+      "element": "BROMINE",
+      "category": "CORROSIVE"
+    },
+    {
+      "id": 35,
+      "element": "KRYPTON",
+      "category": "NOBLE"
+    },
+    {
+      "id": 36,
+      "element": "RUBIDIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 37,
+      "element": "STRONTIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 38,
+      "element": "YTTRIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 39,
+      "element": "ZIRCONIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 40,
+      "element": "NIOBIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 41,
+      "element": "MOLYBDENUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 42,
+      "element": "TECHNETIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 43,
+      "element": "RUTHENIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 44,
+      "element": "RHODIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 45,
+      "element": "PALLADIUM",
+      "category": "PRECIOUS"
+    },
+    {
+      "id": 46,
+      "element": "SILVER",
+      "category": "PRECIOUS"
+    },
+    {
+      "id": 47,
+      "element": "CADMIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 48,
+      "element": "INDIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 49,
+      "element": "TIN",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 50,
+      "element": "ANTIMONY",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 51,
+      "element": "TELLURIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 52,
+      "element": "IODINE",
+      "category": "CORROSIVE"
+    },
+    {
+      "id": 53,
+      "element": "XENON",
+      "category": "NOBLE"
+    },
+    {
+      "id": 54,
+      "element": "CESIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 55,
+      "element": "BARIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 56,
+      "element": "LANTHANUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 57,
+      "element": "CERIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 58,
+      "element": "PRASEODYMIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 59,
+      "element": "NEODYMIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 60,
+      "element": "PROMETHIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 61,
+      "element": "SAMARIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 62,
+      "element": "EUROPIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 63,
+      "element": "GADOLINIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 64,
+      "element": "TERBIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 65,
+      "element": "DYPROSIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 66,
+      "element": "HOLMIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 67,
+      "element": "ERBIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 68,
+      "element": "THULIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 69,
+      "element": "YTTERBIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 70,
+      "element": "LUTETIUM",
+      "category": "RARE_EARTH"
+    },
+    {
+      "id": 71,
+      "element": "HAFNIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 72,
+      "element": "TANTALUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 73,
+      "element": "TUNGSTEN",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 74,
+      "element": "RHENIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 75,
+      "element": "OSMIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 76,
+      "element": "IRIDIUM",
+      "category": "PRECIOUS"
+    },
+    {
+      "id": 77,
+      "element": "PLATINUM",
+      "category": "PRECIOUS"
+    },
+    {
+      "id": 78,
+      "element": "GOLD",
+      "category": "PRECIOUS"
+    },
+    {
+      "id": 79,
+      "element": "MERCURY",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 80,
+      "element": "THALLIUM",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 81,
+      "element": "LEAD",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 82,
+      "element": "BISMUTH",
+      "category": "BASE_METAL"
+    },
+    {
+      "id": 83,
+      "element": "POLONIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 84,
+      "element": "ASTATINE",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 85,
+      "element": "RADON",
+      "category": "NOBLE"
+    },
+    {
+      "id": 86,
+      "element": "FRANCIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 87,
+      "element": "RADIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 88,
+      "element": "ACTINIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 89,
+      "element": "THORIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 90,
+      "element": "PROTACTINIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 91,
+      "element": "URANIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 92,
+      "element": "NEPTUNIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 93,
+      "element": "PLUTONIUM",
+      "category": "RADIOACTIVE"
+    },
+    {
+      "id": 94,
+      "element": "OZONE",
+      "category": "COMMON"
+    },
+    {
+      "id": 95,
+      "element": "FREE_RADICALS",
+      "category": "COMMON"
+    },
+    {
+      "id": 96,
+      "element": "CARBON_DIOXIDE",
+      "category": "COMMON"
+    },
+    {
+      "id": 97,
+      "element": "CARBON_MONOXIDE",
+      "category": "COMMON"
+    },
+    {
+      "id": 98,
+      "element": "AMMONIA",
+      "category": "COMMON"
+    },
+    {
+      "id": 99,
+      "element": "METHANE",
+      "category": "COMMON"
+    },
+    {
+      "id": 100,
+      "element": "SULFURIC_ACID",
+      "category": "COMMON"
+    },
+    {
+      "id": 101,
+      "element": "HYDROCHLORIC_ACID",
+      "category": "COMMON"
+    },
+    {
+      "id": 102,
+      "element": "HYDROCYANIC_ACID",
+      "category": "COMMON"
+    },
+    {
+      "id": 103,
+      "element": "FORMIC_ACID",
+      "category": "COMMON"
+    },
+    {
+      "id": 104,
+      "element": "PHOSPHORIC_ACID",
+      "category": "COMMON"
+    },
+    {
+      "id": 105,
+      "element": "FORMALDEHYDE",
+      "category": "COMMON"
+    },
+    {
+      "id": 106,
+      "element": "CYANOACETYLENE",
+      "category": "COMMON"
+    },
+    {
+      "id": 107,
+      "element": "METHANOL",
+      "category": "COMMON"
+    },
+    {
+      "id": 108,
+      "element": "ETHANOL",
+      "category": "COMMON"
+    },
+    {
+      "id": 109,
+      "element": "SILICON_MONOXIDE",
+      "category": "COMMON"
+    },
+    {
+      "id": 110,
+      "element": "TITANIUM_OXIDE",
+      "category": "COMMON"
+    },
+    {
+      "id": 111,
+      "element": "ZIRCONIUM_OXIDE",
+      "category": "COMMON"
+    },
+    {
+      "id": 112,
+      "element": "WATER",
+      "category": "COMMON"
+    },
+    {
+      "id": 113,
+      "element": "SILICON_COMPOUNDS",
+      "category": "COMMON"
+    },
+    {
+      "id": 114,
+      "element": "METAL_OXIDES",
+      "category": "COMMON"
+    },
+    {
+      "id": 115,
+      "element": "QUANTUM_BH",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 116,
+      "element": "NEUTRONIUM",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 117,
+      "element": "MAGNETIC_MONOPOLES",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 118,
+      "element": "DEGENERATE_MATTER",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 119,
+      "element": "RT_SUPER_FLUID",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 120,
+      "element": "AGUUTI_NODULES",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 121,
+      "element": "IRON_COMPOUNDS",
+      "category": "COMMON"
+    },
+    {
+      "id": 122,
+      "element": "ALUMINUM_COMPOUNDS",
+      "category": "COMMON"
+    },
+    {
+      "id": 123,
+      "element": "NITROUS_OXIDE",
+      "category": "COMMON"
+    },
+    {
+      "id": 124,
+      "element": "RADIOACTIVE_COMPOUNDS",
+      "category": "COMMON"
+    },
+    {
+      "id": 125,
+      "element": "HYDROCARBONS",
+      "category": "COMMON"
+    },
+    {
+      "id": 126,
+      "element": "CARBON_COMPOUNDS",
+      "category": "COMMON"
+    },
+    {
+      "id": 127,
+      "element": "ANTIMATTER",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 128,
+      "element": "CHARON_DUST",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 129,
+      "element": "REISBURG_HELICES",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 130,
+      "element": "TZO_CRYSTALS",
+      "category": "EXOTIC"
+    },
+    {
+      "id": 131,
+      "element": "CALCIUM_COMPOUNDS",
+      "category": "COMMON"
+    },
+    {
+      "id": 132,
+      "element": "NITRIC_ACID",
+      "category": "COMMON"
+    }
+  ]
+}

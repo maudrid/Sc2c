@@ -1,0 +1,283 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/planets/lander.c",
+      "src/uqm/planets/lifeform.h"
+    ]
+  },
+  "_notes": [
+    "label comes from the source comment next to each entry. Display names are content.",
+    "The last NUM_SPECIAL_CREATURE_TYPES entries are special creatures (Evil One, Brainbox Bulldozer, Zex's Beauty).",
+    "bio_value is the low nibble of ValueAndHitPoints (bio data per creature), hit_points the high nibble (stun hits to capture, scan.c)."
+  ],
+  "constants": {
+    "NUM_CREATURE_TYPES": 23,
+    "NUM_SPECIAL_CREATURE_TYPES": 3
+  },
+  "lifeforms": [
+    {
+      "index": 0,
+      "label": "Roto-Dendron",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "MOTIONLESS",
+      "danger": "HARMLESS",
+      "bio_value": 1,
+      "hit_points": 1
+    },
+    {
+      "index": 1,
+      "label": "Macrocillia",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "MOTIONLESS",
+      "danger": "HARMLESS",
+      "bio_value": 6,
+      "hit_points": 1
+    },
+    {
+      "index": 2,
+      "label": "Splort Wort",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "MOTIONLESS",
+      "danger": "WEAK",
+      "bio_value": 3,
+      "hit_points": 1
+    },
+    {
+      "index": 3,
+      "label": "Whackin' Bush",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "MOTIONLESS",
+      "danger": "NORMAL",
+      "bio_value": 5,
+      "hit_points": 3
+    },
+    {
+      "index": 4,
+      "label": "Slot Machine Tree",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "MOTIONLESS",
+      "danger": "HARMLESS",
+      "bio_value": 2,
+      "hit_points": 10
+    },
+    {
+      "index": 5,
+      "label": "Neon Worm",
+      "behavior": "UNPREDICTABLE",
+      "awareness": "LOW",
+      "speed": "SLOW",
+      "danger": "HARMLESS",
+      "bio_value": 1,
+      "hit_points": 2
+    },
+    {
+      "index": 6,
+      "label": "Stiletto Urchin",
+      "behavior": "FLEE",
+      "awareness": "MEDIUM",
+      "speed": "SLOW",
+      "danger": "HARMLESS",
+      "bio_value": 8,
+      "hit_points": 5
+    },
+    {
+      "index": 7,
+      "label": "Deluxe Blob",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "SLOW",
+      "danger": "WEAK",
+      "bio_value": 2,
+      "hit_points": 2
+    },
+    {
+      "index": 8,
+      "label": "Glowing Medusa",
+      "behavior": "UNPREDICTABLE",
+      "awareness": "LOW",
+      "speed": "SLOW",
+      "danger": "NORMAL",
+      "bio_value": 3,
+      "hit_points": 8
+    },
+    {
+      "index": 9,
+      "label": "Carousel Beast",
+      "behavior": "HUNT",
+      "awareness": "MEDIUM",
+      "speed": "SLOW",
+      "danger": "MONSTROUS",
+      "bio_value": 10,
+      "hit_points": 15
+    },
+    {
+      "index": 10,
+      "label": "Mysterious Bees",
+      "behavior": "HUNT",
+      "awareness": "MEDIUM",
+      "speed": "MEDIUM",
+      "danger": "WEAK",
+      "bio_value": 3,
+      "hit_points": 3
+    },
+    {
+      "index": 11,
+      "label": "Hopping Blobby",
+      "behavior": "FLEE",
+      "awareness": "MEDIUM",
+      "speed": "MEDIUM",
+      "danger": "HARMLESS",
+      "bio_value": 2,
+      "hit_points": 1
+    },
+    {
+      "index": 12,
+      "label": "Blood Monkey",
+      "behavior": "UNPREDICTABLE",
+      "awareness": "LOW",
+      "speed": "MEDIUM",
+      "danger": "WEAK",
+      "bio_value": 2,
+      "hit_points": 2
+    },
+    {
+      "index": 13,
+      "label": "Yompin Yiminy",
+      "behavior": "HUNT",
+      "awareness": "HIGH",
+      "speed": "MEDIUM",
+      "danger": "NORMAL",
+      "bio_value": 4,
+      "hit_points": 6
+    },
+    {
+      "index": 14,
+      "label": "Amorphous Trandicula",
+      "behavior": "UNPREDICTABLE",
+      "awareness": "LOW",
+      "speed": "MEDIUM",
+      "danger": "MONSTROUS",
+      "bio_value": 9,
+      "hit_points": 12
+    },
+    {
+      "index": 15,
+      "label": "Crazy Weasel",
+      "behavior": "HUNT",
+      "awareness": "HIGH",
+      "speed": "FAST",
+      "danger": "WEAK",
+      "bio_value": 3,
+      "hit_points": 1
+    },
+    {
+      "index": 16,
+      "label": "Merry Whumpet",
+      "behavior": "FLEE",
+      "awareness": "HIGH",
+      "speed": "FAST",
+      "danger": "HARMLESS",
+      "bio_value": 1,
+      "hit_points": 1
+    },
+    {
+      "index": 17,
+      "label": "Fungal Squid",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "FAST",
+      "danger": "NORMAL",
+      "bio_value": 7,
+      "hit_points": 8
+    },
+    {
+      "index": 18,
+      "label": "Penguin Cyclops",
+      "behavior": "FLEE",
+      "awareness": "HIGH",
+      "speed": "FAST",
+      "danger": "WEAK",
+      "bio_value": 15,
+      "hit_points": 2
+    },
+    {
+      "index": 19,
+      "label": "Chicken",
+      "behavior": "FLEE",
+      "awareness": "LOW",
+      "speed": "FAST",
+      "danger": "WEAK",
+      "bio_value": 1,
+      "hit_points": 1
+    },
+    {
+      "index": 20,
+      "label": "Bubble Vine",
+      "behavior": "UNPREDICTABLE",
+      "awareness": "LOW",
+      "speed": "SLOW",
+      "danger": "WEAK",
+      "bio_value": 6,
+      "hit_points": 2
+    },
+    {
+      "index": 21,
+      "label": "Bug-Eyed Bait",
+      "behavior": "FLEE",
+      "awareness": "HIGH",
+      "speed": "SLOW",
+      "danger": "WEAK",
+      "bio_value": 4,
+      "hit_points": 2
+    },
+    {
+      "index": 22,
+      "label": "Goo Burger",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "MOTIONLESS",
+      "danger": "WEAK",
+      "bio_value": 8,
+      "hit_points": 5
+    },
+    {
+      "index": 23,
+      "label": "Evil One",
+      "behavior": "HUNT",
+      "awareness": "LOW",
+      "speed": "MOTIONLESS",
+      "danger": "MONSTROUS",
+      "bio_value": 1,
+      "hit_points": 1
+    },
+    {
+      "index": 24,
+      "label": "Brainbox Bulldozers",
+      "behavior": "UNPREDICTABLE",
+      "awareness": "LOW",
+      "speed": "SLOW",
+      "danger": "HARMLESS",
+      "bio_value": 0,
+      "hit_points": 1
+    },
+    {
+      "index": 25,
+      "label": "Zex's Beauty",
+      "behavior": "HUNT",
+      "awareness": "HIGH",
+      "speed": "FAST",
+      "danger": "MONSTROUS",
+      "bio_value": 15,
+      "hit_points": 15
+    }
+  ]
+}
