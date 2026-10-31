@@ -82,19 +82,37 @@ class Uqm:
         with open(os.path.join(self.build, "config_unix.h"), "w") as f:
             f.write(text)
         self.counter = 0
+        self._commit = None
+        self._commit_known = False
+        self._new_game = None
 
     def read(self, rel):
         with open(os.path.join(self.root, rel), encoding="latin-1") as f:
             return f.read()
 
     def commit(self):
+        """HEAD of the UQM checkout, or None if it can't be verified.
+
+        Only trusts git when sc2/ sits directly in the repository root, so
+        a tarball unpacked inside some other repository isn't mistaken for
+        a UQM checkout.
+        """
+        if self._commit_known:
+            return self._commit
+        self._commit_known = True
         try:
-            out = subprocess.run(
-                ["git", "-C", self.root, "rev-parse", "HEAD"],
-                capture_output=True, text=True, check=True)
-            return out.stdout.strip()
+            top = subprocess.run(
+                ["git", "-C", self.root, "rev-parse", "--show-toplevel"],
+                capture_output=True, text=True, check=True).stdout.strip()
+            if os.path.realpath(top) == os.path.realpath(
+                    os.path.dirname(self.root)):
+                self._commit = subprocess.run(
+                    ["git", "-C", self.root, "rev-parse", "HEAD"],
+                    capture_output=True, text=True,
+                    check=True).stdout.strip()
         except (OSError, subprocess.CalledProcessError):
-            return None
+            pass
+        return self._commit
 
     def run_c(self, body, includes, extra_dirs=()):
         """Compile and run a C program; return its stdout lines."""
@@ -118,10 +136,21 @@ class Uqm:
                              check=True)
         return out.stdout.splitlines()
 
-    def eval_ints(self, exprs, includes, extra_dirs=()):
-        """Evaluate integer C expressions; return a list of ints."""
-        body = "\n".join(f'printf("%lld\\n", (long long)({e}));'
-                         for e in exprs)
+    def eval_ints(self, exprs, includes, extra_dirs=(), constant=False):
+        """Evaluate integer C expressions; return a list of ints.
+
+        With constant=True each expression must be an integer constant
+        expression (it is used as an enum value), so strings, pointers and
+        floating-point values fail to compile instead of being converted.
+        One expression per line, so errors can be traced to an expression.
+        """
+        if constant:
+            body = "\n".join(
+                f'{{ enum {{ v = ({e}) }}; printf("%lld\\n", (long long)v); }}'
+                for e in exprs)
+        else:
+            body = "\n".join(f'printf("%lld\\n", (long long)({e}));'
+                             for e in exprs)
         return [int(v) for v in self.run_c(body, includes, extra_dirs)]
 
 
@@ -189,7 +218,7 @@ def wrap(uqm, sources, data, notes=None):
         "_source": {
             "repository": UQM_REPO,
             "branch": "v0.8.0",
-            "commit": uqm.commit() or PINNED_COMMIT,
+            "commit": uqm.commit(),
             "files": sources,
         },
     }
@@ -361,7 +390,11 @@ def extract_lifeforms(uqm):
     src = uqm.read("src/uqm/planets/lander.c")
     block = src[src.index("CreatureData[]"):]
     block = block[:block.index("};")]
-    comments = re.findall(r"//\s*([^\n]+)", block)
+    # Each entry is "{attributes, MAKE_BYTE (v, hp)}," followed by a
+    # "// Name" comment; pair them entry by entry.
+    entry_re = re.compile(r"\{[^{}]*MAKE_BYTE\s*\([^)]*\)\s*\}\s*,?"
+                          r"[ \t]*(?:\n[ \t]*)?(?://\s*([^\n]+))?")
+    comments = [m.group(1) for m in entry_re.finditer(block)]
     body = r"""
     int i;
     for (i = 0; i < NUM_CREATURE_TYPES + NUM_SPECIAL_CREATURE_TYPES; ++i) {
@@ -377,11 +410,15 @@ def extract_lifeforms(uqm):
     speed = ["MOTIONLESS", "SLOW", "MEDIUM", "FAST"]
     danger = ["HARMLESS", "WEAK", "NORMAL", "MONSTROUS"]
     out = []
-    for i, line in enumerate(uqm.run_c(body, ["uqm/planets/lander.c"])):
+    rows = uqm.run_c(body, ["uqm/planets/lander.c"])
+    if len(rows) != len(comments):
+        raise RuntimeError(f"{len(rows)} creatures but {len(comments)} "
+                           "entries found in CreatureData")
+    for i, line in enumerate(rows):
         b, aw, sp, dg, value, hp = map(int, line.split())
         out.append({
             "index": i,
-            "label": comments[i].strip() if i < len(comments) else None,
+            "label": comments[i].strip() if comments[i] else None,
             "behavior": behavior[b], "awareness": awareness[aw],
             "speed": speed[sp], "danger": danger[dg],
             "bio_value": value, "hit_points": hp,
@@ -444,12 +481,13 @@ def file_defines(text):
 
 
 def eval_defines(uqm, names, includes, extra_dirs):
-    """Evaluate the integer-valued ones among `names`; drop the rest."""
+    """Evaluate the names that are integer constants; drop the rest
+    (strings, floats, pointers, macros needing runtime values)."""
     remaining = list(names)
     while remaining:
         try:
-            return dict(zip(remaining, uqm.eval_ints(remaining, includes,
-                                                     extra_dirs)))
+            return dict(zip(remaining, uqm.eval_ints(
+                remaining, includes, extra_dirs, constant=True)))
         except RuntimeError as err:
             bad = set()
             for m in re.finditer(r"h\d+\.c:(\d+):", str(err)):
@@ -573,18 +611,26 @@ def extract_races(uqm):
     race_names = enum_names(races_h, "ARILOU_SHIP", skip_aliases=False)
     race_names = [r for r in race_names if r not in ("NUM_AVAILABLE_RACES",
                                                      "SAMATRA_SHIP")]
-    costs = uqm.eval_ints([f"((COUNT[]){{RACE_SHIP_COST}})[{i}]"
-                           for i in range(len(race_names) - 1)],
-                          ["uqm/races.h"])
-    speeds = uqm.eval_ints([f"((COUNT[]){{RACE_IP_SPEED}})[{i}]"
-                            for i in range(len(race_names) - 1)],
-                           ["uqm/races.h"])
+    n_cost, n_speed = uqm.eval_ints(
+        ["sizeof ((COUNT[]){RACE_SHIP_COST}) / sizeof (COUNT)",
+         "sizeof ((COUNT[]){RACE_IP_SPEED}) / sizeof (COUNT)"],
+        ["uqm/races.h"])
     comm = macro_list(races_h, "RACE_COMMUNICATION")
+    if max(n_cost, n_speed, len(comm)) > len(race_names):
+        raise RuntimeError(
+            f"race tables don't line up: {len(race_names)} races, "
+            f"{n_cost} costs, {n_speed} speeds, {len(comm)} conversations")
+    costs = uqm.eval_ints([f"((COUNT[]){{RACE_SHIP_COST}})[{i}]"
+                           for i in range(n_cost)], ["uqm/races.h"])
+    speeds = uqm.eval_ints([f"((COUNT[]){{RACE_IP_SPEED}})[{i}]"
+                            for i in range(n_speed)], ["uqm/races.h"])
     out = []
     for i, r in enumerate(race_names):
         entry = {"race": r}
         if i < len(costs):
-            entry.update({"ship_cost": costs[i], "ip_speed": speeds[i]})
+            entry["ship_cost"] = costs[i]
+        if i < len(speeds):
+            entry["ip_speed"] = speeds[i]
         if i < len(comm):
             entry["conversation"] = comm[i]
         out.append(entry)
@@ -657,15 +703,18 @@ def extract_game_state(uqm):
 def parse_new_game_assignments(uqm):
     """Integer values InitGameStructures (globdata.c) sets for a new game.
 
-    Handles chained assignments (A = B = value). Targets indexed by a loop
-    variable (Slots[i]) and the start position (set through a function)
-    are left out; extract_new_game records those separately.
+    Handles chained assignments (A = B = value). Slots[i] targets are the
+    loops that first fill every slot with its empty marker. The start
+    position (set through a function) is left out; extract_new_game
+    records it separately.
     """
+    if uqm._new_game is not None:
+        return uqm._new_game
     text = uqm.read("src/uqm/globdata.c")
     start = text.index("\nInitGameStructures (void)")
     body = strip_comments(text[start:text.index("\n}\n", start)])
     keep = re.compile(r"(ElementWorth|ModuleCost)\[\w+\]$|CrewCost$|"
-                      r"FuelCost$|(DriveSlots|JetSlots|ModuleSlots)\[\d+\]$|"
+                      r"FuelCost$|(DriveSlots|JetSlots|ModuleSlots)\[(\d+|i)\]$|"
                       r"CrewEnlisted$|FuelOnBoard$|NumLanders$|ResUnits$")
     target_re = re.compile(r"GLOBAL(_SIS)?\s*\(\s*([^()]+?)\s*\)\s*$")
     pairs = []
@@ -690,7 +739,49 @@ def parse_new_game_assignments(uqm):
             result[group][m.group(2)] = v
         else:
             result["other"][k] = v
+    uqm._new_game = result
     return result
+
+
+def c_function_body(text, signature):
+    start = text.index("\n" + signature)
+    return strip_comments(text[start:text.index("\n}\n", start)])
+
+
+def extract_clock_start(uqm):
+    """Start date (InitGameClock) and AddInitialGameEvents, as compiled."""
+    clock = c_function_body(uqm.read("src/uqm/clock.c"),
+                            "InitGameClock (void)")
+    fields = {}
+    for name in ("month_index", "day_index", "year_index"):
+        m = re.search(rf"GameClock\.{name}\s*\)\s*=\s*([^;]+);", clock)
+        if not m:
+            raise RuntimeError(f"InitGameClock no longer sets {name}")
+        fields[name] = m.group(1).strip()
+    month, day, year = uqm.eval_ints(
+        [fields["month_index"], fields["day_index"], fields["year_index"]],
+        ["uqm/clock.h"])
+    body = c_function_body(uqm.read("src/uqm/gameev.c"),
+                           "AddInitialGameEvents (void)")
+    calls = [[a.strip() for a in c.split(",")]
+             for c in re.findall(r"AddEvent\s*\(([^;]*)\)\s*;", body)]
+    if not calls or any(len(c) != 5 for c in calls):
+        raise RuntimeError("unexpected AddEvent calls in gameev.c")
+    nums = uqm.eval_ints([x for c in calls for x in c[:4]],
+                         ["uqm/clock.h", "uqm/globdata.h", "uqm/gameev.h"])
+    kinds = {v: k for k, v in named_values(
+        uqm, ["ABSOLUTE_EVENT", "RELATIVE_EVENT"], ["uqm/clock.h"]).items()}
+    events = []
+    for i, c in enumerate(calls):
+        kind, mo, d, y = nums[4 * i: 4 * i + 4]
+        kind = kinds[kind].replace("_EVENT", "")
+        if kind == "ABSOLUTE":
+            events.append({"event": c[4], "kind": kind, "month": mo,
+                           "day": d, "year": y})
+        else:
+            events.append({"event": c[4], "kind": kind, "months": mo,
+                           "days": d, "years": y})
+    return {"year": year, "month": month, "day": day}, events
 
 
 def extract_new_game(uqm):
@@ -699,18 +790,29 @@ def extract_new_game(uqm):
     modules = enum_names(sis, "FUSION_THRUSTER")
     module_values = named_values(uqm, modules + ["EMPTY_SLOT"],
                                  ["uqm/sis.h"])
-    clock = named_values(uqm, ["START_YEAR"], ["uqm/clock.h"])
     other = a["other"]
+    start_date, events = extract_clock_start(uqm)
     # Slot assignments of the starting flagship, from InitGameStructures.
+    kinds = {"DriveSlots": "drive", "JetSlots": "jet",
+             "ModuleSlots": "module"}
     slots = {"drive": {}, "jet": {}, "module": {}}
+    empty = {}
+    empty_slot = module_values["EMPTY_SLOT"]
     for k, v in other.items():
-        m = re.match(r"SIS\.(DriveSlots|JetSlots|ModuleSlots)\[(\d+)\]", k)
-        if m:
-            kind = {"DriveSlots": "drive", "JetSlots": "jet",
-                    "ModuleSlots": "module"}[m.group(1)]
-            name = next((n for n, val in module_values.items()
-                         if val == v and n != "EMPTY_SLOT"), None)
-            slots[kind][int(m.group(2))] = name
+        m = re.match(r"SIS\.(DriveSlots|JetSlots|ModuleSlots)\[(\d+|i)\]", k)
+        if not m:
+            continue
+        kind = kinds[m.group(1)]
+        if m.group(2) == "i":
+            empty[kind] = {"value": v,
+                           "expression": f"EMPTY_SLOT + {v - empty_slot}"}
+            continue
+        name = next((n for n, val in module_values.items()
+                     if val == v and n != "EMPTY_SLOT"), None)
+        slots[kind][int(m.group(2))] = name
+    if set(empty) != set(slots):
+        raise RuntimeError(f"empty-slot loops not found for "
+                           f"{set(slots) - set(empty)}")
     plain = {k: v for k, v in other.items() if "Slots[" not in k}
     unit = named_values(uqm, ["MODULE_COST_SCALE"], ["uqm/sis.h"])
     sol = named_values(uqm, ["SOL_X", "SOL_Y"], ["uqm/races.h",
@@ -720,7 +822,7 @@ def extract_new_game(uqm):
         raise RuntimeError("start position no longer Sol in globdata.c")
     return wrap(uqm, ["src/uqm/globdata.c", "src/uqm/clock.c",
                       "src/uqm/gameev.c", "src/uqm/sis.h"], {
-        "start_date": {"year": clock["START_YEAR"], "month": 2, "day": 17},
+        "start_date": start_date,
         "prices": {
             "crew": plain.get("CrewCost"),
             "fuel": plain.get("FuelCost"),
@@ -738,19 +840,9 @@ def extract_new_game(uqm):
             "start_universe_y": sol["SOL_Y"],
             "slots": {k: {str(i): n for i, n in sorted(v.items())}
                       for k, v in slots.items()},
+            "empty_slot_markers": empty,
         },
-        "initial_events": [
-            {"event": "HYPERSPACE_ENCOUNTER_EVENT", "kind": "RELATIVE",
-             "months": 0, "days": 1, "years": 0},
-            {"event": "ARILOU_ENTRANCE_EVENT", "kind": "ABSOLUTE",
-             "month": 3, "day": 17, "year": clock["START_YEAR"]},
-            {"event": "KOHR_AH_VICTORIOUS_EVENT", "kind": "RELATIVE",
-             "months": 0, "days": 0,
-             "years": uqm.eval_ints(["YEARS_TO_KOHRAH_VICTORY"],
-                                    ["uqm/globdata.h"])[0]},
-            {"event": "SLYLANDRO_RAMP_UP", "kind": "RELATIVE",
-             "months": 0, "days": 0, "years": 0},
-        ],
+        "initial_events": events,
     }, [
         "Values set by InitGameStructures (globdata.c), InitGameClock (clock.c) "
         "and AddInitialGameEvents (gameev.c) when a new game starts.",
@@ -762,9 +854,13 @@ def extract_new_game(uqm):
         "The flagship starts at Sol (log_x/log_y = UNIVERSE_TO_LOGX/Y of "
         "SOL_X/SOL_Y), in interplanetary flight.",
         "slots lists the filled slots by position; every other slot "
-        "starts empty (EMPTY_SLOT).",
-        "initial_events is copied from AddInitialGameEvents; the C call "
-        "list is checked by tools/extract/test_data.py.",
+        "starts empty. Each kind of slot has its own empty marker "
+        "(empty_slot_markers: drive EMPTY_SLOT + 0, jet + 1, module + 2), "
+        "which the outfitting code (outfit.c) relies on.",
+        "start_date comes from InitGameClock and initial_events from the "
+        "AddEvent calls in AddInitialGameEvents, both evaluated by the "
+        "compiler. A RELATIVE event with months, days and years all 0 runs "
+        "at once instead of being scheduled (AddEvent, clock.c).",
         "The flagship's and commander's starting names are content strings.",
     ])
 
@@ -850,16 +946,12 @@ LOCAL_CONSTANTS = [
 def extract_constants(uqm):
     out = {}
     for name, includes, unit in CONSTANTS:
-        includes = ["uqm/races.h"] + includes
-        try:
-            value = uqm.eval_ints([name], includes)[0]
-        except RuntimeError:
-            value = None
+        value = uqm.eval_ints([name], ["uqm/races.h"] + includes)[0]
         out[name] = {"value": value, "unit": unit}
     for name, expr, includes, where, unit in LOCAL_CONSTANTS:
         src = uqm.read(where)
-        if not re.search(rf"#define\s+{name}\s+\(?{re.escape(expr)}\)?",
-                         src):
+        if not re.search(rf"#define\s+{name}\s+\(?{re.escape(expr)}\)?"
+                         r"[ \t]*(?:/[/*]|$)", src, flags=re.M):
             raise RuntimeError(f"{name} no longer matches {where}")
         value = uqm.eval_ints([expr], ["uqm/races.h"] + includes)[0]
         out[name] = {"value": value, "unit": unit, "defined_in": where}
@@ -916,7 +1008,11 @@ def main():
     try:
         uqm = Uqm(args.uqm, build)
         commit = uqm.commit()
-        if commit and commit != PINNED_COMMIT:
+        if commit is None:
+            print("warning: can't verify the UQM commit (not a git checkout "
+                  "of the UQM repository); _source.commit will be null",
+                  file=sys.stderr)
+        elif commit != PINNED_COMMIT:
             print(f"warning: UQM tree is at {commit}, expected "
                   f"{PINNED_COMMIT}", file=sys.stderr)
         os.makedirs(args.out, exist_ok=True)

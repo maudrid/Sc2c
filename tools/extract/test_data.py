@@ -127,6 +127,8 @@ class PlanetsAndElements(unittest.TestCase):
         self.assertEqual(lf[0]["label"], "Roto-Dendron")
         self.assertEqual((lf[0]["bio_value"], lf[0]["hit_points"]), (1, 1))
         self.assertEqual(lf[-1]["label"], "Zex's Beauty")
+        self.assertEqual(lf[3]["label"], "Whackin' Bush")
+        self.assertTrue(all(x["label"] for x in lf))
 
 
 class Ships(unittest.TestCase):
@@ -175,6 +177,8 @@ class Ships(unittest.TestCase):
         self.assertEqual(cost["SHOFIXTI_SHIP"], 500)
         # 23 races in the game; the drone/Sa-Matra entry has no cost.
         self.assertEqual(len([r for r in races if "ship_cost" in r]), 23)
+        # RACE_IP_SPEED also covers the drone/Sa-Matra entry.
+        self.assertEqual(len([r for r in races if "ip_speed" in r]), 24)
 
     def test_syreen_start_below_max_crew(self):
         s = self.ships["syreen"]
@@ -205,6 +209,18 @@ class StateAndRules(unittest.TestCase):
         self.assertEqual((f["crew"], f["fuel"], f["landers"],
                           f["resource_units"]), (50, 1000, 1, 0))
         self.assertEqual(f["slots"]["module"]["15"], "GUN_WEAPON")
+        empty = load("modules")["constants"]["EMPTY_SLOT"]
+        self.assertEqual({k: v["value"] for k, v in
+                          f["empty_slot_markers"].items()},
+                         {"drive": empty, "jet": empty + 1,
+                          "module": empty + 2})
+        self.assertEqual([e["event"] for e in d["initial_events"]],
+                         ["HYPERSPACE_ENCOUNTER_EVENT",
+                          "ARILOU_ENTRANCE_EVENT",
+                          "KOHR_AH_VICTORIOUS_EVENT", "SLYLANDRO_RAMP_UP"])
+        arilou = d["initial_events"][1]
+        self.assertEqual((arilou["kind"], arilou["month"], arilou["day"],
+                          arilou["year"]), ("ABSOLUTE", 3, 17, 2155))
         self.assertEqual((d["prices"]["crew"], d["prices"]["fuel"]), (3, 20))
         events = {e["event"] for e in load("events")["events"]}
         for e in d["initial_events"]:
@@ -238,6 +254,18 @@ class MatchesSource(unittest.TestCase):
                 with open(os.path.join(out, name + ".json")) as f:
                     fresh = json.load(f)
                 self.assertEqual(fresh, load(name), name)
+
+    def test_defines_must_be_integer_constants(self):
+        sys.path.insert(0, HERE)
+        import extract_uqm
+        with tempfile.TemporaryDirectory() as build:
+            uqm = extract_uqm.Uqm(os.environ["UQM_SC2"], build)
+            self.assertEqual(uqm.eval_ints(["DISPLAY_TO_WORLD (30)"],
+                                           ["uqm/units.h"], constant=True),
+                             [120])
+            for bad in ['"text"', "1.5", "&uqm_dummy_var"]:
+                with self.assertRaises(RuntimeError, msg=bad):
+                    uqm.eval_ints([bad], [], constant=True)
 
     def test_initial_events_match_gameev(self):
         path = os.path.join(os.environ["UQM_SC2"], "src/uqm/gameev.c")

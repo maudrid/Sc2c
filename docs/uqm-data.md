@@ -8,7 +8,7 @@ Reference source: official UQM git (`https://git.code.sf.net/p/sc2/uqm`), branch
 
 `tools/extract/extract_uqm.py` reads the UQM source and writes `data/*.json`. For every value it compiles a small C program against UQM's own headers and tables and prints the result, so macros, packed bit fields and enum values come from the C compiler. Only names, order and source comments are read as text.
 
-Every file starts with `_notice` (GPL notice and UQM copyright), `_source` (repository, branch, commit, files) and often `_notes` (units and meanings). Don't edit the files by hand; change the extractor and run it again.
+Every file starts with `_notice` (GPL notice and UQM copyright), `_source` (repository, branch, commit, files; the commit is null if the source isn't a git checkout of the UQM repository, so it can't be verified) and often `_notes` (units and meanings). Don't edit the files by hand; change the extractor and run it again.
 
 **Regenerate the data:**
 
@@ -111,7 +111,7 @@ Includes the flagship (`sis_ship`; its real stats come from installed modules), 
 
 ### `races.json`: per-race tables
 
-From `races.h`: the `*_SHIP` enum (the order of `avail_race_q`, one `FLEET_INFO` per race), `RACE_SHIP_COST` (battle salvage is cost / 8 per enemy ship destroyed), `RACE_IP_SPEED` (speed in solar systems) and `RACE_COMMUNICATION` (which conversation a race uses). 23 races have a cost; the last entry (drone/Sa-Matra) doesn't.
+From `races.h`: the `*_SHIP` enum (the order of `avail_race_q`, one `FLEET_INFO` per race), `RACE_SHIP_COST` (battle salvage is cost / 8 per enemy ship destroyed), `RACE_IP_SPEED` (speed in solar systems) and `RACE_COMMUNICATION` (which conversation a race uses). 23 races have a cost; the last entry (drone/Sa-Matra) has only a speed and a conversation. The extractor checks the table lengths against the race list.
 
 ### `game-state.json`: story flags
 
@@ -134,7 +134,10 @@ From `InitGameStructures` (`globdata.c`), `InitGameClock` (`clock.c`) and `AddIn
 - **Start date:** 17 February 2155.
 - **Prices:** crew 3, fuel 20 resource units; module costs and mineral worth.
 - **Flagship:** 50 crew, 10 fuel units, 1 lander, 0 resource units, at Sol, with two fusion thrusters, two turning jets, a fuel tank, a crew pod, a storage bay and a gun.
-- **Initial events:** hyperspace encounters start being generated after 1 day; Arilou entrance on 17 March 2155; Kohr-Ah victory after 4 years; Slylandro probes start ramping up.
+- **Empty slots:** each kind of slot has its own empty marker: drive `EMPTY_SLOT` (20), jet `EMPTY_SLOT + 1` (21), module `EMPTY_SLOT + 2` (22). The outfitting code (`outfit.c`) tells slot kinds apart by these, so keep them.
+- **Initial events:** hyperspace encounters start being generated after 1 day; Arilou entrance on 17 March 2155; Kohr-Ah victory after 4 years; Slylandro probes start ramping up at once. A relative event with all offsets 0 runs immediately instead of being scheduled (`AddEvent`, `clock.c`).
+
+The start date and events are read from `InitGameClock` and `AddInitialGameEvents` and evaluated by the compiler, not copied by hand.
 
 ### `modules.json`: flagship modules
 

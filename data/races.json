@@ -155,6 +155,7 @@
     },
     {
       "race": "URQUAN_DRONE_SHIP",
+      "ip_speed": 180,
       "conversation": "URQUAN_DRONE_CONVERSATION"
     }
   ]

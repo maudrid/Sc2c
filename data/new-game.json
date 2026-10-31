@@ -16,8 +16,8 @@
     "module_cost is in units of module_cost_scale resource units (price = cost * scale). Modules not listed start at 0, meaning not yet for sale.",
     "fuel is in 1/100 units (FUEL_TANK_SCALE): 1000 is 10 units of fuel.",
     "The flagship starts at Sol (log_x/log_y = UNIVERSE_TO_LOGX/Y of SOL_X/SOL_Y), in interplanetary flight.",
-    "slots lists the filled slots by position; every other slot starts empty (EMPTY_SLOT).",
-    "initial_events is copied from AddInitialGameEvents; the C call list is checked by tools/extract/test_data.py.",
+    "slots lists the filled slots by position; every other slot starts empty. Each kind of slot has its own empty marker (empty_slot_markers: drive EMPTY_SLOT + 0, jet + 1, module + 2), which the outfitting code (outfit.c) relies on.",
+    "start_date comes from InitGameClock and initial_events from the AddEvent calls in AddInitialGameEvents, both evaluated by the compiler. A RELATIVE event with months, days and years all 0 runs at once instead of being scheduled (AddEvent, clock.c).",
     "The flagship's and commander's starting names are content strings."
   ],
   "start_date": {
@@ -72,6 +72,20 @@
         "2": "CREW_POD",
         "8": "STORAGE_BAY",
         "15": "GUN_WEAPON"
+      }
+    },
+    "empty_slot_markers": {
+      "drive": {
+        "value": 20,
+        "expression": "EMPTY_SLOT + 0"
+      },
+      "jet": {
+        "value": 21,
+        "expression": "EMPTY_SLOT + 1"
+      },
+      "module": {
+        "value": 22,
+        "expression": "EMPTY_SLOT + 2"
       }
     }
   },
