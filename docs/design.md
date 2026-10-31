@@ -2,7 +2,7 @@
 
 Oct 31, 2026 · @My Dark Lord
 
-> Living copy: https://claude.ai/artifact/NjSyab2rXK5BqKwWEKwayh — this file is the repo snapshot. Keep both in step, or treat this file as the source of truth from now on.
+> This file is the source of truth. The earlier artifact copy (https://claude.ai/artifact/NjSyab2rXK5BqKwWEKwayh) is no longer kept up to date.
 
 ## Overview
 
