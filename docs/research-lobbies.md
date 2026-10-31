@@ -1,6 +1,6 @@
 # Research: how open-source games do lobbies and connections
 
-How free and open-source multiplayer games let players find a host and connect through home routers, and what that means for AC2C. Researched 2026-10-31 from project docs and source; details for a few projects come from older docs and may have changed.
+How free and open-source multiplayer games let players find a host and connect through home routers, and what that means for Crateris. Researched 2026-10-31 from project docs and source; details for a few projects come from older docs and may have changed.
 
 ## The problem
 
@@ -44,14 +44,14 @@ Platform services: **Steam** and **Epic Online Services (EOS)** both offer lobbi
 4. **Lobby server that also carries traffic** (Wesnoth): simple for turn-based games, too slow and expensive for real-time combat.
 5. **Steam as an add-on** (Zero-K, Mindustry, OpenTTD and Wesnoth on the store): the game stays playable without Steam. Zero-K keeps Steam's SDK out of the GPL engine by putting it in a separate program that only forwards network traffic.
 
-## What this means for AC2C
+## What this means for Crateris
 
-AC2C is for friends, up to 4 players, real-time combat, and the rule is "simple and cheap".
+Crateris is for friends, up to 4 players, real-time combat, and the rule is "simple and cheap".
 
 - **Stage 1: direct connection with UPnP.** The host's game asks the router to open the port with Godot's built-in `UPNP` class, as OpenRA does, and shows the address to share. Guests type it in. Document Tailscale or ZeroTier for routers where UPnP fails. Cost: nothing.
 - **Later, if friends often can't connect: invite codes through noray.** Self-host noray on a small server (a few dollars a month) for OpenTTD-style codes, hole punching and a relay fallback. The netfox.noray addon is GDScript; its protocol is small enough to call from C# or port. This is the main upgrade path and needs no change to the game's networking, which stays Godot ENet.
 - **No public server list.** Friends share an address or a code. If a list is ever wanted, a JSON file in the repo (Mindustry's approach) costs nothing.
-- **Steam, if ever wanted: follow Zero-K.** The free download and store page don't conflict with the GPL, as OpenTTD, Wesnoth and Zero-K show. For Steam friends and invites, put Steam's SDK in a small separate bridge program written fresh for AC2C (so the project owns all of it and can license it without GPL conflicts), which forwards the game's local UDP port over Steam's peer-to-peer network. The game itself never links Steam. Check with a lawyer before shipping this.
+- **Steam, if ever wanted: follow Zero-K.** The free download and store page don't conflict with the GPL, as OpenTTD, Wesnoth and Zero-K show. For Steam friends and invites, put Steam's SDK in a small separate bridge program written fresh for Crateris (so the project owns all of it and can license it without GPL conflicts), which forwards the game's local UDP port over Steam's peer-to-peer network. The game itself never links Steam. Check with a lawyer before shipping this.
 - **Epic Online Services is the better platform option.** The same bridge works, and EOS needs no store listing and possibly no player account, so a host could share an EOS lobby ID as an invite code with no server of ours. Confirm Device ID login for lobbies on PC in Epic's docs first.
 
 ## Sources

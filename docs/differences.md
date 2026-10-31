@@ -1,12 +1,12 @@
 # Differences from UQM 0.8.0
 
-Every deliberate difference between AC2C and vanilla UQM 0.8.0: what UQM does, what AC2C does, and why. Reference source: official UQM git, branch `v0.8.0`, commit `199e3748`; paths are relative to `sc2/`.
+Every deliberate difference between Attack on Crateris and vanilla UQM 0.8.0: what UQM does, what Crateris does, and why. Reference source: official UQM git, branch `v0.8.0`, commit `199e3748`; paths are relative to `sc2/`.
 
 **Status:** *Planned* means decided in `docs/design.md` but not built yet. *Done* means built and covered by tests. Bug and crash fixes are listed here too.
 
 ## Co-op rules
 
-| # | Topic | UQM 0.8.0 | AC2C | Why | Status |
+| # | Topic | UQM 0.8.0 | Crateris | Why | Status |
 | --- | --- | --- | --- | --- | --- |
 | 1 | When the game clock runs | Ticks only in hyperspace and QuasiSpace (5 s per day, `HYPERSPACE_CLOCK_RATE`) and in interplanetary flight (30 s per day, `INTERPLANETARY_CLOCK_RATE`): `src/uqm/starcon.c`, `src/uqm/planets/solarsys.c`. Stopped in battles, conversations, orbit, on planets and at the starbase | One shared clock at a constant rate (seconds per game day, a host setting), in every activity, solo or co-op. Only story conversations and events and the host's pause stop it | Per-activity rates make a group burn game days faster than a solo player, because someone is nearly always flying (including frequent QuasiSpace trips). A constant rate is simple and keeps deadlines the same for any group size. Applies in solo play too | Planned. Rate to set by playtesting |
 | 2 | Story conversations and events | Shown to the only player | Pause the game for everyone and show it to all; whoever started it chooses | Shared story, shared consequences | Planned |

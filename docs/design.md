@@ -1,4 +1,4 @@
-# AC2C: Co-op Engine Design & Handover
+# Attack on Crateris: Co-op Engine Design & Handover
 
 Oct 31, 2026 · @My Dark Lord
 
@@ -6,19 +6,19 @@ Oct 31, 2026 · @My Dark Lord
 
 ## Overview
 
-AC2C is a free, GPLv2-or-later engine for drop-in co-op play of up to 4 players, built in Godot with C#. It plays The Ur-Quan Masters content, which players download separately.
+**Attack on Crateris** (short name **Crateris**) is a free, GPLv2-or-later engine for drop-in co-op play of up to 4 players, built in Godot with C#. It plays The Ur-Quan Masters content, which players download separately.
 
-- **Rewrite, not fork.** UQM is single-player throughout: one global game state, one current activity, 2-sided battles. Its netplay covers only Super Melee. AC2C's server must run a separate activity per player, so the core is new code.
-- **Port freely.** Because AC2C is GPL, it can port UQM's data and logic directly, including ship stats, the star map, planet generators, events and conversation logic. The earlier two-agent clean-room process is dropped.
+- **Rewrite, not fork.** UQM is single-player throughout: one global game state, one current activity, 2-sided battles. Its netplay covers only Super Melee. Crateris's server must run a separate activity per player, so the core is new code.
+- **Port freely.** Because Crateris is GPL, it can port UQM's data and logic directly, including ship stats, the star map, planet generators, events and conversation logic. The earlier two-agent clean-room process is dropped.
 - **Solo to co-op and back.** A game starts single-player. Friends drop in and out at any time, and the host's save keeps their progress.
 
 ## Licensing
 
-The engine is GPL version 2 or later, the same terms as UQM's code; the content stays CC BY-NC-SA 2.5, and the project must stay non-commercial. Matching UQM lets code flow both ways: AC2C can port UQM code, and UQM and its forks can take AC2C fixes. Users may still choose GPLv3, and builds that include libraries needing GPLv3 (such as Apache-2.0 ones) are released under v3. Godot is MIT, which is compatible.
+The engine is GPL version 2 or later, the same terms as UQM's code; the content stays CC BY-NC-SA 2.5, and the project must stay non-commercial. Matching UQM lets code flow both ways: Crateris can port UQM code, and UQM and its forks can take Crateris fixes. Users may still choose GPLv3, and builds that include libraries needing GPLv3 (such as Apache-2.0 ones) are released under v3. Godot is MIT, which is compatible.
 
-| Part | License or owner | Rule for AC2C |
+| Part | License or owner | Rule for Crateris |
 | --- | --- | --- |
-| AC2C engine | GPLv2 or later | Offer source with every binary. Forks are allowed; pull requests are optional. |
+| Crateris engine | GPLv2 or later | Offer source with every binary. Forks are allowed; pull requests are optional. |
 | UQM source code | GPLv2 or later | May be read, ported and translated. Keep copyright notices on ported code. |
 | UQM content: voiceovers, dialogue, graphics, sounds, music | CC BY-NC-SA 2.5 | Separate download. Credit, non-commercial, share-alike. |
 | UQM documentation | CC BY 2.0 | Usable with credit. |
@@ -131,25 +131,25 @@ Draft notice text (check with a lawyer before public release):
 
 > **Game content from The Ur-Quan Masters**
 >
-> To play, AC2C needs the content of The Ur-Quan Masters 0.8.0: graphics, sounds, music, dialogue and voiceovers. It will be downloaded from the official Ur-Quan Masters project.
+> To play, Attack on Crateris needs the content of The Ur-Quan Masters 0.8.0: graphics, sounds, music, dialogue and voiceovers. It will be downloaded from the official Ur-Quan Masters project.
 >
 > The content is copyright © 1992, 1993, 2002 Toys for Bob, Inc. or its respective creators. The game was created by Paul Reiche III and Fred Ford. It is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 2.5 license (https://creativecommons.org/licenses/by-nc-sa/2.5/). You may not use it commercially.
 >
-> AC2C is a separate, free program under the GNU GPL (version 2 or later). It is not made or endorsed by Toys for Bob, Paul Reiche III, Fred Ford or The Ur-Quan Masters project.
+> Attack on Crateris is a separate, free program under the GNU GPL (version 2 or later). It is not made or endorsed by Toys for Bob, Paul Reiche III, Fred Ford or The Ur-Quan Masters project.
 >
 > [ ] Voiceovers (115 MB)  [ ] 3DO music (19 MB)
 >
 > **Download (11.5 MB)**
 
-The license requires keeping the copyright notices, crediting the authors and the title, linking the license, and non-commercial use (CC BY-NC-SA 2.5, sections 4a, 4c and 4d, as included in UQM's `COPYING`). UQM's own permission to copy the content "as part of a distribution of The Ur-Quan Masters" doesn't cover AC2C, which is a different program, so AC2C relies on the CC license.
+The license requires keeping the copyright notices, crediting the authors and the title, linking the license, and non-commercial use (CC BY-NC-SA 2.5, sections 4a, 4c and 4d, as included in UQM's `COPYING`). UQM's own permission to copy the content "as part of a distribution of The Ur-Quan Masters" doesn't cover Crateris, which is a different program, so Crateris relies on the CC license.
 
 ## Fidelity and bugs
 
-AC2C matches vanilla UQM 0.8.0 in solo play, except where co-op rules above change things.
+Crateris matches vanilla UQM 0.8.0 in solo play, except where co-op rules above change things.
 
 - Keep gameplay quirks that players rely on.
 - Fix crashes and clear bugs.
-- Log every deliberate difference from 0.8.0 in `docs/differences.md`: what UQM does, what AC2C does, and why.
+- Log every deliberate difference from 0.8.0 in `docs/differences.md`: what UQM does, what Crateris does, and why.
 - When behaviour is unclear, the UQM source is the reference, checked by playing 0.8.0.
 
 ## Distribution and donations
@@ -161,7 +161,7 @@ The engine is free, with optional donations for development. Creative Commons De
 - Keep the content download separate: the engine fetches it from the official UQM project on first run, after the player clicks Download.
 - Use a separate donation platform (Ko-fi, GitHub Sponsors or Open Collective), linked rather than in the download flow.
 - Credit Reiche, Ford and the UQM project on the download page and in the game.
-- Give the engine an original name; describe it as compatible with The Ur-Quan Masters content.
+- The engine's name is **Attack on Crateris**, after the constellation where the game's final battle takes place (a real astronomical name, not a UQM term). Use the short name **Crateris** for code, folders and the executable. Describe it as compatible with The Ur-Quan Masters content.
 - Publish the source under GPLv2 or later. Contributions are optional; say so in the README.
 - Be open about AI-written code from the start.
 - Talk to the UQM community before going public.
@@ -172,7 +172,7 @@ Start with a porting inventory, then build in four stages. Save this document in
 
 ### Task 1: porting inventory
 
-Clone vanilla UQM 0.8.0 next to the AC2C repo and write `docs/porting-inventory.md`, one row per system:
+Clone vanilla UQM 0.8.0 next to this repo and write `docs/porting-inventory.md`, one row per system:
 
 | Column | What goes in it |
 | --- | --- |
@@ -212,7 +212,7 @@ Bugs found in play go back to the code session with the error text, a screenshot
 
 ## Open items
 
-- [ ] Pick an original name for the engine
+- [x] Pick an original name for the engine: Attack on Crateris (checked for collisions 2026-10-31; still search the USPTO and EUIPO registers and register the domain before going public)
 - [x] Decide whether the engine downloads the UQM content itself or players point it at their own copy: it downloads on first run, after a click
 - [ ] Set the constant clock rate (seconds per game day) by playtesting
 - [ ] Decide whether a rescuer must keep more than 1 crew
