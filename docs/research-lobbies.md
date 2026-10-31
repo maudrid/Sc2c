@@ -26,6 +26,16 @@ A guest has to reach the host's game on a home connection. Three separate jobs a
 
 Godot-specific: **[noray](https://github.com/foxssake/noray)** (MIT) is an open-source connection broker and relay used with Godot through the [netfox.noray](https://godotengine.org/asset-library/asset/9845) addon (MIT, GDScript). Players register and get IDs; the broker arranges NAT hole punching for a UDP (ENet) connection and falls back to relaying. It ships as a Docker image to run on any small server.
 
+Platform services: **Steam** and **Epic Online Services (EOS)** both offer lobbies, peer-to-peer connections, NAT traversal and an automatic relay on the company's servers, at no cost to the game. Both SDKs are closed source.
+
+| | Steam | Epic Online Services |
+| --- | --- | --- |
+| Game must be on the store | Yes (app ID, $100 Steam Direct fee) | No; any game can use it |
+| Player needs an account | Yes, plus Steam running | Not for lobbies and P2P if Device ID login works for them (one guide says so; not yet checked in Epic's docs). Friend invites through the overlay need Epic accounts |
+| Friend invites | Through the Steam friends list and overlay | Through the Epic overlay (needs accounts), or share the lobby ID as a code |
+| Relay when direct fails | Yes (Valve's network) | Yes (EOS tries NAT punch-through, then relays) |
+| GPL | Keep the SDK in a separate bridge program (Zero-K) | Same |
+
 ## Patterns
 
 1. **Direct IP + UPnP** (OpenRA, Luanti, Mindustry): no servers to run. Fails when UPnP is off and the host can't forward ports.
@@ -42,6 +52,7 @@ AC2C is for friends, up to 4 players, real-time combat, and the rule is "simple 
 - **Later, if friends often can't connect: invite codes through noray.** Self-host noray on a small server (a few dollars a month) for OpenTTD-style codes, hole punching and a relay fallback. The netfox.noray addon is GDScript; its protocol is small enough to call from C# or port. This is the main upgrade path and needs no change to the game's networking, which stays Godot ENet.
 - **No public server list.** Friends share an address or a code. If a list is ever wanted, a JSON file in the repo (Mindustry's approach) costs nothing.
 - **Steam, if ever wanted: follow Zero-K.** The free download and store page don't conflict with the GPL, as OpenTTD, Wesnoth and Zero-K show. For Steam friends and invites, put Steam's SDK in a small separate bridge program written fresh for AC2C (so the project owns all of it and can license it without GPL conflicts), which forwards the game's local UDP port over Steam's peer-to-peer network. The game itself never links Steam. Check with a lawyer before shipping this.
+- **Epic Online Services is the better platform option.** The same bridge works, and EOS needs no store listing and possibly no player account, so a host could share an EOS lobby ID as an invite code with no server of ours. Confirm Device ID login for lobbies on PC in Epic's docs first.
 
 ## Sources
 
@@ -54,4 +65,5 @@ AC2C is for friends, up to 4 players, real-time combat, and the rule is "simple 
 - Luanti: [setting up a server](https://docs.luanti.org/for-server-hosts/setup/), [finding servers](https://docs.luanti.org/for-players/servers/)
 - DDNet: [docs](https://codedoc.ddnet.tw), [Teeworlds master server notes](https://influck.notion.site/teeworlds-master-servers-ffd3a83022e345e6a0eb8303accba440)
 - Mindustry: [servers_v7.json](https://raw.githubusercontent.com/Anuken/Mindustry/master/servers_v7.json), [SERVERLIST.md](https://github.imc.re/Anuken/Mindustry/blob/master/SERVERLIST.md)
+- Epic Online Services: [coherence docs: EOS relay](https://docs.coherence.io/hosting/client-hosting/implementing-client-hosting/epic-online-services-eos-relay), [Unreal forum: EOS P2P NAT traversal and relay](https://forums.unrealengine.com/t/question-about-networking-ports-and-eos/598259), [NetickEOSTransport (Device ID login)](https://github.com/unitycoder/NetickEOSTransport)
 - noray: [repository](https://github.com/foxssake/noray), [netfox.noray addon](https://godotengine.org/asset-library/asset/9845)
