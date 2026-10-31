@@ -70,6 +70,11 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Host's AI fleet | Stays as in the original | Host can send one fleet ship into battle instead of the flagship |
 | Key story items | Shared group inventory | Plot checks look at the group, not one ship |
 | Resource units | Separate wallets, transfers allowed | Decide whether cargo can be traded too |
+| Melnorme credits | Separate per player, like resource units; transferable at any time, including during conversations | A player trading with the Melnorme can be topped up by others mid-talk |
+| Battle salvage | Fungible rewards split equally between the players in the battle when it's won. In UQM salvage is only resource units, paid per enemy ship destroyed | Retreated and disconnected players get none, as in UQM, where fleeing earns nothing |
+| Targeting | Enemy ships, weapons and specials target the nearest opponent | Matches UQM's `TrackShip`, so most ship code ports unchanged |
+| Planet landing | Players on the same planet share one landing screen, each with their own lander | Each mineral, bio or energy node can be taken once |
+| Chat | Text chat between players, in every activity | New; UQM has none |
 | Battles | A battle shows as a marker at its location in the solar system or in hyperspace, visible to the other players there. A player joins by flying into the marker, the same way an alien ship that reaches you starts an encounter. All players in the battle fight at once | "Nearby" means reaching the battle in flight; no fixed radius. Bigger arenas |
 | Enemy side | One enemy ship at a time, as in the original | Players gang up on it |
 | Enemy scaling | None; groups have it easier | Solo players keep original difficulty |
@@ -100,7 +105,7 @@ Guests connect over the internet to the host's server; the host plays through th
 
 - **World state (server):** story flags, alliances, mined-out planets, the game date, alien fleet positions, the group inventory of key items, the host's AI fleet.
 - **Player state (server):** stable player id, location, current activity, ship, modules, crew, fuel, cargo, wallet, alive or wreck. Saved in the host's save even while the player is away.
-- **Client:** rendering, input, audio, the battle camera and minimap.
+- **Client:** rendering, input, audio, the battle camera and minimap, player chat.
 - **Planets:** generated deterministically from seeds, so the server sends seeds, not planet data.
 - **Combat:** runs on the host's server, with clients sending inputs, since any fight can become multiplayer.
 - **Story pause:** a story conversation or event moves every player into a shared "watching" state until it ends.
@@ -186,6 +191,7 @@ Bugs found in play go back to the code session with the error text, a screenshot
 - [ ] Set the constant clock rate (seconds per game day) by playtesting
 - [ ] Decide whether a rescuer must keep more than 1 crew
 - [ ] Decide whether cargo can be traded between players
+- [ ] Decide who can use group devices (portal spawner, Sun device and others) and whether the group must be present (deferred)
 - [ ] List the escort module set
 - [ ] Mark which conversations and events count as story (pause for all)
 - [ ] Draft the server data model and message protocol

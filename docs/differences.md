@@ -25,6 +25,10 @@ Every deliberate difference between AC2C and vanilla UQM 0.8.0: what UQM does, w
 | 15 | Joining a battle | A battle starts when an alien ship reaches the player (`encounter_collision` in `src/uqm/hyper.c`, `ip_group_collision` in `src/uqm/ipdisp.c`); nobody else can join | While a battle runs, a marker stays where it started, in the solar system or in hyperspace, visible to other players there. Flying into the marker joins the battle, the same way an alien ship starts an encounter. No fixed "nearby" radius | Lets the group help each other using a rule players already know | Planned |
 | 16 | Leaving and disconnecting | One player; quitting ends the game | A player can leave at any time. Their ship, crew and cargo wait in the host's save; on disconnect the ship vanishes (mid-battle: row 4) and returns on rejoin. A dead player's wreck stays | Drop-in / drop-out | Planned |
 | 17 | Talking to aliens | One player talks to anyone | Ordinary conversations: one player per alien race at a time (dialogue lock), released on disconnect. Story conversations: row 2 | Stops two players changing one race's state at once | Planned |
+| 18 | Battle salvage | `UninitEncounter` (`src/uqm/encount.c`): on victory only, the player gets `RACE_SHIP_COST / 8` resource units per enemy ship destroyed | Same amount, split equally between the players in the battle when it's won. Retreated and disconnected players get none | Fair split for a shared fight | Planned. Rounding of remainders to set |
+| 19 | Melnorme credits | One balance, stored as game state (`MELNORME_CREDIT0`/`1` in `src/uqm/globdata.h`) | One balance per player, transferable between players at any time, including during a conversation | Each player sells their own bio data; others can top up a trader | Planned |
+| 20 | Planet landing | One player, one lander | Players on the same planet share one landing screen, each with their own lander; each node is taken once | Lets players explore a planet together | Planned |
+| 21 | Chat | None | Text chat between players, in every activity | Co-op needs a way to talk | Planned |
 
 ## Bug and crash fixes
 
@@ -36,6 +40,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
+| 2026-10-31 | 18–21 | Added battle salvage (split equally), Melnorme credits (per player, transferable any time), shared planet landing and player chat. Targeting needs no row: nearest opponent is already UQM's behaviour |
 | 2026-10-31 | 5, 14–17 | Added starting a ship (guest undocks from the host), joining a battle (fly into its marker), leaving and disconnecting, and the dialogue lock. Row 5 now points to row 15 for joining |
 | 2026-10-31 | 4 | Retreat aligned with UQM: same rules and 5-unit fuel cost. Only difference left is that disconnecting counts as retreat. Corrected earlier text that said UQM retreat was free |
 | 2026-10-31 | 1 | Game clock: one constant rate in every activity, replacing per-activity rates |
