@@ -54,7 +54,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | --- | --- | --- |
 | Saving | Host keeps the save | Guests' ships live in the host's save |
 | Drop-in / drop-out | Players join and leave at any time; a game can go solo → co-op → solo | No lobby-only start; joining is a normal in-game event |
-| Joining | A new player starts as a new escort at the starbase | Needs a basic escort loadout |
+| Joining | The first time a player joins a host's game, their new escort starts where the host is. Only the joining player sees a short scene of their ship undocking from the host's flagship; the host and other players aren't interrupted | Needs a basic escort loadout and an undocking scene (new; UQM has none). If the host isn't flying (battle, talk, orbit, planet, starbase), the escort appears at the host's position in the surrounding hyperspace or solar system. Rejoining players return where they left |
 | Leaving | Ship, crew and cargo wait in the host's save until that player rejoins | Players need a stable identity per host save |
 | Disconnect | Ship vanishes; returns on rejoin | Release any dialogue lock; a dead player's wreck stays |
 | Disconnect mid-battle | Counts as a retreat, with the usual fuel cost | Never a loss, as in UQM. Also applies where UQM forbids retreat, because a disconnected ship has to leave |
@@ -70,7 +70,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Host's AI fleet | Stays as in the original | Host can send one fleet ship into battle instead of the flagship |
 | Key story items | Shared group inventory | Plot checks look at the group, not one ship |
 | Resource units | Separate wallets, transfers allowed | Decide whether cargo can be traded too |
-| Battles | Nearby players can jump in; all players fight at once | Bigger arenas |
+| Battles | A battle shows as a marker at its location in the solar system or in hyperspace, visible to the other players there. A player joins by flying into the marker, the same way an alien ship that reaches you starts an encounter. All players in the battle fight at once | "Nearby" means reaching the battle in flight; no fixed radius. Bigger arenas |
 | Enemy side | One enemy ship at a time, as in the original | Players gang up on it |
 | Enemy scaling | None; groups have it easier | Solo players keep original difficulty |
 | Battle camera | Own camera per player, plus an arena minimap | Clients render only near their ship |
@@ -183,7 +183,6 @@ Bugs found in play go back to the code session with the error text, a screenshot
 
 - [ ] Pick an original name for the engine
 - [ ] Decide whether the engine downloads the UQM content itself or players point it at their own copy
-- [ ] Define "nearby" for joining battles (same system or a hyperspace radius)
 - [ ] Set the constant clock rate (seconds per game day) by playtesting
 - [ ] Decide whether a rescuer must keep more than 1 crew
 - [ ] Decide whether cargo can be traded between players
