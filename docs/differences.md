@@ -15,7 +15,7 @@ Every deliberate difference between Attack on Crateris and vanilla UQM 0.8.0: wh
 | 5 | Battle sides | 2 sides, 2 players (`NUM_SIDES 2`, `NUM_PLAYERS 2` in `src/uqm/init.h`); one ship per side at a time | Several player ships at once against one enemy ship at a time. How other players join is row 15 | Co-op combat | Planned |
 | 6 | Battle camera | One camera zooms to frame both ships | Each player has their own camera on their ship, plus an arena minimap | Players can be far apart in a bigger arena | Planned |
 | 7 | Arena size | Fixed | Bigger | Room for up to 4 player ships | Planned. Size to set |
-| 8 | Losing a ship | Flagship destroyed is game over; escort losses are permanent | A player's ship becomes a wreck; a rescuer revives it by transferring crew. Only flagship destruction ends the game | Players shouldn't be knocked out of a shared game | Planned |
+| 8 | Losing a ship | Flagship destroyed is game over; escort losses are permanent | A player's ship becomes a wreck; a rescuer revives it by flying to it and transferring crew, keeping at least 1 for themselves. Only flagship destruction ends the game | Players shouldn't be knocked out of a shared game | Planned |
 | 9 | Escorts | Combat-only ships in `built_ship_q` (max 12): no fuel, cargo or landers, flown only in battle | Guest players captain escorts that fly, land, mine and talk like small flagships, with a smaller module list. The host's AI fleet stays as in vanilla | Each guest needs a full ship of their own | Planned. Module list to set |
 | 10 | Key story items | Device flags on the single flagship (`*_DEVICE` game states) | Shared group inventory; plot checks look at the group | Story items shouldn't be stuck with a player who left | Planned |
 | 11 | Money | One resource-unit balance (`SIS_STATE.ResUnits`) | Separate wallet per player, transfers allowed | Each player earns and spends | Planned |
@@ -29,6 +29,7 @@ Every deliberate difference between Attack on Crateris and vanilla UQM 0.8.0: wh
 | 19 | Melnorme credits | One balance, stored as game state (`MELNORME_CREDIT0`/`1` in `src/uqm/globdata.h`) | One balance per player, transferable between players at any time, including during a conversation | Each player sells their own bio data; others can top up a trader | Planned |
 | 20 | Planet landing | One player, one lander | Players on the same planet share one landing screen, each with their own lander; each node is taken once | Lets players explore a planet together | Planned |
 | 21 | Chat | None | Text chat between players, in every activity | Co-op needs a way to talk | Planned |
+| 22 | Cargo trading | One ship holds all minerals and bio data (`ElementAmounts`, `TotalBioMass` in `SIS_STATE`) | Players in the same solar system can trade cargo, limited by the receiver's free storage | Lets a group pool minerals for one player to sell | Planned |
 
 ## Bug and crash fixes
 
@@ -40,6 +41,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
+| 2026-10-31 | 8, 22 | Revival: rescuer keeps at least 1 crew. Added cargo trading within the same solar system |
 | 2026-10-31 | 18–21 | Added battle salvage (split equally), Melnorme credits (per player, transferable any time), shared planet landing and player chat. Targeting needs no row: nearest opponent is already UQM's behaviour |
 | 2026-10-31 | 5, 14–17 | Added starting a ship (guest undocks from the host), joining a battle (fly into its marker), leaving and disconnecting, and the dialogue lock. Row 5 now points to row 15 for joining |
 | 2026-10-31 | 4 | Retreat aligned with UQM: same rules and 5-unit fuel cost. Only difference left is that disconnecting counts as retreat. Corrected earlier text that said UQM retreat was free |

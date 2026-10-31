@@ -87,7 +87,7 @@ These turn up in almost every row. Remove them once, in the core, not system by 
 | Lander | `src/uqm/planets/lander.c` (`PlanetSide`, `DoPlanetSide`, `FillLanderHold`, `pickupMineralNode`, `pickupBioNode`, `shotCreature`, `AddGroundDisaster`, `AddLightning`, `KillLanderCrewSeq`, `GetHazardChance`) | Logic | Adapt | Escorts get their own landers. Players on the same planet share one landing screen: each has their own lander, and they see each other. Node pickup is checked on the server so each node is taken once |
 | Lifeforms | `src/uqm/planets/lander.c` (`CreatureData`), `lifeform.h` | Data | Port as-is | Export creature table to `data/lifeforms.json` |
 | Hazards | `src/uqm/planets/lander.c` (quakes, lightning, hot spots), `plandata.c` (tectonics, weather, temperature) | Both | Port as-is | |
-| Cargo and bio data | `src/uqm/planets/cargo.c`, `sis.h` (`ElementAmounts`, `TotalElementMass`, `TotalBioMass`, `STORAGE_BAY_CAPACITY 500`, `BIO_CREDIT_VALUE 2`) | Both | Adapt | Per player. Whether cargo can be traded between players is an open item |
+| Cargo and bio data | `src/uqm/planets/cargo.c`, `sis.h` (`ElementAmounts`, `TotalElementMass`, `TotalBioMass`, `STORAGE_BAY_CAPACITY 500`, `BIO_CREDIT_VALUE 2`) | Both | Adapt | Per player. Players in the same solar system can trade cargo, limited by the receiver's free storage |
 
 ### Starbase and shipyard
 

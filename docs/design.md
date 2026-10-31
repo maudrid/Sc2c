@@ -69,7 +69,8 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Escort upgrades | Smaller module list at the starbase | Flagship keeps its unique upgrades |
 | Host's AI fleet | Stays as in the original | Host can send one fleet ship into battle instead of the flagship |
 | Key story items | Shared group inventory | Plot checks look at the group, not one ship |
-| Resource units | Separate wallets, transfers allowed | Decide whether cargo can be traded too |
+| Resource units | Separate wallets, transfers allowed | |
+| Cargo trading | Players can trade cargo (minerals and bio data) when both are in the same solar system | Not across hyperspace or between systems. The receiver's free storage limits the trade |
 | Melnorme credits | Separate per player, like resource units; transferable at any time, including during conversations | A player trading with the Melnorme can be topped up by others mid-talk |
 | Battle salvage | Fungible rewards split equally between the players in the battle when it's won. In UQM salvage is only resource units, paid per enemy ship destroyed | Retreated and disconnected players get none, as in UQM, where fleeing earns nothing |
 | Targeting | Enemy ships, weapons and specials target the nearest opponent | Matches UQM's `TrackShip`, so most ship code ports unchanged |
@@ -80,7 +81,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Enemy scaling | None; groups have it easier | Solo players keep original difficulty |
 | Battle camera | Own camera per player, plus an arena minimap | Clients render only near their ship |
 | Player death | Lose crew; ship becomes a wreck at the death location | Wreck persists for revival |
-| Revival | A rescuer flies to the wreck and transfers crew, keeping at least 1 | |
+| Revival | A rescuer flies to the wreck and transfers crew, keeping at least 1 | The rescuer can give all but 1 crew; no higher minimum |
 | Flagship destroyed | Game over for the whole group | Flagship can revive escorts, so the group can't get stuck |
 | Retreat | As in UQM 0.8.0: allowed only in encounters and the final battle, after the starbase is available, when not carrying the bomb. The ship warps out keeping its crew and can't rejoin that battle. When a player's last ship leaves, that player loses 5 fuel units, down to no lower than 0 | Each player retreats on their own. Host: AI fleet ships that retreat are out for that battle; the 5-unit cost applies when the flagship leaves |
 | Player count | Up to 4 | Keeps hosting feasible on a home connection |
@@ -215,8 +216,8 @@ Bugs found in play go back to the code session with the error text, a screenshot
 - [x] Pick an original name for the engine: Attack on Crateris (checked for collisions 2026-10-31; still search the USPTO and EUIPO registers and register the domain before going public)
 - [x] Decide whether the engine downloads the UQM content itself or players point it at their own copy: it downloads on first run, after a click
 - [ ] Set the constant clock rate (seconds per game day) by playtesting
-- [ ] Decide whether a rescuer must keep more than 1 crew
-- [ ] Decide whether cargo can be traded between players
+- [x] Decide whether a rescuer must keep more than 1 crew: no, 1 is enough
+- [x] Decide whether cargo can be traded between players: yes, within the same solar system
 - [ ] Decide who can use group devices (portal spawner, Sun device and others) and whether the group must be present (deferred)
 - [ ] List the escort module set
 - [ ] Mark which conversations and events count as story (pause for all)
