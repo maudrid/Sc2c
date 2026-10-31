@@ -28,12 +28,12 @@ The engine is GPLv3, the content stays CC BY-NC-SA 2.5, and the project must sta
 
 ### What lives where in UQM 0.8.0
 
-Most gameplay data is in the GPL source, not the content package. Checked in the 0.8.0 source on 2026-10-31.
+Most gameplay data is in the GPL source, not the content package. Checked in the 0.8.0 source on 2026-10-31. Paths are relative to `sc2/` in the official repository (branch `v0.8.0`); see `docs/porting-inventory.md`.
 
 | Data | Location | Notes |
 | --- | --- | --- |
 | Ship stats (crew, energy, thrust, mass, weapon cost) | `src/uqm/ships/<race>/<race>.c` | One file per ship, as `#define`s |
-| Star map (about 520 stars) | `src/uqm/plandata.c` | `starmap_array` table |
+| Star map (502 hyperspace stars, plus 16 QuasiSpace entries) | `src/uqm/plandata.c` | `starmap_array` table |
 | Special planets and systems | `src/uqm/planets/generate/gen*.c` | One generator per special system |
 | Minerals, lifeforms, lander | `src/uqm/planets/` | `elemdata.h`, `lander.c` (`CreatureData`) |
 | Story events and deadlines | `src/uqm/gameev.c` | Arilou arrival, Kohr-Ah victory and others |
