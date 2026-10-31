@@ -193,6 +193,9 @@ class StateAndRules(unittest.TestCase):
             bit += s["bits"]
         self.assertEqual(bit, d["total_bits"])
         self.assertEqual(len(d["states"]), 447)
+        for st in d["states"]:
+            self.assertEqual(set(st) - {"comment"},
+                             {"name", "bits", "start_bit"}, st["name"])
 
     def test_new_game(self):
         d = load("new-game")

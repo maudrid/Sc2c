@@ -115,7 +115,7 @@ From `races.h`: the `*_SHIP` enum (the order of `avail_race_q`, one `FLEET_INFO`
 
 ### `game-state.json`: story flags
 
-From the `ADD_GAME_STATE` list in `src/uqm/globdata.h`. 447 named flags and counters packed into 1,238 bits: `name`, `bits`, `start_bit`, the section heading above it (`group`) and its source comment where there is one. UQM reads them with `GET_GAME_STATE` / `SET_GAME_STATE`.
+From the `ADD_GAME_STATE` list in `src/uqm/globdata.h`. 447 named flags and counters packed into 1,238 bits: `name`, `bits`, `start_bit`, and its source comment where there is one. The source doesn't group the flags (it has only two section headings, near the top); the name prefix usually says which race or topic a flag belongs to. UQM reads them with `GET_GAME_STATE` / `SET_GAME_STATE`.
 
 In Crateris these are world state, read and written by name, not by bit position. The bit layout is kept only for importing UQM saves, if that's ever done.
 

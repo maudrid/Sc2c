@@ -608,10 +608,10 @@ def extract_game_state(uqm):
     start = text.index("START_GAME_STATE\n")
     end = text.index("END_GAME_STATE", start + 20)
     block = text[start:end]
-    # Layout in globdata.h: "\t\t/* Spathi states */" starts a group;
-    # comment lines indented three tabs or more describe the entry above.
+    # Comment lines indented three tabs or more describe the entry above.
+    # (globdata.h has only two section headings, near the top, so they are
+    # not used to group the entries.)
     entries = []
-    group = None
     last = None
     for line in block.splitlines():
         m = re.search(r"ADD_GAME_STATE\s*\(\s*(\w+)\s*,\s*(\d+)\s*\)", line)
@@ -619,7 +619,7 @@ def extract_game_state(uqm):
         text_part = line.strip()
         if m:
             last = {"name": m.group(1), "bits": int(m.group(2)),
-                    "group": group, "comment": []}
+                    "comment": []}
             entries.append(last)
             c = re.search(r"/\*(.*?)\*/|//(.*)$", line)
             if c:
@@ -632,8 +632,6 @@ def extract_game_state(uqm):
             if cleaned:
                 last["comment"].append(cleaned)
         elif tabs == 2 and text_part.startswith(("/*", "//")):
-            g = re.sub(r"^(/\*|//)\s*|\s*\*/$", "", text_part)
-            group = g or None
             last = None
     starts = uqm.eval_ints([e["name"] for e in entries] +
                            ["NUM_GAME_STATE_BITS"], ["uqm/globdata.h"])
@@ -650,9 +648,7 @@ def extract_game_state(uqm):
         "Every story flag and counter in UQM, packed as bit fields "
         "(GET_GAME_STATE / SET_GAME_STATE). In Attack on Crateris they are "
         "world state, read and written by name.",
-        "group is the section heading above the entry in globdata.h "
-        "(e.g. 'Spathi states'); comment is the source comment for the "
-        "entry, where there is one.",
+        "comment is the source comment for the entry, where there is one.",
     ])
 
 
