@@ -6,7 +6,7 @@ Oct 31, 2026 · @My Dark Lord
 
 ## Overview
 
-AC2C is a free, GPLv3 engine for drop-in co-op play of up to 4 players, built in Godot with C#. It plays The Ur-Quan Masters content, which players download separately.
+AC2C is a free, GPLv2-or-later engine for drop-in co-op play of up to 4 players, built in Godot with C#. It plays The Ur-Quan Masters content, which players download separately.
 
 - **Rewrite, not fork.** UQM is single-player throughout: one global game state, one current activity, 2-sided battles. Its netplay covers only Super Melee. AC2C's server must run a separate activity per player, so the core is new code.
 - **Port freely.** Because AC2C is GPL, it can port UQM's data and logic directly, including ship stats, the star map, planet generators, events and conversation logic. The earlier two-agent clean-room process is dropped.
@@ -14,11 +14,11 @@ AC2C is a free, GPLv3 engine for drop-in co-op play of up to 4 players, built in
 
 ## Licensing
 
-The engine is GPLv3, the content stays CC BY-NC-SA 2.5, and the project must stay non-commercial. UQM's source files say "version 2 or any later version", so GPLv3 is allowed. Godot is MIT, which is compatible.
+The engine is GPL version 2 or later, the same terms as UQM's code; the content stays CC BY-NC-SA 2.5, and the project must stay non-commercial. Matching UQM lets code flow both ways: AC2C can port UQM code, and UQM and its forks can take AC2C fixes. Users may still choose GPLv3, and builds that include libraries needing GPLv3 (such as Apache-2.0 ones) are released under v3. Godot is MIT, which is compatible.
 
 | Part | License or owner | Rule for AC2C |
 | --- | --- | --- |
-| AC2C engine | GPLv3 | Offer source with every binary. Forks are allowed; pull requests are optional. |
+| AC2C engine | GPLv2 or later | Offer source with every binary. Forks are allowed; pull requests are optional. |
 | UQM source code | GPLv2 or later | May be read, ported and translated. Keep copyright notices on ported code. |
 | UQM content: voiceovers, dialogue, graphics, sounds, music | CC BY-NC-SA 2.5 | Separate download. Credit, non-commercial, share-alike. |
 | UQM documentation | CC BY 2.0 | Usable with credit. |
@@ -136,7 +136,7 @@ The engine is free, with optional donations for development. Creative Commons De
 - Use a separate donation platform (Ko-fi, GitHub Sponsors or Open Collective), linked rather than in the download flow.
 - Credit Reiche, Ford and the UQM project on the download page and in the game.
 - Give the engine an original name; describe it as compatible with The Ur-Quan Masters content.
-- Publish the source under GPLv3. Contributions are optional; say so in the README.
+- Publish the source under GPLv2 or later. Contributions are optional; say so in the README.
 - Be open about AI-written code from the start.
 - Talk to the UQM community before going public.
 
