@@ -115,6 +115,7 @@ Guests connect over the internet to the host's server; the host plays through th
 | Engine | Godot 4 with C#: built-in server-authoritative networking, headless dedicated server, MIT license |
 | Platforms | Windows and Linux |
 | Network | Friends over the internet, host at home; tune combat for typical home-internet lag |
+| Networking approach | Keep it simple and cheap. Use Godot's built-in multiplayer (`MultiplayerAPI` with ENet, RPCs, `MultiplayerSynchronizer` / `MultiplayerSpawner`) the same way in every activity. The host runs the whole game; clients send input and show the state they receive. A small fixed input delay instead of client-side prediction, like UQM's Super Melee netplay (default 2 frames, about 83 ms at 24 fps); the delay is a setting. Clients are trusted: no anti-cheat, no lag compensation, no encryption. Requests (buy, transfer, pick up) go through the host only to keep one copy of the data |
 | Content | Load the official UQM 0.8.0 content package from a path the player sets, or fetch it on first run (open item) |
 
 ## Fidelity and bugs
