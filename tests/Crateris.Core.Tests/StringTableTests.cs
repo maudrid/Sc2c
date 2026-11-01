@@ -61,32 +61,33 @@ public class StringTableTests
     [ContentFact]
     public void EveryStringTableInThePackageIsReadAsUqmReadsIt()
     {
-        using var package = ContentPackage.Open(TestContent.Package);
-        var golden = Golden.Load("string-tables").GetProperty("tables");
-        int tables = 0, strings = 0;
-        foreach (var t in golden.EnumerateObject())
+        TestContent.With(package =>
         {
-            var table = StringTable.Load(package, t.Name);
-            var want = t.Value.GetProperty("strings").EnumerateArray().ToList();
-            Assert.True(want.Count == table.Count, $"{t.Name}: {table.Count} strings, UQM {want.Count}");
-            for (int i = 0; i < want.Count; ++i)
+            var golden = Golden.Load("string-tables").GetProperty("tables");
+            int tables = 0, strings = 0;
+            foreach (var t in golden.EnumerateObject())
             {
-                string hash = Convert.ToHexString(SHA256.HashData(table.Raw(i))).ToLowerInvariant();
-                Assert.True(want[i][0].GetInt32() == table.Raw(i).Length && want[i][1].GetString() == hash,
-                    $"{t.Name} string {i} differs from UQM's");
+                var table = StringTable.Load(package, t.Name);
+                var want = t.Value.GetProperty("strings").EnumerateArray().ToList();
+                Assert.True(want.Count == table.Count, $"{t.Name}: {table.Count} strings, UQM {want.Count}");
+                for (int i = 0; i < want.Count; ++i)
+                {
+                    string hash = Convert.ToHexString(SHA256.HashData(table.Raw(i))).ToLowerInvariant();
+                    Assert.True(want[i][0].GetInt32() == table.Raw(i).Length && want[i][1].GetString() == hash,
+                        $"{t.Name} string {i} differs from UQM's");
+                }
+                tables++;
+                strings += table.Count;
             }
-            tables++;
-            strings += table.Count;
-        }
-        Assert.Equal(package.Resources.Values.Count(r => r.Type == "STRTAB"), tables);
-        Assert.True(strings > 1000, $"only {strings} strings");
+            Assert.Equal(package.Resources.Values.Count(r => r.Type == "STRTAB"), tables);
+            Assert.True(strings > 1000, $"only {strings} strings");
+        });
     }
 
     [ContentFact]
     public void AFewGameStringsReadAsInTheGame()
     {
-        using var package = ContentPackage.Open(TestContent.Package);
-        var game = GameStrings.Load(package);
+        var game = TestContent.With(GameStrings.Load);
         Assert.Equal("Vega", game[GameStrings.StarBase]);
         Assert.Equal("Orbit: ", game[GameStrings.OrbitScanBase]);
         Assert.Equal("Earth", game[GameStrings.PlanetNumberBase + 2]);

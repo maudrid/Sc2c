@@ -15,6 +15,9 @@
  * the C library's (uio_fgets reads as fgets does).
  *
  *   strings bases          the string bases and counts of gamestr.h, as JSON
+ *   strings index FILE     a resource index (uqm.rmp) as UQM's own
+ *                          PropFile_from_string reads it: [key, value]
+ *                          pairs in the order UQM's handler gets them
  *   strings FILE...        each string table as UQM reads it: per string,
  *                          its length and its bytes in hex (the recorder
  *                          keeps only hashes of them; they are content)
@@ -23,8 +26,19 @@
 #include "libs/strings/strintrn.h"
 #include "libs/uio.h"
 #include "uqm/gamestr.h"
+#include "libs/resource/propfile.h"
+#include "libs/log.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+
+/* UQM's warnings (a key without a value, say) aren't needed here. */
+void
+log_add (log_Level level, const char *fmt, ...)
+{
+	(void) level;
+	(void) fmt;
+}
 
 char *
 uio_fgets (char *buf, int size, uio_Stream *stream)
@@ -70,6 +84,58 @@ print_bases (void)
 	printf ("]}\n");
 }
 
+static int index_first = 1;
+
+static void
+print_json_string (const char *s)
+{
+	putchar ('"');
+	for (; *s; ++s)
+	{
+		if (*s == '"' || *s == '\\')
+			printf ("\\%c", *s);
+		else if ((unsigned char) *s < 0x20)
+			printf ("\\u%04x", (unsigned char) *s);
+		else
+			putchar (*s);
+	}
+	putchar ('"');
+}
+
+static void
+print_property (const char *key, const char *value)
+{
+	printf ("%s[", index_first ? "" : ", ");
+	print_json_string (key);
+	printf (", ");
+	print_json_string (value);
+	printf ("]");
+	index_first = 0;
+}
+
+static int
+print_index (const char *path)
+{
+	FILE *fp = fopen (path, "rb");
+	long length;
+	char *data;
+
+	if (!fp)
+		return 1;
+	fseek (fp, 0, SEEK_END);
+	length = ftell (fp);
+	fseek (fp, 0, SEEK_SET);
+	data = malloc (length + 1);
+	if (fread (data, 1, length, fp) != (size_t) length)
+		return 1;
+	data[length] = '\0';
+	fclose (fp);
+	printf ("[");
+	PropFile_from_string (data, print_property, NULL);
+	printf ("]\n");
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -80,6 +146,8 @@ main (int argc, char *argv[])
 		print_bases ();
 		return 0;
 	}
+	if (argc > 2 && strcmp (argv[1], "index") == 0)
+		return print_index (argv[2]);
 	printf ("[");
 	for (a = 1; a < argc; ++a)
 	{

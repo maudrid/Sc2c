@@ -66,7 +66,29 @@ FLIGHT_LINK = ["uqm/ship.c", "uqm/ships/sis_ship/sis_ship.c",
                "uqm/globdata.c"]
 MATH_LINK = ["uqm/trans.c", "libs/math/sqrt.c", "uqm/velocity.c"]
 STRINGS_LINK = ["libs/strings/getstr.c", "libs/strings/strings.c",
-                "libs/memory/w_memlib.c"]
+                "libs/memory/w_memlib.c", "libs/resource/propfile.c"]
+
+# The resource types UQM 0.8.0 registers (every InstallResTypeVectors
+# call); any other type is UNKNOWNRES, as newResourceDesc in resinit.c has
+# it (and ResourceIndex in ContentPackage.cs).
+RESOURCE_TYPES = {"3DOVID", "BINTAB", "BOOLEAN", "COLOR", "CONVERSATION",
+                  "FONTRES", "GFXRES", "INT32", "MUSICRES", "SHIP", "SNDRES",
+                  "STRING", "STRTAB", "UNKNOWNRES"}
+
+
+def read_resource_index(exe, path):
+    """A resource index as UQM reads it: UQM's own PropFile_from_string
+    (run by the strings harness) gives the key/value pairs, a later key
+    replaces an earlier one (process_resource_desc), and the type is what
+    comes before the first ':' if UQM knows it (newResourceDesc)."""
+    out = subprocess.run([exe, "index", path], capture_output=True,
+                         text=True, check=True).stdout
+    entries = {}
+    for key, value in json.loads(out):
+        kind, sep, rest = value.partition(":")
+        entries[key] = (kind, rest) if sep and kind in RESOURCE_TYPES \
+            else ("UNKNOWNRES", value)
+    return entries
 
 # The official content package's SHA-256 (as in ContentPackage.cs).
 CONTENT_SHA256 = "77d75ac25e6fb755a33c4ba3b38a7b7bc41fcbc02896891b0cc9ac9214b72eef"
@@ -350,6 +372,41 @@ STRING_TABLE_CASES = [
 ]
 
 
+# Resource index inputs of our own, for UQM's property file rules.
+RESOURCE_INDEX_CASES = [
+    ("simple", b"a = BINTAB:base/a.ct\nb = SHIP:7\n"),
+    ("comments_and_blank_lines", b"# comment\n\n   \nkey = STRTAB:x.txt # trailing\n#k = v\n"),
+    ("spaces_and_crlf", b"  key   =   GFXRES:base/a.ani   \r\nk2=STRING:key Up\r\n"),
+    ("no_value_and_bare_key", b"novalue\nhash#before = x\nlast.key"),
+    ("duplicates", b"a = BINTAB:first\nb = SHIP:1\na = BINTAB:second\n"),
+    ("unknown_types", b"a = BINTA:base/a.ct\nb = http://example.org/x\nc = no colon here\nd =\n"),
+    ("empty_key", b"= orphan value\n"),
+]
+
+
+def record_resource_index_cases(uqm, exe):
+    cases = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, text in RESOURCE_INDEX_CASES:
+            path = os.path.join(tmp, name + ".rmp")
+            with open(path, "wb") as f:
+                f.write(text)
+            entries = read_resource_index(exe, path)
+            cases.append({"name": name, "input": text.decode("utf-8"),
+                          "entries": [[k, t, v] for k, (t, v) in entries.items()]})
+    data = header(uqm, ["tools/extract/golden/strings.c",
+                        "src/libs/resource/propfile.c",
+                        "src/libs/resource/resinit.c"], [
+        "Resource index inputs written for this test (RESOURCE_INDEX_CASES "
+        "in tools/extract/golden_uqm.py), read by UQM's own "
+        "PropFile_from_string; entries are [id, type, value] after "
+        "process_resource_desc (a later id replaces an earlier one) and "
+        "newResourceDesc's type rule.",
+    ])
+    data["cases"] = cases
+    return data
+
+
 def record_string_table_cases(uqm, exe):
     with tempfile.TemporaryDirectory() as tmp:
         files = []
@@ -384,15 +441,12 @@ def record_string_tables(uqm, exe, package):
         sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
     tables = {}
     with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
-        index = z.read("uqm.rmp").decode("utf-8")
-        entries = []
-        for line in index.splitlines():
-            line = line.split("#", 1)[0].strip()
-            if "=" not in line:
-                continue
-            key, value = (x.strip() for x in line.split("=", 1))
-            if value.startswith("STRTAB:"):
-                entries.append((key, value[len("STRTAB:"):]))
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        entries = [(key, path) for key, (kind, path)
+                   in read_resource_index(exe, index_file).items()
+                   if kind == "STRTAB"]
         files = []
         for i, (key, path) in enumerate(entries):
             local = os.path.join(tmp, f"{i}.txt")
@@ -456,6 +510,7 @@ def main():
                            ("system-layout", record_layout(uqm, systems)),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
+                           ("resource-index-cases", record_resource_index_cases(uqm, strings)),
                            *([("string-tables", record_string_tables(uqm, strings, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")

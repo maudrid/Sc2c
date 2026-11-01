@@ -40,6 +40,21 @@ internal static class TestContent
 
     /// <summary>The package's path; fails the test, saying why, if CRATERIS_CONTENT names one that doesn't exist.</summary>
     public static string Package => PackagePath ?? throw new InvalidOperationException(Problem ?? "no content package");
+
+    // One opened, checked package for every test, so the 11.5 MB file is
+    // hashed once per run. A zip isn't safe to read from two threads, and
+    // xUnit runs test classes in parallel, so it is used under a lock.
+    private static readonly Lazy<ContentPackage> Shared = new(() => ContentPackage.Open(Package));
+    private static readonly object Gate = new();
+
+    /// <summary>Runs <paramref name="use"/> with the shared package, one test at a time.</summary>
+    public static T With<T>(Func<ContentPackage, T> use)
+    {
+        lock (Gate)
+            return use(Shared.Value);
+    }
+
+    public static void With(Action<ContentPackage> use) => With<bool>(p => { use(p); return true; });
 }
 
 /// <summary>A test that needs the UQM content package; skipped, saying why, when there is none.</summary>
@@ -56,6 +71,23 @@ public sealed class ContentFactAttribute : FactAttribute
 
 public class ResourceIndexTests
 {
+    [Fact]
+    public void IndexesAreReadAsUqmReadsThem()
+    {
+        // tests/golden/resource-index-cases.json: inputs of our own read by
+        // UQM's PropFile_from_string, with its duplicate and type rules.
+        foreach (var c in Golden.Load("resource-index-cases").GetProperty("cases").EnumerateArray())
+        {
+            string name = c.GetProperty("name").GetString()!;
+            var index = ResourceIndex.Parse(c.GetProperty("input").GetString()!);
+            var want = c.GetProperty("entries").EnumerateArray()
+                .Select(e => new ResourceEntry(e[0].GetString()!, e[1].GetString()!, e[2].GetString()!))
+                .OrderBy(e => e.Id, StringComparer.Ordinal).ToList();
+            var got = index.Values.OrderBy(e => e.Id, StringComparer.Ordinal).ToList();
+            Assert.True(want.SequenceEqual(got), $"{name}: [{string.Join("; ", got)}], UQM [{string.Join("; ", want)}]");
+        }
+    }
+
     [Fact]
     public void LinesAreReadWithUqmsPropertyFileRules()
     {
@@ -134,8 +166,10 @@ public class ContentPackageTests
             Assert.Equal("STRTAB", package.Resource("test.strings").Type);
             Assert.Equal("#(Hello)\nHello\n", Encoding.UTF8.GetString(package.ReadResource("test.strings")));
             Assert.True(package.HasFile("base/test.txt"));
-            Assert.Throws<FileNotFoundException>(() => package.ReadFile("base/missing.txt"));
-            Assert.Throws<KeyNotFoundException>(() => package.Resource("no.such.id"));
+            Assert.Contains("has no file base/missing.txt", Assert.Throws<ContentPackageException>(() => package.ReadFile("base/missing.txt")).Message);
+            Assert.Contains("has no resource no.such.id", Assert.Throws<ContentPackageException>(() => package.Resource("no.such.id")).Message);
+            // A resource that isn't a string table is refused as one.
+            Assert.Contains("not a string table", Assert.Throws<ContentPackageException>(() => StringTable.Load(package, "test.number")).Message);
         }
         finally
         {
@@ -209,27 +243,29 @@ public class ContentPackageTests
     [ContentFact]
     public void TheOfficialPackageOpensAndEveryIndexedFileIsInIt()
     {
-        using var package = ContentPackage.Open(TestContent.Package);
-        Assert.Equal(ContentPackage.OfficialSize, new FileInfo(package.Path).Length);
-        Assert.Equal(10_556, package.Files.Count(f => f.StartsWith("base/", StringComparison.Ordinal)));
+        TestContent.With(package =>
+        {
+            Assert.Equal(ContentPackage.OfficialSize, new FileInfo(package.Path).Length);
+            Assert.Equal(10_556, package.Files.Count(f => f.StartsWith("base/", StringComparison.Ordinal)));
 
-        // The index's entries, by type, as in UQM 0.8.0's uqm.rmp.
-        var byType = package.Resources.Values.GroupBy(r => r.Type).ToDictionary(g => g.Key, g => g.Count());
-        Assert.Equal(149, byType["BINTAB"]);
-        Assert.Equal(582, byType["GFXRES"]);
-        Assert.Equal(51, byType["STRTAB"]);
-        Assert.Equal(32, byType["FONTRES"]);
-        Assert.Equal(28, byType["SHIP"]);
-        Assert.Equal("base/planets/water.ct", package.Resource("planet.water.colortable").Value);
+            // The index's entries, by type, as in UQM 0.8.0's uqm.rmp.
+            var byType = package.Resources.Values.GroupBy(r => r.Type).ToDictionary(g => g.Key, g => g.Count());
+            Assert.Equal(149, byType["BINTAB"]);
+            Assert.Equal(582, byType["GFXRES"]);
+            Assert.Equal(51, byType["STRTAB"]);
+            Assert.Equal(32, byType["FONTRES"]);
+            Assert.Equal(28, byType["SHIP"]);
+            Assert.Equal("base/planets/water.ct", package.Resource("planet.water.colortable").Value);
 
-        // Every entry that names a file names one in the package (a font
-        // is a folder of glyph images).
-        var folders = package.Files.Where(f => f.Contains('/')).Select(f => f[..f.LastIndexOf('/')]).ToHashSet();
-        var missing = package.Resources.Values
-            .Where(r => r.Type is not ("SHIP" or ResourceIndex.UnknownType))
-            .Where(r => !package.HasFile(r.Value) && !folders.Contains(r.Value))
-            .Select(r => $"{r.Id} = {r.Type}:{r.Value}")
-            .ToList();
-        Assert.True(missing.Count == 0, "not in the package: " + string.Join(", ", missing));
+            // Every entry that names a file names one in the package (a font
+            // is a folder of glyph images).
+            var folders = package.Files.Where(f => f.Contains('/')).Select(f => f[..f.LastIndexOf('/')]).ToHashSet();
+            var missing = package.Resources.Values
+                .Where(r => r.Type is not ("SHIP" or ResourceIndex.UnknownType))
+                .Where(r => !package.HasFile(r.Value) && !folders.Contains(r.Value))
+                .Select(r => $"{r.Id} = {r.Type}:{r.Value}")
+                .ToList();
+            Assert.True(missing.Count == 0, "not in the package: " + string.Join(", ", missing));
+        });
     }
 }

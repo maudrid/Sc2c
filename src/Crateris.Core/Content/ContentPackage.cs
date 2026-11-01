@@ -215,20 +215,20 @@ public sealed class ContentPackage : IDisposable
     /// <summary>Whether the package holds a file at this path.</summary>
     public bool HasFile(string path) => _files.ContainsKey(path);
 
-    /// <summary>A file's bytes, by its path in the package.</summary>
+    /// <summary>A file's bytes, by its path in the package. A missing file is a <see cref="ContentPackageException"/>.</summary>
     public byte[] ReadFile(string path)
     {
         if (!_files.TryGetValue(path, out var entry))
-            throw new FileNotFoundException($"no {path} in {Path}", path);
+            throw new ContentPackageException($"{Path} has no file {path}");
         using var s = entry.Open();
         using var m = new MemoryStream((int)entry.Length);
         s.CopyTo(m);
         return m.ToArray();
     }
 
-    /// <summary>A resource's entry, by id.</summary>
+    /// <summary>A resource's entry, by id. A missing resource is a <see cref="ContentPackageException"/>.</summary>
     public ResourceEntry Resource(string id) =>
-        Resources.TryGetValue(id, out var e) ? e : throw new KeyNotFoundException($"no resource {id} in {Path}");
+        Resources.TryGetValue(id, out var e) ? e : throw new ContentPackageException($"{Path} has no resource {id}");
 
     /// <summary>The bytes of a resource that names a file (STRTAB, BINTAB, GFXRES's list and so on).</summary>
     public byte[] ReadResource(string id) => ReadFile(Resource(id).Value);

@@ -42,6 +42,7 @@ The first runs 21 checks on the committed files (counts, known values, notices).
 
 - **`string-numbering.json`:** the game strings' numbering from `gamestr.h`: each range's base and count (`STAR_STRING_BASE` and the rest) and `GAMESTR_COUNT`.
 - **`string-table-cases.json`:** string table inputs written for the test (in `tools/extract/golden_uqm.py`, not UQM content), each with exactly what UQM's own `_GetStringData` makes of it, byte for byte: its quirks with headers, blank lines, line endings, NULs, long lines and the 2,048-string limit.
+- **`resource-index-cases.json`:** resource index inputs written for the test, read by UQM's own `PropFile_from_string` (`src/libs/resource/propfile.c`), with its rules for a later id replacing an earlier one and for unknown types. The recorder reads the package's `uqm.rmp` the same way, so it records the tables the engine reads.
 - **`string-tables.json`** (needs `--content`): every string table of the official content package as UQM's loader reads it, kept as each string's length and SHA-256 only. The strings themselves are content (CC BY-NC-SA 2.5) and aren't in the repository (content stage, decision 5).
 
 ```
