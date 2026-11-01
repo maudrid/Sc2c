@@ -53,14 +53,21 @@ public static class StarContact
     public static Star? Check(HyperFlight ship, StarMap map, StarContactShape? shape = null)
     {
         shape ??= StarContactShape.Provisional;
+        var (x, y) = ShipPosition(ship);
 
+        // hyper_death: the star just left stays off limits only while the
+        // ship still overlaps its image. The first frame it doesn't, the
+        // star is forgotten, so StarJustLeft always means "still on it".
         if (ship.StarJustLeft is int left)
         {
-            // hyper_death: once the ship no longer overlaps the star it
-            // left, that star can be entered again.
-            Star s = map.Stars[left];
-            if (!Within(ship, s, shape.ShipRadius + shape.StarRadius(s.Size)))
-                ship.StarJustLeft = null;
+            if ((uint)left >= (uint)map.Stars.Count)
+                ship.StarJustLeft = null;   // not a star of this map
+            else
+            {
+                Star s = map.Stars[left];
+                if (!Within(x, y, s, shape.ShipRadius + shape.StarRadius(s.Size)))
+                    ship.StarJustLeft = null;
+            }
         }
 
         var (dx, dy) = ship.Velocity.Current();
@@ -72,16 +79,15 @@ public static class StarContact
 
         Star? best = null;
         long bestDist = long.MaxValue;
-        var (shipX, shipY) = ShipPosition(ship);
+        long r = (long)shape.ShipRadius * LogUnitsPerPixel;
         // Only stars within reach in y (the map is sorted by y, as FindStar uses).
         int reachY = shape.ShipRadius * LogUnitsPerPixel * Units.UniverseUnitsY / Units.LogUnitsY + 2;
-        short uy = Units.LogYToUniverse((int)shipY);
+        short uy = Units.LogYToUniverse((int)y);
         foreach (Star s in map.InYRange(uy - reachY, uy + reachY))
         {
             if (s.Number == ship.StarJustLeft)
                 continue;
-            long d = DistanceSquared(ship, s);
-            long r = (long)shape.ShipRadius * LogUnitsPerPixel;
+            long d = DistanceSquared(x, y, s);
             if (d <= r * r && d < bestDist)
             {
                 best = s;
@@ -91,10 +97,10 @@ public static class StarContact
         return best;
     }
 
-    private static bool Within(HyperFlight ship, Star s, int radiusPixels)
+    private static bool Within(long x, long y, Star s, int radiusPixels)
     {
         long r = (long)radiusPixels * LogUnitsPerPixel;
-        return DistanceSquared(ship, s) <= r * r;
+        return DistanceSquared(x, y, s) <= r * r;
     }
 
     /// <summary>
@@ -104,12 +110,11 @@ public static class StarContact
     /// ship, and UQM tests the sprite where it is drawn.
     /// </summary>
     private static (long X, long Y) ShipPosition(HyperFlight ship) =>
-        (ship.LogX + (long)(ship.ViewX - HyperFlight.ViewCenterX),
-         ship.LogY + (long)(ship.ViewY - HyperFlight.ViewCenterY));
+        (ship.LogX + (long)(ship.ViewX - HyperFlight.CenterX),
+         ship.LogY + (long)(ship.ViewY - HyperFlight.CenterY));
 
-    private static long DistanceSquared(HyperFlight ship, Star s)
+    private static long DistanceSquared(long x, long y, Star s)
     {
-        var (x, y) = ShipPosition(ship);
         long dx = Units.UniverseToLogX(s.X) - x;
         long dy = Units.UniverseToLogY(s.Y) - y;
         return dx * dx + dy * dy;

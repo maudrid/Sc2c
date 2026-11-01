@@ -11,9 +11,9 @@ Set up and build as for stage 1 (`docs/how-to-try/stage-1.md`), then:
 ```
 dotnet test --filter StarSystemTests   # systems against UQM: 3 tests
 dotnet test --filter SurfaceTests      # orbit, report and nodes against UQM: 6 tests
-dotnet test --filter SystemTransitionTests   # entering and leaving systems: 7 tests
+dotnet test --filter SystemTransitionTests   # entering and leaving systems: 9 tests
 dotnet test --filter IpFlightTests    # flight inside systems: 10 tests
-dotnet test                            # everything: 54 tests
+dotnet test                            # everything: 61 tests
 ```
 
 `EveryStarSystemMatchesUqm` generates all 502 systems and compares every planet and moon (type, orbit, position, seed, number of moons) and every world's planet data (temperature, gravity, tectonics, weather, atmosphere, rotation, tilt and so on) with what UQM's own code produces. If anything differs, the failure lists the star, the world and the value.

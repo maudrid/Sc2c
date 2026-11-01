@@ -70,6 +70,51 @@ public class GameWorldTests
     }
 
     [Fact]
+    public void Version_1_saves_still_load_without_the_star_just_left()
+    {
+        var world = NewWorld();
+        var node = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
+        Assert.Equal(HostSave.Version, (int)node["version"]!);
+        node["version"] = 1;
+        foreach (var p in node["players"]!.AsArray())
+            p!["flight"]!.AsObject().Remove("star_just_left");
+
+        var loaded = HostSave.FromJson(node.ToJsonString());
+        Assert.Null(loaded.Host.Ship.Flight.StarJustLeft);
+        Assert.Equal(world.Host.Ship.Flight.LogX, loaded.Host.Ship.Flight.LogX);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(502)]
+    [InlineData(9999)]
+    public void A_save_with_an_unknown_star_just_left_is_refused(int star)
+    {
+        var world = NewWorld();
+        world.Host.Ship.Flight.StarJustLeft = star;
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(HostSave.ToJson(world)));
+    }
+
+    [Fact]
+    public void A_start_that_is_not_on_its_star_is_refused()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "crateris-newgame-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            foreach (var f in Directory.GetFiles(DataDir, "*.json"))
+                File.Copy(f, Path.Combine(dir, Path.GetFileName(f)));
+            string path = Path.Combine(dir, "new-game.json");
+            File.WriteAllText(path, File.ReadAllText(path).Replace("\"start_universe_x\": 1752", "\"start_universe_x\": 1753"));
+            Assert.Throws<InvalidDataException>(() => NewGameData.Load(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void First_join_starts_an_escort_at_the_host_with_undocking()
     {
         var world = NewWorld();

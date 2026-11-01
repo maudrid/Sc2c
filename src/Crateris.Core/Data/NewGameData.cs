@@ -20,7 +20,12 @@ public sealed record NewGameData(
     ShipLoadout Flagship,
     int? StartStar = null)
 {
-    public static NewGameData Load(string dataDirectory)
+    /// <summary>
+    /// Loads data/new-game.json. The flagship starts on its start star
+    /// (start_star, Sol), which it counts as having just left so it doesn't
+    /// fall straight in; pass the star map if it's already loaded.
+    /// </summary>
+    public static NewGameData Load(string dataDirectory, StarMap? map = null)
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataDirectory, "new-game.json")));
         var root = doc.RootElement;
@@ -39,18 +44,21 @@ public sealed record NewGameData(
             Crew: ship.GetProperty("crew").GetInt32(),
             Fuel: ship.GetProperty("fuel").GetUInt32());
 
-        // The game starts at a star (Sol). The ship counts as having just
-        // left it, so it doesn't fall straight in (StarContact).
         short sx = (short)ship.GetProperty("start_universe_x").GetInt32();
         short sy = (short)ship.GetProperty("start_universe_y").GetInt32();
-        Star? startStar = StarMap.Load(dataDirectory).At(sx, sy);
+        string startName = ship.GetProperty("start_star").GetString()!;
+        map ??= StarMap.Load(dataDirectory);
+        Star startStar = map.Stars.SingleOrDefault(s => s.Special == startName + "_DEFINED")
+            ?? throw new InvalidDataException($"new-game.json: no star for start_star {startName}");
+        if (startStar.X != sx || startStar.Y != sy)
+            throw new InvalidDataException(
+                $"new-game.json: start ({sx}, {sy}) is not on {startName} at ({startStar.X}, {startStar.Y})");
 
         return new NewGameData(
             date.GetProperty("year").GetInt32(), date.GetProperty("month").GetInt32(),
             date.GetProperty("day").GetInt32(),
-            (short)ship.GetProperty("start_universe_x").GetInt32(),
-            (short)ship.GetProperty("start_universe_y").GetInt32(),
+            sx, sy,
             loadout,
-            startStar?.Number);
+            startStar.Number);
     }
 }

@@ -36,6 +36,9 @@ public sealed class StarMap
 
     public IReadOnlyList<Star> Stars { get; }
 
+    /// <summary>NUM_SOLAR_SYSTEMS: the stars of the hyperspace map.</summary>
+    public const int SolarSystemCount = 502;
+
     public static StarMap Load(string dataDirectory)
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataDirectory, "starmap.json")));
@@ -51,6 +54,8 @@ public sealed class StarMap
                 ParseColor(s.GetProperty("color").GetString()!),
                 special.ValueKind == JsonValueKind.Null ? null : special.GetString()));
         }
+        if (stars.Count != SolarSystemCount)
+            throw new InvalidDataException($"starmap.json: {stars.Count} stars, expected {SolarSystemCount}");
         for (int i = 1; i < stars.Count; ++i)
         {
             if (stars[i].Y < stars[i - 1].Y)

@@ -46,12 +46,9 @@ public sealed class HyperFlight
     public const ushort StatusBeyondMaxSpeed = 1 << 8;
     public const ushort StatusInGravityWell = 1 << 9;
 
-    private const int CenterX = Units.LogSpaceWidth >> 1;
-    private const int CenterY = Units.LogSpaceHeight >> 1;
-
     /// <summary>The middle of the hyperspace view, where the ship sits when the view has caught up.</summary>
-    public const int ViewCenterX = CenterX;
-    public const int ViewCenterY = CenterY;
+    public const int CenterX = Units.LogSpaceWidth >> 1;
+    public const int CenterY = Units.LogSpaceHeight >> 1;
 
     public ShipDrive Drive { get; set; }
 
@@ -77,9 +74,10 @@ public sealed class HyperFlight
     public short ViewY { get; set; } = CenterY;
 
     /// <summary>
-    /// The star (map number) the ship has just come out of, which it can't
-    /// fall back into until it has cleared it (UQM's CurStarDescPtr in
-    /// hyperspace). See <see cref="StarContact"/>.
+    /// The star (map number) the ship has just come out of and is still on,
+    /// which it can't fall back into (UQM's CurStarDescPtr in hyperspace).
+    /// <see cref="StarContact.Check"/> clears it on the first frame the ship
+    /// no longer overlaps the star.
     /// </summary>
     public int? StarJustLeft { get; set; }
 

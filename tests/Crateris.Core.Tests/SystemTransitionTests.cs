@@ -88,16 +88,40 @@ public class SystemTransitionTests
         var ship = NewShip();
         ship.PlaceAtUniverse(Sol.X, Sol.Y);
         ship.LogY += 300;
-        ship.ViewY = (short)(HyperFlight.ViewCenterY - 300);
+        ship.ViewY = (short)(HyperFlight.CenterY - 300);
         ship.Velocity.SetComponents(0, -64);
         Assert.Equal(Sol, StarContact.Check(ship, Map));
 
         // And the other way round: on the star by position, but drawn clear of it.
         var away = NewShip();
         away.PlaceAtUniverse(Sol.X, Sol.Y);
-        away.ViewY = (short)(HyperFlight.ViewCenterY + 600);
+        away.ViewY = (short)(HyperFlight.CenterY + 600);
         away.Velocity.SetComponents(0, 64);
         Assert.Null(StarContact.Check(away, Map));
+    }
+
+    [Fact]
+    public void TheStarJustLeftIsForgottenTheFirstFrameTheShipIsOffIt()
+    {
+        var ship = NewShip();
+        SystemTransition.Leave(ship, Sol, facing: 0);
+        Assert.Null(StarContact.Check(ship, Map));
+        Assert.Equal(Sol.Number, ship.StarJustLeft);            // still on it
+
+        ship.LogY -= 40 * 32;                                    // well clear
+        StarContact.Check(ship, Map);
+        Assert.Null(ship.StarJustLeft);
+    }
+
+    [Fact]
+    public void AStarJustLeftThatIsNotOnTheMapIsDropped()
+    {
+        var ship = NewShip();
+        ship.PlaceAtUniverse(Sol.X, Sol.Y);
+        ship.StarJustLeft = 9999;
+        ship.Velocity.SetComponents(0, -64);
+        Assert.Equal(Sol, StarContact.Check(ship, Map));
+        Assert.Null(ship.StarJustLeft);
     }
 
     [Fact]

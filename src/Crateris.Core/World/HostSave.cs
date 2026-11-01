@@ -19,7 +19,12 @@ namespace Crateris.Core.World;
 /// </summary>
 public static class HostSave
 {
-    public const int Version = 1;
+    /// <summary>
+    /// 2 added the star each ship has just left (FlightState.StarJustLeft).
+    /// Version 1 saves still load; their ships count as not on a star.
+    /// </summary>
+    public const int Version = 2;
+    public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -65,8 +70,9 @@ public static class HostSave
     {
         var save = JsonSerializer.Deserialize<SaveFile>(json, Options)
             ?? throw new InvalidDataException("Empty save file.");
-        if (save.Version != Version)
-            throw new InvalidDataException($"Save version {save.Version} is not supported (expected {Version}).");
+        if (save.Version < OldestReadableVersion || save.Version > Version)
+            throw new InvalidDataException(
+                $"Save version {save.Version} is not supported (expected {OldestReadableVersion} to {Version}).");
 
         var clock = new GameClock(save.Clock.Year, save.Clock.Month, save.Clock.Day)
         {
@@ -91,6 +97,8 @@ public static class HostSave
             f.FuelDistY = (ushort)s.FuelDistY;
             f.FuelDistExtra = (ushort)s.FuelDistExtra;
             f.FuelTicks = (byte)s.FuelTicks;
+            if (s.StarJustLeft is int star && (star < 0 || star >= StarMap.SolarSystemCount))
+                throw new InvalidDataException($"Player {ps.Id}: star_just_left {star} is not a star.");
             f.StarJustLeft = s.StarJustLeft;
             var v = s.Velocity;
             if (v.Length != 9)
