@@ -191,7 +191,7 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
 
 1. Headless server with players flying around hyperspace together, joining and leaving at will. **Built** (see `docs/how-to-try/stage-1.md`).
 2. Solar systems and planets from seeds. **Built** (plan: `docs/plans/stage-2.md`; see `docs/how-to-try/stage-2.md`).
-   - Content: the first-run content download and a minimal content reader (names, then planet colour maps).
+   - Content: the first-run content download and a minimal content reader (names, then planet colour maps). Plan: `docs/plans/content-stage.md` (draft).
    - 2b. Landing and mining: the lander, creatures, hazards, cargo and the shared landing screen.
 3. Story flags, conversations, dialogue locks, story pauses and the group inventory.
 4. Combat, including joining battles, one enemy at a time, and the minimap.
