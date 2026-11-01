@@ -554,7 +554,7 @@ public partial class Main : Node2D
 
     private void UpdateHud()
     {
-        var lines = new List<string> { "Attack on Crateris - stage 2 (in progress)", _status };
+        var lines = new List<string> { "Attack on Crateris - stage 2", _status };
         if (_snapshot != null)
         {
             lines.Add($"Date {_snapshot.Year:D4}-{_snapshot.Month:D2}-{_snapshot.Day:D2}");

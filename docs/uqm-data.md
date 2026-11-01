@@ -37,6 +37,7 @@ The first runs 21 checks on the committed files (counts, known values, notices).
 - **`star-systems.json`:** every one of the 502 star systems as UQM generates it at the start of a new game: the sun's seed, every planet and every moon (type, orbit radius, position, seed, number of moons) and each world's planet data (`PLANET_INFO`: temperature, gravity, tectonics, weather, atmosphere and so on), plus `RandomContext` sequences for many seeds. Recorded by `tools/extract/golden/systems.c`, which includes `solarsys.c` and runs UQM's own `LoadSolarSys`, `GenerateMoons`, `FillOrbits` and `DoPlanetaryAnalysis` with every generator in `planets/generate/`. Graphics and strings are stubbed; the game state is all zeros, as in a new game. Planet data is recorded the way the planet report computes it (with the greenhouse bonus); the orbit colour's temperature, computed without it, is recorded too, since the two make different RNG calls.
 - **`world-surfaces.json`:** entering orbit around every world: whether orbit is reached, the three scan seeds, the planet report as the system's `generateOrbital` leaves it, and every mineral, energy and life node (position, element or creature, deposit size). Then the orbit screen's report text as UQM's own `PrintCoarseScanPC` prints it (numbers only: labels and unit words are content strings, empty in the recording). Recorded by the same program in `orbits` mode, which runs each star's own `generateOrbital`, then its `generateMinerals`, `generateEnergy` and `generateLife` node by node as `scan.c` does. Conversations, graphics and the rest are do-nothing stand-ins (`tools/extract/golden/stubs.c`); no alien ships are present and nothing has been picked up, so homeworlds are orbited as when their owners are gone.
 - **`ip-geometry.json`:** the interplanetary screen and zoom constants, where a ship arriving from hyperspace is put, and samples of UQM's conversions between system locations and the screen.
+- **`system-layout.json`:** what UQM's `DrawSystem` would draw for every star: each planet's orbit ellipse, position and image size at each of the outer view's four zooms, and each planet's inner view (the arc of its own orbit, its image size, and its moons' orbits, positions and sizes). Recorded by the same program in `layout` mode, from UQM's own `GetPlanetOrbitRect`, `ValidateOrbits`, `enterInnerSystem` and `ValidateInnerOrbits`.
 - **`ip-flight.json`:** eight interplanetary flights, frame by frame (3 in Sol, 5 in other systems; about 14,000 frames), recorded by running UQM's own flight code in the order `IP_frame` runs it, with `ipdisp.c` linked for the flagship's movement. A small test pilot in the recording program chooses the input (turn towards a goal planet or moon, thrust when facing it); the engine's tests replay that input. Sprite intersection uses the engine's provisional circles (`docs/differences.md` row 25), so only the circle sizes aren't UQM's.
 
 ```
@@ -89,11 +90,13 @@ From `planet_array` in `src/uqm/plandata.c` (type `PlanetFrame`, `planets/planda
 
 Individual planets come from `planets/plangen.c`, `calc.c`, `gentopo.c` and `orbits.c` (code). `PLANET_INFO` (`plandata.h`: tilt, tectonics, weather, gravity, temperature and so on) is computed per planet by `calc.c`, not stored.
 
-**Used by:** solar systems and planets (stage 2), lander and mining.
+**Used by:** solar systems and planets (stage 2: sizes, densities, elements and the planet report; `color` picks the placeholder colour worlds are drawn in until the content stage), lander and mining.
 
 ### `elements.json`: minerals
 
 From `element_array` in `src/uqm/plandata.c` and the enums in `src/uqm/planets/elemdata.h`. 133 elements, each in one of 8 categories (`COMMON` to `EXOTIC`). `worth` is the starting resource-unit value per unit of cargo in each category, set in `InitGameStructures` (`globdata.c`).
+
+**Used by:** solar systems and planets (stage 2: element ids of mineral deposits, and the category, which picks a mineral dot's colour on the scan map), lander and mining.
 
 ### `lifeforms.json`: creatures
 

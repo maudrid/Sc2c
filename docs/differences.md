@@ -53,6 +53,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
+| 2026-11-01 | 23–25, 27 | Stage 2 built. No new differences: the orbit screen, its menus and scans work as UQM's; rows 23 to 25 and 27 stay temporary until the content stage and stage 3 |
 | 2026-11-01 | 14, 27 | Stage 2: joining in a system or while the host is in orbit; worlds that would start a conversation leave the ship in flight until stage 3 |
 | 2026-11-01 | 26 | Withdrawn: scans aren't remembered, as in UQM. A scan shows what's left at that moment, including what a friend has just taken |
 | 2026-11-01 | 26 | Added remembering scans: shared and saved, alongside UQM's taken nodes |

@@ -4,7 +4,7 @@ A free engine for drop-in co-op play of The Ur-Quan Masters content, for up to 4
 
 Attack on Crateris is not The Ur-Quan Masters and is not made or endorsed by Toys for Bob, Paul Reiche III, Fred Ford or The Ur-Quan Masters project. It is compatible with The Ur-Quan Masters 0.8.0 content, which the game downloads separately on first run.
 
-**Status:** early development. Stage 1 is built: up to 4 players fly around hyperspace together, joining and leaving at will. See `docs/how-to-try/stage-1.md` to try it and `docs/design.md` for the plan.
+**Status:** early development. Stages 1 and 2 are built: up to 4 players fly around hyperspace together, joining and leaving at will, and into any star system, around its planets and moons, into orbit to read a planet's report and scan it, all generated exactly as UQM generates them. See `docs/how-to-try/stage-1.md` and `docs/how-to-try/stage-2.md` to try them and `docs/design.md` for the plan.
 
 ## License
 
