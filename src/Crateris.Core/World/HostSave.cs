@@ -40,10 +40,10 @@ public static class HostSave
 
     /// <summary>
     /// One planet or moon with stored state: moon null for the planet itself;
-    /// taken nodes as UQM's three retrieve masks; scanned as a bit per scan type.
+    /// taken nodes as UQM's three retrieve masks.
     /// </summary>
     public sealed record WorldState(
-        int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken, int Scanned);
+        int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
 
     public sealed record ClockState(int Year, int Month, int Day, int FramesIntoDay);
 
@@ -73,7 +73,7 @@ public static class HostSave
         var worlds = world.Planets.Worlds
             .OrderBy(w => w.Key.Star).ThenBy(w => w.Key.Planet).ThenBy(w => w.Key.Moon ?? -1)
             .Select(w => new WorldState(w.Key.Star, w.Key.Planet, w.Key.Moon,
-                w.Value.Retrieved[0], w.Value.Retrieved[1], w.Value.Retrieved[2], w.Value.Scanned))
+                w.Value.Retrieved[0], w.Value.Retrieved[1], w.Value.Retrieved[2]))
             .ToList();
         var save = new SaveFile(Version, world.Settings, new ClockState(c.Year, c.Month, c.Day, c.FramesIntoDay),
             world.Frame, players, worlds);
@@ -135,12 +135,10 @@ public static class HostSave
         {
             try
             {
-                if (w.Scanned is < 0 or > 7)
-                    throw new ArgumentOutOfRangeException(nameof(w.Scanned));
                 var id = new WorldId(w.Star, w.Planet, w.Moon);
                 if (world.Planets.Worlds.ContainsKey(id))
                     throw new InvalidDataException($"World {id} is in the save twice.");
-                world.Planets.Restore(id, w.MineralTaken, w.EnergyTaken, w.BiologicalTaken, (byte)w.Scanned);
+                world.Planets.Restore(id, w.MineralTaken, w.EnergyTaken, w.BiologicalTaken);
             }
             catch (ArgumentOutOfRangeException e)
             {

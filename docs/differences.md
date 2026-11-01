@@ -30,7 +30,7 @@ Every deliberate difference between Attack on Crateris and vanilla UQM 0.8.0: wh
 | 20 | Planet landing | One player, one lander | Players on the same planet share one landing screen, each with their own lander; each node is taken once | Lets players explore a planet together | Planned |
 | 21 | Chat | None | Text chat between players, in every activity | Co-op needs a way to talk | Planned |
 | 22 | Cargo trading | One ship holds all minerals and bio data (`ElementAmounts`, `TotalBioMass` in `SIS_STATE`) | Players in the same solar system can trade cargo, limited by the receiver's free storage | Lets a group pool minerals for one player to sell | Planned |
-| 26 | Remembering scans | Nothing is remembered: each time a player orbits a world they scan it again (`ScanSystem` in `src/uqm/planets/scan.c`); only taken nodes are saved (`ScanRetrieveMask`, `state.c`) | Taken nodes work as in UQM but are shared, so a node one player takes is gone for everyone. The game also remembers which scans someone has run on each world, shared and saved | So players can see each other's scanning (how the views use it is decided with item 10). It changes nothing about what's on a world | State done in stage 2; shown in the client in item 10 |
+| 26 | ~~Remembering scans~~ | Nothing is remembered: each time a player orbits a world they scan it again (`ScanSystem` in `src/uqm/planets/scan.c`); only taken nodes are saved | **Withdrawn: same as UQM.** Scans aren't remembered. Each scan shows what's left at that moment, from the shared taken-node state, so it already reflects nodes a friend has just collected | Remembering scans added nothing: scanning is free, quick and always current, and nothing in the game would show a past scan | Withdrawn 2026-11-01 |
 
 ## Temporary differences
 
@@ -52,6 +52,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
+| 2026-11-01 | 26 | Withdrawn: scans aren't remembered, as in UQM. A scan shows what's left at that moment, including what a friend has just taken |
 | 2026-11-01 | 26 | Added remembering scans: shared and saved, alongside UQM's taken nodes |
 | 2026-11-01 | 25 | Added a temporary difference for touching planets and moons in a system: circles instead of sprite masks until the content stage |
 | 2026-11-01 | 23, 24 | Added temporary differences for entering stars until the content stage: circles instead of sprite masks, and no entry animation on the server |

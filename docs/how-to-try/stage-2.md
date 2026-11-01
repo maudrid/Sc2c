@@ -4,7 +4,7 @@ Stage 2 is being built in the order of `docs/plans/stage-2.md`. This page grows 
 
 ## So far: every star system, generated as UQM does it
 
-Items 1 to 8 are built: the system random number generator; the generation of every system's planets, moons and planet data, including the special systems (Sol, Spathiwa, the Chmmr, the Sa-Matra and the rest); entering orbit, which gives a world's planet report (the numbers on UQM's orbit screen) and its mineral, energy and life nodes; entering and leaving systems from hyperspace; flying inside a system (zooming, inner systems, orbit); and the shared state of planets (which nodes have been taken, which worlds scanned), kept in the host save. There is nothing new on screen yet; the system views come with item 10.
+Items 1 to 8 are built: the system random number generator; the generation of every system's planets, moons and planet data, including the special systems (Sol, Spathiwa, the Chmmr, the Sa-Matra and the rest); entering orbit, which gives a world's planet report (the numbers on UQM's orbit screen) and its mineral, energy and life nodes; entering and leaving systems from hyperspace; flying inside a system (zooming, inner systems, orbit); and the shared state of planets (which nodes have been taken), kept in the host save. There is nothing new on screen yet; the system views come with item 10.
 
 Set up and build as for stage 1 (`docs/how-to-try/stage-1.md`), then:
 
@@ -13,8 +13,8 @@ dotnet test --filter StarSystemTests   # systems against UQM: 3 tests
 dotnet test --filter SurfaceTests      # orbit, report and nodes against UQM: 6 tests
 dotnet test --filter SystemTransitionTests   # entering and leaving systems: 9 tests
 dotnet test --filter IpFlightTests    # flight inside systems: 10 tests
-dotnet test --filter PlanetWorldStateTests   # taken nodes and scans: 11 tests
-dotnet test                            # everything: 72 tests
+dotnet test --filter PlanetWorldStateTests   # taken nodes: 10 tests
+dotnet test                            # everything: 71 tests
 ```
 
 `EveryStarSystemMatchesUqm` generates all 502 systems and compares every planet and moon (type, orbit, position, seed, number of moons) and every world's planet data (temperature, gravity, tectonics, weather, atmosphere, rotation, tilt and so on) with what UQM's own code produces. If anything differs, the failure lists the star, the world and the value.

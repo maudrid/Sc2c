@@ -25,7 +25,7 @@ Players fly from hyperspace into a star system, around it and its planets, into 
 - The layouts of the 28 special systems (Sol, Procyon, Spathiwa and the rest): which planets and moons they have, so these systems look right.
 - Orbiting a planet or moon, and its planet report.
 - Scanning: generating mineral, energy and life nodes for a world, and showing where they are.
-- World state for planets: which worlds have been scanned, and which nodes have been taken. Nothing can be taken until the lander exists, but the state goes in now, so it is shared from the start.
+- World state for planets: which nodes have been taken (scans aren't remembered, as in UQM). Nothing can be taken until the lander exists, but the state goes in now, so it is shared from the start.
 - Per-player activities on the server (hyperspace, outer system, inner system, orbit), saved in the host save.
 - A placeholder client view for systems and orbit, like stage 1's.
 
@@ -71,7 +71,7 @@ From decisions already made (`docs/design.md`, `docs/differences.md`):
 
 - Each player is in their own activity: hyperspace, a system's outer system, a planet's inner system, or orbit. Several players can share a system.
 - The clock runs at the one constant rate in every activity (row 1), including in systems and in orbit.
-- Scanned worlds and taken nodes are world state, shared by everyone (porting inventory, "Orbit and scanning").
+- Taken nodes are world state, shared by everyone, so a scan always shows what's left, including what a friend has just taken (porting inventory, "Orbit and scanning").
 - A guest who joins while the host isn't flying appears at the host's position in the surrounding solar system (row 14). For orbit, that's the inner system of the host's planet.
 - Cargo trading within a system (row 22) needs cargo, which comes with the lander; not in stage 2.
 
@@ -92,7 +92,7 @@ Each item ends with tests that run headless. Where UQM code produces the answer,
 5. **Entering and leaving systems.** Port the hyperspace-to-system transition and the way back out: where the ship appears, and where it reappears in hyperspace. Check: recorded traces for arriving from several directions and leaving at several points.
 6. **Flight inside a system.** Port outer and inner system flight: `flagship_inertial_thrust`, `ProcessShipControls`, zoom changes, entering an inner system and orbit, and leaving each. Check: frame-by-frame traces recorded from UQM's code, as for hyperspace.
 7. **Orbit and the planet report.** The server side of being in orbit: which world, its report data, leaving orbit. Check: report values against item 2's file.
-8. **Planet world state.** Scanned worlds and taken nodes per star, shared, in the host save. Check: unit tests and save round trips.
+8. **Planet world state.** Taken nodes per world, shared, in the host save. Check: unit tests and save round trips.
 9. **Server activities.** A per-player activity state machine (hyperspace, outer system, inner system, orbit) with each activity stepped at its own frame rate, snapshots per activity, and the join rules above. Save format version 4 (older saves still load). Versions 2 and 3 already exist: 2 added the star each ship has just left (review of items 4 to 7), 3 added planet world state (item 8). Check: unit tests, plus the network test extended to two players in one system and a guest joining while the host is in orbit.
 10. **Client views.** Placeholder system view (sun, orbit rings, planets as circles in their UQM colours), inner system view with moons, orbit screen with the planet report and scan dots, HUD. Check: screenshots under a virtual display.
 11. **Docs.** `docs/how-to-try/stage-2.md`; update the porting inventory, differences and data docs.
@@ -110,7 +110,7 @@ Rough size: items 2, 4 and 6 are the large ones. Everything else is small to med
 | 5. Entering and leaving systems | Built | `SystemTransition.cs` (arrival and leaving), `IpGeometry.cs` (screen and zoom geometry, checked against UQM: `tests/golden/ip-geometry.json`), `Hyperspace/StarContact.cs` (when a ship touches a star; provisional circles until the content stage, `docs/differences.md` rows 23 and 24) |
 | 6. Flight inside a system | Built | `IpFlight.cs`: controls and thrust, zoom levels, entering and leaving inner systems, touching a world to enter orbit, coming back from orbit, leaving the system. Eight flights (3 in Sol, 5 elsewhere, 14,000 frames) match UQM frame by frame (`IpFlightTests`, `tests/golden/ip-flight.json`). Contact uses provisional circles (`docs/differences.md` row 25) |
 | 7. Orbit and the planet report | Built | `PlanetReport.cs`: the orbit screen's numbers (orbit, atmosphere, temperature, weather, tectonics, mass, radius, gravity, day, tilt) in UQM's units, on `OrbitData.Scan`. Checked against the text UQM's own `PrintCoarseScanPC` prints for all 3,800 worlds that can be orbited (`tests/golden/world-surfaces.json`). Entering orbit came with items 4 and 6, leaving it with item 6 (`IpFlight.ReturnFromOrbit`) |
-| 8. Planet world state | Built | `World/PlanetWorldState.cs` on `GameWorld.Planets`: taken nodes per world as UQM's three 32-bit retrieve masks (`isNodeRetrieved`, `setNodeRetrieved`, `countNodesRetrieved`), which scans someone has run (`docs/differences.md` row 26), and the nodes still on a world. One for the whole game, so every player sees the same. Saved in the host save (version 3; older saves load with nothing touched); bad worlds in a save are refused (`PlanetWorldStateTests`) |
+| 8. Planet world state | Built | `World/PlanetWorldState.cs` on `GameWorld.Planets`: taken nodes per world as UQM's three 32-bit retrieve masks (`isNodeRetrieved`, `setNodeRetrieved`, `countNodesRetrieved`), and the nodes still on a world. Scans aren't remembered, as in UQM: a scan shows what's left at that moment, so while a friend collects on the surface, each new scan shows fewer nodes (a first version remembered scans; withdrawn, `docs/differences.md` row 26). One for the whole game, so every player sees the same. Saved in the host save (version 3; older saves load with nothing touched); bad worlds in a save are refused (`PlanetWorldStateTests`) |
 | 9 to 11 | Not started | |
 
 How to try what is built so far: `docs/how-to-try/stage-2.md`.

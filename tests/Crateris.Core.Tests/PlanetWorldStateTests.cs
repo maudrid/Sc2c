@@ -13,7 +13,7 @@ using Crateris.Core.World;
 
 namespace Crateris.Core.Tests;
 
-/// <summary>Taken nodes and scans: shared world state, kept in the host save.</summary>
+/// <summary>Taken nodes: shared world state, kept in the host save.</summary>
 public class PlanetWorldStateTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
@@ -80,13 +80,15 @@ public class PlanetWorldStateTests
     {
         var world = NewWorld();
         world.Join("guest", "Guest");
-        world.Planets.SetRetrieved(Luna, ScanType.Energy, 0);   // anyone takes the Moon base node
-        world.Planets.MarkScanned(Luna, ScanType.Mineral);
+        var map = StarMap.Load(DataDir);
+        var sol = new SystemGenerator(PlanetTypes.Load(DataDir)).Generate(map.At(1752, 1450)!);
+        var life = sol.EnterOrbit(2, 1).Nodes!.Life;   // Luna's Brainbox Bulldozers
+        int before = world.Planets.Remaining(Luna, ScanType.Biological, life).Count;
 
+        // One player takes a node; anyone scanning afterwards sees one fewer.
         // There is one world state for the game, not one per player.
-        Assert.True(world.Planets.IsRetrieved(Luna, ScanType.Energy, 0));
-        Assert.True(world.Planets.IsScanned(Luna, ScanType.Mineral));
-        Assert.False(world.Planets.IsScanned(Luna, ScanType.Energy));
+        world.Planets.SetRetrieved(Luna, ScanType.Biological, 2);
+        Assert.Equal(before - 1, world.Planets.Remaining(Luna, ScanType.Biological, life).Count);
     }
 
     [Fact]
@@ -95,16 +97,14 @@ public class PlanetWorldStateTests
         var world = NewWorld();
         world.Planets.SetRetrieved(Luna, ScanType.Mineral, 5);
         world.Planets.SetRetrieved(Luna, ScanType.Biological, 31);
-        world.Planets.MarkScanned(Earth, ScanType.Energy);
         world.Planets.SetRetrieved(new WorldId(0, 3), ScanType.Energy, 15);
 
         string json = HostSave.ToJson(world);
         var loaded = HostSave.FromJson(json);
         Assert.Equal(1u << 5, loaded.Planets.RetrieveMask(Luna, ScanType.Mineral));
         Assert.Equal(1u << 31, loaded.Planets.RetrieveMask(Luna, ScanType.Biological));
-        Assert.True(loaded.Planets.IsScanned(Earth, ScanType.Energy));
         Assert.True(loaded.Planets.IsRetrieved(new WorldId(0, 3), ScanType.Energy, 15));
-        Assert.Equal(3, loaded.Planets.Worlds.Count);
+        Assert.Equal(2, loaded.Planets.Worlds.Count);
         Assert.Equal(json, HostSave.ToJson(loaded));   // stable order
     }
 
@@ -120,10 +120,9 @@ public class PlanetWorldStateTests
     }
 
     [Theory]
-    [InlineData("{\"star\": 502, \"planet\": 0, \"moon\": null, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0, \"scanned\": 0}")]
-    [InlineData("{\"star\": 0, \"planet\": 16, \"moon\": null, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0, \"scanned\": 0}")]
-    [InlineData("{\"star\": 0, \"planet\": 0, \"moon\": 7, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0, \"scanned\": 0}")]
-    [InlineData("{\"star\": 0, \"planet\": 0, \"moon\": null, \"mineral_taken\": 0, \"energy_taken\": 0, \"biological_taken\": 0, \"scanned\": 9}")]
+    [InlineData("{\"star\": 502, \"planet\": 0, \"moon\": null, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0}")]
+    [InlineData("{\"star\": 0, \"planet\": 16, \"moon\": null, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0}")]
+    [InlineData("{\"star\": 0, \"planet\": 0, \"moon\": 7, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0}")]
     public void ASaveWithABadWorldIsRefused(string worldJson)
     {
         var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
@@ -135,7 +134,7 @@ public class PlanetWorldStateTests
     public void ASaveWithAWorldTwiceIsRefused()
     {
         var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
-        const string w = "{\"star\": 0, \"planet\": 0, \"moon\": null, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0, \"scanned\": 0}";
+        const string w = "{\"star\": 0, \"planet\": 0, \"moon\": null, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0}";
         node["worlds"] = new JsonArray(JsonNode.Parse(w), JsonNode.Parse(w));
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString()));
     }

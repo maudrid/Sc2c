@@ -42,7 +42,8 @@ public readonly record struct WorldId(int Star, int Planet, int? Moon = null)
 /// <summary>
 /// The shared state of planets and moons: which nodes have been taken from
 /// each world (UQM's ScanRetrieveMask, one 32-bit mask per scan type, bit n
-/// for node n), and, for Crateris, which worlds someone has scanned. One
+/// for node n), as UQM saves them. Scans aren't stored: a scan always shows
+/// what is left right now, including nodes another player has just taken. One
 /// instance per game, the same for every player: a node one player takes
 /// is gone for everyone (docs/porting-inventory.md, "Orbit and scanning").
 /// Worlds nobody has touched aren't stored.
@@ -60,10 +61,7 @@ public sealed class PlanetWorldState
         /// <summary>Taken nodes, indexed by <see cref="ScanType"/>.</summary>
         public uint[] Retrieved { get; } = new uint[3];
 
-        /// <summary>Scan types someone has run on this world (bit per <see cref="ScanType"/>).</summary>
-        public byte Scanned { get; set; }
-
-        internal bool IsEmpty => Scanned == 0 && Retrieved[0] == 0 && Retrieved[1] == 0 && Retrieved[2] == 0;
+        internal bool IsEmpty => Retrieved[0] == 0 && Retrieved[1] == 0 && Retrieved[2] == 0;
     }
 
     /// <summary>Every world with stored state.</summary>
@@ -97,12 +95,6 @@ public sealed class PlanetWorldState
     public int CountRetrieved(WorldId world, ScanType scan) =>
         System.Numerics.BitOperations.PopCount(RetrieveMask(world, scan));
 
-    public bool IsScanned(WorldId world, ScanType scan) =>
-        _worlds.TryGetValue(world, out var r) && (r.Scanned & (1 << (int)scan)) != 0;
-
-    /// <summary>Someone ran this scan on this world.</summary>
-    public void MarkScanned(WorldId world, ScanType scan) =>
-        Get(world).Scanned |= (byte)(1 << (int)scan);
 
     /// <summary>
     /// The nodes still on a world's surface, with their node numbers, as
@@ -121,12 +113,10 @@ public sealed class PlanetWorldState
     }
 
     /// <summary>Restores one world's stored state (from a save).</summary>
-    public void Restore(WorldId world, uint mineral, uint energy, uint biological, byte scanned)
+    public void Restore(WorldId world, uint mineral, uint energy, uint biological)
     {
         world.Validate();
-        if (scanned > 7)
-            throw new ArgumentOutOfRangeException(nameof(scanned), $"{world}: scanned flags {scanned}");
-        var r = new Record { Scanned = scanned };
+        var r = new Record();
         r.Retrieved[0] = mineral;
         r.Retrieved[1] = energy;
         r.Retrieved[2] = biological;
