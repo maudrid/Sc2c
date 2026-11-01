@@ -205,7 +205,7 @@ These are logic and get ported by hand to C#, using the data files above. Where 
 
 ## Content, not ours
 
-The content package (CC BY-NC-SA 2.5) is downloaded on first run and read by the client. The data files refer to it only by index or resource id:
+The content package (CC BY-NC-SA 2.5) is downloaded on first run and read in place by each player's engine (`src/Crateris.Core/Content/ContentPackage.cs`): `uqm-0.8.0-content.uqm` is a zip holding `uqm.rmp` (the resource index: `id = TYPE:path`), `uqm.key`, `menu.key` and `base/`. Only the official file is accepted, by its SHA-256. Nothing from it is copied into the repository; tests that need it find it through `CRATERIS_CONTENT` or the game's own copy. The data files refer to it only by index or resource id:
 
 - **Star names:** `name_postfix` indexes the game strings (`content/base/gamestrings.txt`, `STAR_STRING_BASE`); `name_prefix` 0 means none, otherwise index - 1 into the Greek-letter numbers at `STAR_NUMBER_BASE` (`GetClusterName`, `starmap.c`).
 - **Ship and race text, art, sounds:** `race_strings_resource` and the `ship.<name>.*` ids in `content/uqm.rmp`.
