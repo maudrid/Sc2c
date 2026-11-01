@@ -20,10 +20,11 @@ namespace Crateris.Core.World;
 public static class HostSave
 {
     /// <summary>
-    /// 2 added the star each ship has just left (FlightState.StarJustLeft).
-    /// Version 1 saves still load; their ships count as not on a star.
+    /// 2 added the star each ship has just left (FlightState.StarJustLeft);
+    /// 3 added planet world state (Worlds). Older saves still load: their
+    /// ships count as not on a star, and no world has been touched.
     /// </summary>
-    public const int Version = 2;
+    public const int Version = 3;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -34,7 +35,15 @@ public static class HostSave
     };
 
     public sealed record SaveFile(
-        int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players);
+        int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players,
+        List<WorldState>? Worlds = null);
+
+    /// <summary>
+    /// One planet or moon with stored state: moon null for the planet itself;
+    /// taken nodes as UQM's three retrieve masks; scanned as a bit per scan type.
+    /// </summary>
+    public sealed record WorldState(
+        int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken, int Scanned);
 
     public sealed record ClockState(int Year, int Month, int Day, int FramesIntoDay);
 
@@ -61,8 +70,13 @@ public static class HostSave
                     f.StarJustLeft));
         }).ToList();
         var c = world.Clock;
+        var worlds = world.Planets.Worlds
+            .OrderBy(w => w.Key.Star).ThenBy(w => w.Key.Planet).ThenBy(w => w.Key.Moon ?? -1)
+            .Select(w => new WorldState(w.Key.Star, w.Key.Planet, w.Key.Moon,
+                w.Value.Retrieved[0], w.Value.Retrieved[1], w.Value.Retrieved[2], w.Value.Scanned))
+            .ToList();
         var save = new SaveFile(Version, world.Settings, new ClockState(c.Year, c.Month, c.Day, c.FramesIntoDay),
-            world.Frame, players);
+            world.Frame, players, worlds);
         return JsonSerializer.Serialize(save, Options);
     }
 
@@ -116,6 +130,22 @@ public static class HostSave
                 Present = false,
                 UndockPending = ps.UndockPending,
             });
+        }
+        foreach (var w in save.Worlds ?? new List<WorldState>())
+        {
+            try
+            {
+                if (w.Scanned is < 0 or > 7)
+                    throw new ArgumentOutOfRangeException(nameof(w.Scanned));
+                var id = new WorldId(w.Star, w.Planet, w.Moon);
+                if (world.Planets.Worlds.ContainsKey(id))
+                    throw new InvalidDataException($"World {id} is in the save twice.");
+                world.Planets.Restore(id, w.MineralTaken, w.EnergyTaken, w.BiologicalTaken, (byte)w.Scanned);
+            }
+            catch (ArgumentOutOfRangeException e)
+            {
+                throw new InvalidDataException($"Bad world in save: {e.Message}", e);
+            }
         }
         return world;
     }

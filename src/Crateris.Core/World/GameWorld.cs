@@ -45,6 +45,9 @@ public sealed class GameWorld
     public GameClock Clock { get; }
     public long Frame { get; private set; }
 
+    /// <summary>Planets and moons: taken nodes and scans, shared by every player.</summary>
+    public PlanetWorldState Planets { get; } = new();
+
     public IReadOnlyList<Player> Players => _players;
 
     public Player Host => _players.Single(p => p.IsHost);
