@@ -67,7 +67,7 @@ What should happen:
 - The host scans the Moon from the orbit screen while the guest flies around. Each player's orbit screen and scans are their own; nothing interrupts the others.
 - When the host chooses **Navigate**, both ships fly in Earth's inner system and see each other, named, moving smoothly.
 - Players in a different view (the other in the outer view, or in another planet's inner system, or in hyperspace) aren't drawn, except players in orbit, who show as a marker at their world in the outer view.
-- Close the host's window: the game is saved with every ship where it was, in hyperspace, in a system or in orbit. Start the host again and the guest can rejoin there.
+- Close the host's window: the game is saved with every ship where it was, in hyperspace, in a system or in orbit. Start the host again **without** `--start-orbit` (`godot --path game -- --host --name Host`) to carry on from the save, and the guest can rejoin there. With `--start-orbit`, a loaded game also puts the host in orbit at that world.
 
 `--start-orbit star:planet[:moon]` puts the host in orbit at start, in a new or loaded game. `82` is Sol; planets count from 0 (Earth is 2, its Moon `82:2:1`, the starbase `82:2:0`). A world that can't be orbited (a starbase, say) is refused with a message in the top-left.
 

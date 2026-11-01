@@ -406,6 +406,7 @@ public partial class Main : Node2D
         if (++_undockFrames >= 2 * GameClock.FramesPerSecond)
         {
             _undockShown = true;
+            _status = "Undocked. You're flying your escort.";   // the welcome's "undocking" is over
             RpcId(1, MethodName.UndockShown);
         }
     }

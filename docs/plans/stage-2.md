@@ -1,6 +1,6 @@
 # Stage 2 plan: solar systems and planets
 
-**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted (see "Decisions"). Built: all 11 items are done (see "Progress"). How to try it: `docs/how-to-try/stage-2.md`.
+**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted, and three more decisions made during the work (nine in all; see "Decisions"). Built: all 11 items are done (see "Progress"). How to try it: `docs/how-to-try/stage-2.md`.
 
 Build order item: "Solar systems and planets from seeds" (`docs/design.md`).
 
@@ -115,8 +115,6 @@ Rough size: items 2, 4 and 6 are the large ones. Everything else is small to med
 | 10. Client views | Built | `game/scripts/SystemView.cs`: the outer view (sun, orbit ellipses in UQM's five temperature colours, planets at the ship's zoom) and the inner view (the planet, the arc of its own orbit, its moons), laid out by `Systems/SystemLayout.cs`, which the flight now uses too; every star at every zoom and every inner view match what UQM's own `DrawSystem` would draw (`SystemLayoutTests`, `tests/golden/system-layout.json`). Other players in the same view are drawn like your ship, with names; players in orbit are markers at their world; movement is smoothed (`SmoothedMotion`). The orbit screen (`OrbitView`): the world, UQM's PC orbit menu, and in the scan menu the planet report and the scan map, scanned line by line at UQM's speed with the dots flashing as UQM's do (`Systems/OrbitMenu.cs`, `OrbitMenuTests`). Navigate leaves orbit; entries for later stages say so. Screenshots under a virtual display in `docs/how-to-try/stage-2.md`; the network test now scans the Moon and leaves orbit through the menu |
 | 11. Docs | Built | `docs/how-to-try/stage-2.md` rewritten as the stage's guide (solo walkthrough of Sol, Earth and the Moon, playing with friends, what the tests check, known limits); README, `docs/design.md` (build order), `docs/porting-inventory.md`, `docs/differences.md` (change history) and `docs/uqm-data.md` (references and data used) brought up to date |
 
-How to try what is built so far: `docs/how-to-try/stage-2.md`.
-
 Found while porting, all kept as UQM does them:
 
 - UQM's random generator isn't quite textbook Park–Miller: when the intermediate value goes negative it wraps as an unsigned number and subtracts `M`, which lands 2 higher than the textbook result. Kept, since every system depends on it.
@@ -139,7 +137,7 @@ Found while porting, all kept as UQM does them:
 
 ## Decisions
 
-All six recommendations were accepted on 2026-11-01.
+All six recommendations were accepted on 2026-11-01 (decisions 1 to 6); decisions 7 to 9 were made before item 10.
 
 1. **Landing and mining are stage 2b,** straight after stage 2 and the content stage. Stage 2b covers the lander: landing fuel, crew losses, creatures, hazards, cargo and the shared landing screen.
 2. **Content download is its own small stage between 2 and 2b:** the first-run download with its notice (`docs/design.md`, "First-run content download") and a minimal content reader, names first, then planet colour maps. Until then, stage 2 shows numbers and placeholder shapes.
