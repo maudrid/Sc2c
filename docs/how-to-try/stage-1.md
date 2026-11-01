@@ -29,7 +29,7 @@ python3 tools/test_network.py                  # real host and guests, about 20 
 python3 -m unittest discover -s tools/extract  # data checks
 ```
 
-What should happen: `dotnet test` reports 26 passed at stage 1, and more after later stages (108 after stage 2), all passing. The network test prints a list of `ok` lines ending in "all network checks passed".
+What should happen: `dotnet test` reports 26 passed at stage 1, and more after later stages (each stage's page gives its count), all passing. The network test prints a list of `ok` lines ending in "all network checks passed".
 
 ## Play it
 

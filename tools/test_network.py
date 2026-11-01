@@ -96,6 +96,11 @@ def main():
     check(any("Undocking" in line for line in ra1["log"]), "A saw the undocking scene")
     check(any("Undocking" in line for line in rb["log"]), "B saw the undocking scene")
     check(not any("Undocking" in line for line in ra2["log"]), "A doesn't undock again on rejoin")
+    # Once undocked, nothing still says the escort is undocking.
+    for r, n in ((ra1, "A"), (rb, "B")):
+        check(any("] Undocked." in line for line in r["log"])
+              and "undocking" not in (r["status"] + r["notice"]).lower(),
+              f"{n} was told it undocked, and the undocking message is gone")
 
     for r, n in ((ra1, "A"), (rb, "B")):
         ids = {s["Id"] for s in r["snapshot"]["Ships"]}

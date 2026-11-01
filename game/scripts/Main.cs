@@ -47,7 +47,15 @@ public partial class Main : Node2D
     private int _scriptFrame;
     private int _undockFrames = -1;
     private bool _undockShown;
+    // The status line is lasting state (hosting, connected, an error);
+    // one-off events (welcome, undocked) are notices shown for a while.
     private string _status = "";
+    private string _notice = "";
+    private ulong _noticeUntilMs;
+    private const double NoticeSeconds = 6;
+
+    // A guest is connected from an accepted welcome until the connection fails or the host leaves.
+    private bool _connected;
     private double _saveTimer;
 
     private HyperspaceView _view = null!;
@@ -277,10 +285,15 @@ public partial class Main : Node2D
     {
         _welcome = Protocol.Decode<Protocol.Welcome>(data);
         _inputDelay = _welcome.InputDelayFrames;
-        _status = _welcome.Message;
         Log($"Welcome: {_welcome.Result}");
         if (!Protocol.Accepted(_welcome.Result))
+        {
             Fail(_welcome.Message);
+            return;
+        }
+        _connected = true;
+        _status = $"Playing in the game at {_options.Address}:{_options.Port}.";
+        Notify(_welcome.Message);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
@@ -326,8 +339,20 @@ public partial class Main : Node2D
         }
     }
 
+    /// <summary>Shows a one-off message under the status line for a few seconds (and logs it).</summary>
+    private void Notify(string message)
+    {
+        _notice = message;
+        _noticeUntilMs = Time.GetTicksMsec() + (ulong)(NoticeSeconds * 1000);
+        Log(message);
+    }
+
+    /// <summary>The notice being shown, or "" once it has run out.</summary>
+    private string Notice() => Time.GetTicksMsec() < _noticeUntilMs ? _notice : "";
+
     private void Fail(string message)
     {
+        _connected = false;   // nothing more is sent, and the undocking scene stops
         _status = message;
         Log(message);
         if (_options.QuitAfterFrames > 0 || _options.ReportPath != null)
@@ -341,8 +366,7 @@ public partial class Main : Node2D
         _frames++;
         // A guest's script starts once it is in the game, so a slow join
         // doesn't use up its first steps (the network test depends on it).
-        bool inGame = _isHost ? _world != null
-            : _welcome != null && Protocol.Accepted(_welcome.Result) && _snapshot != null;
+        bool inGame = _isHost ? _world != null : _connected && _snapshot != null;
         // The orbit menu must exist before input is read, so a key on the
         // first frame in orbit (a script's, say) reaches it.
         UpdateOrbitMenu();
@@ -357,7 +381,7 @@ public partial class Main : Node2D
             if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
                 Rpc(MethodName.ReceiveSnapshot, Protocol.Encode(_snapshot));
         }
-        else if (_welcome != null && Protocol.Accepted(_welcome.Result) && _snapshot != null)
+        else if (_connected && _snapshot != null)
         {
             RpcId(1, MethodName.SendInput, _snapshot.Frame + _inputDelay, (int)input);
             HandleUndock();
@@ -406,7 +430,7 @@ public partial class Main : Node2D
         if (++_undockFrames >= 2 * GameClock.FramesPerSecond)
         {
             _undockShown = true;
-            _status = "Undocked. You're flying your escort.";   // the welcome's "undocking" is over
+            Notify("Undocked. You're flying your escort.");
             RpcId(1, MethodName.UndockShown);
         }
     }
@@ -555,7 +579,7 @@ public partial class Main : Node2D
 
     private void UpdateHud()
     {
-        var lines = new List<string> { "Attack on Crateris - stage 2", _status };
+        var lines = new List<string> { "Attack on Crateris - stage 2", _status, Notice() };
         if (_snapshot != null)
         {
             lines.Add($"Date {_snapshot.Year:D4}-{_snapshot.Month:D2}-{_snapshot.Day:D2}");
@@ -616,6 +640,7 @@ public partial class Main : Node2D
                 frames = _frames,
                 welcome = _welcome?.Result.ToString(),
                 status = _status,
+                notice = Notice(),
                 log = _log,
                 snapshot = _snapshot,
             };
