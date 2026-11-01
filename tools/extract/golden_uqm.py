@@ -65,6 +65,11 @@ FLIGHT_LINK = ["uqm/ship.c", "uqm/ships/sis_ship/sis_ship.c",
                "uqm/velocity.c", "uqm/trans.c", "libs/math/sqrt.c",
                "uqm/globdata.c"]
 MATH_LINK = ["uqm/trans.c", "libs/math/sqrt.c", "uqm/velocity.c"]
+STRINGS_LINK = ["libs/strings/getstr.c", "libs/strings/strings.c",
+                "libs/memory/w_memlib.c"]
+
+# The official content package's SHA-256 (as in ContentPackage.cs).
+CONTENT_SHA256 = "77d75ac25e6fb755a33c4ba3b38a7b7bc41fcbc02896891b0cc9ac9214b72eef"
 
 
 def systems_link(uqm):
@@ -315,12 +320,115 @@ def record_layout(uqm, exe):
     return data
 
 
+def record_string_numbering(uqm, exe):
+    out = subprocess.run([exe, "bases"], capture_output=True, text=True,
+                         check=True).stdout
+    data = header(uqm, ["tools/extract/golden/strings.c", "src/uqm/gamestr.h"], [
+        "The game strings' numbering from UQM's gamestr.h: each range's "
+        "base and count, as [name, base, count], and GAMESTR_COUNT.",
+    ])
+    data.update(json.loads(out))
+    return data
+
+
+# String table inputs of our own (not UQM content), to record exactly what
+# UQM's loader does with each quirk of the format.
+STRING_TABLE_CASES = [
+    ("simple", b"#(One)\nFirst\n\n#(Two)\nSecond\n"),
+    ("text_before_first_header_is_ignored", b"stray\nlines\n#(A)\nkept\n"),
+    ("lines_join_and_end_is_trimmed", b"#(A)\nline one\nline two\n\n\n#(B)\nb\n"),
+    ("crlf", b"#(A)\r\nwindows\r\nlines\r\n\r\n#(B)\r\nb\r\n"),
+    ("empty_strings", b"#(A)\n#(B)\n\n#(C)\nc"),
+    ("hash_lines_without_a_name", b"#(A)\na\n#\n#()\nafter\n#(B)b\nb\n"),
+    ("name_with_text_after", b"#(Vega) -- STAR_STRING_BASE\nV\n"),
+    ("no_newline_at_end", b"#(A)\nlast line"),
+    ("long_line_is_read_in_pieces", b"#(A)\n" + b"x" * 1500 + b"\n#(B)\n" + b"y" * 1022 + b"#(C)\nz\n"),
+    ("nul_inside_a_line", b"#(A)\nbefore\x00after\nnext\n"),
+    ("utf8", "#(A)\nCaf\u00e9 \u00b0 \u2014\n".encode("utf-8")),
+    ("only_blank", b"#(A)\n\n\n"),
+    ("too_many_strings", b"".join(b"#(s)\n%d\n" % i for i in range(2100))),
+]
+
+
+def record_string_table_cases(uqm, exe):
+    with tempfile.TemporaryDirectory() as tmp:
+        files = []
+        for i, (_, text) in enumerate(STRING_TABLE_CASES):
+            local = os.path.join(tmp, f"{i}.txt")
+            with open(local, "wb") as f:
+                f.write(text)
+            files.append(local)
+        out = subprocess.run([exe, *files], capture_output=True, text=True,
+                             check=True).stdout
+    data = header(uqm, ["tools/extract/golden/strings.c",
+                        "src/libs/strings/getstr.c"], [
+        "String table inputs written for this test (STRING_TABLE_CASES in "
+        "tools/extract/golden_uqm.py, not UQM content), as UQM's own "
+        "_GetStringData reads them. input is the file in hex; strings are "
+        "[length, bytes in hex], length counting UQM's terminating NUL.",
+    ])
+    data["cases"] = [{"name": name, "input": text.hex(), "strings": strings}
+                     for (name, text), strings in zip(STRING_TABLE_CASES, json.loads(out))]
+    return data
+
+
+def record_string_tables(uqm, exe, package):
+    """Every STRTAB resource in the official content package, as UQM's own
+    _GetStringData reads it. The strings are content, so only their
+    lengths and SHA-256 hashes are kept."""
+    import hashlib
+    import zipfile
+    with open(package, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    if digest != CONTENT_SHA256:
+        sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    tables = {}
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index = z.read("uqm.rmp").decode("utf-8")
+        entries = []
+        for line in index.splitlines():
+            line = line.split("#", 1)[0].strip()
+            if "=" not in line:
+                continue
+            key, value = (x.strip() for x in line.split("=", 1))
+            if value.startswith("STRTAB:"):
+                entries.append((key, value[len("STRTAB:"):]))
+        files = []
+        for i, (key, path) in enumerate(entries):
+            local = os.path.join(tmp, f"{i}.txt")
+            with open(local, "wb") as f:
+                f.write(z.read(path))
+            files.append(local)
+        out = subprocess.run([exe, *files], capture_output=True, text=True,
+                             check=True).stdout
+    for (key, path), strings in zip(entries, json.loads(out)):
+        tables[key] = {
+            "path": path,
+            "strings": [[length, hashlib.sha256(bytes.fromhex(data)).hexdigest()]
+                        for length, data in strings],
+        }
+    data = header(uqm, ["tools/extract/golden/strings.c",
+                        "src/libs/strings/getstr.c"], [
+        "Every string table (STRTAB resource) of the official UQM 0.8.0 "
+        f"content package (SHA-256 {CONTENT_SHA256}), as UQM's own "
+        "_GetStringData reads it. The strings are content (CC BY-NC-SA "
+        "2.5), so they aren't here: each string is [length, SHA-256], "
+        "where length counts UQM's terminating NUL (0 for an empty "
+        "string) and the hash is of those length bytes.",
+    ])
+    data["tables"] = tables
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--uqm", required=True,
                     help="path to the sc2 directory of UQM 0.8.0")
     ap.add_argument("--out", default=os.path.join(REPO, "tests", "golden"))
+    ap.add_argument("--content", help="the official uqm-0.8.0-content.uqm; "
+                    "with it, also record what UQM reads from the content "
+                    "(as hashes)")
     args = ap.parse_args()
     if shutil.which("gcc") is None:
         sys.exit("gcc is required")
@@ -335,6 +443,9 @@ def main():
         systems = os.path.join(build_dir, "systems")
         build(uqm, os.path.join(HERE, "golden", "systems.c"),
               systems_link(uqm), systems, extra=[SYSTEMS_STUBS])
+        strings = os.path.join(build_dir, "strings")
+        build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
+              strings)
         os.makedirs(args.out, exist_ok=True)
         for name, data in (("hyperspace-flight", record_flight(uqm, flight)),
                            ("uqm-math", record_math(uqm, math)),
@@ -342,7 +453,11 @@ def main():
                            ("world-surfaces", record_surfaces(uqm, systems)),
                            ("ip-geometry", record_ip(uqm, systems)),
                            ("ip-flight", record_ip_flight(uqm, systems)),
-                           ("system-layout", record_layout(uqm, systems))):
+                           ("system-layout", record_layout(uqm, systems)),
+                           ("string-numbering", record_string_numbering(uqm, strings)),
+                           ("string-table-cases", record_string_table_cases(uqm, strings)),
+                           *([("string-tables", record_string_tables(uqm, strings, args.content))]
+                             if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:
                 json.dump(data, f, separators=(",", ":"))

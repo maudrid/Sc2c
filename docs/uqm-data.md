@@ -40,9 +40,15 @@ The first runs 21 checks on the committed files (counts, known values, notices).
 - **`system-layout.json`:** what UQM's `DrawSystem` would draw for every star: each planet's orbit ellipse, position and image size at each of the outer view's four zooms, and each planet's inner view (the arc of its own orbit, its image size, and its moons' orbits, positions and sizes). Recorded by the same program in `layout` mode, from UQM's own `GetPlanetOrbitRect`, `ValidateOrbits`, `enterInnerSystem` and `ValidateInnerOrbits`.
 - **`ip-flight.json`:** eight interplanetary flights, frame by frame (3 in Sol, 5 in other systems; about 14,000 frames), recorded by running UQM's own flight code in the order `IP_frame` runs it, with `ipdisp.c` linked for the flagship's movement. A small test pilot in the recording program chooses the input (turn towards a goal planet or moon, thrust when facing it); the engine's tests replay that input. Sprite intersection uses the engine's provisional circles (`docs/differences.md` row 25), so only the circle sizes aren't UQM's.
 
+- **`string-numbering.json`:** the game strings' numbering from `gamestr.h`: each range's base and count (`STAR_STRING_BASE` and the rest) and `GAMESTR_COUNT`.
+- **`string-table-cases.json`:** string table inputs written for the test (in `tools/extract/golden_uqm.py`, not UQM content), each with exactly what UQM's own `_GetStringData` makes of it, byte for byte: its quirks with headers, blank lines, line endings, NULs, long lines and the 2,048-string limit.
+- **`string-tables.json`** (needs `--content`): every string table of the official content package as UQM's loader reads it, kept as each string's length and SHA-256 only. The strings themselves are content (CC BY-NC-SA 2.5) and aren't in the repository (content stage, decision 5).
+
 ```
-python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2
+python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 [--content uqm-0.8.0-content.uqm]
 ```
+
+With `--content` (the official package; anything else is refused) it also records what UQM reads from the content, as hashes.
 
 ## Units
 

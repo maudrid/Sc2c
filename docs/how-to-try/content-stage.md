@@ -6,7 +6,7 @@ The content stage is being built in the order of `docs/plans/content-stage.md`. 
 
 ## So far: getting the content
 
-Items 1 and 2 are built. The engine opens the official UQM 0.8.0 content package (`uqm-0.8.0-content.uqm`) in place, refuses any file that isn't the official one (by its SHA-256), and reads files from it by path or by UQM's resource ids. On first start, it asks for the package.
+Items 1 to 3 are built. The engine opens the official UQM 0.8.0 content package (`uqm-0.8.0-content.uqm`) in place, refuses any file that isn't the official one (by its SHA-256), and reads files from it by path or by UQM's resource ids. On first start, it asks for the package.
 
 ### Try it in the game
 
@@ -23,7 +23,7 @@ A headless host or guest (servers, tests) needs the package given: `--content PA
 ### Run the tests
 
 ```
-dotnet test --filter "ContentPackageTests|ResourceIndexTests|ContentInstallerTests"   # 20 tests
+dotnet test --filter "ContentPackageTests|ResourceIndexTests|ContentInstallerTests|StringTableTests"   # 25 tests
 python3 tools/test_network.py
 ```
 
@@ -36,6 +36,8 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test
 ```
 
 (`CRATERIS_CONTENT` can also name the folder the file is in. If it names a file that doesn't exist, the test fails and says so, rather than being skipped.) What should happen: all tests pass, none skipped. `TheOfficialPackageOpensAndEveryIndexedFileIsInIt` checks the file is the official one and that every one of the 963 entries in its resource index names a file in it.
+
+`StringTableTests` checks UQM's string tables are read exactly as UQM's own loader reads them: odd inputs written for the test, byte for byte, and every one of the 51 string tables in the package (by hash, since the text is content). With the package it also reads a few you'd recognise: "Vega" (the first star string), "Orbit: " (the planet report's first label), "Earth" and "Luna".
 
 The network test needs the package too, the same way; it also checks that a headless host without it stops and says how to give it one.
 
