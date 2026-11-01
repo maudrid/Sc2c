@@ -114,7 +114,7 @@ xvfb-run -a -s "-screen 0 1024x768x24" godot --rendering-driver opengl3 --path g
 
 ## Known limits of stage 2
 
-- **No UQM content:** placeholder drawing, no names (stars and planets are numbers), no sound. The content stage comes next; names are in since its item 4 (`docs/how-to-try/content-stage.md`).
+- **No UQM content:** placeholder drawing, no names (stars and planets are numbers), no sound. The content stage comes next; names are in since its item 4, UQM's words and fonts since item 5 and the planet maps since item 6 (`docs/how-to-try/content-stage.md`).
 - **No landing:** Dispatch lander says it comes later; landing and mining are stage 2b. Nodes can't be taken yet, though what's taken is already shared and saved.
 - **No aliens:** systems are empty of alien ships until conversations (stage 3) and combat (stage 4), including Fwiffo at Pluto. Starbases, the Sa-Matra, the Umgah homeworld and the Slylandro gas giant can't be orbited.
 - **Contact uses circles** instead of UQM's sprite masks until the content stage, so a ship may touch a star or world a frame or two earlier or later than in UQM (`docs/differences.md` rows 23 to 25). There's no star-entry animation yet (row 24).

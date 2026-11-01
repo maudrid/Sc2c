@@ -17,7 +17,8 @@
  * no conversation starts and every world can be orbited and scanned.
  * Nothing has been picked up: scan.c's retrieval masks are all zero.
  * Frame indexing and sprite intersection are in systems.c, which models
- * them for the flight traces.
+ * them for the flight traces; so are the string table, colour map and
+ * drawing calls the planet surface generator makes (for "surfaces" mode).
  */
 
 static char dummy_handle[64];
@@ -26,7 +27,6 @@ long AllocLink () { return 0; }
 long BatchGraphics () { return 0; }
 long BuildGroups () { return 0; }
 void *CaptureDrawable () { return dummy_handle; }
-void *CaptureStringTable () { return dummy_handle; }
 long CargoMenu () { return 0; }
 long ClearDrawable () { return 0; }
 long CloneShipFragment () { return 0; }
@@ -58,8 +58,6 @@ long FreeLanderFont () { return 0; }
 long FreePlanet () { return 0; }
 long GameClockTick () { return 0; }
 long GameOptions () { return 0; }
-long GetColorMapAddress () { return 0; }
-long GetContextClipRect () { return 0; }
 long GetGroupInfo () { return 0; }
 long GetPlanetInfo () { return 0; }
 long GetStarShipFromIndex () { return 0; }
@@ -79,7 +77,6 @@ void *LoadGraphicInstance () { return dummy_handle; }
 long LoadLanderData () { return 0; }
 void *LoadMusicInstance () { return dummy_handle; }
 long LoadStdLanderFont () { return 0; }
-void *LoadStringTableInstance () { return dummy_handle; }
 long MoveGameClockDays () { return 0; }
 long PlanetOrbitMenu () { return 0; }
 long PlayMusic () { return 0; }
@@ -97,8 +94,6 @@ long ScreenTransition () { return 0; }
 long SetColorMap () { return 0; }
 long SetContext () { return 0; }
 long SetContextBackGroundColor () { return 0; }
-long SetContextClipRect () { return 0; }
-long SetContextFGFrame () { return 0; }
 long SetContextForeGroundColor () { return 0; }
 long SetFlashRect () { return 0; }
 long SetLanderTakeoff () { return 0; }

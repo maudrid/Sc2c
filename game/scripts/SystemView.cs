@@ -280,6 +280,13 @@ public partial class OrbitView : Control
     /// <summary>UQM's words and fonts for the orbit screen (set with <see cref="Names"/>).</summary>
     public OrbitScreenText Text { get; set; } = null!;
 
+    /// <summary>The worlds' surfaces (set with <see cref="Names"/>).</summary>
+    public PlanetSurfaces Surfaces { get; set; } = null!;
+
+    private PlanetSurface? _surface;     // the orbited world's surface, made once per visit
+    private ImageTexture? _surfaceMap;
+    private readonly Dictionary<ScanType, ImageTexture> _tintedMaps = new();
+
     public OrbitView(SystemCatalog systems)
     {
         _systems = systems;
@@ -298,6 +305,9 @@ public partial class OrbitView : Control
         {
             WorldId w = menu.World;
             _world = w.Moon is int m ? _systems[w.Star].Moons(w.Planet)[m] : _systems[w.Star].Planets[w.Planet];
+            _surface = Surfaces.For(_systems[w.Star], w.Planet, w.Moon);
+            _surfaceMap = SurfaceTexture(_surface.Colors);
+            _tintedMaps.Clear();
         }
         _menu = menu;
         _taken = taken;
@@ -358,23 +368,39 @@ public partial class OrbitView : Control
                 foreach (var t in _report.Value.Text)
                     UqmText.Draw(this, t, Vector2.Zero, Placeholder.Scale);
             }
-            DrawMap(font, mapTop);
         }
+        // UQM shows the surface map below the planet throughout orbit; scans draw over it.
+        DrawMap(font, mapTop, _menu.Scan.Visible);
         DrawMenu(font);
     }
 
-    private void DrawMap(Font font, float mapTop)
+    private void DrawMap(Font font, float mapTop, bool scanning)
     {
         var scan = _menu!.Scan;
         var map = new Rect2(0, mapTop, Size.X, Surface.MapHeight * Placeholder.Scale);
-        DrawRect(map, new Color(0.12f, 0.1f, 0.08f));
+        // The world's surface, as UQM generates and colours it.
+        if (_surfaceMap != null)
+            DrawTextureRect(_surfaceMap, map, false);
+        else
+            DrawRect(map, new Color(0.12f, 0.1f, 0.08f));
+        DrawRect(map, new Color(0.4f, 0.4f, 0.5f), false, 1);
+        if (!scanning)
+            return;
         if (scan.Tint is ScanType tint)
         {
-            // The map is redrawn tinted down to the scan line.
+            // The map is redrawn tinted down to the scan line, as UQM's DrawPlanet
+            // does: the tint colour added at half strength (renderTintFrame).
             Color c = Placeholder.ToColor(OrbitScan.TintColors[(int)tint]);
-            float lineY = Math.Min(scan.Line, Surface.MapHeight - 1) * Placeholder.Scale;
-            if (scan.Line >= 0)
-                DrawRect(new Rect2(map.Position, new Vector2(map.Size.X, lineY + Placeholder.Scale)), new Color(c, 0.25f));
+            int line = Math.Min(scan.Line, Surface.MapHeight - 1);
+            float lineY = line * Placeholder.Scale;
+            if (scan.Line >= 0 && _surface != null)
+            {
+                if (!_tintedMaps.TryGetValue(tint, out var tinted))
+                    _tintedMaps[tint] = tinted = SurfaceTexture(PlanetSurfaces.Tinted(_surface.Colors, OrbitScan.TintColors[(int)tint]));
+                DrawTextureRectRegion(tinted,
+                    new Rect2(map.Position, new Vector2(map.Size.X, (line + 1) * Placeholder.Scale)),
+                    new Rect2(0, 0, SurfaceMap.Width, line + 1));
+            }
             if (scan.Sweeping && scan.Line >= 0 && scan.Line < Surface.MapHeight)
                 DrawLine(new Vector2(0, mapTop + lineY), new Vector2(Size.X, mapTop + lineY), c, 2);
             // Which scan is drawn, in the scan menu's words (UQM shows only the tint).
@@ -386,7 +412,6 @@ public partial class OrbitView : Control
             }), IpGeometry.ScreenWidth >> 1, IpGeometry.ScreenHeight - Surface.MapHeight - 3, TextAlign.Center);
             UqmText.Draw(this, new DrawnText(Text.StarCon, label, OrbitScan.TextColors[(int)tint]), Vector2.Zero, Placeholder.Scale);
         }
-        DrawRect(map, new Color(0.4f, 0.4f, 0.5f), false, 1);
 
         foreach (var dot in scan.Dots(_taken))
         {
@@ -427,6 +452,18 @@ public partial class OrbitView : Control
         DrawString(font, new Vector2(areaAt.X, below + 22), _message, HorizontalAlignment.Left, width, 14, Colors.Khaki);
         DrawString(font, new Vector2(areaAt.X, below + 44), "Arrows: choose. Enter: select. Esc: back",
             HorizontalAlignment.Left, width, 13, Colors.Gray);
+    }
+
+    private static ImageTexture SurfaceTexture(Rgb[] colors)
+    {
+        var data = new byte[colors.Length * 3];
+        for (int i = 0; i < colors.Length; ++i)
+        {
+            data[i * 3] = colors[i].R;
+            data[i * 3 + 1] = colors[i].G;
+            data[i * 3 + 2] = colors[i].B;
+        }
+        return ImageTexture.CreateFromImage(Image.CreateFromData(SurfaceMap.Width, SurfaceMap.Height, false, Image.Format.Rgb8, data));
     }
 
     public static string Label(OrbitMenuItem item) => item switch

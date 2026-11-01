@@ -20,6 +20,8 @@
  *   strings index FILE     a resource index (uqm.rmp) as UQM's own
  *                          PropFile_from_string reads it: [key, value]
  *                          pairs in the order UQM's handler gets them
+ *   strings bintab FILE... the same for binary tables (BINTAB), as UQM's
+ *                          _GetBinaryTableData reads them
  *   strings FILE...        each string table as UQM reads it: per string,
  *                          its length and its bytes in hex (the recorder
  *                          keeps only hashes of them; they are content)
@@ -53,6 +55,13 @@ long
 uio_ftell (uio_Stream *stream)
 {
 	return ftell ((FILE *) stream);
+}
+
+/* GetResourceData (libs/resource/loadres.c) reads with ReadResFile. */
+size_t
+ReadResFile (void *lpBuf, size_t size, size_t count, uio_Stream *fp)
+{
+	return fread (lpBuf, size, count, (FILE *) fp);
 }
 
 static void
@@ -148,7 +157,8 @@ print_index (const char *path)
 int
 main (int argc, char *argv[])
 {
-	int a;
+	int a, first_file = 1;
+	void *(*load) (uio_Stream *, DWORD) = _GetStringData;
 
 	if (argc > 1 && strcmp (argv[1], "bases") == 0)
 	{
@@ -157,8 +167,13 @@ main (int argc, char *argv[])
 	}
 	if (argc > 2 && strcmp (argv[1], "index") == 0)
 		return print_index (argv[2]);
+	if (argc > 1 && strcmp (argv[1], "bintab") == 0)
+	{	/* binary tables (BINTAB), as _GetBinaryTableData reads them */
+		load = _GetBinaryTableData;
+		first_file = 2;
+	}
 	printf ("[");
-	for (a = 1; a < argc; ++a)
+	for (a = first_file; a < argc; ++a)
 	{
 		FILE *fp = fopen (argv[a], "rb");
 		long length;
@@ -173,9 +188,9 @@ main (int argc, char *argv[])
 		fseek (fp, 0, SEEK_END);
 		length = ftell (fp);
 		fseek (fp, 0, SEEK_SET);
-		table = (STRING_TABLE) _GetStringData ((uio_Stream *) fp, length);
+		table = (STRING_TABLE) load ((uio_Stream *) fp, length);
 		fclose (fp);
-		printf ("%s[", a > 1 ? ",\n" : "");
+		printf ("%s[", a > first_file ? ",\n" : "");
 		for (i = 0; table && i < table->size; ++i)
 		{
 			STRING_TABLE_ENTRY_DESC *s = &table->strings[i];

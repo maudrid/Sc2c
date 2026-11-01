@@ -23,6 +23,8 @@
 #include "uqm/planets/solarsys.c"
 #include "uqm/ipdisp.c"
 #include "uqm/planets/scan.c"
+#include "uqm/planets/plangen.c"
+#include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,9 +93,84 @@ DrawablesIntersect (INTERSECT_CONTROL *c0, INTERSECT_CONTROL *c1,
 STRING GameStrings;  /* read by GAME_STRING */
 static char **game_strings;
 static COUNT game_string_count;
-STRING SetAbsStringTableIndex (STRING s, COUNT i)
+static char dummy_handle_systems[64];   /* a resource that reads as present */
+
+/* Binary tables (BINTAB: planet colour maps and translate tables), read
+ * from files in "surfaces" mode as UQM's _GetBinaryTableData reads them:
+ * after GetResourceData's ~0 prefix, a big-endian count, an offset, the
+ * lengths, then the entries. A STRING of one points to its entry (which
+ * starts with a magic number); any other STRING is a game string. */
+#define BINTAB_MAGIC 0xB17AB1E5u
+typedef struct bintab Bintab;
+typedef struct
 {
-	(void) s;
+	unsigned magic;
+	Bintab *parent;
+	unsigned char *data;
+} BintabEntry;
+struct bintab
+{
+	int size;
+	BintabEntry *entries;
+};
+
+static BintabEntry *
+as_entry (STRING s)
+{
+	BintabEntry *e = (BintabEntry *) s;
+	if ((uintptr_t) s < 0x100000 || e->magic != BINTAB_MAGIC)
+		return NULL;
+	return e;
+}
+
+static unsigned
+be32 (const unsigned char *p)
+{
+	return ((unsigned) p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
+}
+
+static Bintab *
+read_bintab (const char *path)
+{
+	FILE *f = fopen (path, "rb");
+	long n;
+	unsigned char *d;
+	unsigned count, i;
+	const unsigned char *data;
+	Bintab *t;
+
+	if (!f)
+		return NULL;
+	fseek (f, 0, SEEK_END);
+	n = ftell (f);
+	fseek (f, 0, SEEK_SET);
+	d = malloc (n);
+	if (fread (d, 1, n, f) != (size_t) n)
+		exit (1);
+	fclose (f);
+	if (be32 (d) != 0xffffffffu)
+		exit (1);
+	count = be32 (d + 4);
+	t = calloc (1, sizeof *t);
+	t->size = count;
+	t->entries = calloc (count, sizeof *t->entries);
+	data = d + 4 + 4 * (2 + count + be32 (d + 8));
+	for (i = 0; i < count; ++i)
+	{
+		t->entries[i].magic = BINTAB_MAGIC;
+		t->entries[i].parent = t;
+		t->entries[i].data = (unsigned char *) data;
+		data += be32 (d + 12 + 4 * i);
+	}
+	return t;
+}
+
+STRING
+SetAbsStringTableIndex (STRING s, COUNT i)
+{
+	BintabEntry *e = as_entry (s);
+	if (e)	/* as strings.c: the index wraps at the table's size */
+		return (STRING) &e->parent->entries[i % e->parent->size];
 	return (STRING) (intptr_t) (i + 1);
 }
 STRING SetRelStringTableIndex (STRING s, SIZE i) { (void) i; return s; }
@@ -101,6 +178,9 @@ STRINGPTR
 GetStringAddress (STRING s)
 {
 	intptr_t i = (intptr_t) s - 1;
+	BintabEntry *e = as_entry (s);
+	if (e)
+		return (STRINGPTR) e->data;
 	if (!game_strings)
 		return (STRINGPTR) "";
 	if (i < 0 || i >= game_string_count)
@@ -265,12 +345,117 @@ print_coarse_scan (void)
 	printf ("]");
 }
 
+/* ---- Surfaces mode: the planet surface as GeneratePlanetSurface makes it.
+ * LoadPlanet runs UQM's real GeneratePlanetSurface (plangen.c, gentopo.c).
+ * The height map is taken when it asks for the colour map, just after
+ * making it; the coloured map as RenderTopography draws it into the
+ * topography frame. Then the run is cut short (longjmp): what follows is
+ * the rotating planet's, for later. */
+static int surfaces_mode;
+static const char *tables_dir;   /* colour and translate tables, or NULL */
+static int in_surface;
+static jmp_buf surface_done;
+static SBYTE surface_topo[320 * 240];   /* MAP_WIDTH depends on ScreenWidth */
+static int have_topo, surface_defined, fg_frame_calls;
+static Color surface_colors[320 * 240];
+static int surface_colored;
+
+STRING_TABLE
+LoadStringTableInstance (RESOURCE res)
+{
+	if (in_surface)
+	{
+		char path[4096];
+		Bintab *t;
+		if (!have_topo)
+		{
+			memcpy (surface_topo, pSolarSysState->Orbit.lpTopoData,
+					MAP_WIDTH * MAP_HEIGHT);
+			have_topo = 1;
+		}
+		if (!tables_dir)
+			longjmp (surface_done, 1);
+		snprintf (path, sizeof path, "%s/%s", tables_dir, res);
+		t = read_bintab (path);
+		if (!t)
+		{
+			fprintf (stderr, "no table %s\n", path);
+			exit (1);
+		}
+		return (STRING_TABLE) t;
+	}
+	return (STRING_TABLE) dummy_handle_systems;
+}
+
+STRING
+CaptureStringTable (STRING_TABLE t)
+{
+	if (in_surface && t)
+	{
+		Bintab *b = (Bintab *) t;
+		return b->size > 0 ? (STRING) &b->entries[0] : NULL;
+	}
+	return (STRING) dummy_handle_systems;
+}
+
+COLORMAPPTR
+GetColorMapAddress (COLORMAP colormap)
+{
+	return (COLORMAPPTR) GetStringAddress (colormap);
+}
+
+FRAME
+SetContextFGFrame (FRAME f)
+{
+	/* RenderTopography sets the topography frame, draws, and puts the old
+	 * frame back: the second call ends the coloured map. */
+	if (in_surface && ++fg_frame_calls == 2)
+		longjmp (surface_done, 1);
+	(void) f;
+	return 0;
+}
+
+BOOLEAN
+GetContextClipRect (RECT *r)
+{
+	memset (r, 0, sizeof *r);
+	return TRUE;
+}
+
+BOOLEAN SetContextClipRect (RECT *r) { (void) r; return TRUE; }
+POINT SetContextOrigin (POINT o) { return o; }
+
+void
+DrawBatch (PRIMITIVE *base, PRIM_LINKS links, BATCH_FLAGS flags)
+{
+	COUNT i;
+	(void) flags;
+	for (i = GetPredLink (links); i != END_OF_LIST;
+			i = GetSuccLink (GetPrimLinks (&base[i])))
+	{
+		POINT p = base[i].Object.Point;
+		surface_colors[p.y * MAP_WIDTH + p.x] = GetPrimColor (&base[i]);
+		++surface_colored;
+	}
+}
+
 /* LoadPlanet builds the planet surface; UQM tests TopoFrame afterwards to
  * see whether orbit was entered (see EnterPlanetOrbit). */
 void
 LoadPlanet (FRAME SurfDefFrame)
 {
-	(void) SurfDefFrame;
+	if (surfaces_mode)
+	{
+		have_topo = surface_colored = fg_frame_calls = 0;
+		surface_defined = SurfDefFrame != NULL;
+		if (!surface_defined)
+		{	/* Earth's surface is its own image, read by the engine. */
+			in_surface = 1;
+			if (!setjmp (surface_done))
+				GeneratePlanetSurface (pSolarSysState->pOrbitalDesc, NULL);
+			in_surface = 0;
+		}
+	}
 	pSolarSysState->TopoFrame = (FRAME) 1;
 }
 
@@ -394,6 +579,86 @@ orbits_main (void)
 		printf ("]");
 	}
 	printf ("]}\n");
+	return 0;
+}
+
+/* "surfaces [DIR]": every world's surface as GeneratePlanetSurface makes
+ * it on entering orbit, one line per world in orbits mode's order:
+ * [star, planet, moon or -1, entered, defined (Earth's own image),
+ * height map (signed bytes, in hex) or "", coloured map (RGB, in hex) or
+ * ""]. The coloured map needs the colour and translate tables, in DIR as
+ * files named by resource id. */
+static void
+surface_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
+{
+	int entered, i;
+
+	memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+	GLOBAL (CurrentActivity) = IN_INTERPLANETARY;
+	memset (&pSolarSysState->SysInfo, 0, sizeof pSolarSysState->SysInfo);
+	pSolarSysState->TopoFrame = 0;
+	pSolarSysState->pOrbitalDesc = world;
+	pSolarSysState->InOrbit = TRUE;
+	have_topo = surface_defined = surface_colored = 0;
+
+	(*pSolarSysState->genFuncs->generateOrbital) (pSolarSysState, world);
+	entered = pSolarSysState->TopoFrame != 0
+			&& !(GLOBAL (CurrentActivity) & (CHECK_ABORT | CHECK_LOAD
+			| START_ENCOUNTER));
+
+	printf ("[%u, %u, %d, %d, %d, \"", s, p, m, entered, surface_defined);
+	if (entered && have_topo)
+	{
+		for (i = 0; i < MAP_WIDTH * MAP_HEIGHT; ++i)
+			printf ("%02x", (unsigned char) surface_topo[i]);
+	}
+	printf ("\", \"");
+	if (entered && surface_colored == MAP_WIDTH * MAP_HEIGHT)
+	{
+		for (i = 0; i < MAP_WIDTH * MAP_HEIGHT; ++i)
+			printf ("%02x%02x%02x", surface_colors[i].r, surface_colors[i].g,
+					surface_colors[i].b);
+	}
+	printf ("\"]\n");
+	pSolarSysState->InOrbit = FALSE;
+}
+
+static int
+surfaces_main (const char *dir)
+{
+	COUNT s;
+
+	surfaces_mode = 1;
+	tables_dir = dir;
+	for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
+	{
+		COUNT i;
+
+		memset (&SolarSysState, 0, sizeof SolarSysState);
+		pSolarSysState = &SolarSysState;
+		CurStarDescPtr = &star_array[s];
+		SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
+		GLOBAL (ip_planet) = 0;
+		GLOBAL (in_orbit) = 0;
+		GLOBAL (ShipFacing) = 1;
+		memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+		LoadSolarSys ();
+
+		for (i = 0; i < SolarSysState.SunDesc[0].NumPlanets; ++i)
+		{
+			PLANET_DESC *planet = &SolarSysState.PlanetDesc[i];
+			COUNT m;
+
+			memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+			GenerateMoons (&SolarSysState, planet);
+			SolarSysState.pBaseDesc = SolarSysState.MoonDesc;
+			surface_world (s, i, -1, planet);
+			for (m = 0; m < planet->NumPlanets; ++m)
+				surface_world (s, i, m, &SolarSysState.MoonDesc[m]);
+			SolarSysState.pBaseDesc = SolarSysState.PlanetDesc;
+			SolarSysState.pOrbitalDesc = NULL;
+		}
+	}
 	return 0;
 }
 
@@ -921,6 +1186,8 @@ main (int argc, char *argv[])
 	PlanData = planet_array;
 	SysGenRNG = RandomContext_New ();
 
+	if (argc > 1 && strcmp (argv[1], "surfaces") == 0)
+		return surfaces_main (argc > 2 ? argv[2] : NULL);
 	if (argc > 1 && strcmp (argv[1], "orbits") == 0)
 		return orbits_main ();
 	if (argc > 1 && strcmp (argv[1], "ip") == 0)

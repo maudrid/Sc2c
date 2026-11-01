@@ -66,7 +66,8 @@ FLIGHT_LINK = ["uqm/ship.c", "uqm/ships/sis_ship/sis_ship.c",
                "uqm/globdata.c"]
 MATH_LINK = ["uqm/trans.c", "libs/math/sqrt.c", "uqm/velocity.c"]
 STRINGS_LINK = ["libs/strings/getstr.c", "libs/strings/strings.c",
-                "libs/memory/w_memlib.c", "libs/resource/propfile.c"]
+                "libs/memory/w_memlib.c", "libs/resource/propfile.c",
+                "libs/resource/loadres.c"]
 
 # The resource types UQM 0.8.0 registers (every InstallResTypeVectors
 # call); any other type is UNKNOWNRES, as newResourceDesc in resinit.c has
@@ -103,7 +104,7 @@ CONTENT_SHA256 = "77d75ac25e6fb755a33c4ba3b38a7b7bc41fcbc02896891b0cc9ac9214b72e
 def systems_link(uqm):
     gen = os.path.join(uqm.uqm, "planets", "generate")
     return (["uqm/planets/orbits.c", "uqm/planets/calc.c",
-             "uqm/planets/surface.c", "uqm/gendef.c",
+             "uqm/planets/surface.c", "uqm/planets/gentopo.c", "uqm/gendef.c",
              "uqm/plandata.c", "uqm/starmap.c", "uqm/globdata.c",
              "libs/math/random2.c", "uqm/trans.c", "libs/math/sqrt.c",
              "uqm/velocity.c"] +
@@ -842,6 +843,125 @@ def record_images(uqm, exe, package):
     return data
 
 
+def surface_lines(exe, tables_dir=None):
+    """The systems program's surfaces mode, one parsed line at a time."""
+    proc = subprocess.Popen([exe, "surfaces"] + ([tables_dir] if tables_dir else []),
+                            stdout=subprocess.PIPE, text=True)
+    for line in proc.stdout:
+        yield json.loads(line)
+    if proc.wait():
+        raise RuntimeError("the surfaces mode failed")
+
+
+# Worlds whose whole height map is kept, one of each map algorithm: a
+# cratered world, a topographic one and a gas giant (Sol's Mercury, Mars
+# and Jupiter).
+FULL_HEIGHT_MAPS = [(82, 0, -1), (82, 3, -1), (82, 4, -1)]
+
+
+def record_surface_heights(uqm, exe):
+    import hashlib
+    worlds, full = [], []
+    for star, planet, moon, entered, defined, topo, _ in surface_lines(exe):
+        worlds.append([star, planet, moon, entered, defined,
+                       hashlib.sha256(bytes.fromhex(topo)).hexdigest() if topo else None])
+        if (star, planet, moon) in FULL_HEIGHT_MAPS:
+            full.append({"world": [star, planet, moon], "heights": topo})
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "tools/extract/golden/stubs.c",
+                        "src/uqm/planets/plangen.c",
+                        "src/uqm/planets/gentopo.c"], [
+        "Every world's height map as UQM 0.8.0's own GeneratePlanetSurface "
+        "(plangen.c, gentopo.c) makes it on entering orbit from a new "
+        "game, taken just before it is coloured. Code only, no content.",
+        "worlds: [star, planet, moon or -1, orbit entered, defined (Earth, "
+        "whose surface is an image), SHA-256 of the MAP_WIDTH x MAP_HEIGHT "
+        "signed bytes, row by row, or null].",
+        "full: the whole height map of a few worlds, in hex.",
+    ])
+    data["worlds"] = worlds
+    data["full"] = full
+    return data
+
+
+def record_surface_colors(uqm, systems_exe, strings_exe, package):
+    """Every world's coloured surface map, as RenderTopography draws it with
+    the package's colour and translate tables. Content, so hashes only."""
+    import hashlib
+    import zipfile
+    with open(package, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
+            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        tables = os.path.join(tmp, "tables")
+        os.makedirs(tables)
+        for key, (kind, path) in read_resource_index(strings_exe, index_file).items():
+            if kind == "BINTAB" and key.startswith("planet."):
+                with open(os.path.join(tables, key), "wb") as f:
+                    f.write(z.read(path))
+        worlds = []
+        for star, planet, moon, entered, defined, _, colors in surface_lines(systems_exe, tables):
+            worlds.append([star, planet, moon,
+                           hashlib.sha256(bytes.fromhex(colors)).hexdigest() if colors else None])
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "src/uqm/planets/plangen.c"], [
+        "Every world's coloured surface map (the scan screen's map) as UQM "
+        "0.8.0's own RenderTopography draws it, with the colour maps and "
+        "translate tables (BINTAB) of the official content package "
+        f"(SHA-256 {CONTENT_SHA256}). Content, so each map is the SHA-256 of "
+        "its MAP_WIDTH x MAP_HEIGHT pixels as R, G, B bytes, row by row.",
+        "worlds: [star, planet, moon or -1, SHA-256 or null (not entered, "
+        "or Earth, whose map is its own image)].",
+    ])
+    data["worlds"] = worlds
+    return data
+
+
+def record_binary_tables(uqm, exe, package):
+    """Every BINTAB resource in the official content package, as UQM's own
+    _GetBinaryTableData reads it. Content, so only lengths and hashes."""
+    import hashlib
+    import zipfile
+    with open(package, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
+            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        entries = [(key, path) for key, (kind, path)
+                   in read_resource_index(exe, index_file).items()
+                   if kind == "BINTAB"]
+        files = []
+        for i, (key, path) in enumerate(entries):
+            local = os.path.join(tmp, f"{i}.bin")
+            with open(local, "wb") as f:
+                f.write(z.read(path))
+            files.append(local)
+        out = subprocess.run([exe, "bintab", *files], capture_output=True,
+                             text=True, check=True).stdout
+    tables = {}
+    for (key, path), strings in zip(entries, json.loads(out)):
+        tables[key] = {
+            "path": path,
+            "entries": [[length, hashlib.sha256(bytes.fromhex(data)).hexdigest()]
+                        for length, data in strings],
+        }
+    data = header(uqm, ["tools/extract/golden/strings.c",
+                        "src/libs/strings/getstr.c",
+                        "src/libs/resource/loadres.c"], [
+        "Every binary table (BINTAB resource) of the official UQM 0.8.0 "
+        f"content package (SHA-256 {CONTENT_SHA256}), as UQM's own "
+        "_GetBinaryTableData reads it: each entry is [length, SHA-256 of "
+        "its bytes]. Content (CC BY-NC-SA 2.5), so only hashes.",
+    ])
+    data["tables"] = tables
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
@@ -885,13 +1005,16 @@ def main():
                            ("ip-geometry", record_ip(uqm, systems)),
                            ("ip-flight", record_ip_flight(uqm, systems)),
                            ("system-layout", record_layout(uqm, systems)),
+                           ("surface-heights", record_surface_heights(uqm, systems)),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),
                            *([("string-tables", record_string_tables(uqm, strings, args.content)),
                               ("names", record_names(uqm, systems, strings, args.content)),
                               ("fonts", record_fonts(uqm, fonts, strings, args.content)),
-                              ("images", record_images(uqm, images, args.content))]
+                              ("images", record_images(uqm, images, args.content)),
+                              ("surface-colors", record_surface_colors(uqm, systems, strings, args.content)),
+                              ("binary-tables", record_binary_tables(uqm, strings, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:

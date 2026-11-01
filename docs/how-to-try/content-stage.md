@@ -102,3 +102,27 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter "FontTes
 ```
 
 `EveryFontLoadsAsUqmLoadsIt` checks all 29 fonts of the package (32 font resources; some share a font), every one of their 2,503 characters (size, position and every pixel), against what UQM's own font loader makes of them. `TextIsLaidOutAsUqmLaysItOut` checks 1,341 texts laid out in the three fonts the orbit screen uses, against UQM's own layout code: texts of our own that test each odd case (alignment, missing characters, bad UTF-8, UQM's limit of 100 characters) and every menu entry, report label and world type in the game strings. Both use hashes, since fonts are content. `ImagesOfOurOwnLoadAsUqmLoadsThem` and `EveryKindOfImageInThePackageLoadsAsUqmLoadsIt` check the image reader against UQM's own PNG loader: images made for every case it handles (transparency, palettes, interlacing, 16-bit images) and up to 40 of each kind of image in the package. `NumbersAreWrittenAsUqmWritesThemInAnyLocale` checks the report reads "-18° c" even on a computer set to Swedish. `OrbitScreenTextTests` checks the menu numbering against UQM's `menustat.h`, the menu words, and the report and menu box at UQM's positions.
+
+## So far: planet surfaces
+
+Item 6 is built. Every world you can orbit now shows its own surface map below the planet, as UQM makes it: the same terrain, craters, gas giant bands and storms, in the same colours. Earth shows its own map. Worlds under a shield (Earth in a new game) show the map with the shield's red added, as UQM does. Scans now tint the map as UQM does, by adding the scan's colour to it.
+
+The planet above the map is still a plain circle; the rotating planet is item 7.
+
+![Earth's own map, red under its shield](../screenshots/content-surface-earth.png)
+
+### Try it in the game
+
+1. `godot --path game -- --host --start-orbit 82:2:1` (Luna): a grey cratered map below the planet. Choose Scan, then Autoscan: each scan tints the map from the top down as it's drawn.
+2. `--start-orbit 82:3` (Mars): rust red, with a great dark scar across it. `--start-orbit 82:4` (Jupiter): bands and storms.
+3. `--start-orbit 82:2` (Earth): Earth's own map, all reddish because of the shield around it.
+4. Any world: compare with UQM 0.8.0 orbiting the same world. The maps should be identical, pixel for pixel, at three times UQM's size.
+
+### Run the tests
+
+```
+dotnet test --filter SurfaceMapTests   # 2 tests, about 30 seconds; no content needed
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSurfacesTests   # 5 tests, about 30 seconds
+```
+
+`EveryWorldsHeightMapIsTheOneUqmMakes` makes the height map of every one of the 3,799 worlds that can be orbited (all but Earth) and checks each against what UQM's own generator makes of it. That needs no content: the terrain is made by code alone. `AFewWholeMapsMatchPointForPoint` compares three whole maps point by point, so a difference shows where it is. `EveryWorldsColouredMapIsTheOneUqmDraws` checks every world's coloured map against UQM's own drawing code with the package's colour tables (by hash). `EveryBinaryTableIsReadAsUqmReadsIt` checks all 149 of the package's binary tables against UQM's reader. The rest check Earth's own map, the shield's red, and UQM's additive blending sums.

@@ -229,6 +229,7 @@ public partial class Main : Node2D
         _content = content;
         _systemView.Names = _orbitView.Names = _names;
         _orbitView.Text = _orbitText;
+        _orbitView.Surfaces = new PlanetSurfaces(content);
         return true;
     }
 

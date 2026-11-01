@@ -206,3 +206,55 @@ public sealed class GameStrings
     /// <summary>GAME_STRING (index).</summary>
     public string this[int index] => _table[index];
 }
+
+/// <summary>
+/// A UQM binary table (a BINTAB resource, such as a planet's colour map
+/// <c>base/planets/oolite.ct</c>), read as UQM's <c>_GetBinaryTableData</c>
+/// reads it: after GetResourceData's ~0 length prefix, big-endian 32-bit
+/// words: the entry count, an offset (in words) to skip, each entry's
+/// length; then the entries, one after another.
+/// </summary>
+public sealed class BinaryTable
+{
+    private readonly byte[][] _entries;
+
+    private BinaryTable(byte[][] entries) => _entries = entries;
+
+    public int Count => _entries.Length;
+
+    /// <summary>An entry; as UQM's SetAbsStringTableIndex, the index wraps at the table's size.</summary>
+    public ReadOnlySpan<byte> this[int index] => _entries[index % _entries.Length];
+
+    public static BinaryTable Parse(ReadOnlySpan<byte> data)
+    {
+        if (Word(data, 0) != 0xffffffff)
+            throw new ContentPackageException("a binary table is compressed, which UQM doesn't read");
+        uint count = Word(data, 4);
+        if (count == 0 || count > 65535)
+            throw new ContentPackageException($"a binary table says it has {count} entries");
+        long pos = 4 + 4L * (2 + count + Word(data, 8));
+        var entries = new byte[count][];
+        for (int i = 0; i < count; ++i)
+        {
+            uint length = Word(data, 12 + 4 * i);
+            if (pos + length > data.Length)
+                throw new ContentPackageException("a binary table's entry runs past its end");
+            entries[i] = data.Slice((int)pos, (int)length).ToArray();
+            pos += length;
+        }
+        return new BinaryTable(entries);
+    }
+
+    private static uint Word(ReadOnlySpan<byte> data, int at) => at + 4 <= data.Length
+        ? System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(data[at..])
+        : throw new ContentPackageException("a binary table ends early");
+
+    /// <summary>Reads a BINTAB resource from the content package.</summary>
+    public static BinaryTable Load(ContentPackage package, string resourceId)
+    {
+        var entry = package.Resource(resourceId);
+        if (entry.Type != "BINTAB")
+            throw new ContentPackageException($"{resourceId} is {entry.Type}, not a binary table");
+        return Parse(package.ReadFile(entry.Value));
+    }
+}

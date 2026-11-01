@@ -215,15 +215,19 @@ public sealed class ContentPackage : IDisposable
     /// <summary>Whether the package holds a file at this path.</summary>
     public bool HasFile(string path) => _files.ContainsKey(path);
 
-    /// <summary>A file's bytes, by its path in the package. A missing file is a <see cref="ContentPackageException"/>.</summary>
+    /// <summary>A file's bytes, by its path in the package; safe from any thread. A missing file is a <see cref="ContentPackageException"/>.</summary>
     public byte[] ReadFile(string path)
     {
         if (!_files.TryGetValue(path, out var entry))
             throw new ContentPackageException($"{Path} has no file {path}");
-        using var s = entry.Open();
-        using var m = new MemoryStream((int)entry.Length);
-        s.CopyTo(m);
-        return m.ToArray();
+        // The package is one open file, so reads take turns.
+        lock (_zip)
+        {
+            using var s = entry.Open();
+            using var m = new MemoryStream((int)entry.Length);
+            s.CopyTo(m);
+            return m.ToArray();
+        }
     }
 
     /// <summary>A resource's entry, by id. A missing resource is a <see cref="ContentPackageException"/>.</summary>
