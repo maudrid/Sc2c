@@ -10,6 +10,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using System.Globalization;
 using Crateris.Core.Systems;
 
 namespace Crateris.Core.Content;
@@ -57,6 +58,8 @@ public sealed class OrbitScreenText
     public const int MenuAreaX = 3, MenuAreaY = 173, MenuAreaWidth = 58, MenuAreaHeight = 64;
 
     private readonly GameStrings _strings;
+
+    private static string Invariant(FormattableString s) => s.ToString(CultureInfo.InvariantCulture);
 
     public OrbitScreenText(GameStrings strings, UqmFont starCon, UqmFont tiny, UqmFont micro)
     {
@@ -110,15 +113,16 @@ public sealed class OrbitScreenText
             AtmosphereReading.Vacuum => S(4),                                          // "Vacuum"
             _ => Value(r.Atmospheres100, 5),                                           // " atm"
         });
-        Line(LeftSideX, 6, $"{r.TemperatureC}° c");                               // "Temp: "
-        Line(LeftSideX, 7, r.WeatherClass is int w ? $"{S(9)} {w}" : S(8));            // "Weather: ", "Class", "None"
-        Line(LeftSideX, 10, r.TectonicsClass is int t ? $"{S(9)} {t}" : S(8));         // "Tectonics: "
+        // Numbers as UQM's sprintf writes them, whatever the player's locale ('-', not U+2212).
+        Line(LeftSideX, 6, Invariant($"{r.TemperatureC}\u00b0 c"));                    // "Temp: "
+        Line(LeftSideX, 7, r.WeatherClass is int w ? Invariant($"{S(9)} {w}") : S(8)); // "Weather: ", "Class", "None"
+        Line(LeftSideX, 10, r.TectonicsClass is int t ? Invariant($"{S(9)} {t}") : S(8)); // "Tectonics: "
         y = ScanBaselineY;
         Line(RightSideX, 11, Value(r.EarthMasses100, 12));                             // "Mass: ", " e.s."
         Line(RightSideX, 13, Value(r.EarthRadii100, 12));                              // "Radius: "
         Line(RightSideX, 14, Value(r.Gravity100, 15));                                 // "Gravity: ", " g."
         Line(RightSideX, 16, Value(r.Days100, 17));                                    // "Day: ", " days"
-        Line(RightSideX, 18, $"{r.TiltDegrees}°");                                // "Tilt: "
+        Line(RightSideX, 18, Invariant($"{r.TiltDegrees}\u00b0"));                     // "Tilt: "
         return drawn;
     }
 

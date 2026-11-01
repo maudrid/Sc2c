@@ -71,7 +71,12 @@ STRINGS_LINK = ["libs/strings/getstr.c", "libs/strings/strings.c",
 # The resource types UQM 0.8.0 registers (every InstallResTypeVectors
 # call); any other type is UNKNOWNRES, as newResourceDesc in resinit.c has
 # it (and ResourceIndex in ContentPackage.cs).
-FONTS_LINK = ["libs/strings/unicode.c", "libs/graphics/boxint.c"]
+FONTS_LINK = ["libs/strings/unicode.c", "libs/graphics/boxint.c",
+              "libs/graphics/sdl/png2sdl.c"]
+IMAGES_LINK = ["libs/graphics/sdl/png2sdl.c"]
+# The SDL 1.2 stand-in UQM's PNG loader is built against.
+SDL_STANDIN = os.path.join(HERE, "golden", "sdl.c")
+SDL_INCLUDE = os.path.join(HERE, "golden", "sdl")
 RESOURCE_TYPES = {"3DOVID", "BINTAB", "BOOLEAN", "COLOR", "CONVERSATION",
                   "FONTRES", "GFXRES", "INT32", "MUSICRES", "SHIP", "SNDRES",
                   "STRING", "STRTAB", "UNKNOWNRES"}
@@ -110,8 +115,9 @@ def systems_link(uqm):
 SYSTEMS_STUBS = os.path.join(HERE, "golden", "stubs.c")
 
 
-def build(uqm, main_c, link, out, extra=(), libs=()):
-    cflags = ["-w", "-no-pie", "-I", uqm.build, "-I", uqm.src, "-I", uqm.uqm,
+def build(uqm, main_c, link, out, extra=(), libs=(), includes=()):
+    cflags = ["-w", "-no-pie", *(f"-I{d}" for d in includes),
+              "-I", uqm.build, "-I", uqm.src, "-I", uqm.uqm,
               "-I", os.path.join(uqm.uqm, "ships", "sis_ship"),
               "-I", os.path.join(uqm.uqm, "planets")]
     objs = []
@@ -657,6 +663,185 @@ def record_fonts(uqm, fonts_exe, strings_exe, package):
     return data
 
 
+def make_png(width, height, depth, color_type, pixels, palette=None,
+             trns=None, interlace=False):
+    """A PNG of our own: pixels is a list of rows of sample tuples."""
+    import struct
+    import zlib
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color_type]
+
+    def row_bytes(samples):
+        if depth == 16:
+            return b"".join(struct.pack(">H", v) for v in samples)
+        if depth == 8:
+            return bytes(samples)
+        out, acc, bits = bytearray(), 0, 0
+        for v in samples:
+            acc = (acc << depth) | v
+            bits += depth
+            if bits == 8:
+                out.append(acc)
+                acc, bits = 0, 0
+        if bits:
+            out.append(acc << (8 - bits))
+        return bytes(out)
+
+    def image(rows):
+        return b"".join(b"\0" + row_bytes([v for px in r for v in px])
+                        for r in rows if r)
+
+    if interlace:
+        passes = [(0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4),
+                  (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2)]
+        raw = b""
+        for x0, y0, dx, dy in passes:
+            rows = [[pixels[y][x] for x in range(x0, width, dx)]
+                    for y in range(y0, height, dy)]
+            if rows and rows[0]:
+                raw += image(rows)
+    else:
+        raw = image(pixels)
+
+    def chunk(kind, body):
+        return (struct.pack(">I", len(body)) + kind + body
+                + struct.pack(">I", zlib.crc32(kind + body) & 0xffffffff))
+
+    data = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(
+        ">IIBBBBB", width, height, depth, color_type, 0, 0,
+        1 if interlace else 0))
+    if palette is not None:
+        data += chunk(b"PLTE", bytes(v for c in palette for v in c))
+    if trns is not None:
+        data += chunk(b"tRNS", trns)
+    data += chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+    assert channels
+    return data
+
+
+def image_cases():
+    """Images of our own for each path through UQM's TFB_png_to_sdl."""
+    import struct
+
+    def grid(w, h, f):
+        return [[f(x, y) for x in range(w)] for y in range(h)]
+
+    pal4 = [(10, 20, 30), (40, 50, 60), (70, 80, 90), (200, 100, 0)]
+    pal16 = [(i * 16, 255 - i * 16, i * 7) for i in range(16)]
+    cases = []
+    for depth in (1, 2, 4, 8, 16):
+        top = (1 << depth) - 1
+        cases.append((f"gray{depth}", make_png(
+            5, 3, depth, 0, grid(5, 3, lambda x, y: ((x + y * 5) % (top + 1),)))))
+    cases += [
+        ("gray8_alpha", make_png(4, 2, 8, 4, grid(4, 2, lambda x, y: (x * 60, y * 200)))),
+        ("gray16_alpha", make_png(3, 2, 16, 4, grid(3, 2, lambda x, y: (x * 9000 + 7, 65535 - y * 300)))),
+        ("rgb8", make_png(3, 2, 8, 2, grid(3, 2, lambda x, y: (x * 80, y * 90, 7)))),
+        ("rgb16", make_png(3, 2, 16, 2, grid(3, 2, lambda x, y: (x * 20000 + 255, y * 30000, 1234)))),
+        ("rgb8_key", make_png(3, 2, 8, 2, grid(3, 2, lambda x, y: (x * 80, y * 90, 7)),
+                              trns=struct.pack(">HHH", 80, 0, 7))),
+        ("rgb16_key_truncated", make_png(2, 2, 16, 2, grid(2, 2, lambda x, y: (x * 300, y, 2)),
+                                         trns=struct.pack(">HHH", 300, 0, 2))),
+        ("rgba8", make_png(3, 2, 8, 6, grid(3, 2, lambda x, y: (x * 80, y * 90, 7, x * 100)))),
+        ("rgba16", make_png(2, 2, 16, 6, grid(2, 2, lambda x, y: (x * 40000, y * 2000, 5, 60000)))),
+        ("palette1", make_png(9, 2, 1, 3, grid(9, 2, lambda x, y: ((x + y) % 2,)), palette=pal4[:2])),
+        ("palette2", make_png(5, 2, 2, 3, grid(5, 2, lambda x, y: ((x + y) % 4,)), palette=pal4)),
+        ("palette4", make_png(3, 3, 4, 3, grid(3, 3, lambda x, y: ((x * 3 + y) % 16,)), palette=pal16)),
+        ("palette8", make_png(4, 2, 8, 3, grid(4, 2, lambda x, y: ((x + y) % 4,)), palette=pal4)),
+        ("palette_one_key", make_png(4, 2, 8, 3, grid(4, 2, lambda x, y: ((x + y) % 4,)),
+                                     palette=pal4, trns=bytes([255, 255, 0]))),
+        ("palette_all_opaque_trns", make_png(4, 2, 8, 3, grid(4, 2, lambda x, y: ((x + y) % 4,)),
+                                             palette=pal4, trns=bytes([255, 255]))),
+        ("palette_two_keys", make_png(4, 2, 8, 3, grid(4, 2, lambda x, y: ((x + y) % 4,)),
+                                      palette=pal4, trns=bytes([0, 255, 0]))),
+        ("palette_translucent", make_png(4, 2, 8, 3, grid(4, 2, lambda x, y: ((x + y) % 4,)),
+                                         palette=pal4, trns=bytes([255, 128]))),
+        ("palette4_translucent", make_png(3, 3, 4, 3, grid(3, 3, lambda x, y: ((x * 3 + y) % 16,)),
+                                          palette=pal16, trns=bytes([0, 17, 255]))),
+        ("gray8_key", make_png(3, 2, 8, 0, grid(3, 2, lambda x, y: (x * 40,)),
+                               trns=struct.pack(">H", 40))),
+        ("rgb8_interlaced", make_png(9, 9, 8, 2, grid(9, 9, lambda x, y: (x * 20, y * 20, x ^ y)),
+                                     interlace=True)),
+        ("palette2_interlaced", make_png(9, 9, 2, 3, grid(9, 9, lambda x, y: ((x + 2 * y) % 4,)),
+                                         palette=pal4, interlace=True)),
+        ("rgba8_interlaced_one_column", make_png(1, 9, 8, 6, grid(1, 9, lambda x, y: (y, y * 2, y * 3, 255 - y)),
+                                                 interlace=True)),
+        ("not_a_png", b"/* XPM */\nstatic char *x[] = {};\n"),
+        ("cut_short", make_png(3, 2, 8, 2, grid(3, 2, lambda x, y: (x, y, 1)))[:40]),
+    ]
+    return cases
+
+
+def record_images(uqm, exe, package):
+    """Images as UQM's own TFB_png_to_sdl loads them: images of our own for
+    every path through it (in full), and a sample of each kind of PNG in the
+    official content package (as hashes, since they are content)."""
+    import collections
+    import hashlib
+    import struct
+    import zipfile
+
+    def kind(data):
+        if data[:8] != b"\x89PNG\r\n\x1a\n":
+            return None
+        pos, trns = 8, False
+        while pos + 8 <= len(data):
+            length, tag = struct.unpack(">I4s", data[pos:pos + 8])
+            trns |= tag == b"tRNS"
+            pos += 12 + length
+        return f"type{data[25]}-depth{data[24]}-interlace{data[28]}" + \
+            ("-trns" if trns else "")
+
+    own = image_cases()
+    sample = collections.defaultdict(list)
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        files = []
+        for i, (name, data) in enumerate(own):
+            path = os.path.join(tmp, f"own{i}.png")
+            with open(path, "wb") as f:
+                f.write(data)
+            files.append(path)
+        for n in sorted(z.namelist()):
+            if not n.lower().endswith(".png"):
+                continue
+            data = z.read(n)
+            k = kind(data)
+            if k and len(sample[k]) < 40:
+                path = os.path.join(tmp, f"c{len(files)}.png")
+                with open(path, "wb") as f:
+                    f.write(data)
+                sample[k].append((n, len(files)))
+                files.append(path)
+        out = subprocess.run([exe, *files], capture_output=True, text=True,
+                             check=True).stdout.splitlines()
+    results = [json.loads(line) for line in out]
+    assert len(results) == len(files)
+    data = header(uqm, ["tools/extract/golden/images.c",
+                        "tools/extract/golden/sdl.c",
+                        "tools/extract/golden/sdl/SDL.h",
+                        "src/libs/graphics/sdl/png2sdl.c"], [
+        "Images as UQM 0.8.0's own PNG loader (TFB_png_to_sdl, over libpng "
+        "and a stand-in for SDL 1.2) loads them. Each result is [0] if it "
+        "doesn't load, or [1, bits per pixel, has alpha, width, height, "
+        "colour key or -1, palette (256 RGB entries in hex, entries the "
+        "PNG doesn't set are 0; \"\" without a palette), pixels (rows "
+        "without padding, in hex)].",
+        "own: images of our own for each path through the loader, given "
+        "in full (png in hex) with their results.",
+        "content: up to 40 of each kind of PNG (colour type, bit depth, "
+        "interlace, transparency) in the official content package "
+        f"(SHA-256 {CONTENT_SHA256}), by path, with the SHA-256 of the "
+        "result as compact JSON, since images are content.",
+    ])
+    data["own"] = [{"name": name, "png": png.hex(), "result": results[i]}
+                   for i, (name, png) in enumerate(own)]
+    data["content"] = {
+        k: [{"path": n, "result": hashlib.sha256(json.dumps(
+            results[i], separators=(",", ":")).encode()).hexdigest()}
+            for n, i in v]
+        for k, v in sorted(sample.items())}
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
@@ -681,9 +866,14 @@ def main():
         build(uqm, os.path.join(HERE, "golden", "systems.c"),
               systems_link(uqm), systems, extra=[SYSTEMS_STUBS])
         fonts = os.path.join(build_dir, "fonts")
+        images = os.path.join(build_dir, "images")
         if args.content:
+            build(uqm, os.path.join(HERE, "golden", "images.c"), IMAGES_LINK,
+                  images, extra=[SDL_STANDIN], libs=["-lpng"],
+                  includes=[SDL_INCLUDE])
             build(uqm, os.path.join(HERE, "golden", "fonts.c"), FONTS_LINK,
-                  fonts, libs=["-lpng"])
+                  fonts, extra=[SDL_STANDIN], libs=["-lpng"],
+                  includes=[SDL_INCLUDE])
         strings = os.path.join(build_dir, "strings")
         build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
               strings)
@@ -700,7 +890,8 @@ def main():
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),
                            *([("string-tables", record_string_tables(uqm, strings, args.content)),
                               ("names", record_names(uqm, systems, strings, args.content)),
-                              ("fonts", record_fonts(uqm, fonts, strings, args.content))]
+                              ("fonts", record_fonts(uqm, fonts, strings, args.content)),
+                              ("images", record_images(uqm, images, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:

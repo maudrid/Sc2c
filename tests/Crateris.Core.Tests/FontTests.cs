@@ -79,30 +79,70 @@ public class FontTests
         Assert.True(n > 300, $"only {n} texts");
     }
 
-    [Fact]
-    public void PngsOfEveryKindDecode()
+    // A result as images.c prints it: [0], or [1, bpp, alpha, width, height, key, palette, pixels].
+    private static string ImageJson(byte[] data)
     {
-        // 2x1 images made for the test: grey, RGB, palette, grey+alpha, RGBA, and 1-bit grey.
-        var cases = new (string Hex, bool Alpha, byte[] Rgba)[]
+        Png png;
+        try
         {
-            (MakePng(2, 1, 8, 0, new byte[] { 0, 10, 200 }), false, new byte[] { 10, 10, 10, 255, 200, 200, 200, 255 }),
-            (MakePng(2, 1, 8, 2, new byte[] { 0, 1, 2, 3, 4, 5, 6 }), false, new byte[] { 1, 2, 3, 255, 4, 5, 6, 255 }),
-            (MakePng(2, 1, 8, 3, new byte[] { 0, 1, 0 }, new byte[] { 9, 8, 7, 6, 5, 4 }), false, new byte[] { 6, 5, 4, 255, 9, 8, 7, 255 }),
-            (MakePng(2, 1, 8, 4, new byte[] { 0, 7, 8, 9, 10 }), true, new byte[] { 7, 7, 7, 8, 9, 9, 9, 10 }),
-            (MakePng(2, 1, 8, 6, new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8 }), true, new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 }),
-            (MakePng(2, 1, 1, 0, new byte[] { 0, 0b1000_0000 }), false, new byte[] { 255, 255, 255, 255, 0, 0, 0, 255 }),
-            // Sub filter: the second pixel adds the first.
-            (MakePng(2, 1, 8, 0, new byte[] { 1, 10, 5 }), false, new byte[] { 10, 10, 10, 255, 15, 15, 15, 255 }),
-        };
-        foreach (var (hex, alpha, rgba) in cases)
-        {
-            var png = Png.Decode(Convert.FromHexString(hex));
-            Assert.Equal(2, png.Width);
-            Assert.Equal(1, png.Height);
-            Assert.Equal(alpha, png.HasAlpha);
-            Assert.Equal(rgba, png.Rgba);
+            png = Png.Decode(data);
         }
-        Assert.Throws<ContentPackageException>(() => Png.Decode(new byte[] { 1, 2, 3 }));
+        catch (ContentPackageException)
+        {
+            return "[0]";
+        }
+        string hex(byte[]? b) => b is null ? "" : Convert.ToHexString(b).ToLowerInvariant();
+        return $"[1,{png.BitsPerPixel},{(png.HasAlpha ? 1 : 0)},{png.Width},{png.Height},{png.ColorKey},\"{hex(png.Palette)}\",\"{hex(png.Pixels)}\"]";
+    }
+
+    [Fact]
+    public void ImagesOfOurOwnLoadAsUqmLoadsThem()
+    {
+        foreach (var c in Golden.Load("images").GetProperty("own").EnumerateArray())
+        {
+            string want = System.Text.Json.JsonSerializer.Serialize(c.GetProperty("result"));
+            string got = ImageJson(Convert.FromHexString(c.GetProperty("png").GetString()!));
+            Assert.True(want == got, $"{c.GetProperty("name")}: {got[..Math.Min(got.Length, 120)]}, UQM {want[..Math.Min(want.Length, 120)]}");
+        }
+    }
+
+    [Fact]
+    public void AnImageTooLargeForLibpngIsRefusedNotACrash()
+    {
+        // A header claiming 2,000,000 x 2,000,000 pixels, past libpng's limit of 1,000,000.
+        var png = Convert.FromHexString(Golden.Load("images").GetProperty("own")[0].GetProperty("png").GetString()!);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(png.AsSpan(16), 2_000_000);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(png.AsSpan(20), 2_000_000);
+        uint crc = 0xffffffff;
+        foreach (byte b in png.AsSpan(12, 17))
+        {
+            crc ^= b;
+            for (int k = 0; k < 8; ++k)
+                crc = (crc & 1) != 0 ? 0xedb88320 ^ (crc >> 1) : crc >> 1;
+        }
+        crc ^= 0xffffffff;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(png.AsSpan(29), crc);
+        var e = Assert.Throws<ContentPackageException>(() => Png.Decode(png));
+        Assert.Contains("outside what libpng reads", e.Message);
+    }
+
+    [ContentFact]
+    public void EveryKindOfImageInThePackageLoadsAsUqmLoadsIt()
+    {
+        int n = 0;
+        TestContent.With(package =>
+        {
+            foreach (var kind in Golden.Load("images").GetProperty("content").EnumerateObject())
+            {
+                foreach (var c in kind.Value.EnumerateArray())
+                {
+                    string path = c.GetProperty("path").GetString()!;
+                    Assert.True(c.GetProperty("result").GetString() == Hash(ImageJson(package.ReadFile(path))), $"{kind.Name}: {path}");
+                    n++;
+                }
+            }
+        });
+        Assert.True(n > 200, $"only {n} images");
     }
 
     [ContentFact]
@@ -115,36 +155,5 @@ public class FontTests
         Assert.Equal(font.Width("Scan"), scan.Width);
         Assert.Equal(-(scan.Width >> 1), font.Layout("Scan", 0, 0, TextAlign.Center).X);
         Assert.Equal(UqmFont.MaxDeltas, font.Layout(new string('x', 150), 0, 0).Glyphs.Count);
-    }
-
-    // A PNG with one IDAT of the given filtered rows.
-    private static string MakePng(int w, int h, int depth, int colorType, byte[] rows, byte[]? palette = null)
-    {
-        using var ms = new MemoryStream();
-        ms.Write(new byte[] { 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a });
-        void Chunk(string type, byte[] body)
-        {
-            var len = new byte[4];
-            System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(len, (uint)body.Length);
-            ms.Write(len);
-            var tb = Encoding.ASCII.GetBytes(type);
-            ms.Write(tb);
-            ms.Write(body);
-            ms.Write(new byte[4]);   // the CRC, which the decoder doesn't check
-        }
-        var ihdr = new byte[13];
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(ihdr, (uint)w);
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(ihdr.AsSpan(4), (uint)h);
-        ihdr[8] = (byte)depth;
-        ihdr[9] = (byte)colorType;
-        Chunk("IHDR", ihdr);
-        if (palette != null)
-            Chunk("PLTE", palette);
-        using var z = new MemoryStream();
-        using (var zs = new System.IO.Compression.ZLibStream(z, System.IO.Compression.CompressionLevel.Optimal, true))
-            zs.Write(rows);
-        Chunk("IDAT", z.ToArray());
-        Chunk("IEND", Array.Empty<byte>());
-        return Convert.ToHexString(ms.ToArray());
     }
 }

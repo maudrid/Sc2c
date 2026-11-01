@@ -89,10 +89,11 @@ public sealed class UqmFont
     /// Builds a font from its files, as _GetFontData does: names with a '.'
     /// in them, read as a character number in hex up to the '.' (above
     /// 0xFFFF, or not a number, is skipped); images that don't load or are
-    /// empty are skipped. Only PNG images are read (UQM's SDL_image also
-    /// reads XPM; the only two in 0.8.0 are in the credits font, beside PNG
-    /// images of the same characters). Where two files give one character,
-    /// the first by name is kept.
+    /// empty are skipped. UQM's loader reads only PNG images, so the two
+    /// XPM files in 0.8.0's credits font are skipped (PNG images of the same
+    /// characters sit beside them). Where two images give one character
+    /// (none do in 0.8.0), UQM's sort leaves the order open; the first by
+    /// name is kept here.
     /// </summary>
     public static UqmFont FromFiles(IEnumerable<(string Name, Func<byte[]> Read)> files)
     {
@@ -135,31 +136,43 @@ public sealed class UqmFont
         bool negative = false;
         if (i < name.Length && name[i] is '+' or '-')
             negative = name[i++] == '-';
-        if (i + 2 < name.Length && name[i] == '0' && name[i + 1] is 'x' or 'X' && Uri.IsHexDigit(name[i + 2]))
+        if (i + 2 < name.Length && name[i] == '0' && name[i + 1] is 'x' or 'X' && HexValue(name[i + 2]) >= 0)
             i += 2;
         int start = i;
-        ulong value = 0;
-        while (i < name.Length && Uri.IsHexDigit(name[i]))
+        uint value = 0;
+        bool overflow = false;
+        for (int d; i < name.Length && (d = HexValue(name[i])) >= 0; i++)
         {
-            value = Math.Min(value * 16 + (ulong)Convert.ToInt32(name[i].ToString(), 16), uint.MaxValue);
-            i++;
+            overflow |= value > (uint.MaxValue >> 4);
+            value = (value << 4) | (uint)d;
         }
         if (i == start || i >= name.Length || name[i] != '.')
             return null;
-        uint v = (uint)value;
-        return negative ? unchecked(0u - v) : v;
+        if (overflow)
+            value = uint.MaxValue;   // strtoul saturates
+        return negative ? unchecked(0u - value) : value;
     }
 
-    // processFontChar, with the alpha as TFB_DrawCanvas_GetFontCharData makes it.
+    private static int HexValue(char c) => c switch
+    {
+        >= '0' and <= '9' => c - '0',
+        >= 'a' and <= 'f' => c - 'a' + 10,
+        >= 'A' and <= 'F' => c - 'A' + 10,
+        _ => -1,
+    };
+
+    // processFontChar, with the alpha as TFB_DrawCanvas_GetFontCharData makes it:
+    // the alpha channel, or without one the intensity (2 R + 4 G + B) / 7.
     private static FontGlyph Glyph(int index, Png image)
     {
         var alpha = new byte[image.Width * image.Height];
-        for (int p = 0; p < alpha.Length; ++p)
+        for (int y = 0; y < image.Height; ++y)
         {
-            int o = p * 4;
-            alpha[p] = image.HasAlpha
-                ? image.Rgba[o + 3]
-                : (byte)((image.Rgba[o] * 2 + image.Rgba[o + 1] * 4 + image.Rgba[o + 2]) / 7);
+            for (int x = 0; x < image.Width; ++x)
+            {
+                var (r, g, b, a) = image.GetRgba(x, y);
+                alpha[y * image.Width + x] = image.HasAlpha ? a : (byte)((r * 2 + g * 4 + b) / 7);
+            }
         }
         int tune = image.Height == 8 ? -1 : image.Height == 9 ? -2 : image.Height > 9 ? -3 : 0;
         return new FontGlyph(index, image.Width, image.Height, 0, image.Height + tune,

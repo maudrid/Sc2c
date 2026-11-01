@@ -62,6 +62,30 @@ public class OrbitScreenTextTests
     }
 
     [ContentFact]
+    public void NumbersAreWrittenAsUqmWritesThemInAnyLocale()
+    {
+        var text = TestContent.With(OrbitScreenText.Load);
+        var sol = Systems[Systems.Map.Stars.First(s => s.Special == "SOL_DEFINED").Number];
+        var report = sol.EnterOrbit(2, 1).Scan!;   // Luna: -18 degrees
+        var before = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            // Swedish writes minus as U+2212 and decimals with a comma.
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("sv-SE");
+            Assert.Equal("\u2212", System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NegativeSign);
+            var drawn = text.Report(report);
+            string Words(DrawnText d) => string.Concat(d.Layout.Glyphs.Select(g => char.ConvertFromUtf32(g.Glyph.Char)));
+            Assert.Equal("-18\u00b0 c", Words(drawn[5]));
+            Assert.Equal("1.00 a.u.", Words(drawn[1]).Trim());
+            Assert.Equal("0.25 e.s.", Words(drawn[13]).Trim());
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = before;
+        }
+    }
+
+    [ContentFact]
     public void TheMenuBoxIsDrawnAsDrawPcMenu()
     {
         var text = TestContent.With(OrbitScreenText.Load);

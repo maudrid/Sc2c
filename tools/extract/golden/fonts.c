@@ -15,12 +15,12 @@
  * libs/strings/unicode.c (getCharFromString) and libs/graphics/boxint.c
  * (BoxIntersect). Replaced by our own stand-ins:
  *   - the directory listing and file opening (a font is a folder on disk),
- *   - the image loading: libpng, as SDL_image uses it, without gamma or
- *     any other conversion, read as UQM's SDL surface would hold it
- *     (an alpha channel only if the PNG has one),
+ *   - SDL: images are loaded by UQM's own TFB_png_to_sdl
+ *     (libs/graphics/sdl/png2sdl.c, linked in) into the SDL 1.2 stand-in
+ *     in sdl/SDL.h and sdl.c,
  *   - TFB_DrawCanvas_GetFontCharData, as libs/graphics/sdl/canvas.c does
- *     it: the alpha channel, or without one the intensity
- *     (2 R + 4 G + B) / 7,
+ *     it over those surfaces: the alpha channel, or without one the
+ *     intensity (2 R + 4 G + B) / 7,
  *   - drawing: TFB_Prim_FontChar records where each character is drawn.
  *
  * Input (a file): lines of
@@ -37,7 +37,6 @@
 #include "libs/graphics/gfxload.c"
 #include "libs/graphics/font.c"
 #include <dirent.h>
-#include <png.h>
 #include <stdlib.h>
 
 const char *_cur_resfile_name;
@@ -130,129 +129,81 @@ uio_openDirRelative (uio_DirHandle *base, const char *path, int flags)
 }
 int uio_closeDir (uio_DirHandle *d) { free (d); return 0; }
 
-/* A loaded image, as the SDL surface UQM would have. */
-typedef struct
-{
-	int w, h;
-	int has_alpha;
-	unsigned char *rgba;
-} Canvas;
+/* Images: UQM's own loader, TFB_png_to_sdl (libs/graphics/sdl/png2sdl.c,
+ * linked in, over the SDL stand-in in sdl/), as sdluio_loadImage calls it. */
+#include "sdl/SDL.h"
+extern SDL_Surface *TFB_png_to_sdl (SDL_RWops *src);
 
 TFB_Canvas
 TFB_DrawCanvas_LoadFromFile (void *dir, const char *fileName)
 {
 	char path[4096];
-	FILE *f;
-	png_structp png;
-	png_infop info;
-	png_byte color_type, header[8];
-	png_bytep *rows;
-	Canvas *c;
-	int y, x, channels;
-	unsigned char *raw;
-	size_t rowbytes;
+	SDL_RWops rw;
+	SDL_Surface *s;
 
 	snprintf (path, sizeof path, "%s/%s", (const char *) dir, fileName);
-	f = fopen (path, "rb");
-	if (!f)
+	rw.f = fopen (path, "rb");
+	if (!rw.f)
 		return NULL;
-	if (fread (header, 1, 8, f) != 8 || png_sig_cmp (header, 0, 8))
-	{	/* Not a PNG (the credits font has two XPM files). */
-		fclose (f);
-		return NULL;
-	}
-	png = png_create_read_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	info = png_create_info_struct (png);
-	if (setjmp (png_jmpbuf (png)))
-	{
-		png_destroy_read_struct (&png, &info, NULL);
-		fclose (f);
-		return NULL;
-	}
-	png_init_io (png, f);
-	png_set_sig_bytes (png, 8);
-	png_read_info (png, info);
-	color_type = png_get_color_type (png, info);
-	png_set_strip_16 (png);
-	png_set_packing (png);
-	if (color_type == PNG_COLOR_TYPE_PALETTE)
-		png_set_palette_to_rgb (png);
-	if (color_type == PNG_COLOR_TYPE_GRAY && png_get_bit_depth (png, info) < 8)
-		png_set_expand_gray_1_2_4_to_8 (png);
-	png_read_update_info (png, info);
-	channels = png_get_channels (png, info);
-	rowbytes = png_get_rowbytes (png, info);
-
-	c = calloc (1, sizeof *c);
-	c->w = png_get_image_width (png, info);
-	c->h = png_get_image_height (png, info);
-	c->has_alpha = (color_type & PNG_COLOR_MASK_ALPHA) != 0;
-	raw = malloc (rowbytes * c->h);
-	rows = malloc (c->h * sizeof *rows);
-	for (y = 0; y < c->h; ++y)
-		rows[y] = raw + y * rowbytes;
-	png_read_image (png, rows);
-	png_destroy_read_struct (&png, &info, NULL);
-	fclose (f);
-
-	c->rgba = malloc (c->w * c->h * 4);
-	for (y = 0; y < c->h; ++y)
-	{
-		for (x = 0; x < c->w; ++x)
-		{
-			unsigned char *s = rows[y] + x * channels;
-			unsigned char *d = c->rgba + (y * c->w + x) * 4;
-			if (channels <= 2)
-			{	/* gray, gray + alpha */
-				d[0] = d[1] = d[2] = s[0];
-				d[3] = channels == 2 ? s[1] : 255;
-			}
-			else
-			{
-				d[0] = s[0];
-				d[1] = s[1];
-				d[2] = s[2];
-				d[3] = channels == 4 ? s[3] : 255;
-			}
-		}
-	}
-	free (rows);
-	free (raw);
-	return c;
+	s = TFB_png_to_sdl (&rw);
+	fclose (rw.f);
+	return s;
 }
 
 void
 TFB_DrawCanvas_GetExtent (TFB_Canvas canvas, EXTENT *size)
 {
-	size->width = ((Canvas *) canvas)->w;
-	size->height = ((Canvas *) canvas)->h;
+	size->width = ((SDL_Surface *) canvas)->w;
+	size->height = ((SDL_Surface *) canvas)->h;
 }
 
 void
 TFB_DrawCanvas_Delete (TFB_Canvas canvas)
 {
-	Canvas *c = canvas;
-	if (c)
-	{
-		free (c->rgba);
-		free (c);
-	}
+	SDL_FreeSurface (canvas);
 }
 
+/* SDL_GetRGBA of a pixel, for the surfaces UQM's loader makes: 8-bit
+ * through the palette, 24 and 32-bit by byte masks (red lowest). */
+static void
+get_rgba (SDL_Surface *s, int x, int y, Uint8 *r, Uint8 *g, Uint8 *b,
+		Uint8 *a)
+{
+	Uint8 *p = (Uint8 *) s->pixels + y * s->pitch
+			+ x * s->format->BytesPerPixel;
+	if (s->format->BytesPerPixel == 1)
+	{
+		SDL_Color c = s->format->palette->colors[*p];
+		*r = c.r;
+		*g = c.g;
+		*b = c.b;
+		*a = 255;
+		return;
+	}
+	*r = p[0];
+	*g = p[1];
+	*b = p[2];
+	*a = s->format->Amask ? p[3] : 255;
+}
+
+/* TFB_DrawCanvas_GetFontCharData as libs/graphics/sdl/canvas.c does it:
+ * the alpha channel, or without one the intensity (2 R + 4 G + B) / 7. */
 BOOLEAN
 TFB_DrawCanvas_GetFontCharData (TFB_Canvas canvas, BYTE *outData,
 		unsigned dataPitch)
 {
-	Canvas *c = canvas;
+	SDL_Surface *surf = canvas;
 	int x, y;
-	for (y = 0; y < c->h; ++y)
+	Uint8 r, g, b, a;
+	for (y = 0; y < surf->h; ++y)
 	{
 		BYTE *dst = outData + dataPitch * y;
-		for (x = 0; x < c->w; ++x, ++dst)
+		for (x = 0; x < surf->w; ++x, ++dst)
 		{
-			unsigned char *p = c->rgba + (y * c->w + x) * 4;
-			*dst = c->has_alpha ? p[3]
-					: (BYTE) (((p[0] * 2) + (p[1] * 4) + p[2]) / 7);
+			get_rgba (surf, x, y, &r, &g, &b, &a);
+			if (!surf->format->Amask)
+				a = ((r * 2) + (g * 4) + b) / 7;
+			*dst = a;
 		}
 	}
 	return TRUE;

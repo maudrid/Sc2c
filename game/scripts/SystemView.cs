@@ -269,6 +269,11 @@ public partial class OrbitView : Control
     private string _me = "";
     private string _message = "";
 
+    // The layouts in UQM's fonts, made again only when what they show changes.
+    private (string Words, DrawnText Text)? _title;
+    private (PlanetReport Report, IReadOnlyList<DrawnText> Text)? _report;
+    private (IReadOnlyList<OrbitMenuItem> Items, OrbitMenuItem Selected, DrawnMenu Menu)? _menuLayout;
+
     /// <summary>The names of stars and worlds (set once the content is open, before the game starts).</summary>
     public Names Names { get; set; } = null!;
 
@@ -331,7 +336,10 @@ public partial class OrbitView : Control
             DrawArc(centre, radius + 8, 0, Mathf.Tau, 96, new Color(0.6f, 0.8f, 1f, 0.8f), 3);
         // UQM's title over the scan screen (GetPlanetTitle, in MicroFont); above the
         // screen, in the engine's font, which world and star it is.
-        UqmText.Draw(this, Text.Title(Names.Title(system, w.Planet, w.Moon)), Vector2.Zero, Placeholder.Scale);
+        string titleWords = Names.Title(system, w.Planet, w.Moon);
+        if (_title?.Words != titleWords)
+            _title = (titleWords, Text.Title(titleWords));
+        UqmText.Draw(this, _title.Value.Text, Vector2.Zero, Placeholder.Scale);
         DrawString(font, new Vector2(0, -6), $"{Names.PlanetOrMoon(system.Star, w.Planet, w.Moon)}, {Names.Cluster(system.Star)}",
             HorizontalAlignment.Left, -1, 13, Colors.Gray);
 
@@ -344,8 +352,12 @@ public partial class OrbitView : Control
         if (_menu.Scan.Visible)
         {
             if (orbit.Scan is { } report)
-                foreach (var t in Text.Report(report))
+            {
+                if (!ReferenceEquals(_report?.Report, report))
+                    _report = (report, Text.Report(report));
+                foreach (var t in _report.Value.Text)
                     UqmText.Draw(this, t, Vector2.Zero, Placeholder.Scale);
+            }
             DrawMap(font, mapTop);
         }
         DrawMenu(font);
@@ -395,8 +407,9 @@ public partial class OrbitView : Control
         // UQM's PC menu box (DrawPCMenu, in the status area's coordinates), to the
         // left of the space screen below the status lines.
         var items = _menu!.Items;
-        int selected = items.ToList().IndexOf(_menu.Selected);
-        var menu = Text.Menu(items, selected);
+        if (!ReferenceEquals(_menuLayout?.Items, items) || _menuLayout.Value.Selected != _menu.Selected)
+            _menuLayout = (items, _menu.Selected, Text.Menu(items, items.ToList().IndexOf(_menu.Selected)));
+        var menu = _menuLayout.Value.Menu;
         var areaAt = new Vector2(-Position.X + 12, 400);
         var origin = areaAt - new Vector2(OrbitScreenText.MenuAreaX - 1, OrbitScreenText.MenuAreaY) * Placeholder.Scale;
         UqmText.Draw(this, menu, origin, Placeholder.Scale);

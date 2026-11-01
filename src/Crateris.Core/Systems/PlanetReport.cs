@@ -9,6 +9,8 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using System.Globalization;
+
 namespace Crateris.Core.Systems;
 
 /// <summary>How the orbit screen shows a world's atmosphere.</summary>
@@ -69,6 +71,6 @@ public sealed record PlanetReport(
 
     /// <summary>MakeScanValue's number: two decimals below 10, one from 10 up ("0.39", "243.0").</summary>
     public static string ScanValue(long hundredths) => hundredths >= 10 * 100
-        ? $"{hundredths / 100}.{hundredths / 10 % 10}"
-        : $"{hundredths / 100}.{hundredths % 100:D2}";
+        ? string.Create(CultureInfo.InvariantCulture, $"{hundredths / 100}.{hundredths / 10 % 10}")
+        : string.Create(CultureInfo.InvariantCulture, $"{hundredths / 100}.{hundredths % 100:D2}");
 }
