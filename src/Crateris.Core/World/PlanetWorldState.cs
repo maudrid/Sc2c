@@ -114,9 +114,12 @@ public sealed class PlanetWorldState
     /// never generates more than 32 nodes of a kind; any beyond that can't
     /// be marked taken and always count as there.
     /// </summary>
-    public IReadOnlyList<(int Node, SurfaceNode Info)> Remaining(WorldId world, ScanType scan, IReadOnlyList<SurfaceNode> nodes)
+    public IReadOnlyList<(int Node, SurfaceNode Info)> Remaining(WorldId world, ScanType scan, IReadOnlyList<SurfaceNode> nodes) =>
+        Remaining(RetrieveMask(world, scan), nodes);
+
+    /// <summary>The nodes left given a taken-node mask (as a client gets it in a snapshot).</summary>
+    public static IReadOnlyList<(int Node, SurfaceNode Info)> Remaining(uint mask, IReadOnlyList<SurfaceNode> nodes)
     {
-        uint mask = RetrieveMask(world, scan);
         var left = new List<(int, SurfaceNode)>();
         for (int i = 0; i < nodes.Count; ++i)
         {

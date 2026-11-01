@@ -294,6 +294,27 @@ def record_ip_flight(uqm, exe):
     return data
 
 
+def record_layout(uqm, exe):
+    out = subprocess.run([exe, "layout"], capture_output=True, text=True,
+                         check=True).stdout
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "src/uqm/planets/solarsys.c"], [
+        "What UQM's DrawSystem draws in a system's views, for every star, "
+        "from its own GetPlanetOrbitRect, ValidateOrbits, enterInnerSystem "
+        "and ValidateInnerOrbits.",
+        "outer: [zoom radius, planet, orbit rect x, y, width, height, "
+        "image origin x, y, image size] for each zoom (8192 to 1024) and "
+        "planet. Image size is the orbital image's size index, or -1 for "
+        "the starbase and the Sa-Matra.",
+        "inner: for each planet, its inner view: arc (the planet's own "
+        "orbit, drawn through the middle) as [x, y, width, height], the "
+        "planet's image size, and moons as [orbit rect x, y, width, "
+        "height, image origin x, y, image size].",
+    ])
+    data.update(json.loads(out))
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
@@ -320,7 +341,8 @@ def main():
                            ("star-systems", record_systems(uqm, systems)),
                            ("world-surfaces", record_surfaces(uqm, systems)),
                            ("ip-geometry", record_ip(uqm, systems)),
-                           ("ip-flight", record_ip_flight(uqm, systems))):
+                           ("ip-flight", record_ip_flight(uqm, systems)),
+                           ("system-layout", record_layout(uqm, systems))):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:
                 json.dump(data, f, separators=(",", ":"))

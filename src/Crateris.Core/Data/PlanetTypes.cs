@@ -26,8 +26,12 @@ public readonly record struct ElementSlot(int Element, int QuantityClass, int Qu
 /// UsefulElements, because mineral generation draws a random number for
 /// every slot, empty or not.
 /// </summary>
+/// <summary>
+/// One of UQM's planet types (PlanData). BodyColor is the colour family
+/// UQM draws the planet in (PLANCOLOR: BLUE_BODY, RED_BODY and so on).
+/// </summary>
 public sealed record PlanetType(int Index, string Name, PlanetSize Size, int BaseTectonics,
-    int DensityClass, int AtmosphereClass, IReadOnlyList<ElementSlot> Elements)
+    int DensityClass, int AtmosphereClass, IReadOnlyList<ElementSlot> Elements, string BodyColor = "")
 {
     public const int UsefulElementSlots = 8;   // NUM_USEFUL_ELEMENTS
 }
@@ -37,10 +41,22 @@ public sealed class PlanetTypes
 {
     private readonly PlanetType[] _types;
 
-    private PlanetTypes(PlanetType[] types)
+    private readonly int[] _elementCategory;
+
+    private PlanetTypes(PlanetType[] types, int[] elementCategory)
     {
         _types = types;
+        _elementCategory = elementCategory;
     }
+
+    /// <summary>The names of UQM's element categories, in order (elemdata.h: COMMON, CORROSIVE and so on).</summary>
+    public static readonly IReadOnlyList<string> ElementCategoryNames = new[]
+    {
+        "COMMON", "CORROSIVE", "BASE_METAL", "NOBLE", "RARE_EARTH", "PRECIOUS", "RADIOACTIVE", "EXOTIC",
+    };
+
+    /// <summary>ElementCategory: an element's category, 0..7 (an index into <see cref="ElementCategoryNames"/>).</summary>
+    public int ElementCategory(int element) => _elementCategory[element];
 
     public int Count => _types.Length;
 
@@ -52,8 +68,19 @@ public sealed class PlanetTypes
     public static PlanetTypes Load(string dataDirectory)
     {
         using var elementsDoc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataDirectory, "elements.json")));
-        var elementIds = elementsDoc.RootElement.GetProperty("elements").EnumerateArray()
+        var elements = elementsDoc.RootElement.GetProperty("elements").EnumerateArray().ToList();
+        var elementIds = elements
             .ToDictionary(e => e.GetProperty("element").GetString()!, e => e.GetProperty("id").GetInt32());
+        var categories = new int[elements.Count];
+        foreach (var e in elements)
+        {
+            int id = e.GetProperty("id").GetInt32();
+            string category = e.GetProperty("category").GetString()!;
+            if (id < 0 || id >= categories.Length)
+                throw new InvalidDataException($"element id {id} out of range");
+            categories[id] = ElementCategoryNames.ToList().IndexOf(category) is var c and >= 0
+                ? c : throw new InvalidDataException($"unknown element category {category}");
+        }
 
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataDirectory, "planet-types.json")));
         var list = new List<PlanetType>();
@@ -80,8 +107,9 @@ public sealed class PlanetTypes
                 t.GetProperty("base_tectonics").GetInt32(),
                 t.GetProperty("density_class").GetInt32(),
                 t.GetProperty("atmosphere_class").GetInt32(),
-                slots));
+                slots,
+                t.GetProperty("color").GetString()!));
         }
-        return new PlanetTypes(list.ToArray());
+        return new PlanetTypes(list.ToArray(), categories);
     }
 }

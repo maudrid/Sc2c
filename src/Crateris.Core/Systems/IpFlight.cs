@@ -65,8 +65,8 @@ public sealed class IpFlight
     private const int InnerEntryDistance = WorldTypes.MinMoonRadius
         + (WorldTypes.MaxMoons - 1) * WorldTypes.MoonDelta + WorldTypes.MoonDelta / 4;
     private const ushort AllCollisionsOff = 0xFFFF;
-    private const int CenterX = IpGeometry.ScreenWidth >> 1;
-    private const int CenterY = IpGeometry.ScreenHeight >> 1;
+    private const int CenterX = SystemLayout.CenterX;
+    private const int CenterY = SystemLayout.CenterY;
 
     private readonly IpContactShape _shape;
     private readonly IpPoint[] _planetImage;
@@ -74,12 +74,7 @@ public sealed class IpFlight
     private IpPoint[] _moonImage = Array.Empty<IpPoint>();
     private int[] _moonImageSize = Array.Empty<int>();
     private int _innerPlanetImageSize;
-    private Rect _scaleRect;
-
-    private readonly record struct Rect(int X, int Y, int Width, int Height)
-    {
-        public bool Contains(IpPoint p) => p.X >= X && p.Y >= Y && p.X < X + Width && p.Y < Y + Height;
-    }
+    private IpRect _scaleRect;
 
     public SolarSystem System { get; }
 
@@ -261,10 +256,10 @@ public sealed class IpFlight
     }
 
     /// <summary>The zoom-in box FindRadius leaves for a zoom radius (it depends only on the radius).</summary>
-    private static Rect ScaleRect(int radius)
+    private static IpRect ScaleRect(int radius)
     {
         int nextRadius = radius > IpGeometry.MinZoomRadius ? radius >> 1 : 0;
-        return OrbitRect(nextRadius, nextRadius, nextRadius, IpGeometry.DisplayFactor, IpGeometry.DisplayFactor >> 2, radius);
+        return SystemLayout.OrbitRect(nextRadius, nextRadius, nextRadius, IpGeometry.DisplayFactor, IpGeometry.DisplayFactor >> 2, radius);
     }
 
     /// <summary>One frame with this frame's input.</summary>
@@ -592,38 +587,16 @@ public sealed class IpFlight
         return (short)fromRadius;
     }
 
-    /// <summary>GetOrbitRect (RECT fields are 16-bit).</summary>
-    private static Rect OrbitRect(int dx, int dy, int radius, int xnumer, int ynumer, int denom)
-    {
-        short x = (short)(CenterX + (long)-dx * xnumer / denom);
-        short y = (short)(CenterY + (long)-dy * ynumer / denom);
-        short w = (short)((long)radius * (xnumer << 1) / denom);
-        short h = (short)(w >> 1);
-        return new Rect(x, y, w, h);
-    }
-
-    private int ImageSize(byte dataIndex, int add)
-    {
-        if (!WorldTypes.HasPlanetData(dataIndex))
-            return -1;
-        return (int)System.Generator.Types[WorldTypes.PlanetType(dataIndex)].Size + add;
-    }
+    private int ImageSize(byte dataIndex, int add) => SystemLayout.ImageSize(System.Generator, dataIndex, add);
 
     /// <summary>ValidateOrbits: planet images in the outer view at the current zoom.</summary>
     private void ValidateOrbits()
     {
-        int denom = ZoomRadius;
-        int add = 0;
-        if (denom <= IpGeometry.MaxZoomRadius >> 2)
-        {
-            ++add;
-            if (denom == IpGeometry.MinZoomRadius)
-                ++add;
-        }
+        int add = SystemLayout.OuterSizeAdd(ZoomRadius);
         for (int i = 0; i < _planetImage.Length; ++i)
         {
             WorldDesc p = System.Planets[i];
-            _planetImage[i] = ImageOrigin(p, IpGeometry.DisplayFactor, IpGeometry.DisplayFactor / 4, denom);
+            _planetImage[i] = SystemLayout.OuterPlanet(p, ZoomRadius);
             _planetImageSize[i] = ImageSize(p.DataIndex, add);
         }
     }
@@ -632,24 +605,13 @@ public sealed class IpFlight
     private void ValidateInnerOrbits()
     {
         int planet = InnerPlanet!.Value;
-        _innerPlanetImageSize = ImageSize(System.Planets[planet].DataIndex, 3);
+        _innerPlanetImageSize = ImageSize(System.Planets[planet].DataIndex, SystemLayout.InnerPlanetSizeAdd);
         _moonImage = new IpPoint[Moons.Count];
         _moonImageSize = new int[Moons.Count];
         for (int m = 0; m < Moons.Count; ++m)
         {
-            _moonImage[m] = ImageOrigin(Moons[m], 2, 1, 2);
-            _moonImageSize[m] = ImageSize(Moons[m].DataIndex, 2);
+            _moonImage[m] = SystemLayout.InnerMoon(Moons[m]);
+            _moonImageSize[m] = ImageSize(Moons[m].DataIndex, SystemLayout.MoonSizeAdd);
         }
-    }
-
-    /// <summary>ValidateOrbit's image position for planets in the outer view and moons in the inner.</summary>
-    private static IpPoint ImageOrigin(WorldDesc w, int sizeNumer, int dyNumer, int denom)
-    {
-        Rect r = OrbitRect(w.Radius, w.Radius, w.Radius, sizeNumer, dyNumer, denom);
-        int x = (short)(r.X + (r.Width >> 1));
-        int y = (short)(r.Y + (r.Height >> 1));
-        x += (int)((long)w.X * sizeNumer / denom);
-        y += (int)((long)w.Y * (sizeNumer / 2) / denom);
-        return new IpPoint((short)x, (short)y);
     }
 }

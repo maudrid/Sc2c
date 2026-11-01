@@ -58,8 +58,8 @@ public sealed class SolarSystem
     {
         // Generated once per planet; callers get their own copy.
         _moons ??= new WorldDesc[Planets.Count][];
-        _moons[planet] ??= Generator.GenerateMoons(this, planet);
-        return (WorldDesc[])_moons[planet].Clone();
+        WorldDesc[] moons = _moons[planet] ??= Generator.GenerateMoons(this, planet);
+        return (WorldDesc[])moons.Clone();
     }
 
     private WorldDesc[]?[]? _moons;

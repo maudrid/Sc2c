@@ -664,6 +664,103 @@ flight_main (void)
 	return 0;
 }
 
+/* ---- Layout mode: what DrawSystem draws, for every system ---- */
+
+static int
+image_size (FRAME f)
+{
+	/* Orbital frames are (size << FACING_SHIFT) + facing; other images
+	 * (the starbase and the Sa-Matra) are -1. */
+	return FRAME_SHEET (f) == SHEET_ORBITAL
+			? (int) (FRAME_INDEX (f) >> FACING_SHIFT) : -1;
+}
+
+static void
+load_system (COUNT star)
+{
+	memset (&SolarSysState, 0, sizeof SolarSysState);
+	pSolarSysState = &SolarSysState;
+	CurStarDescPtr = &star_array[star];
+	SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
+	memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+	GLOBAL (ip_planet) = 0;
+	GLOBAL (in_orbit) = 0;
+	GLOBAL (ShipFacing) = 0;
+	GLOBAL (ShipStamp.origin.x) = SIS_SCREEN_WIDTH >> 1;
+	GLOBAL (ShipStamp.origin.y) = SIS_SCREEN_HEIGHT - 2;
+	GLOBAL (ip_location) = displayToLocation (GLOBAL (ShipStamp.origin),
+			MAX_ZOOM_RADIUS);
+	LoadSolarSys ();
+}
+
+static int
+layout_main (void)
+{
+	COUNT s;
+
+	printf ("{\"systems\": [");
+	for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
+	{
+		COUNT p, n;
+		SIZE zoom;
+		int first = 1;
+
+		load_system (s);
+		n = pSolarSysState->SunDesc[0].NumPlanets;
+		printf ("%s\n{\"star\": %u, \"outer\": [", s ? "," : "", s);
+		for (zoom = MAX_ZOOM_RADIUS; zoom >= MIN_ZOOM_RADIUS; zoom >>= 1)
+		{
+			pSolarSysState->SunDesc[0].radius = zoom;
+			ValidateOrbits ();
+			for (p = 0; p < n; ++p)
+			{
+				PLANET_DESC *pl = &pSolarSysState->PlanetDesc[p];
+				RECT r;
+				GetPlanetOrbitRect (&r, pl, DISPLAY_FACTOR,
+						DISPLAY_FACTOR / 4, zoom);
+				printf ("%s[%d, %u, %d, %d, %d, %d, %d, %d, %d]",
+						sep (&first), zoom, p, r.corner.x, r.corner.y,
+						r.extent.width, r.extent.height, pl->image.origin.x,
+						pl->image.origin.y, image_size (pl->image.frame));
+			}
+		}
+		printf ("], \"inner\": [");
+		first = 1;
+		for (p = 0; p < n; ++p)
+		{
+			PLANET_DESC *pl;
+			RECT r;
+			COUNT m;
+
+			load_system (s);
+			pl = &pSolarSysState->PlanetDesc[p];
+			pSolarSysState->SunDesc[0].radius = MAX_ZOOM_RADIUS;
+			ValidateOrbits ();
+			enterInnerSystem (pl);
+			ValidateInnerOrbits ();
+			GetPlanetOrbitRect (&r, pl, DISPLAY_FACTOR * 4, DISPLAY_FACTOR,
+					pl->radius);
+			printf ("%s{\"planet\": %u, \"arc\": [%d, %d, %d, %d], "
+					"\"size\": %d, \"moons\": [", sep (&first), p,
+					r.corner.x, r.corner.y, r.extent.width, r.extent.height,
+					image_size (pl->image.frame));
+			for (m = 0; m < pl->NumPlanets; ++m)
+			{
+				PLANET_DESC *moon = &pSolarSysState->MoonDesc[m];
+				GetPlanetOrbitRect (&r, moon, 2, 1, 2);
+				printf ("%s[%d, %d, %d, %d, %d, %d, %d]", m ? ", " : "",
+						r.corner.x, r.corner.y, r.extent.width,
+						r.extent.height, moon->image.origin.x,
+						moon->image.origin.y, image_size (moon->image.frame));
+			}
+			printf ("]}");
+		}
+		printf ("]}");
+	}
+	printf ("]}\n");
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -679,13 +776,15 @@ main (int argc, char *argv[])
 		return orbits_main ();
 	if (argc > 1 && strcmp (argv[1], "ip") == 0)
 		return ip_main ();
-	if (argc > 1 && strcmp (argv[1], "flight") == 0)
+	if (argc > 1 && (strcmp (argv[1], "flight") == 0
+			|| strcmp (argv[1], "layout") == 0))
 	{
 		SISIPFrame = MAKE_FRAME (SHEET_SIS, 0);
 		OrbitalFrame = MAKE_FRAME (SHEET_ORBITAL, 0);
 		SpaceJunkFrame = MAKE_FRAME (SHEET_JUNK, 0);
 		SunFrame = MAKE_FRAME (SHEET_SUN, 0);
-		return flight_main ();
+		return strcmp (argv[1], "flight") == 0 ? flight_main ()
+				: layout_main ();
 	}
 
 	print_rng ();
