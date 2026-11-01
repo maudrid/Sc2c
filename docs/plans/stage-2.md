@@ -1,6 +1,6 @@
 # Stage 2 plan: solar systems and planets
 
-**Status:** draft for the owner's review. Nothing here is built yet. Decisions in the "Open questions" section are needed before or during the work; each has a recommendation.
+**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted (see "Decisions"). Not built yet.
 
 Build order item: "Solar systems and planets from seeds" (`docs/design.md`).
 
@@ -33,11 +33,11 @@ Players fly from hyperspace into a star system, around it and its planets, into 
 
 | Left out | Why | Goes to |
 | --- | --- | --- |
-| Landing, mining, lifeforms, hazards, the shared landing screen | A big system of its own (`lander.c` is 2,100 lines), with combat-like rules | Stage 2b, if you agree (open question 1) |
-| Alien ships flying in systems (`ip_group_q`) and contact with them | Contact starts a conversation or a battle, which don't exist yet | Stages 3 and 4 |
+| Landing, mining, lifeforms, hazards, the shared landing screen | A big system of its own (`lander.c` is 2,100 lines), with combat-like rules | Stage 2b (decision 1) |
+| Alien ships flying in systems (`ip_group_q`) and contact with them, including Fwiffo at Pluto | Contact starts a conversation or a battle, which don't exist yet. Systems are empty of aliens until then (decision 5) | Stages 3 and 4 |
 | Story hooks in special systems: NPCs, artifacts, ruins, pickups, Fwiffo at Pluto | Story flags and conversations | Stage 3 |
 | The starbase at Earth | It's a conversation | Stage 3 |
-| Drawing planets as UQM does (rotating spheres, surface maps) | Needs the UQM content's colour tables | When content download exists (open question 2) |
+| Star and planet names, planet report wording, drawing planets as UQM does (rotating spheres, surface maps) | UQM content | The content stage between 2 and 2b (decision 2) |
 | Autopilot, QuasiSpace, the star map screen | Not needed to explore a system | Later; QuasiSpace with stage 3 (it's story-gated) |
 
 ## How UQM does it
@@ -74,10 +74,11 @@ From decisions already made (`docs/design.md`, `docs/differences.md`):
 - A guest who joins while the host isn't flying appears at the host's position in the surrounding solar system (row 14). For orbit, that's the inner system of the host's planet.
 - Cargo trading within a system (row 22) needs cargo, which comes with the lander; not in stage 2.
 
-New for stage 2, proposed (see open questions 3 to 6):
+New for stage 2 (decisions 3, 4 and 6):
 
 - **Who you see:** players see the other players in the same view: the same outer system, or the same planet's inner system. A player in orbit is shown as a marker at their world. Players in another system or in hyperspace aren't shown.
 - **Two frame rates:** the host keeps stepping hyperspace at 24 frames a second and steps players in systems at 30, each activity at its own rate, so both match UQM frame for frame.
+- **Joining while the host is in orbit:** the guest's escort appears in the inner system next to the host's world, and is shown undocking there.
 
 ## Work, in order
 
@@ -97,14 +98,16 @@ Each item ends with tests that run headless. Where UQM code produces the answer,
 
 Rough size: items 2, 4 and 6 are the large ones. Everything else is small to medium.
 
-## Open questions
+## Decisions
 
-1. **Landing and mining: in stage 2 or a stage 2b?** Recommendation: **stage 2b**, straight after stage 2. The lander is its own large system: landing fuel, crew losses, creatures, hazards, cargo, and the shared landing screen. Keeping it separate gets systems and orbit into your hands sooner.
-2. **Content download: when?** Planet names, star names, planet graphics and the planet report's wording are all UQM content. Without it, stage 2 shows numbers and placeholder shapes. Recommendation: build the first-run content download and a minimal content reader (names first, then planet colour maps) as a small stage between 2 and 2b, or as the last part of stage 2.
-3. **Who you see in a system:** is "same view only, orbiting players shown as markers at their world" right? The alternative is showing every player in the system on the outer system view.
-4. **Two frame rates:** OK to step systems at 30 frames a second and hyperspace at 24, matching UQM? The alternative, everything at 24, would make flight inside a system 20% slower than UQM.
-5. **Empty systems until stage 3:** alien ships in systems (including Fwiffo at Pluto) won't appear until conversations exist. OK for stage 2?
-6. **Joining while the host is in orbit:** the guest's escort appears in the inner system next to the host's world, and is shown undocking there. OK?
+All six recommendations were accepted on 2026-11-01.
+
+1. **Landing and mining are stage 2b,** straight after stage 2 and the content stage. Stage 2b covers the lander: landing fuel, crew losses, creatures, hazards, cargo and the shared landing screen.
+2. **Content download is its own small stage between 2 and 2b:** the first-run download with its notice (`docs/design.md`, "First-run content download") and a minimal content reader, names first, then planet colour maps. Until then, stage 2 shows numbers and placeholder shapes.
+3. **Who you see in a system:** players in the same view only (the same outer system, or the same planet's inner system). Players in orbit are shown as markers at their world.
+4. **Two frame rates:** systems run at 30 frames a second and hyperspace at 24, as in UQM.
+5. **Systems stay empty of alien ships** until conversations exist in stage 3. That includes Fwiffo at Pluto.
+6. **Joining while the host is in orbit:** the guest undocks in the inner system next to the host's world.
 
 ## Risks
 
