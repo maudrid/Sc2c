@@ -214,6 +214,13 @@ print_coarse_scan (void)
 
 	num_captured = 0;
 	PrintCoarseScanPC ();
+	/* The title, then a label and a value for each of the 10 lines. */
+	if (num_captured != 1 + 2 * 10)
+	{
+		fprintf (stderr, "PrintCoarseScanPC drew %d strings, expected 21\n",
+				num_captured);
+		exit (1);
+	}
 	printf (", [");
 	for (i = 2; i < num_captured; i += 2)
 	{
@@ -500,7 +507,7 @@ return_from_orbit (void)
 }
 
 static void
-run_scenario (const SCENARIO *sc, int first_scenario)
+run_scenario (const SCENARIO *sc, int first_scenario)  /* first: no comma */
 {
 	ELEMENT flagship;
 	int g = 0, frame, goal_frames = 0, first = 1, i;
@@ -637,6 +644,7 @@ flight_main (void)
 		{"default_star_450", 450, 2, 2, {P(4), M(1), X, X}, 4},
 	};
 	COUNT i;
+	int printed = 0;
 
 	printf ("{\"ship_radius\": %d, \"planet_radius\": [", SHIP_RADIUS);
 	for (i = 0; i < sizeof planet_radius / sizeof planet_radius[0]; ++i)
@@ -646,8 +654,11 @@ flight_main (void)
 	{
 		const SCENARIO *sc = &scenarios[i];
 		if (sc->star >= NUM_SOLAR_SYSTEMS)
-			continue;
-		run_scenario (sc, i == 0);
+		{
+			fprintf (stderr, "scenario %s: no star %u\n", sc->name, sc->star);
+			exit (1);
+		}
+		run_scenario (sc, printed++ == 0);
 	}
 	printf ("]}\n");
 	return 0;

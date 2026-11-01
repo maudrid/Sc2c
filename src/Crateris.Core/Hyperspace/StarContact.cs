@@ -72,7 +72,11 @@ public static class StarContact
 
         Star? best = null;
         long bestDist = long.MaxValue;
-        foreach (Star s in map.Stars)
+        var (shipX, shipY) = ShipPosition(ship);
+        // Only stars within reach in y (the map is sorted by y, as FindStar uses).
+        int reachY = shape.ShipRadius * LogUnitsPerPixel * Units.UniverseUnitsY / Units.LogUnitsY + 2;
+        short uy = Units.LogYToUniverse((int)shipY);
+        foreach (Star s in map.InYRange(uy - reachY, uy + reachY))
         {
             if (s.Number == ship.StarJustLeft)
                 continue;
@@ -93,10 +97,21 @@ public static class StarContact
         return DistanceSquared(ship, s) <= r * r;
     }
 
+    /// <summary>
+    /// Where the ship's sprite is, in hyperspace logical units: its
+    /// hyperspace position plus how far it is from the middle of the view.
+    /// At high speed the view's scroll (at most ORG_JUMP a frame) lags the
+    /// ship, and UQM tests the sprite where it is drawn.
+    /// </summary>
+    private static (long X, long Y) ShipPosition(HyperFlight ship) =>
+        (ship.LogX + (long)(ship.ViewX - HyperFlight.ViewCenterX),
+         ship.LogY + (long)(ship.ViewY - HyperFlight.ViewCenterY));
+
     private static long DistanceSquared(HyperFlight ship, Star s)
     {
-        long dx = Units.UniverseToLogX(s.X) - (long)ship.LogX;
-        long dy = Units.UniverseToLogY(s.Y) - (long)ship.LogY;
+        var (x, y) = ShipPosition(ship);
+        long dx = Units.UniverseToLogX(s.X) - x;
+        long dy = Units.UniverseToLogY(s.Y) - y;
         return dx * dx + dy * dy;
     }
 }

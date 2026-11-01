@@ -36,7 +36,7 @@ public static class HostSave
     public sealed record FlightState(
         int LogX, int LogY, int Facing, uint Fuel, int Status, int TurnWait, int ThrustWait,
         int ViewX, int ViewY, int FuelDistX, int FuelDistY, int FuelDistExtra, int FuelTicks,
-        int[] Velocity);
+        int[] Velocity, int? StarJustLeft = null);
 
     public sealed record PlayerState(
         string Id, string Name, bool IsHost, ShipKind Kind, ShipLoadout Loadout, bool UndockPending,
@@ -52,7 +52,8 @@ public static class HostSave
                 new FlightState(f.LogX, f.LogY, f.Facing, f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
                     f.ViewX, f.ViewY, f.FuelDistX, f.FuelDistY, f.FuelDistExtra, f.FuelTicks,
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
-                        v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight }));
+                        v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
+                    f.StarJustLeft));
         }).ToList();
         var c = world.Clock;
         var save = new SaveFile(Version, world.Settings, new ClockState(c.Year, c.Month, c.Day, c.FramesIntoDay),
@@ -90,6 +91,7 @@ public static class HostSave
             f.FuelDistY = (ushort)s.FuelDistY;
             f.FuelDistExtra = (ushort)s.FuelDistExtra;
             f.FuelTicks = (byte)s.FuelTicks;
+            f.StarJustLeft = s.StarJustLeft;
             var v = s.Velocity;
             if (v.Length != 9)
                 throw new InvalidDataException($"Player {ps.Id}: velocity needs 9 values.");

@@ -16,8 +16,14 @@ using static Crateris.Core.Systems.WorldTypes;
 namespace Crateris.Core.Systems;
 
 /// <summary>
-/// The story flags the system layouts read. All false at the start of a
-/// new game. Stage 3 connects these to the real story state.
+/// The story flags the system layouts and orbits read. All false at the
+/// start of a new game. Stage 3 connects these to the real story state.
+/// Both the layout (<see cref="SystemGenerator"/>) and entering orbit
+/// (<see cref="Surface"/>) follow them: SpathiShieldedSelves shields
+/// Spathiwa (so it can't be scanned), ChmmrUnleashed unshields the Chmmr
+/// world and turns orbiting it into a conversation. The other story flags
+/// orbit code reads (pickups, homeworld conversations) are taken at their
+/// new-game values until stage 3.
 /// </summary>
 public sealed record SystemStoryState(bool ChmmrUnleashed = false, bool SpathiShieldedSelves = false)
 {
@@ -48,7 +54,15 @@ public sealed class SolarSystem
     public IReadOnlyList<WorldDesc> Planets { get; }
 
     /// <summary>The moons of a planet, as GenerateMoons makes them on entering its inner system.</summary>
-    public WorldDesc[] Moons(int planet) => Generator.GenerateMoons(this, planet);
+    public WorldDesc[] Moons(int planet)
+    {
+        // Generated once per planet; callers get their own copy.
+        _moons ??= new WorldDesc[Planets.Count][];
+        _moons[planet] ??= Generator.GenerateMoons(this, planet);
+        return (WorldDesc[])_moons[planet].Clone();
+    }
+
+    private WorldDesc[]?[]? _moons;
 
     /// <summary>A planet's data as the planet report shows it (with the greenhouse bonus).</summary>
     public PlanetInfo PlanetInfo(int planet) => Analyse(Planets[planet], Planets[planet].Radius, true);

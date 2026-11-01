@@ -64,6 +64,37 @@ public class SurfaceTests
     }
 
     [Fact]
+    public void OrbitFollowsTheGeneratorsStoryState()
+    {
+        var map = StarMap.Load(DataDir);
+        var types = PlanetTypes.Load(DataDir);
+        Star chmmr = map.Stars.Single(s => s.Special == "CHMMR_DEFINED");
+
+        var newGame = new SystemGenerator(types).Generate(chmmr);
+        Assert.True(newGame.EnterOrbit(1).Entered);
+        Assert.Null(newGame.EnterOrbit(1).Nodes);               // shielded
+
+        var freed = new SystemGenerator(types, new SystemStoryState(ChmmrUnleashed: true)).Generate(chmmr);
+        Assert.Equal(0, freed.Planets[1].DataIndex & WorldTypes.Shielded);
+        Assert.False(freed.EnterOrbit(1).Entered);              // a conversation instead
+
+        Star spathi = map.Stars.Single(s => s.Special == "SPATHI_DEFINED");
+        var shielded = new SystemGenerator(types, new SystemStoryState(SpathiShieldedSelves: true)).Generate(spathi);
+        Assert.NotEqual(0, shielded.Planets[0].DataIndex & WorldTypes.Shielded);
+        Assert.Null(shielded.EnterOrbit(0).Nodes);
+    }
+
+    [Fact]
+    public void MoonsAreGeneratedOnceAndCopiedOut()
+    {
+        var map = StarMap.Load(DataDir);
+        var sol = new SystemGenerator(PlanetTypes.Load(DataDir)).Generate(map.At(1752, 1450)!);
+        var a = sol.Moons(4);
+        a[0].DataIndex = 0;                                      // the caller's copy
+        Assert.NotEqual(0, sol.Moons(4)[0].DataIndex);
+    }
+
+    [Fact]
     public void SolHasItsStoryNodes()
     {
         var map = StarMap.Load(DataDir);

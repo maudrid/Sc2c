@@ -51,7 +51,28 @@ public sealed class StarMap
                 ParseColor(s.GetProperty("color").GetString()!),
                 special.ValueKind == JsonValueKind.Null ? null : special.GetString()));
         }
+        for (int i = 1; i < stars.Count; ++i)
+        {
+            if (stars[i].Y < stars[i - 1].Y)
+                throw new InvalidDataException("starmap.json: stars must be sorted by y");
+        }
         return new StarMap(stars);
+    }
+
+    /// <summary>Stars with y in [minY, maxY], found by binary search (the map is sorted by y, as UQM's FindStar relies on).</summary>
+    public IEnumerable<Star> InYRange(int minY, int maxY)
+    {
+        int lo = 0, hi = Stars.Count;
+        while (lo < hi)
+        {
+            int mid = (lo + hi) >> 1;
+            if (Stars[mid].Y < minY)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        for (int i = lo; i < Stars.Count && Stars[i].Y <= maxY; ++i)
+            yield return Stars[i];
     }
 
     /// <summary>The star at exactly these universe coordinates, or null.</summary>

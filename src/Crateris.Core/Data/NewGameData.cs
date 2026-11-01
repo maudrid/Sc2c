@@ -17,7 +17,8 @@ public sealed record ShipLoadout(int Thrusters, int Jets, int FuelTanks, int Hig
 public sealed record NewGameData(
     int Year, int Month, int Day,
     short StartUniverseX, short StartUniverseY,
-    ShipLoadout Flagship)
+    ShipLoadout Flagship,
+    int? StartStar = null)
 {
     public static NewGameData Load(string dataDirectory)
     {
@@ -38,11 +39,18 @@ public sealed record NewGameData(
             Crew: ship.GetProperty("crew").GetInt32(),
             Fuel: ship.GetProperty("fuel").GetUInt32());
 
+        // The game starts at a star (Sol). The ship counts as having just
+        // left it, so it doesn't fall straight in (StarContact).
+        short sx = (short)ship.GetProperty("start_universe_x").GetInt32();
+        short sy = (short)ship.GetProperty("start_universe_y").GetInt32();
+        Star? startStar = StarMap.Load(dataDirectory).At(sx, sy);
+
         return new NewGameData(
             date.GetProperty("year").GetInt32(), date.GetProperty("month").GetInt32(),
             date.GetProperty("day").GetInt32(),
             (short)ship.GetProperty("start_universe_x").GetInt32(),
             (short)ship.GetProperty("start_universe_y").GetInt32(),
-            loadout);
+            loadout,
+            startStar?.Number);
     }
 }

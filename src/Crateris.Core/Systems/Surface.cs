@@ -83,6 +83,9 @@ public static class Surface
             return OrbitData.NotEntered;   // new game: TALKING_PET not yet set
         if (special == "SLYLANDRO_DEFINED" && IsPlanet(3))
             return OrbitData.NotEntered;
+        // Once the Chmmr are free, orbiting their world starts a conversation.
+        if (special == "CHMMR_DEFINED" && IsPlanet(1) && system.Generator.Story.ChmmrUnleashed)
+            return OrbitData.NotEntered;
 
         short sunDistance = moon is null ? world.Radius : system.Planets[planet].Radius;
         PlanetInfo info = PlanetAnalysis.Analyse(system.Generator.Types, system.Star, world.RandSeed,

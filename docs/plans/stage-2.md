@@ -126,7 +126,7 @@ Found while porting, all kept as UQM does them:
 - Story nodes are generated as at the start of a new game, with nothing picked up: ruins (16 energy nodes) on the old homeworlds, artifacts (one energy node) such as the Burvixese broadcasters, the Sun Device and the Utwig bomb, Fwiffo on Pluto and the Moon base. Picking them up is stage 2b/3.
 - The flight traces are recorded with the same circle model as the engine, built into the recording program, so everything except the circle sizes is checked against UQM's own code. One rule isn't reached by the recorded flights: leaving an inner system while already touching another planet, where UQM turns contacts off until the ship is clear. It's ported as written but not checked by a trace.
 - Autopilot isn't ported (the star map comes later); without it, UQM's controls are the only input.
-- A new game puts players in hyperspace on Sol (stage 1); item 9 must mark Sol as the star just left, or the first thrust would drop them straight into the Sol system.
+- A new game puts players in hyperspace on Sol (stage 1), so the new game marks Sol as the star just left, and a guest undocking from the host inherits it; otherwise the first thrust would drop them straight into the Sol system. The star just left is kept in the host save.
 - Until conversations exist (stage 3) no aliens are at their homeworlds, so a homeworld is orbited as when its owners are gone, as decided in decision 5. Two worlds can't be orbited even so, because UQM always starts a conversation there: the Umgah homeworld (the Talking Pet's planet) and the Slylandro gas giant. Starbases and the Sa-Matra can't be orbited either.
 
 ## Decisions

@@ -49,6 +49,10 @@ public sealed class HyperFlight
     private const int CenterX = Units.LogSpaceWidth >> 1;
     private const int CenterY = Units.LogSpaceHeight >> 1;
 
+    /// <summary>The middle of the hyperspace view, where the ship sits when the view has caught up.</summary>
+    public const int ViewCenterX = CenterX;
+    public const int ViewCenterY = CenterY;
+
     public ShipDrive Drive { get; set; }
 
     /// <summary>Fuel tank capacity in 1/100 units (GetFuelTankCapacity).</summary>

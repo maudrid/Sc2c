@@ -83,7 +83,11 @@ public class IpFlightTests
 
         Assert.True(failures.Length == 0, $"{name}\n{failures}");
         Assert.True(frame > 500, $"only {frame} frames");
-        Assert.True(events.ContainsKey(IpEvent.LeftSystem) || events.ContainsKey(IpEvent.EnteredInnerSystem));
+        // Every recorded flight ends by leaving the system, after at least
+        // one zoom or inner system on the way.
+        Assert.Equal((int)IpEvent.LeftSystem, sc.GetProperty("frames").EnumerateArray().Last()[11].GetInt32());
+        Assert.True(events.ContainsKey(IpEvent.Zoom) || events.ContainsKey(IpEvent.EnteredInnerSystem),
+            $"{name} never zoomed or entered an inner system");
     }
 
     [Fact]

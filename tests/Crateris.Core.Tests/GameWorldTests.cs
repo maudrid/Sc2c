@@ -35,6 +35,41 @@ public class GameWorldTests
     }
 
     [Fact]
+    public void A_new_game_on_Sol_does_not_fall_into_Sol()
+    {
+        var map = StarMap.Load(DataDir);
+        var world = NewWorld();
+        var host = world.Host.Ship.Flight;
+        Assert.Equal(map.At(1752, 1450)!.Number, host.StarJustLeft);
+
+        world.Join("guest", "Guest");
+        var guest = world.Players.Single(p => !p.IsHost).Ship.Flight;
+        Assert.Equal(host.StarJustLeft, guest.StarJustLeft);
+
+        // Thrust away from Sol: neither ship drops into it.
+        for (int frame = 0; frame < 60; ++frame)
+        {
+            host.Step(ShipInput.Thrust);
+            guest.Step(ShipInput.Thrust);
+            Assert.Null(StarContact.Check(host, map));
+            Assert.Null(StarContact.Check(guest, map));
+        }
+    }
+
+    [Fact]
+    public void Host_save_keeps_the_star_just_left()
+    {
+        var world = NewWorld();
+        world.Host.Ship.Flight.StarJustLeft = 42;
+        var loaded = HostSave.FromJson(HostSave.ToJson(world));
+        Assert.Equal(42, loaded.Host.Ship.Flight.StarJustLeft);
+
+        world.Host.Ship.Flight.StarJustLeft = null;
+        loaded = HostSave.FromJson(HostSave.ToJson(world));
+        Assert.Null(loaded.Host.Ship.Flight.StarJustLeft);
+    }
+
+    [Fact]
     public void First_join_starts_an_escort_at_the_host_with_undocking()
     {
         var world = NewWorld();

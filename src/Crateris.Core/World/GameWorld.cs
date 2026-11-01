@@ -63,6 +63,7 @@ public sealed class GameWorld
         var ship = new PlayerShip(ShipKind.Flagship, data.Flagship);
         ship.Flight.PlaceAtUniverse(data.StartUniverseX, data.StartUniverseY);
         ship.Flight.ResetFuelCounters();
+        ship.Flight.StarJustLeft = data.StartStar;
         world.AddPlayer(new Player(hostId, hostName, isHost: true, ship) { Present = true });
         return world;
     }
@@ -103,6 +104,7 @@ public sealed class GameWorld
         ship.Flight.LogX = host.LogX;
         ship.Flight.LogY = host.LogY;
         ship.Flight.Facing = host.Facing;
+        ship.Flight.StarJustLeft = host.StarJustLeft;   // undocking on a star doesn't drop into it
         ship.Flight.ResetFuelCounters();
         AddPlayer(new Player(id, name, isHost: false, ship) { Present = true, UndockPending = true });
         return JoinResult.Joined;

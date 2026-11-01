@@ -81,6 +81,36 @@ public class SystemTransitionTests
     }
 
     [Fact]
+    public void ContactUsesWhereTheShipIsDrawnNotTheLaggingViewPosition()
+    {
+        // The view's scroll lags a fast ship: its hyperspace position is
+        // 300 units short of the star, but the sprite is drawn on it.
+        var ship = NewShip();
+        ship.PlaceAtUniverse(Sol.X, Sol.Y);
+        ship.LogY += 300;
+        ship.ViewY = (short)(HyperFlight.ViewCenterY - 300);
+        ship.Velocity.SetComponents(0, -64);
+        Assert.Equal(Sol, StarContact.Check(ship, Map));
+
+        // And the other way round: on the star by position, but drawn clear of it.
+        var away = NewShip();
+        away.PlaceAtUniverse(Sol.X, Sol.Y);
+        away.ViewY = (short)(HyperFlight.ViewCenterY + 600);
+        away.Velocity.SetComponents(0, 64);
+        Assert.Null(StarContact.Check(away, Map));
+    }
+
+    [Fact]
+    public void StarsInYRangeMatchesAFullScan()
+    {
+        foreach (var (lo, hi) in new[] { (0, 9999), (1440, 1460), (-50, 10), (9990, 20000), (5000, 4000) })
+        {
+            var expected = Map.Stars.Where(s => s.Y >= lo && s.Y <= hi).ToList();
+            Assert.Equal(expected, Map.InYRange(lo, hi).ToList());
+        }
+    }
+
+    [Fact]
     public void AShipAtRestOnAStarStaysInHyperspace()
     {
         var ship = NewShip();
