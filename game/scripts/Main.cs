@@ -80,6 +80,7 @@ public partial class Main : Node2D
     private ContentPackage? _content;
     private Names _names = null!;
     private FirstRunScreen? _firstRun;
+    private ContentErrorScreen? _contentError;
     private AboutScreen _about = null!;
     private CanvasLayer _screens = null!;
     private string _dataDir = "";
@@ -143,19 +144,24 @@ public partial class Main : Node2D
         string userFolder = ProjectSettings.GlobalizePath("user://");
         string stored = ContentLocation.StoredPackage(userFolder);
         string? problem = null;
+        ContentPackage? found = null;
         try
         {
             if (ContentLocation.Find(_options.ContentPath, userFolder) is { } path)
             {
-                OpenContent(path, ContentPackage.OfficialSha256);
+                found = ContentPackage.Open(path);
                 Log($"Content: {path}");
-                StartGame();
-                return;
             }
         }
         catch (ContentPackageException e)
         {
             problem = e.Message;
+        }
+        if (found != null)
+        {
+            if (UseContent(found))
+                StartGame();
+            return;
         }
 
         string why = problem ?? "The UQM 0.8.0 content isn't here yet.";
@@ -170,10 +176,11 @@ public partial class Main : Node2D
         _firstRun = new FirstRunScreen(stored, problem);
         _firstRun.Installed += path =>
         {
+            ContentPackage installed;
             try
             {
                 // The installer has just checked the file's hash.
-                OpenContent(path, expectedSha256: null);
+                installed = ContentPackage.Open(path, expectedSha256: null);
             }
             catch (ContentPackageException e)
             {
@@ -182,22 +189,44 @@ public partial class Main : Node2D
                 return;
             }
             Log($"Content installed: {path}");
-            _firstRun.QueueFree();
+            _firstRun!.QueueFree();
             _firstRun = null;
-            StartGame();
+            if (UseContent(installed))
+                StartGame();
         };
         _screens.AddChild(_firstRun);
         if (_options.FirstRunUse is { } file)
             _firstRun.Choose(file);
     }
 
-    /// <summary>Opens the content and reads what the game needs from it before starting.</summary>
-    private void OpenContent(string path, string? expectedSha256)
+    /// <summary>
+    /// Reads what the game needs from the opened, checked package. The
+    /// package is the official one, so a failure here is a fault (in the
+    /// engine, or reading the file), not a wrong file: it's shown, with no
+    /// offer to download the same file again, and the game doesn't start.
+    /// </summary>
+    private bool UseContent(ContentPackage content)
     {
-        var content = ContentPackage.Open(path, expectedSha256);
-        _names = Names.Load(content);
+        try
+        {
+            _names = Names.Load(content);
+        }
+        catch (ContentPackageException e)
+        {
+            string message = $"The UQM content is the official package, but it couldn't be read: {e.Message}";
+            GD.PrintErr(message);
+            if (DisplayServer.GetName() == "headless")
+                GetTree().Quit(4);
+            else
+            {
+                _contentError = new ContentErrorScreen(message);
+                _screens.AddChild(_contentError);
+            }
+            return false;
+        }
         _content = content;
         _systemView.Names = _orbitView.Names = _names;
+        return true;
     }
 
     private void StartGame()
@@ -710,7 +739,7 @@ public partial class Main : Node2D
             lines.Add("Arrows: turn and thrust");
         lines.Add("F1: about and credits");
         _hud.Text = string.Join("\n", lines.Where(l => !string.IsNullOrEmpty(l)));
-        _hud.Visible = _firstRun == null;   // the first-run screen stands alone
+        _hud.Visible = _firstRun == null && _contentError == null;   // those screens stand alone
     }
 
     private string Where(ShipSnapshot s)

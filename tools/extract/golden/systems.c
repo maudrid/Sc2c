@@ -798,7 +798,8 @@ static void
 read_game_strings (const char *path)
 {
 	FILE *f = fopen (path, "r");
-	char line[4096];
+	char *line = NULL;
+	size_t line_size = 0;
 	COUNT cap = 0;
 
 	if (!f)
@@ -806,7 +807,8 @@ read_game_strings (const char *path)
 		perror (path);
 		exit (1);
 	}
-	while (fgets (line, sizeof line, f))
+	/* getline, so that a string of any length is one line. */
+	while (getline (&line, &line_size, f) != -1)
 	{
 		size_t n = strcspn (line, "\n");
 		size_t k;
@@ -825,6 +827,7 @@ read_game_strings (const char *path)
 		}
 		game_strings[game_string_count++] = str;
 	}
+	free (line);
 	fclose (f);
 }
 

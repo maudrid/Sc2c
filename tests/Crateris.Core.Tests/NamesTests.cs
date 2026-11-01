@@ -75,11 +75,21 @@ public class NamesTests
     {
         var names = TestContent.With(Names.Load);
         var system = Systems[0];
-        int p = Enumerable.Range(0, system.Planets.Count).First(i => system.Moons(i).Length > 0);
+        int p = Enumerable.Range(0, system.Planets.Count).First(i => system.Moons(i).Length >= 2);
         string planet = names.PlanetName(system.Star, p);
         Assert.StartsWith("Planet ", planet);
         Assert.Equal(planet + "-B", names.PlanetOrMoon(system.Star, p, 1));
         Assert.Matches("^.+ (World|Giant)$", names.Title(system, p, null));
         Assert.Matches(@"^\w+ \w+$", names.Cluster(system.Star));
+    }
+
+    [ContentFact]
+    public void NamesAreMadeOnceAndKept()
+    {
+        var names = TestContent.With(Names.Load);
+        var sol = Systems[Systems.Map.Stars.First(s => s.Special == "SOL_DEFINED").Number];
+        Assert.Same(names.Title(sol, 2, 1), names.Title(sol, 2, 1));
+        Assert.Same(names.Cluster(sol.Star), names.Cluster(sol.Star));
+        Assert.NotEqual(names.PlanetOrMoon(sol.Star, 2, null), names.PlanetOrMoon(sol.Star, 2, 1));
     }
 }

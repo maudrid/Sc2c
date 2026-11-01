@@ -176,6 +176,35 @@ public partial class FirstRunScreen : PanelContainer
     }
 }
 
+/// <summary>
+/// Shown when the official package is in place but the game couldn't read
+/// what it needs from it: what went wrong, and Quit. Offering the download
+/// again wouldn't help, since it would fetch the same file.
+/// </summary>
+public partial class ContentErrorScreen : PanelContainer
+{
+    public ContentErrorScreen(string message)
+    {
+        SetAnchorsPreset(LayoutPreset.FullRect);
+        var center = new CenterContainer();
+        AddChild(center);
+        var box = new VBoxContainer { CustomMinimumSize = new Vector2(680, 0) };
+        box.AddThemeConstantOverride("separation", 14);
+        center.AddChild(box);
+        var heading = NoticeLabels.Heading("The game can't start");
+        heading.AddThemeFontSizeOverride("font_size", 26);
+        box.AddChild(heading);
+        box.AddChild(NoticeLabels.Paragraph(message + " Please report this, with the message above."));
+        var quit = new Button { Text = "Quit", SizeFlagsHorizontal = SizeFlags.ShrinkCenter };
+        quit.Pressed += () => GetTree().Quit(4);
+        box.AddChild(quit);
+    }
+
+    public ContentErrorScreen() : this("")
+    {
+    }
+}
+
 /// <summary>The about screen (F1): the engine, and the content notice, so it stays available after the first run.</summary>
 public partial class AboutScreen : PanelContainer
 {

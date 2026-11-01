@@ -22,6 +22,8 @@ namespace Crateris.Core.Content;
 /// UQM makes them. Planets and moons are named as seen from their planet's
 /// inner system or orbit, the only places UQM names them. Names are built
 /// as bytes and cut where UQM's buffers cut them, then read as UTF-8.
+/// Each name is made once and kept, since views ask for them every frame.
+/// Not for use from several threads at once.
 /// </summary>
 public sealed class Names
 {
@@ -32,13 +34,16 @@ public sealed class Names
     private const int TitleBufferSize = 200;
 
     private readonly StringTable _strings;
+    private readonly Dictionary<(string Kind, int Star, int Planet, int Moon, int Extra), string> _made = new();
 
     public Names(GameStrings strings) => _strings = strings.Table;
 
     public static Names Load(ContentPackage package) => new(GameStrings.Load(package));
 
     /// <summary>GetClusterName: the star's name, its prefix (Alpha, Beta…) if it has one, then its constellation.</summary>
-    public string Cluster(Star star)
+    public string Cluster(Star star) => Made(("cluster", star.Number, 0, 0, 0), () => MakeCluster(star));
+
+    private string MakeCluster(Star star)
     {
         var buf = new List<byte>();
         if (star.NamePrefix != 0 && String(GameStrings.StarNumberBase + star.NamePrefix - 1) is byte[] prefix)
@@ -57,12 +62,21 @@ public sealed class Names
     /// </summary>
     public string? Named(Star star, int planet, int? moon) => NamedBytes(star, planet, moon) is byte[] b ? Text(b) : null;
 
+    // A name kept by what it's of. A moon of none is -1; Extra is what else the name depends on.
+    private string Made((string, int, int, int, int) key, Func<string> make)
+    {
+        if (!_made.TryGetValue(key, out var name))
+            _made[key] = name = make();
+        return name;
+    }
+
     /// <summary>
     /// GLOBAL_SIS (PlanetName) as the system's generateName leaves it on
     /// entering the planet's inner system: Sol's planets by name, others
     /// "Planet I", "Planet II"… UQM's title over the inner system and orbit.
     /// </summary>
-    public string PlanetName(Star star, int planet) => Text(PlanetNameBytes(star, planet));
+    public string PlanetName(Star star, int planet) =>
+        Made(("planet", star.Number, planet, -1, 0), () => Text(PlanetNameBytes(star, planet)));
 
     /// <summary>
     /// GetPlanetTitle: the orbit screen's title, the world's own name or its
@@ -70,10 +84,17 @@ public sealed class Names
     /// </summary>
     public string Title(SolarSystem system, int planet, int? moon)
     {
-        if (NamedBytes(system.Star, planet, moon) is byte[] named)
-            return Text(Copy(named, TitleBufferSize));
+        // The type can change with the story (a world becomes shielded), so it's part of the key.
         var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
-        int type = world.DataIndex & ~WorldTypes.Shielded;
+        return Made(("title", system.Star.Number, planet, moon ?? -1, world.DataIndex),
+            () => MakeTitle(system.Star, planet, moon, world.DataIndex));
+    }
+
+    private string MakeTitle(Star star, int planet, int? moon, byte dataIndex)
+    {
+        if (NamedBytes(star, planet, moon) is byte[] named)
+            return Text(Copy(named, TitleBufferSize));
+        int type = dataIndex & ~WorldTypes.Shielded;
         if (type >= WorldTypes.FirstGasGiant)
             return Text(String(GameStrings.ScanBase + 4 + 51) ?? Array.Empty<byte>());   // Gas Giant
         return Text([.. String(GameStrings.ScanBase + 4 + type) ?? Array.Empty<byte>(), (byte)' ',
@@ -85,7 +106,10 @@ public sealed class Names
     /// "-A", "-B"… after it for a moon; cut to <paramref name="bufferSize"/>
     /// bytes with the terminating NUL (the save summary gives it <see cref="SisNameSize"/>).
     /// </summary>
-    public string PlanetOrMoon(Star star, int planet, int? moon, int bufferSize = SisNameSize)
+    public string PlanetOrMoon(Star star, int planet, int? moon, int bufferSize = SisNameSize) =>
+        Made(("planet-or-moon", star.Number, planet, moon ?? -1, bufferSize), () => MakePlanetOrMoon(star, planet, moon, bufferSize));
+
+    private string MakePlanetOrMoon(Star star, int planet, int? moon, int bufferSize)
     {
         if (NamedBytes(star, planet, moon) is byte[] named)
             return Text(Copy(named, bufferSize));

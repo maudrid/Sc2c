@@ -68,7 +68,7 @@ The orbit screen still uses the engine's font and words for everything but the t
 ### Run the tests
 
 ```
-CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter NamesTests   # 3 tests
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter NamesTests   # 4 tests
 ```
 
-`EveryNameIsTheNameUqmGives` checks the name of every one of the 502 stars and the names and titles of every planet and moon against what UQM's own code gives (by hash, as names are content). The other two check a few you'd recognise in plain words: Sol, Earth, Luna and Titan, and "Planet ..." and "-B" for an ordinary system. Without the package they're skipped, and say so.
+`EveryNameIsTheNameUqmGives` checks the name of every one of the 502 stars and the names and titles of every planet and moon against what UQM's own code gives (by hash, as names are content). Two more check a few you'd recognise in plain words: Sol, Earth, Luna and Titan, and "Planet ..." and "-B" for an ordinary system. `NamesAreMadeOnceAndKept` checks names are made once and kept, since the views ask for them every frame. Without the package they're skipped, and say so.

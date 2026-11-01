@@ -511,13 +511,16 @@ def record_names(uqm, systems_exe, strings_exe, package):
                             "moons": [[h(t), h(n)] for t, n in p[3:]]})
         stars.append({"cluster": h(star[0]), "planets": planets})
     data = header(uqm, ["tools/extract/golden/systems.c",
+                        "tools/extract/golden/strings.c",
+                        "src/libs/strings/getstr.c",
                         "src/uqm/starmap.c", "src/uqm/planets/solarsys.c",
                         "src/uqm/planets/scan.c",
                         "src/uqm/planets/generate/gendefault.c",
                         "src/uqm/planets/generate/gensol.c"], [
         "Every name UQM 0.8.0's own code gives, with the game strings "
         "(text.starcon) of the official content package (SHA-256 "
-        f"{CONTENT_SHA256}), read by UQM's _GetStringData. Names are content "
+        f"{CONTENT_SHA256}), read by UQM's _GetStringData (the strings "
+        "program, tools/extract/golden/strings.c). Names are content "
         "(CC BY-NC-SA 2.5), so each is the SHA-256 of its UTF-8 bytes.",
         "stars: one per star in starmap order. cluster: GetClusterName. "
         "planets: in PlanetDesc order, each as seen from its own inner "
