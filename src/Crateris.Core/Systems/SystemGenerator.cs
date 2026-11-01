@@ -56,6 +56,9 @@ public sealed class SolarSystem
     /// <summary>A moon's data as the planet report shows it.</summary>
     public PlanetInfo MoonInfo(int planet, WorldDesc moon) => Analyse(moon, Planets[planet].Radius, true);
 
+    /// <summary>Enters orbit around a planet, or one of its moons: report, scan seeds and surface nodes.</summary>
+    public OrbitData EnterOrbit(int planet, int? moon = null) => Surface.EnterOrbit(this, planet, moon);
+
     /// <summary>A planet's orbit colour, 0..4 (cold to hot), as LoadSolarSys gives it.</summary>
     public int OrbitColor(int planet) =>
         PlanetAnalysis.TemperatureColorIndex(Analyse(Planets[planet], Planets[planet].Radius, false).SurfaceTemperature);

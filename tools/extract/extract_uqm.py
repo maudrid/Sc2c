@@ -327,7 +327,14 @@ def extract_planets(uqm):
         for j in range(8):
             e, qty, quality = nums[10 + 3 * j: 13 + 3 * j]
             if e == nothing:
+                # The engine rebuilds the 8 slots by padding with empty
+                # ones, so empty slots must be trailing and hold nothing.
+                if qty or quality:
+                    raise RuntimeError(f"{types[i]}: NOTHING with a deposit")
                 continue
+            if len(useful) < j:
+                raise RuntimeError(f"{types[i]}: empty element slot before "
+                                   "a used one")
             useful.append({"element": elements[e], "quantity_class": qty,
                            "quality_class": quality})
         out.append({
@@ -353,6 +360,10 @@ def extract_planets(uqm):
         "quantity_class: FEW, MODERATE or NUMEROUS (see constants); "
         "quality_class: LIGHT, MEDIUM or HEAVY. Packed as the low and high "
         "nibble of ELEMENT_ENTRY.Density.",
+        "useful_elements lists the used slots of UsefulElements (8 in "
+        "UQM). The unused slots (NOTHING, no deposit) are always the last "
+        "ones, so the 8 slots are the list padded with empty ones; mineral "
+        "generation draws a random number for every slot, empty or not.",
         "density_class and atmosphere_class are the low and high nibble of "
         "PlanetFrame.AtmoAndDensity.",
         "color_map_resource and color_table_resource are content resource "

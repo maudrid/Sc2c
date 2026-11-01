@@ -77,13 +77,17 @@ def systems_link(uqm):
                    if n.endswith(".c")))
 
 
-def build(uqm, main_c, link, out):
+# Our own stand-ins for the parts of UQM the systems program doesn't need.
+SYSTEMS_STUBS = os.path.join(HERE, "golden", "stubs.c")
+
+
+def build(uqm, main_c, link, out, extra=()):
     cflags = ["-w", "-no-pie", "-I", uqm.build, "-I", uqm.src, "-I", uqm.uqm,
               "-I", os.path.join(uqm.uqm, "ships", "sis_ship"),
               "-I", os.path.join(uqm.uqm, "planets")]
     objs = []
-    for i, src in enumerate([main_c] + [os.path.join(uqm.src, f)
-                                        for f in link]):
+    for i, src in enumerate([main_c, *extra] + [os.path.join(uqm.src, f)
+                                                for f in link]):
         obj = os.path.join(uqm.build, f"{os.path.basename(out)}_{i}.o")
         res = subprocess.run(["gcc", *cflags, "-c", src, "-o", obj],
                              capture_output=True, text=True)
@@ -160,6 +164,7 @@ def record_systems(uqm, exe):
                          check=True).stdout
     link = systems_link(uqm)
     data = header(uqm, ["tools/extract/golden/systems.c",
+                        "tools/extract/golden/stubs.c",
                         "src/uqm/planets/solarsys.c"] +
                   [f"src/{f}" for f in link], [
         "Star systems as UQM 0.8.0 generates them, recorded by running its "
@@ -190,6 +195,46 @@ def record_systems(uqm, exe):
     return data
 
 
+def record_surfaces(uqm, exe):
+    out = subprocess.run([exe, "orbits"], capture_output=True, text=True,
+                         check=True).stdout
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "tools/extract/golden/stubs.c",
+                        "src/uqm/planets/solarsys.c",
+                        "src/uqm/planets/surface.c",
+                        "src/uqm/planets/scan.c"] +
+                  [f"src/{f}" for f in systems_link(uqm)
+                   if "generate/" in f], [
+        "Entering orbit around every world, recorded by running each "
+        "star's own generateOrbital (planets/generate/), then its "
+        "generateMinerals, generateEnergy and generateLife for every node, "
+        "as GeneratePlanetSurface in scan.c does. See "
+        "tools/extract/golden/systems.c.",
+        "Every world is entered from a new game's state (all game state "
+        "zero). No alien ships are present (StartSphereTracking is "
+        "false), so homeworld conversations don't start and the world "
+        "is orbited as when its owners are gone. Nothing has been picked "
+        "up.",
+        "systems: per star in starmap order, per planet a list: the planet, "
+        "then its moons in order. Each world: [data_index, entered] and, "
+        "if orbit was entered: [scan seeds: mineral, energy, biological], "
+        "[report: AxialTilt, Tectonics, Weather, PlanetDensity, "
+        "PlanetRadius, SurfaceGravity, SurfaceTemperature, RotationPeriod, "
+        "AtmoDensity, LifeChance, PlanetToSunDist] as generateOrbital "
+        "leaves PLANET_INFO, and nodes: [minerals, energy, life], each a "
+        "list of [x, y, type, density] (NODE_INFO), or null for a "
+        "shielded world, which can't be scanned.",
+        "Mineral type is the element (data/elements.json id); density is "
+        "MAKE_WORD (gross size 0..2, quantity). Life type is the creature "
+        "(data/lifeforms.json; 23 is an Evil One, 24 a Brainbox Bulldozer, "
+        "25 Zex's Beauty).",
+        "map_width and map_height: the surface map node positions are on "
+        "(MAP_WIDTH, MAP_HEIGHT at 320x240).",
+    ])
+    data.update(json.loads(out))
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
@@ -209,11 +254,12 @@ def main():
         build(uqm, os.path.join(HERE, "golden", "math.c"), MATH_LINK, math)
         systems = os.path.join(build_dir, "systems")
         build(uqm, os.path.join(HERE, "golden", "systems.c"),
-              systems_link(uqm), systems)
+              systems_link(uqm), systems, extra=[SYSTEMS_STUBS])
         os.makedirs(args.out, exist_ok=True)
         for name, data in (("hyperspace-flight", record_flight(uqm, flight)),
                            ("uqm-math", record_math(uqm, math)),
-                           ("star-systems", record_systems(uqm, systems))):
+                           ("star-systems", record_systems(uqm, systems)),
+                           ("world-surfaces", record_surfaces(uqm, systems))):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:
                 json.dump(data, f, separators=(",", ":"))

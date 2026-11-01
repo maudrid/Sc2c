@@ -14,12 +14,23 @@ namespace Crateris.Core.Data;
 public enum PlanetSize { SmallRocky = 0, LargeRocky = 1, GasGiant = 2 }
 
 /// <summary>
+/// One of a planet type's eight mineral slots (ELEMENT_ENTRY). Element is the
+/// element id (data/elements.json); empty slots (NOTHING) have quantity 0.
+/// </summary>
+public readonly record struct ElementSlot(int Element, int QuantityClass, int QualityClass);
+
+/// <summary>
 /// One planet type (UQM's PlanetFrame), from data/planet-types.json.
 /// DensityClass and AtmosphereClass are the low and high nibble of
-/// AtmoAndDensity.
+/// AtmoAndDensity. <see cref="Elements"/> always has the eight slots of
+/// UsefulElements, because mineral generation draws a random number for
+/// every slot, empty or not.
 /// </summary>
 public sealed record PlanetType(int Index, string Name, PlanetSize Size, int BaseTectonics,
-    int DensityClass, int AtmosphereClass);
+    int DensityClass, int AtmosphereClass, IReadOnlyList<ElementSlot> Elements)
+{
+    public const int UsefulElementSlots = 8;   // NUM_USEFUL_ELEMENTS
+}
 
 /// <summary>All planet types, indexed like UQM's PlanData.</summary>
 public sealed class PlanetTypes
@@ -40,10 +51,22 @@ public sealed class PlanetTypes
 
     public static PlanetTypes Load(string dataDirectory)
     {
+        using var elementsDoc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataDirectory, "elements.json")));
+        var elementIds = elementsDoc.RootElement.GetProperty("elements").EnumerateArray()
+            .ToDictionary(e => e.GetProperty("element").GetString()!, e => e.GetProperty("id").GetInt32());
+
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataDirectory, "planet-types.json")));
         var list = new List<PlanetType>();
         foreach (var t in doc.RootElement.GetProperty("planet_types").EnumerateArray())
         {
+            var slots = t.GetProperty("useful_elements").EnumerateArray()
+                .Select(e => new ElementSlot(elementIds[e.GetProperty("element").GetString()!],
+                    e.GetProperty("quantity_class").GetInt32(), e.GetProperty("quality_class").GetInt32()))
+                .ToList();
+            if (slots.Count > PlanetType.UsefulElementSlots)
+                throw new InvalidDataException("too many element slots");
+            while (slots.Count < PlanetType.UsefulElementSlots)
+                slots.Add(new ElementSlot(-1, 0, 0));   // NOTHING, NO_DEPOSIT
             list.Add(new PlanetType(
                 list.Count,
                 t.GetProperty("type").GetString()!,
@@ -56,7 +79,8 @@ public sealed class PlanetTypes
                 },
                 t.GetProperty("base_tectonics").GetInt32(),
                 t.GetProperty("density_class").GetInt32(),
-                t.GetProperty("atmosphere_class").GetInt32()));
+                t.GetProperty("atmosphere_class").GetInt32(),
+                slots));
         }
         return new PlanetTypes(list.ToArray());
     }

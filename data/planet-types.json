@@ -13,6 +13,7 @@
   "_notes": [
     "One entry per planet type (PlanetFrame), not per planet. Planets themselves are generated from seeds by planets/plangen.c, calc.c and gentopo.c.",
     "quantity_class: FEW, MODERATE or NUMEROUS (see constants); quality_class: LIGHT, MEDIUM or HEAVY. Packed as the low and high nibble of ELEMENT_ENTRY.Density.",
+    "useful_elements lists the used slots of UsefulElements (8 in UQM). The unused slots (NOTHING, no deposit) are always the last ones, so the 8 slots are the list padded with empty ones; mineral generation draws a random number for every slot, empty or not.",
     "density_class and atmosphere_class are the low and high nibble of PlanetFrame.AtmoAndDensity.",
     "color_map_resource and color_table_resource are content resource ids (planet graphics), resolved by the client."
   ],

@@ -125,8 +125,141 @@ print_rng (void)
 	RandomContext_Delete (r);
 }
 
+/* ---- Orbit mode: entering orbit around every world ---- */
+
+/* LoadPlanet builds the planet surface; UQM tests TopoFrame afterwards to
+ * see whether orbit was entered (see EnterPlanetOrbit). */
+void
+LoadPlanet (FRAME SurfDefFrame)
+{
+	(void) SurfDefFrame;
+	pSolarSysState->TopoFrame = (FRAME) 1;
+}
+
+static void
+print_nodes (PLANET_DESC *world, COUNT scan)
+{
+	COUNT n, count;
+	int first = 1;
+	const GenerateFunctions *g = pSolarSysState->genFuncs;
+	COUNT (*fn) (const SOLARSYS_STATE *, const PLANET_DESC *, COUNT,
+			NODE_INFO *) = scan == MINERAL_SCAN ? g->generateMinerals
+			: scan == ENERGY_SCAN ? g->generateEnergy : g->generateLife;
+
+	/* As GeneratePlanetSurface in scan.c: count, then each node. */
+	count = fn (pSolarSysState, world, GENERATE_ALL, NULL);
+	printf ("[");
+	for (n = 0; n < count; ++n)
+	{
+		NODE_INFO info;
+		memset (&info, 0, sizeof info);
+		fn (pSolarSysState, world, n, &info);
+		printf ("%s[%d, %d, %d, %d]", sep (&first), info.loc_pt.x,
+				info.loc_pt.y, info.type, info.density);
+	}
+	printf ("]");
+}
+
+static void
+print_orbit (PLANET_DESC *world)
+{
+	const PLANET_INFO *p = &pSolarSysState->SysInfo.PlanetInfo;
+	int entered;
+
+	/* Every world is entered from a new game's state. */
+	memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+	GLOBAL (CurrentActivity) = IN_INTERPLANETARY;
+	memset (&pSolarSysState->SysInfo, 0, sizeof pSolarSysState->SysInfo);
+	pSolarSysState->TopoFrame = 0;
+	pSolarSysState->pOrbitalDesc = world;
+	pSolarSysState->InOrbit = TRUE;
+
+	(*pSolarSysState->genFuncs->generateOrbital) (pSolarSysState, world);
+	entered = pSolarSysState->TopoFrame != 0
+			&& !(GLOBAL (CurrentActivity) & (CHECK_ABORT | CHECK_LOAD
+			| START_ENCOUNTER));
+
+	printf ("[%d, %d", world->data_index, entered);
+	if (entered)
+	{
+		printf (", [%u, %u, %u], [%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, "
+				"%d], ",
+				(unsigned) p->ScanSeed[MINERAL_SCAN],
+				(unsigned) p->ScanSeed[ENERGY_SCAN],
+				(unsigned) p->ScanSeed[BIOLOGICAL_SCAN],
+				(int) p->AxialTilt, (int) p->Tectonics, (int) p->Weather,
+				(int) p->PlanetDensity, (int) p->PlanetRadius,
+				(int) p->SurfaceGravity, (int) p->SurfaceTemperature,
+				(int) p->RotationPeriod, (int) p->AtmoDensity,
+				(int) p->LifeChance, (int) p->PlanetToSunDist);
+		if (world->data_index & PLANET_SHIELDED)
+			printf ("null");  /* scan.c: no nodes under a shield */
+		else
+		{
+			printf ("[");
+			print_nodes (world, MINERAL_SCAN);
+			printf (", ");
+			print_nodes (world, ENERGY_SCAN);
+			printf (", ");
+			print_nodes (world, BIOLOGICAL_SCAN);
+			printf ("]");
+		}
+	}
+	printf ("]");
+	pSolarSysState->InOrbit = FALSE;
+}
+
+static int
+orbits_main (void)
+{
+	COUNT s;
+
+	printf ("{\"map_width\": %d, \"map_height\": %d, \"systems\": [",
+			MAP_WIDTH, MAP_HEIGHT);
+	for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
+	{
+		COUNT i;
+		int first = 1;
+
+		memset (&SolarSysState, 0, sizeof SolarSysState);
+		pSolarSysState = &SolarSysState;
+		CurStarDescPtr = &star_array[s];
+		SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
+		GLOBAL (ip_planet) = 0;
+		GLOBAL (in_orbit) = 0;
+		GLOBAL (ShipFacing) = 1;
+		memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+		LoadSolarSys ();
+
+		printf ("%s\n[", s ? "," : "");
+		for (i = 0; i < SolarSysState.SunDesc[0].NumPlanets; ++i)
+		{
+			PLANET_DESC *planet = &SolarSysState.PlanetDesc[i];
+			COUNT m;
+
+			/* Orbit is entered from the planet's inner system. */
+			memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+			GenerateMoons (&SolarSysState, planet);
+			SolarSysState.pBaseDesc = SolarSysState.MoonDesc;
+			printf ("%s[", sep (&first));
+			print_orbit (planet);
+			for (m = 0; m < planet->NumPlanets; ++m)
+			{
+				printf (", ");
+				print_orbit (&SolarSysState.MoonDesc[m]);
+			}
+			printf ("]");
+			SolarSysState.pBaseDesc = SolarSysState.PlanetDesc;
+			SolarSysState.pOrbitalDesc = NULL;
+		}
+		printf ("]");
+	}
+	printf ("]}\n");
+	return 0;
+}
+
 int
-main (void)
+main (int argc, char *argv[])
 {
 	COUNT s;
 	int first_sys = 1;
@@ -135,6 +268,9 @@ main (void)
 	star_array = starmap_array;
 	PlanData = planet_array;
 	SysGenRNG = RandomContext_New ();
+
+	if (argc > 1 && strcmp (argv[1], "orbits") == 0)
+		return orbits_main ();
 
 	print_rng ();
 
