@@ -4,6 +4,10 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Optimised in every configuration: the planet generators and the
+         other UQM ports are hot loops, and the tests run them for every
+         world (about four times slower without). -->
+    <Optimize>true</Optimize>
   </PropertyGroup>
 
 </Project>

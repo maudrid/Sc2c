@@ -121,8 +121,8 @@ The planet above the map is still a plain circle; the rotating planet is item 7.
 ### Run the tests
 
 ```
-dotnet test --filter SurfaceMapTests   # 2 tests, about 30 seconds; no content needed
-CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSurfacesTests   # 5 tests, about 30 seconds
+dotnet test --filter SurfaceMapTests   # 2 tests, a few seconds; no content needed
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSurfacesTests   # 5 tests, about 10 seconds
 ```
 
 `EveryWorldsHeightMapIsTheOneUqmMakes` makes the height map of every one of the 3,799 worlds that can be orbited (all but Earth) and checks each against what UQM's own generator makes of it. That needs no content: the terrain is made by code alone. `AFewWholeMapsMatchPointForPoint` compares three whole maps point by point, so a difference shows where it is. `EveryWorldsColouredMapIsTheOneUqmDraws` checks every world's coloured map against UQM's own drawing code with the package's colour tables (by hash). `EveryBinaryTableIsReadAsUqmReadsIt` checks all 149 of the package's binary tables against UQM's reader. The rest check Earth's own map, the shield's red, and UQM's additive blending sums.

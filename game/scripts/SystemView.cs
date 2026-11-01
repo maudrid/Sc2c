@@ -305,8 +305,8 @@ public partial class OrbitView : Control
         {
             WorldId w = menu.World;
             _world = w.Moon is int m ? _systems[w.Star].Moons(w.Planet)[m] : _systems[w.Star].Planets[w.Planet];
-            _surface = Surfaces.For(_systems[w.Star], w.Planet, w.Moon);
-            _surfaceMap = SurfaceTexture(_surface.Colors);
+            _surface = menu.Orbit.Report is { } report ? Surfaces.For(_systems[w.Star], w.Planet, w.Moon, report) : null;
+            _surfaceMap = _surface is null ? null : SurfaceTexture(_surface.Colors);
             _tintedMaps.Clear();
         }
         _menu = menu;

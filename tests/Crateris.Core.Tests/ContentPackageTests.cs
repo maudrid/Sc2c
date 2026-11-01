@@ -152,6 +152,37 @@ public class ContentPackageTests
     }
 
     [Fact]
+    public void AnAnimationFrameWhoseImageDoesntLoadIsDropped()
+    {
+        // One of the PNGs the image tests make, recorded from UQM's loader.
+        var png = Convert.FromHexString(Golden.Load("images").GetProperty("own")[0].GetProperty("png").GetString()!);
+        string path = MakePackage(zip =>
+        {
+            Add(zip, "uqm.rmp", "test.graphics = GFXRES:base/test.ani\n");
+            Add(zip, "base/test.ani", "broken.png -1 -1 0 0\nfirst.png -1 -1 1 2\nmissing.png -1 -1 0 0\nsecond.png 3 4 5 6\n");
+            Add(zip, "base/broken.png", "not a png");
+            using (var w = zip.CreateEntry("base/first.png").Open())
+                w.Write(png);
+            using (var w = zip.CreateEntry("base/second.png").Open())
+                w.Write(png);
+        });
+        try
+        {
+            using var package = ContentPackage.Open(path, expectedSha256: null);
+            Assert.Equal(4, Animation.Load(package, "test.graphics").Count);
+            var loaded = Animation.LoadImages(package, "test.graphics");
+            // As _GetCelData: the frames that don't load are left out, and the rest move up.
+            Assert.Equal(new[] { "base/first.png", "base/second.png" }, loaded.Select(f => f.Frame.Path));
+            Assert.Equal((1, 2), (loaded[0].Frame.HotSpotX, loaded[0].Frame.HotSpotY));
+            Assert.Equal(3, loaded[1].Frame.TransparentIndex);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void APackageIsReadInPlaceThroughItsIndex()
     {
         string path = MakePackage(zip =>

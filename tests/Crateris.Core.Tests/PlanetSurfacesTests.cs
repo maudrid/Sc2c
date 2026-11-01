@@ -66,13 +66,13 @@ public class PlanetSurfacesTests
             .ToList();
         Assert.True(golden.Count > 3700, $"only {golden.Count} maps");
         // Systems and orbits are worked out first, one at a time; the maps then on every core.
-        foreach (var w in golden)
-            Systems[w.Star].EnterOrbit(w.Planet, w.Moon < 0 ? null : w.Moon);
+        var reports = golden.Select(w => Systems[w.Star].EnterOrbit(w.Planet, w.Moon < 0 ? null : w.Moon).Report!).ToList();
         var surfaces = TestContent.With(p => new PlanetSurfaces(p));
         var wrong = new System.Collections.Concurrent.ConcurrentBag<string>();
-        Parallel.ForEach(golden, w =>
+        Parallel.For(0, golden.Count, i =>
         {
-            var s = surfaces.Generated(Systems[w.Star], w.Planet, w.Moon < 0 ? null : w.Moon);
+            var w = golden[i];
+            var s = surfaces.Generated(Systems[w.Star], w.Planet, w.Moon < 0 ? null : w.Moon, reports[i]);
             if (Hash(RgbBytes(s.Colors)) != w.Want)
                 wrong.Add($"star {w.Star} planet {w.Planet} moon {w.Moon}");
         });
@@ -84,12 +84,13 @@ public class PlanetSurfacesTests
     {
         var surfaces = TestContent.With(p => new PlanetSurfaces(p));
         var sol = Systems[Systems.Map.Stars.First(s => s.Special == "SOL_DEFINED").Number];
-        var earth = surfaces.Generated(sol, 2, null);
+        var report = sol.EnterOrbit(2, null).Report!;
+        var earth = surfaces.Generated(sol, 2, null, report);
         Assert.Equal(SurfaceMap.Width * SurfaceMap.Height, earth.Colors.Length);
         Assert.True(earth.Heights.Distinct().Count() > 20, "Earth's elevations are flat");
         // Mostly sea: more blue than red over the whole map.
         Assert.True(earth.Colors.Sum(c => c.B) > earth.Colors.Sum(c => c.R), "Earth isn't mostly blue");
-        Assert.Same(earth, surfaces.Generated(sol, 2, null));
+        Assert.Same(earth, surfaces.Generated(sol, 2, null, report));
     }
 
     [ContentFact]
@@ -98,12 +99,14 @@ public class PlanetSurfacesTests
         var surfaces = TestContent.With(p => new PlanetSurfaces(p));
         var sol = Systems[Systems.Map.Stars.First(s => s.Special == "SOL_DEFINED").Number];
         Assert.True(WorldTypes.IsShielded(sol.Planets[2].DataIndex), "Earth is shielded in a new game");
-        var plain = surfaces.Generated(sol, 2, null);
-        var shown = surfaces.For(sol, 2, null);
+        var earthOrbit = sol.EnterOrbit(2, null).Report!;
+        var plain = surfaces.Generated(sol, 2, null, earthOrbit);
+        var shown = surfaces.For(sol, 2, null, earthOrbit);
         Assert.All(shown.Colors, c => Assert.Equal(255, c.R));
         Assert.Equal(plain.Colors.Select(c => (c.G, c.B)), shown.Colors.Select(c => (c.G, c.B)));
         // An unshielded world is shown as made.
-        Assert.Equal(surfaces.Generated(sol, 3, null).Colors, surfaces.For(sol, 3, null).Colors);
+        var marsOrbit = sol.EnterOrbit(3, null).Report!;
+        Assert.Equal(surfaces.Generated(sol, 3, null, marsOrbit).Colors, surfaces.For(sol, 3, null, marsOrbit).Colors);
     }
 
     [Fact]

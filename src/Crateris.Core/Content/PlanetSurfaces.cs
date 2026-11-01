@@ -39,14 +39,16 @@ public sealed class PlanetSurfaces
     public PlanetSurfaces(ContentPackage package) => _package = package;
 
     /// <summary>
-    /// The surface of a world that can be orbited, as UQM makes it on
-    /// entering its orbit. A shielded world's coloured map has the shield's
+    /// The surface of a world, as UQM makes it on entering its orbit;
+    /// <paramref name="orbit"/> is the planet report from entering it
+    /// (<see cref="SolarSystem.EnterOrbit"/>), whose surface temperature
+    /// picks the colours. A shielded world's coloured map has the shield's
     /// red added (ApplyShieldTint), as UQM shows it.
     /// </summary>
-    public PlanetSurface For(SolarSystem system, int planet, int? moon)
+    public PlanetSurface For(SolarSystem system, int planet, int? moon, PlanetInfo orbit)
     {
         var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
-        var surface = Generated(system, planet, moon);
+        var surface = Generated(system, planet, moon, orbit);
         return WorldTypes.IsShielded(world.DataIndex)
             ? surface with { Colors = Array.ConvertAll(surface.Colors, c => AddClipped(c, ShieldTint)) }
             : surface;
@@ -76,17 +78,14 @@ public sealed class PlanetSurfaces
     public static Rgb[] Tinted(Rgb[] colors, Rgb tint) => Array.ConvertAll(colors, c => AddModulated(c, tint, ScanTintFactor));
 
     /// <summary>The surface as made and coloured, before any shield's tint (what RenderTopography draws).</summary>
-    public PlanetSurface Generated(SolarSystem system, int planet, int? moon)
+    public PlanetSurface Generated(SolarSystem system, int planet, int? moon, PlanetInfo orbit)
     {
         if (system.Star.Special == "SOL_DEFINED" && planet == 2 && moon is null)
             return LazyInitializer.EnsureInitialized(ref _earth, Earth);
         var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
-        var orbit = system.EnterOrbit(planet, moon);
-        if (orbit.Report is not PlanetInfo info)
-            throw new ArgumentException($"planet {planet} moon {moon} of star {system.Star.Number} can't be orbited");
         var type = system.Generator.Types[WorldTypes.PlanetType(world.DataIndex)];
         var heights = SurfaceMap.Generate(type, world.RandSeed);
-        return new PlanetSurface(heights, Color(heights, type, info.SurfaceTemperature,
+        return new PlanetSurface(heights, Color(heights, type, orbit.SurfaceTemperature,
             Table(type.ColorMapResource), Table(type.TranslateTableResource)));
     }
 
@@ -134,18 +133,19 @@ public sealed class PlanetSurfaces
     /// </summary>
     private PlanetSurface Earth()
     {
-        var frames = Animation.Load(_package, EarthSurfaceResource);
-        if (frames.Count < 2)
-            throw new ContentPackageException($"{EarthSurfaceResource} needs two frames");
-        var surface = Png.Decode(_package.ReadFile(frames[0].Path));
-        var elevation = Png.Decode(_package.ReadFile(frames[1].Path));
-        foreach (var image in new[] { surface, elevation })
+        // As GeneratePlanetSurface: frame 0 the surface, frame 1 (if any) the elevations.
+        var frames = Animation.LoadImages(_package, EarthSurfaceResource);
+        if (frames.Count == 0)
+            throw new ContentPackageException($"{EarthSurfaceResource} has no images");
+        var surface = frames[0].Image;
+        var elevation = frames.Count > 1 ? frames[1].Image : null;
+        foreach (var image in elevation is null ? new[] { surface } : new[] { surface, elevation })
         {
             // UQM rescales other sizes (RescaleFrame); 0.8.0's are the map's size.
             if (image.Width != SurfaceMap.Width || image.Height != SurfaceMap.Height)
                 throw new ContentPackageException($"{EarthSurfaceResource} isn't {SurfaceMap.Width} x {SurfaceMap.Height}");
         }
-        if (elevation.BytesPerPixel != 1)
+        if (elevation is { BytesPerPixel: not 1 })
             throw new ContentPackageException($"{EarthSurfaceResource}'s elevations aren't palette indexes");
         var colors = new Rgb[SurfaceMap.Width * SurfaceMap.Height];
         var heights = new sbyte[colors.Length];
@@ -155,7 +155,10 @@ public sealed class PlanetSurfaces
             {
                 var (r, g, b, _) = surface.GetRgba(x, y);
                 colors[y * SurfaceMap.Width + x] = new Rgb(r, g, b);
-                heights[y * SurfaceMap.Width + x] = unchecked((sbyte)(elevation.Pixels[y * SurfaceMap.Width + x] - 128));
+                // Without elevation data the planet is "flat as a pancake".
+                heights[y * SurfaceMap.Width + x] = elevation is null
+                    ? (sbyte)0
+                    : unchecked((sbyte)(elevation.Pixels[y * SurfaceMap.Width + x] - 128));
             }
         }
         return new PlanetSurface(heights, colors);
@@ -170,8 +173,8 @@ public sealed record AnimationFrame(string Path, int TransparentIndex, int Color
 /// its lines (sscanf "%s %d %d %d %d"): an image file name, the
 /// transparent colour index, the colour map index and the hot spot. File
 /// names are relative to the .ani file's folder. UQM drops a frame whose
-/// image doesn't load, so later frames move up; whoever loads the images
-/// does the same. Every line of 0.8.0's files has all five fields; a line
+/// image doesn't load, so later frames move up (<see cref="LoadImages"/>
+/// does the same). Every line of 0.8.0's files has all five fields; a line
 /// without them is refused rather than read with UQM's leftover values.
 /// </summary>
 public static class Animation
@@ -193,5 +196,28 @@ public static class Animation
             frames.Add(new AnimationFrame(folder + f[0], int.Parse(f[1]), int.Parse(f[2]), int.Parse(f[3]), int.Parse(f[4])));
         }
         return frames;
+    }
+
+    /// <summary>
+    /// The frames with their images, as _GetCelData loads them: a frame
+    /// whose image doesn't load is left out, so the frames after it move up.
+    /// </summary>
+    public static IReadOnlyList<(AnimationFrame Frame, Png Image)> LoadImages(ContentPackage package, string resourceId)
+    {
+        var loaded = new List<(AnimationFrame, Png)>();
+        foreach (var frame in Load(package, resourceId))
+        {
+            if (!package.HasFile(frame.Path))
+                continue;
+            try
+            {
+                loaded.Add((frame, Png.Decode(package.ReadFile(frame.Path))));
+            }
+            catch (ContentPackageException)
+            {
+                // "_GetCelData: Unable to load image!"; the frame is dropped.
+            }
+        }
+        return loaded;
     }
 }

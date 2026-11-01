@@ -859,14 +859,45 @@ def surface_lines(exe, tables_dir=None):
 FULL_HEIGHT_MAPS = [(82, 0, -1), (82, 3, -1), (82, 4, -1)]
 
 
-def record_surface_heights(uqm, exe):
+def planet_tables(strings_exe, package, tmp):
+    """The package's planet colour maps and translate tables (BINTAB), as
+    files named by resource id in a new folder under tmp."""
     import hashlib
-    worlds, full = [], []
-    for star, planet, moon, entered, defined, topo, _ in surface_lines(exe):
-        worlds.append([star, planet, moon, entered, defined,
-                       hashlib.sha256(bytes.fromhex(topo)).hexdigest() if topo else None])
-        if (star, planet, moon) in FULL_HEIGHT_MAPS:
-            full.append({"world": [star, planet, moon], "heights": topo})
+    import zipfile
+    with open(package, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
+            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    tables = os.path.join(tmp, "tables")
+    os.makedirs(tables)
+    with zipfile.ZipFile(package) as z:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        for key, (kind, path) in read_resource_index(strings_exe, index_file).items():
+            if kind == "BINTAB" and key.startswith("planet."):
+                with open(os.path.join(tables, key), "wb") as f:
+                    f.write(z.read(path))
+    return tables
+
+
+def record_planet_surfaces(uqm, systems_exe, strings_exe, package=None):
+    """Every world's surface as UQM's own GeneratePlanetSurface makes it:
+    the height maps (code only), and with the package the coloured maps
+    (content, so hashes only). One run of the surfaces mode gives both.
+    Returns {"surface-heights": ..., "surface-colors": ... (with the
+    package)}."""
+    import hashlib
+    heights, full, colors = [], [], []
+    with tempfile.TemporaryDirectory() as tmp:
+        tables = planet_tables(strings_exe, package, tmp) if package else None
+        for star, planet, moon, entered, defined, topo, colored in surface_lines(systems_exe, tables):
+            heights.append([star, planet, moon, entered, defined,
+                            hashlib.sha256(bytes.fromhex(topo)).hexdigest() if topo else None])
+            if (star, planet, moon) in FULL_HEIGHT_MAPS:
+                full.append({"world": [star, planet, moon], "heights": topo})
+            colors.append([star, planet, moon,
+                           hashlib.sha256(bytes.fromhex(colored)).hexdigest() if colored else None])
+    out = {}
     data = header(uqm, ["tools/extract/golden/systems.c",
                         "tools/extract/golden/stubs.c",
                         "src/uqm/planets/plangen.c",
@@ -879,45 +910,23 @@ def record_surface_heights(uqm, exe):
         "signed bytes, row by row, or null].",
         "full: the whole height map of a few worlds, in hex.",
     ])
-    data["worlds"] = worlds
+    data["worlds"] = heights
     data["full"] = full
-    return data
-
-
-def record_surface_colors(uqm, systems_exe, strings_exe, package):
-    """Every world's coloured surface map, as RenderTopography draws it with
-    the package's colour and translate tables. Content, so hashes only."""
-    import hashlib
-    import zipfile
-    with open(package, "rb") as f:
-        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
-            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
-    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
-        index_file = os.path.join(tmp, "uqm.rmp")
-        with open(index_file, "wb") as f:
-            f.write(z.read("uqm.rmp"))
-        tables = os.path.join(tmp, "tables")
-        os.makedirs(tables)
-        for key, (kind, path) in read_resource_index(strings_exe, index_file).items():
-            if kind == "BINTAB" and key.startswith("planet."):
-                with open(os.path.join(tables, key), "wb") as f:
-                    f.write(z.read(path))
-        worlds = []
-        for star, planet, moon, entered, defined, _, colors in surface_lines(systems_exe, tables):
-            worlds.append([star, planet, moon,
-                           hashlib.sha256(bytes.fromhex(colors)).hexdigest() if colors else None])
-    data = header(uqm, ["tools/extract/golden/systems.c",
-                        "src/uqm/planets/plangen.c"], [
-        "Every world's coloured surface map (the scan screen's map) as UQM "
-        "0.8.0's own RenderTopography draws it, with the colour maps and "
-        "translate tables (BINTAB) of the official content package "
-        f"(SHA-256 {CONTENT_SHA256}). Content, so each map is the SHA-256 of "
-        "its MAP_WIDTH x MAP_HEIGHT pixels as R, G, B bytes, row by row.",
-        "worlds: [star, planet, moon or -1, SHA-256 or null (not entered, "
-        "or Earth, whose map is its own image)].",
-    ])
-    data["worlds"] = worlds
-    return data
+    out["surface-heights"] = data
+    if package:
+        data = header(uqm, ["tools/extract/golden/systems.c",
+                            "src/uqm/planets/plangen.c"], [
+            "Every world's coloured surface map (the scan screen's map) as UQM "
+            "0.8.0's own RenderTopography draws it, with the colour maps and "
+            "translate tables (BINTAB) of the official content package "
+            f"(SHA-256 {CONTENT_SHA256}). Content, so each map is the SHA-256 of "
+            "its MAP_WIDTH x MAP_HEIGHT pixels as R, G, B bytes, row by row.",
+            "worlds: [star, planet, moon or -1, SHA-256 or null (not entered, "
+            "or Earth, whose map is its own image)].",
+        ])
+        data["worlds"] = colors
+        out["surface-colors"] = data
+    return out
 
 
 def record_binary_tables(uqm, exe, package):
@@ -1005,7 +1014,7 @@ def main():
                            ("ip-geometry", record_ip(uqm, systems)),
                            ("ip-flight", record_ip_flight(uqm, systems)),
                            ("system-layout", record_layout(uqm, systems)),
-                           ("surface-heights", record_surface_heights(uqm, systems)),
+                           *record_planet_surfaces(uqm, systems, strings, args.content).items(),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),
@@ -1013,7 +1022,6 @@ def main():
                               ("names", record_names(uqm, systems, strings, args.content)),
                               ("fonts", record_fonts(uqm, fonts, strings, args.content)),
                               ("images", record_images(uqm, images, args.content)),
-                              ("surface-colors", record_surface_colors(uqm, systems, strings, args.content)),
                               ("binary-tables", record_binary_tables(uqm, strings, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")

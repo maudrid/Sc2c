@@ -129,14 +129,20 @@ be32 (const unsigned char *p)
 	return ((unsigned) p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
 }
 
+static void
+bad_bintab (const char *path, const char *why)
+{
+	fprintf (stderr, "%s: %s\n", path, why);
+	exit (1);
+}
+
 static Bintab *
 read_bintab (const char *path)
 {
 	FILE *f = fopen (path, "rb");
 	long n;
 	unsigned char *d;
-	unsigned count, i;
-	const unsigned char *data;
+	unsigned long count, skip, i, pos;
 	Bintab *t;
 
 	if (!f)
@@ -144,23 +150,31 @@ read_bintab (const char *path)
 	fseek (f, 0, SEEK_END);
 	n = ftell (f);
 	fseek (f, 0, SEEK_SET);
-	d = malloc (n);
+	d = malloc (n > 0 ? n : 1);
 	if (fread (d, 1, n, f) != (size_t) n)
-		exit (1);
+		bad_bintab (path, "can't be read");
 	fclose (f);
+	if (n < 12)
+		bad_bintab (path, "is too short for a binary table");
 	if (be32 (d) != 0xffffffffu)
-		exit (1);
+		bad_bintab (path, "has no ~0 prefix (compressed, which UQM doesn't read)");
 	count = be32 (d + 4);
+	skip = be32 (d + 8);
+	if (count == 0 || 12 + 4 * count > (unsigned long) n)
+		bad_bintab (path, "has an entry count its size can't hold");
 	t = calloc (1, sizeof *t);
 	t->size = count;
 	t->entries = calloc (count, sizeof *t->entries);
-	data = d + 4 + 4 * (2 + count + be32 (d + 8));
+	pos = 4 + 4 * (2 + count + skip);
 	for (i = 0; i < count; ++i)
 	{
+		unsigned long length = be32 (d + 12 + 4 * i);
+		if (pos + length > (unsigned long) n)
+			bad_bintab (path, "has an entry that runs past its end");
 		t->entries[i].magic = BINTAB_MAGIC;
 		t->entries[i].parent = t;
-		t->entries[i].data = (unsigned char *) data;
-		data += be32 (d + 12 + 4 * i);
+		t->entries[i].data = d + pos;
+		pos += length;
 	}
 	return t;
 }
@@ -483,13 +497,11 @@ print_nodes (PLANET_DESC *world, COUNT scan)
 	printf ("]");
 }
 
-static void
-print_orbit (PLANET_DESC *world)
+/* Enters orbit around a world as generateOrbital does, from a new game's
+ * state; whether orbit was reached. */
+static int
+enter_orbit (PLANET_DESC *world)
 {
-	const PLANET_INFO *p = &pSolarSysState->SysInfo.PlanetInfo;
-	int entered;
-
-	/* Every world is entered from a new game's state. */
 	memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
 	GLOBAL (CurrentActivity) = IN_INTERPLANETARY;
 	memset (&pSolarSysState->SysInfo, 0, sizeof pSolarSysState->SysInfo);
@@ -498,9 +510,66 @@ print_orbit (PLANET_DESC *world)
 	pSolarSysState->InOrbit = TRUE;
 
 	(*pSolarSysState->genFuncs->generateOrbital) (pSolarSysState, world);
-	entered = pSolarSysState->TopoFrame != 0
+	return pSolarSysState->TopoFrame != 0
 			&& !(GLOBAL (CurrentActivity) & (CHECK_ABORT | CHECK_LOAD
 			| START_ENCOUNTER));
+}
+
+/* Every world of every star, as the orbits and surfaces modes visit them:
+ * each star's system loaded from a new game, then each planet from its own
+ * inner system (as enterInnerSystem leaves it), followed by its moons. */
+typedef struct
+{
+	void (*star_begin) (COUNT star);
+	void (*world) (COUNT star, COUNT planet, int moon, PLANET_DESC *desc);
+	void (*star_end) (COUNT star);
+} WorldWalk;
+
+static void
+walk_worlds (const WorldWalk *walk)
+{
+	COUNT s;
+
+	for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
+	{
+		COUNT i;
+
+		memset (&SolarSysState, 0, sizeof SolarSysState);
+		pSolarSysState = &SolarSysState;
+		CurStarDescPtr = &star_array[s];
+		SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
+		GLOBAL (ip_planet) = 0;
+		GLOBAL (in_orbit) = 0;
+		GLOBAL (ShipFacing) = 1;
+		memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+		LoadSolarSys ();
+
+		if (walk->star_begin)
+			walk->star_begin (s);
+		for (i = 0; i < SolarSysState.SunDesc[0].NumPlanets; ++i)
+		{
+			PLANET_DESC *planet = &SolarSysState.PlanetDesc[i];
+			COUNT m;
+
+			memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+			GenerateMoons (&SolarSysState, planet);
+			SolarSysState.pBaseDesc = SolarSysState.MoonDesc;
+			walk->world (s, i, -1, planet);
+			for (m = 0; m < planet->NumPlanets; ++m)
+				walk->world (s, i, m, &SolarSysState.MoonDesc[m]);
+			SolarSysState.pBaseDesc = SolarSysState.PlanetDesc;
+			SolarSysState.pOrbitalDesc = NULL;
+		}
+		if (walk->star_end)
+			walk->star_end (s);
+	}
+}
+
+static void
+print_orbit (PLANET_DESC *world)
+{
+	const PLANET_INFO *p = &pSolarSysState->SysInfo.PlanetInfo;
+	int entered = enter_orbit (world);
 
 	printf ("[%d, %d", world->data_index, entered);
 	if (entered)
@@ -533,51 +602,47 @@ print_orbit (PLANET_DESC *world)
 	pSolarSysState->InOrbit = FALSE;
 }
 
+/* "orbits": per star, per planet, [planet's orbit, then each moon's]. */
+static int orbits_planet_open;
+
+static void
+orbits_star_begin (COUNT s)
+{
+	printf ("%s\n[", s ? "," : "");
+	orbits_planet_open = 0;
+}
+
+static void
+orbits_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
+{
+	(void) s;
+	(void) p;
+	if (m < 0)
+	{
+		printf (orbits_planet_open ? "], [" : "[");
+		orbits_planet_open = 1;
+	}
+	else
+		printf (", ");
+	print_orbit (world);
+}
+
+static void
+orbits_star_end (COUNT s)
+{
+	(void) s;
+	printf (orbits_planet_open ? "]]" : "]");
+}
+
 static int
 orbits_main (void)
 {
-	COUNT s;
+	static const WorldWalk walk = { orbits_star_begin, orbits_world,
+			orbits_star_end };
 
 	printf ("{\"map_width\": %d, \"map_height\": %d, \"systems\": [",
 			MAP_WIDTH, MAP_HEIGHT);
-	for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
-	{
-		COUNT i;
-		int first = 1;
-
-		memset (&SolarSysState, 0, sizeof SolarSysState);
-		pSolarSysState = &SolarSysState;
-		CurStarDescPtr = &star_array[s];
-		SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
-		GLOBAL (ip_planet) = 0;
-		GLOBAL (in_orbit) = 0;
-		GLOBAL (ShipFacing) = 1;
-		memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
-		LoadSolarSys ();
-
-		printf ("%s\n[", s ? "," : "");
-		for (i = 0; i < SolarSysState.SunDesc[0].NumPlanets; ++i)
-		{
-			PLANET_DESC *planet = &SolarSysState.PlanetDesc[i];
-			COUNT m;
-
-			/* Orbit is entered from the planet's inner system. */
-			memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
-			GenerateMoons (&SolarSysState, planet);
-			SolarSysState.pBaseDesc = SolarSysState.MoonDesc;
-			printf ("%s[", sep (&first));
-			print_orbit (planet);
-			for (m = 0; m < planet->NumPlanets; ++m)
-			{
-				printf (", ");
-				print_orbit (&SolarSysState.MoonDesc[m]);
-			}
-			printf ("]");
-			SolarSysState.pBaseDesc = SolarSysState.PlanetDesc;
-			SolarSysState.pOrbitalDesc = NULL;
-		}
-		printf ("]");
-	}
+	walk_worlds (&walk);
 	printf ("]}\n");
 	return 0;
 }
@@ -593,18 +658,8 @@ surface_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
 {
 	int entered, i;
 
-	memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
-	GLOBAL (CurrentActivity) = IN_INTERPLANETARY;
-	memset (&pSolarSysState->SysInfo, 0, sizeof pSolarSysState->SysInfo);
-	pSolarSysState->TopoFrame = 0;
-	pSolarSysState->pOrbitalDesc = world;
-	pSolarSysState->InOrbit = TRUE;
 	have_topo = surface_defined = surface_colored = 0;
-
-	(*pSolarSysState->genFuncs->generateOrbital) (pSolarSysState, world);
-	entered = pSolarSysState->TopoFrame != 0
-			&& !(GLOBAL (CurrentActivity) & (CHECK_ABORT | CHECK_LOAD
-			| START_ENCOUNTER));
+	entered = enter_orbit (world);
 
 	printf ("[%u, %u, %d, %d, %d, \"", s, p, m, entered, surface_defined);
 	if (entered && have_topo)
@@ -626,39 +681,11 @@ surface_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
 static int
 surfaces_main (const char *dir)
 {
-	COUNT s;
+	static const WorldWalk walk = { NULL, surface_world, NULL };
 
 	surfaces_mode = 1;
 	tables_dir = dir;
-	for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
-	{
-		COUNT i;
-
-		memset (&SolarSysState, 0, sizeof SolarSysState);
-		pSolarSysState = &SolarSysState;
-		CurStarDescPtr = &star_array[s];
-		SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
-		GLOBAL (ip_planet) = 0;
-		GLOBAL (in_orbit) = 0;
-		GLOBAL (ShipFacing) = 1;
-		memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
-		LoadSolarSys ();
-
-		for (i = 0; i < SolarSysState.SunDesc[0].NumPlanets; ++i)
-		{
-			PLANET_DESC *planet = &SolarSysState.PlanetDesc[i];
-			COUNT m;
-
-			memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
-			GenerateMoons (&SolarSysState, planet);
-			SolarSysState.pBaseDesc = SolarSysState.MoonDesc;
-			surface_world (s, i, -1, planet);
-			for (m = 0; m < planet->NumPlanets; ++m)
-				surface_world (s, i, m, &SolarSysState.MoonDesc[m]);
-			SolarSysState.pBaseDesc = SolarSysState.PlanetDesc;
-			SolarSysState.pOrbitalDesc = NULL;
-		}
-	}
+	walk_worlds (&walk);
 	return 0;
 }
 
