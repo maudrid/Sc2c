@@ -144,6 +144,11 @@ All six recommendations were accepted on 2026-11-01.
 5. **Systems stay empty of alien ships** until conversations exist in stage 3. That includes Fwiffo at Pluto.
 6. **Joining while the host is in orbit:** the guest undocks in the inner system next to the host's world.
 
+Decided before item 10, on 2026-11-01:
+
+7. **Worlds that start a conversation** (Earth's and the Syreen starbase, the Umgah homeworld, the Slylandro gas giant, the Sa-Matra): until stage 3, nothing happens. The ship stays flying beside the world, with no message (`docs/differences.md` row 27).
+8. **Other players in a system view** are drawn like your own ship, with their names, in the outer view or the inner system they're in; players in orbit show as a marker at their world. Movement is drawn smoothly: the 30-a-second system frames, which arrive one or two per world frame, are spread out evenly on screen.
+
 ## Risks
 
 - **Exact generation:** the RNG call order in generation is easy to get subtly wrong. That's why item 2 checks every system on the map, not a sample.
