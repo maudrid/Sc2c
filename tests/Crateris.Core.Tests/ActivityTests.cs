@@ -115,6 +115,21 @@ public class ActivityTests
     }
 
     [Fact]
+    public void ThrustInASystemIsShownOnlyWhileThrusting()
+    {
+        var world = NewWorld();
+        world.PutInOrbit("host", SolNumber, 2, 1);
+        Assert.False(world.Snapshot().Ships[0].Thrusting);       // in orbit
+        Run(world, "host", ShipInput.Action, 1);
+        Run(world, "host", ShipInput.Thrust, 5);
+        Assert.True(world.Snapshot().Ships[0].Thrusting);
+        Run(world, "host", ShipInput.None, 1);
+        var ship = world.Snapshot().Ships[0];
+        Assert.False(ship.Thrusting);                             // coasting
+        Assert.True(ship.IpVelocityX != 0 || ship.IpVelocityY != 0);
+    }
+
+    [Fact]
     public void LeavingTheSystemComesOutOnTheStarInHyperspace()
     {
         var world = NewWorld();

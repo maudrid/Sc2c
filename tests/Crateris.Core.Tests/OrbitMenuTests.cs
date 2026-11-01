@@ -143,6 +143,10 @@ public class OrbitMenuTests
         Assert.Equal(OrbitMenuItem.MineralScan, menu.Selected);
         Assert.Equal(MenuOutcome.ScanStarted, menu.Press(MenuKey.Select, NothingTaken));
         Assert.Equal(ScanType.Mineral, menu.Scan.Current);
+        Assert.Equal(-1, menu.Scan.Line);   // line 0 comes after the first wait
+        menu.Advance(Lines(1) - 0.5 / OrbitScan.TicksPerSecond);
+        Assert.Equal(-1, menu.Scan.Line);
+        menu.Advance(0.5 / OrbitScan.TicksPerSecond);
         Assert.Equal(0, menu.Scan.Line);
 
         // A node appears when the line reaches it, flashes white to
@@ -166,9 +170,9 @@ public class OrbitMenuTests
 
         // The whole scan takes SCAN_LINES line waits, 1.7 seconds.
         Assert.True(menu.Scan.Sweeping);
-        menu.Advance(Lines(OrbitScan.Lines) - Lines(y + OrbitScan.FlashLines + 1) - 0.5 / OrbitScan.TicksPerSecond);
+        menu.Advance(Lines(OrbitScan.Lines) - Lines(y + OrbitScan.FlashLines + 2) - 0.5 / OrbitScan.TicksPerSecond);
         Assert.True(menu.Scan.Sweeping);
-        menu.Advance(1.0 / OrbitScan.TicksPerSecond);   // one clock tick more
+        menu.Advance(1.5 / OrbitScan.TicksPerSecond);   // a clock tick more
         Assert.False(menu.Scan.Sweeping);
         Assert.Equal(ScanType.Mineral, menu.Scan.Tint);   // the map stays tinted with this scan
         Assert.Equal(minerals.Count, menu.Scan.Dots(NothingTaken).Count());
@@ -182,7 +186,7 @@ public class OrbitMenuTests
         var nodes = Systems[Sol].EnterOrbit(2, 1).Nodes!;
         menu.Press(MenuKey.Select, NothingTaken);
         Assert.Equal(MenuOutcome.ScanStarted, menu.Press(MenuKey.Select, NothingTaken));
-        Assert.Equal(OrbitMenuItem.DispatchLander, menu.Selected);
+        Assert.Equal(OrbitMenuItem.AutoScan, menu.Selected);   // it moves when the scan is done
         foreach (var scan in new[] { ScanType.Mineral, ScanType.Energy, ScanType.Biological })
         {
             Assert.Equal(scan, menu.Scan.Current);
@@ -190,6 +194,7 @@ public class OrbitMenuTests
             menu.Advance(Lines(OrbitScan.Lines));
         }
         Assert.False(menu.Scan.Sweeping);
+        Assert.Equal(OrbitMenuItem.DispatchLander, menu.Selected);
         Assert.Null(menu.Scan.Tint);   // the plain map, with everything found
         var dots = menu.Scan.Dots(NothingTaken).ToList();
         Assert.Equal(nodes.Minerals.Count + nodes.Energy.Count + nodes.Life.Count, dots.Count);
@@ -205,11 +210,12 @@ public class OrbitMenuTests
         menu.Advance(Lines(10));
         Assert.Equal(MenuOutcome.ScanSkipped, menu.Press(MenuKey.Down, NothingTaken));
         Assert.Equal(ScanType.Energy, menu.Scan.Current);
-        Assert.Equal(0, menu.Scan.Line);
-        Assert.Equal(OrbitMenuItem.DispatchLander, menu.Selected);   // the key only finished the scan
+        Assert.Equal(-1, menu.Scan.Line);
+        Assert.Equal(OrbitMenuItem.AutoScan, menu.Selected);   // the key only finished the scan
         menu.Press(MenuKey.Select, NothingTaken);
-        menu.Press(MenuKey.Select, NothingTaken);
+        Assert.Equal(MenuOutcome.ScanSkipped, menu.Press(MenuKey.Select, NothingTaken));
         Assert.False(menu.Scan.Sweeping);
+        Assert.Equal(OrbitMenuItem.DispatchLander, menu.Selected);   // done, also when skipped
         Assert.True(menu.Scan.Found(ScanType.Biological));
     }
 

@@ -31,7 +31,8 @@ public enum JoinResult
 /// while in a system: the star, the inner system's planet, the ship's place
 /// in the system (IpX/IpY), on the screen (Screen*), its facing and velocity
 /// there (IpFacing, IpVelocityX/Y, in UQM's interplanetary units), the outer
-/// view's zoom, and the world orbited.
+/// view's zoom, and the world orbited. Thrusting is the hyperspace flame,
+/// or in a system whether the ship thrust last frame.
 /// Clients generate systems themselves from the star number.
 /// </summary>
 public sealed record ShipSnapshot(
@@ -294,7 +295,8 @@ public sealed class GameWorld
             var (vx, vy) = f.Velocity.Current();
             var (ivx, ivy) = ip?.Velocity.Current() ?? ((short)0, (short)0);
             return new ShipSnapshot(p.Id, p.Name, p.IsHost, p.Ship.Kind, f.LogX, f.LogY, f.UniverseX, f.UniverseY,
-                f.Facing, vx, vy, f.Fuel, f.FuelCapacity, (f.Status & HyperFlight.StatusThrust) != 0,
+                f.Facing, vx, vy, f.Fuel, f.FuelCapacity,
+                ip is null ? (f.Status & HyperFlight.StatusThrust) != 0 : ip.Orbit is null && ip.Thrusting,
                 p.UndockPending, p.Ship.Activity, p.Ship.SystemStar, ip?.InnerPlanet,
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
                 ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy);

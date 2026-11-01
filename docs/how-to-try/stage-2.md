@@ -18,11 +18,11 @@ dotnet test --filter SurfaceTests      # orbit, report and nodes against UQM: 6 
 dotnet test --filter SystemTransitionTests   # entering and leaving systems: 9 tests
 dotnet test --filter IpFlightTests    # flight inside systems: 10 tests
 dotnet test --filter PlanetWorldStateTests   # taken nodes: 15 tests
-dotnet test --filter ActivityTests    # hyperspace, systems and orbit in the game: 14 tests
+dotnet test --filter ActivityTests    # hyperspace, systems and orbit in the game: 15 tests
 dotnet test --filter SystemLayoutTests # the system views' layout against UQM: 3 tests
 dotnet test --filter OrbitMenuTests    # orbit and scan menus, the scan: 10 tests
-dotnet test --filter SmoothedMotionTests     # ships in systems drawn moving evenly: 2 tests
-dotnet test                            # everything: 105 tests
+dotnet test --filter SmoothedMotionTests     # ships in systems drawn moving evenly: 4 tests
+dotnet test                            # everything: 108 tests
 python3 tools/test_network.py          # real host and guests: a guest joins while the host is in orbit, the host scans and leaves
 ```
 
@@ -38,7 +38,7 @@ python3 tools/test_network.py          # real host and guests: a guest joins whi
 
 `EverySystemIsLaidOutAsUqmDrawsIt` lays out all 502 systems at every zoom, and every planet's inner view with its moons, and compares each orbit ellipse, world position and world size with what UQM's own drawing code computes.
 
-`OrbitMenuTests` works the orbit menu as UQM's PC menus do (the cursor wraps round; Scan opens the scan menu on Auto scan; Navigate leaves orbit; Starmap, the manifest, the game menu and the lander say they come later), checks Earth's shield refuses scans and Jupiter refuses the lander, and checks the scan: drawn line by line in 1.7 seconds a scan type, each node flashing as the line passes it, the auto scan doing all three then moving to Dispatch lander, a key finishing the scan being drawn, and a scan showing only what's left, with nodes a friend takes disappearing.
+`OrbitMenuTests` works the orbit menu as UQM's PC menus do (the cursor wraps round; Scan opens the scan menu on Auto scan; Navigate leaves orbit; Starmap, the manifest, the game menu and the lander say they come later), checks Earth's shield refuses scans and Jupiter refuses the lander, and checks the scan: drawn line by line in 1.7 seconds a scan type (the first line after one wait, as in UQM), each node flashing as the line passes it, the auto scan doing all three and then moving to Dispatch lander, a key finishing the scan being drawn, and a scan showing only what's left, with nodes a friend takes disappearing.
 
 ## Try it in the game
 

@@ -343,6 +343,9 @@ public partial class Main : Node2D
         // doesn't use up its first steps (the network test depends on it).
         bool inGame = _isHost ? _world != null
             : _welcome != null && Protocol.Accepted(_welcome.Result) && _snapshot != null;
+        // The orbit menu must exist before input is read, so a key on the
+        // first frame in orbit (a script's, say) reaches it.
+        UpdateOrbitMenu();
         var input = inGame ? ReadInput() : ShipInput.None;
 
         if (_isHost && _world != null)
@@ -375,9 +378,9 @@ public partial class Main : Node2D
             if (_wasSweeping && !_orbitMenu.Scan.Sweeping)
                 LogScan();
             _wasSweeping = _orbitMenu.Scan.Sweeping;
-            _orbitView.Show(_orbitMenu, Taken, _snapshot, _playerId, _orbitMessage);
         }
-        _systemView.Interpolate((float)Engine.GetPhysicsInterpolationFraction());
+        _orbitView.Show(_orbitMenu, Taken, _snapshot, _playerId, _orbitMessage);
+        _systemView.Advance(delta);
         if (!_isHost)
             return;
         _saveTimer += delta;
@@ -505,6 +508,9 @@ public partial class Main : Node2D
             Log("Leaving orbit");
             _leaveFrames = 4;
         }
+        // A key can finish the last scan type: log it as when it runs out.
+        if (_wasSweeping && !_orbitMenu.Scan.Sweeping)
+            LogScan();
         _wasSweeping = _orbitMenu.Scan.Sweeping;
     }
 
@@ -515,12 +521,11 @@ public partial class Main : Node2D
             + $"{dots.Count(d => d.Scan == ScanType.Energy)} energy, {dots.Count(d => d.Scan == ScanType.Biological)} life shown");
     }
 
-    /// <summary>Picks the view for the local player's activity, and keeps the orbit menu for the visit.</summary>
-    private void ShowViews()
+    /// <summary>Keeps the orbit menu for the current visit to a world (none when not in orbit).</summary>
+    private void UpdateOrbitMenu()
     {
         var me = Me();
-        var activity = me?.Activity ?? Activity.Hyperspace;
-        if (activity == Activity.Orbit && me!.SystemStar is int star && me.OrbitPlanet is int planet)
+        if (me?.Activity == Activity.Orbit && me.SystemStar is int star && me.OrbitPlanet is int planet)
         {
             var world = new WorldId(star, planet, me.OrbitMoon);
             if (_orbitMenu?.World != world)
@@ -533,14 +538,18 @@ public partial class Main : Node2D
         }
         else
             _orbitMenu = null;
+    }
 
+    /// <summary>Picks the view for the local player's activity.</summary>
+    private void ShowViews()
+    {
+        UpdateOrbitMenu();
+        var activity = Me()?.Activity ?? Activity.Hyperspace;
         _view.Show(_snapshot, _playerId);
         _systemView.Visible = activity is Activity.OuterSystem or Activity.InnerSystem;
         _orbitView.Visible = activity == Activity.Orbit;
         if (_snapshot != null && _systemView.Visible)
             _systemView.Show(_snapshot, _playerId);
-        if (_orbitMenu != null)
-            _orbitView.Show(_orbitMenu, Taken, _snapshot, _playerId, _orbitMessage);
     }
 
     private void UpdateHud()

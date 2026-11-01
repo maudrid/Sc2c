@@ -116,7 +116,7 @@ public partial class SystemView : Control
     private WorldSnapshot? _snapshot;
     private long _lastFrame = -1;
     private string _me = "";
-    private float _sinceNewest;
+    private readonly PlaybackClock _clock = new();
 
     public SystemView(SystemCatalog systems)
     {
@@ -137,6 +137,7 @@ public partial class SystemView : Control
         if (snapshot.Frame == _lastFrame)
             return;
         _lastFrame = snapshot.Frame;
+        _clock.Observe(snapshot.Frame);
         foreach (var s in snapshot.Ships.Where(s => s.Activity is Activity.OuterSystem or Activity.InnerSystem))
         {
             if (!_motion.TryGetValue(s.Id, out var m))
@@ -147,11 +148,15 @@ public partial class SystemView : Control
             _motion.Remove(gone);
     }
 
-    /// <summary>How far drawing is into the newest world frame (0 to 1).</summary>
-    public void Interpolate(float sinceNewest)
+    /// <summary>
+    /// Local time passes: ships are drawn at a steady time on the local
+    /// clock, so unevenly arriving snapshots still draw evenly.
+    /// </summary>
+    public void Advance(double seconds)
     {
-        _sinceNewest = sinceNewest;
-        QueueRedraw();
+        _clock.Advance(seconds);
+        if (Visible)
+            QueueRedraw();
     }
 
     public override void _Draw()
@@ -227,9 +232,9 @@ public partial class SystemView : Control
         // Ships in this same view.
         foreach (var s in _snapshot.Ships.Where(s => s.Activity == me.Activity && s.SystemStar == star && s.InnerPlanet == me.InnerPlanet))
         {
-            var (x, y) = _motion.TryGetValue(s.Id, out var m) ? m.At(_sinceNewest) : (s.ScreenX, s.ScreenY);
+            var (x, y) = _motion.TryGetValue(s.Id, out var m) ? m.AtTime(_clock.Time) : (s.ScreenX, s.ScreenY);
             Placeholder.Ship(this, new Vector2((float)x, (float)y) * Placeholder.Scale, s.IpFacing,
-                Placeholder.ShipColor(s, _me), s.Name, s.IpVelocityX != 0 || s.IpVelocityY != 0);
+                Placeholder.ShipColor(s, _me), s.Name, s.Thrusting);
         }
     }
 
@@ -251,6 +256,7 @@ public partial class OrbitView : Control
 {
     private readonly SystemCatalog _systems;
     private OrbitMenu? _menu;
+    private WorldDesc _world;   // the orbited world, worked out once per visit
     private Func<ScanType, uint> _taken = _ => 0;
     private WorldSnapshot? _snapshot;
     private string _me = "";
@@ -269,6 +275,11 @@ public partial class OrbitView : Control
 
     public void Show(OrbitMenu? menu, Func<ScanType, uint> taken, WorldSnapshot? snapshot, string me, string message)
     {
+        if (menu != null && menu != _menu)
+        {
+            WorldId w = menu.World;
+            _world = w.Moon is int m ? _systems[w.Star].Moons(w.Planet)[m] : _systems[w.Star].Planets[w.Planet];
+        }
         _menu = menu;
         _taken = taken;
         _snapshot = snapshot;
@@ -294,8 +305,8 @@ public partial class OrbitView : Control
             return;
         WorldId w = _menu.World;
         SolarSystem system = _systems[w.Star];
-        WorldDesc desc = w.Moon is int mi ? system.Moons(w.Planet)[mi] : system.Planets[w.Planet];
-        OrbitData orbit = system.EnterOrbit(w.Planet, w.Moon);
+        WorldDesc desc = _world;
+        OrbitData orbit = _menu.Orbit;
 
         // The world, above the scan map.
         float mapTop = (IpGeometry.ScreenHeight - Surface.MapHeight) * Placeholder.Scale;
@@ -359,8 +370,9 @@ public partial class OrbitView : Control
             // The map is redrawn tinted down to the scan line.
             Color c = Placeholder.ToColor(OrbitScan.TintColors[(int)tint]);
             float lineY = Math.Min(scan.Line, Surface.MapHeight - 1) * Placeholder.Scale;
-            DrawRect(new Rect2(map.Position, new Vector2(map.Size.X, lineY + Placeholder.Scale)), new Color(c, 0.25f));
-            if (scan.Sweeping && scan.Line < Surface.MapHeight)
+            if (scan.Line >= 0)
+                DrawRect(new Rect2(map.Position, new Vector2(map.Size.X, lineY + Placeholder.Scale)), new Color(c, 0.25f));
+            if (scan.Sweeping && scan.Line >= 0 && scan.Line < Surface.MapHeight)
                 DrawLine(new Vector2(0, mapTop + lineY), new Vector2(Size.X, mapTop + lineY), c, 2);
             DrawString(font, new Vector2(Size.X / 2 - 70, mapTop - 6), tint switch
             {

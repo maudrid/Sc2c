@@ -74,8 +74,17 @@ public sealed class SolarSystem
     public OrbitData EnterOrbit(int planet, int? moon = null) => Surface.EnterOrbit(this, planet, moon);
 
     /// <summary>A planet's orbit colour, 0..4 (cold to hot), as LoadSolarSys gives it.</summary>
-    public int OrbitColor(int planet) =>
-        PlanetAnalysis.TemperatureColorIndex(Analyse(Planets[planet], Planets[planet].Radius, false).SurfaceTemperature);
+    public int OrbitColor(int planet)
+    {
+        // Worked out once per planet; it never changes.
+        _orbitColors ??= Enumerable.Repeat(-1, Planets.Count).ToArray();
+        if (_orbitColors[planet] < 0)
+            _orbitColors[planet] = PlanetAnalysis.TemperatureColorIndex(
+                Analyse(Planets[planet], Planets[planet].Radius, false).SurfaceTemperature);
+        return _orbitColors[planet];
+    }
+
+    private int[]? _orbitColors;
 
     /// <summary>The temperature without the greenhouse bonus, used for orbit colours.</summary>
     public short OrbitTemperature(WorldDesc world, short sunDistance) =>

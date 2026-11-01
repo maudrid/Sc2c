@@ -89,6 +89,9 @@ public sealed class OrbitMenu
     /// <summary>The world orbited.</summary>
     public WorldId World { get; }
 
+    /// <summary>What entering orbit gave: the planet report and the nodes.</summary>
+    public OrbitData Orbit => _orbit;
+
     public MenuPage Page { get; private set; } = MenuPage.Orbit;
 
     /// <summary>The entries of the open menu, in order.</summary>
@@ -130,6 +133,7 @@ public sealed class OrbitMenu
         {
             // WaitForAnyButtonUntil: any key finishes the scan being drawn.
             Scan.Skip();
+            AfterScan();
             return MenuOutcome.ScanSkipped;
         }
         switch (key)
@@ -151,7 +155,21 @@ public sealed class OrbitMenu
     }
 
     /// <summary>Time passes (draws the scan line by line).</summary>
-    public void Advance(double seconds) => Scan.Advance(seconds);
+    public void Advance(double seconds)
+    {
+        Scan.Advance(seconds);
+        AfterScan();
+    }
+
+    // DoScan: once an auto scan is done, the cursor moves to Dispatch lander.
+    private void AfterScan()
+    {
+        if (!Scan.AutoFinished)
+            return;
+        Scan.AutoFinished = false;
+        if (Page == MenuPage.Scan)
+            _cursor = IndexOf(ScanPage, OrbitMenuItem.DispatchLander);
+    }
 
     private MenuOutcome Cancel()
     {
@@ -201,8 +219,6 @@ public sealed class OrbitMenu
                 if (Shielded)
                     return MenuOutcome.Refused;
                 Scan.Start(item == OrbitMenuItem.AutoScan ? null : (ScanType)(item - OrbitMenuItem.MineralScan), taken);
-                if (item == OrbitMenuItem.AutoScan)
-                    _cursor = Array.IndexOf(ScanPage, OrbitMenuItem.DispatchLander);
                 return MenuOutcome.ScanStarted;
             default:
                 return MenuOutcome.NotYet;
@@ -300,8 +316,14 @@ public sealed class OrbitScan
     /// <summary>The scan type being drawn line by line.</summary>
     public ScanType? Current { get; private set; }
 
-    /// <summary>The line being drawn (0 to <see cref="Lines"/> - 1); the last drawn once a scan is done.</summary>
+    /// <summary>
+    /// The last line drawn (0 to <see cref="Lines"/> - 1), -1 before the
+    /// first wait of a scan; the last line once a scan is done.
+    /// </summary>
     public int Line { get; private set; } = Lines - 1;
+
+    /// <summary>Whether the auto scan has just finished all three types (the menu then moves to Dispatch lander).</summary>
+    internal bool AutoFinished { get; set; }
 
     /// <summary>Whether a scan type has been done this visit.</summary>
     public bool Found(ScanType scan) => _found[(int)scan] is not null;
@@ -348,14 +370,18 @@ public sealed class OrbitScan
             Current = null;
             Line = Lines - 1;
             if (_auto)
+            {
                 Tint = null;   // the auto scan ends on the plain map with everything found
+                AutoFinished = true;
+                _auto = false;
+            }
             return;
         }
         ScanType scan = _queue.Dequeue();
         _found[(int)scan] = PlanetWorldState.Remaining(_takenAt!(scan), NodesOf(scan));
         Current = scan;
         Tint = scan;
-        Line = 0;
+        Line = -1;   // ScanPlanet draws line i after (i + 1) waits
         _ticks = 0;
         _carry = 0;
     }
@@ -376,17 +402,17 @@ public sealed class OrbitScan
         int whole = (int)_carry;
         _carry -= whole;
         _ticks += whole;
-        // Line i is drawn once (i + 1) line waits have passed.
-        while (Current is not null && _ticks >= (Line + 1) * TicksPerLine)
+        // Line i is drawn once (i + 1) line waits have passed; the scan
+        // type ends as its last line is drawn.
+        while (Current is not null && _ticks >= (Line + 2) * TicksPerLine)
         {
+            Line++;
             if (Line == Lines - 1)
             {
                 int over = _ticks - Lines * TicksPerLine;
                 Next();
                 _ticks = Current is null ? 0 : over;
             }
-            else
-                Line++;
         }
     }
 

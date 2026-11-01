@@ -262,12 +262,16 @@ public sealed class IpFlight
         return SystemLayout.OrbitRect(nextRadius, nextRadius, nextRadius, IpGeometry.DisplayFactor, IpGeometry.DisplayFactor >> 2, radius);
     }
 
+    /// <summary>Whether the last frame's input thrust (for drawing the flame).</summary>
+    public bool Thrusting { get; private set; }
+
     /// <summary>One frame with this frame's input.</summary>
     public IpEvent Step(ShipInput input)
     {
         if (Orbit is not null)
             throw new InvalidOperationException("in orbit: call ReturnFromOrbit first");
 
+        Thrusting = (input & ShipInput.Thrust) != 0;
         ProcessShipControls(input);
 
         IpEvent ev = CheckShipLocation(out bool locChange, out short newRadius);
