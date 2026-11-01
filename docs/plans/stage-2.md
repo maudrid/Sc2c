@@ -1,6 +1,6 @@
 # Stage 2 plan: solar systems and planets
 
-**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted (see "Decisions"). In progress: items 1 to 8 are built (see "Progress").
+**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted (see "Decisions"). In progress: items 1 to 9 are built (see "Progress").
 
 Build order item: "Solar systems and planets from seeds" (`docs/design.md`).
 
@@ -111,7 +111,8 @@ Rough size: items 2, 4 and 6 are the large ones. Everything else is small to med
 | 6. Flight inside a system | Built | `IpFlight.cs`: controls and thrust, zoom levels, entering and leaving inner systems, touching a world to enter orbit, coming back from orbit, leaving the system. Eight flights (3 in Sol, 5 elsewhere, 14,000 frames) match UQM frame by frame (`IpFlightTests`, `tests/golden/ip-flight.json`). Contact uses provisional circles (`docs/differences.md` row 25) |
 | 7. Orbit and the planet report | Built | `PlanetReport.cs`: the orbit screen's numbers (orbit, atmosphere, temperature, weather, tectonics, mass, radius, gravity, day, tilt) in UQM's units, on `OrbitData.Scan`. Checked against the text UQM's own `PrintCoarseScanPC` prints for all 3,800 worlds that can be orbited (`tests/golden/world-surfaces.json`). Entering orbit came with items 4 and 6, leaving it with item 6 (`IpFlight.ReturnFromOrbit`) |
 | 8. Planet world state | Built | `World/PlanetWorldState.cs` on `GameWorld.Planets`: taken nodes per world as UQM's three 32-bit retrieve masks (`isNodeRetrieved`, `setNodeRetrieved`, `countNodesRetrieved`), and the nodes still on a world. Scans aren't remembered, as in UQM: a scan shows what's left at that moment, so while a friend collects on the surface, each new scan shows fewer nodes (a first version remembered scans; withdrawn, `docs/differences.md` row 26). One for the whole game, so every player sees the same. Saved in the host save (version 3; older saves load with nothing touched); bad worlds in a save are refused (`PlanetWorldStateTests`) |
-| 9 to 11 | Not started | |
+| 9. Server activities | Built | `GameWorld`: each player is in hyperspace, a system's outer view, an inner system or orbit (`PlayerShip.Activity`). Flying into a star enters its system; leaving it comes out on the star; touching a world enters orbit and the action key (Enter) leaves it. The world steps at 24 frames a second; players in systems take 30 system frames a second, one or two per world frame. Snapshots carry each ship's activity and system position, and the taken nodes of orbited worlds; clients generate systems themselves from the star. A guest's first join in a system undocks there, and while the host is in orbit next to the host's world. Save version 4 keeps ships in systems and orbit; protocol version 2. `--start-orbit star:planet[:moon]` starts a new game in orbit (testing). Checked by `ActivityTests` and the network test's new stage 2 phase |
+| 10 to 11 | Not started | |
 
 How to try what is built so far: `docs/how-to-try/stage-2.md`.
 
@@ -126,6 +127,8 @@ Found while porting, all kept as UQM does them:
 - Special worlds use their own seed order: Sol and Spathiwa draw minerals before life, the Earth colony's planet gets no scan seeds at all (it's shielded, so it can't be scanned anyway). Every world in the Spathi system except Spathiwa has no life, and every world in a Mycon system has none.
 - Story nodes are generated as at the start of a new game, with nothing picked up: ruins (16 energy nodes) on the old homeworlds, artifacts (one energy node) such as the Burvixese broadcasters, the Sun Device and the Utwig bomb, Fwiffo on Pluto and the Moon base. Picking them up is stage 2b/3.
 - The flight traces are recorded with the same circle model as the engine, built into the recording program, so everything except the circle sizes is checked against UQM's own code. One rule isn't reached by the recorded flights: leaving an inner system while already touching another planet, where UQM turns contacts off until the ship is clear. It's ported as written but not checked by a trace.
+- Players in systems run 30 frames a second as 1 or 2 system frames per 24-a-second world frame (five every four). Every frame is UQM's, but they arrive in that rhythm rather than evenly spaced; the client can smooth it when drawing.
+- Touching a world where UQM starts a conversation (starbases, the Sa-Matra, the Umgah homeworld, the Slylandro gas giant) leaves the ship flying beside it until stage 3 (`docs/differences.md` row 27).
 - Autopilot isn't ported (the star map comes later); without it, UQM's controls are the only input.
 - A new game puts players in hyperspace on Sol (stage 1), so the new game marks Sol as the star just left, and a guest undocking from the host inherits it; otherwise the first thrust would drop them straight into the Sol system. The star just left is kept in the host save.
 - Until conversations exist (stage 3) no aliens are at their homeworlds, so a homeworld is orbited as when its owners are gone, as decided in decision 5. Two worlds can't be orbited even so, because UQM always starts a conversation there: the Umgah homeworld (the Talking Pet's planet) and the Slylandro gas giant. Starbases and the Sa-Matra can't be orbited either.

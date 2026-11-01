@@ -46,6 +46,25 @@ public struct Velocity
 
     public void Zero() => this = default;
 
+    /// <summary>All nine fields, for saving: TravelAngle, vector, fract, error, incr (width then height).</summary>
+    public readonly int[] ToArray() => new int[]
+    {
+        TravelAngle, VectorWidth, VectorHeight, FractWidth, FractHeight, ErrorWidth, ErrorHeight, IncrWidth, IncrHeight,
+    };
+
+    /// <summary>The inverse of <see cref="ToArray"/>.</summary>
+    public static Velocity FromArray(int[] v)
+    {
+        if (v.Length != 9)
+            throw new InvalidDataException("velocity needs 9 values");
+        return new Velocity
+        {
+            TravelAngle = (ushort)v[0], VectorWidth = (short)v[1], VectorHeight = (short)v[2],
+            FractWidth = (short)v[3], FractHeight = (short)v[4], ErrorWidth = (short)v[5],
+            ErrorHeight = (short)v[6], IncrWidth = (short)v[7], IncrHeight = (short)v[8],
+        };
+    }
+
     /// <summary>GetCurrentVelocityComponents: velocity in 1/32 world units.</summary>
     public readonly (short dx, short dy) Current() =>
         ((short)(WorldToVelocity(VectorWidth) + (FractWidth - HiByte(IncrWidth))),

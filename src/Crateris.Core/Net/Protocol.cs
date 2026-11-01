@@ -25,7 +25,8 @@ namespace Crateris.Core.Net;
 /// </summary>
 public static class Protocol
 {
-    public const int Version = 1;
+    /// <summary>2: snapshots carry activities (systems, orbit) and the action input bit.</summary>
+    public const int Version = 2;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()

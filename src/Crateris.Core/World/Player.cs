@@ -8,6 +8,7 @@
 
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
 
 namespace Crateris.Core.World;
 
@@ -17,12 +18,46 @@ public enum ShipKind
     Escort,
 }
 
+/// <summary>What a player is doing (each runs on the host at its own frame rate).</summary>
+public enum Activity
+{
+    /// <summary>Flying in hyperspace, 24 frames a second.</summary>
+    Hyperspace,
+    /// <summary>Flying in a system's outer view, 30 frames a second.</summary>
+    OuterSystem,
+    /// <summary>Flying in a planet's inner system, 30 frames a second.</summary>
+    InnerSystem,
+    /// <summary>In orbit around a planet or moon; the ship doesn't move.</summary>
+    Orbit,
+}
+
 /// <summary>A player's ship. The host flies the flagship; guests captain escorts.</summary>
 public sealed class PlayerShip
 {
     public ShipKind Kind { get; }
     public ShipLoadout Loadout { get; }
+    /// <summary>
+    /// Flight in hyperspace. While in a system it keeps the hyperspace
+    /// position the ship returns to: the star's (ExploreSolarSys).
+    /// </summary>
     public HyperFlight Flight { get; }
+
+    /// <summary>The star (map number) whose system the ship is in, or null in hyperspace.</summary>
+    public int? SystemStar { get; internal set; }
+
+    /// <summary>Flight inside that system, or null in hyperspace.</summary>
+    public IpFlight? Ip { get; internal set; }
+
+    /// <summary>In orbit: the world's report, scan seeds and nodes.</summary>
+    public OrbitData? Orbit { get; internal set; }
+
+    public Activity Activity => Ip switch
+    {
+        null => Activity.Hyperspace,
+        { Orbit: not null } => Activity.Orbit,
+        { InnerPlanet: not null } => Activity.InnerSystem,
+        _ => Activity.OuterSystem,
+    };
 
     public PlayerShip(ShipKind kind, ShipLoadout loadout)
     {

@@ -124,6 +124,11 @@ public partial class Main : Node2D
             if (_options.SecondsPerDay is { } spd)
                 settings = settings with { SecondsPerGameDay = spd };
             _world = GameWorld.NewGame(settings, NewGameData.Load(dataDir, systems.Map), _playerId, _name, systems);
+            if (_options.StartOrbit is { } o)
+            {
+                _world.PutInOrbit(_playerId, o.Star, o.Planet, o.Moon);
+                Log($"Starting in orbit: star {o.Star} planet {o.Planet}" + (o.Moon is int m ? $" moon {m}" : ""));
+            }
             Log("New game");
         }
         _inputDelay = _world.Settings.InputDelayFrames;
@@ -200,7 +205,7 @@ public partial class Main : Node2D
     private void SendInput(long frame, int input)
     {
         if (_world != null && _peerPlayers.TryGetValue(Multiplayer.GetRemoteSenderId(), out var id))
-            _world.SubmitInput(id, frame, (ShipInput)(input & 7));
+            _world.SubmitInput(id, frame, (ShipInput)(input & 15));
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -354,25 +359,35 @@ public partial class Main : Node2D
             input |= ShipInput.Right;
         if (Input.IsKeyPressed(Key.Up))
             input |= ShipInput.Thrust;
+        if (Input.IsKeyPressed(Key.Enter) || Input.IsKeyPressed(Key.Space))
+            input |= ShipInput.Action;
         return input;
     }
 
     private void UpdateHud()
     {
-        var lines = new List<string> { "Attack on Crateris - stage 1: hyperspace", _status };
+        var lines = new List<string> { "Attack on Crateris - stage 2 (in progress)", _status };
         if (_snapshot != null)
         {
             lines.Add($"Date {_snapshot.Year:D4}-{_snapshot.Month:D2}-{_snapshot.Day:D2}");
             var me = _snapshot.Ships.FirstOrDefault(s => s.Id == _playerId);
             if (me != null)
-                lines.Add($"You: {me.UniverseX / 10.0:0.0} : {me.UniverseY / 10.0:0.0}   fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
+                lines.Add($"You: {Where(me)}   fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
             lines.Add($"Players ({_snapshot.Ships.Count}):");
             foreach (var s in _snapshot.Ships)
-                lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}  {s.UniverseX / 10.0:0.0} : {s.UniverseY / 10.0:0.0}");
+                lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}  {Where(s)}");
         }
-        lines.Add("Arrows: turn and thrust");
+        lines.Add("Arrows: turn and thrust. Enter: leave orbit");
         _hud.Text = string.Join("\n", lines.Where(l => !string.IsNullOrEmpty(l)));
     }
+
+    private static string Where(ShipSnapshot s) => s.Activity switch
+    {
+        Activity.Hyperspace => $"hyperspace {s.UniverseX / 10.0:0.0} : {s.UniverseY / 10.0:0.0}",
+        Activity.OuterSystem => $"system of star {s.SystemStar}",
+        Activity.InnerSystem => $"system of star {s.SystemStar}, near planet {s.InnerPlanet}",
+        _ => $"orbiting star {s.SystemStar} planet {s.OrbitPlanet}" + (s.OrbitMoon is int m ? $" moon {m}" : ""),
+    };
 
     // ---------------------------------------------------- quit / report
 

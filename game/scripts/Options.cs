@@ -40,6 +40,9 @@ public sealed class Options
     public double? SecondsPerDay { get; private set; }
     public List<(int Frames, ShipInput Input)>? Script { get; private set; }
 
+    /// <summary>--start-orbit star:planet[:moon]: a new game starts in orbit there (testing and debugging).</summary>
+    public (int Star, int Planet, int? Moon)? StartOrbit { get; private set; }
+
     public static Options Parse(string[] args)
     {
         var o = new Options();
@@ -76,6 +79,12 @@ public sealed class Options
                     o.SecondsPerDay = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
                     break;
                 case "--script": o.Script = ParseScript(Next()); break;
+                case "--start-orbit":
+                {
+                    var parts = Next().Split(':');
+                    o.StartOrbit = (int.Parse(parts[0]), int.Parse(parts[1]), parts.Length > 2 ? int.Parse(parts[2]) : null);
+                    break;
+                }
                 default: throw new ArgumentException($"Unknown option {args[i]}");
             }
         }
@@ -96,6 +105,7 @@ public sealed class Options
                     "left" => ShipInput.Left,
                     "right" => ShipInput.Right,
                     "thrust" => ShipInput.Thrust,
+                    "action" => ShipInput.Action,
                     "none" => ShipInput.None,
                     var k => throw new ArgumentException($"Unknown input '{k}' in --script"),
                 };

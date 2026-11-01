@@ -24,23 +24,43 @@ public enum JoinResult
     Full,
 }
 
+/// <summary>
+/// One ship as clients see it. Hyperspace fields (LogX .. Facing) are where
+/// the ship is in hyperspace, or the star it will come out at while in a
+/// system. System fields are set while in a system: the star, the inner
+/// system's planet, the ship's place in the system (Ip*), on the screen
+/// (Screen*), its facing there, the outer view's zoom, and the world orbited.
+/// Clients generate systems themselves from the star number.
+/// </summary>
 public sealed record ShipSnapshot(
     string Id, string Name, bool IsHost, ShipKind Kind,
     int LogX, int LogY, int UniverseX, int UniverseY,
     int Facing, int VelocityX, int VelocityY,
-    uint Fuel, uint FuelCapacity, bool Thrusting, bool UndockPending);
+    uint Fuel, uint FuelCapacity, bool Thrusting, bool UndockPending,
+    Activity Activity = Activity.Hyperspace,
+    int? SystemStar = null, int? InnerPlanet = null,
+    int IpX = 0, int IpY = 0, int ScreenX = 0, int ScreenY = 0, int IpFacing = 0, int ZoomRadius = 0,
+    int? OrbitPlanet = null, int? OrbitMoon = null);
 
-public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IReadOnlyList<ShipSnapshot> Ships);
+/// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
+public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
+
+public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IReadOnlyList<ShipSnapshot> Ships,
+    IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null);
 
 /// <summary>
-/// The host's authoritative game: world state (clock) and every player's
-/// state, present or away. Stage 1 has one activity, hyperspace.
-/// Not thread-safe; the server calls it from one thread.
+/// The host's authoritative game: world state (clock, planets) and every
+/// player's state, present or away. Each player is in one activity
+/// (<see cref="World.Activity"/>). The world steps at 24 frames a second,
+/// hyperspace's rate; players in systems take 30 system frames a second,
+/// one or two per world frame (five every four), so both match UQM's
+/// rates frame for frame. Not thread-safe; the server calls it from one thread.
 /// </summary>
 public sealed class GameWorld
 {
     private readonly List<Player> _players = new();
     private readonly Dictionary<string, InputBuffer> _inputs = new();
+    private readonly HashSet<string> _actionHeld = new();   // the action key was down last frame
 
     public GameSettings Settings { get; }
     public GameClock Clock { get; }
@@ -109,13 +129,21 @@ public sealed class GameWorld
 
         // First join: a new escort at the host's position, shown undocking
         // from the flagship to this player only (docs/differences.md row 14).
-        var host = Host.Ship.Flight;
+        // In a system the escort undocks there; with the host in orbit, in
+        // the inner system next to the host's world (stage 2, decision 6).
+        var hostShip = Host.Ship;
+        var host = hostShip.Flight;
         var ship = new PlayerShip(ShipKind.Escort, Settings.EscortLoadout);
         ship.Flight.LogX = host.LogX;
         ship.Flight.LogY = host.LogY;
         ship.Flight.Facing = host.Facing;
         ship.Flight.StarJustLeft = host.StarJustLeft;   // undocking on a star doesn't drop into it
         ship.Flight.ResetFuelCounters();
+        if (hostShip.Ip is { } hostIp)
+        {
+            ship.SystemStar = hostShip.SystemStar;
+            ship.Ip = hostIp.JoinAt(ship.Loadout.Thrusters, ship.Loadout.Jets);
+        }
         AddPlayer(new Player(id, name, isHost: false, ship) { Present = true, UndockPending = true });
         return JoinResult.Joined;
     }
@@ -131,7 +159,9 @@ public sealed class GameWorld
             return;
         player.Present = false;
         _inputs[id].Clear();
+        _actionHeld.Remove(id);
         player.Ship.Flight.Stop();
+        player.Ship.Ip?.Stop();   // in orbit it stays in orbit
     }
 
     /// <summary>The client has shown the undocking scene.</summary>
@@ -147,26 +177,139 @@ public sealed class GameWorld
             _inputs[id].Submit(frame, input);
     }
 
-    /// <summary>Advance the whole game one frame.</summary>
+    /// <summary>System frames (30 a second) to run in world frame <paramref name="frame"/> (24 a second).</summary>
+    public static int SystemFramesIn(long frame) =>
+        (int)(frame * IpFlight.FrameRate / GameClock.FramesPerSecond
+              - (frame - 1) * IpFlight.FrameRate / GameClock.FramesPerSecond);
+
+    /// <summary>Advance the whole game one world frame.</summary>
     public void Step()
     {
         Frame++;
+        int systemFrames = SystemFramesIn(Frame);
         foreach (var p in _players)
         {
             if (!p.Present)
                 continue;
-            p.Ship.Flight.Step(_inputs[p.Id].Take(Frame));
+            ShipInput input = _inputs[p.Id].Take(Frame);
+            // The action key acts when pressed, not while held.
+            bool actionPressed = (input & ShipInput.Action) != 0 && !_actionHeld.Contains(p.Id);
+            if ((input & ShipInput.Action) != 0)
+                _actionHeld.Add(p.Id);
+            else
+                _actionHeld.Remove(p.Id);
+            switch (p.Ship.Activity)
+            {
+                case Activity.Hyperspace:
+                    StepHyperspace(p.Ship, input);
+                    break;
+                case Activity.Orbit:
+                    if (actionPressed)
+                        LeaveOrbit(p.Ship);
+                    break;
+                default:
+                    for (int i = 0; i < systemFrames && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem; ++i)
+                        StepSystem(p.Ship, input);
+                    break;
+            }
         }
         Clock.Tick(Settings.SecondsPerGameDay);
     }
 
-    public WorldSnapshot Snapshot() => new(Frame, Clock.Year, Clock.Month, Clock.Day,
-        _players.Where(p => p.Present).Select(p =>
+    private void StepHyperspace(PlayerShip ship, ShipInput input)
+    {
+        ship.Flight.Step(input & ~ShipInput.Action);
+        if (Systems is null)
+            return;
+        if (StarContact.Check(ship.Flight, Systems.Map) is { } star)
+            EnterSystem(ship, star);
+    }
+
+    private void StepSystem(PlayerShip ship, ShipInput input)
+    {
+        IpFlight ip = ship.Ip!;
+        switch (ip.Step(input & ~ShipInput.Action))
+        {
+            case IpEvent.EnteredOrbit:
+                var (planet, moon) = ip.Orbit!.Value;
+                OrbitData orbit = ip.System.EnterOrbit(planet, moon);
+                if (orbit.Entered)
+                    ship.Orbit = orbit;
+                else
+                    ip.ReturnFromOrbit();   // UQM starts a conversation here; none exist yet (stage 3)
+                break;
+            case IpEvent.LeftSystem:
+                SystemTransition.Leave(ship.Flight, Systems!.Map.Stars[ship.SystemStar!.Value], ip.Facing);
+                ship.Ip = null;
+                ship.SystemStar = null;
+                break;
+        }
+    }
+
+    private void EnterSystem(PlayerShip ship, Star star)
+    {
+        // ExploreSolarSys: the hyperspace position becomes the star's, so the
+        // ship comes back out on it.
+        ship.Flight.PlaceAtUniverse(star.X, star.Y);
+        ship.Flight.Stop();
+        ship.SystemStar = star.Number;
+        ship.Ip = new IpFlight(Systems![star.Number], SystemTransition.Arrive(star),
+            ship.Loadout.Thrusters, ship.Loadout.Jets);
+    }
+
+    private static void LeaveOrbit(PlayerShip ship)
+    {
+        ship.Ip!.ReturnFromOrbit();
+        ship.Orbit = null;
+    }
+
+    /// <summary>
+    /// Puts a player straight into orbit around a world, as if they had
+    /// flown there (for testing and debugging: --start-orbit).
+    /// </summary>
+    public void PutInOrbit(string id, int star, int planet, int? moon = null)
+    {
+        var player = Find(id) ?? throw new ArgumentException($"no player {id}");
+        if (Systems is null)
+            throw new InvalidOperationException("this world has no systems");
+        PlayerShip ship = player.Ship;
+        if (ship.SystemStar != star)
+            EnterSystem(ship, Systems.Map.Stars[star]);
+        if (ship.Orbit is not null)
+            LeaveOrbit(ship);
+        ship.Ip!.PlaceInOrbit(planet, moon);
+        OrbitData orbit = ship.Ip.System.EnterOrbit(planet, moon);
+        if (!orbit.Entered)
+            throw new ArgumentException($"star {star} planet {planet} moon {moon}: that world can't be orbited");
+        ship.Orbit = orbit;
+    }
+
+    public WorldSnapshot Snapshot()
+    {
+        var present = _players.Where(p => p.Present).ToList();
+        var ships = present.Select(p =>
         {
             var f = p.Ship.Flight;
-            var (vx, vy) = f.Velocity.Current();
+            var ip = p.Ship.Ip;
+            var (vx, vy) = ip is null ? f.Velocity.Current() : ip.Velocity.Current();
             return new ShipSnapshot(p.Id, p.Name, p.IsHost, p.Ship.Kind, f.LogX, f.LogY, f.UniverseX, f.UniverseY,
                 f.Facing, vx, vy, f.Fuel, f.FuelCapacity, (f.Status & HyperFlight.StatusThrust) != 0,
-                p.UndockPending);
-        }).ToList());
+                p.UndockPending, p.Ship.Activity, p.Ship.SystemStar, ip?.InnerPlanet,
+                ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
+                ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon);
+        }).ToList();
+
+        // Worlds being orbited, with what has been taken from them, so an
+        // orbiting player's scan shows what's left right now.
+        var orbited = present
+            .Where(p => p.Ship.Ip?.Orbit is not null)
+            .Select(p => new WorldId(p.Ship.SystemStar!.Value, p.Ship.Ip!.Orbit!.Value.Planet, p.Ship.Ip.Orbit.Value.Moon))
+            .Distinct()
+            .Select(w => new OrbitedWorldSnapshot(w.Star, w.Planet, w.Moon,
+                Planets.RetrieveMask(w, ScanType.Mineral), Planets.RetrieveMask(w, ScanType.Energy),
+                Planets.RetrieveMask(w, ScanType.Biological)))
+            .ToList();
+
+        return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited);
+    }
 }

@@ -22,10 +22,12 @@ public static class HostSave
 {
     /// <summary>
     /// 2 added the star each ship has just left (FlightState.StarJustLeft);
-    /// 3 added planet world state (Worlds). Older saves still load: their
-    /// ships count as not on a star, and no world has been touched.
+    /// 3 added planet world state (Worlds); 4 added ships in systems and in
+    /// orbit (PlayerState.SystemStar, PlayerState.System). Older saves
+    /// still load: their ships are in hyperspace and not on a star, and no
+    /// world has been touched.
     /// </summary>
-    public const int Version = 3;
+    public const int Version = 4;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -55,7 +57,7 @@ public static class HostSave
 
     public sealed record PlayerState(
         string Id, string Name, bool IsHost, ShipKind Kind, ShipLoadout Loadout, bool UndockPending,
-        FlightState Flight);
+        FlightState Flight, int? SystemStar = null, IpFlightState? System = null);
 
     public static string ToJson(GameWorld world)
     {
@@ -68,7 +70,8 @@ public static class HostSave
                     f.ViewX, f.ViewY, f.FuelDistX, f.FuelDistY, f.FuelDistExtra, f.FuelTicks,
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
-                    f.StarJustLeft));
+                    f.StarJustLeft),
+                p.Ship.SystemStar, p.Ship.Ip?.Save());
         }).ToList();
         var c = world.Clock;
         var worlds = world.Planets.Worlds
@@ -127,6 +130,25 @@ public static class HostSave
             };
             // Everyone is away after loading, and away ships wait stopped.
             f.Stop();
+            if (ps.SystemStar is int systemStar)
+            {
+                if (systems is null)
+                    throw new InvalidDataException($"Player {ps.Id} is in a system, but no star map was given to load it.");
+                if (systemStar < 0 || systemStar >= StarMap.SolarSystemCount || ps.System is null)
+                    throw new InvalidDataException($"Player {ps.Id}: bad system {systemStar}.");
+                ship.SystemStar = systemStar;
+                ship.Ip = IpFlight.Restore(systems[systemStar], ps.System, ps.Loadout.Thrusters, ps.Loadout.Jets);
+                ship.Ip.Stop();
+                if (ship.Ip.Orbit is { } orbit)
+                {
+                    var data = systems[systemStar].EnterOrbit(orbit.Planet, orbit.Moon);
+                    if (!data.Entered)
+                        throw new InvalidDataException($"Player {ps.Id}: in orbit around a world that can't be orbited.");
+                    ship.Orbit = data;
+                }
+            }
+            else if (ps.System is not null)
+                throw new InvalidDataException($"Player {ps.Id}: system flight without a system.");
             world.AddPlayer(new Player(ps.Id, ps.Name, ps.IsHost, ship)
             {
                 Present = false,

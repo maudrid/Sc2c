@@ -80,7 +80,16 @@ public partial class HyperspaceView : Node2D
         }
 
         var font = ThemeDB.FallbackFont;
-        foreach (var ship in _snapshot.Ships)
+        if (me.Activity != Activity.Hyperspace)
+        {
+            // The system and orbit views come with stage 2 item 10.
+            DrawRect(new Rect2(Vector2.Zero, size), new Color(0f, 0f, 0.06f));
+            DrawString(font, new Vector2(40, centre.Y), $"In a star system ({me.Activity}). The system view comes later in stage 2.",
+                HorizontalAlignment.Left, -1, 18, Colors.LightBlue);
+            return;
+        }
+        // Only ships in hyperspace are drawn here (stage 2, decision 3).
+        foreach (var ship in _snapshot.Ships.Where(s => s.Activity == Activity.Hyperspace))
         {
             var p = ToScreen(ship.UniverseX, ship.UniverseY);
             float angle = ship.Facing * Mathf.Tau / 16f; // facing 0 points up

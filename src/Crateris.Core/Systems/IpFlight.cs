@@ -26,6 +26,15 @@ public enum IpEvent
 }
 
 /// <summary>
+/// Everything needed to put an <see cref="IpFlight"/> back as it was (host
+/// save). Screen images, moons and the zoom box are derived from these.
+/// </summary>
+public sealed record IpFlightState(
+    int Facing, int[] Velocity, int LocationX, int LocationY, int ScreenX, int ScreenY,
+    int ZoomRadius, int SunLocationX, int SunLocationY, int? InnerPlanet, int WaitIntersect,
+    int TurnCounter, int ThrustCounter, int? OrbitPlanet, int? OrbitMoon);
+
+/// <summary>
 /// The sizes used to decide when the flagship touches a planet or moon, in
 /// display pixels of the 242x227 interplanetary view. UQM tests sprite
 /// masks from the content package: the flagship's sprite against a single
@@ -116,14 +125,8 @@ public sealed class IpFlight
 
     /// <summary>Arrives from hyperspace (InitSolarSys).</summary>
     public IpFlight(SolarSystem system, SystemArrival arrival, int thrusters, int jets, IpContactShape? shape = null)
+        : this(system, thrusters, jets, shape)
     {
-        System = system;
-        _shape = shape ?? IpContactShape.Provisional;
-        _planetImage = new IpPoint[system.Planets.Count];
-        _planetImageSize = new int[system.Planets.Count];
-        MaxSpeed = (byte)((thrusters + 5) * ThrustIncrement);
-        TurnWait = (byte)(TurnWaitBase - TurnDecrement * jets);
-
         Facing = arrival.Facing;
         Screen = arrival.ScreenPosition;
         Location = arrival.Location;
@@ -131,6 +134,119 @@ public sealed class IpFlight
         CheckZoomLevel();
         ValidateOrbits();
         CheckIntersect();   // ResetSolarSys
+    }
+
+    private IpFlight(SolarSystem system, int thrusters, int jets, IpContactShape? shape)
+    {
+        System = system;
+        _shape = shape ?? IpContactShape.Provisional;
+        _planetImage = new IpPoint[system.Planets.Count];
+        _planetImageSize = new int[system.Planets.Count];
+        MaxSpeed = (byte)((thrusters + 5) * ThrustIncrement);
+        TurnWait = (byte)(TurnWaitBase - TurnDecrement * jets);
+    }
+
+    /// <summary>The state to save (see <see cref="Restore"/>).</summary>
+    public IpFlightState Save() => new(
+        Facing, Velocity.ToArray(), Location.X, Location.Y, Screen.X, Screen.Y, ZoomRadius,
+        SunLocation.X, SunLocation.Y, InnerPlanet, WaitIntersect, TurnCounter, ThrustCounter,
+        Orbit?.Planet, Orbit?.Moon);
+
+    /// <summary>Puts a flight back as it was saved. Throws InvalidDataException if the state can't be.</summary>
+    public static IpFlight Restore(SolarSystem system, IpFlightState s, int thrusters, int jets, IpContactShape? shape = null)
+    {
+        static void Require(bool ok, string what)
+        {
+            if (!ok)
+                throw new InvalidDataException($"system flight: {what}");
+        }
+
+        Require(s.Facing is >= 0 and < 16, "facing");
+        Require(IsZoom(s.ZoomRadius), "zoom radius");
+        Require(s.InnerPlanet is null || (uint)s.InnerPlanet < (uint)system.Planets.Count, "inner planet");
+        Require(s.OrbitPlanet is null || s.OrbitPlanet == s.InnerPlanet, "orbit outside its inner system");
+        if (s.OrbitPlanet is int op && s.OrbitMoon is int om)
+            Require((uint)om < system.Planets[op].NumPlanets, "orbit moon");
+        Require(s.OrbitPlanet is not null || s.OrbitMoon is null, "orbit moon without a planet");
+
+        var f = new IpFlight(system, thrusters, jets, shape)
+        {
+            Facing = (ushort)s.Facing,
+            Velocity = Velocity.FromArray(s.Velocity),
+            Location = new IpPoint((short)s.LocationX, (short)s.LocationY),
+            Screen = new IpPoint((short)s.ScreenX, (short)s.ScreenY),
+            ZoomRadius = (short)s.ZoomRadius,
+            SunLocation = new IpPoint((short)s.SunLocationX, (short)s.SunLocationY),
+            WaitIntersect = (ushort)s.WaitIntersect,
+            TurnCounter = (byte)s.TurnCounter,
+            ThrustCounter = (byte)s.ThrustCounter,
+        };
+        f._scaleRect = ScaleRect(f.ZoomRadius);
+        f.ValidateOrbits();
+        if (s.InnerPlanet is int p)
+        {
+            f.InnerPlanet = p;
+            f.Moons = system.Moons(p);
+            f.ValidateInnerOrbits();
+        }
+        if (s.OrbitPlanet is int orbitPlanet)
+            f.Orbit = (orbitPlanet, s.OrbitMoon);
+        return f;
+    }
+
+    /// <summary>
+    /// A second ship at this one's place, at rest and not in orbit: a guest
+    /// undocking from the host in a system. It keeps this ship's contact,
+    /// so it doesn't drop into the world the host is touching.
+    /// </summary>
+    public IpFlight JoinAt(int thrusters, int jets) =>
+        Restore(System, Save() with
+        {
+            Velocity = new Velocity().ToArray(), OrbitPlanet = null, OrbitMoon = null, TurnCounter = 0, ThrustCounter = 0,
+        }, thrusters, jets, _shape);
+
+    /// <summary>Comes to a stop where it is (a player leaving the game).</summary>
+    public void Stop() => Velocity.Zero();
+
+    /// <summary>
+    /// Puts the ship straight into orbit around a planet or one of its moons,
+    /// as if it had flown there (for testing and debugging).
+    /// </summary>
+    public void PlaceInOrbit(int planet, int? moon)
+    {
+        if ((uint)planet >= (uint)System.Planets.Count)
+            throw new ArgumentOutOfRangeException(nameof(planet));
+        if (InnerPlanet is not null && InnerPlanet != planet)
+            LeaveInnerSystem();
+        if (InnerPlanet is null)
+        {
+            EnterInnerSystem(planet);
+            ValidateInnerOrbits();
+        }
+        if (moon is int m && (uint)m >= (uint)Moons.Count)
+            throw new ArgumentOutOfRangeException(nameof(moon));
+        Velocity.Zero();
+        Screen = moon is int mm ? _moonImage[mm] : new IpPoint(CenterX, CenterY);
+        Location = IpGeometry.DisplayToLocation(Screen, IpGeometry.MaxZoomRadius);
+        WaitIntersect = MakeWord(planet + 1, moon is int w ? w + 2 : 1);
+        Orbit = (planet, moon);
+    }
+
+    private static bool IsZoom(int r)
+    {
+        for (int z = IpGeometry.MaxZoomRadius; z >= IpGeometry.MinZoomRadius; z >>= 1)
+        {
+            if (r == z)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>The zoom-in box FindRadius leaves for a zoom radius (it depends only on the radius).</summary>
+    private static Rect ScaleRect(int radius)
+    {
+        int nextRadius = radius > IpGeometry.MinZoomRadius ? radius >> 1 : 0;
+        return OrbitRect(nextRadius, nextRadius, nextRadius, IpGeometry.DisplayFactor, IpGeometry.DisplayFactor >> 2, radius);
     }
 
     /// <summary>One frame with this frame's input.</summary>
@@ -452,9 +568,7 @@ public sealed class IpFlight
         do
         {
             fromRadius >>= 1;
-            int nextRadius = fromRadius > IpGeometry.MinZoomRadius ? fromRadius >> 1 : 0;
-            _scaleRect = OrbitRect(nextRadius, nextRadius, nextRadius, IpGeometry.DisplayFactor,
-                IpGeometry.DisplayFactor >> 2, fromRadius);
+            _scaleRect = ScaleRect(fromRadius);
             displayLoc = IpGeometry.LocationToDisplay(shipLoc, fromRadius);
         } while (_scaleRect.Contains(displayLoc));
         return (short)fromRadius;

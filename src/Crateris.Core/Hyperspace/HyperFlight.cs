@@ -22,6 +22,9 @@ public enum ShipInput : byte
     Left = 1,
     Right = 2,
     Thrust = 4,
+
+    /// <summary>The select key: in orbit, leave orbit (UQM's Navigate). Ignored while flying.</summary>
+    Action = 8,
 }
 
 /// <summary>

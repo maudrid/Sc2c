@@ -24,6 +24,10 @@ Timeline (24 frames a second):
 Checks: A is Joined then Rejoined and comes back where it left; B is
 Joined; both saw the undocking scene; everyone sees everyone; the save
 holds all three players.
+
+Then (stage 2) a host starts in orbit round Earth, guest C joins and
+undocks in Earth's inner system, the host leaves orbit with the action
+key, and both are in the Sol system, also in the save.
 """
 
 import json
@@ -135,6 +139,41 @@ def main():
     check(ship(h2["snapshot"], "host")["LogY"] == next(
         p for p in saved["players"] if p["id"] == "host")["flight"]["log_y"],
         "host's flagship is where the save left it")
+
+    # Stage 2: the host starts in orbit round Earth; guest C joins and
+    # undocks in Earth's inner system; the host leaves orbit (action key)
+    # and both fly in the Sol system.
+    INNER, ORBIT = 2, 3    # Activity values in the reports
+    save3 = os.path.join(out, "save3.json")
+    host3 = start(out, "host3", "--host", "--no-upnp", "--port", PORT,
+                  "--name", "Host", "--id", "host", "--save", save3,
+                  "--start-orbit", "82:2",
+                  "--script", "none:72,action:2,none:500", "--quit-after", "168")
+    time.sleep(1)
+    c = start(out, "c", "--join", f"127.0.0.1:{PORT}", "--name", "C",
+              "--id", "guest-c", "--script", "none:500", "--quit-after", "96")
+    for p in (c, host3):
+        p.wait(timeout=60)
+    h3, rc = report(out, "host3"), report(out, "c")
+    check(any("Starting in orbit" in line for line in h3["log"]),
+          "host 3 started in orbit round Earth")
+    check(rc["welcome"] == "Joined", "C is Joined while the host is in a system")
+    check(any("Undocking" in line for line in rc["log"]), "C saw the undocking scene")
+    c_ship, c_host = ship(rc["snapshot"], "guest-c"), ship(rc["snapshot"], "host")
+    check(c_ship is not None and c_ship["Activity"] == INNER
+          and c_ship["SystemStar"] == 82 and c_ship["InnerPlanet"] == 2,
+          "C is in Earth's inner system (it undocked next to the host's world)")
+    check(c_host is not None and c_host["SystemStar"] == 82
+          and c_host["Activity"] == INNER,
+          "C sees the host in the same system, out of orbit after the action key")
+    h3_host = ship(h3["snapshot"], "host")
+    check(h3_host is not None and h3_host["Activity"] == INNER,
+          "host left orbit and flies in Earth's inner system")
+    with open(save3) as f:
+        saved3 = json.load(f)
+    check(saved3["version"] >= 4 and all(p.get("system_star") == 82
+                                         for p in saved3["players"]),
+          "the save keeps both ships in the Sol system")
 
     print(f"\nlogs and reports in {out}")
     if failures:
