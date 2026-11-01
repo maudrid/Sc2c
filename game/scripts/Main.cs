@@ -171,11 +171,13 @@ public partial class Main : Node2D
         {
             try
             {
-                _content = ContentPackage.Open(path);
+                // The installer has just checked the file's hash.
+                _content = ContentPackage.Open(path, expectedSha256: null);
             }
             catch (ContentPackageException e)
             {
                 GD.PrintErr(e.Message);
+                _firstRun!.ShowFailure(e.Message);
                 return;
             }
             Log($"Content installed: {path}");

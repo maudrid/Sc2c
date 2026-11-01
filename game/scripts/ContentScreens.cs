@@ -13,21 +13,9 @@ using Godot;
 
 namespace Crateris.Game;
 
-/// <summary>The content notice (<c>docs/design.md</c>, "First-run content download"; a draft to check with a lawyer before release).</summary>
-public static class ContentNotice
+/// <summary>Labels for the content notice (its text is <see cref="Crateris.Core.Content.ContentNotice"/>).</summary>
+public static class NoticeLabels
 {
-    public const string Title = "Game content from The Ur-Quan Masters";
-
-    public const string Body =
-        "To play, Attack on Crateris needs the content of The Ur-Quan Masters 0.8.0: graphics, sounds, music, " +
-        "dialogue and voiceovers. It will be downloaded from the official Ur-Quan Masters project.\n\n" +
-        "The content is copyright © 1992, 1993, 2002 Toys for Bob, Inc. or its respective creators. The game was " +
-        "created by Paul Reiche III and Fred Ford. It is licensed under the Creative Commons " +
-        "Attribution-NonCommercial-ShareAlike 2.5 license (https://creativecommons.org/licenses/by-nc-sa/2.5/). " +
-        "You may not use it commercially.\n\n" +
-        "Attack on Crateris is a separate, free program under the GNU GPL (version 2 or later). It is not made or " +
-        "endorsed by Toys for Bob, Paul Reiche III, Fred Ford or The Ur-Quan Masters project.";
-
     public static Label Heading(string text) => new()
     {
         Text = text,
@@ -56,6 +44,7 @@ public partial class FirstRunScreen : PanelContainer
     private readonly ProgressBar _bar = new() { CustomMinimumSize = new Vector2(640, 20), Visible = false };
     private readonly Button _download = new() { Text = $"Download ({ContentPackage.OfficialSize / 1e6:0.0} MB)" };
     private readonly Button _useFile = new() { Text = "Use a file I already have..." };
+    private readonly Button _cancelButton = new() { Text = "Cancel", Visible = false };
     private readonly Button _quit = new() { Text = "Quit" };
     private readonly FileDialog _picker = new()
     {
@@ -79,14 +68,15 @@ public partial class FirstRunScreen : PanelContainer
         var box = new VBoxContainer { CustomMinimumSize = new Vector2(680, 0) };
         box.AddThemeConstantOverride("separation", 14);
         center.AddChild(box);
-        var heading = ContentNotice.Heading(ContentNotice.Title);
+        var heading = NoticeLabels.Heading(ContentNotice.Title);
         heading.AddThemeFontSizeOverride("font_size", 26);
         box.AddChild(heading);
-        box.AddChild(ContentNotice.Paragraph(ContentNotice.Body));
+        box.AddChild(NoticeLabels.Paragraph(ContentNotice.Body));
         var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         buttons.AddThemeConstantOverride("separation", 16);
         buttons.AddChild(_download);
         buttons.AddChild(_useFile);
+        buttons.AddChild(_cancelButton);
         buttons.AddChild(_quit);
         box.AddChild(buttons);
         box.AddChild(_bar);
@@ -97,6 +87,7 @@ public partial class FirstRunScreen : PanelContainer
         _download.Pressed += Download;
         _useFile.Pressed += () => _picker.PopupCentered(new Vector2I(800, 500));
         _picker.FileSelected += UseFile;
+        _cancelButton.Pressed += () => _cancel?.Cancel();
         _quit.Pressed += () =>
         {
             _cancel?.Cancel();
@@ -119,12 +110,14 @@ public partial class FirstRunScreen : PanelContainer
                 new Progress<InstallProgress>(ShowProgress), _cancel!.Token);
             Done();
         }
-        catch (ContentPackageException e)
-        {
-            Failed(e.Message + " You can try again, or use a file you already have.");
-        }
         catch (OperationCanceledException)
         {
+            ShowFailure("Download cancelled.");
+        }
+        catch (Exception e)
+        {
+            // ContentPackageException says what went wrong; anything else is unexpected, but still told.
+            ShowFailure(e.Message + " You can try again, or use a file you already have.");
         }
     }
 
@@ -139,12 +132,13 @@ public partial class FirstRunScreen : PanelContainer
             await ContentInstaller.CopyFrom(path, _destination, new Progress<InstallProgress>(ShowProgress), _cancel!.Token);
             Done();
         }
-        catch (ContentPackageException e)
-        {
-            Failed(e.Message);
-        }
         catch (OperationCanceledException)
         {
+            ShowFailure("Cancelled.");
+        }
+        catch (Exception e)
+        {
+            ShowFailure(e.Message);
         }
     }
 
@@ -152,6 +146,7 @@ public partial class FirstRunScreen : PanelContainer
     {
         _cancel = new CancellationTokenSource();
         _download.Disabled = _useFile.Disabled = true;
+        _cancelButton.Visible = true;
         _bar.Visible = true;
         _bar.Value = 0;
         _status.Text = text;
@@ -163,9 +158,11 @@ public partial class FirstRunScreen : PanelContainer
             _bar.Value = 100.0 * p.Done / total;
     }
 
-    private void Failed(string message)
+    /// <summary>Shows what went wrong and lets the player try again.</summary>
+    public void ShowFailure(string message)
     {
         _download.Disabled = _useFile.Disabled = false;
+        _cancelButton.Visible = false;
         _bar.Visible = false;
         _status.Text = message;
         GD.PrintErr(message);
@@ -173,6 +170,7 @@ public partial class FirstRunScreen : PanelContainer
 
     private void Done()
     {
+        _cancelButton.Visible = false;
         _status.Text = "Done.";
         Installed?.Invoke(_destination);
     }
@@ -189,18 +187,18 @@ public partial class AboutScreen : PanelContainer
         var box = new VBoxContainer { CustomMinimumSize = new Vector2(680, 0) };
         box.AddThemeConstantOverride("separation", 14);
         center.AddChild(box);
-        var heading = ContentNotice.Heading("Attack on Crateris");
+        var heading = NoticeLabels.Heading("Attack on Crateris");
         heading.AddThemeFontSizeOverride("font_size", 26);
         box.AddChild(heading);
-        box.AddChild(ContentNotice.Paragraph(
+        box.AddChild(NoticeLabels.Paragraph(
             "A free engine for drop-in co-op play of The Ur-Quan Masters content, for up to 4 players. " +
             "Free software under the GNU General Public License, version 2 or (at your option) any later version; " +
             "parts are ported from The Ur-Quan Masters source code. The code is written by an AI coding assistant " +
             "(Claude); the project owner designs, reviews and playtests."));
-        var content = ContentNotice.Heading(ContentNotice.Title);
+        var content = NoticeLabels.Heading(ContentNotice.Title);
         content.AddThemeFontSizeOverride("font_size", 20);
         box.AddChild(content);
-        box.AddChild(ContentNotice.Paragraph(ContentNotice.Body));
-        box.AddChild(ContentNotice.Heading("F1 or Esc: close"));
+        box.AddChild(NoticeLabels.Paragraph(ContentNotice.Body));
+        box.AddChild(NoticeLabels.Heading("F1 or Esc: close"));
     }
 }

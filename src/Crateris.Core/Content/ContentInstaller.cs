@@ -27,10 +27,21 @@ public static class ContentInstaller
     /// <summary>The suffix of the file being written, before it's checked and moved into place.</summary>
     public const string PartialSuffix = ".part";
 
-    /// <summary>Downloads the package from <paramref name="url"/> (following redirects) into <paramref name="destination"/>.</summary>
+    /// <summary>How long a download may receive nothing before it counts as stalled, by default.</summary>
+    public static readonly TimeSpan DefaultStallTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Downloads the package from <paramref name="url"/> (following
+    /// redirects) into <paramref name="destination"/>. Every failure is a
+    /// <see cref="ContentPackageException"/> saying what went wrong (no
+    /// answer, an error from the server, nothing arriving for
+    /// <paramref name="stallTimeout"/>, a file that can't be written, the
+    /// wrong file); only cancelling through <paramref name="cancel"/> throws
+    /// <see cref="OperationCanceledException"/>.
+    /// </summary>
     public static async Task Download(HttpClient http, string url, string destination,
         IProgress<InstallProgress>? progress = null, CancellationToken cancel = default,
-        string expectedSha256 = ContentPackage.OfficialSha256)
+        string expectedSha256 = ContentPackage.OfficialSha256, TimeSpan? stallTimeout = null)
     {
         HttpResponseMessage response;
         try
@@ -41,13 +52,18 @@ public static class ContentInstaller
         {
             throw new ContentPackageException($"Couldn't reach the download: {e.Message}", e);
         }
+        catch (OperationCanceledException e) when (!cancel.IsCancellationRequested)
+        {
+            // HttpClient's own timeout, not the player cancelling.
+            throw new ContentPackageException($"The download didn't answer within {http.Timeout.TotalSeconds:0} seconds.", e);
+        }
         using (response)
         {
             if (!response.IsSuccessStatusCode)
                 throw new ContentPackageException($"The download failed: {(int)response.StatusCode} {response.ReasonPhrase}");
             await using var body = await response.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
             await Install(body, response.Content.Headers.ContentLength, destination, "The downloaded file",
-                progress, cancel, expectedSha256).ConfigureAwait(false);
+                progress, cancel, expectedSha256, stallTimeout ?? DefaultStallTimeout).ConfigureAwait(false);
         }
     }
 
@@ -68,15 +84,16 @@ public static class ContentInstaller
             return;
         }
         await using var input = File.OpenRead(source);
-        await Install(input, input.Length, destination, source, progress, cancel, expectedSha256).ConfigureAwait(false);
+        await Install(input, input.Length, destination, source, progress, cancel, expectedSha256, Timeout.InfiniteTimeSpan).ConfigureAwait(false);
     }
 
     private static async Task Install(Stream source, long? length, string destination, string what,
-        IProgress<InstallProgress>? progress, CancellationToken cancel, string expectedSha256)
+        IProgress<InstallProgress>? progress, CancellationToken cancel, string expectedSha256, TimeSpan stall)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destination))!);
         string partial = destination + PartialSuffix;
         string actual;
+        using var stalled = CancellationTokenSource.CreateLinkedTokenSource(cancel);
         try
         {
             await using (var output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None))
@@ -86,8 +103,13 @@ public static class ContentInstaller
                 long done = 0;
                 int n;
                 progress?.Report(new InstallProgress(0, length));
-                while ((n = await source.ReadAsync(buffer, cancel).ConfigureAwait(false)) > 0)
+                while (true)
                 {
+                    // Each read must bring something within the stall time.
+                    stalled.CancelAfter(stall);
+                    n = await source.ReadAsync(buffer, stalled.Token).ConfigureAwait(false);
+                    if (n == 0)
+                        break;
                     hash.AppendData(buffer, 0, n);
                     await output.WriteAsync(buffer.AsMemory(0, n), cancel).ConfigureAwait(false);
                     done += n;
@@ -96,11 +118,20 @@ public static class ContentInstaller
                 actual = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
             }
         }
-        catch (Exception e) when (e is IOException or OperationCanceledException or HttpRequestException)
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
         {
             TryDelete(partial);
-            if (e is OperationCanceledException)
-                throw;
+            throw;
+        }
+        catch (OperationCanceledException e)
+        {
+            TryDelete(partial);
+            throw new ContentPackageException($"The download stopped: nothing arrived for {stall.TotalSeconds:0} seconds.", e);
+        }
+        catch (Exception e)
+        {
+            // A connection cut off, a folder that can't be written, a full disk.
+            TryDelete(partial);
             throw new ContentPackageException($"{what} couldn't be saved: {e.Message}", e);
         }
 
@@ -109,7 +140,15 @@ public static class ContentInstaller
             TryDelete(partial);
             throw NotOfficial(what, actual, expectedSha256, deleted: true);
         }
-        File.Move(partial, destination, overwrite: true);
+        try
+        {
+            File.Move(partial, destination, overwrite: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            TryDelete(partial);
+            throw new ContentPackageException($"The package couldn't be put in {destination}: {e.Message}", e);
+        }
     }
 
     private static ContentPackageException NotOfficial(string what, string actual, string expected, bool deleted) =>
@@ -122,7 +161,7 @@ public static class ContentInstaller
         {
             File.Delete(path);
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
         }
     }

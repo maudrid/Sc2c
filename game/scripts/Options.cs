@@ -23,7 +23,8 @@ namespace Crateris.Game;
 /// Testing options: --id ID (player id instead of the saved one),
 /// --script "thrust:40,right:10,none:20" (scripted input instead of keys;
 /// up, down, select and cancel press an orbit menu key once as their step starts),
-/// --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
+/// --first-run-use FILE (the first-run screen acts as if the player chose
+/// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
 /// --save FILE, --no-upnp, --seconds-per-day N, --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless).
 /// With no options the game starts as a solo host.

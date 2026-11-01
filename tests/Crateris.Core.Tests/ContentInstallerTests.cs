@@ -48,7 +48,8 @@ public sealed class ContentInstallerTests : IDisposable
     }
 
     // /package: the bytes. /redirect: two redirects, as SourceForge does.
-    // /wrong: other bytes. Anything else: 404.
+    // /wrong: other bytes. /slow: half, a 3-second pause, then the rest.
+    // /cut: half, then the connection is dropped. Anything else: 404.
     private async Task Serve()
     {
         while (_server.IsListening)
@@ -62,9 +63,31 @@ public sealed class ContentInstallerTests : IDisposable
             {
                 return;
             }
-            var res = ctx.Response;
+            _ = Task.Run(() => Handle(ctx));
+        }
+    }
+
+    private async Task Handle(HttpListenerContext ctx)
+    {
+        var res = ctx.Response;
+        try
+        {
+            int half = _package.Length / 2;
             switch (ctx.Request.Url!.AbsolutePath)
             {
+                case "/slow":
+                    res.ContentLength64 = _package.Length;
+                    await res.OutputStream.WriteAsync(_package.AsMemory(0, half));
+                    await res.OutputStream.FlushAsync();
+                    await Task.Delay(3000);
+                    await res.OutputStream.WriteAsync(_package.AsMemory(half));
+                    break;
+                case "/cut":
+                    res.ContentLength64 = _package.Length;
+                    await res.OutputStream.WriteAsync(_package.AsMemory(0, half));
+                    await res.OutputStream.FlushAsync();
+                    res.Abort();
+                    return;
                 case "/package":
                     res.ContentLength64 = _package.Length;
                     await res.OutputStream.WriteAsync(_package);
@@ -85,6 +108,10 @@ public sealed class ContentInstallerTests : IDisposable
                     break;
             }
             res.Close();
+        }
+        catch (Exception)
+        {
+            // The client went away (a cancelled or stalled download).
         }
     }
 
@@ -148,6 +175,106 @@ public sealed class ContentInstallerTests : IDisposable
             ContentInstaller.Download(http, _base + "package", Destination, cancel: cancel.Token, expectedSha256: _hash));
         Assert.False(File.Exists(Destination));
         Assert.False(File.Exists(Destination + ContentInstaller.PartialSuffix));
+    }
+
+    [Fact]
+    public async Task CancellingPartWayLeavesNothingBehind()
+    {
+        using var http = new HttpClient();
+        using var cancel = new CancellationTokenSource();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            ContentInstaller.Download(http, _base + "slow", Destination,
+                new SyncProgress(p => { if (p.Done > 0) cancel.Cancel(); }), cancel.Token, _hash));
+        Assert.False(File.Exists(Destination));
+        Assert.False(File.Exists(Destination + ContentInstaller.PartialSuffix));
+    }
+
+    [Fact]
+    public async Task ADroppedConnectionSaysSoAndLeavesNothingBehind()
+    {
+        using var http = new HttpClient();
+        var e = await Assert.ThrowsAsync<ContentPackageException>(() =>
+            ContentInstaller.Download(http, _base + "cut", Destination, expectedSha256: _hash));
+        Assert.Contains("couldn't be saved", e.Message);
+        Assert.False(File.Exists(Destination));
+        Assert.False(File.Exists(Destination + ContentInstaller.PartialSuffix));
+    }
+
+    [Fact]
+    public async Task AStalledDownloadStopsAndSaysSo()
+    {
+        using var http = new HttpClient();
+        var e = await Assert.ThrowsAsync<ContentPackageException>(() =>
+            ContentInstaller.Download(http, _base + "slow", Destination, expectedSha256: _hash,
+                stallTimeout: TimeSpan.FromSeconds(0.5)));
+        Assert.Contains("nothing arrived", e.Message);
+        Assert.False(File.Exists(Destination + ContentInstaller.PartialSuffix));
+
+        // A slow but moving download is fine.
+        await ContentInstaller.Download(http, _base + "slow", Destination, expectedSha256: _hash,
+            stallTimeout: TimeSpan.FromSeconds(10));
+        Assert.Equal(_package, File.ReadAllBytes(Destination));
+    }
+
+    [Fact]
+    public async Task ADownloadThatDoesntAnswerSaysSo()
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(0.5) };
+        // Headers come at once for /slow; a server that never answers is
+        // simulated by a listener that accepts nothing.
+        var silent = new TcpListener(IPAddress.Loopback, 0);
+        silent.Start();
+        try
+        {
+            int port = ((IPEndPoint)silent.LocalEndpoint).Port;
+            var e = await Assert.ThrowsAsync<ContentPackageException>(() =>
+                ContentInstaller.Download(http, $"http://127.0.0.1:{port}/package", Destination, expectedSha256: _hash));
+            Assert.Contains("didn't answer", e.Message);
+        }
+        finally
+        {
+            silent.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task AFolderThatCantBeWrittenSaysSo()
+    {
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root")
+            return;   // root can write anywhere; Windows has no chmod
+        string locked = Path.Combine(_dir, "locked");
+        Directory.CreateDirectory(locked);
+        File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            using var http = new HttpClient();
+            var e = await Assert.ThrowsAsync<ContentPackageException>(() =>
+                ContentInstaller.Download(http, _base + "package", Path.Combine(locked, ContentPackage.FileName), expectedSha256: _hash));
+            Assert.Contains("couldn't be saved", e.Message);
+        }
+        finally
+        {
+            File.SetUnixFileMode(locked, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    [Fact]
+    public void TheNoticeIsTheOneInTheDesign()
+    {
+        // docs/design.md quotes the notice ("First-run content download");
+        // the game must show exactly that text.
+        string dir = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(dir, "docs", "design.md")))
+            dir = Path.GetDirectoryName(dir) ?? throw new InvalidOperationException("no docs/design.md above the tests");
+        var lines = File.ReadAllLines(Path.Combine(dir, "docs", "design.md"));
+        int start = Array.FindIndex(lines, l => l == $"> **{ContentNotice.Title}**");
+        Assert.True(start >= 0, "the design's notice title isn't the game's");
+        var paragraphs = lines.Skip(start + 1)
+            .TakeWhile(l => l.StartsWith('>') && !l.StartsWith("> [ ]") && !l.StartsWith("> **Download"))
+            .Select(l => l.TrimStart('>').Trim())
+            .Where(l => l.Length > 0)
+            .ToList();
+        Assert.Equal(paragraphs, ContentNotice.Paragraphs);
     }
 
     [Fact]

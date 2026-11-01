@@ -15,7 +15,7 @@ To see the first-run screen again, move the game's copy away first: it's `conten
 1. Start the game (`godot --path game`). The content screen shows the notice, **Download (11.5 MB)**, **Use a file I already have...** and **Quit**. No "I agree": the license doesn't ask for one.
 2. **Download** fetches the package from the UQM project's SourceForge page, with a progress bar, checks it and starts the game. Start again and it goes straight in.
 3. Or **Use a file I already have...** and pick a `uqm-0.8.0-content.uqm` you have (from an installed UQM 0.8.0, say). It's checked and copied in; your own file is left alone.
-4. A file that isn't the official package is refused with a message saying so, and nothing is kept. If the download fails (no connection), it says why and you can try again.
+4. A file that isn't the official package is refused with a message saying so, and nothing is kept. If the download fails (no connection, no answer, or nothing arriving for 30 seconds), it says why and you can try again. **Cancel** stops a download or copy part way.
 5. In the game, **F1** shows the about screen with the content notice; F1 or Esc closes it.
 
 A headless host or guest (servers, tests) needs the package given: `--content PATH` (the file or its folder) or `CRATERIS_CONTENT`. Without one it stops at once and says so.
@@ -23,11 +23,11 @@ A headless host or guest (servers, tests) needs the package given: `--content PA
 ### Run the tests
 
 ```
-dotnet test --filter "ContentPackageTests|ResourceIndexTests|ContentInstallerTests"   # 14 tests
+dotnet test --filter "ContentPackageTests|ResourceIndexTests|ContentInstallerTests"   # 20 tests
 python3 tools/test_network.py
 ```
 
-`ContentInstallerTests` downloads from a small web server the test runs itself (with redirects, as SourceForge does), and checks a good download is kept unchanged, a wrong one isn't kept and the old copy stays, failures say why, a cancelled download leaves nothing behind, a file the player has is checked before it's copied, and a package in use can be replaced.
+`ContentInstallerTests` downloads from a small web server the test runs itself (with redirects, as SourceForge does), and checks a good download is kept unchanged, a wrong one isn't kept and the old copy stays, failures say why (no answer, an error from the server, a dropped connection, nothing arriving for 30 seconds, a folder that can't be written), a download cancelled before or part way leaves nothing behind, a file the player has is checked before it's copied, and a package in use can be replaced. `TheNoticeIsTheOneInTheDesign` keeps the game's notice the same as the one quoted in `docs/design.md`, so a change to the wording goes in the design first.
 
 The test that reads the real package is skipped without it, and says so. To run it, point the tests at the package (the game's own copy is found by itself):
 
