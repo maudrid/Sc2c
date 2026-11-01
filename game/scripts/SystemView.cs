@@ -9,6 +9,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
@@ -118,6 +119,9 @@ public partial class SystemView : Control
     private string _me = "";
     private readonly PlaybackClock _clock = new();
 
+    /// <summary>The names of stars and worlds (set once the content is open, before the game starts).</summary>
+    public Names Names { get; set; } = null!;
+
     public SystemView(SystemCatalog systems)
     {
         _systems = systems;
@@ -198,7 +202,9 @@ public partial class SystemView : Control
                     DrawRect(new Rect2(at - new Vector2(mr, mr), new Vector2(mr, mr) * 2), Placeholder.World(system, moons[m]));
                 Markers(orbiting.Where(s => s.OrbitPlanet == planet && s.OrbitMoon == m), at, mr);
             }
-            DrawString(font, new Vector2(8, 18), $"Star {star}, planet {planet}" + (moons.Length > 0 ? $" ({moons.Length} moons)" : ""),
+            // UQM's title over the inner system is the planet's name, its message line the star's.
+            DrawString(font, new Vector2(8, 18), $"{Names.PlanetName(system.Star, planet)}, {Names.Cluster(system.Star)}"
+                + (moons.Length > 0 ? $" ({moons.Length} moons)" : ""),
                 HorizontalAlignment.Left, -1, 15, Colors.LightBlue);
         }
         else
@@ -223,7 +229,8 @@ public partial class SystemView : Control
                     DrawRect(new Rect2(at - new Vector2(r, r), new Vector2(r, r) * 2), Placeholder.World(system, pl));
                 Markers(orbiting.Where(s => s.OrbitPlanet == p), at, r);
             }
-            DrawString(font, new Vector2(8, 18), $"Star {star} at {system.Star.X / 10.0:0.0} : {system.Star.Y / 10.0:0.0}",
+            // UQM's message line is the star's name, its title the star's coordinates.
+            DrawString(font, new Vector2(8, 18), $"{Names.Cluster(system.Star)}   {system.Star.X / 10.0:0.0} : {system.Star.Y / 10.0:0.0}",
                 HorizontalAlignment.Left, -1, 15, Colors.LightBlue);
             DrawString(font, new Vector2(8, 36), $"zoom {IpGeometry.MaxZoomRadius / zoom}x",
                 HorizontalAlignment.Left, -1, 13, Colors.Gray);
@@ -261,6 +268,9 @@ public partial class OrbitView : Control
     private WorldSnapshot? _snapshot;
     private string _me = "";
     private string _message = "";
+
+    /// <summary>The names of stars and worlds (set once the content is open, before the game starts).</summary>
+    public Names Names { get; set; } = null!;
 
     public OrbitView(SystemCatalog systems)
     {
@@ -315,8 +325,10 @@ public partial class OrbitView : Control
         DrawCircle(centre, radius, Placeholder.World(system, desc));
         if (_menu.Shielded)
             DrawArc(centre, radius + 8, 0, Mathf.Tau, 96, new Color(0.6f, 0.8f, 1f, 0.8f), 3);
-        string title = $"Orbiting star {w.Star}, planet {w.Planet}" + (w.Moon is int m ? $", moon {m}" : "");
-        DrawString(font, new Vector2(8, 20), title, HorizontalAlignment.Left, -1, 16, Colors.LightBlue);
+        // UQM's title over the scan screen (GetPlanetTitle), then which world and star it is.
+        DrawString(font, new Vector2(8, 20), Names.Title(system, w.Planet, w.Moon), HorizontalAlignment.Left, -1, 16, Colors.LightBlue);
+        DrawString(font, new Vector2(8, 38), $"{Names.PlanetOrMoon(system.Star, w.Planet, w.Moon)}, {Names.Cluster(system.Star)}",
+            HorizontalAlignment.Left, -1, 13, Colors.Gray);
 
         // Others orbiting the same world.
         int i = 0;

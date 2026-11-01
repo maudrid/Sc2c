@@ -83,17 +83,42 @@ DrawablesIntersect (INTERSECT_CONTROL *c0, INTERSECT_CONTROL *c1,
 	(void) max_time_val;
 	return dx * dx + dy * dy <= r * r ? 1 : 0;
 }
+/* The game strings. Without any (every mode but "names") every string is
+ * "". In "names" mode they are read from a file (one string per line, in
+ * hex as UQM's _GetStringData leaves it, with its terminating NUL; an
+ * empty line for a string UQM keeps no data for), and a STRING is its
+ * number plus one. */
 STRING GameStrings;  /* read by GAME_STRING */
-STRING SetAbsStringTableIndex (STRING s, COUNT i) { (void) i; return s; }
+static char **game_strings;
+static COUNT game_string_count;
+STRING SetAbsStringTableIndex (STRING s, COUNT i)
+{
+	(void) s;
+	return (STRING) (intptr_t) (i + 1);
+}
 STRING SetRelStringTableIndex (STRING s, SIZE i) { (void) i; return s; }
-STRINGPTR GetStringAddress (STRING s) { (void) s; return (STRINGPTR) ""; }
+STRINGPTR
+GetStringAddress (STRING s)
+{
+	intptr_t i = (intptr_t) s - 1;
+	if (!game_strings)
+		return (STRINGPTR) "";
+	if (i < 0 || i >= game_string_count)
+		return NULL;
+	return (STRINGPTR) game_strings[i];
+}
 COUNT GetStringLength (STRING s) { (void) s; return 0; }
+/* utf8StringCopy as in libs/strings/unicode.c (whose UNICODE_CHAR is
+ * unsigned char; it is char everywhere else). */
 unsigned char *
 utf8StringCopy (char *dst, size_t size, const char *src)
 {
-	(void) src;
-	if (size)
-		dst[0] = '\0';
+	if (size == 0)
+		return 0;
+
+	strncpy ((char *) dst, (const char *) src, size);
+	dst[size - 1] = '\0';
+	
 	return (unsigned char *) dst;
 }
 
@@ -761,6 +786,127 @@ layout_main (void)
 	return 0;
 }
 
+/* "names FILE": every name UQM's own code gives, with the game strings
+ * from FILE. One JSON array per star: [GetClusterName, then per planet
+ * [GLOBAL_SIS (PlanetName) after generateName, GetPlanetTitle,
+ * GetPlanetOrMoonName, then per moon [GetPlanetTitle,
+ * GetPlanetOrMoonName]]], each name in hex. Planet and moon names are
+ * as seen from that planet's inner system, as UQM only names them there;
+ * GetPlanetOrMoonName gets the room the save summary gives it
+ * (SIS_NAME_SIZE). */
+static void
+read_game_strings (const char *path)
+{
+	FILE *f = fopen (path, "r");
+	char line[4096];
+	COUNT cap = 0;
+
+	if (!f)
+	{
+		perror (path);
+		exit (1);
+	}
+	while (fgets (line, sizeof line, f))
+	{
+		size_t n = strcspn (line, "\n");
+		size_t k;
+		char *str = NULL;
+
+		if (game_string_count == cap)
+		{
+			cap = cap ? cap * 2 : 1024;
+			game_strings = realloc (game_strings, cap * sizeof *game_strings);
+		}
+		if (n)
+		{
+			str = calloc (1, n / 2 + 1);
+			for (k = 0; k < n / 2; ++k)
+				sscanf (line + 2 * k, "%2hhx", (unsigned char *) &str[k]);
+		}
+		game_strings[game_string_count++] = str;
+	}
+	fclose (f);
+}
+
+static void
+print_name (const char *name)
+{
+	const unsigned char *p = (const unsigned char *) name;
+	putchar ('"');
+	for (; *p; ++p)
+		printf ("%02x", *p);
+	putchar ('"');
+}
+
+static void
+print_titles (void)
+{
+	UNICODE buf[200];
+	UNICODE name[SIS_NAME_SIZE];
+
+	GetPlanetTitle (buf, sizeof (buf));
+	print_name (buf);
+	printf (", ");
+	GetPlanetOrMoonName (name, sizeof (name));
+	print_name (name);
+}
+
+static int
+names_main (const char *path)
+{
+	COUNT s;
+
+	read_game_strings (path);
+	printf ("[");
+	for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
+	{
+		UNICODE buf[200];
+		COUNT i;
+
+		memset (&SolarSysState, 0, sizeof SolarSysState);
+		pSolarSysState = &SolarSysState;
+		CurStarDescPtr = &star_array[s];
+		SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
+		GLOBAL (ip_planet) = 0;
+		GLOBAL (in_orbit) = 0;
+		GLOBAL (ShipFacing) = 1;
+		memset (GLOBAL_SIS (PlanetName), 0, sizeof (GLOBAL_SIS (PlanetName)));
+
+		LoadSolarSys ();
+
+		GetClusterName (CurStarDescPtr, buf);
+		printf ("%s\n[", s ? "," : "");
+		print_name (buf);
+		for (i = 0; i < SolarSysState.SunDesc[0].NumPlanets; ++i)
+		{
+			PLANET_DESC *planet = &SolarSysState.PlanetDesc[i];
+			COUNT m;
+
+			/* As enterInnerSystem does. */
+			GenerateMoons (&SolarSysState, planet);
+			SolarSysState.pBaseDesc = SolarSysState.MoonDesc;
+			SolarSysState.pOrbitalDesc = planet;
+			printf (", [");
+			print_name (GLOBAL_SIS (PlanetName));
+			printf (", ");
+			print_titles ();
+			for (m = 0; m < planet->NumPlanets; ++m)
+			{
+				SolarSysState.pOrbitalDesc = &SolarSysState.MoonDesc[m];
+				printf (", [");
+				print_titles ();
+				printf ("]");
+			}
+			printf ("]");
+			SolarSysState.pBaseDesc = SolarSysState.PlanetDesc;
+			SolarSysState.pOrbitalDesc = NULL;
+		}
+		printf ("]");
+	}
+	printf ("]\n");
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -776,6 +922,8 @@ main (int argc, char *argv[])
 		return orbits_main ();
 	if (argc > 1 && strcmp (argv[1], "ip") == 0)
 		return ip_main ();
+	if (argc > 2 && strcmp (argv[1], "names") == 0)
+		return names_main (argv[2]);
 	if (argc > 1 && (strcmp (argv[1], "flight") == 0
 			|| strcmp (argv[1], "layout") == 0))
 	{

@@ -44,6 +44,7 @@ The first runs 21 checks on the committed files (counts, known values, notices).
 - **`string-table-cases.json`:** string table inputs written for the test (in `tools/extract/golden_uqm.py`, not UQM content), each with exactly what UQM's own `_GetStringData` makes of it, byte for byte: its quirks with headers, blank lines, line endings, NULs, long lines and the 2,048-string limit.
 - **`resource-index-cases.json`:** resource index inputs written for the test, read by UQM's own `PropFile_from_string` (`src/libs/resource/propfile.c`), with its rules for a later id replacing an earlier one and for unknown types. The recorder reads the package's `uqm.rmp` the same way, so it records the tables the engine reads.
 - **`string-tables.json`** (needs `--content`): every string table of the official content package as UQM's loader reads it, kept as each string's length and SHA-256 only. The strings themselves are content (CC BY-NC-SA 2.5) and aren't in the repository (content stage, decision 5).
+- **`names.json`** (needs `--content`): every name UQM's own code gives with the package's game strings: each star's `GetClusterName`, and for each planet (seen from its inner system) the name `generateName` leaves in `GLOBAL_SIS (PlanetName)`, its `GetPlanetTitle` and `GetPlanetOrMoonName`, and each moon's title and name. Recorded by the systems program's `names` mode; kept as SHA-256 hashes only, as names are content.
 
 ```
 python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 [--content uqm-0.8.0-content.uqm]

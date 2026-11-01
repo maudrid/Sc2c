@@ -4,6 +4,8 @@ The content stage is being built in the order of `docs/plans/content-stage.md`. 
 
 ![The first-run screen](../screenshots/content-first-run.png)
 
+![Orbiting Luna: the orbit screen's title and the status say where you are by name](../screenshots/content-names-orbit.png)
+
 ## So far: getting the content
 
 Items 1 to 3 are built. The engine opens the official UQM 0.8.0 content package (`uqm-0.8.0-content.uqm`) in place, refuses any file that isn't the official one (by its SHA-256), and reads files from it by path or by UQM's resource ids. On first start, it asks for the package.
@@ -42,3 +44,31 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test
 The network test needs the package too, the same way; it also checks that a headless host without it stops and says how to give it one.
 
 The package is never added to the repository.
+
+## So far: names
+
+Item 4 is built. Stars, planets and moons have their UQM names, made by the same code UQM uses:
+
+- A star is its constellation name, with a Greek letter in front if it has one ("Zeta Serpentis", "Sol").
+- Sol's planets and its named moons have their own names (Earth, Luna, Titan), as do the Starbase and the Sa-Matra. Every other planet is "Planet I", "Planet II"… by its place from the sun, and an unnamed moon is its planet's name with "-A", "-B"… after it ("Planet III-B").
+- The orbit screen's title is UQM's: a world's own name, or its type ("Opalescent World", "Gas Giant").
+
+### Try it in the game
+
+1. Start as a host in orbit around Luna: `godot --path game -- --host --start-orbit 82:2:1`. The orbit screen's title is "Luna", with "Luna, Sol" under it, and the status on the left says "orbiting Luna, Sol".
+2. Choose Navigate to leave orbit: the inner system view's title is "Earth, Sol (2 moons)" and the status says "the Sol system, near Earth".
+3. Fly out of the inner system: the outer view's title is "Sol" with its coordinates.
+4. Try an ordinary star: `--start-orbit 0:2:1` is "Opalescent World", "Planet III-B, Zeta Serpentis"; leaving orbit shows "Planet III, Zeta Serpentis (4 moons)".
+5. With a guest joined, each player's line in the status shows where they are by name too.
+
+![Leaving orbit at Zeta Serpentis: Planet III and its four moons](../screenshots/content-names-inner.png)
+
+The orbit screen still uses the engine's font and words for everything but the title; UQM's fonts and words come with item 5.
+
+### Run the tests
+
+```
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter NamesTests   # 3 tests
+```
+
+`EveryNameIsTheNameUqmGives` checks the name of every one of the 502 stars and the names and titles of every planet and moon against what UQM's own code gives (by hash, as names are content). The other two check a few you'd recognise in plain words: Sol, Earth, Luna and Titan, and "Planet ..." and "-B" for an ordinary system. Without the package they're skipped, and say so.

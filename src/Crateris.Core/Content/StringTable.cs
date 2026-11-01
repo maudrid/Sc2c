@@ -200,6 +200,9 @@ public sealed class GameStrings
 
     public static GameStrings Load(ContentPackage package) => new(StringTable.Load(package, ResourceId));
 
+    /// <summary>The whole table, for code that needs the strings as UQM keeps them.</summary>
+    public StringTable Table => _table;
+
     /// <summary>GAME_STRING (index).</summary>
     public string this[int index] => _table[index];
 }

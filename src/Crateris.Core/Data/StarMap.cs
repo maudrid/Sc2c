@@ -19,8 +19,12 @@ public enum StarColor { Blue = 0, Green = 1, Orange = 2, Red = 3, White = 4, Yel
 /// <summary>
 /// One star of the map (STAR_DESC). <see cref="Special"/> is the name of its
 /// special generator (STAR_DESC.Index, for example "SOL_DEFINED"), or null.
+/// <see cref="NamePrefix"/> and <see cref="NamePostfix"/> are STAR_DESC's
+/// Prefix and Postfix: what its name is made of, in the game strings
+/// (<see cref="Crateris.Core.Content.Names.Cluster"/>).
 /// </summary>
-public sealed record Star(int Number, short X, short Y, StarSize Size, StarColor Color, string? Special)
+public sealed record Star(int Number, short X, short Y, StarSize Size, StarColor Color, string? Special,
+    int NamePrefix = 0, int NamePostfix = 0)
 {
     /// <summary>GetRandomSeedForStar: MAKE_DWORD (x, y).</summary>
     public uint Seed => ((uint)(ushort)Y << 16) | (ushort)X;
@@ -52,7 +56,9 @@ public sealed class StarMap
                 (short)s.GetProperty("y").GetInt32(),
                 ParseSize(s.GetProperty("size").GetString()!),
                 ParseColor(s.GetProperty("color").GetString()!),
-                special.ValueKind == JsonValueKind.Null ? null : special.GetString()));
+                special.ValueKind == JsonValueKind.Null ? null : special.GetString(),
+                s.GetProperty("name_prefix").GetInt32(),
+                s.GetProperty("name_postfix").GetInt32()));
         }
         if (stars.Count != SolarSystemCount)
             throw new InvalidDataException($"starmap.json: {stars.Count} stars, expected {SolarSystemCount}");

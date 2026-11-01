@@ -78,6 +78,7 @@ public partial class Main : Node2D
     // The UQM content package (checked as the official one), the screens
     // that get it on first run and show its notice, and the layer they're on.
     private ContentPackage? _content;
+    private Names _names = null!;
     private FirstRunScreen? _firstRun;
     private AboutScreen _about = null!;
     private CanvasLayer _screens = null!;
@@ -146,7 +147,7 @@ public partial class Main : Node2D
         {
             if (ContentLocation.Find(_options.ContentPath, userFolder) is { } path)
             {
-                _content = ContentPackage.Open(path);
+                OpenContent(path, ContentPackage.OfficialSha256);
                 Log($"Content: {path}");
                 StartGame();
                 return;
@@ -172,7 +173,7 @@ public partial class Main : Node2D
             try
             {
                 // The installer has just checked the file's hash.
-                _content = ContentPackage.Open(path, expectedSha256: null);
+                OpenContent(path, expectedSha256: null);
             }
             catch (ContentPackageException e)
             {
@@ -188,6 +189,15 @@ public partial class Main : Node2D
         _screens.AddChild(_firstRun);
         if (_options.FirstRunUse is { } file)
             _firstRun.Choose(file);
+    }
+
+    /// <summary>Opens the content and reads what the game needs from it before starting.</summary>
+    private void OpenContent(string path, string? expectedSha256)
+    {
+        var content = ContentPackage.Open(path, expectedSha256);
+        _names = Names.Load(content);
+        _content = content;
+        _systemView.Names = _orbitView.Names = _names;
     }
 
     private void StartGame()
@@ -703,13 +713,20 @@ public partial class Main : Node2D
         _hud.Visible = _firstRun == null;   // the first-run screen stands alone
     }
 
-    private static string Where(ShipSnapshot s) => s.Activity switch
+    private string Where(ShipSnapshot s)
     {
-        Activity.Hyperspace => $"hyperspace {s.UniverseX / 10.0:0.0} : {s.UniverseY / 10.0:0.0}",
-        Activity.OuterSystem => $"system of star {s.SystemStar}",
-        Activity.InnerSystem => $"system of star {s.SystemStar}, near planet {s.InnerPlanet}",
-        _ => $"orbiting star {s.SystemStar} planet {s.OrbitPlanet}" + (s.OrbitMoon is int m ? $" moon {m}" : ""),
-    };
+        if (s.Activity == Activity.Hyperspace || s.SystemStar is not int star)
+            return $"hyperspace {s.UniverseX / 10.0:0.0} : {s.UniverseY / 10.0:0.0}";
+        var at = _systems.Map.Stars[star];
+        string cluster = _names.Cluster(at);
+        return s.Activity switch
+        {
+            Activity.OuterSystem => $"the {cluster} system",
+            Activity.InnerSystem when s.InnerPlanet is int p => $"the {cluster} system, near {_names.PlanetName(at, p)}",
+            Activity.Orbit when s.OrbitPlanet is int p => $"orbiting {_names.PlanetOrMoon(at, p, s.OrbitMoon)}, {cluster}",
+            _ => $"the {cluster} system",
+        };
+    }
 
     // ---------------------------------------------------- quit / report
 

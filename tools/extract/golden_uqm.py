@@ -429,24 +429,23 @@ def record_string_table_cases(uqm, exe):
     return data
 
 
-def record_string_tables(uqm, exe, package):
-    """Every STRTAB resource in the official content package, as UQM's own
-    _GetStringData reads it. The strings are content, so only their
-    lengths and SHA-256 hashes are kept."""
+def read_string_tables(exe, package, keep=lambda key: True):
+    """The STRTAB resources of the official content package whose ids
+    pass keep, as UQM's own _GetStringData reads them: {id: (path,
+    [[length, hex], ...])}, as the strings program prints them."""
     import hashlib
     import zipfile
     with open(package, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     if digest != CONTENT_SHA256:
         sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
-    tables = {}
     with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
         index_file = os.path.join(tmp, "uqm.rmp")
         with open(index_file, "wb") as f:
             f.write(z.read("uqm.rmp"))
         entries = [(key, path) for key, (kind, path)
                    in read_resource_index(exe, index_file).items()
-                   if kind == "STRTAB"]
+                   if kind == "STRTAB" and keep(key)]
         files = []
         for i, (key, path) in enumerate(entries):
             local = os.path.join(tmp, f"{i}.txt")
@@ -455,7 +454,17 @@ def record_string_tables(uqm, exe, package):
             files.append(local)
         out = subprocess.run([exe, *files], capture_output=True, text=True,
                              check=True).stdout
-    for (key, path), strings in zip(entries, json.loads(out)):
+    return {key: (path, strings)
+            for (key, path), strings in zip(entries, json.loads(out))}
+
+
+def record_string_tables(uqm, exe, package):
+    """Every STRTAB resource in the official content package, as UQM's own
+    _GetStringData reads it. The strings are content, so only their
+    lengths and SHA-256 hashes are kept."""
+    import hashlib
+    tables = {}
+    for key, (path, strings) in read_string_tables(exe, package).items():
         tables[key] = {
             "path": path,
             "strings": [[length, hashlib.sha256(bytes.fromhex(data)).hexdigest()]
@@ -471,6 +480,54 @@ def record_string_tables(uqm, exe, package):
         "string) and the hash is of those length bytes.",
     ])
     data["tables"] = tables
+    return data
+
+
+def record_names(uqm, systems_exe, strings_exe, package):
+    """Every name UQM's own code gives to stars, planets and moons, with
+    the game strings of the official content package. Names are content,
+    so only their SHA-256 hashes are kept."""
+    import hashlib
+    _, strings = read_string_tables(
+        strings_exe, package, lambda key: key == "text.starcon")["text.starcon"]
+    with tempfile.TemporaryDirectory() as tmp:
+        table = os.path.join(tmp, "gamestrings.hex")
+        with open(table, "w") as f:
+            for length, data in strings:
+                f.write(data + "\n")
+        out = subprocess.run([systems_exe, "names", table],
+                             capture_output=True, text=True,
+                             check=True).stdout
+
+    def h(name):
+        return hashlib.sha256(bytes.fromhex(name)).hexdigest()
+
+    stars = []
+    for star in json.loads(out):
+        planets = []
+        for p in star[1:]:
+            planets.append({"name": h(p[0]), "title": h(p[1]),
+                            "planet_or_moon": h(p[2]),
+                            "moons": [[h(t), h(n)] for t, n in p[3:]]})
+        stars.append({"cluster": h(star[0]), "planets": planets})
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "src/uqm/starmap.c", "src/uqm/planets/solarsys.c",
+                        "src/uqm/planets/scan.c",
+                        "src/uqm/planets/generate/gendefault.c",
+                        "src/uqm/planets/generate/gensol.c"], [
+        "Every name UQM 0.8.0's own code gives, with the game strings "
+        "(text.starcon) of the official content package (SHA-256 "
+        f"{CONTENT_SHA256}), read by UQM's _GetStringData. Names are content "
+        "(CC BY-NC-SA 2.5), so each is the SHA-256 of its UTF-8 bytes.",
+        "stars: one per star in starmap order. cluster: GetClusterName. "
+        "planets: in PlanetDesc order, each as seen from its own inner "
+        "system (after GenerateMoons, which calls generateName): name is "
+        "GLOBAL_SIS (PlanetName), title GetPlanetTitle (the orbit "
+        "screen's title), planet_or_moon GetPlanetOrMoonName into "
+        "SIS_NAME_SIZE bytes (as the save summary does). moons: in "
+        "MoonDesc order, [GetPlanetTitle, GetPlanetOrMoonName] for each.",
+    ])
+    data["stars"] = stars
     return data
 
 
@@ -511,7 +568,8 @@ def main():
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),
-                           *([("string-tables", record_string_tables(uqm, strings, args.content))]
+                           *([("string-tables", record_string_tables(uqm, strings, args.content)),
+                              ("names", record_names(uqm, systems, strings, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:
