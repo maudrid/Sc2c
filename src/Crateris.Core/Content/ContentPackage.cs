@@ -24,15 +24,24 @@ public sealed record ResourceEntry(string Id, string Type, string Value);
 /// </summary>
 public static class ResourceIndex
 {
-    /// <summary>The type UQM gives an entry with no "TYPE:" part.</summary>
+    /// <summary>The type UQM gives an entry with no type, or a type it doesn't know.</summary>
     public const string UnknownType = "UNKNOWNRES";
+
+    /// <summary>The types UQM 0.8.0 registers (every InstallResTypeVectors call).</summary>
+    public static readonly IReadOnlySet<string> KnownTypes = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "3DOVID", "BINTAB", "BOOLEAN", "COLOR", "CONVERSATION", "FONTRES", "GFXRES",
+        "INT32", "MUSICRES", "SHIP", "SNDRES", "STRING", "STRTAB", UnknownType,
+    };
 
     /// <summary>
     /// Reads an index as PropFile_from_string does: blank lines and lines
     /// starting with '#' are skipped, a '#' ends a line, key and value are
     /// trimmed, and a line without '=' is ignored. A later entry with the
     /// same id replaces an earlier one (process_resource_desc). The type
-    /// is what comes before the first ':' (newResourceDesc).
+    /// is what comes before the first ':'; with no ':', or a type UQM
+    /// doesn't register, the entry is UNKNOWNRES with the whole value
+    /// (newResourceDesc).
     /// </summary>
     public static IReadOnlyDictionary<string, ResourceEntry> Parse(string text)
     {
@@ -76,9 +85,9 @@ public static class ResourceIndex
             string key = text[keyStart..keyEnd];
             string value = text[valueStart..valueEnd];
             int colon = value.IndexOf(':');
-            entries[key] = colon < 0
-                ? new ResourceEntry(key, UnknownType, value)
-                : new ResourceEntry(key, value[..colon], value[(colon + 1)..]);
+            entries[key] = colon >= 0 && KnownTypes.Contains(value[..colon])
+                ? new ResourceEntry(key, value[..colon], value[(colon + 1)..])
+                : new ResourceEntry(key, UnknownType, value);
         }
         return entries;
     }
@@ -110,6 +119,10 @@ public sealed class ContentPackageException : Exception
 /// download"). Files are named by their path in the package
 /// (<c>base/gamestrings.txt</c>) or found through the resource index
 /// (<c>uqm.rmp</c>). Not thread-safe.
+///
+/// The file stays open while the package is in use; it can be renamed or
+/// deleted meanwhile but not written to. Code that replaces the package
+/// (a new download) writes a new file next to it and moves it into place.
 /// </summary>
 public sealed class ContentPackage : IDisposable
 {
@@ -165,16 +178,19 @@ public sealed class ContentPackage : IDisposable
     {
         if (!File.Exists(path))
             throw new ContentPackageException($"{path} doesn't exist");
-        if (expectedSha256 is not null)
-        {
-            string actual = Sha256Of(path);
-            if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
-                throw new ContentPackageException(
-                    $"{path} isn't the official UQM 0.8.0 content (SHA-256 {actual}, expected {expectedSha256})");
-        }
-        var stream = File.OpenRead(path);
+        // One open file for both the check and the reading, so what is read
+        // is what was checked.
+        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
         try
         {
+            if (expectedSha256 is not null)
+            {
+                string actual = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+                if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
+                    throw new ContentPackageException(
+                        $"{path} isn't the official UQM 0.8.0 content (SHA-256 {actual}, expected {expectedSha256})");
+                stream.Position = 0;
+            }
             return new ContentPackage(path, new ZipArchive(stream, ZipArchiveMode.Read));
         }
         catch (InvalidDataException e)

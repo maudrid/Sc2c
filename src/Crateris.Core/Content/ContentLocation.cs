@@ -10,9 +10,11 @@ namespace Crateris.Core.Content;
 
 /// <summary>
 /// Where the content package is looked for: a path given on the command
-/// line or in <see cref="EnvironmentVariable"/> (a file, or a folder
-/// holding <see cref="ContentPackage.FileName"/>), then the game's own
-/// copy in its user folder, where the first-run download puts it.
+/// line (<c>--content</c>) or in <see cref="EnvironmentVariable"/> (a file,
+/// or a folder holding <see cref="ContentPackage.FileName"/>), then the
+/// game's own copy in its user folder, where the first-run download puts it.
+/// A path that is given must exist: a mistyped one is an error, not a
+/// reason to quietly use another copy.
 /// </summary>
 public static class ContentLocation
 {
@@ -22,14 +24,17 @@ public static class ContentLocation
     /// <summary>The folder inside the game's user folder that holds the package.</summary>
     public const string UserSubfolder = "content";
 
+    /// <summary>The project name in <c>game/project.godot</c>, which names Godot's user folder (a test keeps them the same).</summary>
+    public const string GodotProjectName = "Attack on Crateris";
+
     /// <summary>
     /// The game's user folder, as Godot names it for this project
-    /// (<c>user://</c> with the project name "Attack on Crateris"), for code
-    /// that runs outside Godot, such as the tests.
+    /// (<c>user://</c>: Godot's data folder, <c>app_userdata</c>, then the
+    /// project name), for code that runs outside Godot, such as the tests.
     /// </summary>
     public static string GameUserFolder()
     {
-        const string app = "Attack on Crateris";
+        const string app = GodotProjectName;
         if (OperatingSystem.IsWindows())
             return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Godot", "app_userdata", app);
         if (OperatingSystem.IsMacOS())
@@ -46,20 +51,24 @@ public static class ContentLocation
         System.IO.Path.Combine(userFolder, UserSubfolder, ContentPackage.FileName);
 
     /// <summary>
-    /// The first existing package among: <paramref name="given"/>, the
-    /// environment variable, then the stored copy in <paramref name="userFolder"/>.
-    /// A folder stands for the package file inside it. Null if none exists.
+    /// The package to use: <paramref name="given"/> if set, else the
+    /// environment variable if set, else the stored copy in
+    /// <paramref name="userFolder"/> if there is one, else null. A folder
+    /// stands for the package file inside it. Throws if a given path (or
+    /// the environment variable's) doesn't exist.
     /// </summary>
     public static string? Find(string? given, string userFolder)
     {
-        foreach (var candidate in new[] { given, Environment.GetEnvironmentVariable(EnvironmentVariable), StoredPackage(userFolder) })
+        foreach (var (candidate, from) in new[] { (given, "--content"), (Environment.GetEnvironmentVariable(EnvironmentVariable), EnvironmentVariable) })
         {
             if (string.IsNullOrEmpty(candidate))
                 continue;
             string file = Directory.Exists(candidate) ? System.IO.Path.Combine(candidate, ContentPackage.FileName) : candidate;
-            if (File.Exists(file))
-                return file;
+            if (!File.Exists(file))
+                throw new ContentPackageException($"{from} names {file}, which doesn't exist");
+            return file;
         }
-        return null;
+        string stored = StoredPackage(userFolder);
+        return File.Exists(stored) ? stored : null;
     }
 }

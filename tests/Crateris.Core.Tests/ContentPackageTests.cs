@@ -20,7 +20,26 @@ namespace Crateris.Core.Tests;
 /// </summary>
 internal static class TestContent
 {
-    public static readonly string? PackagePath = ContentLocation.Find(null, ContentLocation.GameUserFolder());
+    /// <summary>The package, or null if there's none.</summary>
+    public static readonly string? PackagePath;
+
+    /// <summary>Why the package named by CRATERIS_CONTENT can't be used (a mistyped path), or null.</summary>
+    public static readonly string? Problem;
+
+    static TestContent()
+    {
+        try
+        {
+            PackagePath = ContentLocation.Find(null, ContentLocation.GameUserFolder());
+        }
+        catch (ContentPackageException e)
+        {
+            Problem = e.Message;
+        }
+    }
+
+    /// <summary>The package's path; fails the test, saying why, if CRATERIS_CONTENT names one that doesn't exist.</summary>
+    public static string Package => PackagePath ?? throw new InvalidOperationException(Problem ?? "no content package");
 }
 
 /// <summary>A test that needs the UQM content package; skipped, saying why, when there is none.</summary>
@@ -28,7 +47,9 @@ public sealed class ContentFactAttribute : FactAttribute
 {
     public ContentFactAttribute()
     {
-        if (TestContent.PackagePath is null)
+        // Skipped when there's no package at all; a CRATERIS_CONTENT that
+        // names a missing file makes the test fail instead, saying so.
+        if (TestContent.PackagePath is null && TestContent.Problem is null)
             Skip = $"needs the UQM 0.8.0 content: set {ContentLocation.EnvironmentVariable} to {ContentPackage.FileName}, or run the game once to download it";
     }
 }
@@ -54,6 +75,30 @@ public class ResourceIndexTests
         Assert.Equal(new ResourceEntry("ship.flagship.code", "SHIP", "26"), index["ship.flagship.code"]);
         Assert.Equal(new ResourceEntry("just.text", ResourceIndex.UnknownType, "Hello there"), index["just.text"]);
         Assert.False(index.ContainsKey("no.value.here"));
+    }
+
+    [Fact]
+    public void ATypeUqmDoesntKnowMakesTheWholeValueThePath()
+    {
+        // newResourceDesc: an unregistered type is UNKNOWNRES, keeping the value whole.
+        var index = ResourceIndex.Parse("a = BINTA:base/a.ct\nb = http://example.org/x\nc = STRING:key Up\n");
+        Assert.Equal(new ResourceEntry("a", ResourceIndex.UnknownType, "BINTA:base/a.ct"), index["a"]);
+        Assert.Equal(new ResourceEntry("b", ResourceIndex.UnknownType, "http://example.org/x"), index["b"]);
+        Assert.Equal(new ResourceEntry("c", "STRING", "key Up"), index["c"]);
+    }
+
+    [Fact]
+    public void TheTestsLookWhereTheGameKeepsItsFiles()
+    {
+        // ContentLocation.GameUserFolder works out Godot's user folder from
+        // the project name; it must be the one in game/project.godot, and
+        // the project mustn't move its user folder elsewhere.
+        string dir = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(dir, "game", "project.godot")))
+            dir = Path.GetDirectoryName(dir) ?? throw new InvalidOperationException("no game/project.godot above the tests");
+        string project = File.ReadAllText(Path.Combine(dir, "game", "project.godot"));
+        Assert.Contains($"config/name=\"{ContentLocation.GodotProjectName}\"", project);
+        Assert.DoesNotContain("use_custom_user_dir", project);
     }
 }
 
@@ -144,11 +189,15 @@ public class ContentPackageTests
         {
             Assert.Equal(stored, ContentLocation.Find(Path.GetDirectoryName(stored), user));   // a folder means the file in it
             Assert.Equal(stored, ContentLocation.Find(stored, Path.Combine(user, "elsewhere")));
+            // A given path that doesn't exist is an error, not a reason to use the stored copy.
+            var e = Assert.Throws<ContentPackageException>(() => ContentLocation.Find(Path.Combine(user, "typo.uqm"), user));
+            Assert.Contains("--content names", e.Message);
+            Assert.Contains("typo.uqm", e.Message);
             // Without a path given or in the environment, the stored copy; and nothing if there's none.
             if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ContentLocation.EnvironmentVariable)))
             {
                 Assert.Equal(stored, ContentLocation.Find(null, user));
-                Assert.Null(ContentLocation.Find(Path.Combine(user, "missing.uqm"), Path.Combine(user, "elsewhere")));
+                Assert.Null(ContentLocation.Find(null, Path.Combine(user, "elsewhere")));
             }
         }
         finally
@@ -160,7 +209,7 @@ public class ContentPackageTests
     [ContentFact]
     public void TheOfficialPackageOpensAndEveryIndexedFileIsInIt()
     {
-        using var package = ContentPackage.Open(TestContent.PackagePath!);
+        using var package = ContentPackage.Open(TestContent.Package);
         Assert.Equal(ContentPackage.OfficialSize, new FileInfo(package.Path).Length);
         Assert.Equal(10_556, package.Files.Count(f => f.StartsWith("base/", StringComparison.Ordinal)));
 
@@ -175,9 +224,10 @@ public class ContentPackageTests
 
         // Every entry that names a file names one in the package (a font
         // is a folder of glyph images).
+        var folders = package.Files.Where(f => f.Contains('/')).Select(f => f[..f.LastIndexOf('/')]).ToHashSet();
         var missing = package.Resources.Values
             .Where(r => r.Type is not ("SHIP" or ResourceIndex.UnknownType))
-            .Where(r => !package.HasFile(r.Value) && !package.Files.Any(f => f.StartsWith(r.Value + "/", StringComparison.Ordinal)))
+            .Where(r => !package.HasFile(r.Value) && !folders.Contains(r.Value))
             .Select(r => $"{r.Id} = {r.Type}:{r.Value}")
             .ToList();
         Assert.True(missing.Count == 0, "not in the package: " + string.Join(", ", missing));
