@@ -21,7 +21,7 @@ namespace Crateris.Game;
 /// Testing options: --id ID (player id instead of the saved one),
 /// --script "thrust:40,right:10,none:20" (scripted input instead of keys;
 /// up, down, select and cancel press an orbit menu key once as their step starts),
-/// --quit-after FRAMES, --report FILE (write what happened as JSON),
+/// --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
 /// --save FILE, --no-upnp, --seconds-per-day N, --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless).
 /// With no options the game starts as a solo host.
@@ -38,6 +38,9 @@ public sealed class Options
     public string? ReportPath { get; private set; }
     public string? ScreenshotPath { get; private set; }
     public long QuitAfterFrames { get; private set; }
+
+    /// <summary>--quit-after-join FRAMES: a host quits this many frames after the first guest joins (testing).</summary>
+    public long QuitAfterJoinFrames { get; private set; }
     public bool UseUpnp { get; private set; } = true;
     public double? SecondsPerDay { get; private set; }
     /// <summary>One step of --script: input held for some frames; a menu key is pressed once as the step starts.</summary>
@@ -79,6 +82,7 @@ public sealed class Options
                 case "--report": o.ReportPath = Next(); break;
                 case "--screenshot": o.ScreenshotPath = Next(); break;
                 case "--quit-after": o.QuitAfterFrames = long.Parse(Next()); break;
+                case "--quit-after-join": o.QuitAfterJoinFrames = long.Parse(Next()); break;
                 case "--no-upnp": o.UseUpnp = false; break;
                 case "--seconds-per-day":
                     o.SecondsPerDay = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);

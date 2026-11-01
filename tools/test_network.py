@@ -25,6 +25,9 @@ Checks: A is Joined then Rejoined and comes back where it left; B is
 Joined; both saw the undocking scene; everyone sees everyone; the save
 holds all three players.
 
+Then a host quits while a guest is still undocking: the guest says the
+host closed the game and does nothing more.
+
 Then (stage 2) a host starts in orbit round Earth's Moon, guest C joins
 and undocks in Earth's inner system, the host does an auto scan from the
 orbit menu (finding the Moon's nodes) and leaves orbit with the menu's
@@ -194,6 +197,26 @@ def main():
     check(saved3["version"] >= 4 and all(p.get("system_star") == 82
                                          for p in saved3["players"]),
           "the save keeps both ships in the Sol system")
+
+    # The host quits while guest D is still undocking: D says the host
+    # closed the game, and doesn't go on to undock or send to the host.
+    save4 = os.path.join(out, "save4.json")
+    host4 = start(out, "host4", "--host", "--no-upnp", "--port", PORT,
+                  "--name", "Host", "--id", "host", "--save", save4,
+                  "--quit-after-join", "24", "--quit-after", "600")
+    time.sleep(1)
+    d = start(out, "d", "--join", f"127.0.0.1:{PORT}", "--name", "D",
+              "--id", "guest-d", "--script", "none:500", "--quit-after", "600")
+    for p in (d, host4):
+        p.wait(timeout=60)
+    rd = report(out, "d")
+    lines = [line.split("] ", 1)[1] for line in rd["log"]]
+    closed = lines.index("The host closed the game.") if "The host closed the game." in lines else -1
+    check(rd["welcome"] == "Joined" and "Undocking" in lines, "D joined and started undocking")
+    check(closed >= 0 and not any(l.startswith("Undocked") for l in lines),
+          "D was told the host closed the game before it finished undocking")
+    check(closed >= 0 and rd["status"] == "The host closed the game." and lines[-1] == lines[closed],
+          "nothing happened on D after the host closed the game")
 
     print(f"\nlogs and reports in {out}")
     if failures:

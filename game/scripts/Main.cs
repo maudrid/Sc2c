@@ -56,6 +56,9 @@ public partial class Main : Node2D
 
     // A guest is connected from an accepted welcome until the connection fails or the host leaves.
     private bool _connected;
+    private bool _failing;           // quitting after a failure, in a moment
+    private bool _finished;
+    private long _firstJoinFrame = -1;
     private double _saveTimer;
 
     private HyperspaceView _view = null!;
@@ -193,7 +196,7 @@ public partial class Main : Node2D
             if (upnp.AddPortMapping(port, port, "Attack on Crateris", "UDP") != (int)Upnp.UpnpResult.Success)
                 return "The router refused to open the port; forward it by hand.";
             return $"Port {port} opened on the router. Friends join with {upnp.QueryExternalAddress()}:{port}";
-        }).ContinueWith(t => CallDeferred(MethodName.SetStatus, t.Result));
+        }).ContinueWith(t => CallDeferred(MethodName.SetStatus, $"Hosting on port {port}. {t.Result}"));
     }
 
     private void SetStatus(string text)
@@ -285,7 +288,6 @@ public partial class Main : Node2D
     {
         _welcome = Protocol.Decode<Protocol.Welcome>(data);
         _inputDelay = _welcome.InputDelayFrames;
-        Log($"Welcome: {_welcome.Result}");
         if (!Protocol.Accepted(_welcome.Result))
         {
             Fail(_welcome.Message);
@@ -320,8 +322,8 @@ public partial class Main : Node2D
         }
         catch (ArgumentException e)
         {
-            _status = $"Can't start in orbit at {where}: {e.Message}";
-            Log(_status);
+            // A notice: the hosting status set after this would hide a status line.
+            Notify($"Can't start in orbit: {e.Message}", 20);
         }
     }
 
@@ -340,10 +342,10 @@ public partial class Main : Node2D
     }
 
     /// <summary>Shows a one-off message under the status line for a few seconds (and logs it).</summary>
-    private void Notify(string message)
+    private void Notify(string message, double seconds = NoticeSeconds)
     {
         _notice = message;
-        _noticeUntilMs = Time.GetTicksMsec() + (ulong)(NoticeSeconds * 1000);
+        _noticeUntilMs = Time.GetTicksMsec() + (ulong)(seconds * 1000);
         Log(message);
     }
 
@@ -355,8 +357,13 @@ public partial class Main : Node2D
         _connected = false;   // nothing more is sent, and the undocking scene stops
         _status = message;
         Log(message);
-        if (_options.QuitAfterFrames > 0 || _options.ReportPath != null)
-            Finish(1);
+        // A second's grace before quitting, so a report shows what the
+        // game did after the failure (the network test checks it).
+        if ((_options.QuitAfterFrames > 0 || _options.ReportPath != null) && !_failing)
+        {
+            _failing = true;
+            GetTree().CreateTimer(1.0).Timeout += () => Finish(1);
+        }
     }
 
     // ------------------------------------------------------------ frame
@@ -390,7 +397,10 @@ public partial class Main : Node2D
         ShowViews();
         UpdateHud();
 
-        if (_options.QuitAfterFrames > 0 && _frames >= _options.QuitAfterFrames)
+        if (_isHost && _options.QuitAfterJoinFrames > 0 && _firstJoinFrame < 0 && _peerPlayers.Count > 0)
+            _firstJoinFrame = _frames;
+        bool quitAfterJoin = _firstJoinFrame >= 0 && _frames >= _firstJoinFrame + _options.QuitAfterJoinFrames;
+        if (!_failing && ((_options.QuitAfterFrames > 0 && _frames >= _options.QuitAfterFrames) || quitAfterJoin))
             Finish(0);
     }
 
@@ -627,6 +637,9 @@ public partial class Main : Node2D
 
     private void Finish(int code)
     {
+        if (_finished)
+            return;
+        _finished = true;
         if (_isHost)
             SaveGame();
         if (_options.ScreenshotPath != null && DisplayServer.GetName() != "headless")
