@@ -16,6 +16,8 @@
  * StartSphereTracking returns 0: no alien ships are at any homeworld, so
  * no conversation starts and every world can be orbited and scanned.
  * isNodeRetrieved returns 0: nothing has been picked up.
+ * Frame indexing and sprite intersection are in systems.c, which models
+ * them for the flight traces.
  */
 
 static char dummy_handle[64];
@@ -31,9 +33,7 @@ long CloneShipFragment () { return 0; }
 long CountLinks () { return 0; }
 void *CreateContextAux () { return dummy_handle; }
 void *CreateDrawable () { return dummy_handle; }
-void *DecFrameIndex () { return dummy_handle; }
 long DeltaSISGauges () { return 0; }
-long DeltaVelocityComponents () { return 0; }
 long DestroyContext () { return 0; }
 long DestroyDrawable () { return 0; }
 long DestroyMusic () { return 0; }
@@ -42,7 +42,6 @@ long DevicesMenu () { return 0; }
 long DoDiscoveryReport () { return 0; }
 long DoInput () { return 0; }
 long DoMenuChooser () { return 0; }
-long DoMissions () { return 0; }
 long DrawAutoPilotMessage () { return 0; }
 long DrawHyperCoords () { return 0; }
 long DrawMenuStateStrings () { return 0; }
@@ -52,7 +51,6 @@ long DrawSISMessage () { return 0; }
 long DrawSISTitle () { return 0; }
 long DrawStamp () { return 0; }
 long DrawStatusMessage () { return 0; }
-long DrawablesIntersect () { return 0; }
 long EscortFeasibilityStudy () { return 0; }
 long FadeScreen () { return 0; }
 long FindMasterShip () { return 0; }
@@ -62,8 +60,6 @@ long GameClockTick () { return 0; }
 long GameOptions () { return 0; }
 long GetColorMapAddress () { return 0; }
 long GetContextClipRect () { return 0; }
-long GetCurrentVelocityComponents () { return 0; }
-long GetFrameIndex () { return 0; }
 long GetGroupInfo () { return 0; }
 long GetPlanetInfo () { return 0; }
 long GetStarShipFromIndex () { return 0; }
@@ -85,7 +81,6 @@ void *LoadMusicInstance () { return dummy_handle; }
 long LoadStdLanderFont () { return 0; }
 void *LoadStringTableInstance () { return dummy_handle; }
 long MoveGameClockDays () { return 0; }
-long NotifyOthers () { return 0; }
 long PlanetOrbitMenu () { return 0; }
 long PlayMusic () { return 0; }
 long PutGroupInfo () { return 0; }
@@ -111,7 +106,6 @@ long SetMenuSounds () { return 0; }
 long SetRaceAllied () { return 0; }
 void *SetRelFrameIndex () { return dummy_handle; }
 long SetTransitionSource () { return 0; }
-long SetVelocityComponents () { return 0; }
 long SleepThreadUntil () { return 0; }
 long StartSphereTracking () { return 0; }
 long StopMusic () { return 0; }
@@ -126,7 +120,11 @@ long isNodeRetrieved () { return 0; }
 long load_ship () { return 0; }
 long setNodeRetrieved () { return 0; }
 long log_add () { return 0; }
+long AllocElement () { return 0; }
+long RemoveElement () { return 0; }
+long SetUpElement () { return 0; }
 
+char disp_q[65536];
 char CurrentInputState[65536];
 char DisplayArray[65536];
 char FlagStatFrame[65536];
@@ -136,12 +134,12 @@ char MenuSounds[65536];
 char MiscDataFrame[65536];
 char NextActivity[65536];
 char OffScreenContext[65536];
-char PLRPlaying[65536];
+long PLRPlaying () { return 0; }
 char PlayerControls[65536];
 char PulsedInputState[65536];
 char Screen[65536];
 char SpaceContext[65536];
-char StarMap[65536];
+long StarMap () { return 0; }
 char master_q[65536];
 char optWhichMenu[65536];
 char stars_in_space[65536];

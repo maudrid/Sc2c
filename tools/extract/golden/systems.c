@@ -21,6 +21,7 @@
  */
 
 #include "uqm/planets/solarsys.c"
+#include "uqm/ipdisp.c"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,7 +33,55 @@ void *HCalloc (size_t size) { return calloc (1, size); }
 void HFree (void *p) { free (p); }
 
 /* Drawing and strings: generation only needs them not to crash. */
-FRAME SetAbsFrameIndex (FRAME f, COUNT i) { (void) i; return f; }
+/* Frames are encoded as (sheet << 16) | index, so that the flight traces
+ * can tell which sprite is being tested for intersection. */
+enum { SHEET_SIS = 1, SHEET_ORBITAL, SHEET_JUNK, SHEET_POINT, SHEET_SUN };
+#define MAKE_FRAME(sheet, index) ((FRAME) (intptr_t) (((sheet) << 16) | (index)))
+#define FRAME_SHEET(f) ((int) (((intptr_t) (f)) >> 16))
+#define FRAME_INDEX(f) ((COUNT) (((intptr_t) (f)) & 0xFFFF))
+
+FRAME
+SetAbsFrameIndex (FRAME f, COUNT i)
+{
+	return MAKE_FRAME (FRAME_SHEET (f), i);
+}
+COUNT GetFrameIndex (FRAME f) { return FRAME_INDEX (f); }
+/* DecFrameIndex (stars_in_space) is UQM's one-pixel collision frame. */
+FRAME DecFrameIndex (FRAME f) { (void) f; return MAKE_FRAME (SHEET_POINT, 0); }
+
+/* Sprite intersection. UQM tests sprite masks from the content package;
+ * these traces use circles instead, the same provisional model as the
+ * engine (Crateris.Core.Systems.IpContactShape). Radii in display pixels:
+ * the flagship, a single point, and planet images by size index (the
+ * frame index >> FACING_SHIFT), then the starbase and the Sa-Matra. */
+#define SHIP_RADIUS 3
+static const int planet_radius[] = {2, 3, 4, 6, 8, 10};
+#define JUNK_RADIUS 4
+
+static int
+frame_radius (FRAME f)
+{
+	switch (FRAME_SHEET (f))
+	{
+		case SHEET_SIS: return SHIP_RADIUS;
+		case SHEET_POINT: return 0;
+		case SHEET_ORBITAL: return planet_radius[FRAME_INDEX (f) >> FACING_SHIFT];
+		case SHEET_JUNK: return JUNK_RADIUS;
+		default: return 0;
+	}
+}
+
+TIME_VALUE
+DrawablesIntersect (INTERSECT_CONTROL *c0, INTERSECT_CONTROL *c1,
+		TIME_VALUE max_time_val)
+{
+	long dx = c0->IntersectStamp.origin.x - c1->IntersectStamp.origin.x;
+	long dy = c0->IntersectStamp.origin.y - c1->IntersectStamp.origin.y;
+	long r = frame_radius (c0->IntersectStamp.frame)
+			+ frame_radius (c1->IntersectStamp.frame);
+	(void) max_time_val;
+	return dx * dx + dy * dy <= r * r ? 1 : 0;
+}
 STRING GameStrings;  /* read by GAME_STRING */
 STRING SetAbsStringTableIndex (STRING s, COUNT i) { (void) i; return s; }
 STRING SetRelStringTableIndex (STRING s, SIZE i) { (void) i; return s; }
@@ -305,6 +354,247 @@ ip_main (void)
 	return 0;
 }
 
+/* ---- Flight mode: frame-by-frame interplanetary flight ---- */
+
+enum { GOAL_PLANET, GOAL_CENTER, GOAL_MOON, GOAL_EXIT };
+enum { EV_NONE, EV_ZOOM, EV_ENTER_INNER, EV_LEAVE_INNER, EV_ORBIT,
+		EV_LEAVE_SYSTEM };
+#define INPUT_LEFT 1
+#define INPUT_RIGHT 2
+#define INPUT_THRUST 4
+
+typedef struct { int kind, index; } GOAL;
+typedef struct
+{
+	const char *name;
+	COUNT star;
+	int thrusters, jets;
+	GOAL goals[8];
+	int num_goals;
+} SCENARIO;
+
+static void
+set_input (int input)
+{
+	CurrentInputState.key[PlayerControls[0]][KEY_UP] =
+			(input & INPUT_THRUST) != 0;
+	CurrentInputState.key[PlayerControls[0]][KEY_LEFT] =
+			(input & INPUT_LEFT) != 0;
+	CurrentInputState.key[PlayerControls[0]][KEY_RIGHT] =
+			(input & INPUT_RIGHT) != 0;
+}
+
+/* The test pilot: turns towards the goal and thrusts when facing it.
+ * Only chooses the input; UQM's own code does the flying. */
+static int
+pilot (const GOAL *g)
+{
+	POINT ship = GLOBAL (ShipStamp.origin), target;
+	COUNT facing = GetFrameIndex (GLOBAL (ShipStamp.frame)), want;
+	int diff;
+
+	switch (g->kind)
+	{
+		case GOAL_PLANET:
+			target = pSolarSysState->PlanetDesc[g->index].image.origin;
+			break;
+		case GOAL_MOON:
+			target = pSolarSysState->MoonDesc[g->index].image.origin;
+			break;
+		case GOAL_CENTER:
+			target.x = SIS_SCREEN_WIDTH >> 1;
+			target.y = SIS_SCREEN_HEIGHT >> 1;
+			break;
+		default: /* away from the centre, off the screen */
+			target.x = ship.x + (ship.x - (SIS_SCREEN_WIDTH >> 1)) * 8;
+			target.y = ship.y + (ship.y - (SIS_SCREEN_HEIGHT >> 1)) * 8 - 1;
+			break;
+	}
+	want = NORMALIZE_FACING (ANGLE_TO_FACING (ARCTAN (target.x - ship.x,
+			target.y - ship.y)));
+	diff = (int) NORMALIZE_FACING (want - facing);
+	if (diff == 0)
+		return INPUT_THRUST;
+	if (diff <= 8)
+		return INPUT_RIGHT | (diff <= 1 ? INPUT_THRUST : 0);
+	return INPUT_LEFT | (diff >= 15 ? INPUT_THRUST : 0);
+}
+
+/* What EnterPlanetOrbit does around the orbit itself, to come back to
+ * interplanetary flight (the orbit and its menus are left out). */
+static void
+return_from_orbit (void)
+{
+	if (worldIsMoon (pSolarSysState, pSolarSysState->pOrbitalDesc))
+		GLOBAL (ShipStamp.origin) = pSolarSysState->pOrbitalDesc->image.origin;
+	else
+	{
+		GLOBAL (ShipStamp.origin.x) = SIS_SCREEN_WIDTH >> 1;
+		GLOBAL (ShipStamp.origin.y) = SIS_SCREEN_HEIGHT >> 1;
+	}
+	FreeSolarSys ();
+	LoadSolarSys ();
+	CheckZoomLevel ();
+	ValidateOrbits ();
+	ValidateInnerOrbits ();
+	ResetSolarSys ();
+	pSolarSysState->InOrbit = FALSE;
+}
+
+static void
+run_scenario (const SCENARIO *sc, int first_scenario)
+{
+	ELEMENT flagship;
+	int g = 0, frame, goal_frames = 0, first = 1, i;
+
+	memset (&SolarSysState, 0, sizeof SolarSysState);
+	pSolarSysState = &SolarSysState;
+	CurStarDescPtr = &star_array[sc->star];
+	SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
+	memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+	memset (&GLOBAL (velocity), 0, sizeof (GLOBAL (velocity)));
+	GLOBAL (CurrentActivity) = IN_INTERPLANETARY;
+	for (i = 0; i < NUM_DRIVE_SLOTS; ++i)
+		GLOBAL_SIS (DriveSlots[i]) = i < sc->thrusters ? FUSION_THRUSTER
+				: EMPTY_SLOT + 0;
+	for (i = 0; i < NUM_JET_SLOTS; ++i)
+		GLOBAL_SIS (JetSlots[i]) = i < sc->jets ? TURNING_JETS
+				: EMPTY_SLOT + 1;
+
+	/* InitSolarSys, arriving from hyperspace. */
+	GLOBAL (ShipFacing) = 0;
+	GLOBAL (ip_planet) = 0;
+	GLOBAL (in_orbit) = 0;
+	GLOBAL (autopilot.x) = ~0;
+	GLOBAL (autopilot.y) = ~0;
+	GLOBAL (ShipStamp.origin.x) = SIS_SCREEN_WIDTH >> 1;
+	GLOBAL (ShipStamp.origin.y) = SIS_SCREEN_HEIGHT - 2;
+	GLOBAL (ip_location) = displayToLocation (GLOBAL (ShipStamp.origin),
+			MAX_ZOOM_RADIUS);
+	LoadSolarSys ();
+	CheckZoomLevel ();
+	ValidateOrbits ();
+	ResetSolarSys ();
+
+	printf ("%s\n{\"name\": \"%s\", \"star\": %u, \"thrusters\": %d, "
+			"\"jets\": %d, \"start\": [%d, %d, %d, %d, %d, %d], \"frames\": [",
+			first_scenario ? "" : ",", sc->name, sc->star, sc->thrusters,
+			sc->jets, GetFrameIndex (GLOBAL (ShipStamp.frame)),
+			GLOBAL (ip_location.x), GLOBAL (ip_location.y),
+			GLOBAL (ShipStamp.origin.x), GLOBAL (ShipStamp.origin.y),
+			pSolarSysState->SunDesc[0].radius);
+
+	for (frame = 0; frame < 9000 && g < sc->num_goals; ++frame)
+	{
+		int input, event = EV_NONE;
+		BOOLEAN locChange;
+		SIZE newRadius;
+		SIZE vdx, vdy;
+
+		input = pilot (&sc->goals[g]);
+		set_input (input);
+
+		/* IP_frame */
+		ProcessShipControls ();
+		locChange = CheckShipLocation (&newRadius);
+		if (GLOBAL (CurrentActivity) & END_INTERPLANETARY)
+			event = EV_LEAVE_SYSTEM;
+		else if (pSolarSysState->InOrbit)
+			event = EV_ORBIT;
+		else if (locChange)
+		{
+			if (playerInInnerSystem ())
+			{
+				event = EV_ENTER_INNER;
+				ValidateInnerOrbits ();
+			}
+			else if (pSolarSysState->SunDesc[0].radius == newRadius)
+			{
+				event = EV_LEAVE_INNER;
+				ValidateOrbits ();
+			}
+			else
+			{	/* ScaleSystem */
+				event = EV_ZOOM;
+				pSolarSysState->SunDesc[0].radius = newRadius;
+				XFormIPLoc (&GLOBAL (ip_location),
+						&GLOBAL (ShipStamp.origin), TRUE);
+				ValidateOrbits ();
+			}
+		}
+		if (event != EV_LEAVE_SYSTEM)
+		{	/* RedrawQueue: the flagship element moves. */
+			memset (&flagship, 0, sizeof flagship);
+			flagship.thrust_wait = 1000;
+			flagship.sys_loc = getFlagshipLocation ();
+			flag_ship_preprocess (&flagship);
+		}
+		if (event == EV_ORBIT)
+			return_from_orbit ();
+
+		GetCurrentVelocityComponents (&GLOBAL (velocity), &vdx, &vdy);
+		printf ("%s[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d]",
+				sep (&first), input, GetFrameIndex (GLOBAL (ShipStamp.frame)),
+				vdx, vdy, GLOBAL (ip_location.x), GLOBAL (ip_location.y),
+				GLOBAL (ShipStamp.origin.x), GLOBAL (ShipStamp.origin.y),
+				pSolarSysState->SunDesc[0].radius,
+				playerInInnerSystem () ? (int) planetIndex (pSolarSysState,
+				pSolarSysState->pOrbitalDesc) : -1,
+				pSolarSysState->WaitIntersect, event);
+
+		if (event == EV_LEAVE_SYSTEM)
+			break;
+		++goal_frames;
+		if (event == EV_ENTER_INNER && sc->goals[g].kind == GOAL_PLANET)
+			++g, goal_frames = 0;
+		else if (event == EV_ORBIT && (sc->goals[g].kind == GOAL_CENTER
+				|| sc->goals[g].kind == GOAL_MOON))
+			++g, goal_frames = 0;
+		else if (event == EV_LEAVE_INNER && sc->goals[g].kind == GOAL_EXIT)
+			++g, goal_frames = 0;
+		else if (goal_frames > 2500)
+			++g, goal_frames = 0;   /* give up on this goal */
+	}
+	printf ("]}");
+}
+
+static int
+flight_main (void)
+{
+#define P(i) {GOAL_PLANET, i}
+#define M(i) {GOAL_MOON, i}
+#define C {GOAL_CENTER, 0}
+#define X {GOAL_EXIT, 0}
+	static const SCENARIO scenarios[] = {
+		{"sol_earth_luna_jupiter", 82, 2, 2,
+				{P(2), M(1), X, P(4), C, X, X}, 7},
+		{"sol_mercury_pluto_slow_ship", 82, 0, 0,
+				{P(0), C, X, P(8), C, X, X}, 7},
+		{"sol_fast_ship_saturn_moon", 82, 8, 8,
+				{P(5), M(0), X, P(3), X, X}, 6},
+		{"default_star_0", 0, 2, 2, {P(0), C, X, X}, 4},
+		{"default_star_1", 1, 4, 3, {P(1), C, X, P(0), X, X}, 6},
+		{"default_star_200", 200, 3, 1, {P(2), M(0), X, X}, 4},
+		{"default_star_333", 333, 6, 5, {P(0), C, X, P(3), X, X}, 6},
+		{"default_star_450", 450, 2, 2, {P(4), M(1), X, X}, 4},
+	};
+	COUNT i;
+
+	printf ("{\"ship_radius\": %d, \"planet_radius\": [", SHIP_RADIUS);
+	for (i = 0; i < sizeof planet_radius / sizeof planet_radius[0]; ++i)
+		printf ("%s%d", i ? ", " : "", planet_radius[i]);
+	printf ("], \"junk_radius\": %d, \"scenarios\": [", JUNK_RADIUS);
+	for (i = 0; i < sizeof scenarios / sizeof scenarios[0]; ++i)
+	{
+		const SCENARIO *sc = &scenarios[i];
+		if (sc->star >= NUM_SOLAR_SYSTEMS)
+			continue;
+		run_scenario (sc, i == 0);
+	}
+	printf ("]}\n");
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -320,6 +610,14 @@ main (int argc, char *argv[])
 		return orbits_main ();
 	if (argc > 1 && strcmp (argv[1], "ip") == 0)
 		return ip_main ();
+	if (argc > 1 && strcmp (argv[1], "flight") == 0)
+	{
+		SISIPFrame = MAKE_FRAME (SHEET_SIS, 0);
+		OrbitalFrame = MAKE_FRAME (SHEET_ORBITAL, 0);
+		SpaceJunkFrame = MAKE_FRAME (SHEET_JUNK, 0);
+		SunFrame = MAKE_FRAME (SHEET_SUN, 0);
+		return flight_main ();
+	}
 
 	print_rng ();
 

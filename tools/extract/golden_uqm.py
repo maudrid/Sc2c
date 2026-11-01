@@ -72,7 +72,8 @@ def systems_link(uqm):
     return (["uqm/planets/orbits.c", "uqm/planets/calc.c",
              "uqm/planets/surface.c", "uqm/gendef.c",
              "uqm/plandata.c", "uqm/starmap.c", "uqm/globdata.c",
-             "libs/math/random2.c", "uqm/trans.c", "libs/math/sqrt.c"] +
+             "libs/math/random2.c", "uqm/trans.c", "libs/math/sqrt.c",
+             "uqm/velocity.c"] +
             sorted(f"uqm/planets/generate/{n}" for n in os.listdir(gen)
                    if n.endswith(".c")))
 
@@ -252,6 +253,41 @@ def record_ip(uqm, exe):
     return data
 
 
+def record_ip_flight(uqm, exe):
+    out = subprocess.run([exe, "flight"], capture_output=True, text=True,
+                         check=True).stdout
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "tools/extract/golden/stubs.c",
+                        "src/uqm/planets/solarsys.c", "src/uqm/ipdisp.c",
+                        "src/uqm/velocity.c"], [
+        "Interplanetary flight, frame by frame, recorded by running UQM's "
+        "own ProcessShipControls, flagship_inertial_thrust, "
+        "CheckShipLocation, CheckIntersect, FindRadius, enterInnerSystem, "
+        "leaveInnerSystem, ValidateOrbits and flag_ship_preprocess, in the "
+        "order IP_frame runs them (see tools/extract/golden/systems.c). "
+        "After entering orbit, the ship returns to flight as "
+        "EnterPlanetOrbit does (FreeSolarSys, LoadSolarSys, CheckZoomLevel, "
+        "ResetSolarSys); the orbit itself is left out.",
+        "Sprite intersection (DrawablesIntersect) uses circles instead of "
+        "UQM's content sprite masks: ship_radius for the flagship, 0 for "
+        "UQM's one-pixel frame, planet_radius by planet image size index, "
+        "junk_radius for the starbase and the Sa-Matra, in display pixels. "
+        "The engine uses the same model until the content stage.",
+        "A test pilot chooses the input each frame (turn towards the goal, "
+        "thrust when facing it); the engine's tests replay the recorded "
+        "input. Input flags: 1 left, 2 right, 4 thrust.",
+        "start: [facing, ip_location x, y, ShipStamp x, y, zoom radius] "
+        "on arrival from hyperspace.",
+        "frames: [input, facing, velocity dx, dy (GetCurrentVelocityComponents), "
+        "ip_location x, y, ShipStamp x, y, zoom radius (SunDesc[0].radius), "
+        "inner system planet or -1, WaitIntersect, event] after each frame. "
+        "Events: 0 none, 1 zoom, 2 entered an inner system, 3 left it, "
+        "4 entered orbit (and came back), 5 left the system.",
+    ])
+    data.update(json.loads(out))
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
@@ -277,7 +313,8 @@ def main():
                            ("uqm-math", record_math(uqm, math)),
                            ("star-systems", record_systems(uqm, systems)),
                            ("world-surfaces", record_surfaces(uqm, systems)),
-                           ("ip-geometry", record_ip(uqm, systems))):
+                           ("ip-geometry", record_ip(uqm, systems)),
+                           ("ip-flight", record_ip_flight(uqm, systems))):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:
                 json.dump(data, f, separators=(",", ":"))
