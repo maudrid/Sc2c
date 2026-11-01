@@ -9,6 +9,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Crateris.Core.Data;
+using Crateris.Core.Systems;
 
 namespace Crateris.Core.World;
 
@@ -73,14 +74,15 @@ public static class HostSave
         var worlds = world.Planets.Worlds
             .OrderBy(w => w.Key.Star).ThenBy(w => w.Key.Planet).ThenBy(w => w.Key.Moon ?? -1)
             .Select(w => new WorldState(w.Key.Star, w.Key.Planet, w.Key.Moon,
-                w.Value.Retrieved[0], w.Value.Retrieved[1], w.Value.Retrieved[2]))
+                w.Value[ScanType.Mineral], w.Value[ScanType.Energy], w.Value[ScanType.Biological]))
             .ToList();
         var save = new SaveFile(Version, world.Settings, new ClockState(c.Year, c.Month, c.Day, c.FramesIntoDay),
             world.Frame, players, worlds);
         return JsonSerializer.Serialize(save, Options);
     }
 
-    public static GameWorld FromJson(string json)
+    /// <summary>Loads a save. With a catalog, saved worlds must exist in their systems.</summary>
+    public static GameWorld FromJson(string json, SystemCatalog? systems = null)
     {
         var save = JsonSerializer.Deserialize<SaveFile>(json, Options)
             ?? throw new InvalidDataException("Empty save file.");
@@ -92,7 +94,7 @@ public static class HostSave
         {
             FramesIntoDay = save.Clock.FramesIntoDay,
         };
-        var world = new GameWorld(save.Settings, clock, save.Frame);
+        var world = new GameWorld(save.Settings, clock, save.Frame, systems);
         foreach (var ps in save.Players)
         {
             var ship = new PlayerShip(ps.Kind, ps.Loadout);
@@ -131,12 +133,13 @@ public static class HostSave
                 UndockPending = ps.UndockPending,
             });
         }
+        var seen = new HashSet<WorldId>();
         foreach (var w in save.Worlds ?? new List<WorldState>())
         {
             try
             {
                 var id = new WorldId(w.Star, w.Planet, w.Moon);
-                if (world.Planets.Worlds.ContainsKey(id))
+                if (!seen.Add(id))
                     throw new InvalidDataException($"World {id} is in the save twice.");
                 world.Planets.Restore(id, w.MineralTaken, w.EnergyTaken, w.BiologicalTaken);
             }

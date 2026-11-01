@@ -131,6 +131,73 @@ public class PlanetWorldStateTests
     }
 
     [Fact]
+    public void AVersion3SaveWrittenWithScanFlagsStillLoads()
+    {
+        // The first item 8 build also saved "scanned" per world (withdrawn).
+        var world = NewWorld();
+        world.Planets.SetRetrieved(Luna, ScanType.Mineral, 1);
+        var node = JsonNode.Parse(HostSave.ToJson(world))!;
+        node["version"] = 3;
+        foreach (var w in node["worlds"]!.AsArray())
+            w!["scanned"] = 5;
+        var loaded = HostSave.FromJson(node.ToJsonString());
+        Assert.True(loaded.Planets.IsRetrieved(Luna, ScanType.Mineral, 1));
+    }
+
+    [Fact]
+    public void WithItsSystemsOnlyRealWorldsAreAccepted()
+    {
+        var systems = SystemCatalog.Load(DataDir);
+        var state = new PlanetWorldState(systems);
+        state.SetRetrieved(Luna, ScanType.Mineral, 0);                       // Sol has Earth and its Moon
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            state.SetRetrieved(new WorldId(82, 9), ScanType.Mineral, 0));     // Sol has 9 planets: 0..8
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            state.SetRetrieved(new WorldId(82, 2, 2), ScanType.Mineral, 0));  // Earth has 2 moons
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            state.SetRetrieved(new WorldId(82, 0, 0), ScanType.Mineral, 0));  // Mercury has none
+
+        // And a save naming a world its system doesn't have is refused.
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems);
+        var node = JsonNode.Parse(HostSave.ToJson(world))!;
+        node["worlds"] = new JsonArray(JsonNode.Parse(
+            "{\"star\": 82, \"planet\": 0, \"moon\": 0, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0}"));
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), systems));
+    }
+
+    [Fact]
+    public void ASaveWithAWorldTwiceIsRefusedEvenIfOneCopyIsEmpty()
+    {
+        var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
+        const string empty = "{\"star\": 0, \"planet\": 0, \"moon\": null, \"mineral_taken\": 0, \"energy_taken\": 0, \"biological_taken\": 0}";
+        const string taken = "{\"star\": 0, \"planet\": 0, \"moon\": null, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0}";
+        node["worlds"] = new JsonArray(JsonNode.Parse(empty), JsonNode.Parse(taken));
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString()));
+    }
+
+    [Fact]
+    public void NodesPastThirtyTwoCountAsThereInsteadOfThrowing()
+    {
+        var state = new PlanetWorldState();
+        var nodes = Enumerable.Range(0, 34).Select(i => new SurfaceNode((short)i, 0, 0, 0)).ToList();
+        state.SetRetrieved(Luna, ScanType.Energy, 31);
+        var left = state.Remaining(Luna, ScanType.Energy, nodes);
+        Assert.Equal(33, left.Count);
+        Assert.Contains(left, n => n.Node == 33);
+    }
+
+    [Fact]
+    public void ARecordCanBeReadButNotChangedFromOutside()
+    {
+        var state = new PlanetWorldState();
+        state.SetRetrieved(Luna, ScanType.Biological, 6);
+        var record = state.Worlds[Luna];
+        Assert.Equal(1u << 6, record[ScanType.Biological]);
+        Assert.Null(typeof(PlanetWorldState.Record).GetProperty("Item")!.SetMethod);
+        Assert.DoesNotContain(typeof(PlanetWorldState.Record).GetMembers(), m => m.Name == "Retrieved" && m is System.Reflection.PropertyInfo or System.Reflection.FieldInfo { IsPublic: true });
+    }
+
+    [Fact]
     public void ASaveWithAWorldTwiceIsRefused()
     {
         var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;

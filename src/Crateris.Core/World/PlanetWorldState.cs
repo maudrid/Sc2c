@@ -54,12 +54,25 @@ public sealed class PlanetWorldState
     public const int MaxNodes = 32;
 
     private readonly Dictionary<WorldId, Record> _worlds = new();
+    private readonly SystemCatalog? _catalog;
 
-    /// <summary>What is stored for one world.</summary>
+    /// <summary>
+    /// With a catalog, only worlds that exist (the star has that planet,
+    /// the planet that moon) are accepted; without one, only UQM's limits
+    /// are checked.
+    /// </summary>
+    public PlanetWorldState(SystemCatalog? catalog = null)
+    {
+        _catalog = catalog;
+    }
+
+    /// <summary>What is stored for one world. Read-only outside this class.</summary>
     public sealed class Record
     {
-        /// <summary>Taken nodes, indexed by <see cref="ScanType"/>.</summary>
-        public uint[] Retrieved { get; } = new uint[3];
+        internal readonly uint[] Retrieved = new uint[3];
+
+        /// <summary>Taken nodes of one scan type (bit n for node n).</summary>
+        public uint this[ScanType scan] => Retrieved[(int)scan];
 
         internal bool IsEmpty => Retrieved[0] == 0 && Retrieved[1] == 0 && Retrieved[2] == 0;
     }
@@ -83,7 +96,7 @@ public sealed class PlanetWorldState
     public void ClearRetrieved(WorldId world, ScanType scan, int node)
     {
         uint bit = Bit(node);
-        world.Validate();
+        Check(world);
         if (_worlds.TryGetValue(world, out var r))
         {
             r.Retrieved[(int)scan] &= ~bit;
@@ -95,10 +108,11 @@ public sealed class PlanetWorldState
     public int CountRetrieved(WorldId world, ScanType scan) =>
         System.Numerics.BitOperations.PopCount(RetrieveMask(world, scan));
 
-
     /// <summary>
     /// The nodes still on a world's surface, with their node numbers, as
-    /// GeneratePlanetSurface in scan.c leaves out the retrieved ones.
+    /// GeneratePlanetSurface in scan.c leaves out the retrieved ones. UQM
+    /// never generates more than 32 nodes of a kind; any beyond that can't
+    /// be marked taken and always count as there.
     /// </summary>
     public IReadOnlyList<(int Node, SurfaceNode Info)> Remaining(WorldId world, ScanType scan, IReadOnlyList<SurfaceNode> nodes)
     {
@@ -106,7 +120,7 @@ public sealed class PlanetWorldState
         var left = new List<(int, SurfaceNode)>();
         for (int i = 0; i < nodes.Count; ++i)
         {
-            if ((mask & Bit(i)) == 0)
+            if (i >= MaxNodes || (mask & (1u << i)) == 0)
                 left.Add((i, nodes[i]));
         }
         return left;
@@ -115,7 +129,7 @@ public sealed class PlanetWorldState
     /// <summary>Restores one world's stored state (from a save).</summary>
     public void Restore(WorldId world, uint mineral, uint energy, uint biological)
     {
-        world.Validate();
+        Check(world);
         var r = new Record();
         r.Retrieved[0] = mineral;
         r.Retrieved[1] = energy;
@@ -126,10 +140,17 @@ public sealed class PlanetWorldState
 
     private Record Get(WorldId world)
     {
-        world.Validate();
+        Check(world);
         if (!_worlds.TryGetValue(world, out var r))
             _worlds[world] = r = new Record();
         return r;
+    }
+
+    private void Check(WorldId world)
+    {
+        world.Validate();
+        if (_catalog is not null && !_catalog.HasWorld(world.Star, world.Planet, world.Moon))
+            throw new ArgumentOutOfRangeException(nameof(world), $"{world}: that system has no such world");
     }
 
     private void Forget(WorldId world, Record r)

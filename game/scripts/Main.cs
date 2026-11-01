@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
+using Crateris.Core.Systems;
 using Crateris.Core.World;
 using Godot;
 
@@ -109,9 +110,10 @@ public partial class Main : Node2D
     {
         _isHost = true;
         string? load = _options.LoadPath ?? (File.Exists(_savePath) && _options.SavePath == null ? _savePath : null);
+        var systems = SystemCatalog.Load(dataDir);
         if (load != null && File.Exists(load))
         {
-            _world = HostSave.FromJson(File.ReadAllText(load));
+            _world = HostSave.FromJson(File.ReadAllText(load), systems);
             _playerId = _world.Host.Id; // the save belongs to its host
             _world.Join(_playerId, _name);
             Log($"Loaded {load}");
@@ -121,7 +123,7 @@ public partial class Main : Node2D
             var settings = new GameSettings();
             if (_options.SecondsPerDay is { } spd)
                 settings = settings with { SecondsPerGameDay = spd };
-            _world = GameWorld.NewGame(settings, NewGameData.Load(dataDir), _playerId, _name);
+            _world = GameWorld.NewGame(settings, NewGameData.Load(dataDir, systems.Map), _playerId, _name, systems);
             Log("New game");
         }
         _inputDelay = _world.Settings.InputDelayFrames;

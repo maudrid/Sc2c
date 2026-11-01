@@ -13,8 +13,8 @@ dotnet test --filter StarSystemTests   # systems against UQM: 3 tests
 dotnet test --filter SurfaceTests      # orbit, report and nodes against UQM: 6 tests
 dotnet test --filter SystemTransitionTests   # entering and leaving systems: 9 tests
 dotnet test --filter IpFlightTests    # flight inside systems: 10 tests
-dotnet test --filter PlanetWorldStateTests   # taken nodes: 10 tests
-dotnet test                            # everything: 71 tests
+dotnet test --filter PlanetWorldStateTests   # taken nodes: 15 tests
+dotnet test                            # everything: 76 tests
 ```
 
 `EveryStarSystemMatchesUqm` generates all 502 systems and compares every planet and moon (type, orbit, position, seed, number of moons) and every world's planet data (temperature, gravity, tectonics, weather, atmosphere, rotation, tilt and so on) with what UQM's own code produces. If anything differs, the failure lists the star, the world and the value.

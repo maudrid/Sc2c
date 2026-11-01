@@ -8,6 +8,7 @@
 
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
 
 namespace Crateris.Core.World;
 
@@ -45,24 +46,30 @@ public sealed class GameWorld
     public GameClock Clock { get; }
     public long Frame { get; private set; }
 
-    /// <summary>Planets and moons: taken nodes and scans, shared by every player.</summary>
-    public PlanetWorldState Planets { get; } = new();
+    /// <summary>Planets and moons: taken nodes, shared by every player.</summary>
+    public PlanetWorldState Planets { get; }
+
+    /// <summary>The star map and its systems, when the world has them (always in the game; optional in tests).</summary>
+    public SystemCatalog? Systems { get; }
 
     public IReadOnlyList<Player> Players => _players;
 
     public Player Host => _players.Single(p => p.IsHost);
 
-    public GameWorld(GameSettings settings, GameClock clock, long frame = 0)
+    public GameWorld(GameSettings settings, GameClock clock, long frame = 0, SystemCatalog? systems = null)
     {
         Settings = settings;
         Clock = clock;
         Frame = frame;
+        Systems = systems;
+        Planets = new PlanetWorldState(systems);
     }
 
     /// <summary>A new game with the host in the flagship, in hyperspace at the start position.</summary>
-    public static GameWorld NewGame(GameSettings settings, NewGameData data, string hostId, string hostName)
+    public static GameWorld NewGame(GameSettings settings, NewGameData data, string hostId, string hostName,
+        SystemCatalog? systems = null)
     {
-        var world = new GameWorld(settings, new GameClock(data.Year, data.Month, data.Day));
+        var world = new GameWorld(settings, new GameClock(data.Year, data.Month, data.Day), 0, systems);
         var ship = new PlayerShip(ShipKind.Flagship, data.Flagship);
         ship.Flight.PlaceAtUniverse(data.StartUniverseX, data.StartUniverseY);
         ship.Flight.ResetFuelCounters();
