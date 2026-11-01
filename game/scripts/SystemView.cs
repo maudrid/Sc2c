@@ -272,10 +272,14 @@ public partial class OrbitView : Control
     /// <summary>The names of stars and worlds (set once the content is open, before the game starts).</summary>
     public Names Names { get; set; } = null!;
 
+    /// <summary>UQM's words and fonts for the orbit screen (set with <see cref="Names"/>).</summary>
+    public OrbitScreenText Text { get; set; } = null!;
+
     public OrbitView(SystemCatalog systems)
     {
         _systems = systems;
         ClipContents = false;
+        TextureFilter = TextureFilterEnum.Nearest;   // UQM's fonts, pixel for pixel
         Size = Placeholder.Size;
     }
 
@@ -325,9 +329,10 @@ public partial class OrbitView : Control
         DrawCircle(centre, radius, Placeholder.World(system, desc));
         if (_menu.Shielded)
             DrawArc(centre, radius + 8, 0, Mathf.Tau, 96, new Color(0.6f, 0.8f, 1f, 0.8f), 3);
-        // UQM's title over the scan screen (GetPlanetTitle), then which world and star it is.
-        DrawString(font, new Vector2(8, 20), Names.Title(system, w.Planet, w.Moon), HorizontalAlignment.Left, -1, 16, Colors.LightBlue);
-        DrawString(font, new Vector2(8, 38), $"{Names.PlanetOrMoon(system.Star, w.Planet, w.Moon)}, {Names.Cluster(system.Star)}",
+        // UQM's title over the scan screen (GetPlanetTitle, in MicroFont); above the
+        // screen, in the engine's font, which world and star it is.
+        UqmText.Draw(this, Text.Title(Names.Title(system, w.Planet, w.Moon)), Vector2.Zero, Placeholder.Scale);
+        DrawString(font, new Vector2(0, -6), $"{Names.PlanetOrMoon(system.Star, w.Planet, w.Moon)}, {Names.Cluster(system.Star)}",
             HorizontalAlignment.Left, -1, 13, Colors.Gray);
 
         // Others orbiting the same world.
@@ -339,37 +344,11 @@ public partial class OrbitView : Control
         if (_menu.Scan.Visible)
         {
             if (orbit.Scan is { } report)
-                DrawReport(font, report);
+                foreach (var t in Text.Report(report))
+                    UqmText.Draw(this, t, Vector2.Zero, Placeholder.Scale);
             DrawMap(font, mapTop);
         }
         DrawMenu(font);
-    }
-
-    // The coarse scan (PrintCoarseScanPC's values). Labels are placeholder
-    // wording until the content stage brings UQM's.
-    private void DrawReport(Font font, PlanetReport r)
-    {
-        string atmo = r.Atmosphere switch
-        {
-            AtmosphereReading.Vacuum => "vacuum",
-            AtmosphereReading.SuperThick => "super thick",
-            _ => PlanetReport.ScanValue(r.Atmospheres100) + " atm",
-        };
-        string[] lines =
-        {
-            $"Orbit      {PlanetReport.ScanValue(r.OrbitAu100)} AU",
-            $"Atmosphere {atmo}",
-            $"Temp       {r.TemperatureC}° C",
-            $"Weather    {(r.WeatherClass is int wc ? $"class {wc}" : "none")}",
-            $"Tectonics  {(r.TectonicsClass is int tc ? $"class {tc}" : "none")}",
-            $"Mass       {PlanetReport.ScanValue(r.EarthMasses100)} e.s.",
-            $"Radius     {PlanetReport.ScanValue(r.EarthRadii100)} e.s.",
-            $"Gravity    {PlanetReport.ScanValue(r.Gravity100)} g",
-            $"Day        {PlanetReport.ScanValue(r.Days100)} days",
-            $"Tilt       {r.TiltDegrees}°",
-        };
-        for (int i = 0; i < lines.Length; ++i)
-            DrawString(font, new Vector2(10, 56 + i * 19), lines[i], HorizontalAlignment.Left, -1, 15, new Color(0.75f, 0.6f, 1f));
     }
 
     private void DrawMap(Font font, float mapTop)
@@ -386,12 +365,14 @@ public partial class OrbitView : Control
                 DrawRect(new Rect2(map.Position, new Vector2(map.Size.X, lineY + Placeholder.Scale)), new Color(c, 0.25f));
             if (scan.Sweeping && scan.Line >= 0 && scan.Line < Surface.MapHeight)
                 DrawLine(new Vector2(0, mapTop + lineY), new Vector2(Size.X, mapTop + lineY), c, 2);
-            DrawString(font, new Vector2(Size.X / 2 - 70, mapTop - 6), tint switch
+            // Which scan is drawn, in the scan menu's words (UQM shows only the tint).
+            var label = Text.StarCon.Layout(Text.MenuEntry(tint switch
             {
-                ScanType.Mineral => "Mineral scan",
-                ScanType.Energy => "Energy scan",
-                _ => "Biological scan",
-            }, HorizontalAlignment.Left, -1, 16, Placeholder.ToColor(OrbitScan.TextColors[(int)tint]).Lightened(0.4f));
+                ScanType.Mineral => OrbitMenuItem.MineralScan,
+                ScanType.Energy => OrbitMenuItem.EnergyScan,
+                _ => OrbitMenuItem.BiologicalScan,
+            }), IpGeometry.ScreenWidth >> 1, IpGeometry.ScreenHeight - Surface.MapHeight - 3, TextAlign.Center);
+            UqmText.Draw(this, new DrawnText(Text.StarCon, label, OrbitScan.TextColors[(int)tint]), Vector2.Zero, Placeholder.Scale);
         }
         DrawRect(map, new Color(0.4f, 0.4f, 0.5f), false, 1);
 
@@ -411,23 +392,27 @@ public partial class OrbitView : Control
 
     private void DrawMenu(Font font)
     {
-        // To the left of the system screen, below the status lines.
-        var origin = new Vector2(-Position.X + 12, 400);
-        float width = Position.X - 24;
+        // UQM's PC menu box (DrawPCMenu, in the status area's coordinates), to the
+        // left of the space screen below the status lines.
         var items = _menu!.Items;
-        DrawRect(new Rect2(origin, new Vector2(width, items.Count * 24 + 10)), new Color(0.05f, 0.07f, 0.3f));
+        int selected = items.ToList().IndexOf(_menu.Selected);
+        var menu = Text.Menu(items, selected);
+        var areaAt = new Vector2(-Position.X + 12, 400);
+        var origin = areaAt - new Vector2(OrbitScreenText.MenuAreaX - 1, OrbitScreenText.MenuAreaY) * Placeholder.Scale;
+        UqmText.Draw(this, menu, origin, Placeholder.Scale);
+
+        // Entries that come in a later stage say so, in the engine's font beside the box.
+        float right = areaAt.X + (OrbitScreenText.MenuAreaWidth + 1) * Placeholder.Scale + 6;
         for (int i = 0; i < items.Count; ++i)
         {
-            var item = items[i];
-            var row = origin + new Vector2(6, 8 + i * 24);
-            bool available = OrbitMenu.Available(item);
-            if (item == _menu.Selected)
-                DrawRect(new Rect2(row - new Vector2(2, 2), new Vector2(width - 8, 22)), new Color(0.2f, 0.3f, 0.7f));
-            DrawString(font, row + new Vector2(4, 15), Label(item) + (available ? "" : "  (later)"),
-                HorizontalAlignment.Left, -1, 15, available ? Colors.White : new Color(0.55f, 0.55f, 0.6f));
+            if (!OrbitMenu.Available(items[i]) && menu.Texts[i].Layout.Glyphs.Count > 0)
+                DrawString(font, new Vector2(right, origin.Y + menu.Texts[i].Layout.Glyphs[0].Y * Placeholder.Scale),
+                    "(later)", HorizontalAlignment.Left, -1, 13, Colors.Gray);
         }
-        DrawString(font, origin + new Vector2(0, items.Count * 24 + 30), _message, HorizontalAlignment.Left, width, 14, Colors.Khaki);
-        DrawString(font, origin + new Vector2(0, items.Count * 24 + 52), "Arrows: choose. Enter: select. Esc: back",
+        float below = areaAt.Y + OrbitScreenText.MenuAreaHeight * Placeholder.Scale;
+        float width = Position.X - 24;
+        DrawString(font, new Vector2(areaAt.X, below + 22), _message, HorizontalAlignment.Left, width, 14, Colors.Khaki);
+        DrawString(font, new Vector2(areaAt.X, below + 44), "Arrows: choose. Enter: select. Esc: back",
             HorizontalAlignment.Left, width, 13, Colors.Gray);
     }
 

@@ -55,7 +55,7 @@ Item 4 is built. Stars, planets and moons have their UQM names, made by the same
 
 ### Try it in the game
 
-1. Start as a host in orbit around Luna: `godot --path game -- --host --start-orbit 82:2:1`. The orbit screen's title is "Luna", with "Luna, Sol" under it, and the status on the left says "orbiting Luna, Sol".
+1. Start as a host in orbit around Luna: `godot --path game -- --host --start-orbit 82:2:1`. The orbit screen's title is "Luna", with "Luna, Sol" just above the screen, and the status on the left says "orbiting Luna, Sol".
 2. Choose Navigate to leave orbit: the inner system view's title is "Earth, Sol (2 moons)" and the status says "the Sol system, near Earth".
 3. Fly out of the inner system: the outer view's title is "Sol" with its coordinates.
 4. Try an ordinary star: `--start-orbit 0:2:1` is "Opalescent World", "Planet III-B, Zeta Serpentis"; leaving orbit shows "Planet III, Zeta Serpentis (4 moons)".
@@ -63,7 +63,7 @@ Item 4 is built. Stars, planets and moons have their UQM names, made by the same
 
 ![Leaving orbit at Zeta Serpentis: Planet III and its four moons](../screenshots/content-names-inner.png)
 
-The orbit screen still uses the engine's font and words for everything but the title; UQM's fonts and words come with item 5.
+Since item 5, the title is drawn in UQM's own font (below).
 
 ### Run the tests
 
@@ -72,3 +72,33 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter NamesTes
 ```
 
 `EveryNameIsTheNameUqmGives` checks the name of every one of the 502 stars and the names and titles of every planet and moon against what UQM's own code gives (by hash, as names are content). Two more check a few you'd recognise in plain words: Sol, Earth, Luna and Titan, and "Planet ..." and "-B" for an ordinary system. `NamesAreMadeOnceAndKept` checks names are made once and kept, since the views ask for them every frame. Without the package they're skipped, and say so.
+
+## So far: the orbit screen's words and fonts
+
+Item 5 is built. The orbit screen now shows UQM's own words in UQM's own fonts, where UQM's PC version puts them:
+
+- the title ("Luna", "Opalescent World") centred at the top, in UQM's small title font;
+- the planet report in UQM's tiny font, labels in dark blue and values in purple, at UQM's positions: "Orbit: 1.00 a.u.", "Atmo: Vacuum", "Temp: -18° c", "Weather: None", "Tectonics: Class 1" on the left, "Mass:", "Radius:", "Gravity:", "Day:", "Tilt:" on the right;
+- the menus as UQM's PC menu box, in its font and colours: "scan, starmap, manifest, game, navigate" and "mineral, energy, biological, autoscan, dispatch, exit menu" (the font has only capitals, so they show in capitals, as in UQM). Entries that come later are marked "(later)" beside the box;
+- while a scan is drawn, its name above the scan map, in the menu's words (UQM shows only the colour).
+
+Our own text stays in the engine's font: the status on the left, the world and star above the screen, messages and key hints.
+
+![The orbit menu at Planet III-B, Zeta Serpentis](../screenshots/content-orbit-menu.png)
+
+![An auto scan being drawn on Luna, with the report](../screenshots/content-scan-words.png)
+
+### Try it in the game
+
+1. `godot --path game -- --host --start-orbit 82:2:1`: the menu box shows "SCAN, STARMAP, MANIFEST, GAME, NAVIGATE", with "(later)" beside Starmap and Game.
+2. Choose Scan: the report appears around the planet, and the menu shows the scan entries. Choose an entry that comes later (Dispatch): the message under the box says so.
+3. Choose Autoscan: each scan's name shows above the map while it's drawn.
+4. Compare with UQM 0.8.0 (PC menus): the words, colours, letter shapes and spacing should match; the screen is three times UQM's size.
+
+### Run the tests
+
+```
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter "FontTests|OrbitScreenTextTests"   # 8 tests
+```
+
+`EveryFontLoadsAsUqmLoadsIt` checks all 29 fonts of the package (32 font resources; some share a font), every one of their 2,503 characters (size, position and every pixel), against what UQM's own font loader makes of them. `TextIsLaidOutAsUqmLaysItOut` checks 1,341 texts laid out in the three fonts the orbit screen uses, against UQM's own layout code: texts of our own that test each odd case (alignment, missing characters, bad UTF-8, UQM's limit of 100 characters) and every menu entry, report label and world type in the game strings. Both use hashes, since fonts are content. `PngsOfEveryKindDecode` checks the image reader on small images made by the test. `OrbitScreenTextTests` checks the menu numbering against UQM's `menustat.h`, the menu words, and the report and menu box at UQM's positions.

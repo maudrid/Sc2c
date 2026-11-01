@@ -79,6 +79,7 @@ public partial class Main : Node2D
     // that get it on first run and show its notice, and the layer they're on.
     private ContentPackage? _content;
     private Names _names = null!;
+    private OrbitScreenText _orbitText = null!;
     private FirstRunScreen? _firstRun;
     private ContentErrorScreen? _contentError;
     private AboutScreen _about = null!;
@@ -210,6 +211,7 @@ public partial class Main : Node2D
         try
         {
             _names = Names.Load(content);
+            _orbitText = OrbitScreenText.Load(content);
         }
         catch (ContentPackageException e)
         {
@@ -226,6 +228,7 @@ public partial class Main : Node2D
         }
         _content = content;
         _systemView.Names = _orbitView.Names = _names;
+        _orbitView.Text = _orbitText;
         return true;
     }
 

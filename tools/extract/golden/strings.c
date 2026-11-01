@@ -14,7 +14,9 @@
  * and libs/memory/w_memlib.c. Only UQM's stream calls are replaced by
  * the C library's (uio_fgets reads as fgets does).
  *
- *   strings bases          the string bases and counts of gamestr.h, as JSON
+ *   strings bases          the string bases and counts of gamestr.h, and
+ *                          the orbit screen's menu numbers (menustat.h),
+ *                          as JSON
  *   strings index FILE     a resource index (uqm.rmp) as UQM's own
  *                          PropFile_from_string reads it: [key, value]
  *                          pairs in the order UQM's handler gets them
@@ -26,6 +28,7 @@
 #include "libs/strings/strintrn.h"
 #include "libs/uio.h"
 #include "uqm/gamestr.h"
+#include "uqm/menustat.h"
 #include "libs/resource/propfile.h"
 #include "libs/log.h"
 #include <stdio.h>
@@ -81,7 +84,13 @@ print_bases (void)
 	B (ORBITSCAN_STRING_BASE, ORBITSCAN_STRING_COUNT);
 	B (MAINMENU_STRING_BASE, MAINMENU_STRING_COUNT);
 	B (NETMELEE_STRING_BASE, NETMELEE_STRING_COUNT);
-	printf ("]}\n");
+	/* The orbit screen's PC menu entries are GAME_STRING
+	 * (MAINMENU_STRING_BASE + PM_ALT_...), in menustat.h's order. */
+	printf ("], \"menu\": {\"PM_ALT_SCAN\": %d, \"PM_ALT_NAVIGATE\": %d, "
+			"\"PM_ALT_CARGO\": %d, \"PM_ALT_EXIT_MANIFEST\": %d, "
+			"\"PM_ALT_MSCAN\": %d, \"PM_ALT_EXIT_SCAN\": %d}}\n",
+			PM_ALT_SCAN, PM_ALT_NAVIGATE, PM_ALT_CARGO, PM_ALT_EXIT_MANIFEST,
+			PM_ALT_MSCAN, PM_ALT_EXIT_SCAN);
 }
 
 static int index_first = 1;

@@ -71,6 +71,7 @@ STRINGS_LINK = ["libs/strings/getstr.c", "libs/strings/strings.c",
 # The resource types UQM 0.8.0 registers (every InstallResTypeVectors
 # call); any other type is UNKNOWNRES, as newResourceDesc in resinit.c has
 # it (and ResourceIndex in ContentPackage.cs).
+FONTS_LINK = ["libs/strings/unicode.c", "libs/graphics/boxint.c"]
 RESOURCE_TYPES = {"3DOVID", "BINTAB", "BOOLEAN", "COLOR", "CONVERSATION",
                   "FONTRES", "GFXRES", "INT32", "MUSICRES", "SHIP", "SNDRES",
                   "STRING", "STRTAB", "UNKNOWNRES"}
@@ -109,7 +110,7 @@ def systems_link(uqm):
 SYSTEMS_STUBS = os.path.join(HERE, "golden", "stubs.c")
 
 
-def build(uqm, main_c, link, out, extra=()):
+def build(uqm, main_c, link, out, extra=(), libs=()):
     cflags = ["-w", "-no-pie", "-I", uqm.build, "-I", uqm.src, "-I", uqm.uqm,
               "-I", os.path.join(uqm.uqm, "ships", "sis_ship"),
               "-I", os.path.join(uqm.uqm, "planets")]
@@ -123,7 +124,7 @@ def build(uqm, main_c, link, out, extra=()):
             raise RuntimeError(f"gcc failed for {src}:\n{res.stderr}")
         objs.append(obj)
     subprocess.run(["gcc", "-no-pie", *objs, "-o", out,
-                    "-Wl,--unresolved-symbols=ignore-all"], check=True,
+                    "-Wl,--unresolved-symbols=ignore-all", *libs], check=True,
                    capture_output=True, text=True)
 
 
@@ -345,9 +346,12 @@ def record_layout(uqm, exe):
 def record_string_numbering(uqm, exe):
     out = subprocess.run([exe, "bases"], capture_output=True, text=True,
                          check=True).stdout
-    data = header(uqm, ["tools/extract/golden/strings.c", "src/uqm/gamestr.h"], [
+    data = header(uqm, ["tools/extract/golden/strings.c", "src/uqm/gamestr.h",
+                        "src/uqm/menustat.h"], [
         "The game strings' numbering from UQM's gamestr.h: each range's "
         "base and count, as [name, base, count], and GAMESTR_COUNT.",
+        "menu: menustat.h's numbers for the orbit screen's PC menus, whose "
+        "entries are GAME_STRING (MAINMENU_STRING_BASE + n).",
     ])
     data.update(json.loads(out))
     return data
@@ -534,6 +538,125 @@ def record_names(uqm, systems_exe, strings_exe, package):
     return data
 
 
+# Texts of our own laid out in the fonts the orbit screen uses, to record
+# each quirk of TextRect and _text_blt: alignment, the last character's
+# spacing, characters the font hasn't got, bad UTF-8 (which ends the text),
+# and font_DrawText's limit of MAX_DELTAS (100) characters.
+FONT_TEXT_FONTS = ["font.starcon", "font.tiny", "font.micro"]
+FONT_TEXTS = [
+    b"", b" ", b"A", b"Scan", b"Orbit: 1.00 a.u.", b"Temp: -18\xc2\xb0 c",
+    b"Hello, world!", b"0123456789", b"MiXeD cAsE wItH sPaCeS",
+    b"a\xe4\xf6\xfc", b"\xe4\xb8\x80 not in the font", b"ok\x80then",
+    b"ok\xc3", b"ok\xc0\xafthen", b"ok\xe2\x82then",
+    b"x" * 99, b"y" * 100, b"z" * 101, b"w" * 150,
+]
+
+
+def record_fonts(uqm, fonts_exe, strings_exe, package):
+    """Every font of the official content package as UQM's _GetFontData
+    loads it, and texts laid out by its TextRect and _text_blt: our own
+    texts, and the game strings the orbit screen draws. Fonts and what is
+    drawn with them are content, so only hashes are kept."""
+    import hashlib
+    import zipfile
+
+    def h(value):
+        return hashlib.sha256(json.dumps(value, separators=(",", ":"))
+                              .encode()).hexdigest()
+
+    _, strings = read_string_tables(
+        strings_exe, package, lambda key: key == "text.starcon")["text.starcon"]
+    game = [bytes.fromhex(data)[:-1] if length else None
+            for length, data in strings]
+    bases = json.loads(subprocess.run([strings_exe, "bases"],
+                                      capture_output=True, text=True,
+                                      check=True).stdout)
+    base = {name: (b, n) for name, b, n in bases["ranges"]}
+    game_cases = []
+    for name in ("MAINMENU_STRING_BASE", "ORBITSCAN_STRING_BASE",
+                 "SCAN_STRING_BASE"):
+        b, n = base[name]
+        game_cases += range(b, b + n)
+
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        fonts = {key: path for key, (kind, path)
+                 in read_resource_index(strings_exe, index_file).items()
+                 if kind == "FONTRES"}
+        for path in set(fonts.values()):
+            for n in z.namelist():
+                if n.startswith(path + "/") and not n.endswith("/"):
+                    local = os.path.join(tmp, n)
+                    os.makedirs(os.path.dirname(local), exist_ok=True)
+                    with open(local, "wb") as f:
+                        f.write(z.read(n))
+        cases = []
+        lines = []
+        for path in sorted(set(fonts.values())):
+            lines.append(f"font {path} {os.path.join(tmp, path)}")
+        for key in FONT_TEXT_FONTS:
+            for align in (0, 1, 2):
+                for text in FONT_TEXTS:
+                    cases.append({"font": key, "align": align,
+                                  "text": text.hex()})
+                    lines.append(f"text {fonts[key]} {align} "
+                                 f"{text.hex() or '-'}")
+                for n in game_cases:
+                    if game[n] is None:
+                        continue
+                    cases.append({"font": key, "align": align,
+                                  "game_string": n})
+                    lines.append(f"text {fonts[key]} {align} "
+                                 f"{game[n].hex() or '-'}")
+        case_file = os.path.join(tmp, "cases.txt")
+        with open(case_file, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        out = subprocess.run([fonts_exe, case_file], capture_output=True,
+                             text=True, check=True).stdout.splitlines()
+
+    loaded = {}
+    results = []
+    for line in out:
+        v = json.loads(line)
+        if isinstance(v, dict):
+            loaded[v["font"]] = {
+                "metrics": h([v["leading"], v["leading_width"]]),
+                "glyphs": {str(g[0]): h(g) for g in v["glyphs"]},
+            }
+        else:
+            results.append(v)
+    assert len(results) == len(cases)
+    for case, result in zip(cases, results):
+        case["result"] = h(result)
+    data = header(uqm, ["tools/extract/golden/fonts.c",
+                        "src/libs/graphics/gfxload.c",
+                        "src/libs/graphics/font.c",
+                        "src/libs/graphics/boxint.c",
+                        "src/libs/strings/unicode.c"], [
+        "Every font (FONTRES resource) of the official UQM 0.8.0 content "
+        f"package (SHA-256 {CONTENT_SHA256}) as UQM's own _GetFontData "
+        "loads it, with images read by libpng as SDL_image reads them, and "
+        "texts laid out by UQM's TextRect and _text_blt (see "
+        "tools/extract/golden/fonts.c). Fonts are content (CC BY-NC-SA "
+        "2.5), so everything here is a SHA-256 of compact JSON.",
+        "fonts: by folder. metrics: [Leading, LeadingWidth]. glyphs: by "
+        "character number, [char, width, height, hot_x, hot_y, disp_width, "
+        "disp_height, alpha as lowercase hex].",
+        "resources: the FONTRES ids and the folder each names.",
+        "texts: a text (our own, in hex, or a game string by number) laid "
+        "out in a font with an alignment (0 left, 1 center, 2 right) at "
+        "baseline 0, 0. result: [[TextRect's result (1 or 0), corner x, "
+        "corner y, width, height, CharCount], then each character drawn, "
+        "[char, pen x, pen y]].",
+    ])
+    data["resources"] = dict(sorted(fonts.items()))
+    data["fonts"] = loaded
+    data["texts"] = cases
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
@@ -557,6 +680,10 @@ def main():
         systems = os.path.join(build_dir, "systems")
         build(uqm, os.path.join(HERE, "golden", "systems.c"),
               systems_link(uqm), systems, extra=[SYSTEMS_STUBS])
+        fonts = os.path.join(build_dir, "fonts")
+        if args.content:
+            build(uqm, os.path.join(HERE, "golden", "fonts.c"), FONTS_LINK,
+                  fonts, libs=["-lpng"])
         strings = os.path.join(build_dir, "strings")
         build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
               strings)
@@ -572,7 +699,8 @@ def main():
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),
                            *([("string-tables", record_string_tables(uqm, strings, args.content)),
-                              ("names", record_names(uqm, systems, strings, args.content))]
+                              ("names", record_names(uqm, systems, strings, args.content)),
+                              ("fonts", record_fonts(uqm, fonts, strings, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:
