@@ -34,6 +34,7 @@ The first runs 21 checks on the committed files (counts, known values, notices).
 
 - **`hyperspace-flight.json`:** 9 flight scenarios, frame by frame: thrusting, turning at top speed, spinning in place, running out of fuel, the fuel counter rolling over on long trips, tapping thrust, both turn keys, and fuel above tank capacity. Recorded by running UQM's `ship_preprocess`, `sis_hyper_preprocess`, `inertial_thrust`, `init_sis` and `MoveSIS`; only drawing calls are stubbed.
 - **`uqm-math.json`:** `sinetab`, `ARCTAN`, `square_root`, universe/log conversions and velocity operations.
+- **`star-systems.json`:** every one of the 502 star systems as UQM generates it at the start of a new game: the sun's seed, every planet and every moon (type, orbit radius, position, seed, number of moons) and each world's planet data (`PLANET_INFO`: temperature, gravity, tectonics, weather, atmosphere and so on), plus `RandomContext` sequences for many seeds. Recorded by `tools/extract/golden/systems.c`, which includes `solarsys.c` and runs UQM's own `LoadSolarSys`, `GenerateMoons`, `FillOrbits` and `DoPlanetaryAnalysis` with every generator in `planets/generate/`. Graphics and strings are stubbed; the game state is all zeros, as in a new game. Planet data is recorded the way the planet report computes it (with the greenhouse bonus); the orbit colour's temperature, computed without it, is recorded too, since the two make different RNG calls.
 
 ```
 python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2

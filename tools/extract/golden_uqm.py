@@ -67,15 +67,28 @@ FLIGHT_LINK = ["uqm/ship.c", "uqm/ships/sis_ship/sis_ship.c",
 MATH_LINK = ["uqm/trans.c", "libs/math/sqrt.c", "uqm/velocity.c"]
 
 
+def systems_link(uqm):
+    gen = os.path.join(uqm.uqm, "planets", "generate")
+    return (["uqm/planets/orbits.c", "uqm/planets/calc.c",
+             "uqm/planets/surface.c", "uqm/gendef.c",
+             "uqm/plandata.c", "uqm/starmap.c", "uqm/globdata.c",
+             "libs/math/random2.c", "uqm/trans.c", "libs/math/sqrt.c"] +
+            sorted(f"uqm/planets/generate/{n}" for n in os.listdir(gen)
+                   if n.endswith(".c")))
+
+
 def build(uqm, main_c, link, out):
     cflags = ["-w", "-no-pie", "-I", uqm.build, "-I", uqm.src, "-I", uqm.uqm,
-              "-I", os.path.join(uqm.uqm, "ships", "sis_ship")]
+              "-I", os.path.join(uqm.uqm, "ships", "sis_ship"),
+              "-I", os.path.join(uqm.uqm, "planets")]
     objs = []
     for i, src in enumerate([main_c] + [os.path.join(uqm.src, f)
                                         for f in link]):
         obj = os.path.join(uqm.build, f"{os.path.basename(out)}_{i}.o")
-        subprocess.run(["gcc", *cflags, "-c", src, "-o", obj], check=True,
-                       capture_output=True, text=True)
+        res = subprocess.run(["gcc", *cflags, "-c", src, "-o", obj],
+                             capture_output=True, text=True)
+        if res.returncode:
+            raise RuntimeError(f"gcc failed for {src}:\n{res.stderr}")
         objs.append(obj)
     subprocess.run(["gcc", "-no-pie", *objs, "-o", out,
                     "-Wl,--unresolved-symbols=ignore-all"], check=True,
@@ -142,6 +155,41 @@ def record_math(uqm, exe):
     return data
 
 
+def record_systems(uqm, exe):
+    out = subprocess.run([exe], capture_output=True, text=True,
+                         check=True).stdout
+    link = systems_link(uqm)
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "src/uqm/planets/solarsys.c"] +
+                  [f"src/{f}" for f in link], [
+        "Star systems as UQM 0.8.0 generates them, recorded by running its "
+        "own LoadSolarSys, GenerateMoons, FillOrbits, DoPlanetaryAnalysis "
+        "and every generator in planets/generate/ (see "
+        "tools/extract/golden/systems.c). Game state is all zeros, as in a "
+        "new game.",
+        "rng: RandomContext (libs/math/random2.c). new_context_first is the "
+        "first number from a new context. Each sequence is [seed given to "
+        "SeedRandom, seed after it, then 50 numbers].",
+        "systems: one per star in starmap order (NUM_SOLAR_SYSTEMS). index "
+        "is the star's generator (STAR_DESC.Index), sun_seed the sun's "
+        "rand_seed, sun_type its data_index (star size).",
+        "planets: PlanetDesc in order, as LoadSolarSys leaves them. moons: "
+        "for each planet, MoonDesc as GenerateMoons leaves them on entering "
+        "that planet's inner system.",
+        "Each world: [data_index, radius, location.x, location.y, "
+        "rand_seed, NumPlanets] and, for worlds with planet data, then "
+        "[orbit-colour temperature (no greenhouse bonus), temp_color index, "
+        "AxialTilt, Tectonics, Weather, PlanetDensity, PlanetRadius, "
+        "SurfaceGravity, SurfaceTemperature, RotationPeriod, AtmoDensity, "
+        "LifeChance, PlanetToSunDist, RNG seed after the analysis]. The "
+        "planet data is DoPlanetaryAnalysis into the solar system's own "
+        "SYSTEM_INFO, as generateOrbital does on entering orbit. The "
+        "starbase (255) and the Sa-Matra (254) have no planet data.",
+    ])
+    data.update(json.loads(out))
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
@@ -159,9 +207,13 @@ def main():
         build(uqm, os.path.join(HERE, "golden", "flight.c"), FLIGHT_LINK,
               flight)
         build(uqm, os.path.join(HERE, "golden", "math.c"), MATH_LINK, math)
+        systems = os.path.join(build_dir, "systems")
+        build(uqm, os.path.join(HERE, "golden", "systems.c"),
+              systems_link(uqm), systems)
         os.makedirs(args.out, exist_ok=True)
         for name, data in (("hyperspace-flight", record_flight(uqm, flight)),
-                           ("uqm-math", record_math(uqm, math))):
+                           ("uqm-math", record_math(uqm, math)),
+                           ("star-systems", record_systems(uqm, systems))):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:
                 json.dump(data, f, separators=(",", ":"))

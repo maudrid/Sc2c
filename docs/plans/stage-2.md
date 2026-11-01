@@ -1,6 +1,6 @@
 # Stage 2 plan: solar systems and planets
 
-**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted (see "Decisions"). Not built yet.
+**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted (see "Decisions"). In progress: items 1 to 3 are built (see "Progress").
 
 Build order item: "Solar systems and planets from seeds" (`docs/design.md`).
 
@@ -97,6 +97,24 @@ Each item ends with tests that run headless. Where UQM code produces the answer,
 11. **Docs.** `docs/how-to-try/stage-2.md`; update the porting inventory, differences and data docs.
 
 Rough size: items 2, 4 and 6 are the large ones. Everything else is small to medium.
+
+## Progress
+
+| Item | State | Where |
+| --- | --- | --- |
+| 1. System RNG | Built | `src/Crateris.Core/Systems/SysRandom.cs`; checked against sequences for 52 seeds |
+| 2. Generating every system | Built | `Orbits.cs`, `PlanetAnalysis.cs`, `SystemGenerator.cs`; all 502 systems, 3,800 planets and moons match UQM (`StarSystemTests`) |
+| 3. Special-system layouts | Built | In `SystemGenerator.cs`, checked by the same all-stars test |
+| 4 to 11 | Not started | |
+
+How to try what is built so far: `docs/how-to-try/stage-2.md`.
+
+Found while porting, all kept as UQM does them:
+
+- UQM's random generator isn't quite textbook Park–Miller: when the intermediate value goes negative it wraps as an unsigned number and subtracts `M`, which lands 2 higher than the textbook result. Kept, since every system depends on it.
+- The planet report and the orbit colours analyse a planet differently (the report adds a greenhouse bonus, which uses up random numbers), so a planet's report can show a different temperature from the one its orbit colour suggests, and its other values come from a shifted sequence too. Both ways are ported.
+- Some special generators move a planet to a new orbit but keep the seed of its old position (for example the Androsynth and Ilwrath homeworlds); a few compute a new one (the Druuge and VUX worlds). Ported as written.
+- At the Maidens' star UQM runs the default generator twice, using up random numbers; ported as written.
 
 ## Decisions
 
