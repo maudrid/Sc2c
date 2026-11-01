@@ -48,8 +48,8 @@ public sealed class PlayerShip
     /// <summary>Flight inside that system, or null in hyperspace.</summary>
     public IpFlight? Ip { get; internal set; }
 
-    /// <summary>In orbit: the world's report, scan seeds and nodes.</summary>
-    public OrbitData? Orbit { get; internal set; }
+    /// <summary>In orbit: the world's report, scan seeds and nodes (from <see cref="IpFlight.OrbitData"/>).</summary>
+    public OrbitData? Orbit => Ip?.OrbitData;
 
     public Activity Activity => Ip switch
     {

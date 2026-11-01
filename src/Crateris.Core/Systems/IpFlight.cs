@@ -115,7 +115,25 @@ public sealed class IpFlight
     public byte TurnWait { get; }
 
     /// <summary>After <see cref="IpEvent.EnteredOrbit"/>: the world orbited (moon null for the planet itself).</summary>
-    public (int Planet, int? Moon)? Orbit { get; private set; }
+    public (int Planet, int? Moon)? Orbit
+    {
+        get => _orbit;
+        private set
+        {
+            _orbit = value;
+            _orbitData = null;
+        }
+    }
+
+    /// <summary>
+    /// What entering orbit gives for that world: report, scan seeds and
+    /// nodes, or <see cref="OrbitData.Entered"/> false for a world where UQM
+    /// starts a conversation instead. Null when not in orbit.
+    /// </summary>
+    public OrbitData? OrbitData => _orbit is { } o ? (_orbitData ??= System.EnterOrbit(o.Planet, o.Moon)) : null;
+
+    private (int Planet, int? Moon)? _orbit;
+    private OrbitData? _orbitData;
 
     /// <summary>Where planets are on the screen in the outer view.</summary>
     public IReadOnlyList<IpPoint> PlanetScreen => _planetImage;

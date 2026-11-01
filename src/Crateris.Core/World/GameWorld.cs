@@ -27,9 +27,11 @@ public enum JoinResult
 /// <summary>
 /// One ship as clients see it. Hyperspace fields (LogX .. Facing) are where
 /// the ship is in hyperspace, or the star it will come out at while in a
-/// system. System fields are set while in a system: the star, the inner
-/// system's planet, the ship's place in the system (Ip*), on the screen
-/// (Screen*), its facing there, the outer view's zoom, and the world orbited.
+/// system; VelocityX/Y is always hyperspace velocity. System fields are set
+/// while in a system: the star, the inner system's planet, the ship's place
+/// in the system (IpX/IpY), on the screen (Screen*), its facing and velocity
+/// there (IpFacing, IpVelocityX/Y, in UQM's interplanetary units), the outer
+/// view's zoom, and the world orbited.
 /// Clients generate systems themselves from the star number.
 /// </summary>
 public sealed record ShipSnapshot(
@@ -40,7 +42,7 @@ public sealed record ShipSnapshot(
     Activity Activity = Activity.Hyperspace,
     int? SystemStar = null, int? InnerPlanet = null,
     int IpX = 0, int IpY = 0, int ScreenX = 0, int ScreenY = 0, int IpFacing = 0, int ZoomRadius = 0,
-    int? OrbitPlanet = null, int? OrbitMoon = null);
+    int? OrbitPlanet = null, int? OrbitMoon = null, int IpVelocityX = 0, int IpVelocityY = 0);
 
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
@@ -231,11 +233,7 @@ public sealed class GameWorld
         switch (ip.Step(input & ~ShipInput.Action))
         {
             case IpEvent.EnteredOrbit:
-                var (planet, moon) = ip.Orbit!.Value;
-                OrbitData orbit = ip.System.EnterOrbit(planet, moon);
-                if (orbit.Entered)
-                    ship.Orbit = orbit;
-                else
+                if (!ip.OrbitData!.Entered)
                     ip.ReturnFromOrbit();   // UQM starts a conversation here; none exist yet (stage 3)
                 break;
             case IpEvent.LeftSystem:
@@ -257,31 +255,33 @@ public sealed class GameWorld
             ship.Loadout.Thrusters, ship.Loadout.Jets);
     }
 
-    private static void LeaveOrbit(PlayerShip ship)
-    {
-        ship.Ip!.ReturnFromOrbit();
-        ship.Orbit = null;
-    }
+    private static void LeaveOrbit(PlayerShip ship) => ship.Ip!.ReturnFromOrbit();
 
     /// <summary>
     /// Puts a player straight into orbit around a world, as if they had
-    /// flown there (for testing and debugging: --start-orbit).
+    /// flown there (for testing and debugging: --start-orbit). Checks the
+    /// world first and changes nothing if it can't be orbited.
     /// </summary>
     public void PutInOrbit(string id, int star, int planet, int? moon = null)
     {
         var player = Find(id) ?? throw new ArgumentException($"no player {id}");
         if (Systems is null)
             throw new InvalidOperationException("this world has no systems");
+        if (!Systems.HasWorld(star, planet, moon))
+            throw new ArgumentException($"star {star} has no planet {planet}" + (moon is int m ? $" moon {m}" : ""));
+        if (!Systems[star].EnterOrbit(planet, moon).Entered)
+            throw new ArgumentException($"star {star} planet {planet} moon {moon}: that world can't be orbited");
+
         PlayerShip ship = player.Ship;
         if (ship.SystemStar != star)
+        {
+            if (ship.Ip is not null)
+                ship.Ip = null;   // out of the other system, straight into this one
             EnterSystem(ship, Systems.Map.Stars[star]);
-        if (ship.Orbit is not null)
+        }
+        if (ship.Ip!.Orbit is not null)
             LeaveOrbit(ship);
-        ship.Ip!.PlaceInOrbit(planet, moon);
-        OrbitData orbit = ship.Ip.System.EnterOrbit(planet, moon);
-        if (!orbit.Entered)
-            throw new ArgumentException($"star {star} planet {planet} moon {moon}: that world can't be orbited");
-        ship.Orbit = orbit;
+        ship.Ip.PlaceInOrbit(planet, moon);
     }
 
     public WorldSnapshot Snapshot()
@@ -291,12 +291,13 @@ public sealed class GameWorld
         {
             var f = p.Ship.Flight;
             var ip = p.Ship.Ip;
-            var (vx, vy) = ip is null ? f.Velocity.Current() : ip.Velocity.Current();
+            var (vx, vy) = f.Velocity.Current();
+            var (ivx, ivy) = ip?.Velocity.Current() ?? ((short)0, (short)0);
             return new ShipSnapshot(p.Id, p.Name, p.IsHost, p.Ship.Kind, f.LogX, f.LogY, f.UniverseX, f.UniverseY,
                 f.Facing, vx, vy, f.Fuel, f.FuelCapacity, (f.Status & HyperFlight.StatusThrust) != 0,
                 p.UndockPending, p.Ship.Activity, p.Ship.SystemStar, ip?.InnerPlanet,
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
-                ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon);
+                ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy);
         }).ToList();
 
         // Worlds being orbited, with what has been taken from them, so an

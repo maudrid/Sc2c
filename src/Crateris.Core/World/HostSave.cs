@@ -139,13 +139,8 @@ public static class HostSave
                 ship.SystemStar = systemStar;
                 ship.Ip = IpFlight.Restore(systems[systemStar], ps.System, ps.Loadout.Thrusters, ps.Loadout.Jets);
                 ship.Ip.Stop();
-                if (ship.Ip.Orbit is { } orbit)
-                {
-                    var data = systems[systemStar].EnterOrbit(orbit.Planet, orbit.Moon);
-                    if (!data.Entered)
-                        throw new InvalidDataException($"Player {ps.Id}: in orbit around a world that can't be orbited.");
-                    ship.Orbit = data;
-                }
+                if (ship.Ip.OrbitData is { Entered: false })
+                    throw new InvalidDataException($"Player {ps.Id}: in orbit around a world that can't be orbited.");
             }
             else if (ps.System is not null)
                 throw new InvalidDataException($"Player {ps.Id}: system flight without a system.");

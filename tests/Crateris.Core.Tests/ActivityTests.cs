@@ -245,9 +245,49 @@ public class ActivityTests
     }
 
     [Fact]
-    public void WorldsThatCantBeOrbitedAreRefusedByPutInOrbit()
+    public void WorldsThatCantBeOrbitedAreRefusedByPutInOrbitAndNothingChanges()
     {
         var world = NewWorld();
+        string before = HostSave.ToJson(world);
         Assert.Throws<ArgumentException>(() => world.PutInOrbit("host", SolNumber, 2, 0));   // the starbase
+        Assert.Throws<ArgumentException>(() => world.PutInOrbit("host", SolNumber, 9));      // Sol has 9 planets
+        Assert.Throws<ArgumentException>(() => world.PutInOrbit("host", SolNumber, 0, 0));   // Mercury has no moon
+        Assert.Equal(before, HostSave.ToJson(world));
+        Assert.Equal(Activity.Hyperspace, world.Host.Ship.Activity);
+
+        // From orbit elsewhere, a refused call leaves the ship in that orbit.
+        world.PutInOrbit("host", SolNumber, 4);
+        Assert.Throws<ArgumentException>(() => world.PutInOrbit("host", SolNumber, 2, 0));
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Assert.Equal(4, world.Host.Ship.Ip!.Orbit!.Value.Planet);
+        Assert.NotNull(world.Host.Ship.Orbit);
+    }
+
+    [Fact]
+    public void OrbitDataAlwaysFollowsTheOrbitedWorld()
+    {
+        var world = NewWorld();
+        var ship = world.Host.Ship;
+        Assert.Null(ship.Orbit);
+        world.PutInOrbit("host", SolNumber, 2, 1);
+        Assert.Equal(Activity.Orbit, ship.Activity);
+        Assert.Single(ship.Orbit!.Nodes!.Energy);                 // the Moon base
+        world.PutInOrbit("host", SolNumber, 4);
+        Assert.Equal(PlanetInfo.GasGiantAtmosphere, ship.Orbit!.Report!.AtmoDensity);   // Jupiter's
+        Run(world, "host", ShipInput.Action, 1);
+        Assert.Null(ship.Orbit);
+        Assert.Equal(Activity.InnerSystem, ship.Activity);
+    }
+
+    [Fact]
+    public void SnapshotsKeepHyperspaceAndSystemVelocitySeparate()
+    {
+        var world = NewWorld();
+        world.PutInOrbit("host", SolNumber, 8);
+        Run(world, "host", ShipInput.Action, 1);
+        Run(world, "host", ShipInput.Thrust, 24);
+        var me = world.Snapshot().Ships.Single();
+        Assert.Equal((0, 0), (me.VelocityX, me.VelocityY));                 // stopped in hyperspace
+        Assert.NotEqual((0, 0), (me.IpVelocityX, me.IpVelocityY));          // flying in the system
     }
 }

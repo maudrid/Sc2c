@@ -14,8 +14,8 @@ dotnet test --filter SurfaceTests      # orbit, report and nodes against UQM: 6 
 dotnet test --filter SystemTransitionTests   # entering and leaving systems: 9 tests
 dotnet test --filter IpFlightTests    # flight inside systems: 10 tests
 dotnet test --filter PlanetWorldStateTests   # taken nodes: 15 tests
-dotnet test --filter ActivityTests    # hyperspace, systems and orbit in the game: 12 tests
-dotnet test                            # everything: 88 tests
+dotnet test --filter ActivityTests    # hyperspace, systems and orbit in the game: 14 tests
+dotnet test                            # everything: 90 tests
 python3 tools/test_network.py          # real host and guests, now with a guest joining in orbit
 ```
 
@@ -38,7 +38,7 @@ godot --path game -- --host --name Host --start-orbit 82:2
 godot --path game -- --join 127.0.0.1 --name Guest --id guest-1
 ```
 
-The top-left shows each player's activity. The guest joins in Earth's inner system ("near planet 2"). On the host, press Enter to leave orbit; both are then flying in the Sol system. Fly off the edge of the screen (through the outer view's zooms) to come back to hyperspace on Sol, where the hyperspace view returns. `82` is Sol's star number; planets count from 0 (Earth is 2, its Moon is `82:2:1`).
+The top-left shows each player's activity. The guest joins in Earth's inner system ("near planet 2"). On the host, press Enter to leave orbit; both are then flying in the Sol system. Fly off the edge of the screen (through the outer view's zooms) to come back to hyperspace on Sol, where the hyperspace view returns. `82` is Sol's star number; planets count from 0 (Earth is 2, its Moon is `82:2:1`). `--start-orbit` also works with a loaded save; a world that can't be orbited (a starbase, say) is refused with a message in the top-left.
 
 To record the reference again from the UQM source (needs gcc and a checkout of UQM 0.8.0):
 

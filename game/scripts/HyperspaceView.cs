@@ -86,6 +86,7 @@ public partial class HyperspaceView : Node2D
             DrawRect(new Rect2(Vector2.Zero, size), new Color(0f, 0f, 0.06f));
             DrawString(font, new Vector2(40, centre.Y), $"In a star system ({me.Activity}). The system view comes later in stage 2.",
                 HorizontalAlignment.Left, -1, 18, Colors.LightBlue);
+            DrawUndocking(font, centre);
             return;
         }
         // Only ships in hyperspace are drawn here (stage 2, decision 3).
@@ -102,11 +103,15 @@ public partial class HyperspaceView : Node2D
             DrawString(font, p + new Vector2(12, -10), ship.Name, HorizontalAlignment.Left, -1, 14, color);
         }
 
-        if (_undocking)
-        {
-            var host = _snapshot.Ships.FirstOrDefault(s => s.IsHost);
-            DrawString(font, new Vector2(centre.X - 200, centre.Y + 60),
-                $"Undocking from {host?.Name ?? "the"}'s flagship...", HorizontalAlignment.Left, -1, 22, Colors.Cyan);
-        }
+        DrawUndocking(font, centre);
+    }
+
+    private void DrawUndocking(Font font, Vector2 centre)
+    {
+        if (!_undocking || _snapshot == null)
+            return;
+        var host = _snapshot.Ships.FirstOrDefault(s => s.IsHost);
+        DrawString(font, new Vector2(centre.X - 200, centre.Y + 60),
+            $"Undocking from {host?.Name ?? "the"}'s flagship...", HorizontalAlignment.Left, -1, 22, Colors.Cyan);
     }
 }

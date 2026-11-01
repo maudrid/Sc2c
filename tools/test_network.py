@@ -148,10 +148,10 @@ def main():
     host3 = start(out, "host3", "--host", "--no-upnp", "--port", PORT,
                   "--name", "Host", "--id", "host", "--save", save3,
                   "--start-orbit", "82:2",
-                  "--script", "none:72,action:2,none:500", "--quit-after", "168")
+                  "--script", "none:120,action:2,none:500", "--quit-after", "336")
     time.sleep(1)
     c = start(out, "c", "--join", f"127.0.0.1:{PORT}", "--name", "C",
-              "--id", "guest-c", "--script", "none:500", "--quit-after", "96")
+              "--id", "guest-c", "--script", "none:500", "--quit-after", "240")
     for p in (c, host3):
         p.wait(timeout=60)
     h3, rc = report(out, "host3"), report(out, "c")
@@ -163,9 +163,13 @@ def main():
     check(c_ship is not None and c_ship["Activity"] == INNER
           and c_ship["SystemStar"] == 82 and c_ship["InnerPlanet"] == 2,
           "C is in Earth's inner system (it undocked next to the host's world)")
-    check(c_host is not None and c_host["SystemStar"] == 82
-          and c_host["Activity"] == INNER,
-          "C sees the host in the same system, out of orbit after the action key")
+    # Order of what C saw, from its log, not from when the processes ran.
+    seen = [line.split("] ", 1)[1] for line in rc["log"] if "] Saw host " in line]
+    check(len(seen) >= 2 and seen[0].startswith("Saw host Orbit")
+          and seen[1].startswith("Saw host InnerSystem"),
+          "C saw the host in orbit, then flying after the action key")
+    check(c_host is not None and c_host["SystemStar"] == 82,
+          "C sees the host in the same system")
     h3_host = ship(h3["snapshot"], "host")
     check(h3_host is not None and h3_host["Activity"] == INNER,
           "host left orbit and flies in Earth's inner system")

@@ -117,6 +117,7 @@ public partial class Main : Node2D
             _playerId = _world.Host.Id; // the save belongs to its host
             _world.Join(_playerId, _name);
             Log($"Loaded {load}");
+            StartInOrbit();
         }
         else
         {
@@ -124,12 +125,8 @@ public partial class Main : Node2D
             if (_options.SecondsPerDay is { } spd)
                 settings = settings with { SecondsPerGameDay = spd };
             _world = GameWorld.NewGame(settings, NewGameData.Load(dataDir, systems.Map), _playerId, _name, systems);
-            if (_options.StartOrbit is { } o)
-            {
-                _world.PutInOrbit(_playerId, o.Star, o.Planet, o.Moon);
-                Log($"Starting in orbit: star {o.Star} planet {o.Planet}" + (o.Moon is int m ? $" moon {m}" : ""));
-            }
             Log("New game");
+            StartInOrbit();
         }
         _inputDelay = _world.Settings.InputDelayFrames;
 
@@ -268,7 +265,42 @@ public partial class Main : Node2D
     {
         var snap = Protocol.Decode<WorldSnapshot>(data);
         if (_snapshot == null || snap.Frame > _snapshot.Frame)
+        {
             _snapshot = snap;
+            LogActivityChanges(snap);
+        }
+    }
+
+    /// <summary>--start-orbit: put the host's ship in orbit (new or loaded game).</summary>
+    private void StartInOrbit()
+    {
+        if (_options.StartOrbit is not { } o || _world == null)
+            return;
+        string where = $"star {o.Star} planet {o.Planet}" + (o.Moon is int m ? $" moon {m}" : "");
+        try
+        {
+            _world.PutInOrbit(_playerId, o.Star, o.Planet, o.Moon);
+            Log($"Starting in orbit: {where}");
+        }
+        catch (ArgumentException e)
+        {
+            _status = $"Can't start in orbit at {where}: {e.Message}";
+            Log(_status);
+        }
+    }
+
+    private readonly Dictionary<string, Activity> _seenActivity = new();
+
+    /// <summary>Logs each ship's activity when it changes (read by the network test).</summary>
+    private void LogActivityChanges(WorldSnapshot snap)
+    {
+        foreach (var s in snap.Ships)
+        {
+            if (_seenActivity.TryGetValue(s.Id, out var last) && last == s.Activity)
+                continue;
+            _seenActivity[s.Id] = s.Activity;
+            Log($"Saw {s.Id} {s.Activity} at frame {snap.Frame}");
+        }
     }
 
     private void Fail(string message)
@@ -284,13 +316,18 @@ public partial class Main : Node2D
     public override void _PhysicsProcess(double delta)
     {
         _frames++;
-        var input = ReadInput();
+        // A guest's script starts once it is in the game, so a slow join
+        // doesn't use up its first steps (the network test depends on it).
+        bool inGame = _isHost ? _world != null
+            : _welcome != null && Protocol.Accepted(_welcome.Result) && _snapshot != null;
+        var input = inGame ? ReadInput() : ShipInput.None;
 
         if (_isHost && _world != null)
         {
             _world.SubmitInput(_playerId, _world.Frame + _inputDelay, input);
             _world.Step();
             _snapshot = _world.Snapshot();
+            LogActivityChanges(_snapshot);
             if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
                 Rpc(MethodName.ReceiveSnapshot, Protocol.Encode(_snapshot));
         }
