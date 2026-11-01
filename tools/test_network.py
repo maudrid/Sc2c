@@ -25,9 +25,10 @@ Checks: A is Joined then Rejoined and comes back where it left; B is
 Joined; both saw the undocking scene; everyone sees everyone; the save
 holds all three players.
 
-Then (stage 2) a host starts in orbit round Earth, guest C joins and
-undocks in Earth's inner system, the host leaves orbit with the action
-key, and both are in the Sol system, also in the save.
+Then (stage 2) a host starts in orbit round Earth's Moon, guest C joins
+and undocks in Earth's inner system, the host does an auto scan from the
+orbit menu (finding the Moon's nodes) and leaves orbit with the menu's
+Navigate, and both are in the Sol system, also in the save.
 """
 
 import json
@@ -140,23 +141,33 @@ def main():
         p for p in saved["players"] if p["id"] == "host")["flight"]["log_y"],
         "host's flagship is where the save left it")
 
-    # Stage 2: the host starts in orbit round Earth; guest C joins and
-    # undocks in Earth's inner system; the host leaves orbit (action key)
-    # and both fly in the Sol system.
+    # Stage 2: the host starts in orbit round Earth's Moon; guest C joins
+    # and undocks in Earth's inner system; the host scans from the orbit
+    # menu (Scan, Auto scan; 5.1 s for the three scans), closes the scan
+    # menu, chooses Navigate to leave orbit, and both fly in the Sol system.
     INNER, ORBIT = 2, 3    # Activity values in the reports
     save3 = os.path.join(out, "save3.json")
     host3 = start(out, "host3", "--host", "--no-upnp", "--port", PORT,
                   "--name", "Host", "--id", "host", "--save", save3,
-                  "--start-orbit", "82:2",
-                  "--script", "none:120,action:2,none:500", "--quit-after", "336")
+                  "--start-orbit", "82:2:1",
+                  "--script", "none:40,select:2,select:2,none:150,cancel:2,up:2,select:2,none:500",
+                  "--quit-after", "420")
     time.sleep(1)
     c = start(out, "c", "--join", f"127.0.0.1:{PORT}", "--name", "C",
-              "--id", "guest-c", "--script", "none:500", "--quit-after", "240")
+              "--id", "guest-c", "--script", "none:500", "--quit-after", "330")
     for p in (c, host3):
         p.wait(timeout=60)
     h3, rc = report(out, "host3"), report(out, "c")
     check(any("Starting in orbit" in line for line in h3["log"]),
-          "host 3 started in orbit round Earth")
+          "host 3 started in orbit round Earth's Moon")
+    check(any("Scan started: AutoScan" in line for line in h3["log"]),
+          "the host started an auto scan from the orbit menu")
+    # The Moon's nodes, as UQM generates them: 9 mineral deposits, 1
+    # energy source and the 10 Brainbox Bulldozers.
+    check(any("Scan done: 9 mineral, 1 energy, 10 life shown" in line for line in h3["log"]),
+          "the auto scan showed the Moon's 9 mineral, 1 energy and 10 life nodes")
+    check(any("Leaving orbit" in line for line in h3["log"]),
+          "the host chose Navigate to leave orbit")
     check(rc["welcome"] == "Joined", "C is Joined while the host is in a system")
     check(any("Undocking" in line for line in rc["log"]), "C saw the undocking scene")
     c_ship, c_host = ship(rc["snapshot"], "guest-c"), ship(rc["snapshot"], "host")
@@ -167,7 +178,7 @@ def main():
     seen = [line.split("] ", 1)[1] for line in rc["log"] if "] Saw host " in line]
     check(len(seen) >= 2 and seen[0].startswith("Saw host Orbit")
           and seen[1].startswith("Saw host InnerSystem"),
-          "C saw the host in orbit, then flying after the action key")
+          "C saw the host in orbit, then flying after it left orbit")
     check(c_host is not None and c_host["SystemStar"] == 82,
           "C sees the host in the same system")
     h3_host = ship(h3["snapshot"], "host")

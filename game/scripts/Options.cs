@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
+using Crateris.Core.Systems;
 
 namespace Crateris.Game;
 
@@ -18,7 +19,8 @@ namespace Crateris.Game;
 ///   godot --path game -- --host [--port N] [--name NAME] [--load FILE]
 ///   godot --path game -- --join ADDRESS[:PORT] [--name NAME]
 /// Testing options: --id ID (player id instead of the saved one),
-/// --script "thrust:40,right:10,none:20" (scripted input instead of keys),
+/// --script "thrust:40,right:10,none:20" (scripted input instead of keys;
+/// up, down, select and cancel press an orbit menu key once as their step starts),
 /// --quit-after FRAMES, --report FILE (write what happened as JSON),
 /// --save FILE, --no-upnp, --seconds-per-day N, --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless).
@@ -38,7 +40,10 @@ public sealed class Options
     public long QuitAfterFrames { get; private set; }
     public bool UseUpnp { get; private set; } = true;
     public double? SecondsPerDay { get; private set; }
-    public List<(int Frames, ShipInput Input)>? Script { get; private set; }
+    /// <summary>One step of --script: input held for some frames; a menu key is pressed once as the step starts.</summary>
+    public sealed record ScriptStep(int Frames, ShipInput Input, MenuKey? Key = null);
+
+    public List<ScriptStep>? Script { get; private set; }
 
     /// <summary>--start-orbit star:planet[:moon]: a new game starts in orbit there (testing and debugging).</summary>
     public (int Star, int Planet, int? Moon)? StartOrbit { get; private set; }
@@ -91,15 +96,29 @@ public sealed class Options
         return o;
     }
 
-    private static List<(int, ShipInput)> ParseScript(string text)
+    private static List<ScriptStep> ParseScript(string text)
     {
-        var steps = new List<(int, ShipInput)>();
+        var steps = new List<ScriptStep>();
         foreach (var part in text.Split(',', StringSplitOptions.RemoveEmptyEntries))
         {
             var kv = part.Split(':');
             var input = ShipInput.None;
+            MenuKey? menuKey = null;
             foreach (var key in kv[0].Split('+'))
             {
+                MenuKey? mk = key.Trim() switch
+                {
+                    "up" => MenuKey.Up,
+                    "down" => MenuKey.Down,
+                    "select" => MenuKey.Select,
+                    "cancel" => MenuKey.Cancel,
+                    _ => null,
+                };
+                if (mk != null)
+                {
+                    menuKey = mk;
+                    continue;
+                }
                 input |= key.Trim() switch
                 {
                     "left" => ShipInput.Left,
@@ -110,7 +129,7 @@ public sealed class Options
                     var k => throw new ArgumentException($"Unknown input '{k}' in --script"),
                 };
             }
-            steps.Add((int.Parse(kv[1]), input));
+            steps.Add(new ScriptStep(int.Parse(kv[1]), input, menuKey));
         }
         return steps;
     }

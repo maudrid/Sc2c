@@ -41,7 +41,6 @@ public partial class HyperspaceView : Node2D
     private readonly Starmap _map;
     private WorldSnapshot? _snapshot;
     private string _me = "";
-    private bool _undocking;
 
     public HyperspaceView(Starmap map) => _map = map;
 
@@ -49,11 +48,10 @@ public partial class HyperspaceView : Node2D
     {
     }
 
-    public void Show(WorldSnapshot? snapshot, string me, bool undocking)
+    public void Show(WorldSnapshot? snapshot, string me)
     {
         _snapshot = snapshot;
         _me = me;
-        _undocking = undocking;
         QueueRedraw();
     }
 
@@ -71,6 +69,13 @@ public partial class HyperspaceView : Node2D
         Vector2 ToScreen(float ux, float uy) =>
             centre + new Vector2(ux - me.UniverseX, -(uy - me.UniverseY)) * PixelsPerUnit;
 
+        if (me.Activity != Activity.Hyperspace)
+        {
+            // In a system: the system and orbit views draw over this.
+            DrawRect(new Rect2(Vector2.Zero, size), new Color(0f, 0f, 0.03f));
+            return;
+        }
+
         foreach (var (x, y, s) in _map.Stars)
         {
             var p = ToScreen(x, y);
@@ -80,15 +85,6 @@ public partial class HyperspaceView : Node2D
         }
 
         var font = ThemeDB.FallbackFont;
-        if (me.Activity != Activity.Hyperspace)
-        {
-            // The system and orbit views come with stage 2 item 10.
-            DrawRect(new Rect2(Vector2.Zero, size), new Color(0f, 0f, 0.06f));
-            DrawString(font, new Vector2(40, centre.Y), $"In a star system ({me.Activity}). The system view comes later in stage 2.",
-                HorizontalAlignment.Left, -1, 18, Colors.LightBlue);
-            DrawUndocking(font, centre);
-            return;
-        }
         // Only ships in hyperspace are drawn here (stage 2, decision 3).
         foreach (var ship in _snapshot.Ships.Where(s => s.Activity == Activity.Hyperspace))
         {
@@ -102,16 +98,5 @@ public partial class HyperspaceView : Node2D
                 DrawLine(p - dir * 9, p - dir * 16, Colors.OrangeRed, 3);
             DrawString(font, p + new Vector2(12, -10), ship.Name, HorizontalAlignment.Left, -1, 14, color);
         }
-
-        DrawUndocking(font, centre);
-    }
-
-    private void DrawUndocking(Font font, Vector2 centre)
-    {
-        if (!_undocking || _snapshot == null)
-            return;
-        var host = _snapshot.Ships.FirstOrDefault(s => s.IsHost);
-        DrawString(font, new Vector2(centre.X - 200, centre.Y + 60),
-            $"Undocking from {host?.Name ?? "the"}'s flagship...", HorizontalAlignment.Left, -1, 22, Colors.Cyan);
     }
 }

@@ -51,7 +51,17 @@ public partial class Main : Node2D
     private double _saveTimer;
 
     private HyperspaceView _view = null!;
+    private SystemView _systemView = null!;
+    private OrbitView _orbitView = null!;
     private Label _hud = null!;
+    private SystemCatalog _systems = null!;
+
+    // The orbit screen's menus for the current visit (the player's own;
+    // only leaving orbit goes to the host), and what it last said.
+    private OrbitMenu? _orbitMenu;
+    private string _orbitMessage = "";
+    private bool _wasSweeping;
+    private int _leaveFrames;
 
     public override void _Ready()
     {
@@ -67,11 +77,24 @@ public partial class Main : Node2D
         }
 
         string dataDir = DataDirectory();
+        _systems = SystemCatalog.Load(dataDir);
         _view = new HyperspaceView(Starmap.Load(dataDir));
         AddChild(_view);
+        // The system screen sits on the right; the status and menus on the left.
+        var systemScreenAt = new Vector2(1024 - Placeholder.Size.X - 12, (768 - Placeholder.Size.Y) / 2);
+        _systemView = new SystemView(_systems) { Position = systemScreenAt, Visible = false };
+        AddChild(_systemView);
+        _orbitView = new OrbitView(_systems) { Position = systemScreenAt, Visible = false };
+        AddChild(_orbitView);
         var layer = new CanvasLayer();
         AddChild(layer);
-        _hud = new Label { Position = new Vector2(12, 8) };
+        // Left of the system screen; long lines wrap.
+        _hud = new Label
+        {
+            Position = new Vector2(12, 8),
+            Size = new Vector2(1024 - Placeholder.Size.X - 36, 300),
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
         _hud.AddThemeColorOverride("font_color", Colors.White);
         layer.AddChild(_hud);
 
@@ -110,7 +133,7 @@ public partial class Main : Node2D
     {
         _isHost = true;
         string? load = _options.LoadPath ?? (File.Exists(_savePath) && _options.SavePath == null ? _savePath : null);
-        var systems = SystemCatalog.Load(dataDir);
+        var systems = _systems;
         if (load != null && File.Exists(load))
         {
             _world = HostSave.FromJson(File.ReadAllText(load), systems);
@@ -337,7 +360,7 @@ public partial class Main : Node2D
             HandleUndock();
         }
 
-        _view.Show(_snapshot, _playerId, _undockFrames >= 0 && !_undockShown);
+        ShowViews();
         UpdateHud();
 
         if (_options.QuitAfterFrames > 0 && _frames >= _options.QuitAfterFrames)
@@ -346,6 +369,15 @@ public partial class Main : Node2D
 
     public override void _Process(double delta)
     {
+        if (_orbitMenu != null)
+        {
+            _orbitMenu.Advance(delta);
+            if (_wasSweeping && !_orbitMenu.Scan.Sweeping)
+                LogScan();
+            _wasSweeping = _orbitMenu.Scan.Sweeping;
+            _orbitView.Show(_orbitMenu, Taken, _snapshot, _playerId, _orbitMessage);
+        }
+        _systemView.Interpolate((float)Engine.GetPhysicsInterpolationFraction());
         if (!_isHost)
             return;
         _saveTimer += delta;
@@ -377,6 +409,19 @@ public partial class Main : Node2D
 
     private ShipInput ReadInput()
     {
+        ShipInput input = ReadKeysOrScript();
+        if (_leaveFrames > 0)
+        {
+            // Navigate was chosen: hold the action key a few frames, so a
+            // lost packet can't lose it (the host acts on the press only).
+            _leaveFrames--;
+            return ShipInput.Action;
+        }
+        return input;
+    }
+
+    private ShipInput ReadKeysOrScript()
+    {
         if (_options.Script is { } script)
         {
             while (_scriptStep < script.Count && _scriptFrame >= script[_scriptStep].Frames)
@@ -386,9 +431,13 @@ public partial class Main : Node2D
             }
             if (_scriptStep >= script.Count)
                 return ShipInput.None;
-            _scriptFrame++;
-            return script[_scriptStep].Input;
+            var step = script[_scriptStep];
+            if (_scriptFrame++ == 0 && step.Key is MenuKey key)
+                PressMenu(key);
+            return step.Input;
         }
+        if (Me()?.Activity == Activity.Orbit)
+            return ShipInput.None;   // the orbit screen's keys go to its menu
         var input = ShipInput.None;
         if (Input.IsKeyPressed(Key.Left))
             input |= ShipInput.Left;
@@ -401,6 +450,99 @@ public partial class Main : Node2D
         return input;
     }
 
+    private ShipSnapshot? Me() => _snapshot?.Ships.FirstOrDefault(s => s.Id == _playerId);
+
+    public override void _UnhandledInput(InputEvent e)
+    {
+        if (e is not InputEventKey { Pressed: true } k || _options.Script != null)
+            return;
+        MenuKey? key = k.Keycode switch
+        {
+            Key.Up => MenuKey.Up,
+            Key.Down => MenuKey.Down,
+            Key.Left => MenuKey.Left,
+            Key.Right => MenuKey.Right,
+            Key.Enter or Key.KpEnter or Key.Space => MenuKey.Select,
+            Key.Escape or Key.Backspace => MenuKey.Cancel,
+            _ => null,
+        };
+        if (key is MenuKey mk)
+            PressMenu(mk);
+    }
+
+    /// <summary>The host's taken-node mask for a scan type of the world being orbited.</summary>
+    private uint Taken(ScanType scan)
+    {
+        if (_orbitMenu == null || _snapshot?.OrbitedWorlds is not { } worlds)
+            return 0;
+        var w = _orbitMenu.World;
+        var o = worlds.FirstOrDefault(x => x.Star == w.Star && x.Planet == w.Planet && x.Moon == w.Moon);
+        return o == null ? 0 : scan switch
+        {
+            ScanType.Mineral => o.MineralTaken,
+            ScanType.Energy => o.EnergyTaken,
+            _ => o.BiologicalTaken,
+        };
+    }
+
+    private void PressMenu(MenuKey key)
+    {
+        if (_orbitMenu == null)
+            return;
+        OrbitMenuItem item = _orbitMenu.Selected;
+        MenuOutcome outcome = _orbitMenu.Press(key, Taken);
+        _orbitMessage = outcome switch
+        {
+            MenuOutcome.NotYet => $"{OrbitView.Label(item)} comes in a later stage.",
+            MenuOutcome.Refused => _orbitMenu.Shielded ? "The world is shielded." : "The lander can't go down to a gas giant.",
+            MenuOutcome.LeaveOrbit => "Leaving orbit...",
+            _ => "",
+        };
+        if (outcome == MenuOutcome.ScanStarted)
+            Log($"Scan started: {item}");
+        if (outcome == MenuOutcome.LeaveOrbit)
+        {
+            Log("Leaving orbit");
+            _leaveFrames = 4;
+        }
+        _wasSweeping = _orbitMenu.Scan.Sweeping;
+    }
+
+    private void LogScan()
+    {
+        var dots = _orbitMenu!.Scan.Dots(Taken).ToList();
+        Log($"Scan done: {dots.Count(d => d.Scan == ScanType.Mineral)} mineral, "
+            + $"{dots.Count(d => d.Scan == ScanType.Energy)} energy, {dots.Count(d => d.Scan == ScanType.Biological)} life shown");
+    }
+
+    /// <summary>Picks the view for the local player's activity, and keeps the orbit menu for the visit.</summary>
+    private void ShowViews()
+    {
+        var me = Me();
+        var activity = me?.Activity ?? Activity.Hyperspace;
+        if (activity == Activity.Orbit && me!.SystemStar is int star && me.OrbitPlanet is int planet)
+        {
+            var world = new WorldId(star, planet, me.OrbitMoon);
+            if (_orbitMenu?.World != world)
+            {
+                // A new visit: the menu starts afresh, nothing found yet.
+                _orbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon));
+                _orbitMessage = "";
+                _wasSweeping = false;
+            }
+        }
+        else
+            _orbitMenu = null;
+
+        _view.Show(_snapshot, _playerId);
+        _systemView.Visible = activity is Activity.OuterSystem or Activity.InnerSystem;
+        _orbitView.Visible = activity == Activity.Orbit;
+        if (_snapshot != null && _systemView.Visible)
+            _systemView.Show(_snapshot, _playerId);
+        if (_orbitMenu != null)
+            _orbitView.Show(_orbitMenu, Taken, _snapshot, _playerId, _orbitMessage);
+    }
+
     private void UpdateHud()
     {
         var lines = new List<string> { "Attack on Crateris - stage 2 (in progress)", _status };
@@ -409,12 +551,21 @@ public partial class Main : Node2D
             lines.Add($"Date {_snapshot.Year:D4}-{_snapshot.Month:D2}-{_snapshot.Day:D2}");
             var me = _snapshot.Ships.FirstOrDefault(s => s.Id == _playerId);
             if (me != null)
-                lines.Add($"You: {Where(me)}   fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
+            {
+                lines.Add($"You: {Where(me)}");
+                lines.Add($"Fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
+            }
             lines.Add($"Players ({_snapshot.Ships.Count}):");
             foreach (var s in _snapshot.Ships)
                 lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}  {Where(s)}");
         }
-        lines.Add("Arrows: turn and thrust. Enter: leave orbit");
+        if (_undockFrames >= 0 && !_undockShown)
+        {
+            var host = _snapshot?.Ships.FirstOrDefault(s => s.IsHost);
+            lines.Add($"Undocking from {host?.Name ?? "the"}'s flagship...");
+        }
+        if (Me()?.Activity != Activity.Orbit)
+            lines.Add("Arrows: turn and thrust");
         _hud.Text = string.Join("\n", lines.Where(l => !string.IsNullOrEmpty(l)));
     }
 

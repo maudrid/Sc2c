@@ -56,8 +56,11 @@ public static class WorldTypes
     public const int MaxPlanets = 16;
     public const int MaxMoons = 4;
 
-    /// <summary>True for the starbase and the Sa-Matra, which have no planet data.</summary>
+    /// <summary>False for the starbase and the Sa-Matra, which have no planet data; true for every planet type.</summary>
     public static bool HasPlanetData(byte dataIndex) => (dataIndex & ~Shielded) < NumberOfPlanetTypes;
+
+    /// <summary>A planet with a shield over it (PLANET_SHIELDED on a planet type).</summary>
+    public static bool IsShielded(byte dataIndex) => HasPlanetData(dataIndex) && (dataIndex & Shielded) != 0;
 
     /// <summary>The planet type of a world (data_index without the shield bit).</summary>
     public static int PlanetType(byte dataIndex) => dataIndex & ~Shielded;
