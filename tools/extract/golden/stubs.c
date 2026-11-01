@@ -15,7 +15,7 @@
  * dummy handle so that loaded resources read as present.
  * StartSphereTracking returns 0: no alien ships are at any homeworld, so
  * no conversation starts and every world can be orbited and scanned.
- * isNodeRetrieved returns 0: nothing has been picked up.
+ * Nothing has been picked up: scan.c's retrieval masks are all zero.
  * Frame indexing and sprite intersection are in systems.c, which models
  * them for the flight traces.
  */
@@ -114,17 +114,39 @@ long UninitGroupInfo () { return 0; }
 long UninitPlanetInfo () { return 0; }
 long UninitQueue () { return 0; }
 long UnbatchGraphics () { return 0; }
-long countNodesRetrieved () { return 0; }
 long free_ship () { return 0; }
-long isNodeRetrieved () { return 0; }
 long load_ship () { return 0; }
-long setNodeRetrieved () { return 0; }
 long log_add () { return 0; }
 long AllocElement () { return 0; }
 long RemoveElement () { return 0; }
 long SetUpElement () { return 0; }
 
+long ClearSISRect () { return 0; }
+long CopyContextRect () { return 0; }
+long DrawDefaultPlanetSphere () { return 0; }
+long DrawFilledStamp () { return 0; }
+long DrawFromExtraScreen () { return 0; }
+long DrawPlanet () { return 0; }
+long DrawScannedObjects () { return 0; }
+long FlushInput () { return 0; }
+long GetFrameHot () { return 0; }
+long InitLander () { return 0; }
+long PlanetSide () { return 0; }
+long PlayMenuSound () { return 0; }
+long SetContextFont () { return 0; }
+long SetFrameHot () { return 0; }
+long SetInputCallback () { return 0; }
+long WaitForAnyButtonUntil () { return 0; }
+long load_life_form () { return 0; }
+long object_animation () { return 0; }
+
 char disp_q[65536];
+char CreatureData[65536];
+char MicroFont[65536];
+char PlanetContext[65536];
+char TinyFont[65536];
+char optWhichCoarseScan[65536];
+
 char CurrentInputState[65536];
 char DisplayArray[65536];
 char FlagStatFrame[65536];

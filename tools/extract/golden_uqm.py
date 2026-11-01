@@ -224,7 +224,13 @@ def record_surfaces(uqm, exe):
         "AtmoDensity, LifeChance, PlanetToSunDist] as generateOrbital "
         "leaves PLANET_INFO, and nodes: [minerals, energy, life], each a "
         "list of [x, y, type, density] (NODE_INFO), or null for a "
-        "shielded world, which can't be scanned.",
+        "shielded world, which can't be scanned; then the orbit screen's "
+        "scan text, as UQM's own PrintCoarseScanPC (scan.c) prints it: "
+        "orbit, atmosphere, temperature, weather, tectonics, mass, radius, "
+        "gravity, day, tilt. Labels and unit words come from the content's "
+        "strings, which are empty here, so a value that is only a word "
+        "(Vacuum, Super Thick, None) is empty, and unit words are missing "
+        "(\"0.39\" is 0.39 a.u., \" 3\" is Class 3).",
         "Mineral type is the element (data/elements.json id); density is "
         "MAKE_WORD (gross size 0..2, quantity). Life type is the creature "
         "(data/lifeforms.json; 23 is an Evil One, 24 a Brainbox Bulldozer, "

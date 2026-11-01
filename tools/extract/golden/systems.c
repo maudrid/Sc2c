@@ -22,6 +22,7 @@
 
 #include "uqm/planets/solarsys.c"
 #include "uqm/ipdisp.c"
+#include "uqm/planets/scan.c"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -176,6 +177,62 @@ print_rng (void)
 
 /* ---- Orbit mode: entering orbit around every world ---- */
 
+/* Text drawing, captured so the orbit screen's scan text can be recorded
+ * (PrintCoarseScanPC in scan.c). */
+#define MAX_CAPTURED 32
+static char captured[MAX_CAPTURED][64];
+static int num_captured;
+
+void
+font_DrawText (TEXT *pText)
+{
+	if (num_captured < MAX_CAPTURED)
+	{
+		strncpy (captured[num_captured], pText->pStr, 63);
+		captured[num_captured][63] = '\0';
+		++num_captured;
+	}
+}
+
+BOOLEAN
+TextRect (TEXT *pText, RECT *pRect, BYTE *pdelta)
+{
+	(void) pText; (void) pdelta;
+	memset (pRect, 0, sizeof *pRect);
+	return TRUE;
+}
+
+/* The values PrintCoarseScanPC prints, in order: orbit, atmosphere,
+ * temperature, weather, tectonics, mass, radius, gravity, day, tilt. It
+ * prints the planet's title first and a label before each value; the
+ * labels and unit words come from the content's strings, which are empty
+ * here. */
+static void
+print_coarse_scan (void)
+{
+	int i;
+
+	num_captured = 0;
+	PrintCoarseScanPC ();
+	printf (", [");
+	for (i = 2; i < num_captured; i += 2)
+	{
+		const char *c;
+		printf ("%s\"", i > 2 ? ", " : "");
+		for (c = captured[i]; *c; ++c)
+		{
+			if ((unsigned char) *c < 0x80)
+				putchar (*c);
+			else
+				printf ("\\u%04x", 0xB0);  /* the degree sign */
+			if ((unsigned char) *c == 0xC2)
+				++c;  /* UTF-8 lead byte of the degree sign */
+		}
+		printf ("\"");
+	}
+	printf ("]");
+}
+
 /* LoadPlanet builds the planet surface; UQM tests TopoFrame afterwards to
  * see whether orbit was entered (see EnterPlanetOrbit). */
 void
@@ -253,6 +310,7 @@ print_orbit (PLANET_DESC *world)
 			print_nodes (world, BIOLOGICAL_SCAN);
 			printf ("]");
 		}
+		print_coarse_scan ();
 	}
 	printf ("]");
 	pSolarSysState->InOrbit = FALSE;

@@ -1,6 +1,6 @@
 # Stage 2 plan: solar systems and planets
 
-**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted (see "Decisions"). In progress: items 1 to 6 are built (see "Progress").
+**Status:** approved by the owner on 2026-11-01, with all six recommendations accepted (see "Decisions"). In progress: items 1 to 7 are built (see "Progress").
 
 Build order item: "Solar systems and planets from seeds" (`docs/design.md`).
 
@@ -109,7 +109,8 @@ Rough size: items 2, 4 and 6 are the large ones. Everything else is small to med
 | 4. Mineral, energy and life nodes | Built | `Surface.cs` (`SolarSystem.EnterOrbit`): scan seeds, the planet report as `generateOrbital` leaves it, and every node; all 3,806 worlds and about 32,000 nodes match UQM (`SurfaceTests`) |
 | 5. Entering and leaving systems | Built | `SystemTransition.cs` (arrival and leaving), `IpGeometry.cs` (screen and zoom geometry, checked against UQM: `tests/golden/ip-geometry.json`), `Hyperspace/StarContact.cs` (when a ship touches a star; provisional circles until the content stage, `docs/differences.md` rows 23 and 24) |
 | 6. Flight inside a system | Built | `IpFlight.cs`: controls and thrust, zoom levels, entering and leaving inner systems, touching a world to enter orbit, coming back from orbit, leaving the system. Eight flights (3 in Sol, 5 elsewhere, 14,000 frames) match UQM frame by frame (`IpFlightTests`, `tests/golden/ip-flight.json`). Contact uses provisional circles (`docs/differences.md` row 25) |
-| 7 to 11 | Not started | |
+| 7. Orbit and the planet report | Built | `PlanetReport.cs`: the orbit screen's numbers (orbit, atmosphere, temperature, weather, tectonics, mass, radius, gravity, day, tilt) in UQM's units, on `OrbitData.Scan`. Checked against the text UQM's own `PrintCoarseScanPC` prints for all 3,800 worlds that can be orbited (`tests/golden/world-surfaces.json`). Entering orbit came with items 4 and 6, leaving it with item 6 (`IpFlight.ReturnFromOrbit`) |
+| 8 to 11 | Not started | |
 
 How to try what is built so far: `docs/how-to-try/stage-2.md`.
 
@@ -119,7 +120,8 @@ Found while porting, all kept as UQM does them:
 - The planet report and the orbit colours analyse a planet differently (the report adds a greenhouse bonus, which uses up random numbers), so a planet's report can show a different temperature from the one its orbit colour suggests, and its other values come from a shifted sequence too. Both ways are ported.
 - Some special generators move a planet to a new orbit but keep the seed of its old position (for example the Androsynth and Ilwrath homeworlds); a few compute a new one (the Druuge and VUX worlds). Ported as written.
 - At the Maidens' star UQM runs the default generator twice, using up random numbers; ported as written.
-- Item 4 had to take in part of item 7: a world's scan seeds come from its system's `generateOrbital`, which also overrides the report for special worlds (Sol's real planets, homeworlds). So `EnterOrbit` gives the report values too; item 7 is left with the server side of being in orbit.
+- Item 4 had to take in part of item 7: a world's scan seeds come from its system's `generateOrbital`, which also overrides the report for special worlds (Sol's real planets, homeworlds). So `EnterOrbit` gives the report values too; item 7 added the numbers as the orbit screen shows them.
+- UQM's two report styles (PC text and 3DO graphics, an option) show the same numbers, so the server sends the numbers and the client picks the style. Joining them to the orbit menu (scan, devices, cargo, roster, leave orbit) is the client's part in item 10; the menu's other entries come with later stages.
 - Special worlds use their own seed order: Sol and Spathiwa draw minerals before life, the Earth colony's planet gets no scan seeds at all (it's shielded, so it can't be scanned anyway). Every world in the Spathi system except Spathiwa has no life, and every world in a Mycon system has none.
 - Story nodes are generated as at the start of a new game, with nothing picked up: ruins (16 energy nodes) on the old homeworlds, artifacts (one energy node) such as the Burvixese broadcasters, the Sun Device and the Utwig bomb, Fwiffo on Pluto and the Moon base. Picking them up is stage 2b/3.
 - The flight traces are recorded with the same circle model as the engine, built into the recording program, so everything except the circle sizes is checked against UQM's own code. One rule isn't reached by the recorded flights: leaving an inner system while already touching another planet, where UQM turns contacts off until the ship is clear. It's ported as written but not checked by a trace.

@@ -39,7 +39,8 @@ public sealed record OrbitData(
     uint EnergySeed,
     uint BiologicalSeed,
     PlanetInfo? Report,
-    SurfaceNodes? Nodes)
+    SurfaceNodes? Nodes,
+    PlanetReport? Scan = null)
 {
     public static readonly OrbitData NotEntered = new(false, 0, 0, 0, null, null);
 }
@@ -133,7 +134,8 @@ public static class Surface
                 LifeNodes(w, special, IsPlanet, IsMoon));
         }
 
-        return new OrbitData(true, mineralSeed, energySeed, bioSeed, info, nodes);
+        return new OrbitData(true, mineralSeed, energySeed, bioSeed, info, nodes,
+            PlanetReport.From(info, type.Size == PlanetSize.GasGiant));
     }
 
     private readonly record struct World(PlanetType Type, int StarSize, short LifeChance,

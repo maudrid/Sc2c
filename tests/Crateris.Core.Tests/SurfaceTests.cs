@@ -110,6 +110,12 @@ public class SurfaceTests
         for (int i = 0; i < mine.Length; ++i)
             Check(failures, $"{name} report {names[i]}", report[i], mine[i]);
 
+        // The orbit screen's numbers, against the text UQM's PrintCoarseScanPC printed.
+        string[] scan = v[5].EnumerateArray().Select(x => x.GetString()!).ToArray();
+        string[] mineScan = ScanText(got.Scan!);
+        for (int i = 0; i < scan.Length; ++i)
+            Check(failures, $"{name} scan text {i}", scan[i], mineScan[i]);
+
         if (v[4].ValueKind == JsonValueKind.Null)
         {
             Check(failures, $"{name} shielded (no nodes)", true, got.Nodes is null);
@@ -136,6 +142,38 @@ public class SurfaceTests
             count += expected.Length;
         }
         return count;
+    }
+
+    /// <summary>
+    /// PrintCoarseScanPC's text with the content's words left out (they are
+    /// empty in the recording): "" for a value that is only a word.
+    /// </summary>
+    internal static string[] ScanText(PlanetReport r) => new[]
+    {
+        PlanetReport.ScanValue(r.OrbitAu100),
+        r.Atmosphere == AtmosphereReading.Value ? PlanetReport.ScanValue(r.Atmospheres100) : "",
+        $"{r.TemperatureC}\u00b0 c",
+        r.WeatherClass is int w ? $" {w}" : "",
+        r.TectonicsClass is int t ? $" {t}" : "",
+        PlanetReport.ScanValue(r.EarthMasses100),
+        PlanetReport.ScanValue(r.EarthRadii100),
+        PlanetReport.ScanValue(r.Gravity100),
+        PlanetReport.ScanValue(r.Days100),
+        $"{r.TiltDegrees}\u00b0",
+    };
+
+    [Fact]
+    public void EarthsReportReadsAsInUqm()
+    {
+        var map = StarMap.Load(DataDir);
+        var sol = new SystemGenerator(PlanetTypes.Load(DataDir)).Generate(map.At(1752, 1450)!);
+        var earth = sol.EnterOrbit(2).Scan!;
+        Assert.Equal(new[] { "1.00", "1.00", "22\u00b0 c", " 2", " 2", "1.00", "1.00", "1.00", "1.00", "23\u00b0" },
+            ScanText(earth));
+        var jupiter = sol.EnterOrbit(4).Scan!;
+        Assert.Equal(AtmosphereReading.SuperThick, jupiter.Atmosphere);
+        Assert.Null(jupiter.TectonicsClass);
+        Assert.Equal("337.1", PlanetReport.ScanValue(jupiter.EarthMasses100));
     }
 
     private static bool Check<T>(StringBuilder failures, string what, T expected, T actual)
