@@ -1,6 +1,6 @@
 # Content stage plan: the UQM content, names and planets
 
-**Status:** draft, waiting for the owner's approval and the decisions below.
+**Status:** approved by the owner on 2026-11-01, with all seven recommendations accepted (see "Decisions"). In progress: see "Progress".
 
 Build order item: "Content: the first-run content download and a minimal content reader (names, then planet colour maps)" (`docs/design.md`), between stage 2 and stage 2b (stage 2, decision 2).
 
@@ -78,9 +78,16 @@ Each item ends with tests that run headless. Where UQM code produces the answer,
 
 Rough size: items 6 and 7 are the large ones (`plangen.c` is 1,950 lines), then 9. Items 1 to 5 are small to medium and make a stage the owner can already try (download, names, words).
 
+## Progress
+
+| Item | State | Where |
+| --- | --- | --- |
+| 1. Package and resource index | Built | `src/Crateris.Core/Content/ContentPackage.cs`: the `.uqm` package read in place as a zip, refused unless its SHA-256 is the official one; `uqm.rmp` read with UQM's property file rules (`ResourceIndex`); files by path or resource id. `ContentLocation.cs`: where the package is looked for (`--content`, `CRATERIS_CONTENT`, then the game's own copy in `content/` in its user folder). Tests on packages the tests make, and on the real package when present (skipped, saying why, otherwise): it opens, and every one of its 963 index entries names a file in it (`ContentPackageTests`, `ResourceIndexTests`) |
+| 2 to 10 | Not started | |
+
 ## Decisions
 
-The owner's choices, each with a recommendation.
+All seven recommendations were accepted on 2026-11-01: everything listed in this stage (1), sound packages later (2), "use a file I already have" (3), the content needed to host or join (4), content-derived reference results as hashes (5), UQM's fonts for what UQM draws (6), and UQM's planet rendering ported exactly (7).
 
 1. **How much of the art in this stage.**
    - **Everything listed above (recommended):** names, words, surfaces, the rotating planet, sprites, contact by shape and the star-entry animation, in that order, so the first five items can be tried before the large ones. It finishes what stage 2 left as placeholders, and rows 23 to 25 already say "replaced in the content stage".

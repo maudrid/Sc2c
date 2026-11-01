@@ -125,7 +125,9 @@ Guests connect over the internet to the host's server; the host plays through th
 
 The engine ships without UQM content. On first run the player sees one screen with the notice below and a **Download** button.
 
-- **What is fetched:** the official UQM 0.8.0 packages from the UQM project's SourceForge downloads (`https://sourceforge.net/projects/sc2/files/UQM/0.8/`): `uqm-0.8.0-content.uqm` (required, 11.5 MB), and optionally `uqm-0.8.0-voice.uqm` (voiceovers, 115 MB) and `uqm-0.8.0-3domusic.uqm` (3DO music, 19 MB) as tick boxes.
+- **What is fetched:** the official UQM 0.8.0 packages from the UQM project's SourceForge downloads (`https://sourceforge.net/projects/sc2/files/UQM/0.8/`): `uqm-0.8.0-content.uqm` (required, 11.5 MB), and optionally `uqm-0.8.0-voice.uqm` (voiceovers, 115 MB) and `uqm-0.8.0-3domusic.uqm` (3DO music, 19 MB) as tick boxes. The tick boxes come with the stage that adds sound; until then only the content package is fetched (content stage, decision 2).
+- **A file the player already has:** "Use a file I already have" takes a copy of the same package (from an installed UQM, say), with the same check, and copies it in unchanged (content stage, decision 3). The download stays the main path.
+- **Needed to play:** hosting or joining needs the content, since the host decides contact by the sprites' shapes (content stage, decision 4).
 - **Checks:** each file's SHA-256 is pinned in the engine; a file that doesn't match is deleted and the player is told. Files are stored unchanged, so their own copyright notices stay intact.
 - **No "I agree":** CC BY-NC-SA 2.5 needs no acceptance, and section 4a forbids adding terms that restrict it. The button says Download, not Accept.
 - **Where else the notice appears:** the credits or about screen, so it stays available after the first run, and the project's download page.
@@ -191,7 +193,7 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
 
 1. Headless server with players flying around hyperspace together, joining and leaving at will. **Built** (see `docs/how-to-try/stage-1.md`).
 2. Solar systems and planets from seeds. **Built** (plan: `docs/plans/stage-2.md`; see `docs/how-to-try/stage-2.md`).
-   - Content: the first-run content download and a minimal content reader (names, then planet colour maps). Plan: `docs/plans/content-stage.md` (draft).
+   - Content: the first-run content download and a minimal content reader (names, then planet colour maps). Plan: `docs/plans/content-stage.md` (approved).
    - 2b. Landing and mining: the lander, creatures, hazards, cargo and the shared landing screen.
 3. Story flags, conversations, dialogue locks, story pauses and the group inventory.
 4. Combat, including joining battles, one enemy at a time, and the minimap.
@@ -219,7 +221,7 @@ Bugs found in play go back to the code session with the error text, a screenshot
 ## Open items
 
 - [x] Pick an original name for the engine: Attack on Crateris (checked for collisions 2026-10-31; still search the USPTO and EUIPO registers and register the domain before going public)
-- [x] Decide whether the engine downloads the UQM content itself or players point it at their own copy: it downloads on first run, after a click
+- [x] Decide whether the engine downloads the UQM content itself or players point it at their own copy: it downloads on first run, after a click; a copy the player already has can be used instead, with the same check
 - [ ] Set the constant clock rate (seconds per game day) by playtesting
 - [x] Decide whether a rescuer must keep more than 1 crew: no, 1 is enough
 - [x] Decide whether cargo can be traded between players: yes, within the same solar system
