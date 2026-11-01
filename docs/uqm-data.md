@@ -49,6 +49,7 @@ The first runs 21 checks on the committed files (counts, known values, notices).
 - **`images.json`** (needs `--content`): images as UQM's own PNG loader (`TFB_png_to_sdl`, `libs/graphics/sdl/png2sdl.c`) loads them, recorded by `tools/extract/golden/images.c`: images of our own for every path through it (in full, with their results), and up to 40 of each kind of PNG in the package (as hashes). The recorders build UQM's loader against libpng and a small stand-in for SDL 1.2 (`tools/extract/golden/sdl/SDL.h`, `sdl.c`), so SDL isn't needed; libpng's development files are.
 - **`surface-heights.json`**: every orbitable world's height map as UQM's own `GeneratePlanetSurface` makes it on entering orbit from a new game (the systems program's `surfaces` mode, which runs it with `plangen.c` and `gentopo.c` and stops once the map is coloured). Code only: SHA-256 per world, and three whole maps.
 - **`surface-colors.json`** (needs `--content`): every world's coloured map as UQM's `RenderTopography` draws it with the package's colour maps and translate tables; hashes only.
+- **`planet-spheres.json`** (needs `--content`): the rotating planet as UQM's `RenderPlanetSphere` draws it, for the first world of each planet type with and without a shield, at six rotation steps, and the shield halo; hashes only. `surface-heights.json` also has each world's light map hash.
 - **`binary-tables.json`** (needs `--content`): every BINTAB resource as UQM's `_GetBinaryTableData` reads it (the strings program's `bintab` mode); lengths and hashes only.
 
 ```

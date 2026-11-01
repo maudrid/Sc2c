@@ -49,10 +49,12 @@ public sealed class PlanetSurfaces
     {
         var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
         var surface = Generated(system, planet, moon, orbit);
-        return WorldTypes.IsShielded(world.DataIndex)
-            ? surface with { Colors = Array.ConvertAll(surface.Colors, c => AddClipped(c, ShieldTint)) }
-            : surface;
+        return WorldTypes.IsShielded(world.DataIndex) ? ShieldTinted(surface) : surface;
     }
+
+    /// <summary>A surface with the shield's red added to its coloured map (ApplyShieldTint).</summary>
+    public static PlanetSurface ShieldTinted(PlanetSurface surface) =>
+        surface with { Colors = Array.ConvertAll(surface.Colors, c => AddClipped(c, ShieldTint)) };
 
     /// <summary>ApplyShieldTint's colour, added at full strength (DRAW_ADDITIVE, DRAW_FACTOR_1).</summary>
     public static readonly Rgb ShieldTint = new(0xff, 0x00, 0x00);

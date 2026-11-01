@@ -43,6 +43,7 @@ long DoDiscoveryReport () { return 0; }
 long DoInput () { return 0; }
 long DoMenuChooser () { return 0; }
 long DrawAutoPilotMessage () { return 0; }
+long DrawFilledRectangle () { return 0; }
 long DrawHyperCoords () { return 0; }
 long DrawMenuStateStrings () { return 0; }
 long DrawOval () { return 0; }
@@ -118,10 +119,8 @@ long SetUpElement () { return 0; }
 
 long ClearSISRect () { return 0; }
 long CopyContextRect () { return 0; }
-long DrawDefaultPlanetSphere () { return 0; }
 long DrawFilledStamp () { return 0; }
 long DrawFromExtraScreen () { return 0; }
-long DrawPlanet () { return 0; }
 long DrawScannedObjects () { return 0; }
 long FlushInput () { return 0; }
 long GetFrameHot () { return 0; }

@@ -107,9 +107,9 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter "FontTes
 
 Item 6 is built. Every world you can orbit now shows its own surface map below the planet, as UQM makes it: the same terrain, craters, gas giant bands and storms, in the same colours. Earth shows its own map. Worlds under a shield (Earth in a new game) show the map with the shield's red added, as UQM does. Scans now tint the map as UQM does, by adding the scan's colour to it.
 
-The planet above the map is still a plain circle; the rotating planet is item 7.
+Since item 7, the planet above the map turns, as below.
 
-![Earth's own map, red under its shield](../screenshots/content-surface-earth.png)
+![Earth under its shield: red, with the shield's halo, over its own map](../screenshots/content-surface-earth.png)
 
 ### Try it in the game
 
@@ -126,3 +126,27 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSu
 ```
 
 `EveryWorldsHeightMapIsTheOneUqmMakes` makes the height map of every one of the 3,799 worlds that can be orbited (all but Earth) and checks each against what UQM's own generator makes of it. That needs no content: the terrain is made by code alone. `AFewWholeMapsMatchPointForPoint` compares three whole maps point by point, so a difference shows where it is. `EveryWorldsColouredMapIsTheOneUqmDraws` checks every world's coloured map against UQM's own drawing code with the package's colour tables (by hash). `EveryBinaryTableIsReadAsUqmReadsIt` checks all 149 of the package's binary tables against UQM's reader. The rest check Earth's own map, the shield's red, and UQM's additive blending sums.
+
+## So far: the rotating planet
+
+Item 7 is built. In orbit, the world turns above its map as in UQM: its own surface wrapped round a sphere, tilted by its axial tilt, lit from the side its sun is on (a moon by its planet's sun), with its relief shading the light. It turns one map column at a time, a full turn every 12 seconds, east or west depending on its tilt. A shielded world (Earth in a new game) is drawn reddened inside UQM's red halo.
+
+UQM's own planet drawing is used throughout, with UQM's default (PC) shield, which glows steadily; the 3DO option's pulsing shield isn't ported. The zoom of the planet onto the screen as orbit starts isn't either: the planet is simply there, already turning.
+
+![Jupiter turning above its map](../screenshots/content-planet-jupiter.png)
+
+### Try it in the game
+
+1. `godot --path game -- --host --start-orbit 82:4` (Jupiter): its bands and great storm turn across the sphere.
+2. `--start-orbit 82:2` (Earth): red under its shield, with the halo round it.
+3. `--start-orbit 82:2:1` (Luna), then a planet of another system: worlds lit from different sides, depending on where their sun is.
+4. Compare with UQM 0.8.0 orbiting the same world: the planet should look the same, at three times UQM's size. (UQM's planet starts a little further round, after its zoom-in.)
+
+### Run the tests
+
+```
+dotnet test --filter EveryWorldsLightMapIsTheOneUqmMakes   # no content needed
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSphereTests   # 3 tests
+```
+
+`EveryWorldsLightMapIsTheOneUqmMakes` checks the light map (the relief shading) of all 3,799 generated worlds against UQM's own code. `TheRotatingPlanetIsDrawnAsUqmDrawsIt` checks UQM's own drawing of the planet, for the first world of each planet type with and without a shield (61 worlds), at six points of its turn, pixel for pixel (by hash), and the shield's halo. `ItTurnsAsUqmTurnsIt` checks the direction, the steps and the place on screen.

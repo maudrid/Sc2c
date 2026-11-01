@@ -104,7 +104,8 @@ CONTENT_SHA256 = "77d75ac25e6fb755a33c4ba3b38a7b7bc41fcbc02896891b0cc9ac9214b72e
 def systems_link(uqm):
     gen = os.path.join(uqm.uqm, "planets", "generate")
     return (["uqm/planets/orbits.c", "uqm/planets/calc.c",
-             "uqm/planets/surface.c", "uqm/planets/gentopo.c", "uqm/gendef.c",
+             "uqm/planets/surface.c", "uqm/planets/gentopo.c",
+             "uqm/planets/pl_stuff.c", "uqm/gendef.c",
              "uqm/plandata.c", "uqm/starmap.c", "uqm/globdata.c",
              "libs/math/random2.c", "uqm/trans.c", "libs/math/sqrt.c",
              "uqm/velocity.c"] +
@@ -887,16 +888,21 @@ def record_planet_surfaces(uqm, systems_exe, strings_exe, package=None):
     Returns {"surface-heights": ..., "surface-colors": ... (with the
     package)}."""
     import hashlib
-    heights, full, colors = [], [], []
+    def h(hex_text):
+        return hashlib.sha256(bytes.fromhex(hex_text)).hexdigest() if hex_text else None
+
+    heights, full, colors, spheres = [], [], [], []
     with tempfile.TemporaryDirectory() as tmp:
         tables = planet_tables(strings_exe, package, tmp) if package else None
-        for star, planet, moon, entered, defined, topo, colored in surface_lines(systems_exe, tables):
-            heights.append([star, planet, moon, entered, defined,
-                            hashlib.sha256(bytes.fromhex(topo)).hexdigest() if topo else None])
+        for (star, planet, moon, entered, defined, topo, colored, light,
+             frames, shield) in surface_lines(systems_exe, tables):
+            heights.append([star, planet, moon, entered, defined, h(topo), h(light)])
+            if frames:
+                spheres.append([star, planet, moon,
+                                [[step, h(rgba)] for step, rgba in frames], h(shield)])
             if (star, planet, moon) in FULL_HEIGHT_MAPS:
                 full.append({"world": [star, planet, moon], "heights": topo})
-            colors.append([star, planet, moon,
-                           hashlib.sha256(bytes.fromhex(colored)).hexdigest() if colored else None])
+            colors.append([star, planet, moon, h(colored)])
     out = {}
     data = header(uqm, ["tools/extract/golden/systems.c",
                         "tools/extract/golden/stubs.c",
@@ -907,7 +913,8 @@ def record_planet_surfaces(uqm, systems_exe, strings_exe, package=None):
         "game, taken just before it is coloured. Code only, no content.",
         "worlds: [star, planet, moon or -1, orbit entered, defined (Earth, "
         "whose surface is an image), SHA-256 of the MAP_WIDTH x MAP_HEIGHT "
-        "signed bytes, row by row, or null].",
+        "signed bytes, row by row, or null, SHA-256 of the light map "
+        "GenerateLightMap makes of it (all zeros for a gas giant) or null].",
         "full: the whole height map of a few worlds, in hex.",
     ])
     data["worlds"] = heights
@@ -926,6 +933,22 @@ def record_planet_surfaces(uqm, systems_exe, strings_exe, package=None):
         ])
         data["worlds"] = colors
         out["surface-colors"] = data
+        data = header(uqm, ["tools/extract/golden/systems.c",
+                            "src/uqm/planets/plangen.c",
+                            "src/uqm/planets/pl_stuff.c"], [
+            "The rotating planet as UQM 0.8.0's own RenderPlanetSphere draws "
+            "it, for the first world of each planet type (with and without a "
+            "shield), with the package's colour tables (SHA-256 "
+            f"{CONTENT_SHA256}), and UQM's default (PC) shield. Content, so "
+            "hashes only.",
+            "worlds: [star, planet, moon or -1, [[rotation step, SHA-256 of "
+            "the DIAMETER x DIAMETER RGBA frame], ...], SHA-256 of the "
+            "SHIELD_DIAM x SHIELD_DIAM RGBA halo (CreateShieldMask) or null]. "
+            "Step 1 is InitSphereRotation's frame, each later step one more "
+            "PrepareNextRotationFrame.",
+        ])
+        data["worlds"] = spheres
+        out["planet-spheres"] = data
     return out
 
 
@@ -993,7 +1016,8 @@ def main():
         build(uqm, os.path.join(HERE, "golden", "math.c"), MATH_LINK, math)
         systems = os.path.join(build_dir, "systems")
         build(uqm, os.path.join(HERE, "golden", "systems.c"),
-              systems_link(uqm), systems, extra=[SYSTEMS_STUBS])
+              systems_link(uqm), systems, extra=[SYSTEMS_STUBS],
+              libs=["-lm"])   # the rotating planet's sqrt, atan2, acos...
         fonts = os.path.join(build_dir, "fonts")
         images = os.path.join(build_dir, "images")
         if args.content:

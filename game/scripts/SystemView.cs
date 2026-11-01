@@ -286,6 +286,11 @@ public partial class OrbitView : Control
     private PlanetSurface? _surface;     // the orbited world's surface, made once per visit
     private ImageTexture? _surfaceMap;
     private readonly Dictionary<ScanType, ImageTexture> _tintedMaps = new();
+    private PlanetSphere? _sphere;       // the rotating planet
+    private ImageTexture? _sphereTexture;
+    private long _sphereStep = -1;
+    private ulong _orbitStart;
+    private static ImageTexture? _shieldHalo;
 
     public OrbitView(SystemCatalog systems)
     {
@@ -305,7 +310,23 @@ public partial class OrbitView : Control
         {
             WorldId w = menu.World;
             _world = w.Moon is int m ? _systems[w.Star].Moons(w.Planet)[m] : _systems[w.Star].Planets[w.Planet];
-            _surface = menu.Orbit.Report is { } report ? Surfaces.For(_systems[w.Star], w.Planet, w.Moon, report) : null;
+            _surface = null;
+            _sphere = null;
+            _sphereStep = -1;
+            if (menu.Orbit.Report is { } report)
+            {
+                var system = _systems[w.Star];
+                var generated = Surfaces.Generated(system, w.Planet, w.Moon, report);
+                bool shielded = WorldTypes.IsShielded(_world.DataIndex);
+                _surface = shielded ? PlanetSurfaces.ShieldTinted(generated) : generated;
+                // The sphere wraps the map as made, before the shield's tint; a moon is lit from its planet's place.
+                var sun = system.Planets[w.Planet];
+                var type = system.Generator.Types[WorldTypes.PlanetType(_world.DataIndex)];
+                _sphere = new PlanetSphere(generated.Colors,
+                    PlanetSphere.LightMap(generated.Heights, type.Algorithm == Crateris.Core.Data.MapAlgorithm.GasGiant),
+                    sun.X, sun.Y, report.AxialTilt, shielded);
+                _orbitStart = Time.GetTicksMsec();
+            }
             _surfaceMap = _surface is null ? null : SurfaceTexture(_surface.Colors);
             _tintedMaps.Clear();
         }
@@ -339,11 +360,12 @@ public partial class OrbitView : Control
 
         // The world, above the scan map.
         float mapTop = (IpGeometry.ScreenHeight - Surface.MapHeight) * Placeholder.Scale;
-        var centre = new Vector2(Size.X / 2, mapTop / 2);
-        float radius = mapTop * 0.36f;
-        DrawCircle(centre, radius, Placeholder.World(system, desc));
-        if (_menu.Shielded)
-            DrawArc(centre, radius + 8, 0, Mathf.Tau, 96, new Color(0.6f, 0.8f, 1f, 0.8f), 3);
+        var centre = new Vector2(PlanetSphere.CenterX, PlanetSphere.CenterY) * Placeholder.Scale;
+        float radius = PlanetSphere.Radius * Placeholder.Scale;
+        if (_sphere != null)
+            DrawSphere();
+        else
+            DrawCircle(centre, radius, Placeholder.World(system, desc));
         // UQM's title over the scan screen (GetPlanetTitle, in MicroFont); above the
         // screen, in the engine's font, which world and star it is.
         string titleWords = Names.Title(system, w.Planet, w.Moon);
@@ -452,6 +474,34 @@ public partial class OrbitView : Control
         DrawString(font, new Vector2(areaAt.X, below + 22), _message, HorizontalAlignment.Left, width, 14, Colors.Khaki);
         DrawString(font, new Vector2(areaAt.X, below + 44), "Arrows: choose. Enter: select. Esc: back",
             HorizontalAlignment.Left, width, 13, Colors.Gray);
+    }
+
+    // The rotating planet as UQM draws it (DrawPlanetSphere): the sphere, then the
+    // shield's halo over it, centred at (SIS_SCREEN_WIDTH / 2, PLANET_ORG_Y), each
+    // frame's hot spot one pixel past its radius. It turns one map column every
+    // PLANET_ROTATION_RATE; the first frame is InitSphereRotation's.
+    private void DrawSphere()
+    {
+        long steps = 1 + (long)((Time.GetTicksMsec() - _orbitStart) * 840 / 1000) / PlanetSphere.TicksPerStep;
+        if (steps != _sphereStep)
+        {
+            var image = Image.CreateFromData(PlanetSphere.Diameter, PlanetSphere.Diameter, false, Image.Format.Rgba8,
+                _sphere!.Render(_sphere.Offset(steps)));
+            if (_sphereTexture == null)
+                _sphereTexture = ImageTexture.CreateFromImage(image);
+            else
+                _sphereTexture.Update(image);
+            _sphereStep = steps;
+        }
+        var at = new Vector2(PlanetSphere.CenterX - (PlanetSphere.Radius + 1), PlanetSphere.CenterY - (PlanetSphere.Radius + 1));
+        DrawTextureRect(_sphereTexture!, new Rect2(at * Placeholder.Scale, Vector2.One * PlanetSphere.Diameter * Placeholder.Scale), false);
+        if (_menu!.Shielded)
+        {
+            _shieldHalo ??= ImageTexture.CreateFromImage(Image.CreateFromData(PlanetSphere.ShieldDiameter, PlanetSphere.ShieldDiameter,
+                false, Image.Format.Rgba8, PlanetSphere.ShieldHalo()));
+            var h = new Vector2(PlanetSphere.CenterX - (PlanetSphere.ShieldRadius + 1), PlanetSphere.CenterY - (PlanetSphere.ShieldRadius + 1));
+            DrawTextureRect(_shieldHalo, new Rect2(h * Placeholder.Scale, Vector2.One * PlanetSphere.ShieldDiameter * Placeholder.Scale), false);
+        }
     }
 
     private static ImageTexture SurfaceTexture(Rgb[] colors)

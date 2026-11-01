@@ -360,19 +360,64 @@ print_coarse_scan (void)
 }
 
 /* ---- Surfaces mode: the planet surface as GeneratePlanetSurface makes it.
- * LoadPlanet runs UQM's real GeneratePlanetSurface (plangen.c, gentopo.c).
- * The height map is taken when it asks for the colour map, just after
- * making it; the coloured map as RenderTopography draws it into the
- * topography frame. Then the run is cut short (longjmp): what follows is
- * the rotating planet's, for later. */
+ * LoadPlanet runs UQM's real GeneratePlanetSurface (plangen.c, gentopo.c)
+ * and its rotating planet (pl_stuff.c). The height map is taken when it
+ * asks for the colour map, just after making it; the coloured map as the
+ * first RenderTopography draws it into the topography frame, and read back
+ * from there (ReadFramePixelColors); each rendered sphere and shield as it
+ * is written to its frame (WriteFramePixelColors). Without the colour
+ * tables the run is cut short (longjmp) once the height map is made. */
 static int surfaces_mode;
 static const char *tables_dir;   /* colour and translate tables, or NULL */
 static int in_surface;
 static jmp_buf surface_done;
 static SBYTE surface_topo[320 * 240];   /* MAP_WIDTH depends on ScreenWidth */
-static int have_topo, surface_defined, fg_frame_calls;
+static int have_topo, surface_defined, fg_frame_calls, surface_complete;
 static Color surface_colors[320 * 240];
 static int surface_colored;
+/* The last sphere (DIAMETER square) and shield (SHIELD_DIAM square) written. */
+static Color sphere_pixels[128 * 128], shield_pixels[128 * 128];
+static int sphere_written, shield_written;
+int optWhichShield = OPT_PC;   /* UQM's default: the shield doesn't throb */
+
+BOOLEAN
+ReadFramePixelColors (FRAME f, Color *pixels, int width, int height)
+{
+	int x, y;
+	(void) f;
+	/* Only the topography frame is read: a map of MAP_WIDTH columns into
+	 * rows of width. */
+	for (y = 0; y < height && y < MAP_HEIGHT; ++y)
+		for (x = 0; x < width && x < MAP_WIDTH; ++x)
+			pixels[y * width + x] = surface_colors[y * MAP_WIDTH + x];
+	return TRUE;
+}
+
+BOOLEAN
+WriteFramePixelColors (FRAME f, const Color *pixels, int width, int height)
+{
+	(void) f;
+	if (width == DIAMETER && height == DIAMETER)
+	{
+		memcpy (sphere_pixels, pixels, sizeof (Color) * width * height);
+		sphere_written = 1;
+	}
+	else if (width == SHIELD_DIAM && height == SHIELD_DIAM)
+	{
+		memcpy (shield_pixels, pixels, sizeof (Color) * width * height);
+		shield_written = 1;
+	}
+	return TRUE;
+}
+
+HOT_SPOT
+MAKE_HOT_SPOT (COORD x, COORD y)
+{
+	HOT_SPOT hs;
+	hs.x = x;
+	hs.y = y;
+	return hs;
+}
 
 STRING_TABLE
 LoadStringTableInstance (RESOURCE res)
@@ -422,9 +467,9 @@ FRAME
 SetContextFGFrame (FRAME f)
 {
 	/* RenderTopography sets the topography frame, draws, and puts the old
-	 * frame back: the second call ends the coloured map. */
-	if (in_surface && ++fg_frame_calls == 2)
-		longjmp (surface_done, 1);
+	 * frame back; then come the 4x map and the shield tint. */
+	if (in_surface)
+		++fg_frame_calls;
 	(void) f;
 	return 0;
 }
@@ -438,12 +483,16 @@ GetContextClipRect (RECT *r)
 
 BOOLEAN SetContextClipRect (RECT *r) { (void) r; return TRUE; }
 POINT SetContextOrigin (POINT o) { return o; }
+/* ApplyShieldTint's drawing (the engine adds the shield's red itself). */
+DrawMode SetContextDrawMode (DrawMode m) { return m; }
 
 void
 DrawBatch (PRIMITIVE *base, PRIM_LINKS links, BATCH_FLAGS flags)
 {
 	COUNT i;
 	(void) flags;
+	if (fg_frame_calls != 1)
+		return;	/* only the first RenderTopography: the scan map */
 	for (i = GetPredLink (links); i != END_OF_LIST;
 			i = GetSuccLink (GetPrimLinks (&base[i])))
 	{
@@ -461,12 +510,16 @@ LoadPlanet (FRAME SurfDefFrame)
 	if (surfaces_mode)
 	{
 		have_topo = surface_colored = fg_frame_calls = 0;
+		surface_complete = sphere_written = shield_written = 0;
 		surface_defined = SurfDefFrame != NULL;
 		if (!surface_defined)
 		{	/* Earth's surface is its own image, read by the engine. */
 			in_surface = 1;
 			if (!setjmp (surface_done))
+			{
 				GeneratePlanetSurface (pSolarSysState->pOrbitalDesc, NULL);
+				surface_complete = 1;
+			}
 			in_surface = 0;
 		}
 	}
@@ -651,14 +704,34 @@ orbits_main (void)
  * it on entering orbit, one line per world in orbits mode's order:
  * [star, planet, moon or -1, entered, defined (Earth's own image),
  * height map (signed bytes, in hex) or "", coloured map (RGB, in hex) or
- * ""]. The coloured map needs the colour and translate tables, in DIR as
- * files named by resource id. */
+ * "", light map (signed bytes, in hex) or "", spheres, shield]. The light
+ * map is UQM's GenerateLightMap of the height map (zeros for a gas giant),
+ * as GeneratePlanetSurface makes it. The coloured map needs the colour and
+ * translate tables, in DIR as files named by resource id; so do the
+ * spheres: for the first world of each planet type (with or without a
+ * shield), [rotation step, RGBA in hex] for the frames RenderPlanetSphere
+ * makes at SPHERE_STEPS (step 1 is InitSphereRotation's, each later one a
+ * PrepareNextRotationFrame), and the shield halo (CreateShieldMask, RGBA)
+ * or "". */
+static const int SPHERE_STEPS[] = { 1, 2, 3, 100, 242, 243 };
+#define NUM_SPHERE_STEPS (sizeof SPHERE_STEPS / sizeof SPHERE_STEPS[0])
+static unsigned char sphere_seen[256];
+
+static void
+print_rgba (const Color *c, int n)
+{
+	int i;
+	for (i = 0; i < n; ++i)
+		printf ("%02x%02x%02x%02x", c[i].r, c[i].g, c[i].b, c[i].a);
+}
+
 static void
 surface_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
 {
 	int entered, i;
 
 	have_topo = surface_defined = surface_colored = 0;
+	surface_complete = sphere_written = shield_written = 0;
 	entered = enter_orbit (world);
 
 	printf ("[%u, %u, %d, %d, %d, \"", s, p, m, entered, surface_defined);
@@ -674,7 +747,44 @@ surface_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
 			printf ("%02x%02x%02x", surface_colors[i].r, surface_colors[i].g,
 					surface_colors[i].b);
 	}
-	printf ("\"]\n");
+	printf ("\", \"");
+	if (entered && have_topo)
+	{	/* As GeneratePlanetSurface does after the colouring. */
+		static SBYTE light[320 * 240];
+		const PlanetFrame *type =
+				&PlanData[world->data_index & ~PLANET_SHIELDED];
+		memcpy (light, surface_topo, MAP_WIDTH * MAP_HEIGHT);
+		if (PLANALGO (type->Type) != GAS_GIANT_ALGO)
+			GenerateLightMap (light, MAP_WIDTH, MAP_HEIGHT);
+		else
+			memset (light, 0, MAP_WIDTH * MAP_HEIGHT);
+		for (i = 0; i < MAP_WIDTH * MAP_HEIGHT; ++i)
+			printf ("%02x", (unsigned char) light[i]);
+	}
+	printf ("\", [");
+	if (entered && surface_complete && !sphere_seen[world->data_index])
+	{
+		int step = 1;
+		size_t n;
+		sphere_seen[world->data_index] = 1;
+		for (n = 0; n < NUM_SPHERE_STEPS; ++n)
+		{
+			while (step < SPHERE_STEPS[n])
+			{
+				PrepareNextRotationFrame ();
+				++step;
+			}
+			printf ("%s[%d, \"", n ? ", " : "", step);
+			print_rgba (sphere_pixels, DIAMETER * DIAMETER);
+			printf ("\"]");
+		}
+		printf ("], \"");
+		if (shield_written)
+			print_rgba (shield_pixels, SHIELD_DIAM * SHIELD_DIAM);
+		printf ("\"]\n");
+	}
+	else
+		printf ("], \"\"]\n");
 	pSolarSysState->InOrbit = FALSE;
 }
 
