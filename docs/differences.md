@@ -31,6 +31,15 @@ Every deliberate difference between Attack on Crateris and vanilla UQM 0.8.0: wh
 | 21 | Chat | None | Text chat between players, in every activity | Co-op needs a way to talk | Planned |
 | 22 | Cargo trading | One ship holds all minerals and bio data (`ElementAmounts`, `TotalBioMass` in `SIS_STATE`) | Players in the same solar system can trade cargo, limited by the receiver's free storage | Lets a group pool minerals for one player to sell | Planned |
 
+## Temporary differences
+
+Differences that last only until a later stage provides what's missing. Numbered in the same series.
+
+| # | Topic | UQM 0.8.0 | Crateris | Why | Status |
+| --- | --- | --- | --- | --- | --- |
+| 23 | Touching a star in hyperspace | Decided by sprite masks: the star's centre point against the flagship's hyperspace sprite, and, for the star just left, its whole image against the sprite (`hyper_collision`, `hyper_death`, `AddStars` in `src/uqm/hyper.c`). The masks come from the content package | Circles of about the sprites' size: the flagship 6 pixels, stars 4, 6 or 8 by size (`StarContactShape`). The other rules are UQM's: only while moving or steering, and not the star just left until the ship has cleared it | The masks are content, which isn't read until the content stage. A ship may enter a star a frame or two earlier or later than in UQM | Done in stage 2; replaced by the real masks in the content stage |
+| 24 | Entering a star | The flagship spins and drifts onto the star for a few frames before the system loads (`init_transition`, `unhyper_transition`); the number of frames depends on the sprite's frame count | The server moves the ship into the system at once; the client can play the animation | The frame count is content. The ship arrives in the same place either way (row 23's note on timing applies) | Done in stage 2; the client animation comes with the content stage |
+
 ## Bug and crash fixes
 
 None yet.
@@ -41,6 +50,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
+| 2026-11-01 | 23, 24 | Added temporary differences for entering stars until the content stage: circles instead of sprite masks, and no entry animation on the server |
 | 2026-10-31 | 1, 14, 16 | Stage 1 built: constant clock, first join as an escort with undocking, leave and rejoin (ships wait stopped) |
 | 2026-10-31 | 8, 22 | Revival: rescuer keeps at least 1 crew. Added cargo trading within the same solar system |
 | 2026-10-31 | 18–21 | Added battle salvage (split equally), Melnorme credits (per player, transferable any time), shared planet landing and player chat. Targeting needs no row: nearest opponent is already UQM's behaviour |

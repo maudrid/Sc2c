@@ -235,6 +235,23 @@ def record_surfaces(uqm, exe):
     return data
 
 
+def record_ip(uqm, exe):
+    out = subprocess.run([exe, "ip"], capture_output=True, text=True,
+                         check=True).stdout
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "src/uqm/planets/solarsys.c", "src/uqm/units.h",
+                        "src/uqm/planets/planets.h"], [
+        "Interplanetary screen geometry from UQM's own solarsys.c: the "
+        "screen and zoom constants, where InitSolarSys puts a ship arriving "
+        "from hyperspace (display origin and system location, at the "
+        "widest zoom), and samples of displayToLocation and "
+        "locationToDisplay as [radius, in x, in y, out x, out y].",
+        "Screen is UQM's default 320x240.",
+    ])
+    data.update(json.loads(out))
+    return data
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawTextHelpFormatter)
@@ -259,7 +276,8 @@ def main():
         for name, data in (("hyperspace-flight", record_flight(uqm, flight)),
                            ("uqm-math", record_math(uqm, math)),
                            ("star-systems", record_systems(uqm, systems)),
-                           ("world-surfaces", record_surfaces(uqm, systems))):
+                           ("world-surfaces", record_surfaces(uqm, systems)),
+                           ("ip-geometry", record_ip(uqm, systems))):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:
                 json.dump(data, f, separators=(",", ":"))

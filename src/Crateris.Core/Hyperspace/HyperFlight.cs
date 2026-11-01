@@ -72,6 +72,13 @@ public sealed class HyperFlight
     public short ViewX { get; set; } = CenterX;
     public short ViewY { get; set; } = CenterY;
 
+    /// <summary>
+    /// The star (map number) the ship has just come out of, which it can't
+    /// fall back into until it has cleared it (UQM's CurStarDescPtr in
+    /// hyperspace). See <see cref="StarContact"/>.
+    /// </summary>
+    public int? StarJustLeft { get; set; }
+
     // MoveSIS fuel accounting (statics in hyper.c).
     public ushort FuelDistX { get; set; }
     public ushort FuelDistY { get; set; }

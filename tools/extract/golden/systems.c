@@ -258,6 +258,53 @@ orbits_main (void)
 	return 0;
 }
 
+/* ---- IP geometry mode: where a ship arrives in a system ---- */
+
+static int
+ip_main (void)
+{
+	static const SIZE radii[] = {MAX_ZOOM_RADIUS, MAX_ZOOM_RADIUS >> 1,
+			MIN_ZOOM_RADIUS, 1000, 3333};
+	POINT origin, loc;
+	int i, j, first = 1;
+
+	/* As InitSolarSys does on arriving from hyperspace (not a reentry). */
+	origin.x = SIS_SCREEN_WIDTH >> 1;
+	origin.y = SIS_SCREEN_HEIGHT - 2;
+	loc = displayToLocation (origin, MAX_ZOOM_RADIUS);
+
+	printf ("{\"SIS_SCREEN_WIDTH\": %d, \"SIS_SCREEN_HEIGHT\": %d, "
+			"\"MAX_ZOOM_RADIUS\": %d, \"MIN_ZOOM_RADIUS\": %d, "
+			"\"DISPLAY_FACTOR\": %d, \"arrival\": {\"origin\": [%d, %d], "
+			"\"location\": [%d, %d]},\n\"display_to_location\": [",
+			SIS_SCREEN_WIDTH, SIS_SCREEN_HEIGHT, MAX_ZOOM_RADIUS,
+			MIN_ZOOM_RADIUS, DISPLAY_FACTOR, origin.x, origin.y, loc.x, loc.y);
+	for (i = 0; i < 5; ++i)
+		for (j = -3; j <= 3; ++j)
+		{
+			POINT pt;
+			pt.x = (SIS_SCREEN_WIDTH >> 1) + j * 37;
+			pt.y = (SIS_SCREEN_HEIGHT >> 1) - j * 29;
+			loc = displayToLocation (pt, radii[i]);
+			printf ("%s[%d, %d, %d, %d, %d]", sep (&first), radii[i],
+					pt.x, pt.y, loc.x, loc.y);
+		}
+	printf ("],\n\"location_to_display\": [");
+	first = 1;
+	for (i = 0; i < 5; ++i)
+		for (j = -3; j <= 3; ++j)
+		{
+			POINT pt;
+			pt.x = j * 2111;
+			pt.y = -j * 1733;
+			loc = locationToDisplay (pt, radii[i]);
+			printf ("%s[%d, %d, %d, %d, %d]", sep (&first), radii[i],
+					pt.x, pt.y, loc.x, loc.y);
+		}
+	printf ("]}\n");
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -271,6 +318,8 @@ main (int argc, char *argv[])
 
 	if (argc > 1 && strcmp (argv[1], "orbits") == 0)
 		return orbits_main ();
+	if (argc > 1 && strcmp (argv[1], "ip") == 0)
+		return ip_main ();
 
 	print_rng ();
 
