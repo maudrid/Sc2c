@@ -13,6 +13,10 @@
     godot --headless --import --path game
     python3 tools/test_network.py
 
+Needs the UQM 0.8.0 content: CRATERIS_CONTENT, or the game's own
+downloaded copy. Every process is given it with --content; one more
+checks a host without it stops and says so.
+
 Timeline (24 frames a second):
   0 s   host starts, thrusting north
   1 s   guest A joins (first time), turns and thrusts, quits at ~4 s
@@ -46,13 +50,36 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(REPO, "game")
 PORT = "24711"
 GODOT = os.environ.get("GODOT", "godot")
+PACKAGE = "uqm-0.8.0-content.uqm"
 
 
-def start(out, name, *args):
+def find_content():
+    """The UQM content package: CRATERIS_CONTENT (a file or its folder), or
+    the game's own downloaded copy. Hosting and joining need it."""
+    given = os.environ.get("CRATERIS_CONTENT")
+    if given:
+        path = os.path.join(given, PACKAGE) if os.path.isdir(given) else given
+        if not os.path.isfile(path):
+            sys.exit(f"CRATERIS_CONTENT names {path}, which doesn't exist")
+        return path
+    data = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    stored = os.path.join(data, "godot", "app_userdata", "Attack on Crateris",
+                          "content", PACKAGE)
+    if os.path.isfile(stored):
+        return stored
+    sys.exit("The network test needs the UQM 0.8.0 content: set CRATERIS_CONTENT to "
+             f"{PACKAGE}, or start the game once with a window to download it.")
+
+
+CONTENT = None
+
+
+def start(out, name, *args, content=True, env=None):
     log = open(os.path.join(out, name + ".log"), "w")
-    return subprocess.Popen([GODOT, "--headless", "--path", GAME, "--", *args,
+    extra = ["--content", CONTENT] if content else []
+    return subprocess.Popen([GODOT, "--headless", "--path", GAME, "--", *args, *extra,
                              "--report", os.path.join(out, name + ".json")],
-                            stdout=log, stderr=subprocess.STDOUT)
+                            stdout=log, stderr=subprocess.STDOUT, env=env)
 
 
 def report(out, name):
@@ -65,6 +92,8 @@ def ship(snapshot, pid):
 
 
 def main():
+    global CONTENT
+    CONTENT = find_content()
     out = tempfile.mkdtemp(prefix="crateris-net-")
     failures = []
 
@@ -72,6 +101,18 @@ def main():
         print(("ok   " if cond else "FAIL ") + what)
         if not cond:
             failures.append(what)
+
+    # Without the content, a headless host stops at once and says how to
+    # give it one (content stage, decision 4).
+    bare = dict(os.environ, XDG_DATA_HOME=os.path.join(out, "no-content"))
+    bare.pop("CRATERIS_CONTENT", None)
+    nocontent = start(out, "nocontent", "--host", "--no-upnp", "--port", PORT,
+                      "--quit-after", "48", content=False, env=bare)
+    nocontent.wait(timeout=60)
+    with open(os.path.join(out, "nocontent.log")) as f:
+        said = f.read()
+    check(nocontent.returncode == 3 and "--content PATH" in said,
+          "a host without the content stops and says how to give it")
 
     save = os.path.join(out, "save.json")
     host = start(out, "host", "--host", "--no-upnp", "--port", PORT,

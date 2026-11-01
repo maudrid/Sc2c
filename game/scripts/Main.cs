@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
@@ -74,6 +75,14 @@ public partial class Main : Node2D
     private bool _wasSweeping;
     private int _leaveFrames;
 
+    // The UQM content package (checked as the official one), the screens
+    // that get it on first run and show its notice, and the layer they're on.
+    private ContentPackage? _content;
+    private FirstRunScreen? _firstRun;
+    private AboutScreen _about = null!;
+    private CanvasLayer _screens = null!;
+    private string _dataDir = "";
+
     public override void _Ready()
     {
         try
@@ -109,14 +118,82 @@ public partial class Main : Node2D
         _hud.AddThemeColorOverride("font_color", Colors.White);
         layer.AddChild(_hud);
 
+        _screens = new CanvasLayer { Layer = 10 };
+        AddChild(_screens);
+        _about = new AboutScreen { Visible = false };
+        _screens.AddChild(_about);
+
         _name = _options.Name ?? System.Environment.UserName;
         _playerId = _options.PlayerId ?? LoadOrCreatePlayerId();
         _savePath = _options.SavePath ?? ProjectSettings.GlobalizePath("user://host-save.json");
+        _dataDir = dataDir;
 
+        PrepareContent();
+    }
+
+    /// <summary>
+    /// Finds and checks the content package, then starts the game. Hosting
+    /// and joining need it (content stage, decision 4): without it a window
+    /// shows the first-run screen, and a headless run stops and says how to
+    /// give it one.
+    /// </summary>
+    private void PrepareContent()
+    {
+        string userFolder = ProjectSettings.GlobalizePath("user://");
+        string stored = ContentLocation.StoredPackage(userFolder);
+        string? problem = null;
+        try
+        {
+            if (ContentLocation.Find(_options.ContentPath, userFolder) is { } path)
+            {
+                _content = ContentPackage.Open(path);
+                Log($"Content: {path}");
+                StartGame();
+                return;
+            }
+        }
+        catch (ContentPackageException e)
+        {
+            problem = e.Message;
+        }
+
+        string why = problem ?? "The UQM 0.8.0 content isn't here yet.";
+        if (DisplayServer.GetName() == "headless")
+        {
+            GD.PrintErr($"{why} Give it with --content PATH or {ContentLocation.EnvironmentVariable}, " +
+                $"or start the game once with a window to download it.");
+            GetTree().Quit(3);
+            return;
+        }
+        Log(why);
+        _firstRun = new FirstRunScreen(stored, problem);
+        _firstRun.Installed += path =>
+        {
+            try
+            {
+                _content = ContentPackage.Open(path);
+            }
+            catch (ContentPackageException e)
+            {
+                GD.PrintErr(e.Message);
+                return;
+            }
+            Log($"Content installed: {path}");
+            _firstRun.QueueFree();
+            _firstRun = null;
+            StartGame();
+        };
+        _screens.AddChild(_firstRun);
+        if (_options.FirstRunUse is { } file)
+            _firstRun.Choose(file);
+    }
+
+    private void StartGame()
+    {
         if (_options.Join)
             StartClient();
         else
-            StartHost(dataDir);
+            StartHost(_dataDir);
     }
 
     private static string DataDirectory()
@@ -492,7 +569,16 @@ public partial class Main : Node2D
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e is not InputEventKey { Pressed: true } k || _options.Script != null)
+        if (e is not InputEventKey { Pressed: true } k)
+            return;
+        // F1 opens and closes the about screen; Esc closes it too.
+        if (k.Keycode == Key.F1 || (_about.Visible && k.Keycode == Key.Escape))
+        {
+            _about.Visible = k.Keycode == Key.F1 && !_about.Visible;
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+        if (_about.Visible || _options.Script != null)
             return;
         MenuKey? key = k.Keycode switch
         {
@@ -610,7 +696,9 @@ public partial class Main : Node2D
         }
         if (Me()?.Activity != Activity.Orbit)
             lines.Add("Arrows: turn and thrust");
+        lines.Add("F1: about and credits");
         _hud.Text = string.Join("\n", lines.Where(l => !string.IsNullOrEmpty(l)));
+        _hud.Visible = _firstRun == null;   // the first-run screen stands alone
     }
 
     private static string Where(ShipSnapshot s) => s.Activity switch

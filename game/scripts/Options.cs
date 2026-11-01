@@ -18,6 +18,8 @@ namespace Crateris.Game;
 /// Command line, given after "--":
 ///   godot --path game -- --host [--port N] [--name NAME] [--load FILE]
 ///   godot --path game -- --join ADDRESS[:PORT] [--name NAME]
+/// Both take --content PATH: the UQM content package (or its folder), if
+/// not the game's own downloaded copy.
 /// Testing options: --id ID (player id instead of the saved one),
 /// --script "thrust:40,right:10,none:20" (scripted input instead of keys;
 /// up, down, select and cancel press an orbit menu key once as their step starts),
@@ -38,6 +40,12 @@ public sealed class Options
     public string? ReportPath { get; private set; }
     public string? ScreenshotPath { get; private set; }
     public long QuitAfterFrames { get; private set; }
+
+    /// <summary>--content PATH: the UQM content package (or its folder) to use.</summary>
+    public string? ContentPath { get; private set; }
+
+    /// <summary>--first-run-use FILE: the first-run screen acts as if the player chose this file (testing).</summary>
+    public string? FirstRunUse { get; private set; }
 
     /// <summary>--quit-after-join FRAMES: a host quits this many frames after the first guest joins (testing).</summary>
     public long QuitAfterJoinFrames { get; private set; }
@@ -82,6 +90,8 @@ public sealed class Options
                 case "--report": o.ReportPath = Next(); break;
                 case "--screenshot": o.ScreenshotPath = Next(); break;
                 case "--quit-after": o.QuitAfterFrames = long.Parse(Next()); break;
+                case "--content": o.ContentPath = Next(); break;
+                case "--first-run-use": o.FirstRunUse = Next(); break;
                 case "--quit-after-join": o.QuitAfterJoinFrames = long.Parse(Next()); break;
                 case "--no-upnp": o.UseUpnp = false; break;
                 case "--seconds-per-day":

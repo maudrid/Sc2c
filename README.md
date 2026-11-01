@@ -31,6 +31,8 @@ python3 -m unittest discover -s tools/extract  # data checks
 godot --path game                              # play (solo host)
 ```
 
+The game needs the UQM 0.8.0 content, which it downloads on first start (with your click). `python3 tools/test_network.py` uses that copy, or the package named by `CRATERIS_CONTENT`.
+
 ## Documents
 
 - `docs/design.md`: design and decisions

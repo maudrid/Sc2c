@@ -27,6 +27,8 @@ What should happen: `dotnet test` reports 108 passed. The network test prints `o
 
 ## Play it
 
+**Since the content stage** the game needs the UQM 0.8.0 content to host or join: the first start shows the content screen (Download, or use a file you already have), once. The network test needs it too: start the game once with a window, or set `CRATERIS_CONTENT` to the package (`docs/how-to-try/content-stage.md`).
+
 ### Keys
 
 - **Flying** (hyperspace and systems): left and right turn, up thrusts.

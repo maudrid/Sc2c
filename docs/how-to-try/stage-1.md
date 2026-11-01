@@ -33,6 +33,8 @@ What should happen: `dotnet test` reports 26 passed at stage 1, and more after l
 
 ## Play it
 
+**Since the content stage** the game needs the UQM 0.8.0 content to host or join: the first start shows the content screen (Download, or use a file you already have), once. The network test needs it too: start the game once with a window, or set `CRATERIS_CONTENT` to the package (`docs/how-to-try/content-stage.md`).
+
 **Solo (you are the host):** open the project in the Godot editor (`godot --path game`) and press Play, or run `godot --path game`. Fly with the arrow keys: left and right turn, up thrusts.
 
 What should happen:
