@@ -580,9 +580,16 @@ CaptureStringTable (STRING_TABLE t)
 	return (STRING) dummy_handle_systems;
 }
 
+static int sprites_mode;
+
 COLORMAPPTR
 GetColorMapAddress (COLORMAP colormap)
 {
+	/* In sprites mode the colour tables are not loaded: the colour map
+	 * stays its table index + 1 (SetAbsStringTableIndex), for SetColorMap
+	 * to note. */
+	if (sprites_mode)
+		return (COLORMAPPTR) colormap;
 	return (COLORMAPPTR) GetStringAddress (colormap);
 }
 
@@ -1385,6 +1392,136 @@ layout_main (void)
 	return 0;
 }
 
+/* ---- Sprites mode: what DrawSystem and CreateStarBackGround draw ---- */
+
+/* The colour table entry last set, as SetColorMap would load it; -1 none. */
+static int sprite_cmap = -1;
+static int stamps_first;
+/* CreateStarBackGround's stamps are hashed, not printed. */
+static int hashing_background;
+static Sha256 background_sha;
+
+BOOLEAN
+SetColorMap (COLORMAPPTR map)
+{
+	if (sprites_mode)
+		sprite_cmap = (int) (intptr_t) map - 1;
+	return TRUE;
+}
+
+static int
+is_sheet_frame (FRAME f)
+{
+	int sheet = FRAME_SHEET (f);
+	return sheet >= SHEET_SIS && sheet <= SHEET_SUN
+			&& ((intptr_t) f >> 16) == sheet;
+}
+
+FRAME
+IncFrameIndex (FRAME f)
+{
+	return is_sheet_frame (f) ? MAKE_FRAME (FRAME_SHEET (f),
+			FRAME_INDEX (f) + 1) : f;
+}
+
+FRAME
+SetRelFrameIndex (FRAME f, SIZE offs)
+{
+	return is_sheet_frame (f) ? MAKE_FRAME (FRAME_SHEET (f),
+			FRAME_INDEX (f) + offs) : f;
+}
+
+/* Each stamp of a sheet's frame: [sheet, frame, x, y, colour table entry]
+ * (the entry for the sun's and the worlds' images, -1 for the others),
+ * in the order drawn. The saved view and the stars frame (not sheet
+ * frames) are left out. */
+void
+DrawStamp (STAMP *s)
+{
+	int sheet;
+	if (!sprites_mode || !is_sheet_frame (s->frame))
+		return;
+	sheet = FRAME_SHEET (s->frame);
+	if (hashing_background)
+	{
+		short v[3] = { (short) FRAME_INDEX (s->frame), s->origin.x,
+				s->origin.y };
+		unsigned char b[6];
+		int i;
+		for (i = 0; i < 3; ++i)
+		{
+			b[i * 2] = (unsigned char) (v[i] & 0xFF);
+			b[i * 2 + 1] = (unsigned char) ((unsigned short) v[i] >> 8);
+		}
+		sha256_add (&background_sha, b, sizeof b);
+		return;
+	}
+	printf ("%s[%d, %u, %d, %d, %d]", sep (&stamps_first), sheet,
+			FRAME_INDEX (s->frame), s->origin.x, s->origin.y,
+			sheet == SHEET_ORBITAL || sheet == SHEET_SUN ? sprite_cmap : -1);
+}
+
+/* "sprites": per star, the SHA-256 of the star background
+ * (CreateStarBackGround's stamps as little-endian 16-bit frame, x, y), the
+ * outer view's stamps at each zoom (DrawSystem after ValidateOrbits), and
+ * each planet's inner view's (DrawSystem after ValidateInnerOrbits). */
+static int
+sprites_main (void)
+{
+	COUNT s;
+
+	sprites_mode = 1;
+	printf ("{\"systems\": [");
+	for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
+	{
+		COUNT p, n;
+		SIZE zoom;
+		char hex[65];
+		int first = 1;
+
+		load_system (s);
+		n = pSolarSysState->SunDesc[0].NumPlanets;
+		sha256_init (&background_sha);
+		hashing_background = 1;
+		(void) CreateStarBackGround ();
+		hashing_background = 0;
+		sha256_hex (&background_sha, hex);
+		printf ("%s\n{\"star\": %u, \"background\": \"%s\", \"outer\": [",
+				s ? "," : "", s, hex);
+		for (zoom = MAX_ZOOM_RADIUS; zoom >= MIN_ZOOM_RADIUS; zoom >>= 1)
+		{
+			pSolarSysState->SunDesc[0].radius = zoom;
+			ValidateOrbits ();
+			sprite_cmap = -1;
+			stamps_first = 1;
+			printf ("%s[", sep (&first));
+			DrawSystem (zoom, FALSE);
+			printf ("]");
+		}
+		printf ("], \"inner\": [");
+		first = 1;
+		for (p = 0; p < n; ++p)
+		{
+			PLANET_DESC *pl;
+
+			load_system (s);
+			pl = &pSolarSysState->PlanetDesc[p];
+			pSolarSysState->SunDesc[0].radius = MAX_ZOOM_RADIUS;
+			ValidateOrbits ();
+			enterInnerSystem (pl);
+			ValidateInnerOrbits ();
+			sprite_cmap = -1;
+			stamps_first = 1;
+			printf ("%s[", sep (&first));
+			DrawSystem (pl->radius, TRUE);
+			printf ("]");
+		}
+		printf ("]}");
+	}
+	printf ("]}\n");
+	return 0;
+}
+
 /* "names FILE": every name UQM's own code gives, with the game strings
  * from FILE. One JSON array per star: [GetClusterName, then per planet
  * [GLOBAL_SIS (PlanetName) after generateName, GetPlanetTitle,
@@ -1529,12 +1666,15 @@ main (int argc, char *argv[])
 	if (argc > 2 && strcmp (argv[1], "names") == 0)
 		return names_main (argv[2]);
 	if (argc > 1 && (strcmp (argv[1], "flight") == 0
-			|| strcmp (argv[1], "layout") == 0))
+			|| strcmp (argv[1], "layout") == 0
+			|| strcmp (argv[1], "sprites") == 0))
 	{
 		SISIPFrame = MAKE_FRAME (SHEET_SIS, 0);
 		OrbitalFrame = MAKE_FRAME (SHEET_ORBITAL, 0);
 		SpaceJunkFrame = MAKE_FRAME (SHEET_JUNK, 0);
 		SunFrame = MAKE_FRAME (SHEET_SUN, 0);
+		if (strcmp (argv[1], "sprites") == 0)
+			return sprites_main ();
 		return strcmp (argv[1], "flight") == 0 ? flight_main ()
 				: layout_main ();
 	}

@@ -151,3 +151,35 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSp
 ```
 
 `EveryWorldsLightMapIsTheOneUqmMakes` checks the light map (the relief shading) of all 3,799 generated worlds against UQM's own code. `TheRotatingPlanetIsDrawnAsUqmDrawsIt` checks UQM's own drawing of the planet, for Earth (from its own images) and the first world of each planet type with and without a shield (62 worlds), built by the same code the orbit screen uses, at six points of its turn, pixel for pixel (by hash), and the shield's halo. `ItTurnsAsUqmTurnsIt` checks the direction, the steps and the place on screen; `ItTurnsOnTheSharedClockAtUqmsRate` that the step follows the world time at UQM's 12 seconds a turn.
+
+## So far: sprites in the views
+
+Item 8 is built. The placeholders are gone from the system views and hyperspace: everything is drawn from UQM's own sprites, in UQM's colours, three times UQM's size.
+
+- **Hyperspace** has UQM's dark red background, with the stars near you drawn from their sprites by size and colour, and the flagships (yours and other players') turning through their 16 facings. Things are where UQM puts them: your ship sits a little right of and below the screen's middle, as in UQM.
+- **A system's outer view** has the system's own background stars, the sun by its size and colour (bigger as you zoom in), and each planet by its image size and colour family, lit from the side its sun is on. They're drawn in UQM's order, so where images overlap, the same one is in front.
+- **A planet's inner view** has the planet in the middle and its moons; a shielded planet (Earth in a new game) shows as its red shield, and the starbase and the Sa-Matra are their own images.
+
+Players' names are still written beside their ships (the engine's own), and players in orbit still have their markers beside the world.
+
+![Hyperspace near Sol: the flagship, and a white giant to the south-east](../screenshots/content-sprites-hyperspace.png)
+
+![Sol at the closest zoom: the sun and the inner planets, with the flagship at Earth](../screenshots/content-sprites-outer.png)
+
+![Leaving Earth's orbit: Earth under its shield, Luna and the starbase](../screenshots/content-sprites-inner.png)
+
+### Try it in the game
+
+1. `godot --path game -- --host`: a new game starts in hyperspace at Sol. Turn and thrust: the stars come into view as their sprites, and the ship turns through its facings.
+2. Fly into Sol (or start with `--start-orbit 82:2` and choose Navigate): the inner view shows Earth's shield, Luna and the starbase. Fly out to the outer view and zoom in and out by flying towards and away from the sun: the sun and planets change size as UQM's do.
+3. Visit a few systems: each has its own background stars, always the same for that system.
+4. Compare with UQM 0.8.0: the images, colours and places should match, at three times UQM's size.
+
+### Run the tests
+
+```
+dotnet test --filter "SystemSpritesTests|HyperScreenTests"   # 5 tests; no content needed
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter SpritesTests   # 2 tests
+```
+
+`EverySystemViewIsStampedAsUqmStampsIt` checks every view of all 502 systems (the outer view at its four zooms and every planet's inner view) against UQM's own `DrawSystem`, stamp by stamp: which image, which frame, where, in which colours and in which order. `EveryStarBackgroundIsUqms` checks every system's background stars against UQM's own `CreateStarBackGround`. `ShieldsStarbasesAndColoursAreUqms` checks Sol by name: Earth's shield, the starbase, the sun's frames. `ColourMapsAreSetAsSetColorMapSetsThem` checks UQM's colour map rules; `TheSpaceSpritesAreDrawnWithUqmsColourMaps` draws every frame of the package's system and hyperspace sheets in every colour they're used in. `HyperScreenTests` checks where the hyperspace screen puts the ship, other ships and stars.

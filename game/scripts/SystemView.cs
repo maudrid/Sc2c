@@ -19,10 +19,10 @@ using Godot;
 namespace Crateris.Game;
 
 /// <summary>
-/// Placeholder drawing shared by the system and orbit views until the UQM
-/// content is downloaded: UQM's 242 x 227 system screen scaled up, worlds
-/// as circles in placeholder colours for their colour family, and the
-/// provisional contact circles' sizes (docs/differences.md rows 23 and 25).
+/// Drawing shared by the hyperspace, system and orbit views: UQM's 242 x
+/// 227 system screen three times its size, the orbit ellipses, markers for
+/// players in orbit, and the circle the orbit screen shows in placeholder
+/// colours (by colour family) while the planet is made.
 /// </summary>
 public static class Placeholder
 {
@@ -46,25 +46,10 @@ public static class Placeholder
         _ => Colors.Gray,
     };
 
-    public static Color Star(StarColor c) => c switch
-    {
-        StarColor.Blue => new Color(0.55f, 0.65f, 1f),
-        StarColor.Green => new Color(0.5f, 1f, 0.5f),
-        StarColor.Orange => new Color(1f, 0.65f, 0.25f),
-        StarColor.Red => new Color(1f, 0.35f, 0.3f),
-        StarColor.White => new Color(1f, 1f, 1f),
-        _ => new Color(1f, 0.95f, 0.45f),
-    };
-
     /// <summary>A world's colour: its type's colour family, grey for the starbase and the Sa-Matra.</summary>
     public static Color World(SolarSystem system, WorldDesc w) => WorldTypes.HasPlanetData(w.DataIndex)
         ? Body(system.Generator.Types[WorldTypes.PlanetType(w.DataIndex)].BodyColor)
         : new Color(0.7f, 0.7f, 0.75f);
-
-    /// <summary>A world image's drawn radius in system pixels (the provisional contact circles).</summary>
-    public static float Radius(int imageSize) => imageSize < 0
-        ? IpContactShape.Provisional.JunkRadius
-        : IpContactShape.Provisional.PlanetRadius[Math.Min(imageSize, IpContactShape.Provisional.PlanetRadius.Count - 1)];
 
     public static void Ellipse(CanvasItem c, IpRect r, Color color, float width = 1.5f)
     {
@@ -78,18 +63,6 @@ public static class Placeholder
             pts[i] = centre + new Vector2(Mathf.Cos(a) * radii.X, Mathf.Sin(a) * radii.Y);
         }
         c.DrawPolyline(pts, color, width);
-    }
-
-    /// <summary>A ship: a triangle pointing along a 16-way facing (0 up), with its name.</summary>
-    public static void Ship(CanvasItem c, Vector2 p, int facing, Color color, string name, bool thrusting = false)
-    {
-        float angle = facing * Mathf.Tau / 16f;
-        var dir = new Vector2(Mathf.Sin(angle), -Mathf.Cos(angle));
-        var side = new Vector2(-dir.Y, dir.X);
-        c.DrawColoredPolygon(new[] { p + dir * 11, p - dir * 7 + side * 6, p - dir * 7 - side * 6 }, color);
-        if (thrusting)
-            c.DrawLine(p - dir * 8, p - dir * 14, Colors.OrangeRed, 3);
-        c.DrawString(ThemeDB.FallbackFont, p + new Vector2(11, -9), name, HorizontalAlignment.Left, -1, 14, color);
     }
 
     /// <summary>A player in orbit: a diamond beside the world, with the name.</summary>
@@ -120,14 +93,20 @@ public partial class SystemView : Control
     private string _me = "";
     private readonly PlaybackClock _clock = new();
 
+    private (int Star, List<SystemStamp> Stamps)? _background;
+
     /// <summary>The names of stars and worlds (set once the content is open, before the game starts).</summary>
     public Names Names { get; set; } = null!;
+
+    /// <summary>The sprites (set once the content is open, before the game starts).</summary>
+    public SpriteTextures? Sprites { get; set; }
 
     public SystemView(SystemCatalog systems)
     {
         _systems = systems;
         ClipContents = true;
         Size = Placeholder.Size;
+        TextureFilter = TextureFilterEnum.Nearest;   // UQM's sprites, pixel for pixel
     }
 
     public SystemView() : this(null!)
@@ -166,13 +145,18 @@ public partial class SystemView : Control
 
     public override void _Draw()
     {
-        DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.02f, 0.02f, 0.05f));
-        DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.3f, 0.3f, 0.4f), false, 1);
+        DrawRect(new Rect2(Vector2.Zero, Size), Colors.Black);
         var me = _snapshot?.Ships.FirstOrDefault(s => s.Id == _me);
-        if (me?.SystemStar is not int star || me.Activity is not (Activity.OuterSystem or Activity.InnerSystem))
+        if (Sprites == null || me?.SystemStar is not int star || me.Activity is not (Activity.OuterSystem or Activity.InnerSystem))
             return;
         SolarSystem system = _systems[star];
         var font = ThemeDB.FallbackFont;
+
+        // DrawSystem: the star background, the orbits, then the sun and worlds.
+        if (_background?.Star != star)
+            _background = (star, SystemSprites.StarBackground(system.Star));
+        foreach (var stamp in _background.Value.Stamps)
+            Sprites.Draw(this, stamp);
 
         // Players orbiting a world of this system, by world.
         var orbiting = _snapshot!.Ships.Where(s => s.Activity == Activity.Orbit && s.SystemStar == star).ToList();
@@ -186,23 +170,12 @@ public partial class SystemView : Control
             foreach (var moon in moons)
                 Placeholder.Ellipse(this, SystemLayout.InnerMoonOrbit(moon), orbitColor);
 
-            var centre = new Vector2(SystemLayout.CenterX, SystemLayout.CenterY) * Placeholder.Scale;
-            float r = Placeholder.Radius(SystemLayout.ImageSize(system.Generator, pl.DataIndex, SystemLayout.InnerPlanetSizeAdd)) * Placeholder.Scale;
-            DrawCircle(centre, r, Placeholder.World(system, pl));
-            if (WorldTypes.IsShielded(pl.DataIndex))
-                DrawArc(centre, r + 5, 0, Mathf.Tau, 64, new Color(0.6f, 0.8f, 1f, 0.8f), 2);
-            Markers(orbiting.Where(s => s.OrbitPlanet == planet && s.OrbitMoon is null), centre, r);
-
+            var stamps = SystemSprites.Inner(system, planet);
+            foreach (var stamp in stamps)
+                Sprites.Draw(this, stamp);
+            Markers(orbiting.Where(s => s.OrbitPlanet == planet && s.OrbitMoon is null), stamps[0]);
             for (int m = 0; m < moons.Length; ++m)
-            {
-                var at = ToView(SystemLayout.InnerMoon(moons[m]));
-                float mr = Placeholder.Radius(SystemLayout.ImageSize(system.Generator, moons[m].DataIndex, SystemLayout.MoonSizeAdd)) * Placeholder.Scale;
-                if (WorldTypes.HasPlanetData(moons[m].DataIndex))
-                    DrawCircle(at, mr, Placeholder.World(system, moons[m]));
-                else
-                    DrawRect(new Rect2(at - new Vector2(mr, mr), new Vector2(mr, mr) * 2), Placeholder.World(system, moons[m]));
-                Markers(orbiting.Where(s => s.OrbitPlanet == planet && s.OrbitMoon == m), at, mr);
-            }
+                Markers(orbiting.Where(s => s.OrbitPlanet == planet && s.OrbitMoon == m), stamps[m + 1]);
             // UQM's title over the inner system is the planet's name, its message line the star's.
             DrawString(font, new Vector2(8, 18), $"{Names.PlanetName(system.Star, planet)}, {Names.Cluster(system.Star)}"
                 + (moons.Length > 0 ? $" ({moons.Length} moons)" : ""),
@@ -215,21 +188,13 @@ public partial class SystemView : Control
                 Placeholder.Ellipse(this, SystemLayout.OuterOrbit(system.Planets[p], zoom),
                     Placeholder.ToColor(SystemLayout.OrbitColors[system.OrbitColor(p)]));
 
-            var centre = new Vector2(SystemLayout.CenterX, SystemLayout.CenterY) * Placeholder.Scale;
-            DrawCircle(centre, (3 + 2 * SystemLayout.SunSize(zoom)) * Placeholder.Scale, Placeholder.Star(system.Star.Color));
-
-            int add = SystemLayout.OuterSizeAdd(zoom);
-            for (int p = 0; p < system.Planets.Count; ++p)
-            {
-                WorldDesc pl = system.Planets[p];
-                var at = ToView(SystemLayout.OuterPlanet(pl, zoom));
-                float r = Placeholder.Radius(SystemLayout.ImageSize(system.Generator, pl.DataIndex, add)) * Placeholder.Scale;
-                if (WorldTypes.HasPlanetData(pl.DataIndex))
-                    DrawCircle(at, r, Placeholder.World(system, pl));
-                else
-                    DrawRect(new Rect2(at - new Vector2(r, r), new Vector2(r, r) * 2), Placeholder.World(system, pl));
-                Markers(orbiting.Where(s => s.OrbitPlanet == p), at, r);
-            }
+            var order = SystemSprites.DrawOrder(system);
+            var stamps = SystemSprites.Outer(system, zoom);
+            for (int i = 0; i < stamps.Count; ++i)
+                Sprites.Draw(this, stamps[i]);
+            for (int i = 0; i < stamps.Count; ++i)
+                if (order[i] >= 0)
+                    Markers(orbiting.Where(s => s.OrbitPlanet == order[i]), stamps[i]);
             // UQM's message line is the star's name, its title the star's coordinates.
             DrawString(font, new Vector2(8, 18), $"{Names.Cluster(system.Star)}   {system.Star.X / 10.0:0.0} : {system.Star.Y / 10.0:0.0}",
                 HorizontalAlignment.Left, -1, 15, Colors.LightBlue);
@@ -237,23 +202,26 @@ public partial class SystemView : Control
                 HorizontalAlignment.Left, -1, 13, Colors.Gray);
         }
 
-        // Ships in this same view.
+        // Ships in this same view: the flagship's image by facing, with the player's name.
         foreach (var s in _snapshot.Ships.Where(s => s.Activity == me.Activity && s.SystemStar == star && s.InnerPlanet == me.InnerPlanet))
         {
             var (x, y) = _motion.TryGetValue(s.Id, out var m) ? m.AtTime(_clock.Time) : (s.ScreenX, s.ScreenY);
-            Placeholder.Ship(this, new Vector2((float)x, (float)y) * Placeholder.Scale, s.IpFacing,
-                Placeholder.ShipColor(s, _me), s.Name, s.Thrusting);
+            Sprites.Draw(this, Sprites.Sprites.Image(SystemSheet.Flagship, s.IpFacing), (float)x, (float)y);
+            DrawString(font, new Vector2((float)x + 6, (float)y - 4) * Placeholder.Scale, s.Name,
+                HorizontalAlignment.Left, -1, 14, Placeholder.ShipColor(s, _me));
         }
     }
 
-    private void Markers(IEnumerable<ShipSnapshot> ships, Vector2 at, float radius)
+    /// <summary>Markers for players orbiting a world, beside its image.</summary>
+    private void Markers(IEnumerable<ShipSnapshot> ships, SystemStamp world)
     {
+        var image = Sprites!.Sprites.Image(world);
+        var at = new Vector2(world.X - image.HotSpotX + image.Width / 2f, world.Y - image.HotSpotY + image.Height / 2f) * Placeholder.Scale;
+        float radius = image.Width / 2f * Placeholder.Scale;
         int i = 0;
         foreach (var s in ships)
             Placeholder.OrbitMarker(this, at, radius, Placeholder.ShipColor(s, _me), s.Name, i++);
     }
-
-    private static Vector2 ToView(IpPoint p) => new Vector2(p.X, p.Y) * Placeholder.Scale;
 }
 
 /// <summary>

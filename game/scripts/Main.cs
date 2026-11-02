@@ -79,6 +79,7 @@ public partial class Main : Node2D
     // that get it on first run and show its notice, and the layer they're on.
     private ContentPackage? _content;
     private Names _names = null!;
+    private SpriteTextures _sprites = null!;
     private OrbitScreenText _orbitText = null!;
     private FirstRunScreen? _firstRun;
     private ContentErrorScreen? _contentError;
@@ -101,10 +102,11 @@ public partial class Main : Node2D
 
         string dataDir = DataDirectory();
         _systems = SystemCatalog.Load(dataDir);
-        _view = new HyperspaceView(Starmap.Load(dataDir));
-        AddChild(_view);
+        AddChild(new ColorRect { Color = new Color(0.03f, 0.03f, 0.05f), Size = new Vector2(1024, 768) });
         // The system screen sits on the right; the status and menus on the left.
         var systemScreenAt = new Vector2(1024 - Placeholder.Size.X - 12, (768 - Placeholder.Size.Y) / 2);
+        _view = new HyperspaceView(_systems.Map) { Position = systemScreenAt };
+        AddChild(_view);
         _systemView = new SystemView(_systems) { Position = systemScreenAt, Visible = false };
         AddChild(_systemView);
         _orbitView = new OrbitView(_systems) { Position = systemScreenAt, Visible = false };
@@ -212,6 +214,7 @@ public partial class Main : Node2D
         {
             _names = Names.Load(content);
             _orbitText = OrbitScreenText.Load(content);
+            _sprites = new SpriteTextures(new SpaceSprites(content));
         }
         catch (ContentPackageException e)
         {
@@ -228,6 +231,7 @@ public partial class Main : Node2D
         }
         _content = content;
         _systemView.Names = _orbitView.Names = _names;
+        _view.Sprites = _systemView.Sprites = _sprites;
         _orbitView.Text = _orbitText;
         _orbitView.Surfaces = new PlanetSurfaces(content);
         return true;
@@ -712,6 +716,7 @@ public partial class Main : Node2D
     {
         UpdateOrbitMenu();
         var activity = Me()?.Activity ?? Activity.Hyperspace;
+        _view.Visible = activity == Activity.Hyperspace;
         _view.Show(_snapshot, _playerId);
         _systemView.Visible = activity is Activity.OuterSystem or Activity.InnerSystem;
         _orbitView.Visible = activity == Activity.Orbit;

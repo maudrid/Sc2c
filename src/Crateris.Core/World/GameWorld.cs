@@ -43,7 +43,8 @@ public sealed record ShipSnapshot(
     Activity Activity = Activity.Hyperspace,
     int? SystemStar = null, int? InnerPlanet = null,
     int IpX = 0, int IpY = 0, int ScreenX = 0, int ScreenY = 0, int IpFacing = 0, int ZoomRadius = 0,
-    int? OrbitPlanet = null, int? OrbitMoon = null, int IpVelocityX = 0, int IpVelocityY = 0);
+    int? OrbitPlanet = null, int? OrbitMoon = null, int IpVelocityX = 0, int IpVelocityY = 0,
+    short ViewX = Crateris.Core.Hyperspace.HyperFlight.CenterX, short ViewY = Crateris.Core.Hyperspace.HyperFlight.CenterY);
 
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
@@ -299,7 +300,7 @@ public sealed class GameWorld
                 ip is null ? (f.Status & HyperFlight.StatusThrust) != 0 : ip.Orbit is null && ip.Thrusting,
                 p.UndockPending, p.Ship.Activity, p.Ship.SystemStar, ip?.InnerPlanet,
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
-                ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy);
+                ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy, f.ViewX, f.ViewY);
         }).ToList();
 
         // Worlds being orbited, with what has been taken from them, so an

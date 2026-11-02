@@ -351,6 +351,32 @@ def record_layout(uqm, exe):
     return data
 
 
+def record_sprites(uqm, exe):
+    out = subprocess.run([exe, "sprites"], capture_output=True, text=True,
+                         check=True).stdout
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "tools/extract/golden/stubs.c",
+                        "src/uqm/planets/solarsys.c"], [
+        "The sprites UQM's own DrawSystem stamps in a system's views, for "
+        "every star, in the order it draws them: each stamp is [sheet, "
+        "frame, x, y, colour table entry]. Sheets: 2 the worlds' images "
+        "(graphics.planets), 3 the orbit background (graphics."
+        "orbitbackground: 16 the starbase, 17 a shielded planet in its "
+        "inner view, 19 the Sa-Matra), 5 the sun (graphics.truespacesun). "
+        "The entry is the colour table entry set for the stamp "
+        "(colortable.orbplan's for a world, colortable.truespace's for the "
+        "sun), -1 for the orbit background.",
+        "outer: the outer view at each zoom (8192 to 1024), after "
+        "ValidateOrbits. inner: each planet's inner view, after "
+        "enterInnerSystem and ValidateInnerOrbits.",
+        "background: the SHA-256 of CreateStarBackGround's stamps (all from "
+        "the orbit background), each as little-endian 16-bit frame, x, y.",
+        "Code only: frames are numbers; nothing is read from the content.",
+    ])
+    data.update(json.loads(out))
+    return data
+
+
 def record_string_numbering(uqm, exe):
     out = subprocess.run([exe, "bases"], capture_output=True, text=True,
                          check=True).stdout
@@ -1100,6 +1126,7 @@ def main():
                            ("ip-geometry", record_ip(uqm, systems)),
                            ("ip-flight", record_ip_flight(uqm, systems)),
                            ("system-layout", record_layout(uqm, systems)),
+                           ("system-sprites", record_sprites(uqm, systems)),
                            *record_planet_surfaces(uqm, systems, strings, images, args.content).items(),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),

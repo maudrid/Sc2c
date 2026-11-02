@@ -18,7 +18,8 @@
  * Nothing has been picked up: scan.c's retrieval masks are all zero.
  * Frame indexing and sprite intersection are in systems.c, which models
  * them for the flight traces; so are the string table, colour map and
- * drawing calls the planet surface generator makes (for "surfaces" mode).
+ * drawing calls the planet surface generator makes (for "surfaces" mode)
+ * and the stamps DrawSystem draws (for "sprites" mode).
  */
 
 static char dummy_handle[64];
@@ -50,7 +51,6 @@ long DrawOval () { return 0; }
 long DrawSISFrame () { return 0; }
 long DrawSISMessage () { return 0; }
 long DrawSISTitle () { return 0; }
-long DrawStamp () { return 0; }
 long DrawStatusMessage () { return 0; }
 long EscortFeasibilityStudy () { return 0; }
 long FadeScreen () { return 0; }
@@ -65,7 +65,6 @@ long GetStarShipFromIndex () { return 0; }
 long GetStringTableCount () { return 0; }
 long GetStringTableIndex () { return 0; }
 long GetTimeCounter () { return 0; }
-void *IncFrameIndex () { return dummy_handle; }
 long InitCommunication () { return 0; }
 long InitDisplayList () { return 0; }
 long InitGroupInfo () { return 0; }
@@ -92,7 +91,6 @@ long RemoveQueue () { return 0; }
 long RepairSISBorder () { return 0; }
 long RosterMenu () { return 0; }
 long ScreenTransition () { return 0; }
-long SetColorMap () { return 0; }
 long SetContext () { return 0; }
 long SetContextBackGroundColor () { return 0; }
 long SetContextForeGroundColor () { return 0; }
@@ -100,7 +98,6 @@ long SetFlashRect () { return 0; }
 long SetLanderTakeoff () { return 0; }
 long SetMenuSounds () { return 0; }
 long SetRaceAllied () { return 0; }
-void *SetRelFrameIndex () { return dummy_handle; }
 long SetTransitionSource () { return 0; }
 long SleepThreadUntil () { return 0; }
 long StartSphereTracking () { return 0; }
