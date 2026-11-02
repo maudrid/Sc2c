@@ -54,6 +54,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
+| 2026-11-02 | 23–25, 28 | Content stage built. Row 25 closed; rows 23 and 24 stay temporary for what the content stage couldn't record from UQM (the hyperspace collision loop's timing, the view not following the entry's drift); row 28 is the one new lasting difference |
 | 2026-11-02 | 24 | The server holds the entering ship's system flight and input while the entry plays, and sends the contact for clients to play it from |
 | 2026-11-02 | 23–25 | Contact by the sprites' real shapes: row 25 closed (same as UQM, checked frame by frame); row 23 uses UQM's intersection and masks, with the hyperspace collision loop around them not recorded from UQM; row 24's client animation added |
 | 2026-11-02 | 28 | Added the rotating planet's face: it turns by the shared clock, so players at the same world see the same side |

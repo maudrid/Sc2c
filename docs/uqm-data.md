@@ -107,7 +107,7 @@ From `planet_array` in `src/uqm/plandata.c` (type `PlanetFrame`, `planets/planda
 
 Individual planets come from `planets/plangen.c`, `calc.c`, `gentopo.c` and `orbits.c` (code). `PLANET_INFO` (`plandata.h`: tilt, tectonics, weather, gravity, temperature and so on) is computed per planet by `calc.c`, not stored.
 
-**Used by:** solar systems and planets (stage 2: sizes, densities, elements and the planet report; `color` picks the placeholder colour worlds are drawn in until the content stage), lander and mining.
+**Used by:** solar systems and planets (stage 2: sizes, densities, elements and the planet report; `color` is the colour family, which picks the world sprite's colour map from `colortable.orbplan` since the content stage, and the circle shown in orbit for the moment before the rotating planet is ready), lander and mining.
 
 ### `elements.json`: minerals
 

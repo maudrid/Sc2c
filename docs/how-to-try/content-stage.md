@@ -1,14 +1,50 @@
-# How to try it: the content stage (in progress)
+# How to try it: the content stage
 
-The content stage is being built in the order of `docs/plans/content-stage.md`. This page grows with it.
+The content stage gives the game UQM 0.8.0's own content and uses it where stage 2 drew placeholders. On first start the game gets the official content package, once. Then stars, planets and moons have their UQM names; the orbit screen reads in UQM's words and fonts; every world has its own surface map and turns above it, lit as UQM lights it; the system views and hyperspace are drawn from UQM's sprites; contact with stars and worlds is decided by the sprites' shapes; and flying into a star plays UQM's entry. The plan, with every decision, is `docs/plans/content-stage.md`; what still differs from UQM is in `docs/differences.md`.
 
 ![The first-run screen](../screenshots/content-first-run.png)
 
 ![Orbiting Luna: the orbit screen's title and the status say where you are by name](../screenshots/content-names-orbit.png)
 
-## So far: getting the content
+## Set up
 
-Items 1 to 3 are built. The engine opens the official UQM 0.8.0 content package (`uqm-0.8.0-content.uqm`) in place, refuses any file that isn't the official one (by its SHA-256), and reads files from it by path or by UQM's resource ids. On first start, it asks for the package.
+As for stage 1 (`docs/how-to-try/stage-1.md`): install the toolchain once, then
+
+```
+dotnet build game/Crateris.Game.csproj
+godot --headless --import --path game
+```
+
+The content package is never added to the repository. The game keeps its own copy in Godot's user folder after the first start. For the tests and headless runs, point at a copy with `CRATERIS_CONTENT` (the file or its folder) or `--content PATH`.
+
+## Run the tests
+
+```
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test   # 191 tests, about 40 s
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm python3 tools/test_network.py
+```
+
+What should happen: `dotnet test` reports 191 passed and none skipped. Without the package, the tests that need it are skipped, each saying so, and the rest pass. The network test prints `ok` lines ending in "all network checks passed". Each part below says which tests check it and how.
+
+## Play it: the whole stage in one go
+
+1. **First start.** Move the game's copy of the package away if you have one (`content/uqm-0.8.0-content.uqm` in `~/.local/share/godot/app_userdata/Attack on Crateris/` on Linux), and start the game (`godot --path game`). The content screen shows the notice. **Download** fetches 11.5 MB, checks it and starts the game; **Use a file I already have...** takes a copy you have. Start again: it goes straight in.
+2. **Sol.** A new game starts in hyperspace at Sol, drawn from UQM's sprites. Fly away a little, turn and fly back: as the ship's nose reaches the star's centre, it turns, shrinks into Sol, and the Sol system appears. The status says "entering Sol" while it plays.
+3. **The system.** Sol's outer view has its background stars, the sun and the planets in their colours, lit from the sun's side. Its title is "Sol". Fly into Earth, the third planet: the inner view shows "Earth, Sol (2 moons)", Earth under its red shield, Luna and the starbase.
+4. **Luna.** Fly into Luna. The orbit screen's title is "Luna", and Luna turns slowly above its grey cratered map, lit as in UQM. Choose Scan: the report reads "Orbit: 1.00 a.u.", "Atmo: Vacuum", "Temp: -18° c" and the rest in UQM's font. Choose Autoscan: each scan tints the map as it passes. Navigate leaves orbit.
+5. **Earth.** Orbit Earth: its own map, reddened, with the shield's halo round the turning planet.
+6. **The about screen.** Press **F1** for the content notice; F1 or Esc closes it.
+7. **With a friend.** `godot --path game -- --host --name Host` and `godot --path game -- --join 127.0.0.1 --name Guest --id guest-1`: each sees the other's flagship by its sprite, and each sees the other's entry into a star. A guest who joins while the host is entering a star rides in with the flagship and undocks once they've both arrived. Two players orbiting the same world see the same side of it.
+
+To jump straight to a part: `--start-orbit 82:2:1` (Luna), `82:2` (Earth), `82:4` (Jupiter), `0:2:1` (an ordinary system's moon); `--start-at 1752:1430` (hyperspace just south of Sol, for the entry). The two can't be combined.
+
+Compare with UQM 0.8.0 (PC menus) as you go: names, words, maps, the planet, sprites and their places should match at three times UQM's size. What doesn't is listed in `docs/differences.md` (the planet's starting side, row 28; the view not following the drifting ship during the entry, row 24).
+
+The sections below describe each part, how to look at it on its own, and its tests.
+
+## Getting the content
+
+The engine opens the official UQM 0.8.0 content package (`uqm-0.8.0-content.uqm`) in place, refuses any file that isn't the official one (by its SHA-256), and reads files from it by path or by UQM's resource ids. On first start, it asks for the package.
 
 ### Try it in the game
 
@@ -45,9 +81,9 @@ The network test needs the package too, the same way; it also checks that a head
 
 The package is never added to the repository.
 
-## So far: names
+## Names
 
-Item 4 is built. Stars, planets and moons have their UQM names, made by the same code UQM uses:
+Stars, planets and moons have their UQM names, made by the same code UQM uses:
 
 - A star is its constellation name, with a Greek letter in front if it has one ("Zeta Serpentis", "Sol").
 - Sol's planets and its named moons have their own names (Earth, Luna, Titan), as do the Starbase and the Sa-Matra. Every other planet is "Planet I", "Planet II"… by its place from the sun, and an unnamed moon is its planet's name with "-A", "-B"… after it ("Planet III-B").
@@ -63,7 +99,7 @@ Item 4 is built. Stars, planets and moons have their UQM names, made by the same
 
 ![Leaving orbit at Zeta Serpentis: Planet III and its four moons](../screenshots/content-names-inner.png)
 
-Since item 5, the title is drawn in UQM's own font (below).
+The title is drawn in UQM's own font (below).
 
 ### Run the tests
 
@@ -73,9 +109,9 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter NamesTes
 
 `EveryNameIsTheNameUqmGives` checks the name of every one of the 502 stars and the names and titles of every planet and moon against what UQM's own code gives (by hash, as names are content). Two more check a few you'd recognise in plain words: Sol, Earth, Luna and Titan, and "Planet ..." and "-B" for an ordinary system. `NamesAreMadeOnceAndKept` checks names are made once and kept, since the views ask for them every frame. Without the package they're skipped, and say so.
 
-## So far: the orbit screen's words and fonts
+## The orbit screen's words and fonts
 
-Item 5 is built. The orbit screen now shows UQM's own words in UQM's own fonts, where UQM's PC version puts them:
+The orbit screen shows UQM's own words in UQM's own fonts, where UQM's PC version puts them:
 
 - the title ("Luna", "Opalescent World") centred at the top, in UQM's small title font;
 - the planet report in UQM's tiny font, labels in dark blue and values in purple, at UQM's positions: "Orbit: 1.00 a.u.", "Atmo: Vacuum", "Temp: -18° c", "Weather: None", "Tectonics: Class 1" on the left, "Mass:", "Radius:", "Gravity:", "Day:", "Tilt:" on the right;
@@ -103,11 +139,11 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter "FontTes
 
 `EveryFontLoadsAsUqmLoadsIt` checks all 29 fonts of the package (32 font resources; some share a font), every one of their 2,503 characters (size, position and every pixel), against what UQM's own font loader makes of them. `TextIsLaidOutAsUqmLaysItOut` checks 1,341 texts laid out in the three fonts the orbit screen uses, against UQM's own layout code: texts of our own that test each odd case (alignment, missing characters, bad UTF-8, UQM's limit of 100 characters) and every menu entry, report label and world type in the game strings. Both use hashes, since fonts are content. `ImagesOfOurOwnLoadAsUqmLoadsThem` and `EveryKindOfImageInThePackageLoadsAsUqmLoadsIt` check the image reader against UQM's own PNG loader: images made for every case it handles (transparency, palettes, interlacing, 16-bit images) and up to 40 of each kind of image in the package. `NumbersAreWrittenAsUqmWritesThemInAnyLocale` checks the report reads "-18° c" even on a computer set to Swedish. `OrbitScreenTextTests` checks the menu numbering against UQM's `menustat.h`, the menu words, and the report and menu box at UQM's positions.
 
-## So far: planet surfaces
+## Planet surfaces
 
-Item 6 is built. Every world you can orbit now shows its own surface map below the planet, as UQM makes it: the same terrain, craters, gas giant bands and storms, in the same colours. Earth shows its own map. Worlds under a shield (Earth in a new game) show the map with the shield's red added, as UQM does. Scans now tint the map as UQM does, by adding the scan's colour to it.
+Every world you can orbit shows its own surface map below the planet, as UQM makes it: the same terrain, craters, gas giant bands and storms, in the same colours. Earth shows its own map. Worlds under a shield (Earth in a new game) show the map with the shield's red added, as UQM does. Scans tint the map as UQM does, by adding the scan's colour to it.
 
-Since item 7, the planet above the map turns, as below.
+The planet above the map turns, as below.
 
 ![Earth under its shield: red, with the shield's halo, over its own map](../screenshots/content-surface-earth.png)
 
@@ -127,9 +163,9 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSu
 
 `EveryWorldsHeightMapIsTheOneUqmMakes` makes the height map of every one of the 3,799 worlds that can be orbited (all but Earth) and checks each against what UQM's own generator makes of it. That needs no content: the terrain is made by code alone. `AFewWholeMapsMatchPointForPoint` compares three whole maps point by point, so a difference shows where it is. `EveryWorldsColouredMapIsTheOneUqmDraws` checks every world's coloured map against UQM's own drawing code with the package's colour tables (by hash). `EveryBinaryTableIsReadAsUqmReadsIt` checks all 149 of the package's binary tables against UQM's reader. The rest check Earth's own map, the shield's red, and UQM's additive blending sums.
 
-## So far: the rotating planet
+## The rotating planet
 
-Item 7 is built. In orbit, the world turns above its map as in UQM: its own surface wrapped round a sphere, tilted by its axial tilt, lit from the side its sun is on (a moon by its planet's sun), with its relief shading the light. It turns one map column at a time, a full turn every 12 seconds, east or west depending on its tilt. It turns by the shared game clock, so players orbiting the same world see the same side of it at the same moment (`docs/differences.md` row 28). The surface and sphere are made off the main thread as orbit starts, so entering orbit doesn't stall a frame; for that moment the placeholder circle shows. A shielded world (Earth in a new game) is drawn reddened inside UQM's red halo.
+In orbit, the world turns above its map as in UQM: its own surface wrapped round a sphere, tilted by its axial tilt, lit from the side its sun is on (a moon by its planet's sun), with its relief shading the light. It turns one map column at a time, a full turn every 12 seconds, east or west depending on its tilt. It turns by the shared game clock, so players orbiting the same world see the same side of it at the same moment (`docs/differences.md` row 28). The surface and sphere are made off the main thread as orbit starts, so entering orbit doesn't stall a frame; for that moment the placeholder circle shows. A shielded world (Earth in a new game) is drawn reddened inside UQM's red halo.
 
 UQM's own planet drawing is used throughout, with UQM's default (PC) shield, which glows steadily; the 3DO option's pulsing shield isn't ported. The zoom of the planet onto the screen as orbit starts isn't either: the planet is simply there, already turning.
 
@@ -152,9 +188,9 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSp
 
 `EveryWorldsLightMapIsTheOneUqmMakes` checks the light map (the relief shading) of all 3,799 generated worlds against UQM's own code. `TheRotatingPlanetIsDrawnAsUqmDrawsIt` checks UQM's own drawing of the planet, for Earth (from its own images) and the first world of each planet type with and without a shield (62 worlds), built by the same code the orbit screen uses, at six points of its turn, pixel for pixel (by hash), and the shield's halo. `ItTurnsAsUqmTurnsIt` checks the direction, the steps and the place on screen; `ItTurnsOnTheSharedClockAtUqmsRate` that the step follows the world time at UQM's 12 seconds a turn.
 
-## So far: sprites in the views
+## Sprites in the views
 
-Item 8 is built. The placeholders are gone from the system views and hyperspace: everything is drawn from UQM's own sprites, in UQM's colours, three times UQM's size.
+The placeholders are gone from the system views and hyperspace: everything is drawn from UQM's own sprites, in UQM's colours, three times UQM's size.
 
 - **Hyperspace** has UQM's dark red background, with the stars near you drawn from their sprites by size and colour, and the flagships (yours and other players') turning through their 16 facings. Things are where UQM puts them: your ship sits a little right of and below the screen's middle, as in UQM.
 - **A system's outer view** has the system's own background stars, the sun by its size and colour (bigger as you zoom in), and each planet by its image size and colour family, lit from the side its sun is on. They're drawn in UQM's order, so where images overlap, the same one is in front.
@@ -184,11 +220,11 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter SpritesT
 
 `EverySystemViewIsStampedAsUqmStampsIt` checks every view of all 502 systems (the outer view at its four zooms and every planet's inner view) against UQM's own `DrawSystem`, stamp by stamp: which image, which frame, where, in which colours and in which order. `EveryStarBackgroundIsUqms` checks every system's background stars against UQM's own `CreateStarBackGround`. `ShieldsStarbasesAndColoursAreUqms` checks Sol by name: Earth's shield, the starbase, the sun's frames. `ColourMapsAreSetAsSetColorMapSetsThem` checks UQM's colour map rules; `TheSpaceSpritesAreDrawnWithUqmsColourMaps` draws every frame of the package's system and hyperspace sheets in every colour they're used in. `HyperScreenTests` checks where the hyperspace screen puts the ship, other ships and stars.
 
-## So far: contact by shape and entering a star
+## Contact by shape and entering a star
 
-Item 9 is built. Whether your ship touches a star, a planet or a moon is now decided as UQM decides it: the sprites' real shapes from the content, pixel against pixel, with UQM's own intersection code. A new contact needs the ship's sprite to cover the world's or star's centre; a contact ends once the ship has cleared the whole image. In a system this is UQM's exactly, checked frame by frame against UQM's own flights.
+Whether your ship touches a star, a planet or a moon is decided as UQM decides it: the sprites' real shapes from the content, pixel against pixel, with UQM's own intersection code. A new contact needs the ship's sprite to cover the world's or star's centre; a contact ends once the ship has cleared the whole image. In a system this is UQM's exactly, checked frame by frame against UQM's own flights.
 
-Flying into a star now plays UQM's entry: the ship turns to face up, shrinks into the star while drifting onto it, and only then does the system appear (under a second and a half). Other players see your entry where you were, and you see theirs. The ship can't be steered while it plays: no keys are sent, the host ignores them anyway, and its system doesn't start until the entry is over, as in UQM. The status says "entering" the star meanwhile. A friend who joins while you enter a star rides in with your flagship and undocks once you've both arrived. `--start-at` can't be combined with `--start-orbit`, and on a loaded game it only works if the host's ship is in hyperspace (a notice says so otherwise).
+Flying into a star plays UQM's entry: the ship turns to face up, shrinks into the star while drifting onto it, and only then does the system appear (under a second and a half). Other players see your entry where you were, and you see theirs. The ship can't be steered while it plays: no keys are sent, the host ignores them anyway, and its system doesn't start until the entry is over, as in UQM. The status says "entering" the star meanwhile. A friend who joins while you enter a star rides in with your flagship and undocks once you've both arrived. `--start-at` can't be combined with `--start-orbit`, and on a loaded game it only works if the host's ship is in hyperspace (a notice says so otherwise).
 
 ![Entering Sol: the flagship shrinking into the star](../screenshots/content-star-entry.png)
 
