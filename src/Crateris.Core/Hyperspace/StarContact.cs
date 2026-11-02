@@ -34,8 +34,11 @@ public static class StarContact
     public const int ReachY = ((50 * 12 + (50 << 2)) >> 1) / 12;   // 33
 
     /// <summary>Whether AddStars puts a star near a ship at a universe position (only those can be touched, or drawn).</summary>
-    public static bool InReach(Star star, int universeX, int universeY) =>
-        Math.Abs(star.X - universeX) <= ReachX && Math.Abs(star.Y - universeY) <= ReachY;
+    public static bool InReach(Star star, int universeX, int universeY) => InReach(star.X, star.Y, universeX, universeY);
+
+    /// <summary>Whether a universe position is within that reach of a ship's (other ships are drawn by it too).</summary>
+    public static bool InReach(int x, int y, int universeX, int universeY) =>
+        Math.Abs(x - universeX) <= ReachX && Math.Abs(y - universeY) <= ReachY;
 
     /// <summary>
     /// Call once per hyperspace frame, after the ship has moved, with where
@@ -110,13 +113,7 @@ public static class StarContact
     /// <summary>WORLD_TO_DISPLAY of a logical coordinate.</summary>
     private static short Display(long logical) => checked((short)(logical >> Units.OneShift));
 
-    /// <summary>
-    /// Where the ship's sprite is, in hyperspace logical units: its
-    /// hyperspace position plus how far it is from the middle of the view.
-    /// At high speed the view's scroll (at most ORG_JUMP a frame) lags the
-    /// ship, and UQM tests the sprite where it is drawn.
-    /// </summary>
+    /// <summary>Where the ship's sprite is (<see cref="HyperFlight.SpriteAt"/>).</summary>
     public static (long X, long Y) SpritePosition(HyperFlight ship) =>
-        (ship.LogX + (long)(ship.ViewX - HyperFlight.CenterX),
-         ship.LogY + (long)(ship.ViewY - HyperFlight.CenterY));
+        HyperFlight.SpriteAt(ship.LogX, ship.LogY, ship.ViewX, ship.ViewY);
 }

@@ -178,6 +178,10 @@ public sealed class GameWorld
         {
             ship.SystemStar = hostShip.SystemStar;
             ship.Ip = hostIp.JoinAt(ship.Loadout.Thrusters, ship.Loadout.Jets);
+            // While the flagship's entry into the star plays, the escort
+            // goes in with it: it waits and is drawn entering too, from the
+            // flagship's contact, and both arrive when it ends.
+            ship.Entry = hostShip.Entry is { } e && e.PlayingAt(Frame) ? e : null;
         }
         AddPlayer(new Player(id, name, isHost: false, ship) { Present = true, UndockPending = true });
         return JoinResult.Joined;
@@ -270,9 +274,8 @@ public sealed class GameWorld
             // The entry plays from where and how the ship touched the star
             // (init_transition); clients draw it from this.
             var f = ship.Flight;
-            var (sx, sy) = StarContact.SpritePosition(f);
             var entry = new StarEntryState(Frame, f.LogX, f.LogY, f.ViewX, f.ViewY, f.Facing, star.Number,
-                StarEntry.Animate(sx, sy, f.Facing, star, Shapes!.HyperFlagship.Count).Count);
+                StarEntry.Turns(f.Facing, Shapes!.HyperFlagship.Count));
             EnterSystem(ship, star);
             ship.Entry = entry;
         }

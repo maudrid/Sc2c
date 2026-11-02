@@ -36,7 +36,7 @@ namespace Crateris.Game;
 public partial class Main : Node2D
 {
     private Options _options = null!;
-    private bool _running;   // false after a bad command line, while quitting
+    private bool _running;   // false once quitting (a bad command line, no content, Finish): the frame methods stop
     private string _playerId = "";
     private string _name = "";
     private string _savePath = "";
@@ -83,7 +83,7 @@ public partial class Main : Node2D
         catch (Exception e)
         {
             GD.PrintErr($"Bad command line: {e.Message}");
-            GetTree().Quit(2);
+            Quit(2);
             return;
         }
 
@@ -161,7 +161,7 @@ public partial class Main : Node2D
         {
             GD.PrintErr($"{why} Give it with --content PATH or {ContentLocation.EnvironmentVariable}, " +
                 $"or start the game once with a window to download it.");
-            GetTree().Quit(3);
+            Quit(3);
             return;
         }
         Log(why);
@@ -218,7 +218,7 @@ public partial class Main : Node2D
             string message = $"The UQM content is the official package, but it couldn't be read: {e.Message}";
             GD.PrintErr(message);
             if (Headless)
-                GetTree().Quit(4);
+                Quit(4);
             else
             {
                 _contentError = new ContentErrorScreen(message);
@@ -344,7 +344,8 @@ public partial class Main : Node2D
         long peer = Multiplayer.GetRemoteSenderId();
         var welcome = _host.Hello(peer, playerId, name, version);
         RpcId(peer, MethodName.Welcomed, Protocol.Encode(welcome));
-        if (!Protocol.Accepted(welcome.Result))
+        // A refused newcomer is let go; a player already on this connection stays.
+        if (!Protocol.Accepted(welcome.Result) && !_host.InGame(peer))
             GetTree().CreateTimer(0.5).Timeout += () => Multiplayer.MultiplayerPeer?.DisconnectPeer((int)peer);
     }
 
@@ -544,6 +545,13 @@ public partial class Main : Node2D
         GD.Print(message);
     }
 
+    /// <summary>Quits; nothing more runs a frame meanwhile.</summary>
+    private void Quit(int code)
+    {
+        _running = false;
+        GetTree().Quit(code);
+    }
+
     private void Finish(int code)
     {
         if (_finished)
@@ -568,6 +576,6 @@ public partial class Main : Node2D
             File.WriteAllText(_options.ReportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }
         Multiplayer.MultiplayerPeer?.Close();
-        GetTree().Quit(code);
+        Quit(code);
     }
 }

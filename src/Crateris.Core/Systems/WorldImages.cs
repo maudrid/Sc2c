@@ -38,6 +38,18 @@ public static class WorldImages
     public const int StarbaseFrame = 16;
     public const int SaMatraFrame = 19;
 
+    /// <summary>A world's image faces the light in one of 16 facings (FACING_SHIFT).</summary>
+    public const int Facings = 1 << UqmMath.FacingShift;
+
+    /// <summary>
+    /// Image sizes: a planet type's size (0 to 2) plus at most 3 (the planet
+    /// in its inner view), so 0 to 5.
+    /// </summary>
+    public const int Sizes = (int)Data.PlanetSize.GasGiant + 1 + SystemLayout.InnerPlanetSizeAdd;
+
+    /// <summary>The frames of graphics.planets a world can be.</summary>
+    public const int WorldFrames = Sizes * Facings;
+
     /// <summary>
     /// ValidateOrbit's image for a world: an orbital frame by size, lit from
     /// the sun (a moon by its planet's direction from the sun), or the

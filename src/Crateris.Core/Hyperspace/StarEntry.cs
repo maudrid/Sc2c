@@ -35,15 +35,25 @@ public static class StarEntry
     /// loads (the frame after the last). <paramref name="frameCount"/> is
     /// the hyperspace flagship sheet's frame count (34 in 0.8.0).
     /// </summary>
-    public static IReadOnlyList<Step> Animate(long spriteX, long spriteY, int facing, Star star, int frameCount)
+    /// <summary>
+    /// init_transition's num_turns: how many frames the entry plays (the
+    /// steps of <see cref="Animate"/>): the frames after the facings, and
+    /// the turn to facing 0. At least 1 (frameCount &gt; Facings), so UQM's
+    /// "if (num_turns == 0)" can't happen.
+    /// </summary>
+    public static int Turns(int facing, int frameCount)
     {
         if (frameCount <= Facings)
             throw new ArgumentException("the hyperspace flagship has no frames after its facings", nameof(frameCount));
+        return frameCount - Facings + UqmMath.NormalizeFacing(Facings - facing);
+    }
+
+    public static IReadOnlyList<Step> Animate(long spriteX, long spriteY, int facing, Star star, int frameCount)
+    {
         // init_transition: the velocity that covers the distance in num_turns frames.
         short dx = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogX(star.X) - spriteX));
         short dy = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogY(star.Y) - spriteY));
-        // At least 1 (frameCount > Facings), so UQM's "if (num_turns == 0)" can't happen.
-        int turns = frameCount - Facings + UqmMath.NormalizeFacing(Facings - facing);
+        int turns = Turns(facing, frameCount);
         var velocity = default(Velocity);
         velocity.SetComponents((short)(dx / turns), (short)(dy / turns));
 

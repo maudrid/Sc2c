@@ -118,7 +118,7 @@ public sealed record StarEntryState(long ContactFrame, int LogX, int LogY, short
     int Star, int Steps)
 {
     /// <summary>Where the ship's sprite was at contact, in hyperspace logical units.</summary>
-    public (long X, long Y) Sprite => (LogX + (long)(ViewX - HyperFlight.CenterX), LogY + (long)(ViewY - HyperFlight.CenterY));
+    public (long X, long Y) Sprite => HyperFlight.SpriteAt(LogX, LogY, ViewX, ViewY);
 
     /// <summary>Whether the entry is still playing at a world frame (the contact frame and the steps after it).</summary>
     public bool PlayingAt(long frame) => frame >= ContactFrame && frame <= ContactFrame + Steps;

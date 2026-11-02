@@ -94,12 +94,11 @@ public sealed class ContactShapes
                 if (frames[i].Mask is null)
                     throw new ContentPackageException($"{what} frame {i} is tested for contact, but its shape can't be read (a true colour image without alpha)");
         }
-        const int facings = 16;
-        Need("graphics.flagship", shapes.IpFlagship, facings);
-        Need("graphics.planets", shapes.Worlds, 6 << 4);
+        Need("graphics.flagship", shapes.IpFlagship, Systems.WorldImages.Facings);
+        Need("graphics.planets", shapes.Worlds, Systems.WorldImages.WorldFrames);
         Need("graphics.orbitbackground", shapes.Junk, 0, Systems.WorldImages.StarbaseFrame, Systems.WorldImages.SaMatraFrame);
-        Need("ship.flagship.graphics.hyperspace", shapes.HyperFlagship, facings);
-        Need("graphics.hyperstars", shapes.HyperStars, 3 * Data.Star.StarColors);
+        Need("ship.flagship.graphics.hyperspace", shapes.HyperFlagship, Hyperspace.StarEntry.Facings);
+        Need("graphics.hyperstars", shapes.HyperStars, Enum.GetValues<Data.StarSize>().Length * Data.Star.StarColors);
         Need("graphics.stars", new[] { shapes.IpPoint }, 1);
         Need("graphics.ambient", new[] { shapes.HyperPoint }, 1);
         return shapes;

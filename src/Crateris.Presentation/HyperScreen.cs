@@ -74,7 +74,7 @@ public static class HyperScreen
     /// whole screen.
     /// </summary>
     public static bool ShowsShip(int universeX, int universeY, int viewerUniverseX, int viewerUniverseY) =>
-        Math.Abs(universeX - viewerUniverseX) <= StarReachX && Math.Abs(universeY - viewerUniverseY) <= StarReachY;
+        StarContact.InReach(universeX, universeY, viewerUniverseX, viewerUniverseY);
 
     /// <summary>AllocHyperElement's place for a star, drawn on the screen of the ship at (<paramref name="logX"/>, <paramref name="logY"/>).</summary>
     public static (int X, int Y) Star(Star star, int logX, int logY) =>

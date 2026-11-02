@@ -77,6 +77,15 @@ public sealed class HyperFlight
     public short ViewY { get; set; } = CenterY;
 
     /// <summary>
+    /// Where a ship's sprite is, in hyperspace logical units: its position
+    /// plus how far it is from the middle of its view. At high speed the
+    /// view's scroll (at most ORG_JUMP a frame) lags the ship, and UQM tests
+    /// and draws the sprite where it is.
+    /// </summary>
+    public static (long X, long Y) SpriteAt(int logX, int logY, short viewX, short viewY) =>
+        (logX + (long)(viewX - CenterX), logY + (long)(viewY - CenterY));
+
+    /// <summary>
     /// The star (map number) the ship has just come out of and is still on,
     /// which it can't fall back into (UQM's CurStarDescPtr in hyperspace).
     /// <see cref="StarContact.Check"/> clears it on the first frame the ship

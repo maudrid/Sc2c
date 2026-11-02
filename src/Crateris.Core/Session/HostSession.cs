@@ -36,6 +36,9 @@ public sealed class HostSession
     /// <summary>Guests in the game, by peer.</summary>
     public int Guests => _peers.Count;
 
+    /// <summary>Whether a peer has a player in the game (a refused hello from it mustn't close its connection).</summary>
+    public bool InGame(long peer) => _peers.ContainsKey(peer);
+
     public event Action<string>? Logged;
 
     /// <summary>A new game: the host in the flagship, in hyperspace at the start.</summary>
@@ -77,15 +80,22 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// A guest says hello: refused if its version differs, otherwise joined
-    /// (or refused, if the game is full). The welcome goes back to it; an
+    /// A guest says hello: refused if its version differs or its connection
+    /// already has a player, otherwise joined (or refused, if the game is full). The welcome goes back to it; an
     /// accepted guest's input and undocking are taken from its peer from now on.
     /// </summary>
     public Protocol.Welcome Hello(long peer, string playerId, string name, int version)
     {
         JoinResult result;
         string message;
-        if (version != Protocol.Version)
+        if (_peers.TryGetValue(peer, out var already))
+        {
+            // One player a connection: a second hello changes nothing, and
+            // the player already on it stays until the connection closes.
+            result = JoinResult.AlreadyPresent;
+            message = $"This connection is already in the game as {already}.";
+        }
+        else if (version != Protocol.Version)
         {
             result = JoinResult.Full;
             message = $"Version mismatch: host {Protocol.Version}, you {version}.";

@@ -46,8 +46,8 @@ public sealed class InputScript
         foreach (var part in text.Split(',', StringSplitOptions.RemoveEmptyEntries))
         {
             var kv = part.Split(':');
-            if (kv.Length != 2 || !int.TryParse(kv[1], out int frames) || frames < 0)
-                throw new ArgumentException($"A script step is name:frames, not '{part}'");
+            if (kv.Length != 2 || !int.TryParse(kv[1], out int frames) || frames < 1)
+                throw new ArgumentException($"A script step is name:frames, with at least one frame, not '{part}'");
             var input = ShipInput.None;
             MenuKey? menuKey = null;
             foreach (var key in kv[0].Split('+'))

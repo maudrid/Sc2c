@@ -57,12 +57,26 @@ public sealed class PlayerSession
         Entries = new StarEntryTracker(systems.Map, entryFrameCount);
     }
 
+    private string _playerId = "";
+
     /// <summary>The local player's id (a host that loads a save takes the save's).</summary>
-    public string PlayerId { get; set; }
+    public string PlayerId
+    {
+        get => _playerId;
+        set
+        {
+            _playerId = value;
+            Me = Snapshot?.Ships.FirstOrDefault(s => s.Id == value);
+        }
+    }
 
     public WorldSnapshot? Snapshot { get; private set; }
 
-    public ShipSnapshot? Me => Snapshot?.Ships.FirstOrDefault(s => s.Id == PlayerId);
+    /// <summary>The local player's ship in the snapshot (found once for each snapshot).</summary>
+    public ShipSnapshot? Me { get; private set; }
+
+    /// <summary>Whether the local player's entry into a star is playing.</summary>
+    public bool Entering => Me != null && Entries.Playing(Me.Id);
 
     /// <summary>The entries into stars playing in the snapshot.</summary>
     public StarEntryTracker Entries { get; }
@@ -110,6 +124,7 @@ public sealed class PlayerSession
         if (Snapshot != null && snapshot.Frame <= Snapshot.Frame)
             return;
         Snapshot = snapshot;
+        Me = snapshot.Ships.FirstOrDefault(s => s.Id == PlayerId);
         foreach (var s in snapshot.Ships)
         {
             if (_seenActivity.TryGetValue(s.Id, out var last) && last == s.Activity)
@@ -125,7 +140,10 @@ public sealed class PlayerSession
     /// The ship input to send this frame, from the keys held (or the script,
     /// whose menu keys are pressed here). In orbit the keys go to the orbit
     /// menu instead. After Navigate, the action key is held a few frames.
-    /// While an entry into a star plays the host ignores input, as UQM does.
+    /// While the player's entry into a star plays, nothing is sent: the host
+    /// ignores it then anyway, as UQM does, and input read now would land
+    /// on the first system frames after it (the input delay), while the
+    /// player still watches the entry. A script's steps still run by time.
     /// </summary>
     public ShipInput NextInput(ShipInput keys)
     {
@@ -139,6 +157,8 @@ public sealed class PlayerSession
         }
         else
             input = Me?.Activity == Activity.Orbit ? ShipInput.None : keys;
+        if (Entering)
+            return ShipInput.None;
         if (_leaveFrames > 0)
         {
             _leaveFrames--;
@@ -260,7 +280,7 @@ public sealed class PlayerSession
         get
         {
             var me = Me;
-            if (me == null || me.Activity == Activity.Hyperspace || Entries.Playing(me.Id))
+            if (me == null || me.Activity == Activity.Hyperspace || Entering)
                 return PlayerScreen.Hyperspace;
             return me.Activity == Activity.Orbit ? PlayerScreen.Orbit : PlayerScreen.System;
         }
@@ -287,19 +307,21 @@ public sealed class PlayerSession
             var host = Snapshot?.Ships.FirstOrDefault(s => s.IsHost);
             lines.Add($"Undocking from {host?.Name ?? "the"}'s flagship...");
         }
-        if (Me?.Activity != Activity.Orbit)
+        if (Me?.Activity != Activity.Orbit && !Entering)
             lines.Add("Arrows: turn and thrust");
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();
     }
 
-    /// <summary>Where a ship is, in words.</summary>
+    /// <summary>Where a ship is, in words (entering a star while its entry plays, as the screen shows it).</summary>
     public string Where(ShipSnapshot s)
     {
         if (s.Activity == Activity.Hyperspace || s.SystemStar is not int star)
             return $"hyperspace {s.UniverseX / 10.0:0.0} : {s.UniverseY / 10.0:0.0}";
         var at = _systems.Map.Stars[star];
         string cluster = _names?.Cluster(at) ?? $"star {star}";
+        if (Entries.Playing(s.Id))
+            return $"entering {cluster}";
         return s.Activity switch
         {
             Activity.InnerSystem when s.InnerPlanet is int p => $"the {cluster} system, near {_names?.PlanetName(at, p) ?? $"planet {p}"}",

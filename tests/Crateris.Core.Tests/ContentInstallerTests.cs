@@ -17,8 +17,11 @@ namespace Crateris.Core.Tests;
 /// Downloading and copying the content package, with the SHA-256 check,
 /// against a small web server the test runs itself (no real download).
 /// The "package" is bytes made by the test, with their own hash standing
-/// in for the official one.
+/// in for the official one. The stall tests time real pauses, so they run
+/// on their own: alongside the tests that use every core, the test
+/// server's thread pool could be starved past the stall limit.
 /// </summary>
+[Collection(TimingSensitive.Name)]
 public sealed class ContentInstallerTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"crateris-install-{Guid.NewGuid():N}");
@@ -322,4 +325,11 @@ public sealed class ContentInstallerTests : IDisposable
         public SyncProgress(Action<InstallProgress> report) => _report = report;
         public void Report(InstallProgress value) => _report(value);
     }
+}
+
+/// <summary>Tests that time real pauses: run on their own, not alongside the others.</summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class TimingSensitive
+{
+    public const string Name = "Timing-sensitive";
 }

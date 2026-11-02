@@ -36,7 +36,7 @@ public class SessionTests
     [Fact]
     public void AScriptPlaysItsStepsAndPressesMenuKeysOnce()
     {
-        var script = InputScript.Parse("thrust:2,left+thrust:1,down:2,none:0,select:1");
+        var script = InputScript.Parse("thrust:2,left+thrust:1,down:2,select:1");
         var got = new List<(ShipInput, MenuKey?)>();
         for (int i = 0; i < 8; ++i)
             got.Add((script.Next(out var key), key));
@@ -49,6 +49,8 @@ public class SessionTests
         Assert.True(script.Done);
         Assert.Throws<ArgumentException>(() => InputScript.Parse("warp:3"));
         Assert.Throws<ArgumentException>(() => InputScript.Parse("thrust"));
+        // A step of no frames would be skipped before its key is pressed: refused.
+        Assert.Throws<ArgumentException>(() => InputScript.Parse("none:5,select:0"));
     }
 
     [ContentFact]
@@ -70,6 +72,11 @@ public class SessionTests
         host.GuestInput(5, host.World.Frame + 1, (int)ShipInput.Thrust);
         host.GuestInput(99, host.World.Frame + 1, (int)ShipInput.Thrust);
         host.Step(ShipInput.None);
+        // A second hello on the same connection changes nothing.
+        var again = host.Hello(5, "other", "Other", Protocol.Version);
+        Assert.Equal(JoinResult.AlreadyPresent, again.Result);
+        Assert.True(host.InGame(5));
+        Assert.Null(host.World.Find("other"));
         host.GuestLeft(5);
         Assert.Equal(0, host.Guests);
         Assert.False(host.World.Find("guest")!.Present);
@@ -191,7 +198,51 @@ public class SessionTests
         }
         // The contact frame, then one frame for each step of the entry.
         Assert.Equal(entry.Steps + 1, shown);
+        Assert.Equal(StarEntry.Turns(entry.Facing, TestContent.Shapes.HyperFlagship.Count), entry.Steps);
         Assert.Equal(PlayerScreen.System, player.Screen);
         Assert.Null(player.Me!.Entry);
+    }
+
+    [ContentFact]
+    public void WhileYourEntryPlaysNothingIsSentAndTheStatusSaysSo()
+    {
+        var host = NewHost();
+        host.StartAt(1752, 1430);
+        var player = Player("host");
+        for (int i = 0; i < 200 && host.World.Host.Ship.Activity == Activity.Hyperspace; ++i)
+            player.Observe(host.Step(player.NextInput(ShipInput.Thrust)));
+        Assert.True(player.Entering);
+        Assert.Equal(ShipInput.None, player.NextInput(ShipInput.Thrust | ShipInput.Left));
+        var lines = player.StatusLines();
+        Assert.Contains(lines, l => l.StartsWith("You: entering star 82"));
+        Assert.DoesNotContain("Arrows: turn and thrust", lines);
+        // Held keys during the entry don't carry into the system after it.
+        while (player.Entering)
+            player.Observe(host.Step(player.NextInput(ShipInput.Thrust | ShipInput.Left)));
+        var arrival = host.World.Host.Ship.Ip!;
+        var (location, facing) = (arrival.Location, arrival.Facing);
+        for (int i = 0; i < host.World.Settings.InputDelayFrames; ++i)
+            player.Observe(host.Step(player.NextInput(ShipInput.None)));
+        Assert.Equal((location, facing), (arrival.Location, arrival.Facing));
+    }
+
+    [ContentFact]
+    public void AGuestJoiningDuringTheHostsEntryGoesInWithIt()
+    {
+        var host = NewHost();
+        host.StartAt(1752, 1430);
+        for (int i = 0; i < 200 && host.World.Host.Ship.Activity == Activity.Hyperspace; ++i)
+            host.Step(ShipInput.Thrust);
+        var entry = host.World.Host.Ship.Entry!;
+        host.Step(ShipInput.None);
+        host.Hello(4, "guest", "Guest", Protocol.Version);
+        var guest = host.World.Find("guest")!.Ship;
+        Assert.Equal(entry, guest.Entry);
+        var at = guest.Ip!.Location;
+        host.Step(ShipInput.None);
+        Assert.Equal(at, guest.Ip!.Location);   // waiting with the flagship
+        while (host.World.Host.Ship.Entry != null)
+            host.Step(ShipInput.None);
+        Assert.Null(guest.Entry);               // both arrive together
     }
 }
