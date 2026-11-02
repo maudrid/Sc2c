@@ -1168,6 +1168,68 @@ def record_planet_surfaces(uqm, systems_exe, strings_exe, images_exe=None,
     return out
 
 
+def planetside_lines(exe, tables_dir=None):
+    """The systems program's planetside mode, one parsed line at a time."""
+    proc = subprocess.Popen([exe, "planetside"] + ([tables_dir] if tables_dir else []),
+                            stdout=subprocess.PIPE, text=True)
+    for line in proc.stdout:
+        yield json.loads(line)
+    if proc.wait():
+        raise RuntimeError("the planetside mode failed")
+
+
+def record_planetside(uqm, systems_exe, strings_exe, images_exe=None, package=None):
+    """Every landable world's planetside map (TopoScale4x), with frandom
+    started afresh for each world (docs/plans/stage-2b.md, decision 1):
+    the 4x height maps (code only) and, with the package, the coloured 4x
+    maps (content, so hashes). Returns {"planetside-heights": ... and
+    "planetside-colors": ... (with the package)}."""
+    sources = ["tools/extract/golden/systems.c", "tools/extract/golden/stubs.c",
+               "tools/extract/golden/sha256.h", "src/uqm/planets/plangen.c",
+               "src/uqm/planets/gentopo.c"]
+    heights = [[star, planet, moon, landable, topo or None]
+               for star, planet, moon, landable, topo, _ in planetside_lines(systems_exe)]
+    if sum(1 for w in heights if w[3]) == 0:
+        raise RuntimeError("no landable worlds")
+    data = header(uqm, sources, [
+        "Every world's planetside map, the 4x map UQM 0.8.0's own "
+        "GeneratePlanetSurface makes with TopoScale4x (plangen.c) on entering "
+        "orbit from a new game, for worlds that are neither shielded nor gas "
+        "giants. TopoScale4x draws on frandom, whose seed UQM starts at "
+        "0x12345678 when the program starts and never resets; here each world "
+        "is run in a process of its own, so frandom starts afresh for each, "
+        "as the engine does (docs/plans/stage-2b.md, decision 1). Code only, "
+        "no content.",
+        "worlds: [star, planet, moon or -1, landable, SHA-256 of the "
+        "(MAP_WIDTH * 4) x (MAP_HEIGHT * 4) signed bytes, row by row, or null].",
+    ])
+    data["worlds"] = heights
+    out = {"planetside-heights": data}
+    if package:
+        with tempfile.TemporaryDirectory() as tmp:
+            tables = planet_tables(strings_exe, images_exe, package, tmp)
+            colors = [[star, planet, moon, colored or None]
+                      for star, planet, moon, landable, _, colored
+                      in planetside_lines(systems_exe, tables)]
+        if [c[0:3] for c in colors] != [h[0:3] for h in heights]:
+            raise RuntimeError("the planetside runs visited different worlds")
+        missing = [h[0:3] for h, c in zip(heights, colors) if h[3] and not c[3]]
+        if missing:
+            raise RuntimeError(f"landable worlds without a coloured map: {missing[:5]}")
+        data = header(uqm, sources, [
+            "Every landable world's coloured planetside map as UQM 0.8.0's own "
+            "RenderTopography draws the 4x map, with the colour maps and "
+            "translate tables (BINTAB) of the official content package "
+            f"(SHA-256 {CONTENT_SHA256}), frandom started afresh for each world "
+            "as in planetside-heights.json. Content, so each map is the SHA-256 "
+            "of its pixels as R, G, B bytes, row by row.",
+            "worlds: [star, planet, moon or -1, SHA-256 or null (not landable)].",
+        ])
+        data["worlds"] = colors
+        out["planetside-colors"] = data
+    return out
+
+
 def record_binary_tables(uqm, exe, package):
     """Every BINTAB resource in the official content package, as UQM's own
     _GetBinaryTableData reads it. Content, so only lengths and hashes."""
@@ -1255,6 +1317,7 @@ def main():
                            ("system-layout", record_layout(uqm, systems)),
                            ("system-sprites", record_sprites(uqm, systems)),
                            *record_planet_surfaces(uqm, systems, strings, images, args.content).items(),
+                           *record_planetside(uqm, systems, strings, images, args.content).items(),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),

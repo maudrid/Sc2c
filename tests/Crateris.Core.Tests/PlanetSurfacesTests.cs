@@ -24,7 +24,7 @@ public class PlanetSurfacesTests
 
     private static string Hash(byte[] b) => Convert.ToHexString(SHA256.HashData(b)).ToLowerInvariant();
 
-    private static byte[] RgbBytes(Rgb[] colors)
+    internal static byte[] RgbBytes(Rgb[] colors)
     {
         var b = new byte[colors.Length * 3];
         for (int i = 0; i < colors.Length; ++i)

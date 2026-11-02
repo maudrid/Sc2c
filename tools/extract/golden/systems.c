@@ -29,6 +29,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 int ScreenWidth = 320, ScreenHeight = 240;
 
@@ -485,6 +487,13 @@ static int surface_colored;
 static Color sphere_pixels[128 * 128], shield_pixels[128 * 128];
 static int sphere_written, shield_written;
 int optWhichShield = OPT_PC;   /* UQM's default: the shield doesn't throb */
+/* Planetside mode: the 4x map (TopoScale4x) of each landable world. */
+static int planetside_mode;
+#define PLANETSIDE_WIDTH (MAP_WIDTH << 2)
+#define PLANETSIDE_HEIGHT (MAP_HEIGHT << 2)
+static SBYTE planetside_topo[320 * 4 * 240 * 4];
+static Color planetside_colors[320 * 4 * 240 * 4];
+static int planetside_colored;
 
 /* Earth's frames' pixels: frame 0 RGB (3 bytes a pixel), frame 1 palette
  * indexes (1 byte), as UQM's own PNG loader loads them. */
@@ -704,6 +713,20 @@ DrawBatch (PRIMITIVE *base, PRIM_LINKS links, BATCH_FLAGS flags)
 {
 	COUNT i;
 	(void) flags;
+	if (planetside_mode)
+	{	/* Planetside mode: the second RenderTopography, the 4x map. */
+		if (fg_frame_calls != 3)
+			return;
+		for (i = GetPredLink (links); i != END_OF_LIST;
+				i = GetSuccLink (GetPrimLinks (&base[i])))
+		{
+			POINT p = base[i].Object.Point;
+			planetside_colors[p.y * PLANETSIDE_WIDTH + p.x] =
+					GetPrimColor (&base[i]);
+			++planetside_colored;
+		}
+		return;
+	}
 	if (fg_frame_calls != 1 || surface_defined)
 		return;	/* only the first RenderTopography: the scan map */
 	for (i = GetPredLink (links); i != END_OF_LIST;
@@ -1082,6 +1105,107 @@ surfaces_main (int argc, char *argv[])
 		}
 	}
 	surfaces_mode = 1;
+	walk_worlds (&walk);
+	return 0;
+}
+
+/* "planetside [DIR]": every landable world's planetside map, the 4x map
+ * GeneratePlanetSurface makes with TopoScale4x for worlds that are neither
+ * shielded nor gas giants, one line per world in orbits mode's order:
+ * [star, planet, moon or -1, landable, 4x height map, 4x coloured map].
+ * TopoScale4x draws on frandom, whose seed is a static that UQM starts at
+ * 0x12345678 when the program starts and never resets; the engine starts
+ * it afresh for each world (docs/plans/stage-2b.md, decision 1). So each
+ * world runs in a child process of its own, in which frandom has never
+ * run: the child is UQM's code for the first world orbited in a session.
+ * Without DIR, the child takes the height map as surfaces mode does and
+ * runs UQM's TopoScale4x on it, with GeneratePlanetSurface's arguments;
+ * the height map is given as the SHA-256 of its PLANETSIDE_WIDTH x
+ * PLANETSIDE_HEIGHT signed bytes, row by row. With DIR (the colour and
+ * translate tables, as in surfaces mode), the child runs the whole of
+ * GeneratePlanetSurface and the coloured map is caught as RenderTopography
+ * draws the 4x map, given as the SHA-256 of its R, G, B bytes. Maps not
+ * made are "". The parent then enters orbit itself without making the
+ * surface, so the walk goes on as in surfaces mode and its own frandom
+ * never runs. */
+static void
+planetside_child (PLANET_DESC *world)
+{
+	int entered, landable;
+	const PlanetFrame *type;
+
+	surfaces_mode = 1;
+	have_topo = surface_defined = surface_colored = 0;
+	surface_complete = sphere_written = shield_written = 0;
+	planetside_colored = 0;
+	entered = enter_orbit (world);
+	type = &PlanData[world->data_index & ~PLANET_SHIELDED];
+	landable = entered && !(world->data_index & PLANET_SHIELDED)
+			&& pSolarSysState->SysInfo.PlanetInfo.AtmoDensity
+			!= GAS_GIANT_ATMOSPHERE;
+	printf ("%d, ", landable);
+	if (landable && have_topo && !tables_dir)
+	{	/* As GeneratePlanetSurface calls it. */
+		TopoScale4x (planetside_topo, surface_topo, type->num_faults,
+				type->fault_depth
+				* (PLANALGO (type->Type) == CRATERED_ALGO ? 2 : 1));
+		print_hash (planetside_topo, PLANETSIDE_WIDTH * PLANETSIDE_HEIGHT);
+	}
+	else
+		printf ("\"\"");
+	printf (", ");
+	if (landable && tables_dir
+			&& planetside_colored == PLANETSIDE_WIDTH * PLANETSIDE_HEIGHT)
+		print_color_hash (planetside_colors,
+				PLANETSIDE_WIDTH * PLANETSIDE_HEIGHT, 0);
+	else
+		printf ("\"\"");
+}
+
+static void
+planetside_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
+{
+	pid_t pid;
+	int status;
+
+	printf ("[%u, %u, %d, ", s, p, m);
+	fflush (stdout);
+	pid = fork ();
+	if (pid < 0)
+	{
+		perror ("fork");
+		exit (1);
+	}
+	if (pid == 0)
+	{
+		planetside_child (world);
+		fflush (stdout);
+		_exit (0);
+	}
+	if (waitpid (pid, &status, 0) != pid || !WIFEXITED (status)
+			|| WEXITSTATUS (status) != 0)
+	{
+		fprintf (stderr, "planetside: world %u:%u:%d failed\n", s, p, m);
+		exit (1);
+	}
+	printf ("]\n");
+	/* The walk goes on as surfaces mode's does, without the surface. */
+	surfaces_mode = 0;
+	enter_orbit (world);
+	pSolarSysState->InOrbit = FALSE;
+}
+
+static int
+planetside_main (int argc, char *argv[])
+{
+	static const WorldWalk walk = { NULL, planetside_world, NULL };
+	if (argc > 1)
+	{
+		fprintf (stderr, "planetside: unexpected %s\n", argv[1]);
+		return 1;
+	}
+	tables_dir = argc > 0 ? argv[0] : NULL;
+	planetside_mode = 1;
 	walk_worlds (&walk);
 	return 0;
 }
@@ -1824,6 +1948,8 @@ main (int argc, char *argv[])
 
 	if (argc > 1 && strcmp (argv[1], "surfaces") == 0)
 		return surfaces_main (argc - 2, argv + 2);
+	if (argc > 1 && strcmp (argv[1], "planetside") == 0)
+		return planetside_main (argc - 2, argv + 2);
 	if (argc > 1 && strcmp (argv[1], "orbits") == 0)
 		return orbits_main ();
 	if (argc > 1 && strcmp (argv[1], "ip") == 0)

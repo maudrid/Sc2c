@@ -80,6 +80,24 @@ public sealed class PlanetSurfaces
         return new OrbitedWorld(shielded ? ShieldTinted(generated) : generated, sphere);
     }
 
+    /// <summary>
+    /// A world's planetside map, the one the lander drives over, coloured
+    /// as the scan map is (GeneratePlanetSurface: TopoScale4x, then
+    /// RenderTopography at four times the size), or null if the lander
+    /// can't go down there (shielded, or a gas giant). Its heights are
+    /// <see cref="PlanetsideMap.Generate"/>'s.
+    /// </summary>
+    public Rgb[]? Planetside(SolarSystem system, int planet, int? moon, PlanetInfo orbit)
+    {
+        var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
+        if (!PlanetsideMap.Landable(world.DataIndex, orbit))
+            return null;
+        var type = system.Generator.Types[WorldTypes.PlanetType(world.DataIndex)];
+        var heights = PlanetsideMap.Generate(Generated(system, planet, moon, orbit).Heights, type);
+        return Color(heights, type, orbit.SurfaceTemperature,
+            Table(type.ColorMapResource), Table(type.TranslateTableResource));
+    }
+
     /// <summary>A surface with the shield's red added to its coloured map (ApplyShieldTint).</summary>
     public static PlanetSurface ShieldTinted(PlanetSurface surface) =>
         surface with { Colors = Array.ConvertAll(surface.Colors, c => AddClipped(c, ShieldTint)) };
