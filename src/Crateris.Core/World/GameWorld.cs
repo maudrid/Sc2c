@@ -51,27 +51,6 @@ public sealed record ShipSnapshot(
     short ViewX = Crateris.Core.Hyperspace.HyperFlight.CenterX, short ViewY = Crateris.Core.Hyperspace.HyperFlight.CenterY,
     StarEntryState? Entry = null, HoldSnapshot? Hold = null);
 
-/// <summary>
-/// What a ship carries (<see cref="ShipHold"/>): crew, landers, storage
-/// capacity, minerals by element category, bio data and lander upgrades.
-/// </summary>
-public sealed record HoldSnapshot(int Crew, int Landers, int StorageCapacity, IReadOnlyList<int> Minerals, int BioData,
-    LanderUpgrades Upgrades = LanderUpgrades.None)
-{
-    public static HoldSnapshot Of(ShipHold h) =>
-        new(h.Crew, h.Landers, h.StorageCapacity, h.Minerals.ToArray(), h.BioData, h.Upgrades);
-
-    public int MineralMass => Minerals.Sum();
-
-    // Equal by the amounts, so snapshots compare by value.
-    public bool Equals(HoldSnapshot? other) =>
-        other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades)
-            == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades)
-        && Minerals.SequenceEqual(other.Minerals);
-
-    public override int GetHashCode() => HashCode.Combine(Crew, Landers, StorageCapacity, BioData, Upgrades, MineralMass);
-}
-
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
 
@@ -127,6 +106,7 @@ public sealed class GameWorld
     {
         if ((systems is null) != (shapes is null))
             throw new ArgumentException("systems and the sprites' shapes go together");
+        ShipHold.Check(settings.EscortLoadout);   // a guest's escort is made from it
         Settings = settings;
         Clock = clock;
         Frame = frame;
@@ -399,7 +379,7 @@ public sealed class GameWorld
                 p.UndockPending, p.Ship.Activity, p.Ship.SystemStar, ip?.InnerPlanet,
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
                 ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy, f.ViewX, f.ViewY,
-                p.Ship.Entry is { } e && e.PlayingAt(Frame) ? e : null, HoldSnapshot.Of(p.Ship.Hold));
+                p.Ship.Entry is { } e && e.PlayingAt(Frame) ? e : null, p.Ship.Hold.Snapshot());
         }).ToList();
 
         // Worlds being orbited, with what has been taken from them, so an

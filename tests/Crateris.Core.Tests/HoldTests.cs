@@ -56,17 +56,26 @@ public class HoldTests
         // Fill the bay to 470: only 30 more fit.
         for (int i = 0; i < 4; ++i)
         {
-            hold.LanderLeaves(hold.CrewForLander);
+            hold.LanderLeaves();
             hold.LanderReturns(12, Minerals((0, 100)), 0);
         }
-        hold.LanderLeaves(12);
+        hold.LanderLeaves();
         hold.LanderReturns(12, Minerals((7, 70)), 3);
         Assert.Equal((470, 30), (hold.MineralMass, hold.FreeStorage));
         Assert.Equal(30, hold.LanderMineralCapacity);
         Assert.Equal(new[] { 400, 0, 0, 0, 0, 0, 0, 70 }, hold.Minerals);
         Assert.Equal(3, hold.BioData);
-        hold.LanderLeaves(12);
-        Assert.Throws<InvalidOperationException>(() => hold.LanderReturns(12, Minerals((1, 31)), 0));
+        // A lander brings back no more than it had room for when it left, and 50 bio data.
+        hold.LanderLeaves();
+        Assert.Equal((12, 30), hold.LanderOut);
+        Assert.Throws<ArgumentOutOfRangeException>(() => hold.LanderReturns(12, Minerals((1, 31)), 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => hold.LanderReturns(12, Minerals(), 51));
+        hold.LanderReturns(12, Minerals((1, 30)), 50);
+        Assert.Equal((500, 53), (hold.MineralMass, hold.BioData));
+        // Without the upgrade, 50 at most however much room there is.
+        var plain = new ShipHold(new ShipLoadout(2, 2, 1, 0, 50, 1000));
+        plain.LanderLeaves();
+        Assert.Throws<ArgumentOutOfRangeException>(() => plain.LanderReturns(12, Minerals((0, 400)), 0));
         // No storage bay: nothing fits.
         Assert.Equal(0, new ShipHold(new ShipLoadout(2, 2, 1, 0, 50, 1000, StorageBays: 0)).LanderMineralCapacity);
     }
@@ -75,23 +84,53 @@ public class HoldTests
     public void ALanderTakesUpToTwelveCrewAndIsLostWithThemAll()
     {
         var hold = new ShipHold(new ShipLoadout(2, 2, 1, 0, 14, 1000, Landers: 2));
-        Assert.Equal(12, hold.CrewForLander);
-        hold.LanderLeaves(12);
+        Assert.Equal(12, hold.LanderLeaves());
         Assert.Equal(2, hold.Crew);
-        Assert.Equal(2, hold.CrewForLander);
-        // Five come back with what they found.
+        Assert.Throws<InvalidOperationException>(() => hold.LanderLeaves());   // one at a time
+        // Five come back with what they found; no more than went down.
+        Assert.Throws<ArgumentOutOfRangeException>(() => hold.LanderReturns(13, Minerals(), 0));
         hold.LanderReturns(5, Minerals((2, 20)), 4);
         Assert.Equal((7, 2, 20, 4), (hold.Crew, hold.Landers, hold.MineralMass, hold.BioData));
+        Assert.Null(hold.LanderOut);
+        Assert.Throws<InvalidOperationException>(() => hold.LanderReturns(5, Minerals(), 0));   // none is out
         // All die: the lander and what it carried are lost.
-        hold.LanderLeaves(7);
+        Assert.Equal(7, hold.LanderLeaves());
         hold.LanderReturns(0, Minerals((2, 50)), 9);
         Assert.Equal((0, 1, 20, 4), (hold.Crew, hold.Landers, hold.MineralMass, hold.BioData));
-        Assert.Equal(0, hold.CrewForLander);
-        Assert.Throws<ArgumentOutOfRangeException>(() => hold.LanderLeaves(1));
-        hold.LanderLeaves(0);
-        hold.LanderReturns(0, Minerals(), 0);
-        Assert.Throws<InvalidOperationException>(() => hold.LanderLeaves(0));   // no lander left
+        // No crew left: no lander goes down.
+        Assert.Throws<InvalidOperationException>(() => hold.LanderLeaves());
+        // No lander aboard: none goes down, so none can be lost.
+        var none = new ShipHold(new ShipLoadout(2, 2, 1, 0, 50, 1000, Landers: 0));
+        Assert.Throws<InvalidOperationException>(() => none.LanderLeaves());
+        Assert.Throws<InvalidOperationException>(() => none.LanderReturns(0, Minerals(), 0));
+        Assert.Equal(0, none.Landers);
         Assert.Throws<ArgumentOutOfRangeException>(() => new ShipHold(new ShipLoadout(2, 2, 1, 0, 1, 0, Landers: 11)));
+    }
+
+    [Fact]
+    public void ALanderOutIsSavedAsBackAboardWithItsCrew()
+    {
+        var world = NewWorld();
+        world.Host.Ship.Hold.LanderLeaves();
+        var loaded = HostSave.FromJson(HostSave.ToJson(world)).Host.Ship.Hold;
+        Assert.Equal((50, 1), (loaded.Crew, loaded.Landers));
+        Assert.Null(loaded.LanderOut);
+    }
+
+    [Fact]
+    public void TheSnapshotIsMadeAgainOnlyWhenTheHoldChanges()
+    {
+        var hold = new ShipHold(new ShipLoadout(2, 2, 1, 0, 50, 1000));
+        var first = hold.Snapshot();
+        Assert.Same(first, hold.Snapshot());
+        hold.LanderLeaves();
+        var out_ = hold.Snapshot();
+        Assert.NotSame(first, out_);
+        Assert.Equal(38, out_.Crew);
+        hold.LanderReturns(12, Minerals((4, 8)), 0);
+        Assert.Equal(8, hold.Snapshot().MineralMass);
+        hold.Upgrades = LanderUpgrades.Shot;
+        Assert.Equal(LanderUpgrades.Shot, hold.Snapshot().Upgrades);
     }
 
     [Fact]
@@ -100,7 +139,7 @@ public class HoldTests
         var world = NewWorld();
         var hold = world.Host.Ship.Hold;
         hold.Upgrades = LanderUpgrades.Speed | LanderUpgrades.LavaShield;
-        hold.LanderLeaves(12);
+        hold.LanderLeaves();
         hold.LanderReturns(9, Minerals((3, 33), (5, 6)), 7);
 
         var loaded = HostSave.FromJson(HostSave.ToJson(world)).Host.Ship.Hold;
@@ -138,15 +177,35 @@ public class HoldTests
     [InlineData("bio_data", -3)]
     [InlineData("upgrades", 128)]
     [InlineData("minerals", 501)]
+    [InlineData("no minerals", 0)]
     public void ABadHoldIsRefused(string field, int value)
     {
         var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
         var hold = node["players"]![0]!["hold"]!;
         if (field == "minerals")
             hold["minerals"] = new JsonArray(value, 0, 0, 0, 0, 0, 0, 0);
+        else if (field == "no minerals")
+            hold.AsObject().Remove("minerals");
         else
             hold[field] = value;
         var e = Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString()));
         Assert.Contains("host", e.Message);
+        if (field == "no minerals")
+            Assert.Contains("has no minerals", e.Message);
+    }
+
+    [Theory]
+    [InlineData("landers", 11)]
+    [InlineData("storage_bays", -1)]
+    [InlineData("crew", -5)]
+    public void ABadEscortLoadoutIsRefusedWhenTheSaveLoads(string field, int value)
+    {
+        var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
+        node["settings"]!["escort_loadout"]![field] = value;
+        var e = Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString()));
+        Assert.Contains("escort loadout", e.Message);
+        Assert.Throws<ArgumentOutOfRangeException>(() => GameWorld.NewGame(
+            new GameSettings { EscortLoadout = new GameSettings().EscortLoadout with { Landers = 11 } },
+            NewGameData.Load(DataDir), "host", "Host"));
     }
 }

@@ -35,10 +35,39 @@ public enum LanderUpgrades
 }
 
 /// <summary>
+/// A ship's hold as it's saved: crew aboard, landers aboard, minerals by
+/// element category, bio data and lander upgrades. A lander that is out is
+/// saved as back aboard with its crew (stage 2b, decision 5: the lander
+/// takes off when its player leaves).
+/// </summary>
+public sealed record HoldState(int Crew, int Landers, int[]? Minerals, int BioData,
+    LanderUpgrades Upgrades = LanderUpgrades.None);
+
+/// <summary>
+/// What a ship carries (<see cref="ShipHold"/>), as snapshots send it:
+/// crew, landers, storage capacity, minerals by element category, bio data
+/// and lander upgrades. Equal by value, so snapshots compare by value.
+/// </summary>
+public sealed record HoldSnapshot(int Crew, int Landers, int StorageCapacity, IReadOnlyList<int> Minerals, int BioData,
+    LanderUpgrades Upgrades = LanderUpgrades.None)
+{
+    public int MineralMass => Minerals.Sum();
+
+    public bool Equals(HoldSnapshot? other) =>
+        other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades)
+            == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades)
+        && Minerals.SequenceEqual(other.Minerals);
+
+    public override int GetHashCode() => HashCode.Combine(Crew, Landers, StorageCapacity, BioData, Upgrades, MineralMass);
+}
+
+/// <summary>
 /// What a ship carries for landing and mining (SIS_STATE in sis.h): its
 /// crew, its landers, the minerals in its storage bays by category
 /// (ElementAmounts, TotalElementMass) and its bio data (TotalBioMass), and
-/// its lander upgrades. Each player's own.
+/// its lander upgrades. Each player's own. A lander goes out with
+/// <see cref="LanderLeaves"/> and comes back, or is lost, with
+/// <see cref="LanderReturns"/>.
 /// </summary>
 public sealed class ShipHold
 {
@@ -54,21 +83,45 @@ public sealed class ShipHold
     public const int Categories = 8;
 
     private readonly int[] _minerals = new int[Categories];
+    private HoldSnapshot? _snapshot;
+    private LanderUpgrades _upgrades;
 
     public ShipHold(ShipLoadout loadout)
     {
-        if (loadout.Landers < 0 || loadout.Landers > MaxLanders)
-            throw new ArgumentOutOfRangeException(nameof(loadout), $"{loadout.Landers} landers (0 to {MaxLanders})");
-        if (loadout.StorageBays < 0 || loadout.Crew < 0)
-            throw new ArgumentOutOfRangeException(nameof(loadout), "negative storage bays or crew");
+        Check(loadout);
         Crew = loadout.Crew;
         Landers = loadout.Landers;
         StorageCapacity = loadout.StorageBays * StorageBayCapacity;
     }
 
+    /// <summary>A loadout a hold can start from: 0 to 10 landers, no negative crew or storage bays (ArgumentException).</summary>
+    public static void Check(ShipLoadout loadout)
+    {
+        if (loadout.Landers < 0 || loadout.Landers > MaxLanders)
+            throw new ArgumentOutOfRangeException(nameof(loadout), $"{loadout.Landers} landers (0 to {MaxLanders})");
+        if (loadout.StorageBays < 0)
+            throw new ArgumentOutOfRangeException(nameof(loadout), $"{loadout.StorageBays} storage bays");
+        if (loadout.Crew < 0)
+            throw new ArgumentOutOfRangeException(nameof(loadout), $"{loadout.Crew} crew");
+    }
+
+    /// <summary>Crew aboard (not counting a lander's that is out).</summary>
     public int Crew { get; private set; }
+
+    /// <summary>Landers aboard, and the one out if there is one.</summary>
     public int Landers { get; private set; }
-    public LanderUpgrades Upgrades { get; set; }
+
+    public LanderUpgrades Upgrades
+    {
+        get => _upgrades;
+        set
+        {
+            if ((value & ~LanderUpgrades.All) != 0)
+                throw new ArgumentOutOfRangeException(nameof(value), $"lander upgrades {(int)value}");
+            _upgrades = value;
+            _snapshot = null;
+        }
+    }
 
     /// <summary>The minerals the storage bays hold (GetStorageBayCapacity).</summary>
     public int StorageCapacity { get; }
@@ -90,59 +143,91 @@ public sealed class ShipHold
     /// storage bays have room for.
     /// </summary>
     public int LanderMineralCapacity =>
-        Math.Min(Upgrades.HasFlag(LanderUpgrades.Cargo) ? MaxScrounged << 1 : MaxScrounged, FreeStorage);
+        Math.Min(_upgrades.HasFlag(LanderUpgrades.Cargo) ? MaxScrounged << 1 : MaxScrounged, FreeStorage);
 
     /// <summary>The crew a lander takes now: up to 12, as many as are aboard (AnimateLanderWarmup).</summary>
     public int CrewForLander => Math.Min(LanderCrew, Crew);
 
-    /// <summary>A lander leaves with its crew.</summary>
-    public void LanderLeaves(int crew)
+    /// <summary>The lander that is out: the crew it took and the minerals it has room for; null if none is.</summary>
+    public (int Crew, int MineralCapacity)? LanderOut { get; private set; }
+
+    /// <summary>
+    /// A lander leaves, taking up to 12 crew (AnimateLanderWarmup). UQM
+    /// dispatches one only with a lander and crew aboard (DoScan), one at a
+    /// time. Returns the crew it took.
+    /// </summary>
+    public int LanderLeaves()
     {
+        if (LanderOut is not null)
+            throw new InvalidOperationException("a lander is already out");
         if (Landers == 0)
             throw new InvalidOperationException("no lander aboard");
-        if (crew < 0 || crew > CrewForLander)
-            throw new ArgumentOutOfRangeException(nameof(crew), $"{crew} crew (0 to {CrewForLander})");
+        if (Crew == 0)
+            throw new InvalidOperationException("no crew to take the lander down");
+        int crew = CrewForLander;
+        LanderOut = (crew, LanderMineralCapacity);
         Crew -= crew;
+        _snapshot = null;
+        return crew;
     }
 
     /// <summary>
-    /// A lander comes back (PlanetSide): its crew go back aboard and what it
-    /// carries goes into the hold. A lander whose crew all died is lost, and
-    /// what it carried with it.
+    /// The lander that is out comes back (PlanetSide): the crew still alive
+    /// go back aboard and what it carries goes into the hold, within what it
+    /// could carry (its mineral room when it left, MAX_SCROUNGED bio data).
+    /// A lander whose crew all died is lost, and what it carried with it.
     /// </summary>
     public void LanderReturns(int crew, IReadOnlyList<int> minerals, int bioData)
     {
-        if (crew < 0 || bioData < 0 || minerals.Count != Categories || minerals.Any(m => m < 0))
-            throw new ArgumentOutOfRangeException(nameof(minerals), "bad lander cargo");
+        if (LanderOut is not { } lander)
+            throw new InvalidOperationException("no lander is out");
+        if (crew < 0 || crew > lander.Crew)
+            throw new ArgumentOutOfRangeException(nameof(crew), $"{crew} crew (0 to the {lander.Crew} it took)");
+        if (minerals.Count != Categories || minerals.Any(m => m < 0) || minerals.Sum() > lander.MineralCapacity)
+            throw new ArgumentOutOfRangeException(nameof(minerals),
+                $"minerals need {Categories} amounts of at least 0, {lander.MineralCapacity} in all at most");
+        if (bioData < 0 || bioData > MaxScrounged)
+            throw new ArgumentOutOfRangeException(nameof(bioData), $"{bioData} bio data (0 to {MaxScrounged})");
+        LanderOut = null;
+        _snapshot = null;
         if (crew == 0)
         {
             Landers--;
             return;
         }
-        if (minerals.Sum() > FreeStorage)
-            throw new InvalidOperationException($"{minerals.Sum()} minerals don't fit in {FreeStorage}");
         Crew += crew;
         for (int i = 0; i < Categories; ++i)
             _minerals[i] += minerals[i];
         BioData += bioData;
     }
 
-    /// <summary>Puts a saved hold back (the loadout gives the storage).</summary>
-    internal void Restore(int crew, int landers, IReadOnlyList<int> minerals, int bioData, LanderUpgrades upgrades)
+    /// <summary>The hold for snapshots, made again only when it changes.</summary>
+    public HoldSnapshot Snapshot() =>
+        _snapshot ??= new HoldSnapshot(Crew, Landers, StorageCapacity, _minerals.ToArray(), BioData, _upgrades);
+
+    /// <summary>The hold for the save; a lander that is out is saved as back aboard with its crew.</summary>
+    public HoldState Save() => new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades);
+
+    /// <summary>Puts a saved hold back (the loadout gives the storage). A bad one is an <see cref="InvalidDataException"/>.</summary>
+    public void Restore(HoldState state)
     {
-        if (crew < 0 || landers < 0 || landers > MaxLanders || bioData < 0)
-            throw new InvalidDataException($"bad hold: {crew} crew, {landers} landers, {bioData} bio data");
-        if (minerals.Count != Categories || minerals.Any(m => m < 0))
+        if (state.Minerals is not { } minerals)
+            throw new InvalidDataException("the hold has no minerals");
+        if (state.Crew < 0 || state.Landers < 0 || state.Landers > MaxLanders || state.BioData < 0)
+            throw new InvalidDataException(
+                $"bad hold: {state.Crew} crew, {state.Landers} landers (0 to {MaxLanders}), {state.BioData} bio data");
+        if (minerals.Length != Categories || minerals.Any(m => m < 0))
             throw new InvalidDataException($"bad hold: minerals need {Categories} amounts of at least 0");
         if (minerals.Sum() > StorageCapacity)
             throw new InvalidDataException($"bad hold: {minerals.Sum()} minerals in {StorageCapacity} of storage");
-        if ((upgrades & ~LanderUpgrades.All) != 0)
-            throw new InvalidDataException($"bad hold: lander upgrades {(int)upgrades}");
-        Crew = crew;
-        Landers = landers;
-        for (int i = 0; i < Categories; ++i)
-            _minerals[i] = minerals[i];
-        BioData = bioData;
-        Upgrades = upgrades;
+        if ((state.Upgrades & ~LanderUpgrades.All) != 0)
+            throw new InvalidDataException($"bad hold: lander upgrades {(int)state.Upgrades}");
+        Crew = state.Crew;
+        Landers = state.Landers;
+        minerals.CopyTo(_minerals, 0);
+        BioData = state.BioData;
+        _upgrades = state.Upgrades;
+        LanderOut = null;
+        _snapshot = null;
     }
 }

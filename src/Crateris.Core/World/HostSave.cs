@@ -63,9 +63,6 @@ public static class HostSave
         string Id, string Name, bool IsHost, ShipKind Kind, ShipLoadout Loadout, bool UndockPending,
         FlightState Flight, int? SystemStar = null, IpFlightState? System = null, HoldState? Hold = null);
 
-    public sealed record HoldState(int Crew, int Landers, int[] Minerals, int BioData,
-        LanderUpgrades Upgrades = LanderUpgrades.None);
-
     public static string ToJson(GameWorld world)
     {
         var players = world.Players.Select(p =>
@@ -79,8 +76,7 @@ public static class HostSave
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
                     f.StarJustLeft),
                 p.Ship.SystemStar, p.Ship.Ip?.Save(),
-                new HoldState(p.Ship.Hold.Crew, p.Ship.Hold.Landers, p.Ship.Hold.Minerals.ToArray(),
-                    p.Ship.Hold.BioData, p.Ship.Hold.Upgrades));
+                p.Ship.Hold.Save());
         }).ToList();
         var c = world.Clock;
         var worlds = world.Planets.Worlds
@@ -117,7 +113,15 @@ public static class HostSave
         {
             FramesIntoDay = save.Clock.FramesIntoDay,
         };
-        var world = new GameWorld(save.Settings, clock, save.Frame, systems, shapes, loading: true);
+        GameWorld world;
+        try
+        {
+            world = new GameWorld(save.Settings, clock, save.Frame, systems, shapes, loading: true);
+        }
+        catch (ArgumentOutOfRangeException e)
+        {
+            throw new InvalidDataException($"Bad settings: escort loadout: {e.Message}", e);
+        }
         foreach (var ps in save.Players)
         {
             PlayerShip ship;
@@ -125,7 +129,7 @@ public static class HostSave
             {
                 ship = new PlayerShip(ps.Kind, ps.Loadout);
                 if (ps.Hold is { } h)
-                    ship.Hold.Restore(h.Crew, h.Landers, h.Minerals ?? Array.Empty<int>(), h.BioData, h.Upgrades);
+                    ship.Hold.Restore(h);
             }
             catch (Exception e) when (e is ArgumentException or InvalidDataException)
             {
