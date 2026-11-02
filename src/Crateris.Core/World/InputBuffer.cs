@@ -21,8 +21,13 @@ public sealed class InputBuffer
 {
     private readonly SortedDictionary<long, ShipInput> _pending = new();
     private ShipInput _last;
+    private long _droppedThrough = long.MinValue;
 
-    public void Submit(long frame, ShipInput input) => _pending[frame] = input;
+    public void Submit(long frame, ShipInput input)
+    {
+        if (frame > _droppedThrough)
+            _pending[frame] = input;
+    }
 
     /// <summary>The input to apply on this frame.</summary>
     public ShipInput Take(long frame)
@@ -38,9 +43,24 @@ public sealed class InputBuffer
         return _last;
     }
 
+    /// <summary>
+    /// Drops every input meant for frames up to <paramref name="frame"/>,
+    /// those waiting and any that arrive later, and stops repeating the last
+    /// one: from then on, until an input for a later frame is taken, the
+    /// input is none.
+    /// </summary>
+    public void DropThrough(long frame)
+    {
+        while (_pending.Count > 0 && _pending.First().Key <= frame)
+            _pending.Remove(_pending.First().Key);
+        _droppedThrough = Math.Max(_droppedThrough, frame);
+        _last = ShipInput.None;
+    }
+
     public void Clear()
     {
         _pending.Clear();
         _last = ShipInput.None;
+        _droppedThrough = long.MinValue;
     }
 }

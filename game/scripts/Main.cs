@@ -386,19 +386,17 @@ public partial class Main : Node2D
     private void Welcomed(byte[] data)
     {
         var welcome = Protocol.Decode<Protocol.Welcome>(data);
-        if (_connected)
+        switch (Protocol.OnWelcome(welcome, alreadyIn: _connected))
         {
-            // Already in the game: a repeated welcome changes nothing.
-            Log($"Welcome again: {welcome.Message}");
-            return;
+            case Protocol.WelcomeAction.Ignore:
+                Log($"Welcome again: {welcome.Message}");
+                return;
+            case Protocol.WelcomeAction.Leave:
+                Fail(welcome.Message);
+                return;
         }
         _welcome = welcome;
         _inputDelay = _welcome.InputDelayFrames;
-        if (Protocol.Leaves(_welcome, alreadyIn: false))
-        {
-            Fail(_welcome.Message);
-            return;
-        }
         _connected = true;
         _status = $"Playing in the game at {_options.Address}:{_options.Port}.";
         _player?.Notify(_welcome.Message);

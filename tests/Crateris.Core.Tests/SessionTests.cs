@@ -76,8 +76,9 @@ public class SessionTests
         var again = host.Hello(5, "other", "Other", Protocol.Version);
         Assert.Equal(JoinResult.AlreadyPresent, again.Result);
         Assert.Equal("guest", again.PlayerId);                        // the player already on it
-        Assert.False(Protocol.Leaves(again, alreadyIn: true));        // and the guest stays in the game
-        Assert.True(Protocol.Leaves(refused, alreadyIn: false));
+        Assert.Equal(Protocol.WelcomeAction.Ignore, Protocol.OnWelcome(again, alreadyIn: true));   // the guest stays
+        Assert.Equal(Protocol.WelcomeAction.Leave, Protocol.OnWelcome(refused, alreadyIn: false));
+        Assert.Equal(Protocol.WelcomeAction.Join, Protocol.OnWelcome(welcome, alreadyIn: false));
         Assert.True(host.InGame(5));
         Assert.Null(host.World.Find("other"));
         host.GuestLeft(5);

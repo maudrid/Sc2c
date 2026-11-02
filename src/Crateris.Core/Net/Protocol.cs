@@ -25,8 +25,12 @@ namespace Crateris.Core.Net;
 /// </summary>
 public static class Protocol
 {
-    /// <summary>2: snapshots carry activities (systems, orbit) and the action input bit.</summary>
-    public const int Version = 2;
+    /// <summary>
+    /// 2: snapshots carry activities (systems, orbit) and the action input bit.
+    /// 3: snapshots carry entries into stars, and an escort's entry follows
+    /// its host's (only the host's is drawn).
+    /// </summary>
+    public const int Version = 3;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -54,10 +58,15 @@ public static class Protocol
     /// <summary>A refused join closes the connection.</summary>
     public static bool Accepted(JoinResult result) => result is JoinResult.Joined or JoinResult.Rejoined;
 
+    /// <summary>What a guest does with a welcome.</summary>
+    public enum WelcomeAction { Join, Leave, Ignore }
+
     /// <summary>
-    /// Whether a guest leaves on a welcome: a refused first welcome ends it;
-    /// once in the game, a later welcome (the answer to a repeated hello)
-    /// changes nothing, and the host keeps the player on the connection.
+    /// What a guest does with a welcome: an accepted first welcome joins it,
+    /// a refused one ends it; once in the game, a later welcome (the answer
+    /// to a repeated hello) changes nothing, and the host keeps the player on
+    /// the connection.
     /// </summary>
-    public static bool Leaves(Welcome welcome, bool alreadyIn) => !alreadyIn && !Accepted(welcome.Result);
+    public static WelcomeAction OnWelcome(Welcome welcome, bool alreadyIn) =>
+        alreadyIn ? WelcomeAction.Ignore : Accepted(welcome.Result) ? WelcomeAction.Join : WelcomeAction.Leave;
 }

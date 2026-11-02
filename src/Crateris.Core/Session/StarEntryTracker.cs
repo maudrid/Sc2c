@@ -51,11 +51,13 @@ public sealed class StarEntryTracker
     public void Observe(WorldSnapshot snapshot)
     {
         var now = new List<Entering>();
+        var playing = new HashSet<StarEntryState>();
         foreach (var ship in snapshot.Ships)
         {
             if (ship.Entry is not { } e || !e.PlayingAt(snapshot.Frame))
                 continue;
             var contact = e with { Following = null };
+            playing.Add(contact);
             if (!_animations.TryGetValue(contact, out var steps))
             {
                 var (sx, sy) = e.Sprite;
@@ -74,7 +76,7 @@ public sealed class StarEntryTracker
             }
         }
         // Forget finished entries.
-        foreach (var key in _animations.Keys.Where(k => !now.Any(n => n.State with { Following = null } == k)).ToList())
+        foreach (var key in _animations.Keys.Where(k => !playing.Contains(k)).ToList())
             _animations.Remove(key);
         _entering = now;
     }

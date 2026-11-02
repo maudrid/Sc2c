@@ -105,11 +105,14 @@ public sealed class HostSession
             result = World.Join(playerId, name);
             message = Protocol.Describe(result);
         }
-        Logged?.Invoke($"{name} ({playerId}): {result}");
+        // A repeated hello is answered (and logged) with the player already on the connection.
+        string answered = already ?? playerId;
+        Logged?.Invoke(already is null
+            ? $"{name} ({playerId}): {result}"
+            : $"{name} ({playerId}): {result}, peer {peer} is already {already}");
         if (Protocol.Accepted(result))
             _peers[peer] = playerId;
-        // A repeated hello is answered with the player already on the connection.
-        return new Protocol.Welcome(result, already ?? playerId, World.Settings.InputDelayFrames, message);
+        return new Protocol.Welcome(result, answered, World.Settings.InputDelayFrames, message);
     }
 
     /// <summary>A guest's input for a frame (only the four input bits count).</summary>

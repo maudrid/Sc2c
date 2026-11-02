@@ -105,6 +105,28 @@ public class StarEntryTrackerTests
     }
 
     [ContentFact]
+    public void PutInOrbitDuringAnEntryHoldsNoInput()
+    {
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "h", "Host", Systems, TestContent.Shapes);
+        var flight = world.Host.Ship.Flight;
+        flight.PlaceAtUniverse(1752, 1430);
+        flight.Stop();
+        flight.StarJustLeft = null;
+        for (int i = 0; i < 200 && world.Host.Ship.Activity == Activity.Hyperspace; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.Thrust);
+            world.Step();
+        }
+        Assert.NotNull(world.Host.Ship.Entry);
+        world.PutInOrbit("h", Sol.Number, 2);
+        Assert.Null(world.Host.Ship.Entry);
+        // The first press of the action key leaves orbit.
+        world.SubmitInput("h", world.Frame + 1, ShipInput.Action);
+        world.Step();
+        Assert.NotEqual(Activity.Orbit, world.Host.Ship.Activity);
+    }
+
+    [ContentFact]
     public void InputReadWhileTheEntryPlayedIsIgnoredHoweverLateItArrives()
     {
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "h", "Host", Systems, TestContent.Shapes);
@@ -121,8 +143,8 @@ public class StarEntryTrackerTests
         int delay = world.Settings.InputDelayFrames;
         long lastHeld = entry.ContactFrame + entry.Steps + delay;
         Assert.Equal(lastHeld, world.Host.Ship.InputHeldUntil);
-        // A guest that saw the entry late sends turns stamped for every frame
-        // up to lastHeld; none of them turns the ship.
+        // A turn stamped for every frame up to lastHeld, sent in time: none
+        // of them turns the ship.
         var ship = world.Host.Ship;
         while (world.Frame < lastHeld)
         {
@@ -132,6 +154,15 @@ public class StarEntryTrackerTests
         var facing = ship.Ip!.Facing;
         Assert.Null(ship.Entry);
         Assert.Equal(SystemTransition.Arrive(Sol).Facing, facing);   // as it arrived
+        // A lagging guest's turns, read during the entry, arrive after the
+        // hold: dropped, and the last one isn't repeated on frames with no
+        // input (a lost packet).
+        for (int i = 0; i < 20; ++i)
+        {
+            world.SubmitInput("h", lastHeld - 5 + i % 6, ShipInput.Right);
+            world.Step();
+        }
+        Assert.Equal(facing, ship.Ip!.Facing);
         // The first input read after it does.
         for (int i = 0; i < 20; ++i)
         {

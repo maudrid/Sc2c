@@ -159,6 +159,8 @@ public sealed class GameWorld
             existing.Name = name;
             existing.Present = true;
             _inputs[id].Clear();
+            if (existing.Ship.InputHeldUntil >= Frame)
+                _inputs[id].DropThrough(existing.Ship.InputHeldUntil);   // back during its entry
             return JoinResult.Rejoined;
         }
 
@@ -179,15 +181,14 @@ public sealed class GameWorld
             ship.SystemStar = hostShip.SystemStar;
             ship.Ip = hostIp.JoinAt(ship.Loadout.Thrusters, ship.Loadout.Jets);
             // While the flagship's entry into the star plays, the escort
-            // goes in with it: it waits and is drawn entering too, from the
-            // flagship's contact, and both arrive when it ends.
+            // goes in with it: it waits, following the flagship's entry
+            // (only the flagship's is drawn), and both arrive when it ends.
             if (hostShip.Entry is { } e && e.PlayingAt(Frame))
-            {
                 ship.Entry = e with { Following = Host.Id };
-                ship.InputHeldUntil = hostShip.InputHeldUntil;
-            }
         }
         AddPlayer(new Player(id, name, isHost: false, ship) { Present = true, UndockPending = true });
+        if (ship.Entry is not null)
+            HoldInput(ship, hostShip.InputHeldUntil);
         return JoinResult.Joined;
     }
 
@@ -234,12 +235,9 @@ public sealed class GameWorld
         {
             if (!p.Present)
                 continue;
+            // Input stamped while an entry into a star played is dropped
+            // by the buffer (HoldInput), however late it arrives.
             ShipInput input = _inputs[p.Id].Take(Frame);
-            // After an entry into a star, input read while it still played
-            // on the player's screen (stamped up to its end plus the input
-            // delay, however late that player saw it) is ignored.
-            if (Frame <= p.Ship.InputHeldUntil)
-                input = ShipInput.None;
             // The action key acts when pressed, not while held.
             bool actionPressed = (input & ShipInput.Action) != 0 && !_actionHeld.Contains(p.Id);
             if ((input & ShipInput.Action) != 0)
@@ -287,8 +285,20 @@ public sealed class GameWorld
                 StarEntry.Turns(f.Facing, Shapes!.HyperFlagship.Count));
             EnterSystem(ship, star);
             ship.Entry = entry;
-            ship.InputHeldUntil = Frame + entry.Steps + Settings.InputDelayFrames;
+            HoldInput(ship, Frame + entry.Steps + Settings.InputDelayFrames);
         }
+    }
+
+    /// <summary>
+    /// After an entry into a star, input read while it still played on the
+    /// player's screen (stamped up to its end plus the input delay) is
+    /// dropped, however late it arrives, and the last input isn't repeated.
+    /// </summary>
+    private void HoldInput(PlayerShip ship, long through)
+    {
+        ship.InputHeldUntil = through;
+        if (_players.FirstOrDefault(p => p.Ship == ship) is { } player)
+            _inputs[player.Id].DropThrough(through);
     }
 
     private void StepSystem(PlayerShip ship, ShipInput input)
@@ -338,6 +348,10 @@ public sealed class GameWorld
             throw new ArgumentException($"star {star} planet {planet} moon {moon}: that world can't be orbited");
 
         PlayerShip ship = player.Ship;
+        // Put straight there: no entry plays, so no input is held for one.
+        ship.Entry = null;
+        ship.InputHeldUntil = -1;
+        _inputs[id].Clear();
         if (ship.SystemStar != star)
         {
             if (ship.Ip is not null)

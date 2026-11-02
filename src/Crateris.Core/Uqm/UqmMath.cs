@@ -50,7 +50,7 @@ public static class UqmMath
     /// <summary>ANGLE_TO_FACING (FULL_CIRCLE): the 16 facings of a ship or a lit world.</summary>
     public const int Facings = 1 << FacingShift;
 
-    public static ushort NormalizeFacing(int f) => (ushort)(f & ((1 << FacingShift) - 1));
+    public static ushort NormalizeFacing(int f) => (ushort)(f & (Facings - 1));
 
     public static int FacingToAngle(int f) => f << (CircleShift - FacingShift);
 

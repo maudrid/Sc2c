@@ -57,7 +57,7 @@ public static class WorldImages
         if (WorldTypes.HasPlanetData(world.DataIndex))
         {
             int angle = UqmMath.ArcTan(lightFrom.X, lightFrom.Y);
-            return (SystemSheet.Worlds, (size << UqmMath.FacingShift) + UqmMath.NormalizeFacing(UqmMath.AngleToFacing(angle)));
+            return (SystemSheet.Worlds, size * UqmMath.Facings + UqmMath.NormalizeFacing(UqmMath.AngleToFacing(angle)));
         }
         return (SystemSheet.Junk, world.DataIndex == WorldTypes.SaMatra ? SaMatraFrame : StarbaseFrame);
     }
