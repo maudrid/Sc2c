@@ -26,16 +26,16 @@ public class HyperScreenTests
         Assert.Equal((128 + 10, 120 - 5), HyperScreen.Ship(5000, 6000, HyperFlight.CenterX + 40, HyperFlight.CenterY - 20, 5000, 6000));
         // Another ship 400 logical units right of the viewer.
         Assert.Equal((228, 120), HyperScreen.Ship(5400, 6000, HyperFlight.CenterX, HyperFlight.CenterY, 5000, 6000));
-        Assert.Equal((42, 33), (HyperScreen.StarReachX, HyperScreen.StarReachY));
+        Assert.Equal((42, 33), (StarContact.ReachX, StarContact.ReachY));
     }
 
     [Fact]
     public void OnlyShipsNearTheViewerAreDrawn()
     {
-        Assert.True(HyperScreen.ShowsShip(1042, 1967, 1000, 2000));
-        Assert.False(HyperScreen.ShowsShip(1043, 2000, 1000, 2000));
+        Assert.True(StarContact.InReach(1042, 1967, 1000, 2000));
+        Assert.False(StarContact.InReach(1043, 2000, 1000, 2000));
         // Across the map: not drawn, rather than placed by a wrapped distance.
-        Assert.False(HyperScreen.ShowsShip(8800, 2000, 1000, 2000));
+        Assert.False(StarContact.InReach(8800, 2000, 1000, 2000));
         // A ship 130,000 logical units away is placed off the screen, not on it.
         var (x, _) = HyperScreen.Ship(140000, 6000, HyperFlight.CenterX, HyperFlight.CenterY, 10000, 6000);
         Assert.True(x > 30000, $"placed at {x}");
@@ -50,8 +50,8 @@ public class HyperScreenTests
         // Ten universe units right (about 160 logical units, 40 pixels) and up.
         var (x, y) = HyperScreen.Star(star, Units.UniverseToLogX(990), Units.UniverseToLogY(1990));
         Assert.Equal((128 + (Units.UniverseToLogX(1000) - Units.UniverseToLogX(990)) / 4, 120 - (Units.UniverseToLogY(1990) - Units.UniverseToLogY(2000)) / 4), (x, y));
-        Assert.True(HyperScreen.Shows(star, 1042, 1967));
-        Assert.False(HyperScreen.Shows(star, 1043, 2000));
-        Assert.False(HyperScreen.Shows(star, 1000, 2034));
+        Assert.True(StarContact.InReach(star, 1042, 1967));
+        Assert.False(StarContact.InReach(star, 1043, 2000));
+        Assert.False(StarContact.InReach(star, 1000, 2034));
     }
 }

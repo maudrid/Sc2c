@@ -385,9 +385,16 @@ public partial class Main : Node2D
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void Welcomed(byte[] data)
     {
-        _welcome = Protocol.Decode<Protocol.Welcome>(data);
+        var welcome = Protocol.Decode<Protocol.Welcome>(data);
+        if (_connected)
+        {
+            // Already in the game: a repeated welcome changes nothing.
+            Log($"Welcome again: {welcome.Message}");
+            return;
+        }
+        _welcome = welcome;
         _inputDelay = _welcome.InputDelayFrames;
-        if (!Protocol.Accepted(_welcome.Result))
+        if (Protocol.Leaves(_welcome, alreadyIn: false))
         {
             Fail(_welcome.Message);
             return;

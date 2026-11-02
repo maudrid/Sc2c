@@ -141,9 +141,9 @@ public sealed class PlayerSession
     /// whose menu keys are pressed here). In orbit the keys go to the orbit
     /// menu instead. After Navigate, the action key is held a few frames.
     /// While the player's entry into a star plays, nothing is sent: the host
-    /// ignores it then anyway, as UQM does, and input read now would land
-    /// on the first system frames after it (the input delay), while the
-    /// player still watches the entry. A script's steps still run by time.
+    /// ignores input read then anyway (by the frame it's stamped for, which
+    /// covers a guest that sees the entry late), as UQM does. A script's
+    /// steps still run by time.
     /// </summary>
     public ShipInput NextInput(ShipInput keys)
     {
@@ -242,8 +242,8 @@ public sealed class PlayerSession
     public bool UndockTick()
     {
         var me = Me;
-        if (me == null || !me.UndockPending || UndockDone)
-            return false;
+        if (me == null || !me.UndockPending || UndockDone || Entering)
+            return false;   // while an entry plays, the scene waits for the system
         if (_undockFrames < 0)
         {
             _undockFrames = 0;

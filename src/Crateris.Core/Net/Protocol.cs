@@ -53,4 +53,11 @@ public static class Protocol
 
     /// <summary>A refused join closes the connection.</summary>
     public static bool Accepted(JoinResult result) => result is JoinResult.Joined or JoinResult.Rejoined;
+
+    /// <summary>
+    /// Whether a guest leaves on a welcome: a refused first welcome ends it;
+    /// once in the game, a later welcome (the answer to a repeated hello)
+    /// changes nothing, and the host keeps the player on the connection.
+    /// </summary>
+    public static bool Leaves(Welcome welcome, bool alreadyIn) => !alreadyIn && !Accepted(welcome.Result);
 }

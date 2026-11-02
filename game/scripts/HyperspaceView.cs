@@ -79,9 +79,9 @@ public partial class HyperspaceView : Control
             return;
         int ux = Units.LogXToUniverse(logX), uy = Units.LogYToUniverse(logY);
 
-        foreach (Star star in _map.InYRange(uy - HyperScreen.StarReachY, uy + HyperScreen.StarReachY))
+        foreach (Star star in _map.InYRange(uy - StarContact.ReachY, uy + StarContact.ReachY))
         {
-            if (!HyperScreen.Shows(star, ux, uy))
+            if (!StarContact.InReach(star, ux, uy))
                 continue;
             var (x, y) = HyperScreen.Star(star, logX, logY);
             Sprites.Draw(this, Sprites.Sprites.Hyper(false, star.HyperspaceFrame), x, y);
@@ -92,7 +92,7 @@ public partial class HyperspaceView : Control
         // shows no thrust outside battle (ion trails are battle only).
         var font = ThemeDB.FallbackFont;
         foreach (var ship in _snapshot!.Ships.Where(s => s.Activity == Activity.Hyperspace
-                     && HyperScreen.ShowsShip(s.UniverseX, s.UniverseY, ux, uy)))
+                     && StarContact.InReach(s.UniverseX, s.UniverseY, ux, uy)))
         {
             var (x, y) = HyperScreen.Ship(ship.LogX, ship.LogY, ship.ViewX, ship.ViewY, logX, logY);
             Sprites.Draw(this, Sprites.Sprites.Hyper(true, ship.Facing), x, y);
@@ -100,10 +100,11 @@ public partial class HyperspaceView : Control
                 SisScreen.ShipColor(ship, _me));
         }
 
-        // Ships entering a star: turning and drifting onto it, as UQM plays it.
-        foreach (var e in _entries.Current)
+        // Ships entering a star: turning and drifting onto it, as UQM plays
+        // it (an escort that joined meanwhile rides in with the flagship).
+        foreach (var e in _entries.Drawn)
         {
-            if (!HyperScreen.ShowsShip(Units.LogXToUniverse((int)e.X), Units.LogYToUniverse((int)e.Y), ux, uy))
+            if (!StarContact.InReach(Units.LogXToUniverse((int)e.X), Units.LogYToUniverse((int)e.Y), ux, uy))
                 continue;
             var (x, y) = HyperScreen.Sprite(e.X, e.Y, logX, logY);
             Sprites.Draw(this, Sprites.Sprites.Hyper(true, e.Frame), x, y);

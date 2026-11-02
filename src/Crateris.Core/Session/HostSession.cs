@@ -108,7 +108,8 @@ public sealed class HostSession
         Logged?.Invoke($"{name} ({playerId}): {result}");
         if (Protocol.Accepted(result))
             _peers[peer] = playerId;
-        return new Protocol.Welcome(result, playerId, World.Settings.InputDelayFrames, message);
+        // A repeated hello is answered with the player already on the connection.
+        return new Protocol.Welcome(result, already ?? playerId, World.Settings.InputDelayFrames, message);
     }
 
     /// <summary>A guest's input for a frame (only the four input bits count).</summary>

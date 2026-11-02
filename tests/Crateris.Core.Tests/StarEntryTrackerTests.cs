@@ -84,10 +84,15 @@ public class StarEntryTrackerTests
             world.Step();
             Assert.Equal(arrival, (ship.Ip!.Location, ship.Ip.Facing));   // waiting, input ignored
         }
-        world.SubmitInput("h", world.Frame + 1, ShipInput.Right);
         world.Step();
         Assert.Null(ship.Entry);
         Assert.Null(world.Snapshot().Ships[0].Entry);
+        // Input read during it is ignored too (to the end plus the input delay); then it flies.
+        for (int i = 0; i < world.Settings.InputDelayFrames + 20; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.Right);
+            world.Step();
+        }
         Assert.NotEqual(arrival.Facing, ship.Ip!.Facing);   // flying now
     }
 
@@ -97,5 +102,42 @@ public class StarEntryTrackerTests
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "h", "Host", Systems, TestContent.Shapes);
         world.PutInOrbit("h", 82, 2);
         Assert.Null(world.Host.Ship.Entry);
+    }
+
+    [ContentFact]
+    public void InputReadWhileTheEntryPlayedIsIgnoredHoweverLateItArrives()
+    {
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "h", "Host", Systems, TestContent.Shapes);
+        var flight = world.Host.Ship.Flight;
+        flight.PlaceAtUniverse(1752, 1430);
+        flight.Stop();
+        flight.StarJustLeft = null;
+        for (int i = 0; i < 200 && world.Host.Ship.Activity == Activity.Hyperspace; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.Thrust);
+            world.Step();
+        }
+        var entry = world.Host.Ship.Entry!;
+        int delay = world.Settings.InputDelayFrames;
+        long lastHeld = entry.ContactFrame + entry.Steps + delay;
+        Assert.Equal(lastHeld, world.Host.Ship.InputHeldUntil);
+        // A guest that saw the entry late sends turns stamped for every frame
+        // up to lastHeld; none of them turns the ship.
+        var ship = world.Host.Ship;
+        while (world.Frame < lastHeld)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.Right);
+            world.Step();
+        }
+        var facing = ship.Ip!.Facing;
+        Assert.Null(ship.Entry);
+        Assert.Equal(SystemTransition.Arrive(Sol).Facing, facing);   // as it arrived
+        // The first input read after it does.
+        for (int i = 0; i < 20; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.Right);
+            world.Step();
+        }
+        Assert.NotEqual(facing, ship.Ip!.Facing);
     }
 }

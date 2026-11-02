@@ -75,6 +75,9 @@ public class SessionTests
         // A second hello on the same connection changes nothing.
         var again = host.Hello(5, "other", "Other", Protocol.Version);
         Assert.Equal(JoinResult.AlreadyPresent, again.Result);
+        Assert.Equal("guest", again.PlayerId);                        // the player already on it
+        Assert.False(Protocol.Leaves(again, alreadyIn: true));        // and the guest stays in the game
+        Assert.True(Protocol.Leaves(refused, alreadyIn: false));
         Assert.True(host.InGame(5));
         Assert.Null(host.World.Find("other"));
         host.GuestLeft(5);
@@ -237,7 +240,15 @@ public class SessionTests
         host.Step(ShipInput.None);
         host.Hello(4, "guest", "Guest", Protocol.Version);
         var guest = host.World.Find("guest")!.Ship;
-        Assert.Equal(entry, guest.Entry);
+        Assert.Equal(entry with { Following = "host" }, guest.Entry);
+        // It rides in with the flagship: entering, but drawn only once, and
+        // its undocking scene waits for the system.
+        var player = Player("guest");
+        player.Observe(host.World.Snapshot());
+        Assert.True(player.Entering);
+        Assert.Equal(new[] { "host" }, player.Entries.Drawn.Select(e => e.Ship.Id));
+        Assert.False(player.UndockTick());
+        Assert.False(player.Undocking);
         var at = guest.Ip!.Location;
         host.Step(ShipInput.None);
         Assert.Equal(at, guest.Ip!.Location);   // waiting with the flagship

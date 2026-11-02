@@ -25,16 +25,11 @@ namespace Crateris.Core.Hyperspace;
 /// </summary>
 public static class StarEntry
 {
-    public const int Facings = 1 << UqmMath.FacingShift;   // ANGLE_TO_FACING (FULL_CIRCLE)
+    private const int Facings = UqmMath.Facings;
 
     /// <summary>One frame of the entry: the sheet's frame, and where the sprite is in hyperspace's logical units.</summary>
     public readonly record struct Step(int Frame, long X, long Y);
 
-    /// <summary>
-    /// The frames after contact, one a hyperspace frame, until the system
-    /// loads (the frame after the last). <paramref name="frameCount"/> is
-    /// the hyperspace flagship sheet's frame count (34 in 0.8.0).
-    /// </summary>
     /// <summary>
     /// init_transition's num_turns: how many frames the entry plays (the
     /// steps of <see cref="Animate"/>): the frames after the facings, and
@@ -48,6 +43,11 @@ public static class StarEntry
         return frameCount - Facings + UqmMath.NormalizeFacing(Facings - facing);
     }
 
+    /// <summary>
+    /// The frames after contact, one a hyperspace frame, until the system
+    /// loads (the frame after the last). <paramref name="frameCount"/> is
+    /// the hyperspace flagship sheet's frame count (34 in 0.8.0).
+    /// </summary>
     public static IReadOnlyList<Step> Animate(long spriteX, long spriteY, int facing, Star star, int frameCount)
     {
         // init_transition: the velocity that covers the distance in num_turns frames.

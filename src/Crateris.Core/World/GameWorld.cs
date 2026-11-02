@@ -181,7 +181,11 @@ public sealed class GameWorld
             // While the flagship's entry into the star plays, the escort
             // goes in with it: it waits and is drawn entering too, from the
             // flagship's contact, and both arrive when it ends.
-            ship.Entry = hostShip.Entry is { } e && e.PlayingAt(Frame) ? e : null;
+            if (hostShip.Entry is { } e && e.PlayingAt(Frame))
+            {
+                ship.Entry = e with { Following = Host.Id };
+                ship.InputHeldUntil = hostShip.InputHeldUntil;
+            }
         }
         AddPlayer(new Player(id, name, isHost: false, ship) { Present = true, UndockPending = true });
         return JoinResult.Joined;
@@ -231,6 +235,11 @@ public sealed class GameWorld
             if (!p.Present)
                 continue;
             ShipInput input = _inputs[p.Id].Take(Frame);
+            // After an entry into a star, input read while it still played
+            // on the player's screen (stamped up to its end plus the input
+            // delay, however late that player saw it) is ignored.
+            if (Frame <= p.Ship.InputHeldUntil)
+                input = ShipInput.None;
             // The action key acts when pressed, not while held.
             bool actionPressed = (input & ShipInput.Action) != 0 && !_actionHeld.Contains(p.Id);
             if ((input & ShipInput.Action) != 0)
@@ -278,6 +287,7 @@ public sealed class GameWorld
                 StarEntry.Turns(f.Facing, Shapes!.HyperFlagship.Count));
             EnterSystem(ship, star);
             ship.Entry = entry;
+            ship.InputHeldUntil = Frame + entry.Steps + Settings.InputDelayFrames;
         }
     }
 

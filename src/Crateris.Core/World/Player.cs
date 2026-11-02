@@ -56,6 +56,13 @@ public sealed class PlayerShip
     /// </summary>
     public StarEntryState? Entry { get; internal set; }
 
+    /// <summary>
+    /// The last world frame whose input is ignored after an entry into a
+    /// star: input for frames up to the entry's end plus the input delay
+    /// was read while the entry was still playing on its player's screen.
+    /// </summary>
+    public long InputHeldUntil { get; internal set; } = -1;
+
     /// <summary>In orbit: the world's report, scan seeds and nodes (from <see cref="IpFlight.OrbitData"/>).</summary>
     public OrbitData? Orbit => Ip?.OrbitData;
 
@@ -112,10 +119,13 @@ public sealed class Player
 /// its view then (so its sprite was at LogX + ViewX - CenterX), its
 /// facing, the star, and how many frames the entry plays after the contact
 /// frame (<see cref="StarEntry.Animate"/>'s steps). The system's flight
-/// starts on the frame after the last.
+/// starts on the frame after the last. An escort that joined during its
+/// host's entry has the host's, <paramref name="Following"/> the host: it
+/// waits with it and arrives with it, but rides in with the flagship rather
+/// than being drawn entering itself.
 /// </summary>
 public sealed record StarEntryState(long ContactFrame, int LogX, int LogY, short ViewX, short ViewY, int Facing,
-    int Star, int Steps)
+    int Star, int Steps, string? Following = null)
 {
     /// <summary>Where the ship's sprite was at contact, in hyperspace logical units.</summary>
     public (long X, long Y) Sprite => HyperFlight.SpriteAt(LogX, LogY, ViewX, ViewY);

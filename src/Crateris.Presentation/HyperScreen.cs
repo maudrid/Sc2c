@@ -39,9 +39,6 @@ public static class HyperScreen
     public const int OriginX = ((Units.LogSpaceWidth >> 1) - Units.LogSpaceWidth * Reduction / (MaxZoomOut << 2)) & ~((1 << Units.OneShift) - 1);
     public const int OriginY = ((Units.LogSpaceHeight >> 1) - Units.LogSpaceHeight * Reduction / (MaxZoomOut << 2)) & ~((1 << Units.OneShift) - 1);
 
-    /// <summary>How near a star must be to be drawn: the stars AddStars puts near a ship (<see cref="StarContact.ReachX"/>).</summary>
-    public const int StarReachX = StarContact.ReachX, StarReachY = StarContact.ReachY;
-
     /// <summary>CalcDisplayCoord with the smooth zoom (C division, towards zero).</summary>
     public static int Display(int c, int origin) => ((c - origin) << ZoomShift) / (Reduction << Units.OneShift);
 
@@ -52,7 +49,7 @@ public static class HyperScreen
     /// A ship drawn on the screen of the ship at (<paramref name="viewerLogX"/>,
     /// <paramref name="viewerLogY"/>): its own place in its view, moved by how
     /// far it is from the viewer. Only meaningful for a ship near the viewer
-    /// (<see cref="ShowsShip"/>); the distance isn't wrapped, as hyperspace
+    /// (<see cref="StarContact.InReach(int, int, int, int)"/>); the distance isn't wrapped, as hyperspace
     /// doesn't wrap at the map's scale.
     /// </summary>
     public static (int X, int Y) Ship(int logX, int logY, int viewX, int viewY, int viewerLogX, int viewerLogY) =>
@@ -68,19 +65,8 @@ public static class HyperScreen
         (Display(checked((int)(x - viewerLogX + HyperFlight.CenterX)), OriginX),
          Display(checked((int)(y - viewerLogY + HyperFlight.CenterY)), OriginY));
 
-    /// <summary>
-    /// Whether another ship is near enough to the viewer to be drawn: within
-    /// the same reach as the stars (<see cref="Shows"/>), which covers the
-    /// whole screen.
-    /// </summary>
-    public static bool ShowsShip(int universeX, int universeY, int viewerUniverseX, int viewerUniverseY) =>
-        StarContact.InReach(universeX, universeY, viewerUniverseX, viewerUniverseY);
-
     /// <summary>AllocHyperElement's place for a star, drawn on the screen of the ship at (<paramref name="logX"/>, <paramref name="logY"/>).</summary>
     public static (int X, int Y) Star(Star star, int logX, int logY) =>
         (Display(Wrap(Units.UniverseToLogX(star.X) + (Units.LogSpaceWidth >> 1) - (long)logX, Units.LogSpaceWidth), OriginX),
          Display(Wrap(Units.UniverseToLogY(star.Y) + (Units.LogSpaceHeight >> 1) - (long)logY, Units.LogSpaceHeight), OriginY));
-
-    /// <summary>Whether AddStars puts a star on the screen of a ship at a universe position.</summary>
-    public static bool Shows(Star star, int universeX, int universeY) => StarContact.InReach(star, universeX, universeY);
 }

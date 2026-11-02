@@ -24,7 +24,8 @@ public sealed class StarEntryTracker
 {
     private readonly StarMap _map;
     private readonly int _frameCount;
-    private readonly Dictionary<(string Id, long Contact), IReadOnlyList<StarEntry.Step>> _animations = new();
+    // Animations by contact (an escort following its host has the same one).
+    private readonly Dictionary<StarEntryState, IReadOnlyList<StarEntry.Step>> _animations = new();
     private List<Entering> _entering = new();
 
     /// <summary>A ship entering a star at the snapshot's frame: the sheet's frame and its sprite's place (hyperspace logical units).</summary>
@@ -40,6 +41,9 @@ public sealed class StarEntryTracker
     /// <summary>The ships entering a star in the last snapshot observed.</summary>
     public IReadOnlyList<Entering> Current => _entering;
 
+    /// <summary>The entries to draw: an escort following its host into the star rides in with the flagship.</summary>
+    public IEnumerable<Entering> Drawn => _entering.Where(e => e.State.Following is null);
+
     public bool Playing(string id) => _entering.Any(e => e.Ship.Id == id);
 
     public Entering? Of(string id) => _entering.FirstOrDefault(e => e.Ship.Id == id);
@@ -51,11 +55,11 @@ public sealed class StarEntryTracker
         {
             if (ship.Entry is not { } e || !e.PlayingAt(snapshot.Frame))
                 continue;
-            if (!_animations.TryGetValue((ship.Id, e.ContactFrame), out var steps))
+            var contact = e with { Following = null };
+            if (!_animations.TryGetValue(contact, out var steps))
             {
                 var (sx, sy) = e.Sprite;
-                _animations[(ship.Id, e.ContactFrame)] = steps =
-                    StarEntry.Animate(sx, sy, e.Facing, _map.Stars[e.Star], _frameCount);
+                _animations[contact] = steps = StarEntry.Animate(sx, sy, e.Facing, _map.Stars[e.Star], _frameCount);
             }
             long k = snapshot.Frame - e.ContactFrame;
             if (k == 0)
@@ -70,7 +74,7 @@ public sealed class StarEntryTracker
             }
         }
         // Forget finished entries.
-        foreach (var key in _animations.Keys.Where(k => !now.Any(n => n.Ship.Id == k.Id && n.State.ContactFrame == k.Contact)).ToList())
+        foreach (var key in _animations.Keys.Where(k => !now.Any(n => n.State with { Following = null } == k)).ToList())
             _animations.Remove(key);
         _entering = now;
     }
