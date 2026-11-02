@@ -33,8 +33,10 @@ public sealed record GameSettings
 
     /// <summary>
     /// A new guest's escort. Placeholder until the escort module set is
-    /// decided: the flagship's starting drives, one fuel tank, 10 fuel.
+    /// decided: the flagship's starting drives, one fuel tank, 10 fuel,
+    /// 10 crew, and for landing one lander and one storage bay (stage 2b,
+    /// decision 6).
     /// </summary>
     public ShipLoadout EscortLoadout { get; init; } = new(Thrusters: 2, Jets: 2, FuelTanks: 1,
-        HighEfficiencyTanks: 0, Crew: 10, Fuel: 1000);
+        HighEfficiencyTanks: 0, Crew: 10, Fuel: 1000, Landers: 1, StorageBays: 1);
 }

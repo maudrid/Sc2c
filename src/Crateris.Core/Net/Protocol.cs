@@ -29,8 +29,9 @@ public static class Protocol
     /// 2: snapshots carry activities (systems, orbit) and the action input bit.
     /// 3: snapshots carry entries into stars, and an escort's entry follows
     /// its host's (only the host's is drawn).
+    /// 4: snapshots carry each ship's hold (crew, landers, minerals, bio data).
     /// </summary>
-    public const int Version = 3;
+    public const int Version = 4;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()

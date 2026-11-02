@@ -10,8 +10,15 @@ using System.Text.Json;
 
 namespace Crateris.Core.Data;
 
-/// <summary>What a ship carries that matters in hyperspace.</summary>
-public sealed record ShipLoadout(int Thrusters, int Jets, int FuelTanks, int HighEfficiencyTanks, int Crew, uint Fuel);
+/// <summary>
+/// A ship's modules and what it starts with: drives and jets, fuel tanks,
+/// its starting crew and fuel, its starting landers and its storage bays
+/// (STORAGE_BAY modules, 500 units of minerals each). Landers and storage
+/// bays default to 1 each, what both a new flagship and an escort get, so
+/// saves from before stage 2b load with them.
+/// </summary>
+public sealed record ShipLoadout(int Thrusters, int Jets, int FuelTanks, int HighEfficiencyTanks, int Crew, uint Fuel,
+    int Landers = 1, int StorageBays = 1);
 
 /// <summary>Starting values for a new game, from data/new-game.json.</summary>
 public sealed record NewGameData(
@@ -42,7 +49,9 @@ public sealed record NewGameData(
             FuelTanks: Count(slots, "module", "FUEL_TANK"),
             HighEfficiencyTanks: Count(slots, "module", "HIGHEFF_FUELSYS"),
             Crew: ship.GetProperty("crew").GetInt32(),
-            Fuel: ship.GetProperty("fuel").GetUInt32());
+            Fuel: ship.GetProperty("fuel").GetUInt32(),
+            Landers: ship.GetProperty("landers").GetInt32(),
+            StorageBays: Count(slots, "module", "STORAGE_BAY"));
 
         short sx = (short)ship.GetProperty("start_universe_x").GetInt32();
         short sy = (short)ship.GetProperty("start_universe_y").GetInt32();

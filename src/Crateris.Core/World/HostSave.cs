@@ -26,9 +26,12 @@ public static class HostSave
     /// 3 added planet world state (Worlds); 4 added ships in systems and in
     /// orbit (PlayerState.SystemStar, PlayerState.System). Older saves
     /// still load: their ships are in hyperspace and not on a star, and no
-    /// world has been touched.
+    /// world has been touched. 5 added each ship's hold (PlayerState.Hold:
+    /// crew, landers, minerals, bio data, lander upgrades) and its loadout's
+    /// landers and storage bays; a ship from an older save has its loadout's
+    /// crew, one lander and one storage bay, and nothing in its hold.
     /// </summary>
-    public const int Version = 4;
+    public const int Version = 5;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -58,7 +61,10 @@ public static class HostSave
 
     public sealed record PlayerState(
         string Id, string Name, bool IsHost, ShipKind Kind, ShipLoadout Loadout, bool UndockPending,
-        FlightState Flight, int? SystemStar = null, IpFlightState? System = null);
+        FlightState Flight, int? SystemStar = null, IpFlightState? System = null, HoldState? Hold = null);
+
+    public sealed record HoldState(int Crew, int Landers, int[] Minerals, int BioData,
+        LanderUpgrades Upgrades = LanderUpgrades.None);
 
     public static string ToJson(GameWorld world)
     {
@@ -72,7 +78,9 @@ public static class HostSave
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
                     f.StarJustLeft),
-                p.Ship.SystemStar, p.Ship.Ip?.Save());
+                p.Ship.SystemStar, p.Ship.Ip?.Save(),
+                new HoldState(p.Ship.Hold.Crew, p.Ship.Hold.Landers, p.Ship.Hold.Minerals.ToArray(),
+                    p.Ship.Hold.BioData, p.Ship.Hold.Upgrades));
         }).ToList();
         var c = world.Clock;
         var worlds = world.Planets.Worlds
@@ -112,7 +120,17 @@ public static class HostSave
         var world = new GameWorld(save.Settings, clock, save.Frame, systems, shapes, loading: true);
         foreach (var ps in save.Players)
         {
-            var ship = new PlayerShip(ps.Kind, ps.Loadout);
+            PlayerShip ship;
+            try
+            {
+                ship = new PlayerShip(ps.Kind, ps.Loadout);
+                if (ps.Hold is { } h)
+                    ship.Hold.Restore(h.Crew, h.Landers, h.Minerals ?? Array.Empty<int>(), h.BioData, h.Upgrades);
+            }
+            catch (Exception e) when (e is ArgumentException or InvalidDataException)
+            {
+                throw new InvalidDataException($"Player {ps.Id}: {e.Message}", e);
+            }
             var f = ship.Flight;
             var s = ps.Flight;
             f.LogX = s.LogX;

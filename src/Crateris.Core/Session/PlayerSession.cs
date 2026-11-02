@@ -297,6 +297,8 @@ public sealed class PlayerSession
             {
                 lines.Add($"You: {Where(me)}");
                 lines.Add($"Fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
+                if (me.Hold is { } h)
+                    lines.Add($"Crew {h.Crew}, landers {h.Landers}, minerals {h.MineralMass} / {h.StorageCapacity}, bio {h.BioData}");
             }
             lines.Add($"Players ({Snapshot.Ships.Count}):");
             foreach (var s in Snapshot.Ships)

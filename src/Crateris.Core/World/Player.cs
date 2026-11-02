@@ -36,6 +36,10 @@ public sealed class PlayerShip
 {
     public ShipKind Kind { get; }
     public ShipLoadout Loadout { get; }
+
+    /// <summary>Crew, landers, minerals and bio data aboard, and the lander's upgrades.</summary>
+    public ShipHold Hold { get; }
+
     /// <summary>
     /// Flight in hyperspace. While in a system it keeps the hyperspace
     /// position the ship returns to: the star's (ExploreSolarSys).
@@ -78,6 +82,7 @@ public sealed class PlayerShip
     {
         Kind = kind;
         Loadout = loadout;
+        Hold = new ShipHold(loadout);
         Flight = new HyperFlight(ShipDrive.ForHyperspace(loadout.Thrusters, loadout.Jets),
             Hyperspace.Fuel.TankCapacity(loadout.FuelTanks, loadout.HighEfficiencyTanks))
         {

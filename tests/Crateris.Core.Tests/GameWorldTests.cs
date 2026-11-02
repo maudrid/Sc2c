@@ -24,7 +24,7 @@ public class GameWorldTests
     {
         var data = NewGameData.Load(DataDir);
         Assert.Equal((2155, 2, 17), (data.Year, data.Month, data.Day));
-        Assert.Equal(new ShipLoadout(2, 2, 1, 0, 50, 1000), data.Flagship);
+        Assert.Equal(new ShipLoadout(2, 2, 1, 0, 50, 1000, Landers: 1, StorageBays: 1), data.Flagship);
 
         var world = NewWorld();
         var f = world.Host.Ship.Flight;

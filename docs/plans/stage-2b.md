@@ -1,6 +1,6 @@
 # Stage 2b plan: landing and mining
 
-**Status:** draft, for the owner's approval. Eight decisions below need an answer; each has a recommendation.
+**Status:** approved by the owner on 2026-11-02, with all eight recommendations accepted (see "Decisions"). In progress: see "Progress".
 
 Build order item: "2b. Landing and mining: the lander, creatures, hazards, cargo and the shared landing screen" (`docs/design.md`), after stage 2 and the content stage.
 
@@ -92,9 +92,12 @@ Rough size: items 4 to 7 are the large ones (`lander.c` is 2,100 lines, and the 
 
 | Item | State | Where |
 | --- | --- | --- |
-| 1 to 10 | Not started | |
+| 1. The ship's landing kit and hold | Built | `src/Crateris.Core/World/ShipHold.cs`: each ship's crew, landers, storage (500 a bay), minerals by element category and bio data, and its lander upgrades and shields (`LanderUpgrades`, none to start with); a lander takes up to 12 crew and is lost with all its crew and what it carried; what it can bring up is 50 minerals (100 with the cargo upgrade), no more than the bays have room for (`PlanetSide`'s `MaxElementLevel`). The loadout gains landers and storage bays: the flagship's from `data/new-game.json` (one of each, 50 crew), the escort's placeholder one of each with its 10 crew (decision 6). Snapshots carry each ship's hold (protocol version 4) and the status panel shows yours; saves keep it (version 5; older saves load with the loadout's crew, one lander, one bay and an empty hold). Checked by `HoldTests` |
+| 2 to 10 | Not started | |
 
 ## Decisions
+
+All eight recommendations were accepted on 2026-11-02.
 
 1. **The planetside terrain's random generator** (`frandom`, never reset in UQM, so a world's terrain depends on which worlds were orbited before it).
    - **Start it afresh for each world (recommended):** `frandom` starts from UQM's own first seed (`0x12345678`) for each world, so a world always looks the same, to every player, on every visit. It's UQM's terrain for the first world orbited in a session; after that UQM's differs, but only in looks, since nothing collides with the terrain. A new row in `docs/differences.md`.
