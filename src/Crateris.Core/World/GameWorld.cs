@@ -6,6 +6,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Systems;
@@ -83,20 +84,28 @@ public sealed class GameWorld
 
     public Player Host => _players.Single(p => p.IsHost);
 
-    public GameWorld(GameSettings settings, GameClock clock, long frame = 0, SystemCatalog? systems = null)
+    /// <summary>The sprites' shapes, which decide contact with stars and worlds (with <see cref="Systems"/>).</summary>
+    public ContactShapes? Shapes { get; }
+
+    /// <summary>A world; with systems, it needs the shapes from the content (content stage, decision 4).</summary>
+    public GameWorld(GameSettings settings, GameClock clock, long frame = 0, SystemCatalog? systems = null,
+        ContactShapes? shapes = null)
     {
+        if (systems != null && shapes == null)
+            throw new ArgumentException("a world with systems needs the sprites' shapes from the content", nameof(shapes));
         Settings = settings;
         Clock = clock;
         Frame = frame;
         Systems = systems;
+        Shapes = shapes;
         Planets = new PlanetWorldState(systems);
     }
 
     /// <summary>A new game with the host in the flagship, in hyperspace at the start position.</summary>
     public static GameWorld NewGame(GameSettings settings, NewGameData data, string hostId, string hostName,
-        SystemCatalog? systems = null)
+        SystemCatalog? systems = null, ContactShapes? shapes = null)
     {
-        var world = new GameWorld(settings, new GameClock(data.Year, data.Month, data.Day), 0, systems);
+        var world = new GameWorld(settings, new GameClock(data.Year, data.Month, data.Day), 0, systems, shapes);
         var ship = new PlayerShip(ShipKind.Flagship, data.Flagship);
         ship.Flight.PlaceAtUniverse(data.StartUniverseX, data.StartUniverseY);
         ship.Flight.ResetFuelCounters();
@@ -225,10 +234,11 @@ public sealed class GameWorld
 
     private void StepHyperspace(PlayerShip ship, ShipInput input)
     {
+        var before = StarContact.SpritePosition(ship.Flight);
         ship.Flight.Step(input & ~ShipInput.Action);
         if (Systems is null)
             return;
-        if (StarContact.Check(ship.Flight, Systems.Map) is { } star)
+        if (StarContact.Check(ship.Flight, Systems.Map, Shapes!, before) is { } star)
             EnterSystem(ship, star);
     }
 
@@ -257,7 +267,7 @@ public sealed class GameWorld
         ship.Flight.Stop();
         ship.SystemStar = star.Number;
         ship.Ip = new IpFlight(Systems![star.Number], SystemTransition.Arrive(star),
-            ship.Loadout.Thrusters, ship.Loadout.Jets);
+            ship.Loadout.Thrusters, ship.Loadout.Jets, Shapes!);
     }
 
     private static void LeaveOrbit(PlayerShip ship) => ship.Ip!.ReturnFromOrbit();

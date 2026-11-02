@@ -8,6 +8,7 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
 
@@ -85,7 +86,7 @@ public static class HostSave
     }
 
     /// <summary>Loads a save. With a catalog, saved worlds must exist in their systems.</summary>
-    public static GameWorld FromJson(string json, SystemCatalog? systems = null)
+    public static GameWorld FromJson(string json, SystemCatalog? systems = null, ContactShapes? shapes = null)
     {
         var save = JsonSerializer.Deserialize<SaveFile>(json, Options)
             ?? throw new InvalidDataException("Empty save file.");
@@ -97,7 +98,7 @@ public static class HostSave
         {
             FramesIntoDay = save.Clock.FramesIntoDay,
         };
-        var world = new GameWorld(save.Settings, clock, save.Frame, systems);
+        var world = new GameWorld(save.Settings, clock, save.Frame, systems, shapes);
         foreach (var ps in save.Players)
         {
             var ship = new PlayerShip(ps.Kind, ps.Loadout);
@@ -137,7 +138,7 @@ public static class HostSave
                 if (systemStar < 0 || systemStar >= StarMap.SolarSystemCount || ps.System is null)
                     throw new InvalidDataException($"Player {ps.Id}: bad system {systemStar}.");
                 ship.SystemStar = systemStar;
-                ship.Ip = IpFlight.Restore(systems[systemStar], ps.System, ps.Loadout.Thrusters, ps.Loadout.Jets);
+                ship.Ip = IpFlight.Restore(systems[systemStar], ps.System, ps.Loadout.Thrusters, ps.Loadout.Jets, shapes!);
                 ship.Ip.Stop();
                 if (ship.Ip.OrbitData is { Entered: false })
                     throw new InvalidDataException($"Player {ps.Id}: in orbit around a world that can't be orbited.");

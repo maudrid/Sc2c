@@ -16,28 +16,20 @@ namespace Crateris.Core.Tests;
 
 /// <summary>
 /// Interplanetary flight against tests/golden/ip-flight.json: frame-by-frame
-/// flights recorded by running UQM's own flight code, replayed here with the
-/// same input.
+/// flights recorded by running UQM's own flight code, with contact by the
+/// sprites' shapes from the content package, replayed here with the same
+/// input and the same shapes.
 /// </summary>
 public class IpFlightTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
     private static readonly JsonElement Reference = Golden.Load("ip-flight");
 
-    [Fact]
-    public void ContactShapeIsTheOneTheTracesUse()
-    {
-        var shape = IpContactShape.Provisional;
-        Assert.Equal(shape.ShipRadius, Reference.GetProperty("ship_radius").GetInt32());
-        Assert.Equal(shape.PlanetRadius, Reference.GetProperty("planet_radius").Ints());
-        Assert.Equal(shape.JunkRadius, Reference.GetProperty("junk_radius").GetInt32());
-    }
-
     public static IEnumerable<object[]> Scenarios() =>
         Reference.GetProperty("scenarios").EnumerateArray()
             .Select(s => new object[] { s.GetProperty("name").GetString()! });
 
-    [Theory]
+    [ContentTheory]
     [MemberData(nameof(Scenarios))]
     public void FlightMatchesUqmFrameByFrame(string name)
     {
@@ -47,7 +39,7 @@ public class IpFlightTests
         var gen = new SystemGenerator(PlanetTypes.Load(DataDir));
         Star star = map.Stars[sc.GetProperty("star").GetInt32()];
         var flight = new IpFlight(gen.Generate(star), SystemTransition.Arrive(star),
-            sc.GetProperty("thrusters").GetInt32(), sc.GetProperty("jets").GetInt32());
+            sc.GetProperty("thrusters").GetInt32(), sc.GetProperty("jets").GetInt32(), TestContent.Shapes);
 
         int[] start = sc.GetProperty("start").Ints();
         Assert.Equal(start, new int[]

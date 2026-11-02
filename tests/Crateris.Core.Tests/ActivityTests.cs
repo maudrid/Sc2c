@@ -14,7 +14,7 @@ using Crateris.Core.World;
 
 namespace Crateris.Core.Tests;
 
-/// <summary>The host's per-player activities: hyperspace, systems and orbit.</summary>
+/// <summary>The host's per-player activities: hyperspace, systems and orbit (with the content's shapes for contact).</summary>
 public class ActivityTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
@@ -23,7 +23,7 @@ public class ActivityTests
     private static Star Sol => Systems.Map.Stars[SolNumber];
 
     private static GameWorld NewWorld() =>
-        GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems);
+        GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems, TestContent.Shapes);
 
     private static void Run(GameWorld world, string id, ShipInput input, int frames)
     {
@@ -34,7 +34,7 @@ public class ActivityTests
         }
     }
 
-    [Fact]
+    [ContentFact]
     public void SystemsGetThirtyFramesForEveryTwentyFourWorldFrames()
     {
         int total = 0;
@@ -48,7 +48,7 @@ public class ActivityTests
         }
     }
 
-    [Fact]
+    [ContentFact]
     public void FlyingIntoAStarEntersItsSystemWhereUqmArrives()
     {
         var world = NewWorld();
@@ -68,7 +68,7 @@ public class ActivityTests
         Assert.Equal((target.X, target.Y), (ship.Flight.UniverseX, ship.Flight.UniverseY));
     }
 
-    [Fact]
+    [ContentFact]
     public void InASystemTheShipFliesThirtyFramesASecondExactlyAsIpFlight()
     {
         var world = NewWorld();
@@ -78,7 +78,7 @@ public class ActivityTests
         Assert.Equal(Activity.InnerSystem, ship.Activity);
 
         // The same flight on its own, stepped 30 times a second.
-        var alone = IpFlight.Restore(Systems[SolNumber], ship.Ip!.Save(), ship.Loadout.Thrusters, ship.Loadout.Jets);
+        var alone = IpFlight.Restore(Systems[SolNumber], ship.Ip!.Save(), ship.Loadout.Thrusters, ship.Loadout.Jets, TestContent.Shapes);
         long start = world.Frame;
         Run(world, "host", ShipInput.Thrust | ShipInput.Right, 48);
         int systemFrames = 0;
@@ -93,7 +93,7 @@ public class ActivityTests
         Assert.Equal(alone.Facing, ship.Ip.Facing);
     }
 
-    [Fact]
+    [ContentFact]
     public void TheActionKeyLeavesOrbitOncePerPress()
     {
         var world = NewWorld();
@@ -114,7 +114,7 @@ public class ActivityTests
         Assert.Equal(Activity.InnerSystem, ship.Activity);
     }
 
-    [Fact]
+    [ContentFact]
     public void ThrustInASystemIsShownOnlyWhileThrusting()
     {
         var world = NewWorld();
@@ -129,7 +129,7 @@ public class ActivityTests
         Assert.True(ship.IpVelocityX != 0 || ship.IpVelocityY != 0);
     }
 
-    [Fact]
+    [ContentFact]
     public void LeavingTheSystemComesOutOnTheStarInHyperspace()
     {
         var world = NewWorld();
@@ -147,7 +147,7 @@ public class ActivityTests
         Assert.Equal(SolNumber, ship.Flight.StarJustLeft);
     }
 
-    [Fact]
+    [ContentFact]
     public void AGuestJoiningWhileTheHostIsInOrbitUndocksNextToTheHostsWorld()
     {
         var world = NewWorld();
@@ -174,7 +174,7 @@ public class ActivityTests
         Assert.Contains(snap.Ships, s => s.Id == "guest" && s.Activity == Activity.InnerSystem && s.InnerPlanet == 2);
     }
 
-    [Fact]
+    [ContentFact]
     public void AGuestJoiningWhileTheHostFliesInASystemUndocksThere()
     {
         var world = NewWorld();
@@ -191,7 +191,7 @@ public class ActivityTests
         Assert.Equal(world.Host.Ship.Ip!.Location, guest.Ip!.Location);
     }
 
-    [Fact]
+    [ContentFact]
     public void TheSnapshotCarriesWhatHasBeenTakenFromOrbitedWorlds()
     {
         var world = NewWorld();
@@ -203,7 +203,7 @@ public class ActivityTests
         Assert.Equal(1u << 3, orbited.BiologicalTaken);
     }
 
-    [Fact]
+    [ContentFact]
     public void TheSaveKeepsShipsInSystemsAndInOrbit()
     {
         var world = NewWorld();
@@ -212,7 +212,7 @@ public class ActivityTests
         Run(world, "guest", ShipInput.Thrust | ShipInput.Left, 20);
 
         string json = HostSave.ToJson(world);
-        var loaded = HostSave.FromJson(json, Systems);
+        var loaded = HostSave.FromJson(json, Systems, TestContent.Shapes);
         var host = loaded.Host.Ship;
         var guest = loaded.Find("guest")!.Ship;
         Assert.Equal(Activity.Orbit, host.Activity);
@@ -231,7 +231,7 @@ public class ActivityTests
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(json));
     }
 
-    [Fact]
+    [ContentFact]
     public void OlderSavesLoadWithEveryShipInHyperspace()
     {
         var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
@@ -241,25 +241,25 @@ public class ActivityTests
             p!.AsObject().Remove("system_star");
             p.AsObject().Remove("system");
         }
-        var loaded = HostSave.FromJson(node.ToJsonString(), Systems);
+        var loaded = HostSave.FromJson(node.ToJsonString(), Systems, TestContent.Shapes);
         Assert.Equal(Activity.Hyperspace, loaded.Host.Ship.Activity);
     }
 
-    [Fact]
+    [ContentFact]
     public void ABadSystemInASaveIsRefused()
     {
         var world = NewWorld();
         world.PutInOrbit("host", SolNumber, 2, 1);
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["players"]![0]!["system"]!["orbit_moon"] = 3;     // Earth has 2 moons
-        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), Systems));
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), Systems, TestContent.Shapes));
 
         node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["players"]![0]!["system"]!["zoom_radius"] = 1000;  // not a zoom level
-        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), Systems));
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), Systems, TestContent.Shapes));
     }
 
-    [Fact]
+    [ContentFact]
     public void WorldsThatCantBeOrbitedAreRefusedByPutInOrbitAndNothingChanges()
     {
         var world = NewWorld();
@@ -278,7 +278,7 @@ public class ActivityTests
         Assert.NotNull(world.Host.Ship.Orbit);
     }
 
-    [Fact]
+    [ContentFact]
     public void OrbitDataAlwaysFollowsTheOrbitedWorld()
     {
         var world = NewWorld();
@@ -294,7 +294,7 @@ public class ActivityTests
         Assert.Equal(Activity.InnerSystem, ship.Activity);
     }
 
-    [Fact]
+    [ContentFact]
     public void SnapshotsKeepHyperspaceAndSystemVelocitySeparate()
     {
         var world = NewWorld();

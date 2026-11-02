@@ -37,12 +37,30 @@ void *HCalloc (size_t size) { return calloc (1, size); }
 void HFree (void *p) { free (p); }
 
 /* Drawing and strings: generation only needs them not to crash. */
-/* Frames are encoded as (sheet << 16) | index, so that the flight traces
- * can tell which sprite is being tested for intersection. */
-enum { SHEET_SIS = 1, SHEET_ORBITAL, SHEET_JUNK, SHEET_POINT, SHEET_SUN };
-#define MAKE_FRAME(sheet, index) ((FRAME) (intptr_t) (((sheet) << 16) | (index)))
-#define FRAME_SHEET(f) ((int) (((intptr_t) (f)) >> 16))
-#define FRAME_INDEX(f) ((COUNT) (((intptr_t) (f)) & 0xFFFF))
+/* Frames are real FRAME_DESCs in a table, one row per sprite sheet, so the
+ * traces can tell which sprite is drawn or tested, and UQM's own
+ * DrawablesIntersect (libs/graphics/intersec.c, linked) can read their
+ * bounds, hot spots and images. With -k DIR the frames UQM tests for
+ * contact get their masks from the package (written by the images
+ * program, see golden_uqm.py): the flagship in systems, the worlds, the
+ * orbit background (the starbase and the Sa-Matra), the one-pixel frame
+ * (DecFrameIndex (stars_in_space): graphics.stars in systems,
+ * graphics.ambient in hyperspace), the hyperspace flagship and the
+ * hyperspace stars. */
+enum { SHEET_SIS = 1, SHEET_ORBITAL, SHEET_JUNK, SHEET_POINT, SHEET_SUN,
+		SHEET_HYPER, SHEET_HYPERSTARS, SHEET_AMBIENT, NUM_SHEETS };
+#define SHEET_FRAMES 128
+static FRAME_DESC sheet_frames[NUM_SHEETS][SHEET_FRAMES];
+static COUNT sheet_counts[NUM_SHEETS];
+#define MAKE_FRAME(sheet, index) ((FRAME) &sheet_frames[sheet][index])
+#define FRAME_SHEET(f) ((int) (((FRAME_DESC *) (f) - &sheet_frames[0][0]) / SHEET_FRAMES))
+#define FRAME_INDEX(f) ((COUNT) (((FRAME_DESC *) (f) - &sheet_frames[0][0]) % SHEET_FRAMES))
+
+/* A frame's mask: 1 where it can touch, as TFB_DrawCanvas_Intersect
+ * decides it (the images program's "mask" mode). Stands in for the
+ * frame's TFB_Image, which only TFB_DrawImage_Intersect reads. */
+typedef struct { int w, h; unsigned char *bits; } Mask;
+static Mask sheet_masks[NUM_SHEETS][SHEET_FRAMES];
 
 /* Earth's surface definition frames (graphics.earthmask) in surfaces mode:
  * real frames, since GeneratePlanetSurface reads their bounds. */
@@ -67,45 +85,110 @@ SetAbsFrameIndex (FRAME f, COUNT i)
 COUNT
 GetFrameCount (FRAME f)
 {
-	return is_defined_frame (f) ? defined_count : 0;
+	return is_defined_frame (f) ? defined_count : sheet_counts[FRAME_SHEET (f)];
 }
 COUNT GetFrameIndex (FRAME f) { return FRAME_INDEX (f); }
-/* DecFrameIndex (stars_in_space) is UQM's one-pixel collision frame. */
-FRAME DecFrameIndex (FRAME f) { (void) f; return MAKE_FRAME (SHEET_POINT, 0); }
-
-/* Sprite intersection. UQM tests sprite masks from the content package;
- * these traces use circles instead, the same provisional model as the
- * engine (Crateris.Core.Systems.IpContactShape). Radii in display pixels:
- * the flagship, a single point, and planet images by size index (the
- * frame index >> FACING_SHIFT), then the starbase and the Sa-Matra. */
-#define SHIP_RADIUS 3
-static const int planet_radius[] = {2, 3, 4, 6, 8, 10};
-#define JUNK_RADIUS 4
-
-static int
-frame_radius (FRAME f)
+/* DecFrameIndex (stars_in_space) is UQM's one-pixel collision frame: the
+ * last of graphics.stars (stars_in_space is its first frame in a system). */
+FRAME
+DecFrameIndex (FRAME f)
 {
-	switch (FRAME_SHEET (f))
+	(void) f;
+	return MAKE_FRAME (SHEET_POINT, sheet_counts[SHEET_POINT]
+			? sheet_counts[SHEET_POINT] - 1 : 0);
+}
+
+/* ContextActive () in DrawablesIntersect (libs/graphics/context.h:
+ * GRAPHICS_STATUS is a BYTE, CONTEXT_ACTIVE bit 2). */
+unsigned char _GraphicsStatusFlags = 1 << 2;
+
+/* TFB_DrawImage_Intersect over the masks: TFB_DrawCanvas_Intersect's loop. */
+BOOLEAN
+TFB_DrawImage_Intersect (TFB_Image *img1, POINT img1org,
+		TFB_Image *img2, POINT img2org, const RECT *interRect)
+{
+	Mask *m1 = (Mask *) img1, *m2 = (Mask *) img2;
+	int x, y;
+	img1org.x = interRect->corner.x - img1org.x;
+	img1org.y = interRect->corner.y - img1org.y;
+	img2org.x = interRect->corner.x - img2org.x;
+	img2org.y = interRect->corner.y - img2org.y;
+	for (y = 0; y < interRect->extent.height; ++y)
+		for (x = 0; x < interRect->extent.width; ++x)
+		{
+			int b1 = m1->bits[(y + img1org.y) * m1->w + x + img1org.x];
+			int b2 = m2->bits[(y + img2org.y) * m2->w + x + img2org.x];
+			if (b1 == 2 || b2 == 2)
+			{
+				fprintf (stderr, "a frame with an unknown mask was tested\n");
+				exit (1);
+			}
+			if (b1 && b2)
+				return TRUE;
+		}
+	return FALSE;
+}
+
+/* -k DIR: DIR/SHEET.INDEX.mask files, "width height hotx hoty" and then a
+ * 0 or 1 for each pixel, row by row. */
+static void
+load_masks (const char *dir)
+{
+	int s;
+	for (s = 1; s < NUM_SHEETS; ++s)
 	{
-		case SHEET_SIS: return SHIP_RADIUS;
-		case SHEET_POINT: return 0;
-		case SHEET_ORBITAL: return planet_radius[FRAME_INDEX (f) >> FACING_SHIFT];
-		case SHEET_JUNK: return JUNK_RADIUS;
-		default: return 0;
+		COUNT i;
+		for (i = 0; i < SHEET_FRAMES; ++i)
+		{
+			char path[1024];
+			FILE *f;
+			int w, h, hx, hy, k;
+			Mask *m = &sheet_masks[s][i];
+			FRAME_DESC *fd = &sheet_frames[s][i];
+
+			snprintf (path, sizeof path, "%s/%d.%u.mask", dir, s, i);
+			f = fopen (path, "r");
+			if (!f)
+				break;
+			if (fscanf (f, "%d %d %d %d", &w, &h, &hx, &hy) != 4)
+			{
+				fprintf (stderr, "bad mask %s\n", path);
+				exit (1);
+			}
+			m->w = w;
+			m->h = h;
+			m->bits = malloc ((size_t) w * h);
+			for (k = 0; k < w * h; ++k)
+			{
+				int c;
+				do
+					c = fgetc (f);
+				while (c == '\n' || c == ' ');
+				if (c < '0' || c > '2')
+				{
+					fprintf (stderr, "bad mask %s\n", path);
+					exit (1);
+				}
+				m->bits[k] = (unsigned char) (c - '0');   /* 2: unknown */
+			}
+			fclose (f);
+			fd->Index = i;
+			fd->HotSpot.x = hx;
+			fd->HotSpot.y = hy;
+			fd->Bounds.width = w;
+			fd->Bounds.height = h;
+			fd->image = (TFB_Image *) m;
+			sheet_counts[s] = i + 1;
+		}
+	}
+	if (!sheet_counts[SHEET_SIS] || !sheet_counts[SHEET_ORBITAL]
+			|| !sheet_counts[SHEET_JUNK] || !sheet_counts[SHEET_POINT])
+	{
+		fprintf (stderr, "no masks in %s\n", dir);
+		exit (1);
 	}
 }
 
-TIME_VALUE
-DrawablesIntersect (INTERSECT_CONTROL *c0, INTERSECT_CONTROL *c1,
-		TIME_VALUE max_time_val)
-{
-	long dx = c0->IntersectStamp.origin.x - c1->IntersectStamp.origin.x;
-	long dy = c0->IntersectStamp.origin.y - c1->IntersectStamp.origin.y;
-	long r = frame_radius (c0->IntersectStamp.frame)
-			+ frame_radius (c1->IntersectStamp.frame);
-	(void) max_time_val;
-	return dx * dx + dy * dy <= r * r ? 1 : 0;
-}
 /* The game strings. Without any (every mode but "names") every string is
  * "". In "names" mode they are read from a file (one string per line, in
  * hex as UQM's _GetStringData leaves it, with its terminating NUL; an
@@ -1277,10 +1360,7 @@ flight_main (void)
 	COUNT i;
 	int printed = 0;
 
-	printf ("{\"ship_radius\": %d, \"planet_radius\": [", SHIP_RADIUS);
-	for (i = 0; i < sizeof planet_radius / sizeof planet_radius[0]; ++i)
-		printf ("%s%d", i ? ", " : "", planet_radius[i]);
-	printf ("], \"junk_radius\": %d, \"scenarios\": [", JUNK_RADIUS);
+	printf ("{\"scenarios\": [");
 	for (i = 0; i < sizeof scenarios / sizeof scenarios[0]; ++i)
 	{
 		const SCENARIO *sc = &scenarios[i];
@@ -1290,6 +1370,92 @@ flight_main (void)
 			exit (1);
 		}
 		run_scenario (sc, printed++ == 0);
+	}
+	printf ("]}\n");
+	return 0;
+}
+
+/* ---- Intersect mode: UQM's own DrawablesIntersect on many cases ---- */
+
+/* Our own random numbers for choosing the cases (not UQM's). */
+static unsigned long case_seed = 12345;
+static int
+case_rand (int n)
+{
+	case_seed = case_seed * 1103515245UL + 12345UL;
+	return (int) ((case_seed >> 16) % (unsigned long) n);
+}
+
+/* "intersect": pairs of frames that UQM tests for contact (the flagship
+ * against worlds, the starbase, the Sa-Matra and the one-pixel frame in a
+ * system; the hyperspace flagship against the hyperspace one-pixel frame
+ * and the stars), and a few others, placed near each other, still or
+ * moving, with a time limit; each case is [sheet0, frame0, x0, y0, end
+ * x0, end y0, sheet1, frame1, x1, y1, end x1, end y1, max time, result,
+ * then each control's EndPoint x, y and last_time_val after the call]. */
+static int
+intersect_main (int count)
+{
+	static const int pairs[][2] = {
+		{SHEET_SIS, SHEET_ORBITAL}, {SHEET_SIS, SHEET_POINT},
+		{SHEET_SIS, SHEET_JUNK}, {SHEET_HYPER, SHEET_AMBIENT},
+		{SHEET_HYPER, SHEET_HYPERSTARS}, {SHEET_ORBITAL, SHEET_ORBITAL},
+		{SHEET_HYPERSTARS, SHEET_SIS},
+	};
+	int n;
+	printf ("{\"cases\": [");
+	for (n = 0; n < count; ++n)
+	{
+		const int *pair = pairs[case_rand (sizeof pairs / sizeof pairs[0])];
+		INTERSECT_CONTROL c0, c1;
+		FRAME f0, f1;
+		int reach, moving = case_rand (3);
+		TIME_VALUE max_time = (TIME_VALUE) (1 + case_rand (MAX_TIME_VALUE + 4));
+		TIME_VALUE t;
+		int s0 = pair[0], s1 = pair[1];
+		int i0, i1;
+		if (pair[1] == SHEET_AMBIENT)
+			i1 = sheet_counts[SHEET_AMBIENT] - 1;   /* hyperspace's one-pixel frame */
+		else if (pair[1] == SHEET_POINT)
+			i1 = sheet_counts[SHEET_POINT] - 1;
+		else if (pair[1] == SHEET_JUNK)   /* the starbase or the Sa-Matra */
+			i1 = case_rand (2) ? 16 : 19;
+		else
+			i1 = case_rand (sheet_counts[s1]);
+		i0 = case_rand (sheet_counts[s0]);
+		f0 = MAKE_FRAME (s0, i0);
+		f1 = MAKE_FRAME (s1, i1);
+		reach = (GetFrameWidth (f0) + GetFrameWidth (f1)
+				+ GetFrameHeight (f0) + GetFrameHeight (f1)) / 3 + 3;
+		c0.IntersectStamp.frame = f0;
+		c0.IntersectStamp.origin.x = 100 + case_rand (40);
+		c0.IntersectStamp.origin.y = 100 + case_rand (40);
+		c1.IntersectStamp.frame = f1;
+		c1.IntersectStamp.origin.x = c0.IntersectStamp.origin.x
+				+ case_rand (2 * reach + 1) - reach;
+		c1.IntersectStamp.origin.y = c0.IntersectStamp.origin.y
+				+ case_rand (2 * reach + 1) - reach;
+		c0.EndPoint = c0.IntersectStamp.origin;
+		c1.EndPoint = c1.IntersectStamp.origin;
+		if (moving)
+		{
+			c0.EndPoint.x += case_rand (41) - 20;
+			c0.EndPoint.y += case_rand (41) - 20;
+			if (moving == 2)
+			{
+				c1.EndPoint.x += case_rand (21) - 10;
+				c1.EndPoint.y += case_rand (21) - 10;
+			}
+		}
+		printf ("%s\n[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, ",
+				n ? "," : "", s0, i0, c0.IntersectStamp.origin.x,
+				c0.IntersectStamp.origin.y, c0.EndPoint.x, c0.EndPoint.y,
+				s1, i1, c1.IntersectStamp.origin.x, c1.IntersectStamp.origin.y,
+				c1.EndPoint.x, c1.EndPoint.y, max_time);
+		t = DrawablesIntersect (&c0, &c1, max_time);
+		printf ("%d, %d, %d, %d, %d, %d, %d]", t, c0.EndPoint.x,
+				c0.EndPoint.y, c0.last_time_val, c1.EndPoint.x, c1.EndPoint.y,
+				c1.last_time_val);
 	}
 	printf ("]}\n");
 	return 0;
@@ -1412,9 +1578,8 @@ SetColorMap (COLORMAPPTR map)
 static int
 is_sheet_frame (FRAME f)
 {
-	int sheet = FRAME_SHEET (f);
-	return sheet >= SHEET_SIS && sheet <= SHEET_SUN
-			&& ((intptr_t) f >> 16) == sheet;
+	return (FRAME_DESC *) f >= &sheet_frames[SHEET_SIS][0]
+			&& (FRAME_DESC *) f < &sheet_frames[NUM_SHEETS][0];
 }
 
 FRAME
@@ -1665,10 +1830,25 @@ main (int argc, char *argv[])
 		return ip_main ();
 	if (argc > 2 && strcmp (argv[1], "names") == 0)
 		return names_main (argv[2]);
+	if (argc > 3 && strcmp (argv[1], "intersect") == 0
+			&& strcmp (argv[2], "-k") == 0)
+	{
+		load_masks (argv[3]);
+		return intersect_main (argc > 4 ? atoi (argv[4]) : 4000);
+	}
 	if (argc > 1 && (strcmp (argv[1], "flight") == 0
 			|| strcmp (argv[1], "layout") == 0
 			|| strcmp (argv[1], "sprites") == 0))
 	{
+		if (strcmp (argv[1], "flight") == 0)
+		{
+			if (argc < 4 || strcmp (argv[2], "-k") != 0)
+			{
+				fprintf (stderr, "flight needs -k MASKS\n");
+				return 1;
+			}
+			load_masks (argv[3]);
+		}
 		SISIPFrame = MAKE_FRAME (SHEET_SIS, 0);
 		OrbitalFrame = MAKE_FRAME (SHEET_ORBITAL, 0);
 		SpaceJunkFrame = MAKE_FRAME (SHEET_JUNK, 0);

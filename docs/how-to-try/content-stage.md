@@ -183,3 +183,26 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter SpritesT
 ```
 
 `EverySystemViewIsStampedAsUqmStampsIt` checks every view of all 502 systems (the outer view at its four zooms and every planet's inner view) against UQM's own `DrawSystem`, stamp by stamp: which image, which frame, where, in which colours and in which order. `EveryStarBackgroundIsUqms` checks every system's background stars against UQM's own `CreateStarBackGround`. `ShieldsStarbasesAndColoursAreUqms` checks Sol by name: Earth's shield, the starbase, the sun's frames. `ColourMapsAreSetAsSetColorMapSetsThem` checks UQM's colour map rules; `TheSpaceSpritesAreDrawnWithUqmsColourMaps` draws every frame of the package's system and hyperspace sheets in every colour they're used in. `HyperScreenTests` checks where the hyperspace screen puts the ship, other ships and stars.
+
+## So far: contact by shape and entering a star
+
+Item 9 is built. Whether your ship touches a star, a planet or a moon is now decided as UQM decides it: the sprites' real shapes from the content, pixel against pixel, with UQM's own intersection code. A new contact needs the ship's sprite to cover the world's or star's centre; a contact ends once the ship has cleared the whole image. In a system this is UQM's exactly, checked frame by frame against UQM's own flights.
+
+Flying into a star now plays UQM's entry: the ship turns to face up, shrinks into the star while drifting onto it, and only then does the system appear (under a second and a half). Other players see your entry where you were, and you see theirs. The ship can't be steered while it plays.
+
+![Entering Sol: the flagship shrinking into the star](../screenshots/content-star-entry.png)
+
+### Try it in the game
+
+1. `godot --path game -- --host --start-at 1752:1430`: you start in hyperspace just south of Sol. Thrust north: when the ship's nose reaches the star's centre, it shrinks into Sol, then the Sol system appears.
+2. Turn a little first and fly past: a ship that only grazes the star's edge flies on, as in UQM.
+3. In Sol, fly at a planet: the inner system opens when your ship covers the planet's centre, a little earlier than before with the bigger real ship.
+4. With a guest, watch each other enter a star.
+
+### Run the tests
+
+```
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter "ContactTests|IpFlightTests|StarEntryTests|SystemTransitionTests"
+```
+
+`EveryMaskIsTheOneUqmTests` checks the masks of all 300 frames UQM tests for contact against UQM's own image loader and colour keys. `FramesTouchWhenUqmSaysTheyDo` replays 4,000 intersections (still and moving, in systems and hyperspace) against UQM's own `DrawablesIntersect`: whether, when and where. `FlightMatchesUqmFrameByFrame` replays eight interplanetary flights recorded from UQM's own code with the same shapes. `StarEntryTests` checks the entry's frames and drift. The tests that fly in a system or into a star need the content and are skipped without it.

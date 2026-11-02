@@ -58,6 +58,15 @@ public static class HyperScreen
          Display(checked((int)((long)logY - viewerLogY + viewY)), OriginY));
 
     /// <summary>
+    /// A sprite at a place in hyperspace's logical units (where its ship's
+    /// view puts it: <see cref="StarContact.SpritePosition"/>), drawn on the
+    /// screen of the ship at (<paramref name="viewerLogX"/>, <paramref name="viewerLogY"/>).
+    /// </summary>
+    public static (int X, int Y) Sprite(long x, long y, int viewerLogX, int viewerLogY) =>
+        (Display(checked((int)(x - viewerLogX + HyperFlight.CenterX)), OriginX),
+         Display(checked((int)(y - viewerLogY + HyperFlight.CenterY)), OriginY));
+
+    /// <summary>
     /// Whether another ship is near enough to the viewer to be drawn: within
     /// the same reach as the stars (<see cref="Shows"/>), which covers the
     /// whole screen.

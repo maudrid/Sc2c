@@ -25,7 +25,8 @@ namespace Crateris.Game;
 /// up, down, select and cancel press an orbit menu key once as their step starts),
 /// --first-run-use FILE (the first-run screen acts as if the player chose
 /// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
-/// --save FILE, --no-upnp, --seconds-per-day N, --screenshot FILE.png
+/// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],
+/// --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless).
 /// With no options the game starts as a solo host.
 /// </summary>
@@ -59,6 +60,9 @@ public sealed class Options
 
     /// <summary>--start-orbit star:planet[:moon]: a new game starts in orbit there (testing and debugging).</summary>
     public (int Star, int Planet, int? Moon)? StartOrbit { get; private set; }
+
+    /// <summary>--start-at X:Y: the host starts in hyperspace at these universe coordinates (testing and debugging).</summary>
+    public (short X, short Y)? StartAt { get; private set; }
 
     public static Options Parse(string[] args)
     {
@@ -103,6 +107,12 @@ public sealed class Options
                 {
                     var parts = Next().Split(':');
                     o.StartOrbit = (int.Parse(parts[0]), int.Parse(parts[1]), parts.Length > 2 ? int.Parse(parts[2]) : null);
+                    break;
+                }
+                case "--start-at":
+                {
+                    var parts = Next().Split(':');
+                    o.StartAt = (short.Parse(parts[0]), short.Parse(parts[1]));
                     break;
                 }
                 default: throw new ArgumentException($"Unknown option {args[i]}");

@@ -157,12 +157,17 @@ public class PlanetWorldStateTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             state.SetRetrieved(new WorldId(82, 0, 0), ScanType.Mineral, 0));  // Mercury has none
 
-        // And a save naming a world its system doesn't have is refused.
-        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems);
+    }
+
+    [ContentFact]
+    public void ASaveNamingAWorldItsSystemDoesNotHaveIsRefused()
+    {
+        var systems = SystemCatalog.Load(DataDir);
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["worlds"] = new JsonArray(JsonNode.Parse(
             "{\"star\": 82, \"planet\": 0, \"moon\": 0, \"mineral_taken\": 1, \"energy_taken\": 0, \"biological_taken\": 0}"));
-        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), systems));
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes));
     }
 
     [Fact]

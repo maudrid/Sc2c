@@ -62,7 +62,7 @@ public class SystemTransitionTests
         Assert.Equal(0, arrival.Facing);
     }
 
-    [Fact]
+    [ContentFact]
     public void FlyingIntoAStarEntersIt()
     {
         var ship = NewShip();
@@ -72,15 +72,16 @@ public class SystemTransitionTests
         ship.Facing = 0;
 
         Star? entered = null;
-        for (int frame = 0; frame < 200 && entered is null; ++frame)
+        for (int frame = 0; frame < 400 && entered is null; ++frame)
         {
+            var before = StarContact.SpritePosition(ship);
             ship.Step(ShipInput.Thrust);
-            entered = StarContact.Check(ship, Map);
+            entered = StarContact.Check(ship, Map, TestContent.Shapes, before);
         }
         Assert.Equal(Sol, entered);
     }
 
-    [Fact]
+    [ContentFact]
     public void ContactUsesWhereTheShipIsDrawnNotTheLaggingViewPosition()
     {
         // The view's scroll lags a fast ship: its hyperspace position is
@@ -90,37 +91,37 @@ public class SystemTransitionTests
         ship.LogY += 300;
         ship.ViewY = (short)(HyperFlight.CenterY - 300);
         ship.Velocity.SetComponents(0, -64);
-        Assert.Equal(Sol, StarContact.Check(ship, Map));
+        Assert.Equal(Sol, StarContact.Check(ship, Map, TestContent.Shapes));
 
         // And the other way round: on the star by position, but drawn clear of it.
         var away = NewShip();
         away.PlaceAtUniverse(Sol.X, Sol.Y);
         away.ViewY = (short)(HyperFlight.CenterY + 600);
         away.Velocity.SetComponents(0, 64);
-        Assert.Null(StarContact.Check(away, Map));
+        Assert.Null(StarContact.Check(away, Map, TestContent.Shapes));
     }
 
-    [Fact]
+    [ContentFact]
     public void TheStarJustLeftIsForgottenTheFirstFrameTheShipIsOffIt()
     {
         var ship = NewShip();
         SystemTransition.Leave(ship, Sol, facing: 0);
-        Assert.Null(StarContact.Check(ship, Map));
+        Assert.Null(StarContact.Check(ship, Map, TestContent.Shapes));
         Assert.Equal(Sol.Number, ship.StarJustLeft);            // still on it
 
         ship.LogY -= 40 * 32;                                    // well clear
-        StarContact.Check(ship, Map);
+        StarContact.Check(ship, Map, TestContent.Shapes);
         Assert.Null(ship.StarJustLeft);
     }
 
-    [Fact]
+    [ContentFact]
     public void AStarJustLeftThatIsNotOnTheMapIsDropped()
     {
         var ship = NewShip();
         ship.PlaceAtUniverse(Sol.X, Sol.Y);
         ship.StarJustLeft = 9999;
         ship.Velocity.SetComponents(0, -64);
-        Assert.Equal(Sol, StarContact.Check(ship, Map));
+        Assert.Equal(Sol, StarContact.Check(ship, Map, TestContent.Shapes));
         Assert.Null(ship.StarJustLeft);
     }
 
@@ -134,16 +135,16 @@ public class SystemTransitionTests
         }
     }
 
-    [Fact]
+    [ContentFact]
     public void AShipAtRestOnAStarStaysInHyperspace()
     {
         var ship = NewShip();
         ship.PlaceAtUniverse(Sol.X, Sol.Y);
         ship.Step(ShipInput.None);
-        Assert.Null(StarContact.Check(ship, Map));
+        Assert.Null(StarContact.Check(ship, Map, TestContent.Shapes));
     }
 
-    [Fact]
+    [ContentFact]
     public void LeavingPutsTheShipOnTheStarAndItDoesNotFallBackIn()
     {
         var ship = NewShip();
@@ -161,7 +162,7 @@ public class SystemTransitionTests
         while (ship.StarJustLeft is not null && frames < 300)
         {
             ship.Step(ShipInput.Thrust);
-            Assert.Null(StarContact.Check(ship, Map));
+            Assert.Null(StarContact.Check(ship, Map, TestContent.Shapes));
             ++frames;
         }
         Assert.Null(ship.StarJustLeft);               // cleared the star
@@ -173,7 +174,7 @@ public class SystemTransitionTests
         for (int frame = 0; frame < 400 && entered is null; ++frame)
         {
             ship.Step(ShipInput.Thrust);
-            entered = StarContact.Check(ship, Map);
+            entered = StarContact.Check(ship, Map, TestContent.Shapes);
         }
         Assert.Equal(Sol, entered);
     }

@@ -8,6 +8,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Uqm;
@@ -35,20 +36,6 @@ public sealed record IpFlightState(
     int TurnCounter, int ThrustCounter, int? OrbitPlanet, int? OrbitMoon);
 
 /// <summary>
-/// The sizes used to decide when the flagship touches a planet or moon, in
-/// display pixels of the 242x227 interplanetary view. UQM tests sprite
-/// masks from the content package: the flagship's sprite against a single
-/// point at the world's centre for a new contact, and against the world's
-/// whole image to tell when a contact has ended. Until the content stage
-/// reads those masks, circles stand in for them; PlanetRadius is indexed
-/// by UQM's planet image size (0..5).
-/// </summary>
-public sealed record IpContactShape(int ShipRadius, IReadOnlyList<int> PlanetRadius, int JunkRadius)
-{
-    public static readonly IpContactShape Provisional = new(3, new[] { 2, 3, 4, 6, 8, 10 }, 4);
-}
-
-/// <summary>
 /// One ship flying inside a star system (UQM's interplanetary flight), at
 /// 30 frames a second: the outer system with its zoom levels, a planet's
 /// inner system with its moons, and touching a world to enter orbit.
@@ -68,12 +55,12 @@ public sealed class IpFlight
     private const int CenterX = SystemLayout.CenterX;
     private const int CenterY = SystemLayout.CenterY;
 
-    private readonly IpContactShape _shape;
+    private readonly ContactShapes _shapes;
     private readonly IpPoint[] _planetImage;
-    private readonly int[] _planetImageSize;
+    private readonly IntersectFrame[] _planetFrame;
     private IpPoint[] _moonImage = Array.Empty<IpPoint>();
-    private int[] _moonImageSize = Array.Empty<int>();
-    private int _innerPlanetImageSize;
+    private IntersectFrame[] _moonFrame = Array.Empty<IntersectFrame>();
+    private IntersectFrame? _innerPlanetFrame;
     private IpRect _scaleRect;
 
     public SolarSystem System { get; }
@@ -137,8 +124,8 @@ public sealed class IpFlight
     public IReadOnlyList<IpPoint> MoonScreen => _moonImage;
 
     /// <summary>Arrives from hyperspace (InitSolarSys).</summary>
-    public IpFlight(SolarSystem system, SystemArrival arrival, int thrusters, int jets, IpContactShape? shape = null)
-        : this(system, thrusters, jets, shape)
+    public IpFlight(SolarSystem system, SystemArrival arrival, int thrusters, int jets, ContactShapes shapes)
+        : this(system, thrusters, jets, shapes)
     {
         Facing = arrival.Facing;
         Screen = arrival.ScreenPosition;
@@ -149,12 +136,12 @@ public sealed class IpFlight
         CheckIntersect();   // ResetSolarSys
     }
 
-    private IpFlight(SolarSystem system, int thrusters, int jets, IpContactShape? shape)
+    private IpFlight(SolarSystem system, int thrusters, int jets, ContactShapes shapes)
     {
         System = system;
-        _shape = shape ?? IpContactShape.Provisional;
+        _shapes = shapes;
         _planetImage = new IpPoint[system.Planets.Count];
-        _planetImageSize = new int[system.Planets.Count];
+        _planetFrame = new IntersectFrame[system.Planets.Count];
         MaxSpeed = (byte)((thrusters + 5) * ThrustIncrement);
         TurnWait = (byte)(TurnWaitBase - TurnDecrement * jets);
     }
@@ -166,7 +153,7 @@ public sealed class IpFlight
         Orbit?.Planet, Orbit?.Moon);
 
     /// <summary>Puts a flight back as it was saved. Throws InvalidDataException if the state can't be.</summary>
-    public static IpFlight Restore(SolarSystem system, IpFlightState s, int thrusters, int jets, IpContactShape? shape = null)
+    public static IpFlight Restore(SolarSystem system, IpFlightState s, int thrusters, int jets, ContactShapes shapes)
     {
         static void Require(bool ok, string what)
         {
@@ -182,7 +169,7 @@ public sealed class IpFlight
             Require((uint)om < system.Planets[op].NumPlanets, "orbit moon");
         Require(s.OrbitPlanet is not null || s.OrbitMoon is null, "orbit moon without a planet");
 
-        var f = new IpFlight(system, thrusters, jets, shape)
+        var f = new IpFlight(system, thrusters, jets, shapes)
         {
             Facing = (ushort)s.Facing,
             Velocity = Velocity.FromArray(s.Velocity),
@@ -216,7 +203,7 @@ public sealed class IpFlight
         Restore(System, Save() with
         {
             Velocity = new Velocity().ToArray(), OrbitPlanet = null, OrbitMoon = null, TurnCounter = 0, ThrustCounter = 0,
-        }, thrusters, jets, _shape);
+        }, thrusters, jets, _shapes);
 
     /// <summary>Comes to a stop where it is (a player leaving the game).</summary>
     public void Stop() => Velocity.Zero();
@@ -479,7 +466,7 @@ public sealed class IpFlight
         InnerPlanet = null;
         Moons = Array.Empty<WorldDesc>();
         _moonImage = Array.Empty<IpPoint>();
-        _moonImageSize = Array.Empty<int>();
+        _moonFrame = Array.Empty<IntersectFrame>();
 
         ushort outerPlanetWait = MakeWord(planet + 1, 0);
         Location = SunLocation;
@@ -499,27 +486,30 @@ public sealed class IpFlight
     /// a planet index; in an inner system -1 for the planet itself or a
     /// moon index. Null if none.
     /// </summary>
+    /// <summary>
+    /// CheckIntersect: UQM's sprite intersection (<see cref="Intersection"/>)
+    /// of the flagship's frame for its facing against each world, still. A
+    /// new contact is with the world's centre (UQM's one-pixel frame);
+    /// a world still being touched is tested with its whole image, so the
+    /// contact lasts until the ship has cleared it (getCollisionFrame).
+    /// </summary>
     private int? CheckIntersect()
     {
-        const int pointRadius = 0;
-        int shipR = _shape.ShipRadius;
         ushort newWait = 0;
+        var ship = new IntersectControl(_shapes.IpFlagship[Facing], Screen.X, Screen.Y);
 
-        bool Touches(IpPoint at, int radius)
+        bool Touches(IpPoint at, ushort word, IntersectFrame image)
         {
-            long dx = Screen.X - at.X, dy = Screen.Y - at.Y;
-            long r = shipR + radius;
-            return dx * dx + dy * dy <= r * r;
+            var frame = WaitIntersect != AllCollisionsOff && WaitIntersect != word ? _shapes.IpPoint : image;
+            return Intersection.DrawablesIntersect(ship, new IntersectControl(frame, (short)at.X, (short)at.Y),
+                Intersection.MaxTimeValue) != 0;
         }
-
-        int CollisionRadius(ushort word, int imageRadius) =>
-            WaitIntersect != AllCollisionsOff && WaitIntersect != word ? pointRadius : imageRadius;
 
         if (InnerPlanet is int planet)
         {
             // The planet in the middle of the inner view.
             ushort word = MakeWord(planet + 1, 1);
-            if (Touches(new IpPoint(CenterX, CenterY), CollisionRadius(word, ImageRadius(_innerPlanetImageSize))))
+            if (Touches(new IpPoint(CenterX, CenterY), word, _innerPlanetFrame!))
             {
                 newWait = word;
                 if (WaitIntersect != AllCollisionsOff && WaitIntersect != newWait)
@@ -532,7 +522,7 @@ public sealed class IpFlight
             for (int m = 0; m < Moons.Count; ++m)
             {
                 ushort mw = MakeWord(planet + 1, m + 2);
-                if (!Touches(_moonImage[m], CollisionRadius(mw, ImageRadius(_moonImageSize[m]))))
+                if (!Touches(_moonImage[m], mw, _moonFrame[m]))
                     continue;
                 newWait = mw;
                 if (WaitIntersect == AllCollisionsOff)
@@ -549,7 +539,7 @@ public sealed class IpFlight
             for (int p = 0; p < _planetImage.Length; ++p)
             {
                 ushort pw = MakeWord(p + 1, 0);
-                if (!Touches(_planetImage[p], CollisionRadius(pw, ImageRadius(_planetImageSize[p]))))
+                if (!Touches(_planetImage[p], pw, _planetFrame[p]))
                     continue;
                 newWait = pw;
                 if (WaitIntersect == AllCollisionsOff)
@@ -565,9 +555,6 @@ public sealed class IpFlight
             WaitIntersect = newWait;
         return null;
     }
-
-    // Image sizes: 0..5 for planet images, -1 for the starbase and the Sa-Matra.
-    private int ImageRadius(int size) => size < 0 ? _shape.JunkRadius : _shape.PlanetRadius[size];
 
     // ---- zoom and orbits ----
 
@@ -591,7 +578,13 @@ public sealed class IpFlight
         return (short)fromRadius;
     }
 
-    private int ImageSize(byte dataIndex, int add) => SystemLayout.ImageSize(System.Generator, dataIndex, add);
+    /// <summary>ValidateOrbit's image of a world (<see cref="SystemSprites.WorldImage"/>), as a shape.</summary>
+    private IntersectFrame WorldFrame(WorldDesc world, int add, WorldDesc lightFrom)
+    {
+        var (sheet, frame) = SystemSprites.WorldImage(System.Generator, world,
+            SystemLayout.ImageSize(System.Generator, world.DataIndex, add), lightFrom);
+        return sheet == SystemSheet.Worlds ? _shapes.Worlds[frame] : _shapes.Junk[frame];
+    }
 
     /// <summary>ValidateOrbits: planet images in the outer view at the current zoom.</summary>
     private void ValidateOrbits()
@@ -601,7 +594,7 @@ public sealed class IpFlight
         {
             WorldDesc p = System.Planets[i];
             _planetImage[i] = SystemLayout.OuterPlanet(p, ZoomRadius);
-            _planetImageSize[i] = ImageSize(p.DataIndex, add);
+            _planetFrame[i] = WorldFrame(p, add, p);
         }
     }
 
@@ -609,13 +602,14 @@ public sealed class IpFlight
     private void ValidateInnerOrbits()
     {
         int planet = InnerPlanet!.Value;
-        _innerPlanetImageSize = ImageSize(System.Planets[planet].DataIndex, SystemLayout.InnerPlanetSizeAdd);
+        WorldDesc pl = System.Planets[planet];
+        _innerPlanetFrame = WorldFrame(pl, SystemLayout.InnerPlanetSizeAdd, pl);
         _moonImage = new IpPoint[Moons.Count];
-        _moonImageSize = new int[Moons.Count];
+        _moonFrame = new IntersectFrame[Moons.Count];
         for (int m = 0; m < Moons.Count; ++m)
         {
             _moonImage[m] = SystemLayout.InnerMoon(Moons[m]);
-            _moonImageSize[m] = ImageSize(Moons[m].DataIndex, SystemLayout.MoonSizeAdd);
+            _moonFrame[m] = WorldFrame(Moons[m], SystemLayout.MoonSizeAdd, pl);
         }
     }
 }

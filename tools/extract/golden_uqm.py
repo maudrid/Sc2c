@@ -108,7 +108,8 @@ def systems_link(uqm):
              "uqm/planets/pl_stuff.c", "uqm/gendef.c",
              "uqm/plandata.c", "uqm/starmap.c", "uqm/globdata.c",
              "libs/math/random2.c", "uqm/trans.c", "libs/math/sqrt.c",
-             "uqm/velocity.c"] +
+             "uqm/velocity.c", "libs/graphics/intersec.c",
+             "libs/graphics/boxint.c"] +
             sorted(f"uqm/planets/generate/{n}" for n in os.listdir(gen)
                    if n.endswith(".c")))
 
@@ -295,9 +296,7 @@ def record_ip(uqm, exe):
     return data
 
 
-def record_ip_flight(uqm, exe):
-    out = subprocess.run([exe, "flight"], capture_output=True, text=True,
-                         check=True).stdout
+def ip_flight_data(uqm, out):
     data = header(uqm, ["tools/extract/golden/systems.c",
                         "tools/extract/golden/stubs.c",
                         "src/uqm/planets/solarsys.c", "src/uqm/ipdisp.c",
@@ -310,11 +309,10 @@ def record_ip_flight(uqm, exe):
         "After entering orbit, the ship returns to flight as "
         "EnterPlanetOrbit does (FreeSolarSys, LoadSolarSys, CheckZoomLevel, "
         "ResetSolarSys); the orbit itself is left out.",
-        "Sprite intersection (DrawablesIntersect) uses circles instead of "
-        "UQM's content sprite masks: ship_radius for the flagship, 0 for "
-        "UQM's one-pixel frame, planet_radius by planet image size index, "
-        "junk_radius for the starbase and the Sa-Matra, in display pixels. "
-        "The engine uses the same model until the content stage.",
+        "Contact is UQM's own DrawablesIntersect (intersec.c, boxint.c) "
+        "with the sprites' masks from the official content package "
+        "(sprite-masks.json), so recording needs --content. The positions "
+        "and events are code and shapes, not content.",
         "A test pilot chooses the input each frame (turn towards the goal, "
         "thrust when facing it); the engine's tests replay the recorded "
         "input. Input flags: 1 left, 2 right, 4 thrust.",
@@ -957,6 +955,136 @@ def planet_tables(strings_exe, images_exe, package, tmp):
     return tables
 
 
+# The sprite sheets UQM tests for contact, by the systems program's sheet
+# numbers (tools/extract/golden/systems.c).
+CONTACT_SHEETS = [
+    (1, "graphics.flagship"),                    # the flagship in a system
+    (2, "graphics.planets"),                     # the worlds
+    (3, "graphics.orbitbackground"),             # the starbase and the Sa-Matra
+    (4, "graphics.stars"),                       # stars_in_space in a system
+    (6, "ship.flagship.graphics.hyperspace"),    # the flagship in hyperspace
+    (7, "graphics.hyperstars"),                  # the hyperspace stars
+    (8, "graphics.ambient"),                     # stars_in_space in hyperspace
+]
+
+
+def write_masks(strings_exe, images_exe, package, tmp):
+    """Every frame of the contact sheets as UQM loads it (_GetCelData:
+    each .ani line names an image, its transparent colour and hot spot,
+    and an image that doesn't load is dropped), with its collision mask
+    from the images program's mask mode, written into a new folder under
+    tmp as SHEET.INDEX.mask for the systems program. Returns the folder
+    and, by resource id, each frame's [width, height, hot spot x, y,
+    SHA-256 of the mask (a byte a pixel, 1 where it can touch)]."""
+    import hashlib
+    import zipfile
+    with open(package, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
+            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    masks = os.path.join(tmp, "masks")
+    os.makedirs(masks)
+    hashes = {}
+    with zipfile.ZipFile(package) as z:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        for sheet, key in CONTACT_SHEETS:
+            ani_path = index[key][1]
+            folder = ani_path.rsplit("/", 1)[0] + "/" if "/" in ani_path else ""
+            frames, args = [], []
+            for n, line in enumerate(z.read(ani_path).decode().splitlines()):
+                fields = line.split()
+                if not fields:
+                    continue
+                name, transparent, _, hx, hy = fields[0], *map(int, fields[1:5])
+                try:
+                    data = z.read(folder + name)
+                except KeyError:
+                    continue
+                path = os.path.join(tmp, f"{sheet}_{n}.png")
+                with open(path, "wb") as f:
+                    f.write(data)
+                frames.append((hx, hy))
+                args += [path, str(transparent)]
+            out = subprocess.run([images_exe, "mask", *args], capture_output=True,
+                                 text=True, check=True).stdout.splitlines()
+            entries = []
+            for (hx, hy), line in zip(frames, out):
+                result = json.loads(line)
+                if result[0] == 0:
+                    continue   # dropped, as _GetCelData drops it
+                if result[0] == 2:
+                    # True colour without alpha (orbit background frame 21,
+                    # never tested for contact): its mask is unknown, 2s,
+                    # and the systems program stops if it's ever tested.
+                    _, _, w, h = result
+                    bits, digest = bytes([2]) * (w * h), None
+                else:
+                    _, w, h, bits = result
+                    bits = bytes.fromhex(bits)
+                    digest = hashlib.sha256(bits).hexdigest()
+                with open(os.path.join(masks, f"{sheet}.{len(entries)}.mask"), "w") as f:
+                    f.write(f"{w} {h} {hx} {hy}\n")
+                    for y in range(h):
+                        f.write("".join(str(b) for b in bits[y * w:(y + 1) * w]) + "\n")
+                entries.append([w, h, hx, hy, digest])
+            hashes[key] = entries
+    return masks, hashes
+
+
+def record_contact(uqm, systems_exe, strings_exe, images_exe, package):
+    """Contact by sprite shape, with the package's masks: the masks
+    (content, so hashes), UQM's own DrawablesIntersect on many cases, and
+    the interplanetary flights. Returns {"sprite-masks", "intersections",
+    "ip-flight"}."""
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp)
+        cases = subprocess.run([systems_exe, "intersect", "-k", masks],
+                               capture_output=True, text=True, check=True).stdout
+        flight = subprocess.run([systems_exe, "flight", "-k", masks],
+                                capture_output=True, text=True, check=True).stdout
+    out = {}
+    data = header(uqm, ["tools/extract/golden/images.c",
+                        "src/libs/graphics/gfxload.c",
+                        "src/libs/graphics/sdl/canvas.c"], [
+        "The collision masks of the sprite sheets UQM tests for contact, "
+        f"from the official content package (SHA-256 {CONTENT_SHA256}): "
+        "each frame as _GetCelData loads it, read by UQM's own PNG loader, "
+        "with its colour key set as process_image sets it, and a pixel able "
+        "to touch as TFB_DrawCanvas_Intersect decides it. By resource id, "
+        "each frame is [width, height, hot spot x, hot spot y, SHA-256 of "
+        "the mask: a byte a pixel, row by row, 1 where it can touch]. A "
+        "true colour frame without alpha (only the orbit background's last, "
+        "never tested for contact) has null: UQM converts it to the "
+        "screen's format, which isn't modelled. Content, so hashes only.",
+    ])
+    data["sheets"] = hashes
+    out["sprite-masks"] = data
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "src/libs/graphics/intersec.c",
+                        "src/libs/graphics/boxint.c"], [
+        "UQM's own DrawablesIntersect (intersec.c, with BoxIntersect from "
+        "boxint.c) on cases chosen by the systems program's intersect mode, "
+        "with the masks of sprite-masks.json: pairs of frames UQM tests for "
+        "contact (and a few others) placed near each other, still or "
+        "moving, with a time limit.",
+        "Sheets: 1 graphics.flagship, 2 graphics.planets, 3 "
+        "graphics.orbitbackground, 4 graphics.stars, 6 "
+        "ship.flagship.graphics.hyperspace, 7 graphics.hyperstars, 8 "
+        "graphics.ambient.",
+        "cases: [sheet0, frame0, origin x0, y0, end point x0, y0, sheet1, "
+        "frame1, origin x1, y1, end point x1, y1, max time, result, then "
+        "after the call control 0's end point x, y and last_time_val, and "
+        "control 1's].",
+        "Positions and times from code and the masks' shapes; no content.",
+    ])
+    data.update(json.loads(cases))
+    out["intersections"] = data
+    out["ip-flight"] = ip_flight_data(uqm, flight)
+    return out
+
+
 def record_planet_surfaces(uqm, systems_exe, strings_exe, images_exe=None,
                            package=None):
     """Every world's surface as UQM's own GeneratePlanetSurface makes it:
@@ -1124,7 +1252,6 @@ def main():
                            ("star-systems", record_systems(uqm, systems)),
                            ("world-surfaces", record_surfaces(uqm, systems)),
                            ("ip-geometry", record_ip(uqm, systems)),
-                           ("ip-flight", record_ip_flight(uqm, systems)),
                            ("system-layout", record_layout(uqm, systems)),
                            ("system-sprites", record_sprites(uqm, systems)),
                            *record_planet_surfaces(uqm, systems, strings, images, args.content).items(),
@@ -1135,7 +1262,8 @@ def main():
                               ("names", record_names(uqm, systems, strings, args.content)),
                               ("fonts", record_fonts(uqm, fonts, strings, args.content)),
                               ("images", record_images(uqm, images, args.content)),
-                              ("binary-tables", record_binary_tables(uqm, strings, args.content))]
+                              ("binary-tables", record_binary_tables(uqm, strings, args.content)),
+                              *record_contact(uqm, systems, strings, images, args.content).items()]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:

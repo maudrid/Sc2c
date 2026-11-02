@@ -80,6 +80,7 @@ public partial class Main : Node2D
     private ContentPackage? _content;
     private Names _names = null!;
     private SpriteTextures _sprites = null!;
+    private ContactShapes _shapes = null!;
     private OrbitScreenText _orbitText = null!;
     private FirstRunScreen? _firstRun;
     private ContentErrorScreen? _contentError;
@@ -215,6 +216,7 @@ public partial class Main : Node2D
             _names = Names.Load(content);
             _orbitText = OrbitScreenText.Load(content);
             _sprites = new SpriteTextures(new SpaceSprites(content));
+            _shapes = ContactShapes.Load(content);
         }
         catch (ContentPackageException e)
         {
@@ -273,7 +275,7 @@ public partial class Main : Node2D
         var systems = _systems;
         if (load != null && File.Exists(load))
         {
-            _world = HostSave.FromJson(File.ReadAllText(load), systems);
+            _world = HostSave.FromJson(File.ReadAllText(load), systems, _shapes);
             _playerId = _world.Host.Id; // the save belongs to its host
             _world.Join(_playerId, _name);
             Log($"Loaded {load}");
@@ -284,7 +286,7 @@ public partial class Main : Node2D
             var settings = new GameSettings();
             if (_options.SecondsPerDay is { } spd)
                 settings = settings with { SecondsPerGameDay = spd };
-            _world = GameWorld.NewGame(settings, NewGameData.Load(dataDir, systems.Map), _playerId, _name, systems);
+            _world = GameWorld.NewGame(settings, NewGameData.Load(dataDir, systems.Map), _playerId, _name, systems, _shapes);
             Log("New game");
             StartInOrbit();
         }
@@ -435,9 +437,18 @@ public partial class Main : Node2D
         }
     }
 
-    /// <summary>--start-orbit: put the host's ship in orbit (new or loaded game).</summary>
+    /// <summary>--start-at and --start-orbit: put the host's ship in hyperspace somewhere, or in orbit (new or loaded game).</summary>
     private void StartInOrbit()
     {
+        if (_options.StartAt is { } at && _world != null)
+        {
+            // --start-at: the host's ship in hyperspace there, at rest.
+            var flight = _world.Host.Ship.Flight;
+            flight.PlaceAtUniverse(at.X, at.Y);
+            flight.Stop();
+            flight.StarJustLeft = null;
+            Log($"Starting in hyperspace at {at.X}:{at.Y}");
+        }
         if (_options.StartOrbit is not { } o || _world == null)
             return;
         string where = $"star {o.Star} planet {o.Planet}" + (o.Moon is int m ? $" moon {m}" : "");
@@ -575,6 +586,9 @@ public partial class Main : Node2D
     private ShipInput ReadInput()
     {
         ShipInput input = ReadKeysOrScript();
+        // While the ship's entry into a star plays, it can't be flown, as in UQM.
+        if (_view.Entering(_playerId))
+            return ShipInput.None;
         if (_leaveFrames > 0)
         {
             // Navigate was chosen: hold the action key a few frames, so a
@@ -716,9 +730,11 @@ public partial class Main : Node2D
     {
         UpdateOrbitMenu();
         var activity = Me()?.Activity ?? Activity.Hyperspace;
-        _view.Visible = activity == Activity.Hyperspace;
         _view.Show(_snapshot, _playerId);
-        _systemView.Visible = activity is Activity.OuterSystem or Activity.InnerSystem;
+        // The screen stays on hyperspace while the ship's entry into a star plays.
+        bool entering = _view.Entering(_playerId);
+        _view.Visible = activity == Activity.Hyperspace || entering;
+        _systemView.Visible = !entering && activity is Activity.OuterSystem or Activity.InnerSystem;
         _orbitView.Visible = activity == Activity.Orbit;
         if (_snapshot != null && _systemView.Visible)
             _systemView.Show(_snapshot, _playerId);

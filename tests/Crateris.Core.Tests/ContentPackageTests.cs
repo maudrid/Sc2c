@@ -55,6 +55,11 @@ internal static class TestContent
     }
 
     public static void With(Action<ContentPackage> use) => With<bool>(p => { use(p); return true; });
+
+    private static readonly Lazy<ContactShapes> SharedShapes = new(() => With(ContactShapes.Load));
+
+    /// <summary>The sprites' shapes from the package, which decide contact (worlds with systems need them).</summary>
+    public static ContactShapes Shapes => SharedShapes.Value;
 }
 
 /// <summary>A test that needs the UQM content package; skipped, saying why, when there is none.</summary>
@@ -64,6 +69,16 @@ public sealed class ContentFactAttribute : FactAttribute
     {
         // Skipped when there's no package at all; a CRATERIS_CONTENT that
         // names a missing file makes the test fail instead, saying so.
+        if (TestContent.PackagePath is null && TestContent.Problem is null)
+            Skip = $"needs the UQM 0.8.0 content: set {ContentLocation.EnvironmentVariable} to {ContentPackage.FileName}, or run the game once to download it";
+    }
+}
+
+/// <summary>A theory that needs the UQM content package; skipped, saying why, when there is none.</summary>
+public sealed class ContentTheoryAttribute : TheoryAttribute
+{
+    public ContentTheoryAttribute()
+    {
         if (TestContent.PackagePath is null && TestContent.Problem is null)
             Skip = $"needs the UQM 0.8.0 content: set {ContentLocation.EnvironmentVariable} to {ContentPackage.FileName}, or run the game once to download it";
     }

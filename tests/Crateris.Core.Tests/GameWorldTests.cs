@@ -34,7 +34,7 @@ public class GameWorldTests
         Assert.True(world.Host.Present);
     }
 
-    [Fact]
+    [ContentFact]
     public void A_new_game_on_Sol_does_not_fall_into_Sol()
     {
         var map = StarMap.Load(DataDir);
@@ -51,8 +51,8 @@ public class GameWorldTests
         {
             host.Step(ShipInput.Thrust);
             guest.Step(ShipInput.Thrust);
-            Assert.Null(StarContact.Check(host, map));
-            Assert.Null(StarContact.Check(guest, map));
+            Assert.Null(StarContact.Check(host, map, TestContent.Shapes));
+            Assert.Null(StarContact.Check(guest, map, TestContent.Shapes));
         }
     }
 
