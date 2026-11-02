@@ -1,0 +1,130 @@
+# Stage 2b plan: landing and mining
+
+**Status:** draft, for the owner's approval. Eight decisions below need an answer; each has a recommendation.
+
+Build order item: "2b. Landing and mining: the lander, creatures, hazards, cargo and the shared landing screen" (`docs/design.md`), after stage 2 and the content stage.
+
+## Goal
+
+From orbit, a player sends their lander down to the surface, drives it around, picks up minerals, stuns and collects creatures, survives quakes, lightning and lava, and comes back up with what it carried, as in UQM 0.8.0. Players orbiting the same world land on the same surface together: each drives their own lander, and they see each other's landers, shots and the creatures they chase. A node can be taken once, by whoever reaches it first. What each player brings back goes into their own ship's hold.
+
+### What the owner will be able to try when it's done
+
+- Orbit Luna, choose Dispatch Lander, pick a landing site on the map and see the fuel it costs; the lander drops onto Luna's surface, drawn as UQM draws it, four times the scan map's detail.
+- Drive over the surface, pick up minerals (their name and amount flash up) until the lander is full, and take off again; the minerals are in the ship's hold (Manifest, Cargo).
+- Land on a world with life, stun a creature with the lander's gun until it's canned, pick it up, and see the bio data in the hold. Get hurt by a dangerous one and lose crew.
+- Land on a world with bad weather or quakes and lose crew to them; lose the whole lander's crew and the lander with it.
+- With a friend orbiting the same world: both land, see each other's landers, race for the same node (only one gets it), and both take off with their own cargo.
+
+## Scope
+
+**In stage 2b:**
+
+- The ship's landing kit and hold: crew, landers, storage bays, minerals by category and bio data, per player, saved and sent.
+- Dispatching: the checks in the scan menu, picking the landing site, the landing fuel.
+- The landing surface: the planetside map (`TopoScale4x`), coloured as UQM does.
+- The lander on the surface: landing and take-off, driving, firing, crew in and out.
+- Mineral and life nodes on the surface and picking them up into the lander's hold, then into the ship's.
+- Creatures: their movement, awareness, behaviour, stunning, canning and the harm they do.
+- Hazards: earthquakes, lightning and lava, their chances from the world's report, lander shields, crew losses and losing the lander.
+- The shared landing screen on the host: every lander on a world on one surface.
+- The client views for all of it, and the Manifest's Cargo display.
+
+**Not in stage 2b** (and where it goes):
+
+| Left out | Why | Goes to |
+| --- | --- | --- |
+| Picking up energy nodes: ruins and their lander reports, artifacts (the Sun Device, the Utwig bomb, the broadcasters and others), Fwiffo at Pluto | Every energy node in UQM is a story hook (`pickupEnergy` in each special generator; the default one is never called): artifacts set story flags and go in the group inventory, Fwiffo starts a conversation | Stage 3 (decision 4) |
+| Selling minerals and bio data, buying landers, crew, fuel and lander upgrades | They're at the starbase and with the Melnorme | Stage 3 |
+| Lander upgrades and shields (`IMPROVED_LANDER_SPEED`, `IMPROVED_LANDER_CARGO`, `IMPROVED_LANDER_SHOT`, `LANDER_SHIELDS`) as things to get | They come from the Melnorme and the Chmmr | Stage 3. The rules for them are ported in 2b (each ship's own; none to start with), so they can be switched on in tests |
+| Cargo trading between players (row 22) | Nothing to do with cargo until it can be sold | Stage 3, with selling (decision 8) |
+| Sound | Nothing plays sound yet | A later stage with audio |
+
+## How UQM does it
+
+Paths are relative to `sc2/src/uqm/planets/` in UQM 0.8.0.
+
+- **Dispatching** (`scan.c`, `DoScan`, `PickPlanetSide`, `DispatchLander`): refused on shielded worlds and gas giants, and when the ship has too little fuel, no lander or no crew. The player moves a cursor over the scan map (wrapping east and west, stopping at the poles) to pick the site; the status line shows the fuel it costs: twice the world's surface gravity, at most 3 units (`getLandingFuelNeeded`). The fuel is taken when the lander goes.
+- **Crew** (`AnimateLanderWarmup`): the lander takes up to 12 crew from the ship, one at a time. Those still alive go back on take-off; if all die, the lander is lost (`NumLanders` goes down).
+- **The surface** (`plangen.c`, `GeneratePlanetSurface`): every landable world's map is also made four times larger (`TopoScale4x`) when the player enters orbit, and coloured the same way. That scaling uses a random generator of its own, `frandom`, whose seed is a `static` that starts at `0x12345678` when the program starts and is never reset. So the planetside terrain of a world depends on every landable world orbited before it since UQM was started. The terrain is only drawn; nothing on the surface collides with it.
+- **The lander** (`lander.c`, `PlanetSide`, `DoPlanetSide`, `ScrollPlanetSide`): it lands near the chosen site, up to 64 pixels off in each direction (`InitPlanetSide`), facing a random way. It always moves at one speed (16 or, upgraded, 28 world units, `/ LANDER_SPEED_DENOM`) while thrust is held, turns one of 16 facings every 3 frames, and fires a stun bolt every 15 frames (7 upgraded). The surface wraps east and west and stops at the poles. Escape or the special key takes off. It runs at **35 frames a second** (`PLANET_SIDE_RATE`, the 3DO speed), a third rate after 24 in hyperspace and 30 in systems. Landing and take-off are short fixed sequences (`LandingTakeoffSequence`).
+- **Nodes** (`CheckObjectCollision`): the lander picks up what it touches, by the sprites' shapes (`DrawablesIntersect`). Minerals fill the lander's hold up to 50 (100 upgraded, and no more than the ship's free storage), a deposit too big is taken in part, and the hold shows the amount and the element's name flashing (`pickupMineralNode`). Bio data has its own 50 (`pickupBioNode`). A node that's picked up is marked taken in the world's state (`setNodeRetrieved`), the state stage 2 already keeps and shares.
+- **Creatures** (`object_animation`, `shotCreature`, `CreatureData`, already in `data/lifeforms.json`): moving ones start at random places, still ones at their nodes. Each notices the lander, by its awareness, once within a screen's width; then it hunts, flees or wanders by its behaviour, at one of three speeds. Each bolt takes a hit point; at none it's canned and can be picked up as bio data. Touching a live creature can kill a crew member by its danger (0, 6, 13 or 26 in 128).
+- **Hazards** (`BuildObjectList`, `AddGroundDisaster`, `AddLightning`, `GetHazardChance`, `GetThermalHazardRating`): each frame, quakes, lightning and lava spots may start near the lander, with chances from the world's tectonics, weather and temperature. Quakes and lava hurt the crew 1 time in 4 on touch, lightning when it strikes the lander. A lander shield against that hazard blocks the hit 95 times in 100.
+- **Back in orbit** (`PlanetSide`): the crew go back, the minerals go into the ship's storage by category (`ElementAmounts`, `TotalElementMass`) and the bio data into `TotalBioMass`.
+- **Randomness:** everything on the surface that isn't generated from the world's seed (the landing jitter, creatures' starting places and choices, hazards, hits) uses UQM's general random generator `TFB_Random` (`libs/math/random.c`, a `RandomContext` seeded once at start), not the system generator. It isn't part of the deterministic planet generation, so no two landings are alike, in UQM as here.
+
+## Co-op rules for stage 2b
+
+From decisions already made (`docs/design.md`, `docs/differences.md` row 20):
+
+- **One shared surface per world.** Players orbiting the same world land on the same surface: each with their own lander, each seeing the others'. A node is taken once, by the first lander to touch it; the host decides.
+- **Per player:** landers, crew, fuel, the hold, the lander's upgrades and shields. What a lander brings back goes into its own ship.
+- **Escorts land and mine** (design: "Escort abilities: full"), so they need landers and storage (decision 6).
+- **The clock runs** at its one constant rate while players are on the surface (row 1).
+
+New for stage 2b (decisions 2, 3, 5 and 7):
+
+- **Creatures react to the nearest lander.** UQM's creatures follow the one lander; on a shared surface each one hunts, flees or notices by the nearest, as enemy ships will target the nearest opponent in battle.
+- **Hazards are per lander.** Each lander gets UQM's chances of quakes, lightning and lava around it, so a group isn't in more danger per player than one player alone, and each player's own risk is UQM's.
+- **Stun bolts don't hit other landers.** In UQM they only hit creatures; with several landers, nobody can stun or hurt a friend.
+- **A third frame rate.** Players on the surface are stepped at UQM's 35 frames a second, one or two surface frames per 24-a-second world frame, as players in systems are at 30.
+- **Leaving while landed** (disconnecting, or the host closing the game): the lander takes off at once with its crew and what it carries, as a retreat does in battle; nobody loses a lander by dropping out. Saves keep players in orbit.
+
+## Work, in order
+
+Each item ends with tests that run headless. Where UQM code produces the answer, the test compares with results recorded from UQM's own code, as before: the lander code is run in the recording program with `TFB_Random` seeded and the input scripted (decision 7). Results drawn from the content are recorded as hashes (content stage, decision 5).
+
+1. **The ship's landing kit and hold.** Per-player crew, landers, storage capacity, minerals by category and bio data, with UQM's limits (`MAX_LANDERS`, `STORAGE_BAY_CAPACITY`, `MAX_SCROUNGED`) and the flagship's new-game values; the escort's placeholder kit (decision 6). Snapshots, protocol version 4; saves, version 5 (older ones load). Check: unit tests and save round trips.
+2. **The planetside map.** Port `TopoScale4x` with `frandom` started as decision 1 says, and colour it as `RenderTopography` does at four times the size. Check: every landable world's planetside map against UQM's own code, the heights directly and the colours as hashes, recorded by the systems program's surfaces mode with `frandom` started the same way.
+3. **Dispatching.** The scan menu's checks, the landing-site cursor (moving, wrapping, flashing), the fuel shown and taken. Check: the fuel for every world against UQM's `getLandingFuelNeeded`; the checks and the cursor by tests of our own against `DoPickPlanetSide`'s rules.
+4. **The lander.** Landing (jitter, facing, crew coming aboard) and take-off, driving, turning, the wrap and the poles, firing, at 35 frames a second. Check: landings recorded from UQM's own `PlanetSide` with scripted input and a seeded `TFB_Random`, frame by frame: the lander's place, facing and bolts.
+5. **Picking up nodes.** Mineral and life nodes on the surface where UQM puts them, picked up by the sprites' shapes (the content stage's intersection, with the lander's and the nodes' masks), the lander's hold, partial pickups, taken nodes into the world's shared state, and the cargo into the ship on take-off. Check: the recorded landings, now picking up nodes; the hold's sums by tests of our own.
+6. **Creatures.** Placement, movement, awareness, behaviour, speeds, stunning, canning and the danger of touching them, with the nearest lander's rule. Check: recorded landings on worlds with each behaviour and speed, frame by frame; the nearest-lander rule by tests of our own (UQM has one lander).
+7. **Hazards.** Chances for every world (`GetHazardChance`, `GetThermalHazardRating`), quakes, lightning, lava and how lava spreads, shields, crew losses, the lander's death and its loss. Check: every world's chances against UQM's code; recorded landings on stormy, shaky and hot worlds; deaths and losses by tests of our own.
+8. **The shared surface on the host.** A new activity for players on the surface, one surface per world holding every lander on it, the rules above, snapshots per surface, joining, leaving and saving. Check: unit tests (two landers taking one node, the nearest lander, per-lander hazards, leaving while landed); the network test extended to two players landing on Luna together.
+9. **Client views.** The landing-site picker with its fuel, landing and take-off, the surface view (the planetside map scrolling under the lander, landers, bolts, creatures, hazards, the mineral text), the lander's crew and cargo gauges, the scan map beside it, and the Manifest's Cargo display, all from UQM's sprites in UQM's places. Check: screenshots under a virtual display; the gauges' and cargo display's places against UQM's code.
+10. **Docs.** `docs/how-to-try/stage-2b.md`; update the design, porting inventory, differences and data docs.
+
+Rough size: items 4 to 7 are the large ones (`lander.c` is 2,100 lines, and the recording program has to run it without UQM's display), then 8 and 9. Items 1 to 3 are small.
+
+## Progress
+
+| Item | State | Where |
+| --- | --- | --- |
+| 1 to 10 | Not started | |
+
+## Decisions
+
+1. **The planetside terrain's random generator** (`frandom`, never reset in UQM, so a world's terrain depends on which worlds were orbited before it).
+   - **Start it afresh for each world (recommended):** `frandom` starts from UQM's own first seed (`0x12345678`) for each world, so a world always looks the same, to every player, on every visit. It's UQM's terrain for the first world orbited in a session; after that UQM's differs, but only in looks, since nothing collides with the terrain. A new row in `docs/differences.md`.
+   - Keep one generator on the host, run in the order players orbit, and send its state. Matches UQM's behaviour of changing with history, but each player's terrain would depend on everyone's orbits, and it needs the host to send it.
+   - Leave it to each client, as UQM does. Players sharing a surface would see different terrain under the same nodes.
+2. **Creatures with several landers.**
+   - **The nearest lander (recommended),** as enemies will target the nearest opponent in battle.
+   - The first lander down. Simpler, but the others could drive among creatures that ignore them.
+3. **Hazards with several landers.**
+   - **Per lander, at UQM's chances, around each (recommended):** each player's risk is UQM's.
+   - Once per surface, around a lander picked each frame: fewer hazards per player in a group.
+4. **Energy nodes.**
+   - **Stage 3 (recommended):** they show on the scan and the surface, but driving over them does nothing yet, as touching a starbase does nothing until stage 3 (row 27). Every energy pickup is a story hook, and most set story flags or start conversations.
+   - Ruins and their lander reports in 2b, artifacts in stage 3: the reports need only the world's state, but split one UQM feature over two stages.
+5. **Leaving the game while landed.**
+   - **The lander takes off at once, keeping its crew and cargo (recommended),** like a retreat; saves keep the player in orbit.
+   - The lander is lost, as if its crew were killed: harsh for a dropped connection.
+6. **The escort's landing kit** (the escort module set is still an open item in `docs/design.md`).
+   - **A placeholder: 1 lander and 1 storage bay (500 units), with its 10 crew (recommended),** as a setting like the escort's drives and fuel, until the module set is decided.
+   - Decide the escort module set first, before 2b starts.
+7. **How the surface is checked.**
+   - **Recorded from UQM's own lander code (recommended),** as every stage so far: the recording program runs `PlanetSide`'s logic with the display stubbed, `TFB_Random` seeded and the input scripted, and the engine replays the same input with the same seed, frame by frame. UQM's lander code works through its display list (collisions are found by walking what's drawn), so this needs more stubbing than the flight recordings did (see "Risks").
+   - Port it and check it by tests of our own only. Quicker, but nothing would show where it differs from UQM.
+8. **Cargo trading between players** (row 22).
+   - **With selling, in stage 3 (recommended):** until cargo can be sold, moving it between players changes nothing.
+   - In 2b, as soon as there's cargo.
+
+## Risks
+
+- **Recording the lander.** `CheckObjectCollision` finds what the lander touches by walking UQM's display list, and `ScrollPlanetSide` moves and draws in one pass, so the recording program has to keep the display list's order and stub the drawing without changing which random numbers are drawn when. If that turns out too hard, item 4 says so and records what it can (the lander alone, then nodes), with the rest checked by tests of our own (decision 7's second option for those parts).
+- **One random generator, several landers.** UQM's surface draws its random numbers in the order of its one lander's frame. With several landers the host draws them lander by lander in a fixed order; a lone lander matches UQM's recording, and a group's is the host's order. That's within decisions 2 and 3.
+- **The frame rate isn't stable in UQM** (`DoPlanetSide`: "the rate is not stabilized"): UQM waits for each frame's time after the work, so its surface runs a little slower than 35 frames a second. The engine runs it at an exact 35; the frames are UQM's, the pace very slightly faster.
+- **Snapshot size.** A busy surface has dozens of nodes, moving creatures, and bolts and hazards for each lander. Sent only to the players on that surface, that's still small; item 8 checks it.
