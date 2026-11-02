@@ -97,40 +97,32 @@ public sealed class SpriteSheet
     public SpriteImage Render(int index, ColorMaps maps)
     {
         var (frame, png) = _frames[index % _frames.Count];
+        bool palette = png.BytesPerPixel == 1;
+        Rgb[]? map = null;
+        if (palette && frame.ColorMapIndex != -1)
+            map = maps[frame.ColorMapIndex]
+                ?? throw new ContentPackageException($"{frame.Path} is drawn with colour map {frame.ColorMapIndex}, which nothing has set");
+        // process_image: a palette image's transparent index (none for -1),
+        // a true-colour image's black for 0; otherwise the PNG's own key.
+        long key = frame.TransparentIndex == -1 ? -1
+            : palette && frame.TransparentIndex >= 0 ? frame.TransparentIndex
+            : !palette && frame.TransparentIndex == 0 ? 0
+            : png.ColorKey;
         var rgba = new byte[png.Width * png.Height * 4];
-        if (png.BytesPerPixel == 1)
-        {
-            byte[] own = png.Palette!;
-            Rgb[]? map = null;
-            if (frame.ColorMapIndex != -1)
-                map = maps[frame.ColorMapIndex]
-                    ?? throw new ContentPackageException($"{frame.Path} is drawn with colour map {frame.ColorMapIndex}, which nothing has set");
-            long key = frame.TransparentIndex >= 0 ? frame.TransparentIndex
-                : frame.TransparentIndex == -1 ? -1 : png.ColorKey;
-            for (int i = 0, o = 0; i < png.Pixels.Length; ++i, o += 4)
+        for (int y = 0, o = 0; y < png.Height; ++y)
+            for (int x = 0; x < png.Width; ++x, o += 4)
             {
-                int p = png.Pixels[i];
-                if (map != null)
-                    (rgba[o], rgba[o + 1], rgba[o + 2]) = (map[p].R, map[p].G, map[p].B);
-                else
-                    (rgba[o], rgba[o + 1], rgba[o + 2]) = (own[p * 3], own[p * 3 + 1], own[p * 3 + 2]);
-                rgba[o + 3] = p == key ? (byte)0 : (byte)255;
-            }
-        }
-        else
-        {
-            long key = frame.TransparentIndex == 0 ? 0 : frame.TransparentIndex == -1 ? -1 : png.ColorKey;
-            int bpp = png.BytesPerPixel;
-            for (int i = 0, o = 0; i < png.Width * png.Height; ++i, o += 4)
-            {
-                byte r = png.Pixels[i * bpp], g = png.Pixels[i * bpp + 1], b = png.Pixels[i * bpp + 2];
+                var (r, g, b, a) = png.GetRgba(x, y);
+                long pixel = r | (g << 8) | (b << 16);
+                if (palette)
+                {
+                    pixel = png.Pixels[y * png.Width + x];
+                    if (map != null)
+                        (r, g, b) = (map[pixel].R, map[pixel].G, map[pixel].B);
+                }
                 (rgba[o], rgba[o + 1], rgba[o + 2]) = (r, g, b);
-                if (png.HasAlpha)
-                    rgba[o + 3] = png.Pixels[i * bpp + 3];
-                else
-                    rgba[o + 3] = (r | (g << 8) | (b << 16)) == key ? (byte)0 : (byte)255;
+                rgba[o + 3] = png.HasAlpha ? a : pixel == key ? (byte)0 : (byte)255;
             }
-        }
         return new SpriteImage(png.Width, png.Height, frame.HotSpotX, frame.HotSpotY, rgba);
     }
 }
@@ -143,23 +135,65 @@ public sealed class SpriteSheet
 /// </summary>
 public sealed class SpaceSprites
 {
-    private readonly ColorMaps _base = new();
-    private readonly BinaryTable _worldColors, _sunColors;
+    /// <summary>NUM_STAR_COLORS.</summary>
+    public const int StarColors = 6;
+
+    /// <summary>The entries of colortable.orbplan (colour families) and colortable.truespace (star colours).</summary>
+    public const int WorldColors = 9, SunColors = StarColors;
+
     private readonly Dictionary<(SystemSheet, int, int), SpriteImage> _system = new();
     private readonly Dictionary<(bool, int), SpriteImage> _hyper = new();
 
+    /// <summary>
+    /// Reads the sheets and colour tables and draws every frame in every
+    /// colour it's used in, so anything wrong with them is found here, as
+    /// the content is opened, not while drawing. Any failure is a
+    /// <see cref="ContentPackageException"/>.
+    /// </summary>
     public SpaceSprites(ContentPackage package)
     {
-        _base.Set(BinaryTable.Load(package, "colortable.main")[0]);
-        _base.Set(BinaryTable.Load(package, "colortable.hyperspace")[0]);
-        _worldColors = BinaryTable.Load(package, "colortable.orbplan");
-        _sunColors = BinaryTable.Load(package, "colortable.truespace");
-        Worlds = SpriteSheet.Load(package, "graphics.planets");
-        Sun = SpriteSheet.Load(package, "graphics.truespacesun");
-        Junk = SpriteSheet.Load(package, "graphics.orbitbackground");
-        Flagship = SpriteSheet.Load(package, "graphics.flagship");
-        HyperStars = SpriteSheet.Load(package, "graphics.hyperstars");
-        HyperFlagship = SpriteSheet.Load(package, "ship.flagship.graphics.hyperspace");
+        try
+        {
+            var maps = new ColorMaps();
+            maps.Set(BinaryTable.Load(package, "colortable.main")[0]);
+            maps.Set(BinaryTable.Load(package, "colortable.hyperspace")[0]);
+            var worldColors = BinaryTable.Load(package, "colortable.orbplan");
+            var sunColors = BinaryTable.Load(package, "colortable.truespace");
+            Worlds = SpriteSheet.Load(package, "graphics.planets");
+            Sun = SpriteSheet.Load(package, "graphics.truespacesun");
+            Junk = SpriteSheet.Load(package, "graphics.orbitbackground");
+            Flagship = SpriteSheet.Load(package, "graphics.flagship");
+            HyperStars = SpriteSheet.Load(package, "graphics.hyperstars");
+            HyperFlagship = SpriteSheet.Load(package, "ship.flagship.graphics.hyperspace");
+
+            // DrawSystem sets a world's or the sun's colour table entry before stamping it.
+            void Sheet(SystemSheet sheet, SpriteSheet frames, BinaryTable? table, int entries)
+            {
+                for (int e = 0; e < entries; ++e)
+                {
+                    var m = maps;
+                    if (table != null)
+                    {
+                        m = maps.Clone();
+                        m.Set(table[e]);
+                    }
+                    for (int f = 0; f < frames.Count; ++f)
+                        _system[(sheet, f, table != null ? e : -1)] = frames.Render(f, m);
+                }
+            }
+            Sheet(SystemSheet.Worlds, Worlds, worldColors, WorldColors);
+            Sheet(SystemSheet.Sun, Sun, sunColors, SunColors);
+            Sheet(SystemSheet.Junk, Junk, null, 1);
+            Sheet(SystemSheet.Flagship, Flagship, null, 1);
+            for (int f = 0; f < HyperStars.Count; ++f)
+                _hyper[(false, f)] = HyperStars.Render(f, maps);
+            for (int f = 0; f < HyperFlagship.Count; ++f)
+                _hyper[(true, f)] = HyperFlagship.Render(f, maps);
+        }
+        catch (Exception e) when (e is not ContentPackageException)
+        {
+            throw new ContentPackageException($"the system and hyperspace sprites couldn't be read: {e.Message}", e);
+        }
     }
 
     public SpriteSheet Worlds { get; }
@@ -169,48 +203,35 @@ public sealed class SpaceSprites
     public SpriteSheet HyperStars { get; }
     public SpriteSheet HyperFlagship { get; }
 
-    /// <summary>A system view's stamp drawn (kept once made).</summary>
+    /// <summary>Every drawn frame of the system views and hyperspace (to make textures of them up front).</summary>
+    public IEnumerable<SpriteImage> All => _system.Values.Concat(_hyper.Values);
+
+    /// <summary>A system view's stamp drawn.</summary>
     public SpriteImage Image(SystemStamp s) => Image(s.Sheet, s.Frame, s.ColorEntry);
 
+    /// <summary>
+    /// A frame of a system sheet; worlds and the sun in a colour table
+    /// entry, the others with -1. The frame wraps at the sheet's size
+    /// (SetAbsFrameIndex).
+    /// </summary>
     public SpriteImage Image(SystemSheet sheet, int frame, int colorEntry = -1)
     {
-        lock (_system)
+        int count = sheet switch
         {
-            if (_system.TryGetValue((sheet, frame, colorEntry), out var image))
-                return image;
-            var maps = _base;
-            if (sheet is SystemSheet.Worlds or SystemSheet.Sun)
-            {
-                maps = _base.Clone();
-                maps.Set((sheet == SystemSheet.Worlds ? _worldColors : _sunColors)[colorEntry]);
-            }
-            image = (sheet switch
-            {
-                SystemSheet.Worlds => Worlds,
-                SystemSheet.Sun => Sun,
-                SystemSheet.Junk => Junk,
-                _ => Flagship,
-            }).Render(frame, maps);
-            return _system[(sheet, frame, colorEntry)] = image;
-        }
+            SystemSheet.Worlds => Worlds.Count,
+            SystemSheet.Sun => Sun.Count,
+            SystemSheet.Junk => Junk.Count,
+            _ => Flagship.Count,
+        };
+        return _system[(sheet, frame % count, sheet is SystemSheet.Worlds or SystemSheet.Sun ? colorEntry : -1)];
     }
 
     /// <summary>
     /// A star in hyperspace (AddStars: STAR_TYPE * NUM_STAR_COLORS +
     /// STAR_COLOR), or with <paramref name="flagship"/> the flagship by facing.
     /// </summary>
-    public SpriteImage Hyper(bool flagship, int frame)
-    {
-        lock (_hyper)
-        {
-            if (!_hyper.TryGetValue((flagship, frame), out var image))
-                _hyper[(flagship, frame)] = image = (flagship ? HyperFlagship : HyperStars).Render(frame, _base);
-            return image;
-        }
-    }
-
-    /// <summary>NUM_STAR_COLORS.</summary>
-    public const int StarColors = 6;
+    public SpriteImage Hyper(bool flagship, int frame) =>
+        _hyper[(flagship, frame % (flagship ? HyperFlagship.Count : HyperStars.Count))];
 
     public static int StarFrame(Crateris.Core.Data.Star star) => (int)star.Size * StarColors + (int)star.Color;
 }

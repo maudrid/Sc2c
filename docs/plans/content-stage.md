@@ -115,6 +115,7 @@ Found while porting, all kept as UQM does them:
 - Each sprite sheet names its own colour map: the worlds 111 (set from `colortable.orbplan` by colour family before each world is drawn), the sun 56 (`colortable.truespace` by star colour), the orbit background 57, the flagship 55 and hyperspace's stars 54 (all from `colortable.main`, set at start), and the hyperspace flagship 53 (`colortable.hyperspace`).
 - The hyperspace view's top left corner is fixed at a quarter of the logical space from the middle, so the ship is drawn at (128, 120) on the 242 x 227 screen, a little right of and below its middle, when the view has caught up with it. The stars drawn are those within 42 universe units across and 33 up or down.
 - The hyperspace flagship's sheet has 34 frames: its 16 facings first.
+- UQM draws a ship's thrust only in battle (`spawn_ion_trail` runs only up to `IN_ENCOUNTER`); in hyperspace and systems the flagship shows no thrust, so the placeholder flame is gone.
 - UQM's text layout stops at the first bad UTF-8 sequence, and draws at most 100 characters of a text (`MAX_DELTAS`).
 
 ## Decisions

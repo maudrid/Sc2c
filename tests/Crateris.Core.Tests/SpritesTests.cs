@@ -56,6 +56,9 @@ public class SpritesTests
         Assert.Equal((96, 5, 22, 16, 32), (sprites.Worlds.Count, sprites.Sun.Count, sprites.Junk.Count, sprites.Flagship.Count, sprites.HyperStars.Count));
         Assert.Equal(34, sprites.HyperFlagship.Count);
         Assert.All(Enumerable.Range(0, 96), i => Assert.Equal(111, sprites.Worlds.Frame(i).ColorMapIndex));
+        // Every frame is drawn as the content is opened, in every colour it's
+        // used in: worlds in 9 colour families, the sun in 6 star colours.
+        Assert.Equal(96 * 9 + 5 * 6 + 22 + 16 + 32 + 34, sprites.All.Count());
 
         // A world's image takes its colours from its colour family's map,
         // and its transparent index leaves the corners clear.

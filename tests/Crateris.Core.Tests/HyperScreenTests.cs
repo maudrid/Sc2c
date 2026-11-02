@@ -29,6 +29,18 @@ public class HyperScreenTests
     }
 
     [Fact]
+    public void OnlyShipsNearTheViewerAreDrawn()
+    {
+        Assert.True(HyperScreen.ShowsShip(1042, 1967, 1000, 2000));
+        Assert.False(HyperScreen.ShowsShip(1043, 2000, 1000, 2000));
+        // Across the map: not drawn, rather than placed by a wrapped distance.
+        Assert.False(HyperScreen.ShowsShip(8800, 2000, 1000, 2000));
+        // A ship 130,000 logical units away is placed off the screen, not on it.
+        var (x, _) = HyperScreen.Ship(140000, 6000, HyperFlight.CenterX, HyperFlight.CenterY, 10000, 6000);
+        Assert.True(x > 30000, $"placed at {x}");
+    }
+
+    [Fact]
     public void StarsArePlacedAroundTheShip()
     {
         var star = new Star(0, 1000, 2000, StarSize.Dwarf, StarColor.Yellow, null);

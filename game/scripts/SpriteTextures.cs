@@ -22,7 +22,13 @@ public sealed class SpriteTextures
 {
     private readonly Dictionary<SpriteImage, ImageTexture> _textures = new(ReferenceEqualityComparer.Instance);
 
-    public SpriteTextures(SpaceSprites sprites) => Sprites = sprites;
+    /// <summary>Makes every frame's texture now, so drawing never has to.</summary>
+    public SpriteTextures(SpaceSprites sprites)
+    {
+        Sprites = sprites;
+        foreach (var image in sprites.All)
+            Texture(image);
+    }
 
     public SpaceSprites Sprites { get; }
 

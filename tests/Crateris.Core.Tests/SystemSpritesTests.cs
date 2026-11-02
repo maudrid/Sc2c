@@ -100,6 +100,10 @@ public class SystemSpritesTests
         var outer = SystemSprites.Outer(sol, IpGeometry.MaxZoomRadius);
         Assert.Equal(new SystemStamp(SystemSheet.Sun, 0, 121, 113, 5), outer.Single(s => s.Sheet == SystemSheet.Sun));
         Assert.Equal(2, SystemSprites.Outer(sol, IpGeometry.MinZoomRadius).Single(s => s.Sheet == SystemSheet.Sun).Frame);
+        // Each stamp says which world it shows.
+        Assert.Equal(new[] { -1, 0, 1 }, earth.Select(s => s.World));
+        Assert.Equal(Enumerable.Range(-1, sol.Planets.Count + 1).OrderBy(i => i), outer.Select(s => s.World).OrderBy(i => i));
+        Assert.Equal(SystemSprites.DrawOrder(sol), outer.Select(s => s.World));
         Assert.Equal(new[] { 0, 1, 2, 3, 4, 4, 5, 6, 7, 8 },
             new[] { "BLUE_BODY", "GREEN_BODY", "ORANGE_BODY", "RED_BODY", "WHITE_BODY", "GRAY_BODY", "YELLOW_BODY", "CYAN_BODY", "PURPLE_BODY", "VIOLET_BODY" }
                 .Select(SystemSprites.ColorEntry));

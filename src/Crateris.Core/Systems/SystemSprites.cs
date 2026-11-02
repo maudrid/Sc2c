@@ -34,9 +34,12 @@ public enum SystemSheet
 /// <summary>
 /// One sprite drawn in a system view: a frame of a sheet at a place on the
 /// system screen (the frame's hot spot goes there), and for worlds and the
-/// sun the colour table entry it's drawn with (-1 for the others).
+/// sun the colour table entry it's drawn with (-1 for the others). World
+/// says what it shows: in the outer view the planet's number (-1 the sun),
+/// in the inner view the moon's number (-1 the planet itself), and -1 for
+/// background stars.
 /// </summary>
-public readonly record struct SystemStamp(SystemSheet Sheet, int Frame, int X, int Y, int ColorEntry);
+public readonly record struct SystemStamp(SystemSheet Sheet, int Frame, int X, int Y, int ColorEntry, int World = -1);
 
 /// <summary>
 /// What UQM's DrawSystem stamps in the outer and inner views, in its
@@ -104,10 +107,10 @@ public static class SystemSprites
     private static int Entry(SystemGenerator generator, WorldDesc w) =>
         ColorEntry(generator.Types[WorldTypes.PlanetType(w.DataIndex)].BodyColor);
 
-    private static SystemStamp World(SystemGenerator generator, WorldDesc w, int size, WorldDesc lightFrom, IpPoint at)
+    private static SystemStamp World(SystemGenerator generator, WorldDesc w, int size, WorldDesc lightFrom, IpPoint at, int world)
     {
         var (sheet, frame) = WorldImage(generator, w, size, lightFrom);
-        return new SystemStamp(sheet, frame, at.X, at.Y, sheet == SystemSheet.Worlds ? Entry(generator, w) : -1);
+        return new SystemStamp(sheet, frame, at.X, at.Y, sheet == SystemSheet.Worlds ? Entry(generator, w) : -1, world);
     }
 
     /// <summary>DrawSystem's outer view at a zoom: the sun and planets in <see cref="DrawOrder"/>.</summary>
@@ -124,7 +127,7 @@ public static class SystemSprites
             {
                 WorldDesc pl = system.Planets[i];
                 stamps.Add(World(system.Generator, pl, SystemLayout.ImageSize(system.Generator, pl.DataIndex, add), pl,
-                    SystemLayout.OuterPlanet(pl, zoomRadius)));
+                    SystemLayout.OuterPlanet(pl, zoomRadius), i));
             }
         }
         return stamps;
@@ -139,13 +142,14 @@ public static class SystemSprites
         var stamps = new List<SystemStamp>();
         WorldDesc pl = system.Planets[planet];
         var middle = new IpPoint(SystemLayout.CenterX, SystemLayout.CenterY);
-        var s = World(system.Generator, pl, SystemLayout.ImageSize(system.Generator, pl.DataIndex, SystemLayout.InnerPlanetSizeAdd), pl, middle);
+        var s = World(system.Generator, pl, SystemLayout.ImageSize(system.Generator, pl.DataIndex, SystemLayout.InnerPlanetSizeAdd), pl, middle, -1);
         if (WorldTypes.HasPlanetData(pl.DataIndex) && WorldTypes.IsShielded(pl.DataIndex))
             s = new SystemStamp(SystemSheet.Junk, ShieldFrame, middle.X, middle.Y, -1);
         stamps.Add(s);
-        foreach (var moon in system.Moons(planet))
-            stamps.Add(World(system.Generator, moon, SystemLayout.ImageSize(system.Generator, moon.DataIndex, SystemLayout.MoonSizeAdd), pl,
-                SystemLayout.InnerMoon(moon)));
+        WorldDesc[] moons = system.Moons(planet);
+        for (int m = 0; m < moons.Length; ++m)
+            stamps.Add(World(system.Generator, moons[m], SystemLayout.ImageSize(system.Generator, moons[m].DataIndex, SystemLayout.MoonSizeAdd), pl,
+                SystemLayout.InnerMoon(moons[m]), m));
         return stamps;
     }
 

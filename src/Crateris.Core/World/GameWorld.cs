@@ -31,8 +31,11 @@ public enum JoinResult
 /// while in a system: the star, the inner system's planet, the ship's place
 /// in the system (IpX/IpY), on the screen (Screen*), its facing and velocity
 /// there (IpFacing, IpVelocityX/Y, in UQM's interplanetary units), the outer
-/// view's zoom, and the world orbited. Thrusting is the hyperspace flame,
-/// or in a system whether the ship thrust last frame.
+/// view's zoom, and the world orbited. Thrusting is whether the ship is
+/// thrusting (in hyperspace) or thrust last frame (in a system); the views
+/// don't draw it, as UQM shows thrust only in battle (ion trails). ViewX and
+/// ViewY are the ship's place in its hyperspace view, which lags the ship at
+/// speed (<see cref="Crateris.Core.Hyperspace.HyperScreen"/>).
 /// Clients generate systems themselves from the star number.
 /// </summary>
 public sealed record ShipSnapshot(

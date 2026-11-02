@@ -160,7 +160,7 @@ Item 8 is built. The placeholders are gone from the system views and hyperspace:
 - **A system's outer view** has the system's own background stars, the sun by its size and colour (bigger as you zoom in), and each planet by its image size and colour family, lit from the side its sun is on. They're drawn in UQM's order, so where images overlap, the same one is in front.
 - **A planet's inner view** has the planet in the middle and its moons; a shielded planet (Earth in a new game) shows as its red shield, and the starbase and the Sa-Matra are their own images.
 
-Players' names are still written beside their ships (the engine's own), and players in orbit still have their markers beside the world.
+Players' names are still written beside their ships (the engine's own), and players in orbit still have their markers beside the world. Another player's ship shows in hyperspace when it's near enough to be on your screen. Thrusting no longer shows a flame: UQM shows thrust only in battle (its ion trails), not in hyperspace or systems. All the sprites are made once as the content is opened (well under a second), so no view stalls the first time it draws something.
 
 ![Hyperspace near Sol: the flagship, and a white giant to the south-east](../screenshots/content-sprites-hyperspace.png)
 

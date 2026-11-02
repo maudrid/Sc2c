@@ -95,6 +95,9 @@ public partial class SystemView : Control
 
     private (int Star, List<SystemStamp> Stamps)? _background;
 
+    // Each view's stamps, made once: by star and zoom (outer, planet -1) or star and planet (inner, zoom 0).
+    private readonly Dictionary<(int Star, int Planet, int Zoom), (List<SystemStamp> Stamps, WorldDesc[] Moons)> _views = new();
+
     /// <summary>The names of stars and worlds (set once the content is open, before the game starts).</summary>
     public Names Names { get; set; } = null!;
 
@@ -166,16 +169,19 @@ public partial class SystemView : Control
             WorldDesc pl = system.Planets[planet];
             Color orbitColor = Placeholder.ToColor(SystemLayout.OrbitColors[system.OrbitColor(planet)]);
             Placeholder.Ellipse(this, SystemLayout.InnerPlanetOrbit(pl), orbitColor);
-            WorldDesc[] moons = system.Moons(planet);
+            if (!_views.TryGetValue((star, planet, 0), out var view))
+                _views[(star, planet, 0)] = view = (SystemSprites.Inner(system, planet), system.Moons(planet));
+            var (stamps, moons) = view;
             foreach (var moon in moons)
                 Placeholder.Ellipse(this, SystemLayout.InnerMoonOrbit(moon), orbitColor);
 
-            var stamps = SystemSprites.Inner(system, planet);
             foreach (var stamp in stamps)
                 Sprites.Draw(this, stamp);
-            Markers(orbiting.Where(s => s.OrbitPlanet == planet && s.OrbitMoon is null), stamps[0]);
-            for (int m = 0; m < moons.Length; ++m)
-                Markers(orbiting.Where(s => s.OrbitPlanet == planet && s.OrbitMoon == m), stamps[m + 1]);
+            foreach (var stamp in stamps)
+            {
+                int? moon = stamp.World < 0 ? null : stamp.World;
+                Markers(orbiting.Where(s => s.OrbitPlanet == planet && s.OrbitMoon == moon), stamp);
+            }
             // UQM's title over the inner system is the planet's name, its message line the star's.
             DrawString(font, new Vector2(8, 18), $"{Names.PlanetName(system.Star, planet)}, {Names.Cluster(system.Star)}"
                 + (moons.Length > 0 ? $" ({moons.Length} moons)" : ""),
@@ -188,13 +194,12 @@ public partial class SystemView : Control
                 Placeholder.Ellipse(this, SystemLayout.OuterOrbit(system.Planets[p], zoom),
                     Placeholder.ToColor(SystemLayout.OrbitColors[system.OrbitColor(p)]));
 
-            var order = SystemSprites.DrawOrder(system);
-            var stamps = SystemSprites.Outer(system, zoom);
-            for (int i = 0; i < stamps.Count; ++i)
-                Sprites.Draw(this, stamps[i]);
-            for (int i = 0; i < stamps.Count; ++i)
-                if (order[i] >= 0)
-                    Markers(orbiting.Where(s => s.OrbitPlanet == order[i]), stamps[i]);
+            if (!_views.TryGetValue((star, -1, zoom), out var view))
+                _views[(star, -1, zoom)] = view = (SystemSprites.Outer(system, zoom), Array.Empty<WorldDesc>());
+            foreach (var stamp in view.Stamps)
+                Sprites.Draw(this, stamp);
+            foreach (var stamp in view.Stamps.Where(s => s.World >= 0))
+                Markers(orbiting.Where(s => s.OrbitPlanet == stamp.World), stamp);
             // UQM's message line is the star's name, its title the star's coordinates.
             DrawString(font, new Vector2(8, 18), $"{Names.Cluster(system.Star)}   {system.Star.X / 10.0:0.0} : {system.Star.Y / 10.0:0.0}",
                 HorizontalAlignment.Left, -1, 15, Colors.LightBlue);
@@ -202,7 +207,8 @@ public partial class SystemView : Control
                 HorizontalAlignment.Left, -1, 13, Colors.Gray);
         }
 
-        // Ships in this same view: the flagship's image by facing, with the player's name.
+        // Ships in this same view: the flagship's image by facing, with the
+        // player's name. As in UQM, no thrust shows outside battle.
         foreach (var s in _snapshot.Ships.Where(s => s.Activity == me.Activity && s.SystemStar == star && s.InnerPlanet == me.InnerPlanet))
         {
             var (x, y) = _motion.TryGetValue(s.Id, out var m) ? m.AtTime(_clock.Time) : (s.ScreenX, s.ScreenY);

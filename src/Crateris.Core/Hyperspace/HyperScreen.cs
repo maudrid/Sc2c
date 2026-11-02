@@ -46,11 +46,24 @@ public static class HyperScreen
     /// <summary>WRAP_X and WRAP_Y: into the logical space, as UQM's COUNT.</summary>
     private static int Wrap(long v, int w) => (ushort)(v < 0 ? v + w : v >= w ? v - w : v);
 
-    /// <summary>A ship drawn on the screen of the ship at (<paramref name="logX"/>, <paramref name="logY"/>):
-    /// its own place in its view, moved by how far it is from the viewer.</summary>
+    /// <summary>
+    /// A ship drawn on the screen of the ship at (<paramref name="viewerLogX"/>,
+    /// <paramref name="viewerLogY"/>): its own place in its view, moved by how
+    /// far it is from the viewer. Only meaningful for a ship near the viewer
+    /// (<see cref="ShowsShip"/>); the distance isn't wrapped, as hyperspace
+    /// doesn't wrap at the map's scale.
+    /// </summary>
     public static (int X, int Y) Ship(int logX, int logY, int viewX, int viewY, int viewerLogX, int viewerLogY) =>
-        (Display(Wrap((long)logX - viewerLogX + viewX, Units.LogSpaceWidth), OriginX),
-         Display(Wrap((long)logY - viewerLogY + viewY, Units.LogSpaceHeight), OriginY));
+        (Display(checked((int)((long)logX - viewerLogX + viewX)), OriginX),
+         Display(checked((int)((long)logY - viewerLogY + viewY)), OriginY));
+
+    /// <summary>
+    /// Whether another ship is near enough to the viewer to be drawn: within
+    /// the same reach as the stars (<see cref="Shows"/>), which covers the
+    /// whole screen.
+    /// </summary>
+    public static bool ShowsShip(int universeX, int universeY, int viewerUniverseX, int viewerUniverseY) =>
+        Math.Abs(universeX - viewerUniverseX) <= StarReachX && Math.Abs(universeY - viewerUniverseY) <= StarReachY;
 
     /// <summary>AllocHyperElement's place for a star, drawn on the screen of the ship at (<paramref name="logX"/>, <paramref name="logY"/>).</summary>
     public static (int X, int Y) Star(Star star, int logX, int logY) =>

@@ -56,7 +56,8 @@ public partial class HyperspaceView : Control
     public override void _Draw()
     {
         DrawRect(new Rect2(Vector2.Zero, Size), Background);
-        var me = _snapshot?.Ships.FirstOrDefault(s => s.Id == _me);
+        // The local player's ship, or until it's known, the first one.
+        var me = _snapshot?.Ships.FirstOrDefault(s => s.Id == _me) ?? _snapshot?.Ships.FirstOrDefault();
         if (me == null || me.Activity != Activity.Hyperspace || Sprites == null)
             return;
 
@@ -68,9 +69,12 @@ public partial class HyperspaceView : Control
             Sprites.Draw(this, Sprites.Sprites.Hyper(false, SpaceSprites.StarFrame(star)), x, y);
         }
 
-        // Only ships in hyperspace are drawn here (stage 2, decision 3).
+        // Only ships in hyperspace are drawn here (stage 2, decision 3), and
+        // only those near enough to be on the screen. As in UQM, a ship
+        // shows no thrust outside battle (ion trails are battle only).
         var font = ThemeDB.FallbackFont;
-        foreach (var ship in _snapshot!.Ships.Where(s => s.Activity == Activity.Hyperspace))
+        foreach (var ship in _snapshot!.Ships.Where(s => s.Activity == Activity.Hyperspace
+                     && HyperScreen.ShowsShip(s.UniverseX, s.UniverseY, me.UniverseX, me.UniverseY)))
         {
             var (x, y) = HyperScreen.Ship(ship.LogX, ship.LogY, ship.ViewX, ship.ViewY, me.LogX, me.LogY);
             Sprites.Draw(this, Sprites.Sprites.Hyper(true, ship.Facing), x, y);
