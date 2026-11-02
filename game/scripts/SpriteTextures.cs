@@ -9,6 +9,7 @@
 using System.Collections.Generic;
 using Crateris.Core.Content;
 using Crateris.Core.Systems;
+using Crateris.Presentation;
 using Godot;
 
 namespace Crateris.Game;
@@ -43,8 +44,8 @@ public sealed class SpriteTextures
     /// <summary>Draws a frame with its hot spot at (x, y) in UQM's pixels.</summary>
     public void Draw(CanvasItem canvas, SpriteImage image, float x, float y)
     {
-        var at = new Vector2(x - image.HotSpotX, y - image.HotSpotY) * Placeholder.Scale;
-        canvas.DrawTextureRect(Texture(image), new Rect2(at, new Vector2(image.Width, image.Height) * Placeholder.Scale), false);
+        var at = new Vector2(x - image.HotSpotX, y - image.HotSpotY) * SisScreen.Scale;
+        canvas.DrawTextureRect(Texture(image), new Rect2(at, new Vector2(image.Width, image.Height) * SisScreen.Scale), false);
     }
 
     public void Draw(CanvasItem canvas, SystemStamp stamp) => Draw(canvas, Sprites.Image(stamp), stamp.X, stamp.Y);

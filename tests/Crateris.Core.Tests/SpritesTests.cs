@@ -8,6 +8,7 @@
 
 using Crateris.Core.Content;
 using Crateris.Core.Systems;
+using Crateris.Presentation;
 
 namespace Crateris.Core.Tests;
 
@@ -88,7 +89,7 @@ public class SpritesTests
             Assert.True(sprites.Hyper(true, f).Width > 0);
         // Hyperspace stars: a yellow dwarf is frame 5, a red super giant 15.
         var sol = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data")).Map.Stars.First(s => s.Special == "SOL_DEFINED");
-        Assert.Equal(5, SpaceSprites.StarFrame(sol));
+        Assert.Equal(5, sol.HyperspaceFrame);
     }
 
     private static long Sum(SpriteImage image, int channel)

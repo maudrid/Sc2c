@@ -11,9 +11,13 @@
 // (at your option) any later version.
 
 using System.Globalization;
+using Crateris.Core.Content;
+using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
 using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
 
-namespace Crateris.Core.Content;
+namespace Crateris.Presentation;
 
 /// <summary>Text to draw: laid out in a font, in a colour.</summary>
 public sealed record DrawnText(UqmFont Font, TextLayout Layout, Rgb Color);

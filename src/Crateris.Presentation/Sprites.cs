@@ -10,9 +10,13 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Content;
+using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
 using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
 
-namespace Crateris.Core.Content;
+namespace Crateris.Presentation;
 
 /// <summary>
 /// UQM's colour maps (cmap.c): 250 numbered palettes of 256 colours, set
@@ -68,11 +72,10 @@ public sealed record SpriteImage(int Width, int Height, int HotSpotX, int HotSpo
 
 /// <summary>
 /// The frames of a GFXRES resource, drawn as UQM draws them. Transparency
-/// follows process_image: a palette image's transparent index from the
-/// .ani file (or none for -1), a true-colour image's black for index 0;
-/// otherwise the PNG's own colour key, and an alpha channel's alpha. A
-/// palette image is drawn with its frame's colour map if the frame names
-/// one (TFB_Prim_Stamp, TFB_DrawCanvas_Image).
+/// is the colour key process_image sets (<see cref="ProcessImage.ColorKey"/>,
+/// the same rule the contact shapes start from), or an alpha channel's
+/// alpha. A palette image is drawn with its frame's colour map if the
+/// frame names one (TFB_Prim_Stamp, TFB_DrawCanvas_Image).
 /// </summary>
 public sealed class SpriteSheet
 {
@@ -80,9 +83,10 @@ public sealed class SpriteSheet
 
     private SpriteSheet(IReadOnlyList<(AnimationFrame, Png)> frames) => _frames = frames;
 
-    public static SpriteSheet Load(ContentPackage package, string resourceId)
+    /// <summary>A sheet from the package's decoded sheets (shared with the contact shapes).</summary>
+    public static SpriteSheet Load(AnimationSheets sheets, string resourceId)
     {
-        var frames = Animation.LoadImages(package, resourceId);
+        var frames = sheets[resourceId];
         if (frames.Count == 0)
             throw new ContentPackageException($"{resourceId} has no images");
         return new SpriteSheet(frames);
@@ -102,12 +106,7 @@ public sealed class SpriteSheet
         if (palette && frame.ColorMapIndex != -1)
             map = maps[frame.ColorMapIndex]
                 ?? throw new ContentPackageException($"{frame.Path} is drawn with colour map {frame.ColorMapIndex}, which nothing has set");
-        // process_image: a palette image's transparent index (none for -1),
-        // a true-colour image's black for 0; otherwise the PNG's own key.
-        long key = frame.TransparentIndex == -1 ? -1
-            : palette && frame.TransparentIndex >= 0 ? frame.TransparentIndex
-            : !palette && frame.TransparentIndex == 0 ? 0
-            : png.ColorKey;
+        long key = ProcessImage.ColorKey(frame, png);
         var rgba = new byte[png.Width * png.Height * 4];
         for (int y = 0, o = 0; y < png.Height; ++y)
             for (int x = 0; x < png.Width; ++x, o += 4)
@@ -135,11 +134,8 @@ public sealed class SpriteSheet
 /// </summary>
 public sealed class SpaceSprites
 {
-    /// <summary>NUM_STAR_COLORS.</summary>
-    public const int StarColors = 6;
-
     /// <summary>The entries of colortable.orbplan (colour families) and colortable.truespace (star colours).</summary>
-    public const int WorldColors = 9, SunColors = StarColors;
+    public const int WorldColors = 9, SunColors = Star.StarColors;
 
     private readonly Dictionary<(SystemSheet, int, int), SpriteImage> _system = new();
     private readonly Dictionary<(bool, int), SpriteImage> _hyper = new();
@@ -150,7 +146,12 @@ public sealed class SpaceSprites
     /// the content is opened, not while drawing. Any failure is a
     /// <see cref="ContentPackageException"/>.
     /// </summary>
-    public SpaceSprites(ContentPackage package)
+    public SpaceSprites(ContentPackage package) : this(package, new AnimationSheets(package))
+    {
+    }
+
+    /// <summary>The sprites, from sheets decoded once for everything that uses them.</summary>
+    public SpaceSprites(ContentPackage package, AnimationSheets sheets)
     {
         try
         {
@@ -159,12 +160,12 @@ public sealed class SpaceSprites
             maps.Set(BinaryTable.Load(package, "colortable.hyperspace")[0]);
             var worldColors = BinaryTable.Load(package, "colortable.orbplan");
             var sunColors = BinaryTable.Load(package, "colortable.truespace");
-            Worlds = SpriteSheet.Load(package, "graphics.planets");
-            Sun = SpriteSheet.Load(package, "graphics.truespacesun");
-            Junk = SpriteSheet.Load(package, "graphics.orbitbackground");
-            Flagship = SpriteSheet.Load(package, "graphics.flagship");
-            HyperStars = SpriteSheet.Load(package, "graphics.hyperstars");
-            HyperFlagship = SpriteSheet.Load(package, "ship.flagship.graphics.hyperspace");
+            Worlds = SpriteSheet.Load(sheets, "graphics.planets");
+            Sun = SpriteSheet.Load(sheets, "graphics.truespacesun");
+            Junk = SpriteSheet.Load(sheets, "graphics.orbitbackground");
+            Flagship = SpriteSheet.Load(sheets, "graphics.flagship");
+            HyperStars = SpriteSheet.Load(sheets, "graphics.hyperstars");
+            HyperFlagship = SpriteSheet.Load(sheets, "ship.flagship.graphics.hyperspace");
 
             // DrawSystem sets a world's or the sun's colour table entry before stamping it.
             void Sheet(SystemSheet sheet, SpriteSheet frames, BinaryTable? table, int entries)
@@ -227,11 +228,9 @@ public sealed class SpaceSprites
     }
 
     /// <summary>
-    /// A star in hyperspace (AddStars: STAR_TYPE * NUM_STAR_COLORS +
-    /// STAR_COLOR), or with <paramref name="flagship"/> the flagship by facing.
+    /// A star in hyperspace by its frame (<see cref="Star.HyperspaceFrame"/>),
+    /// or with <paramref name="flagship"/> the flagship by frame (its facing).
     /// </summary>
     public SpriteImage Hyper(bool flagship, int frame) =>
         _hyper[(flagship, frame % (flagship ? HyperFlagship.Count : HyperStars.Count))];
-
-    public static int StarFrame(Crateris.Core.Data.Star star) => (int)star.Size * StarColors + (int)star.Color;
 }

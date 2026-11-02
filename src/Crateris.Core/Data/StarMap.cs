@@ -28,6 +28,12 @@ public sealed record Star(int Number, short X, short Y, StarSize Size, StarColor
 {
     /// <summary>GetRandomSeedForStar: MAKE_DWORD (x, y).</summary>
     public uint Seed => ((uint)(ushort)Y << 16) | (ushort)X;
+
+    /// <summary>NUM_STAR_COLORS.</summary>
+    public const int StarColors = 6;
+
+    /// <summary>The star's frame of the hyperspace stars (AddStars: STAR_TYPE * NUM_STAR_COLORS + STAR_COLOR).</summary>
+    public int HyperspaceFrame => (int)Size * StarColors + (int)Color;
 }
 
 /// <summary>The stars of the map, from data/starmap.json, in UQM's order.</summary>

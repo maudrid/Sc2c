@@ -6,9 +6,14 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Content;
+using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
 using Crateris.Core.World;
 
-namespace Crateris.Core.Systems;
+namespace Crateris.Presentation;
 
 /// <summary>
 /// Draws a ship in a system moving evenly although the host runs one or

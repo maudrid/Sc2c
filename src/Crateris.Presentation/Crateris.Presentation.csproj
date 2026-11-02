@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- What UQM draws, worked out without Godot: sprite frames and their
+       places, colour maps, fonts and text layout, planet surfaces and the
+       rotating planet, smoothing between snapshots. A separate assembly so
+       the simulation in Crateris.Core can't depend on it (the reference
+       goes one way). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Optimised in every configuration, as Crateris.Core: the planet
+         colouring and sphere are hot loops the tests run for every world. -->
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Crateris.Core\Crateris.Core.csproj" />
+  </ItemGroup>
+
+</Project>

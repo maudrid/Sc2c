@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Crateris.Core\Crateris.Core.csproj" />
+    <ProjectReference Include="..\..\src\Crateris.Presentation\Crateris.Presentation.csproj" />
   </ItemGroup>
 
 </Project>

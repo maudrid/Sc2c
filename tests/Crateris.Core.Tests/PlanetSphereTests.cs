@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
+using Crateris.Presentation;
 
 namespace Crateris.Core.Tests;
 

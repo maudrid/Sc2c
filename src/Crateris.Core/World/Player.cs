@@ -48,6 +48,14 @@ public sealed class PlayerShip
     /// <summary>Flight inside that system, or null in hyperspace.</summary>
     public IpFlight? Ip { get; internal set; }
 
+    /// <summary>
+    /// While the ship's entry into a star plays (<see cref="StarEntry"/>):
+    /// where and how it touched the star. Its system flight waits until
+    /// the entry is over. Not saved: a game loaded mid-entry starts in the
+    /// system.
+    /// </summary>
+    public StarEntryState? Entry { get; internal set; }
+
     /// <summary>In orbit: the world's report, scan seeds and nodes (from <see cref="IpFlight.OrbitData"/>).</summary>
     public OrbitData? Orbit => Ip?.OrbitData;
 
@@ -96,4 +104,22 @@ public sealed class Player
         IsHost = isHost;
         Ship = ship;
     }
+}
+
+/// <summary>
+/// A ship's contact with a star, as the entry starts from it: the world
+/// frame of the contact, the ship's hyperspace position and its place in
+/// its view then (so its sprite was at LogX + ViewX - CenterX), its
+/// facing, the star, and how many frames the entry plays after the contact
+/// frame (<see cref="StarEntry.Animate"/>'s steps). The system's flight
+/// starts on the frame after the last.
+/// </summary>
+public sealed record StarEntryState(long ContactFrame, int LogX, int LogY, short ViewX, short ViewY, int Facing,
+    int Star, int Steps)
+{
+    /// <summary>Where the ship's sprite was at contact, in hyperspace logical units.</summary>
+    public (long X, long Y) Sprite => (LogX + (long)(ViewX - HyperFlight.CenterX), LogY + (long)(ViewY - HyperFlight.CenterY));
+
+    /// <summary>Whether the entry is still playing at a world frame (the contact frame and the steps after it).</summary>
+    public bool PlayingAt(long frame) => frame >= ContactFrame && frame <= ContactFrame + Steps;
 }

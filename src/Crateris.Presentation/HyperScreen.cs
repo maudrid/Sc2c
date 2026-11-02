@@ -11,10 +11,13 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Content;
 using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
 
-namespace Crateris.Core.Hyperspace;
+namespace Crateris.Presentation;
 
 /// <summary>
 /// Places on UQM's hyperspace screen (the 242 x 227 SIS screen): elements
@@ -36,9 +39,8 @@ public static class HyperScreen
     public const int OriginX = ((Units.LogSpaceWidth >> 1) - Units.LogSpaceWidth * Reduction / (MaxZoomOut << 2)) & ~((1 << Units.OneShift) - 1);
     public const int OriginY = ((Units.LogSpaceHeight >> 1) - Units.LogSpaceHeight * Reduction / (MaxZoomOut << 2)) & ~((1 << Units.OneShift) - 1);
 
-    /// <summary>How near a star must be to be drawn (AddStars): XOFFS and YOFFS over NUM_RADAR_SCREENS, in universe units.</summary>
-    public const int StarReachX = ((63 * 12 + (63 << 2)) >> 1) / 12;   // 42
-    public const int StarReachY = ((50 * 12 + (50 << 2)) >> 1) / 12;   // 33
+    /// <summary>How near a star must be to be drawn: the stars AddStars puts near a ship (<see cref="StarContact.ReachX"/>).</summary>
+    public const int StarReachX = StarContact.ReachX, StarReachY = StarContact.ReachY;
 
     /// <summary>CalcDisplayCoord with the smooth zoom (C division, towards zero).</summary>
     public static int Display(int c, int origin) => ((c - origin) << ZoomShift) / (Reduction << Units.OneShift);
@@ -80,6 +82,5 @@ public static class HyperScreen
          Display(Wrap(Units.UniverseToLogY(star.Y) + (Units.LogSpaceHeight >> 1) - (long)logY, Units.LogSpaceHeight), OriginY));
 
     /// <summary>Whether AddStars puts a star on the screen of a ship at a universe position.</summary>
-    public static bool Shows(Star star, int universeX, int universeY) =>
-        Math.Abs(star.X - universeX) <= StarReachX && Math.Abs(star.Y - universeY) <= StarReachY;
+    public static bool Shows(Star star, int universeX, int universeY) => StarContact.InReach(star, universeX, universeY);
 }

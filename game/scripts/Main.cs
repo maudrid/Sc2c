@@ -9,58 +9,53 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
+using Crateris.Core.Session;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
+using Crateris.Presentation;
 using Godot;
 
 namespace Crateris.Game;
 
 /// <summary>
-/// Runs the game as host or guest. The host owns a GameWorld, steps it 24
-/// times a second, applies everyone's input and sends a snapshot to all
-/// clients every frame. Guests only send input and draw snapshots. The
-/// host plays through the same input path, with the same delay.
-/// Networking is Godot's MultiplayerAPI over ENet.
+/// The Godot node that wires the game up. What the game does is decided
+/// without Godot: the host's side by a <see cref="HostSession"/> (the world,
+/// guests, input, saves), the local player's by a <see cref="PlayerSession"/>
+/// (keys or script, the orbit menus, the screen to show, the status text).
+/// This node reads keys, moves messages over Godot's MultiplayerAPI and
+/// ENet, reads and writes files, opens the content, and gives the views
+/// what to draw. The host steps its world 24 times a second and sends a
+/// snapshot to all clients every frame; guests only send input and draw.
 /// </summary>
 public partial class Main : Node2D
 {
     private Options _options = null!;
-    private bool _isHost;
-    private GameWorld? _world;
+    private bool _running;   // false after a bad command line, while quitting
     private string _playerId = "";
     private string _name = "";
     private string _savePath = "";
-    private readonly Dictionary<long, string> _peerPlayers = new();
+    private string _dataDir = "";
     private readonly List<string> _log = new();
+    private long _frames;
+    private double _saveTimer;
 
-    private WorldSnapshot? _snapshot;
+    private HostSession? _host;
+    private PlayerSession? _player;
     private Protocol.Welcome? _welcome;
     private int _inputDelay;
-    private long _frames;
-    private int _scriptStep;
-    private int _scriptFrame;
-    private int _undockFrames = -1;
-    private bool _undockShown;
-    // The status line is lasting state (hosting, connected, an error);
-    // one-off events (welcome, undocked) are notices shown for a while.
-    private string _status = "";
-    private string _notice = "";
-    private ulong _noticeUntilMs;
-    private const double NoticeSeconds = 6;
 
     // A guest is connected from an accepted welcome until the connection fails or the host leaves.
     private bool _connected;
     private bool _failing;           // quitting after a failure, in a moment
     private bool _finished;
     private long _firstJoinFrame = -1;
-    private double _saveTimer;
+    private string _status = "";
 
     private HyperspaceView _view = null!;
     private SystemView _systemView = null!;
@@ -68,25 +63,16 @@ public partial class Main : Node2D
     private Label _hud = null!;
     private SystemCatalog _systems = null!;
 
-    // The orbit screen's menus for the current visit (the player's own;
-    // only leaving orbit goes to the host), and what it last said.
-    private OrbitMenu? _orbitMenu;
-    private string _orbitMessage = "";
-    private bool _wasSweeping;
-    private int _leaveFrames;
-
-    // The UQM content package (checked as the official one), the screens
-    // that get it on first run and show its notice, and the layer they're on.
-    private ContentPackage? _content;
+    // What the game reads from the UQM content package (checked as the
+    // official one), and the screens that get it on first run and show its notice.
     private Names _names = null!;
-    private SpriteTextures _sprites = null!;
     private ContactShapes _shapes = null!;
-    private OrbitScreenText _orbitText = null!;
     private FirstRunScreen? _firstRun;
     private ContentErrorScreen? _contentError;
     private AboutScreen _about = null!;
     private CanvasLayer _screens = null!;
-    private string _dataDir = "";
+
+    private static bool Headless => DisplayServer.GetName() == "headless";
 
     public override void _Ready()
     {
@@ -101,11 +87,12 @@ public partial class Main : Node2D
             return;
         }
 
-        string dataDir = DataDirectory();
-        _systems = SystemCatalog.Load(dataDir);
+        _running = true;
+        _dataDir = DataDirectory();
+        _systems = SystemCatalog.Load(_dataDir);
         AddChild(new ColorRect { Color = new Color(0.03f, 0.03f, 0.05f), Size = new Vector2(1024, 768) });
         // The system screen sits on the right; the status and menus on the left.
-        var systemScreenAt = new Vector2(1024 - Placeholder.Size.X - 12, (768 - Placeholder.Size.Y) / 2);
+        var systemScreenAt = new Vector2(1024 - SisScreen.Size.X - 12, (768 - SisScreen.Size.Y) / 2);
         _view = new HyperspaceView(_systems.Map) { Position = systemScreenAt };
         AddChild(_view);
         _systemView = new SystemView(_systems) { Position = systemScreenAt, Visible = false };
@@ -118,7 +105,7 @@ public partial class Main : Node2D
         _hud = new Label
         {
             Position = new Vector2(12, 8),
-            Size = new Vector2(1024 - Placeholder.Size.X - 36, 300),
+            Size = new Vector2(1024 - SisScreen.Size.X - 36, 300),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
         };
         _hud.AddThemeColorOverride("font_color", Colors.White);
@@ -132,10 +119,11 @@ public partial class Main : Node2D
         _name = _options.Name ?? System.Environment.UserName;
         _playerId = _options.PlayerId ?? LoadOrCreatePlayerId();
         _savePath = _options.SavePath ?? ProjectSettings.GlobalizePath("user://host-save.json");
-        _dataDir = dataDir;
 
         PrepareContent();
     }
+
+    // ---------------------------------------------------------- content
 
     /// <summary>
     /// Finds and checks the content package, then starts the game. Hosting
@@ -169,7 +157,7 @@ public partial class Main : Node2D
         }
 
         string why = problem ?? "The UQM 0.8.0 content isn't here yet.";
-        if (DisplayServer.GetName() == "headless")
+        if (Headless)
         {
             GD.PrintErr($"{why} Give it with --content PATH or {ContentLocation.EnvironmentVariable}, " +
                 $"or start the game once with a window to download it.");
@@ -204,7 +192,9 @@ public partial class Main : Node2D
     }
 
     /// <summary>
-    /// Reads what the game needs from the opened, checked package. The
+    /// Reads what the game needs from the opened, checked package: the
+    /// names and the shapes that decide contact always, and with a window
+    /// what the views draw (a headless server or guest draws nothing). The
     /// package is the official one, so a failure here is a fault (in the
     /// engine, or reading the file), not a wrong file: it's shown, with no
     /// offer to download the same file again, and the game doesn't start.
@@ -213,16 +203,21 @@ public partial class Main : Node2D
     {
         try
         {
+            var sheets = new AnimationSheets(content);   // decoded once, for the shapes and the sprites
             _names = Names.Load(content);
-            _orbitText = OrbitScreenText.Load(content);
-            _sprites = new SpriteTextures(new SpaceSprites(content));
-            _shapes = ContactShapes.Load(content);
+            _shapes = ContactShapes.Load(sheets);
+            if (!Headless)
+            {
+                _view.Sprites = _systemView.Sprites = new SpriteTextures(new SpaceSprites(content, sheets));
+                _orbitView.Text = OrbitScreenText.Load(content);
+                _orbitView.Surfaces = new PlanetSurfaces(content);
+            }
         }
         catch (ContentPackageException e)
         {
             string message = $"The UQM content is the official package, but it couldn't be read: {e.Message}";
             GD.PrintErr(message);
-            if (DisplayServer.GetName() == "headless")
+            if (Headless)
                 GetTree().Quit(4);
             else
             {
@@ -231,20 +226,18 @@ public partial class Main : Node2D
             }
             return false;
         }
-        _content = content;
         _systemView.Names = _orbitView.Names = _names;
-        _view.Sprites = _systemView.Sprites = _sprites;
-        _orbitView.Text = _orbitText;
-        _orbitView.Surfaces = new PlanetSurfaces(content);
         return true;
     }
 
     private void StartGame()
     {
+        _player = new PlayerSession(_systems, _names, _playerId, _shapes.HyperFlagship.Count, _options.Script);
+        _player.Logged += Log;
         if (_options.Join)
             StartClient();
         else
-            StartHost(_dataDir);
+            StartHost();
     }
 
     private static string DataDirectory()
@@ -268,47 +261,57 @@ public partial class Main : Node2D
 
     // ------------------------------------------------------------- host
 
-    private void StartHost(string dataDir)
+    private void StartHost()
     {
-        _isHost = true;
         string? load = _options.LoadPath ?? (File.Exists(_savePath) && _options.SavePath == null ? _savePath : null);
-        var systems = _systems;
         if (load != null && File.Exists(load))
         {
-            _world = HostSave.FromJson(File.ReadAllText(load), systems, _shapes);
-            _playerId = _world.Host.Id; // the save belongs to its host
-            _world.Join(_playerId, _name);
+            _host = HostSession.Load(File.ReadAllText(load), _name, _systems, _shapes);
+            _playerId = _player!.PlayerId = _host.HostId;   // the save belongs to its host
             Log($"Loaded {load}");
-            StartInOrbit();
         }
         else
         {
             var settings = new GameSettings();
             if (_options.SecondsPerDay is { } spd)
                 settings = settings with { SecondsPerGameDay = spd };
-            _world = GameWorld.NewGame(settings, NewGameData.Load(dataDir, systems.Map), _playerId, _name, systems, _shapes);
+            _host = HostSession.New(settings, NewGameData.Load(_dataDir, _systems.Map), _playerId, _name, _systems, _shapes);
             Log("New game");
-            StartInOrbit();
         }
-        _inputDelay = _world.Settings.InputDelayFrames;
+        _host.Logged += Log;
+        ApplyStartOptions(_host);
+        _inputDelay = _host.World.Settings.InputDelayFrames;
 
         var peer = new ENetMultiplayerPeer();
-        var err = peer.CreateServer(_options.Port, _world.Settings.MaxPlayers - 1);
+        var err = peer.CreateServer(_options.Port, _host.World.Settings.MaxPlayers - 1);
         if (err != Error.Ok)
-        {
-            _status = $"Could not open port {_options.Port} ({err}). Playing solo.";
-            Log(_status);
-        }
+            SetStatus($"Could not open port {_options.Port} ({err}). Playing solo.");
         else
         {
             Multiplayer.MultiplayerPeer = peer;
-            Multiplayer.PeerDisconnected += OnPeerDisconnected;
-            _status = $"Hosting on port {_options.Port}.";
-            Log(_status);
+            Multiplayer.PeerDisconnected += peerId => _host.GuestLeft(peerId);
+            SetStatus($"Hosting on port {_options.Port}.");
             if (_options.UseUpnp)
                 OpenPortWithUpnp(_options.Port);
         }
-        _snapshot = _world.Snapshot();
+        _player!.Observe(_host.World.Snapshot());
+    }
+
+    /// <summary>--start-at and --start-orbit (testing): a notice says if they can't be done.</summary>
+    private void ApplyStartOptions(HostSession host)
+    {
+        try
+        {
+            if (_options.StartAt is { } at)
+                Log(host.StartAt(at.X, at.Y));
+            if (_options.StartOrbit is { } o)
+                Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
+        }
+        catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+        {
+            // A notice: the hosting status set after this would hide a status line.
+            _player!.Notify($"Can't start there: {e.Message}", 20);
+        }
     }
 
     // Ask the router to forward the port (OpenRA-style). Runs in the
@@ -336,59 +339,27 @@ public partial class Main : Node2D
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void Hello(string playerId, string name, int version)
     {
-        if (!_isHost || _world == null)
+        if (_host == null)
             return;
         long peer = Multiplayer.GetRemoteSenderId();
-        JoinResult result;
-        string message;
-        if (version != Protocol.Version)
-        {
-            result = JoinResult.Full;
-            message = $"Version mismatch: host {Protocol.Version}, you {version}.";
-        }
-        else
-        {
-            result = _world.Join(playerId, name);
-            message = Protocol.Describe(result);
-        }
-        var welcome = new Protocol.Welcome(result, playerId, _world.Settings.InputDelayFrames, message);
+        var welcome = _host.Hello(peer, playerId, name, version);
         RpcId(peer, MethodName.Welcomed, Protocol.Encode(welcome));
-        Log($"{name} ({playerId}): {result}");
-        if (Protocol.Accepted(result))
-            _peerPlayers[peer] = playerId;
-        else
+        if (!Protocol.Accepted(welcome.Result))
             GetTree().CreateTimer(0.5).Timeout += () => Multiplayer.MultiplayerPeer?.DisconnectPeer((int)peer);
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
-    private void SendInput(long frame, int input)
-    {
-        if (_world != null && _peerPlayers.TryGetValue(Multiplayer.GetRemoteSenderId(), out var id))
-            _world.SubmitInput(id, frame, (ShipInput)(input & 15));
-    }
+    private void SendInput(long frame, int input) => _host?.GuestInput(Multiplayer.GetRemoteSenderId(), frame, input);
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void UndockShown()
-    {
-        if (_world != null && _peerPlayers.TryGetValue(Multiplayer.GetRemoteSenderId(), out var id))
-            _world.UndockShown(id);
-    }
-
-    private void OnPeerDisconnected(long peer)
-    {
-        if (_world != null && _peerPlayers.Remove(peer, out var id))
-        {
-            _world.Leave(id);
-            Log($"{id} left");
-        }
-    }
+    private void UndockShown() => _host?.GuestUndockShown(Multiplayer.GetRemoteSenderId());
 
     private void SaveGame()
     {
-        if (_world == null)
+        if (_host == null)
             return;
         Directory.CreateDirectory(Path.GetDirectoryName(_savePath)!);
-        File.WriteAllText(_savePath, HostSave.ToJson(_world));
+        File.WriteAllText(_savePath, _host.SaveJson());
     }
 
     // ----------------------------------------------------------- client
@@ -407,8 +378,7 @@ public partial class Main : Node2D
             RpcId(1, MethodName.Hello, _playerId, _name, Protocol.Version);
         Multiplayer.ConnectionFailed += () => Fail($"Could not reach {_options.Address}:{_options.Port}.");
         Multiplayer.ServerDisconnected += () => Fail("The host closed the game.");
-        _status = $"Connecting to {_options.Address}:{_options.Port}...";
-        Log(_status);
+        SetStatus($"Connecting to {_options.Address}:{_options.Port}...");
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -423,77 +393,16 @@ public partial class Main : Node2D
         }
         _connected = true;
         _status = $"Playing in the game at {_options.Address}:{_options.Port}.";
-        Notify(_welcome.Message);
+        _player?.Notify(_welcome.Message);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
-    private void ReceiveSnapshot(byte[] data)
-    {
-        var snap = Protocol.Decode<WorldSnapshot>(data);
-        if (_snapshot == null || snap.Frame > _snapshot.Frame)
-        {
-            _snapshot = snap;
-            LogActivityChanges(snap);
-        }
-    }
-
-    /// <summary>--start-at and --start-orbit: put the host's ship in hyperspace somewhere, or in orbit (new or loaded game).</summary>
-    private void StartInOrbit()
-    {
-        if (_options.StartAt is { } at && _world != null)
-        {
-            // --start-at: the host's ship in hyperspace there, at rest.
-            var flight = _world.Host.Ship.Flight;
-            flight.PlaceAtUniverse(at.X, at.Y);
-            flight.Stop();
-            flight.StarJustLeft = null;
-            Log($"Starting in hyperspace at {at.X}:{at.Y}");
-        }
-        if (_options.StartOrbit is not { } o || _world == null)
-            return;
-        string where = $"star {o.Star} planet {o.Planet}" + (o.Moon is int m ? $" moon {m}" : "");
-        try
-        {
-            _world.PutInOrbit(_playerId, o.Star, o.Planet, o.Moon);
-            Log($"Starting in orbit: {where}");
-        }
-        catch (ArgumentException e)
-        {
-            // A notice: the hosting status set after this would hide a status line.
-            Notify($"Can't start in orbit: {e.Message}", 20);
-        }
-    }
-
-    private readonly Dictionary<string, Activity> _seenActivity = new();
-
-    /// <summary>Logs each ship's activity when it changes (read by the network test).</summary>
-    private void LogActivityChanges(WorldSnapshot snap)
-    {
-        foreach (var s in snap.Ships)
-        {
-            if (_seenActivity.TryGetValue(s.Id, out var last) && last == s.Activity)
-                continue;
-            _seenActivity[s.Id] = s.Activity;
-            Log($"Saw {s.Id} {s.Activity} at frame {snap.Frame}");
-        }
-    }
-
-    /// <summary>Shows a one-off message under the status line for a few seconds (and logs it).</summary>
-    private void Notify(string message, double seconds = NoticeSeconds)
-    {
-        _notice = message;
-        _noticeUntilMs = Time.GetTicksMsec() + (ulong)(seconds * 1000);
-        Log(message);
-    }
-
-    /// <summary>The notice being shown, or "" once it has run out.</summary>
-    private string Notice() => Time.GetTicksMsec() < _noticeUntilMs ? _notice : "";
+    private void ReceiveSnapshot(byte[] data) => _player?.Observe(Protocol.Decode<WorldSnapshot>(data));
 
     private void Fail(string message)
     {
         _connected = false;   // nothing more is sent, and the undocking scene stops
-        _status = message;
-        Log(message);
+        SetStatus(message);
         // A second's grace before quitting, so a report shows what the
         // game did after the failure (the network test checks it).
         if ((_options.QuitAfterFrames > 0 || _options.ReportPath != null) && !_failing)
@@ -507,34 +416,33 @@ public partial class Main : Node2D
 
     public override void _PhysicsProcess(double delta)
     {
+        if (!_running)
+            return;
         _frames++;
-        // A guest's script starts once it is in the game, so a slow join
-        // doesn't use up its first steps (the network test depends on it).
-        bool inGame = _isHost ? _world != null : _connected && _snapshot != null;
-        // The orbit menu must exist before input is read, so a key on the
-        // first frame in orbit (a script's, say) reaches it.
-        UpdateOrbitMenu();
-        var input = inGame ? ReadInput() : ShipInput.None;
-
-        if (_isHost && _world != null)
+        if (_player != null)
         {
-            _world.SubmitInput(_playerId, _world.Frame + _inputDelay, input);
-            _world.Step();
-            _snapshot = _world.Snapshot();
-            LogActivityChanges(_snapshot);
-            if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
-                Rpc(MethodName.ReceiveSnapshot, Protocol.Encode(_snapshot));
+            // A guest's script starts once it is in the game, so a slow join
+            // doesn't use up its first steps (the network test depends on it).
+            bool inGame = _host != null || (_connected && _player.Snapshot != null);
+            var input = inGame ? _player.NextInput(ReadKeys()) : ShipInput.None;
+            if (_host != null)
+            {
+                var snapshot = _host.Step(input);
+                _player.Observe(snapshot);
+                if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
+                    Rpc(MethodName.ReceiveSnapshot, Protocol.Encode(snapshot));
+            }
+            else if (_connected && _player.Snapshot is { } snap)
+            {
+                RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input);
+                if (_player.UndockTick())
+                    RpcId(1, MethodName.UndockShown);
+            }
+            ShowViews(_player);
         }
-        else if (_connected && _snapshot != null)
-        {
-            RpcId(1, MethodName.SendInput, _snapshot.Frame + _inputDelay, (int)input);
-            HandleUndock();
-        }
-
-        ShowViews();
         UpdateHud();
 
-        if (_isHost && _options.QuitAfterJoinFrames > 0 && _firstJoinFrame < 0 && _peerPlayers.Count > 0)
+        if (_host != null && _options.QuitAfterJoinFrames > 0 && _firstJoinFrame < 0 && _host.Guests > 0)
             _firstJoinFrame = _frames;
         bool quitAfterJoin = _firstJoinFrame >= 0 && _frames >= _firstJoinFrame + _options.QuitAfterJoinFrames;
         if (!_failing && ((_options.QuitAfterFrames > 0 && _frames >= _options.QuitAfterFrames) || quitAfterJoin))
@@ -543,17 +451,14 @@ public partial class Main : Node2D
 
     public override void _Process(double delta)
     {
-        if (_orbitMenu != null)
-        {
-            _orbitMenu.Advance(delta);
-            if (_wasSweeping && !_orbitMenu.Scan.Sweeping)
-                LogScan();
-            _wasSweeping = _orbitMenu.Scan.Sweeping;
-        }
+        if (!_running)
+            return;
+        _player?.Advance(delta);
         _orbitView.Advance(delta);
-        _orbitView.Show(_orbitMenu, Taken, _snapshot, _playerId, _orbitMessage);
+        if (_player != null)
+            _orbitView.Show(_player.OrbitMenu, _player.Taken, _player.Snapshot, _player.PlayerId, _player.OrbitMessage);
         _systemView.Advance(delta);
-        if (!_isHost)
+        if (_host == null)
             return;
         _saveTimer += delta;
         if (_saveTimer >= 60)
@@ -563,60 +468,9 @@ public partial class Main : Node2D
         }
     }
 
-    // A first-time guest sees a short undocking scene (placeholder: a
-    // message for 2 seconds), then tells the host it has been shown.
-    private void HandleUndock()
+    /// <summary>The ship keys held (the session ignores them when a script plays, or in orbit).</summary>
+    private static ShipInput ReadKeys()
     {
-        var me = _snapshot?.Ships.FirstOrDefault(s => s.Id == _playerId);
-        if (me == null || !me.UndockPending || _undockShown)
-            return;
-        if (_undockFrames < 0)
-        {
-            _undockFrames = 0;
-            Log("Undocking");
-        }
-        if (++_undockFrames >= 2 * GameClock.FramesPerSecond)
-        {
-            _undockShown = true;
-            Notify("Undocked. You're flying your escort.");
-            RpcId(1, MethodName.UndockShown);
-        }
-    }
-
-    private ShipInput ReadInput()
-    {
-        ShipInput input = ReadKeysOrScript();
-        // While the ship's entry into a star plays, it can't be flown, as in UQM.
-        if (_view.Entering(_playerId))
-            return ShipInput.None;
-        if (_leaveFrames > 0)
-        {
-            // Navigate was chosen: hold the action key a few frames, so a
-            // lost packet can't lose it (the host acts on the press only).
-            _leaveFrames--;
-            return ShipInput.Action;
-        }
-        return input;
-    }
-
-    private ShipInput ReadKeysOrScript()
-    {
-        if (_options.Script is { } script)
-        {
-            while (_scriptStep < script.Count && _scriptFrame >= script[_scriptStep].Frames)
-            {
-                _scriptStep++;
-                _scriptFrame = 0;
-            }
-            if (_scriptStep >= script.Count)
-                return ShipInput.None;
-            var step = script[_scriptStep];
-            if (_scriptFrame++ == 0 && step.Key is MenuKey key)
-                PressMenu(key);
-            return step.Input;
-        }
-        if (Me()?.Activity == Activity.Orbit)
-            return ShipInput.None;   // the orbit screen's keys go to its menu
         var input = ShipInput.None;
         if (Input.IsKeyPressed(Key.Left))
             input |= ShipInput.Left;
@@ -629,11 +483,9 @@ public partial class Main : Node2D
         return input;
     }
 
-    private ShipSnapshot? Me() => _snapshot?.Ships.FirstOrDefault(s => s.Id == _playerId);
-
     public override void _UnhandledInput(InputEvent e)
     {
-        if (e is not InputEventKey { Pressed: true } k)
+        if (!_running || e is not InputEventKey { Pressed: true } k)
             return;
         // F1 opens and closes the about screen; Esc closes it too.
         if (k.Keycode == Key.F1 || (_about.Visible && k.Keycode == Key.Escape))
@@ -642,7 +494,7 @@ public partial class Main : Node2D
             GetViewport().SetInputAsHandled();
             return;
         }
-        if (_about.Visible || _options.Script != null)
+        if (_about.Visible || _player == null || _player.Scripted)
             return;
         MenuKey? key = k.Keycode switch
         {
@@ -655,139 +507,34 @@ public partial class Main : Node2D
             _ => null,
         };
         if (key is MenuKey mk)
-            PressMenu(mk);
+            _player.PressMenu(mk);
     }
 
-    /// <summary>The host's taken-node mask for a scan type of the world being orbited.</summary>
-    private uint Taken(ScanType scan)
+    /// <summary>Shows the screen the session picks, with what it holds.</summary>
+    private void ShowViews(PlayerSession player)
     {
-        if (_orbitMenu == null || _snapshot?.OrbitedWorlds is not { } worlds)
-            return 0;
-        var w = _orbitMenu.World;
-        var o = worlds.FirstOrDefault(x => x.Star == w.Star && x.Planet == w.Planet && x.Moon == w.Moon);
-        return o == null ? 0 : scan switch
-        {
-            ScanType.Mineral => o.MineralTaken,
-            ScanType.Energy => o.EnergyTaken,
-            _ => o.BiologicalTaken,
-        };
-    }
-
-    private void PressMenu(MenuKey key)
-    {
-        if (_orbitMenu == null)
-            return;
-        OrbitMenuItem item = _orbitMenu.Selected;
-        MenuOutcome outcome = _orbitMenu.Press(key, Taken);
-        _orbitMessage = outcome switch
-        {
-            MenuOutcome.NotYet => $"{OrbitView.Label(item)} comes in a later stage.",
-            MenuOutcome.Refused => _orbitMenu.Shielded ? "The world is shielded." : "The lander can't go down to a gas giant.",
-            MenuOutcome.LeaveOrbit => "Leaving orbit...",
-            _ => "",
-        };
-        if (outcome == MenuOutcome.ScanStarted)
-            Log($"Scan started: {item}");
-        if (outcome == MenuOutcome.LeaveOrbit)
-        {
-            Log("Leaving orbit");
-            _leaveFrames = 4;
-        }
-        // A key can finish the last scan type: log it as when it runs out.
-        if (_wasSweeping && !_orbitMenu.Scan.Sweeping)
-            LogScan();
-        _wasSweeping = _orbitMenu.Scan.Sweeping;
-    }
-
-    private void LogScan()
-    {
-        var dots = _orbitMenu!.Scan.Dots(Taken).ToList();
-        Log($"Scan done: {dots.Count(d => d.Scan == ScanType.Mineral)} mineral, "
-            + $"{dots.Count(d => d.Scan == ScanType.Energy)} energy, {dots.Count(d => d.Scan == ScanType.Biological)} life shown");
-    }
-
-    /// <summary>Keeps the orbit menu for the current visit to a world (none when not in orbit).</summary>
-    private void UpdateOrbitMenu()
-    {
-        var me = Me();
-        if (me?.Activity == Activity.Orbit && me.SystemStar is int star && me.OrbitPlanet is int planet)
-        {
-            var world = new WorldId(star, planet, me.OrbitMoon);
-            if (_orbitMenu?.World != world)
-            {
-                // A new visit: the menu starts afresh, nothing found yet.
-                _orbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon));
-                _orbitMessage = "";
-                _wasSweeping = false;
-            }
-        }
-        else
-            _orbitMenu = null;
-    }
-
-    /// <summary>Picks the view for the local player's activity.</summary>
-    private void ShowViews()
-    {
-        UpdateOrbitMenu();
-        var activity = Me()?.Activity ?? Activity.Hyperspace;
-        _view.Show(_snapshot, _playerId);
-        // The screen stays on hyperspace while the ship's entry into a star plays.
-        bool entering = _view.Entering(_playerId);
-        _view.Visible = activity == Activity.Hyperspace || entering;
-        _systemView.Visible = !entering && activity is Activity.OuterSystem or Activity.InnerSystem;
-        _orbitView.Visible = activity == Activity.Orbit;
-        if (_snapshot != null && _systemView.Visible)
-            _systemView.Show(_snapshot, _playerId);
+        var screen = player.Screen;
+        _view.Show(player.Snapshot, player.PlayerId, player.Entries);
+        _view.Visible = screen == PlayerScreen.Hyperspace;
+        _systemView.Visible = screen == PlayerScreen.System;
+        _orbitView.Visible = screen == PlayerScreen.Orbit;
+        if (player.Snapshot != null && _systemView.Visible)
+            _systemView.Show(player.Snapshot, player.PlayerId);
     }
 
     private void UpdateHud()
     {
-        var lines = new List<string> { "Attack on Crateris - stage 2", _status, Notice() };
-        if (_snapshot != null)
-        {
-            lines.Add($"Date {_snapshot.Year:D4}-{_snapshot.Month:D2}-{_snapshot.Day:D2}");
-            var me = _snapshot.Ships.FirstOrDefault(s => s.Id == _playerId);
-            if (me != null)
-            {
-                lines.Add($"You: {Where(me)}");
-                lines.Add($"Fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
-            }
-            lines.Add($"Players ({_snapshot.Ships.Count}):");
-            foreach (var s in _snapshot.Ships)
-                lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}  {Where(s)}");
-        }
-        if (_undockFrames >= 0 && !_undockShown)
-        {
-            var host = _snapshot?.Ships.FirstOrDefault(s => s.IsHost);
-            lines.Add($"Undocking from {host?.Name ?? "the"}'s flagship...");
-        }
-        if (Me()?.Activity != Activity.Orbit)
-            lines.Add("Arrows: turn and thrust");
-        lines.Add("F1: about and credits");
-        _hud.Text = string.Join("\n", lines.Where(l => !string.IsNullOrEmpty(l)));
+        if (_player != null)
+            _player.Status = _status;
+        _hud.Text = _player == null ? _status : string.Join("\n", _player.StatusLines());
         _hud.Visible = _firstRun == null && _contentError == null;   // those screens stand alone
-    }
-
-    private string Where(ShipSnapshot s)
-    {
-        if (s.Activity == Activity.Hyperspace || s.SystemStar is not int star)
-            return $"hyperspace {s.UniverseX / 10.0:0.0} : {s.UniverseY / 10.0:0.0}";
-        var at = _systems.Map.Stars[star];
-        string cluster = _names.Cluster(at);
-        return s.Activity switch
-        {
-            Activity.OuterSystem => $"the {cluster} system",
-            Activity.InnerSystem when s.InnerPlanet is int p => $"the {cluster} system, near {_names.PlanetName(at, p)}",
-            Activity.Orbit when s.OrbitPlanet is int p => $"orbiting {_names.PlanetOrMoon(at, p, s.OrbitMoon)}, {cluster}",
-            _ => $"the {cluster} system",
-        };
     }
 
     // ---------------------------------------------------- quit / report
 
     public override void _Notification(int what)
     {
-        if (what == NotificationWMCloseRequest && _isHost)
+        if (what == NotificationWMCloseRequest)
             SaveGame();
     }
 
@@ -802,22 +549,21 @@ public partial class Main : Node2D
         if (_finished)
             return;
         _finished = true;
-        if (_isHost)
-            SaveGame();
-        if (_options.ScreenshotPath != null && DisplayServer.GetName() != "headless")
+        SaveGame();
+        if (_options.ScreenshotPath != null && !Headless)
             GetViewport().GetTexture().GetImage().SavePng(_options.ScreenshotPath);
         if (_options.ReportPath != null)
         {
             var report = new
             {
-                mode = _isHost ? "host" : "client",
-                player_id = _playerId,
+                mode = _host != null ? "host" : "client",
+                player_id = _player?.PlayerId ?? _playerId,
                 frames = _frames,
                 welcome = _welcome?.Result.ToString(),
                 status = _status,
-                notice = Notice(),
+                notice = _player?.Notice ?? "",
                 log = _log,
-                snapshot = _snapshot,
+                snapshot = _player?.Snapshot,
             };
             File.WriteAllText(_options.ReportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }

@@ -56,43 +56,71 @@ public sealed class ContactShapes
     public IntersectFrame HyperPoint { get; }
 
     /// <summary>Reads the shapes; anything wrong with them is a <see cref="ContentPackageException"/>.</summary>
-    public static ContactShapes Load(ContentPackage package)
+    public static ContactShapes Load(ContentPackage package) => Load(new AnimationSheets(package));
+
+    /// <summary>
+    /// Reads the shapes from sheets decoded once for everything that uses
+    /// them. Every frame UQM can test for contact must have a known mask:
+    /// the flagship's 16 facings in a system and in hyperspace, every
+    /// world image, the starbase and the Sa-Matra, the hyperspace stars of
+    /// every size and colour, and the one-pixel frames. Anything wrong is
+    /// a <see cref="ContentPackageException"/>, found here rather than in
+    /// the middle of a game.
+    /// </summary>
+    public static ContactShapes Load(AnimationSheets decoded)
     {
+        ContactShapes shapes;
         try
         {
             var sheets = new Dictionary<string, IReadOnlyList<IntersectFrame>>();
             foreach (string id in Resources)
             {
-                var frames = Animation.LoadImages(package, id).Select(f => Frame(f.Frame, f.Image)).ToList();
+                var frames = decoded[id].Select(f => Frame(f.Frame, f.Image)).ToList();
                 if (frames.Count == 0)
                     throw new ContentPackageException($"{id} has no images");
                 sheets[id] = frames;
             }
-            return new ContactShapes(sheets);
+            shapes = new ContactShapes(sheets);
         }
         catch (Exception e) when (e is not ContentPackageException)
         {
             throw new ContentPackageException($"the sprites' shapes couldn't be read: {e.Message}", e);
         }
+        void Need(string what, IReadOnlyList<IntersectFrame> frames, int count, params int[] only)
+        {
+            if (frames.Count < Math.Max(count, only.Length == 0 ? 0 : only.Max() + 1))
+                throw new ContentPackageException($"{what} has {frames.Count} frames; contact needs more");
+            foreach (int i in only.Length > 0 ? only : Enumerable.Range(0, count))
+                if (frames[i].Mask is null)
+                    throw new ContentPackageException($"{what} frame {i} is tested for contact, but its shape can't be read (a true colour image without alpha)");
+        }
+        const int facings = 16;
+        Need("graphics.flagship", shapes.IpFlagship, facings);
+        Need("graphics.planets", shapes.Worlds, 6 << 4);
+        Need("graphics.orbitbackground", shapes.Junk, 0, Systems.WorldImages.StarbaseFrame, Systems.WorldImages.SaMatraFrame);
+        Need("ship.flagship.graphics.hyperspace", shapes.HyperFlagship, facings);
+        Need("graphics.hyperstars", shapes.HyperStars, 3 * Data.Star.StarColors);
+        Need("graphics.stars", new[] { shapes.IpPoint }, 1);
+        Need("graphics.ambient", new[] { shapes.HyperPoint }, 1);
+        return shapes;
     }
 
     /// <summary>
-    /// A frame's mask. process_image sets the colour key: a palette image's
-    /// transparent index from the .ani file (none for -1), a true colour
-    /// image's black for 0, otherwise the PNG's own key.
-    /// TFB_DrawCanvas_Intersect then counts a pixel as touching if it isn't
-    /// fully transparent (with an alpha channel) or isn't the colour key (0
-    /// without one). A true colour image without alpha is converted to the
-    /// screen's format first, which isn't modelled: its mask is unknown.
+    /// A frame's mask. The colour key is the one process_image sets
+    /// (<see cref="ProcessImage.ColorKey"/>); TFB_DrawCanvas_Intersect then
+    /// counts a pixel as touching if it isn't fully transparent (with an
+    /// alpha channel) or isn't the colour key (0 when there's none). A
+    /// true colour image without alpha is converted to the screen's format
+    /// first, which isn't modelled: its mask is unknown.
     /// </summary>
     public static IntersectFrame Frame(AnimationFrame frame, Png png)
     {
         byte[]? mask = null;
         if (png.BytesPerPixel == 1)
         {
-            long key = frame.TransparentIndex >= 0 ? frame.TransparentIndex
-                : frame.TransparentIndex == -1 ? 0
-                : png.ColorKey >= 0 ? png.ColorKey : 0;
+            long key = ProcessImage.ColorKey(frame, png);
+            if (key < 0)
+                key = 0;
             mask = png.Pixels.Select(p => (byte)(p != key ? 1 : 0)).ToArray();
         }
         else if (png.HasAlpha)

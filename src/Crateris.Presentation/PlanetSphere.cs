@@ -11,7 +11,13 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
-namespace Crateris.Core.Systems;
+using Crateris.Core.Content;
+using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
+
+namespace Crateris.Presentation;
 
 /// <summary>
 /// The rotating planet in orbit, as UQM renders it: the surface map wrapped

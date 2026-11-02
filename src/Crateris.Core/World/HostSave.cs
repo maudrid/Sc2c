@@ -85,8 +85,19 @@ public static class HostSave
         return JsonSerializer.Serialize(save, Options);
     }
 
-    /// <summary>Loads a save. With a catalog, saved worlds must exist in their systems.</summary>
-    public static GameWorld FromJson(string json, SystemCatalog? systems = null, ContactShapes? shapes = null)
+    /// <summary>Loads a save without systems (tests). A bad save is an <see cref="InvalidDataException"/>.</summary>
+    public static GameWorld FromJson(string json) => Load(json, null, null);
+
+    /// <summary>
+    /// Loads a save with its systems and the shapes that decide contact:
+    /// saved worlds must exist in their systems. A bad save is an
+    /// <see cref="InvalidDataException"/>.
+    /// </summary>
+    public static GameWorld FromJson(string json, SystemCatalog systems, ContactShapes shapes) =>
+        Load(json, systems ?? throw new ArgumentNullException(nameof(systems)),
+            shapes ?? throw new ArgumentNullException(nameof(shapes)));
+
+    private static GameWorld Load(string json, SystemCatalog? systems, ContactShapes? shapes)
     {
         var save = JsonSerializer.Deserialize<SaveFile>(json, Options)
             ?? throw new InvalidDataException("Empty save file.");
@@ -98,7 +109,7 @@ public static class HostSave
         {
             FramesIntoDay = save.Clock.FramesIntoDay,
         };
-        var world = new GameWorld(save.Settings, clock, save.Frame, systems, shapes);
+        var world = new GameWorld(save.Settings, clock, save.Frame, systems, shapes, loading: true);
         foreach (var ps in save.Players)
         {
             var ship = new PlayerShip(ps.Kind, ps.Loadout);

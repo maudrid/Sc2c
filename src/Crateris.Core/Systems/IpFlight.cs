@@ -482,17 +482,16 @@ public sealed class IpFlight
     private static ushort MakeWord(int lo, int hi) => (ushort)((byte)lo | ((byte)hi << 8));
 
     /// <summary>
-    /// CheckIntersect. Returns the world newly touched: in the outer system
-    /// a planet index; in an inner system -1 for the planet itself or a
-    /// moon index. Null if none.
-    /// </summary>
-    /// <summary>
     /// CheckIntersect: UQM's sprite intersection (<see cref="Intersection"/>)
     /// of the flagship's frame for its facing against each world, still. A
     /// new contact is with the world's centre (UQM's one-pixel frame);
     /// a world still being touched is tested with its whole image, so the
     /// contact lasts until the ship has cleared it (getCollisionFrame).
     /// </summary>
+    /// <returns>
+    /// The world newly touched: in the outer system a planet index; in an
+    /// inner system -1 for the planet itself or a moon index. Null if none.
+    /// </returns>
     private int? CheckIntersect()
     {
         ushort newWait = 0;
@@ -578,10 +577,10 @@ public sealed class IpFlight
         return (short)fromRadius;
     }
 
-    /// <summary>ValidateOrbit's image of a world (<see cref="SystemSprites.WorldImage"/>), as a shape.</summary>
+    /// <summary>ValidateOrbit's image of a world (<see cref="WorldImages.Of"/>), as a shape.</summary>
     private IntersectFrame WorldFrame(WorldDesc world, int add, WorldDesc lightFrom)
     {
-        var (sheet, frame) = SystemSprites.WorldImage(System.Generator, world,
+        var (sheet, frame) = WorldImages.Of(world,
             SystemLayout.ImageSize(System.Generator, world.DataIndex, add), lightFrom);
         return sheet == SystemSheet.Worlds ? _shapes.Worlds[frame] : _shapes.Junk[frame];
     }

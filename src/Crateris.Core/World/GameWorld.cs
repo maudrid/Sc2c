@@ -36,7 +36,7 @@ public enum JoinResult
 /// thrusting (in hyperspace) or thrust last frame (in a system); the views
 /// don't draw it, as UQM shows thrust only in battle (ion trails). ViewX and
 /// ViewY are the ship's place in its hyperspace view, which lags the ship at
-/// speed (<see cref="Crateris.Core.Hyperspace.HyperScreen"/>).
+/// speed.
 /// Clients generate systems themselves from the star number.
 /// </summary>
 public sealed record ShipSnapshot(
@@ -48,7 +48,8 @@ public sealed record ShipSnapshot(
     int? SystemStar = null, int? InnerPlanet = null,
     int IpX = 0, int IpY = 0, int ScreenX = 0, int ScreenY = 0, int IpFacing = 0, int ZoomRadius = 0,
     int? OrbitPlanet = null, int? OrbitMoon = null, int IpVelocityX = 0, int IpVelocityY = 0,
-    short ViewX = Crateris.Core.Hyperspace.HyperFlight.CenterX, short ViewY = Crateris.Core.Hyperspace.HyperFlight.CenterY);
+    short ViewX = Crateris.Core.Hyperspace.HyperFlight.CenterX, short ViewY = Crateris.Core.Hyperspace.HyperFlight.CenterY,
+    StarEntryState? Entry = null);
 
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
@@ -87,12 +88,24 @@ public sealed class GameWorld
     /// <summary>The sprites' shapes, which decide contact with stars and worlds (with <see cref="Systems"/>).</summary>
     public ContactShapes? Shapes { get; }
 
-    /// <summary>A world; with systems, it needs the shapes from the content (content stage, decision 4).</summary>
-    public GameWorld(GameSettings settings, GameClock clock, long frame = 0, SystemCatalog? systems = null,
-        ContactShapes? shapes = null)
+    /// <summary>A world of hyperspace only, without systems (tests).</summary>
+    public GameWorld(GameSettings settings, GameClock clock, long frame = 0)
+        : this(settings, clock, frame, null, null, loading: false)
     {
-        if (systems != null && shapes == null)
-            throw new ArgumentException("a world with systems needs the sprites' shapes from the content", nameof(shapes));
+    }
+
+    /// <summary>A world with its systems, which needs the sprites' shapes from the content (content stage, decision 4).</summary>
+    public GameWorld(GameSettings settings, GameClock clock, long frame, SystemCatalog systems, ContactShapes shapes)
+        : this(settings, clock, frame, systems ?? throw new ArgumentNullException(nameof(systems)),
+            shapes ?? throw new ArgumentNullException(nameof(shapes)), loading: false)
+    {
+    }
+
+    /// <summary>For <see cref="HostSave"/>: systems and shapes both, or neither.</summary>
+    internal GameWorld(GameSettings settings, GameClock clock, long frame, SystemCatalog? systems, ContactShapes? shapes, bool loading)
+    {
+        if ((systems is null) != (shapes is null))
+            throw new ArgumentException("systems and the sprites' shapes go together");
         Settings = settings;
         Clock = clock;
         Frame = frame;
@@ -102,10 +115,16 @@ public sealed class GameWorld
     }
 
     /// <summary>A new game with the host in the flagship, in hyperspace at the start position.</summary>
+    public static GameWorld NewGame(GameSettings settings, NewGameData data, string hostId, string hostName) =>
+        NewGame(new GameWorld(settings, new GameClock(data.Year, data.Month, data.Day)), data, hostId, hostName);
+
+    /// <summary>A new game with its systems and the shapes that decide contact.</summary>
     public static GameWorld NewGame(GameSettings settings, NewGameData data, string hostId, string hostName,
-        SystemCatalog? systems = null, ContactShapes? shapes = null)
+        SystemCatalog systems, ContactShapes shapes) =>
+        NewGame(new GameWorld(settings, new GameClock(data.Year, data.Month, data.Day), 0, systems, shapes), data, hostId, hostName);
+
+    private static GameWorld NewGame(GameWorld world, NewGameData data, string hostId, string hostName)
     {
-        var world = new GameWorld(settings, new GameClock(data.Year, data.Month, data.Day), 0, systems, shapes);
         var ship = new PlayerShip(ShipKind.Flagship, data.Flagship);
         ship.Flight.PlaceAtUniverse(data.StartUniverseX, data.StartUniverseY);
         ship.Flight.ResetFuelCounters();
@@ -224,6 +243,14 @@ public sealed class GameWorld
                         LeaveOrbit(p.Ship);
                     break;
                 default:
+                    // While the entry into the star plays, the ship can't be
+                    // flown and its system hasn't loaded yet, as in UQM.
+                    if (p.Ship.Entry is { } entry)
+                    {
+                        if (entry.PlayingAt(Frame))
+                            break;
+                        p.Ship.Entry = null;
+                    }
                     for (int i = 0; i < systemFrames && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem; ++i)
                         StepSystem(p.Ship, input);
                     break;
@@ -239,7 +266,16 @@ public sealed class GameWorld
         if (Systems is null)
             return;
         if (StarContact.Check(ship.Flight, Systems.Map, Shapes!, before) is { } star)
+        {
+            // The entry plays from where and how the ship touched the star
+            // (init_transition); clients draw it from this.
+            var f = ship.Flight;
+            var (sx, sy) = StarContact.SpritePosition(f);
+            var entry = new StarEntryState(Frame, f.LogX, f.LogY, f.ViewX, f.ViewY, f.Facing, star.Number,
+                StarEntry.Animate(sx, sy, f.Facing, star, Shapes!.HyperFlagship.Count).Count);
             EnterSystem(ship, star);
+            ship.Entry = entry;
+        }
     }
 
     private void StepSystem(PlayerShip ship, ShipInput input)
@@ -261,6 +297,7 @@ public sealed class GameWorld
 
     private void EnterSystem(PlayerShip ship, Star star)
     {
+        ship.Entry = null;
         // ExploreSolarSys: the hyperspace position becomes the star's, so the
         // ship comes back out on it.
         ship.Flight.PlaceAtUniverse(star.X, star.Y);
@@ -313,7 +350,8 @@ public sealed class GameWorld
                 ip is null ? (f.Status & HyperFlight.StatusThrust) != 0 : ip.Orbit is null && ip.Thrusting,
                 p.UndockPending, p.Ship.Activity, p.Ship.SystemStar, ip?.InnerPlanet,
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
-                ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy, f.ViewX, f.ViewY);
+                ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy, f.ViewX, f.ViewY,
+                p.Ship.Entry is { } e && e.PlayingAt(Frame) ? e : null);
         }).ToList();
 
         // Worlds being orbited, with what has been taken from them, so an

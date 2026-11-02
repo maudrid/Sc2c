@@ -42,9 +42,8 @@ public static class StarEntry
         // init_transition: the velocity that covers the distance in num_turns frames.
         short dx = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogX(star.X) - spriteX));
         short dy = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogY(star.Y) - spriteY));
+        // At least 1 (frameCount > Facings), so UQM's "if (num_turns == 0)" can't happen.
         int turns = frameCount - Facings + UqmMath.NormalizeFacing(Facings - facing);
-        if (turns == 0)
-            turns = 1;
         var velocity = default(Velocity);
         velocity.SetComponents((short)(dx / turns), (short)(dy / turns));
 

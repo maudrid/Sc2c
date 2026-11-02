@@ -29,6 +29,14 @@ namespace Crateris.Core.Hyperspace;
 /// </summary>
 public static class StarContact
 {
+    /// <summary>How near a star must be for AddStars to put it near a ship: XOFFS and YOFFS over NUM_RADAR_SCREENS, in universe units.</summary>
+    public const int ReachX = ((63 * 12 + (63 << 2)) >> 1) / 12;   // 42
+    public const int ReachY = ((50 * 12 + (50 << 2)) >> 1) / 12;   // 33
+
+    /// <summary>Whether AddStars puts a star near a ship at a universe position (only those can be touched, or drawn).</summary>
+    public static bool InReach(Star star, int universeX, int universeY) =>
+        Math.Abs(star.X - universeX) <= ReachX && Math.Abs(star.Y - universeY) <= ReachY;
+
     /// <summary>
     /// Call once per hyperspace frame, after the ship has moved, with where
     /// its sprite was before the move (<see cref="SpritePosition"/>; the
@@ -67,7 +75,7 @@ public static class StarContact
             else
             {
                 Star s = map.Stars[left];
-                if (!Touches(s, shapes.HyperStars[SpaceSprites.StarFrame(s) % shapes.HyperStars.Count]))
+                if (!Touches(s, shapes.HyperStars[s.HyperspaceFrame]))
                     ship.StarJustLeft = null;
             }
         }
@@ -84,9 +92,9 @@ public static class StarContact
         Star? best = null;
         long bestDist = long.MaxValue;
         int ux = ship.UniverseX, uy = ship.UniverseY;
-        foreach (Star s in map.InYRange(uy - HyperScreen.StarReachY, uy + HyperScreen.StarReachY))
+        foreach (Star s in map.InYRange(uy - ReachY, uy + ReachY))
         {
-            if (s.Number == ship.StarJustLeft || !HyperScreen.Shows(s, ux, uy) || !Touches(s, shapes.HyperPoint))
+            if (s.Number == ship.StarJustLeft || !InReach(s, ux, uy) || !Touches(s, shapes.HyperPoint))
                 continue;
             long ex = Units.UniverseToLogX(s.X) - now.X, ey = Units.UniverseToLogY(s.Y) - now.Y;
             long d = ex * ex + ey * ey;

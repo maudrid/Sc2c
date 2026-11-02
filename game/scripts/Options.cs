@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
+using Crateris.Core.Session;
 using Crateris.Core.Systems;
 
 namespace Crateris.Game;
@@ -53,10 +54,8 @@ public sealed class Options
     public long QuitAfterJoinFrames { get; private set; }
     public bool UseUpnp { get; private set; } = true;
     public double? SecondsPerDay { get; private set; }
-    /// <summary>One step of --script: input held for some frames; a menu key is pressed once as the step starts.</summary>
-    public sealed record ScriptStep(int Frames, ShipInput Input, MenuKey? Key = null);
-
-    public List<ScriptStep>? Script { get; private set; }
+    /// <summary>--script: scripted input instead of keys (<see cref="InputScript"/>).</summary>
+    public InputScript? Script { get; private set; }
 
     /// <summary>--start-orbit star:planet[:moon]: a new game starts in orbit there (testing and debugging).</summary>
     public (int Star, int Planet, int? Moon)? StartOrbit { get; private set; }
@@ -102,7 +101,7 @@ public sealed class Options
                 case "--seconds-per-day":
                     o.SecondsPerDay = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
                     break;
-                case "--script": o.Script = ParseScript(Next()); break;
+                case "--script": o.Script = InputScript.Parse(Next()); break;
                 case "--start-orbit":
                 {
                     var parts = Next().Split(':');
@@ -118,44 +117,8 @@ public sealed class Options
                 default: throw new ArgumentException($"Unknown option {args[i]}");
             }
         }
+        if (o.StartAt != null && o.StartOrbit != null)
+            throw new ArgumentException("--start-at and --start-orbit can't be used together");
         return o;
-    }
-
-    private static List<ScriptStep> ParseScript(string text)
-    {
-        var steps = new List<ScriptStep>();
-        foreach (var part in text.Split(',', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var kv = part.Split(':');
-            var input = ShipInput.None;
-            MenuKey? menuKey = null;
-            foreach (var key in kv[0].Split('+'))
-            {
-                MenuKey? mk = key.Trim() switch
-                {
-                    "up" => MenuKey.Up,
-                    "down" => MenuKey.Down,
-                    "select" => MenuKey.Select,
-                    "cancel" => MenuKey.Cancel,
-                    _ => null,
-                };
-                if (mk != null)
-                {
-                    menuKey = mk;
-                    continue;
-                }
-                input |= key.Trim() switch
-                {
-                    "left" => ShipInput.Left,
-                    "right" => ShipInput.Right,
-                    "thrust" => ShipInput.Thrust,
-                    "action" => ShipInput.Action,
-                    "none" => ShipInput.None,
-                    var k => throw new ArgumentException($"Unknown input '{k}' in --script"),
-                };
-            }
-            steps.Add(new ScriptStep(int.Parse(kv[1]), input, menuKey));
-        }
-        return steps;
     }
 }

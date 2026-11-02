@@ -12,8 +12,13 @@
 // (at your option) any later version.
 
 using System.Text;
+using Crateris.Core.Content;
+using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
 
-namespace Crateris.Core.Content;
+namespace Crateris.Presentation;
 
 /// <summary>Text alignment (TEXT_ALIGN in UQM): about the baseline's x.</summary>
 public enum TextAlign { Left = 0, Center = 1, Right = 2 }

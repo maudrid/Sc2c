@@ -1,0 +1,330 @@
+// Attack on Crateris
+// Copyright (C) 2026 Attack on Crateris contributors.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+
+using Crateris.Core.Content;
+using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
+using Crateris.Core.World;
+
+namespace Crateris.Core.Session;
+
+/// <summary>Which screen the local player sees.</summary>
+public enum PlayerScreen { Hyperspace, System, Orbit }
+
+/// <summary>
+/// The local player's side of a game, the same for the host and a guest,
+/// without Godot: the latest snapshot, what the player's keys (or a test
+/// script) send, the orbit screen's menus for the current visit, the
+/// undocking scene of a first-time guest, notices, which screen to show,
+/// and the status text. The Godot layer feeds it keys, time and snapshots,
+/// and draws what it says.
+/// </summary>
+public sealed class PlayerSession
+{
+    /// <summary>How long a notice shows, in seconds.</summary>
+    public const double NoticeSeconds = 6;
+
+    /// <summary>How many frames the action key is held after Navigate is chosen, so a lost packet can't lose it.</summary>
+    public const int LeaveFrames = 4;
+
+    /// <summary>The placeholder undocking scene's length (a message), in world frames.</summary>
+    public const int UndockFrames = 2 * GameClock.FramesPerSecond;
+
+    private readonly SystemCatalog _systems;
+    private readonly Names? _names;
+    private readonly InputScript? _script;
+    private readonly Dictionary<string, Activity> _seenActivity = new();
+    private int _leaveFrames;
+    private bool _wasSweeping;
+    private int _undockFrames = -1;
+    private double _time;
+    private string _notice = "";
+    private double _noticeUntil;
+
+    /// <param name="names">Star and world names for the status (null: by number).</param>
+    /// <param name="entryFrameCount">The hyperspace flagship sheet's frame count, for star entries.</param>
+    public PlayerSession(SystemCatalog systems, Names? names, string playerId, int entryFrameCount, InputScript? script = null)
+    {
+        _systems = systems;
+        _names = names;
+        PlayerId = playerId;
+        _script = script;
+        Entries = new StarEntryTracker(systems.Map, entryFrameCount);
+    }
+
+    /// <summary>The local player's id (a host that loads a save takes the save's).</summary>
+    public string PlayerId { get; set; }
+
+    public WorldSnapshot? Snapshot { get; private set; }
+
+    public ShipSnapshot? Me => Snapshot?.Ships.FirstOrDefault(s => s.Id == PlayerId);
+
+    /// <summary>The entries into stars playing in the snapshot.</summary>
+    public StarEntryTracker Entries { get; }
+
+    /// <summary>The orbit screen's menus for the current visit to a world, or null when not in orbit.</summary>
+    public OrbitMenu? OrbitMenu { get; private set; }
+
+    /// <summary>What the orbit screen last said (an item that comes later, a refusal, leaving).</summary>
+    public string OrbitMessage { get; private set; } = "";
+
+    /// <summary>Whether input comes from a script rather than keys.</summary>
+    public bool Scripted => _script != null;
+
+    /// <summary>The lasting status line (hosting, connected, an error), set by the Godot layer.</summary>
+    public string Status { get; set; } = "";
+
+    /// <summary>The notice being shown, or "" once it has run out.</summary>
+    public string Notice => _time < _noticeUntil ? _notice : "";
+
+    /// <summary>Whether a first-time guest's undocking scene is showing.</summary>
+    public bool Undocking => _undockFrames >= 0 && !UndockDone;
+
+    public bool UndockDone { get; private set; }
+
+    /// <summary>What happened, for the log (read by the network test).</summary>
+    public event Action<string>? Logged;
+
+    private void Log(string message) => Logged?.Invoke(message);
+
+    /// <summary>Shows a one-off message under the status line for a while (and logs it).</summary>
+    public void Notify(string message, double seconds = NoticeSeconds)
+    {
+        _notice = message;
+        _noticeUntil = _time + seconds;
+        Log(message);
+    }
+
+    /// <summary>
+    /// A snapshot arrived (or the host made one). Older ones than the one
+    /// held are ignored. Logs each ship's activity when it changes, and
+    /// keeps the orbit menu and star entries up to date.
+    /// </summary>
+    public void Observe(WorldSnapshot snapshot)
+    {
+        if (Snapshot != null && snapshot.Frame <= Snapshot.Frame)
+            return;
+        Snapshot = snapshot;
+        foreach (var s in snapshot.Ships)
+        {
+            if (_seenActivity.TryGetValue(s.Id, out var last) && last == s.Activity)
+                continue;
+            _seenActivity[s.Id] = s.Activity;
+            Log($"Saw {s.Id} {s.Activity} at frame {snapshot.Frame}");
+        }
+        Entries.Observe(snapshot);
+        UpdateOrbitMenu();
+    }
+
+    /// <summary>
+    /// The ship input to send this frame, from the keys held (or the script,
+    /// whose menu keys are pressed here). In orbit the keys go to the orbit
+    /// menu instead. After Navigate, the action key is held a few frames.
+    /// While an entry into a star plays the host ignores input, as UQM does.
+    /// </summary>
+    public ShipInput NextInput(ShipInput keys)
+    {
+        UpdateOrbitMenu();   // so a key on the first frame in orbit reaches the menu
+        ShipInput input;
+        if (_script != null)
+        {
+            input = _script.Next(out var press);
+            if (press is MenuKey key)
+                PressMenu(key);
+        }
+        else
+            input = Me?.Activity == Activity.Orbit ? ShipInput.None : keys;
+        if (_leaveFrames > 0)
+        {
+            _leaveFrames--;
+            return ShipInput.Action;
+        }
+        return input;
+    }
+
+    /// <summary>A key for the orbit screen's menus.</summary>
+    public void PressMenu(MenuKey key)
+    {
+        if (OrbitMenu == null)
+            return;
+        OrbitMenuItem item = OrbitMenu.Selected;
+        MenuOutcome outcome = OrbitMenu.Press(key, Taken);
+        OrbitMessage = outcome switch
+        {
+            MenuOutcome.NotYet => $"{MenuLabel(item)} comes in a later stage.",
+            MenuOutcome.Refused => OrbitMenu.Shielded ? "The world is shielded." : "The lander can't go down to a gas giant.",
+            MenuOutcome.LeaveOrbit => "Leaving orbit...",
+            _ => "",
+        };
+        if (outcome == MenuOutcome.ScanStarted)
+            Log($"Scan started: {item}");
+        if (outcome == MenuOutcome.LeaveOrbit)
+        {
+            Log("Leaving orbit");
+            _leaveFrames = LeaveFrames;
+        }
+        // A key can finish the last scan type: log it as when it runs out.
+        NoteScanEnd();
+    }
+
+    /// <summary>The engine's own label for a menu item, in messages.</summary>
+    public static string MenuLabel(OrbitMenuItem item) => item switch
+    {
+        OrbitMenuItem.Scan => "Scan",
+        OrbitMenuItem.Starmap => "Starmap",
+        OrbitMenuItem.Manifest => "Manifest",
+        OrbitMenuItem.GameMenu => "Game menu",
+        OrbitMenuItem.Navigate => "Navigate (leave orbit)",
+        OrbitMenuItem.Cargo => "Cargo",
+        OrbitMenuItem.Devices => "Devices",
+        OrbitMenuItem.Roster => "Roster",
+        OrbitMenuItem.ExitManifest => "Exit",
+        OrbitMenuItem.MineralScan => "Mineral scan",
+        OrbitMenuItem.EnergyScan => "Energy scan",
+        OrbitMenuItem.BiologicalScan => "Biological scan",
+        OrbitMenuItem.AutoScan => "Auto scan",
+        OrbitMenuItem.DispatchLander => "Dispatch lander",
+        _ => "Exit scan",
+    };
+
+    /// <summary>Local time passes: the orbit screen's scans sweep, notices run out.</summary>
+    public void Advance(double seconds)
+    {
+        _time += seconds;
+        if (OrbitMenu == null)
+            return;
+        OrbitMenu.Advance(seconds);
+        NoteScanEnd();
+    }
+
+    private void NoteScanEnd()
+    {
+        if (OrbitMenu == null)
+            return;
+        if (_wasSweeping && !OrbitMenu.Scan.Sweeping)
+        {
+            var dots = OrbitMenu.Scan.Dots(Taken).ToList();
+            Log($"Scan done: {dots.Count(d => d.Scan == ScanType.Mineral)} mineral, "
+                + $"{dots.Count(d => d.Scan == ScanType.Energy)} energy, {dots.Count(d => d.Scan == ScanType.Biological)} life shown");
+        }
+        _wasSweeping = OrbitMenu.Scan.Sweeping;
+    }
+
+    /// <summary>
+    /// A first-time guest's undocking scene, one world frame: true once,
+    /// when the scene has been shown and the host should be told.
+    /// </summary>
+    public bool UndockTick()
+    {
+        var me = Me;
+        if (me == null || !me.UndockPending || UndockDone)
+            return false;
+        if (_undockFrames < 0)
+        {
+            _undockFrames = 0;
+            Log("Undocking");
+        }
+        if (++_undockFrames < UndockFrames)
+            return false;
+        UndockDone = true;
+        Notify("Undocked. You're flying your escort.");
+        return true;
+    }
+
+    /// <summary>The host's taken-node mask for a scan type of the world being orbited.</summary>
+    public uint Taken(ScanType scan)
+    {
+        if (OrbitMenu == null || Snapshot?.OrbitedWorlds is not { } worlds)
+            return 0;
+        var w = OrbitMenu.World;
+        var o = worlds.FirstOrDefault(x => x.Star == w.Star && x.Planet == w.Planet && x.Moon == w.Moon);
+        return o == null ? 0 : scan switch
+        {
+            ScanType.Mineral => o.MineralTaken,
+            ScanType.Energy => o.EnergyTaken,
+            _ => o.BiologicalTaken,
+        };
+    }
+
+    /// <summary>
+    /// The screen for the local player's activity. While the ship's entry
+    /// into a star plays, it stays on hyperspace (docs/differences.md row 24).
+    /// </summary>
+    public PlayerScreen Screen
+    {
+        get
+        {
+            var me = Me;
+            if (me == null || me.Activity == Activity.Hyperspace || Entries.Playing(me.Id))
+                return PlayerScreen.Hyperspace;
+            return me.Activity == Activity.Orbit ? PlayerScreen.Orbit : PlayerScreen.System;
+        }
+    }
+
+    /// <summary>The status panel's lines.</summary>
+    public IReadOnlyList<string> StatusLines()
+    {
+        var lines = new List<string> { "Attack on Crateris - stage 2", Status, Notice };
+        if (Snapshot != null)
+        {
+            lines.Add($"Date {Snapshot.Year:D4}-{Snapshot.Month:D2}-{Snapshot.Day:D2}");
+            if (Me is { } me)
+            {
+                lines.Add($"You: {Where(me)}");
+                lines.Add($"Fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
+            }
+            lines.Add($"Players ({Snapshot.Ships.Count}):");
+            foreach (var s in Snapshot.Ships)
+                lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}  {Where(s)}");
+        }
+        if (Undocking)
+        {
+            var host = Snapshot?.Ships.FirstOrDefault(s => s.IsHost);
+            lines.Add($"Undocking from {host?.Name ?? "the"}'s flagship...");
+        }
+        if (Me?.Activity != Activity.Orbit)
+            lines.Add("Arrows: turn and thrust");
+        lines.Add("F1: about and credits");
+        return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();
+    }
+
+    /// <summary>Where a ship is, in words.</summary>
+    public string Where(ShipSnapshot s)
+    {
+        if (s.Activity == Activity.Hyperspace || s.SystemStar is not int star)
+            return $"hyperspace {s.UniverseX / 10.0:0.0} : {s.UniverseY / 10.0:0.0}";
+        var at = _systems.Map.Stars[star];
+        string cluster = _names?.Cluster(at) ?? $"star {star}";
+        return s.Activity switch
+        {
+            Activity.InnerSystem when s.InnerPlanet is int p => $"the {cluster} system, near {_names?.PlanetName(at, p) ?? $"planet {p}"}",
+            Activity.Orbit when s.OrbitPlanet is int p =>
+                $"orbiting {_names?.PlanetOrMoon(at, p, s.OrbitMoon) ?? $"planet {p}" + (s.OrbitMoon is int m ? $" moon {m}" : "")}, {cluster}",
+            _ => $"the {cluster} system",
+        };
+    }
+
+    /// <summary>Keeps the orbit menu for the current visit to a world (none when not in orbit).</summary>
+    private void UpdateOrbitMenu()
+    {
+        var me = Me;
+        if (me?.Activity == Activity.Orbit && me.SystemStar is int star && me.OrbitPlanet is int planet)
+        {
+            var world = new WorldId(star, planet, me.OrbitMoon);
+            if (OrbitMenu?.World != world)
+            {
+                // A new visit: the menu starts afresh, nothing found yet.
+                OrbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon));
+                OrbitMessage = "";
+                _wasSweeping = false;
+            }
+        }
+        else
+            OrbitMenu = null;
+    }
+}

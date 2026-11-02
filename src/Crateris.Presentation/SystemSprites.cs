@@ -10,26 +10,13 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Content;
 using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
 
-namespace Crateris.Core.Systems;
-
-/// <summary>The sprite sheets of a system's views (the numbers are the recorder's).</summary>
-public enum SystemSheet
-{
-    /// <summary>graphics.flagship: the flagship, by facing.</summary>
-    Flagship = 1,
-
-    /// <summary>graphics.planets: worlds, (size &lt;&lt; 4) + facing towards the light.</summary>
-    Worlds = 2,
-
-    /// <summary>graphics.orbitbackground: the background stars, the starbase, the shield and the Sa-Matra.</summary>
-    Junk = 3,
-
-    /// <summary>graphics.truespacesun: the sun, by star size and zoom.</summary>
-    Sun = 5,
-}
+namespace Crateris.Presentation;
 
 /// <summary>
 /// One sprite drawn in a system view: a frame of a sheet at a place on the
@@ -47,9 +34,9 @@ public readonly record struct SystemStamp(SystemSheet Sheet, int Frame, int X, i
 /// </summary>
 public static class SystemSprites
 {
-    public const int StarbaseFrame = 16;
+    public const int StarbaseFrame = WorldImages.StarbaseFrame;
     public const int ShieldFrame = 17;
-    public const int SaMatraFrame = 19;
+    public const int SaMatraFrame = WorldImages.SaMatraFrame;
 
     /// <summary>The background: 8 dim pieces drawn 5 times each, then 8 bright ones 30 times each.</summary>
     public const int DimPieces = 8, DimDrawn = 5, BrightPieces = 8, BrightDrawn = 30;
@@ -89,27 +76,12 @@ public static class SystemSprites
         return order;
     }
 
-    /// <summary>
-    /// ValidateOrbit's image for a world: an orbital frame by size, lit from
-    /// the sun (a moon by its planet's direction from the sun), or the
-    /// starbase's or the Sa-Matra's.
-    /// </summary>
-    public static (SystemSheet Sheet, int Frame) WorldImage(SystemGenerator generator, WorldDesc world, int size, WorldDesc lightFrom)
-    {
-        if (WorldTypes.HasPlanetData(world.DataIndex))
-        {
-            int angle = UqmMath.ArcTan(lightFrom.X, lightFrom.Y);
-            return (SystemSheet.Worlds, (size << UqmMath.FacingShift) + UqmMath.NormalizeFacing(UqmMath.AngleToFacing(angle)));
-        }
-        return (SystemSheet.Junk, world.DataIndex == WorldTypes.SaMatra ? SaMatraFrame : StarbaseFrame);
-    }
-
     private static int Entry(SystemGenerator generator, WorldDesc w) =>
         ColorEntry(generator.Types[WorldTypes.PlanetType(w.DataIndex)].BodyColor);
 
     private static SystemStamp World(SystemGenerator generator, WorldDesc w, int size, WorldDesc lightFrom, IpPoint at, int world)
     {
-        var (sheet, frame) = WorldImage(generator, w, size, lightFrom);
+        var (sheet, frame) = WorldImages.Of(w, size, lightFrom);
         return new SystemStamp(sheet, frame, at.X, at.Y, sheet == SystemSheet.Worlds ? Entry(generator, w) : -1, world);
     }
 

@@ -14,6 +14,7 @@ using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
+using Crateris.Presentation;
 using Godot;
 
 namespace Crateris.Game;
@@ -24,7 +25,7 @@ namespace Crateris.Game;
 /// players in orbit, and the circle the orbit screen shows in placeholder
 /// colours (by colour family) while the planet is made.
 /// </summary>
-public static class Placeholder
+public static class SisScreen
 {
     public const float Scale = 3f;
     public static readonly Vector2 Size = new(IpGeometry.ScreenWidth * Scale, IpGeometry.ScreenHeight * Scale);
@@ -108,7 +109,7 @@ public partial class SystemView : Control
     {
         _systems = systems;
         ClipContents = true;
-        Size = Placeholder.Size;
+        Size = SisScreen.Size;
         TextureFilter = TextureFilterEnum.Nearest;   // UQM's sprites, pixel for pixel
     }
 
@@ -167,13 +168,13 @@ public partial class SystemView : Control
         if (me.InnerPlanet is int planet)
         {
             WorldDesc pl = system.Planets[planet];
-            Color orbitColor = Placeholder.ToColor(SystemLayout.OrbitColors[system.OrbitColor(planet)]);
-            Placeholder.Ellipse(this, SystemLayout.InnerPlanetOrbit(pl), orbitColor);
+            Color orbitColor = SisScreen.ToColor(SystemLayout.OrbitColors[system.OrbitColor(planet)]);
+            SisScreen.Ellipse(this, SystemLayout.InnerPlanetOrbit(pl), orbitColor);
             if (!_views.TryGetValue((star, planet, 0), out var view))
                 _views[(star, planet, 0)] = view = (SystemSprites.Inner(system, planet), system.Moons(planet));
             var (stamps, moons) = view;
             foreach (var moon in moons)
-                Placeholder.Ellipse(this, SystemLayout.InnerMoonOrbit(moon), orbitColor);
+                SisScreen.Ellipse(this, SystemLayout.InnerMoonOrbit(moon), orbitColor);
 
             foreach (var stamp in stamps)
                 Sprites.Draw(this, stamp);
@@ -191,8 +192,8 @@ public partial class SystemView : Control
         {
             int zoom = me.ZoomRadius;
             for (int p = 0; p < system.Planets.Count; ++p)
-                Placeholder.Ellipse(this, SystemLayout.OuterOrbit(system.Planets[p], zoom),
-                    Placeholder.ToColor(SystemLayout.OrbitColors[system.OrbitColor(p)]));
+                SisScreen.Ellipse(this, SystemLayout.OuterOrbit(system.Planets[p], zoom),
+                    SisScreen.ToColor(SystemLayout.OrbitColors[system.OrbitColor(p)]));
 
             if (!_views.TryGetValue((star, -1, zoom), out var view))
                 _views[(star, -1, zoom)] = view = (SystemSprites.Outer(system, zoom), Array.Empty<WorldDesc>());
@@ -209,12 +210,14 @@ public partial class SystemView : Control
 
         // Ships in this same view: the flagship's image by facing, with the
         // player's name. As in UQM, no thrust shows outside battle.
-        foreach (var s in _snapshot.Ships.Where(s => s.Activity == me.Activity && s.SystemStar == star && s.InnerPlanet == me.InnerPlanet))
+        // A ship whose entry into the star still plays is shown in hyperspace until it ends.
+        foreach (var s in _snapshot.Ships.Where(s => s.Activity == me.Activity && s.SystemStar == star
+                     && s.InnerPlanet == me.InnerPlanet && s.Entry is null))
         {
             var (x, y) = _motion.TryGetValue(s.Id, out var m) ? m.AtTime(_clock.Time) : (s.ScreenX, s.ScreenY);
             Sprites.Draw(this, Sprites.Sprites.Image(SystemSheet.Flagship, s.IpFacing), (float)x, (float)y);
-            DrawString(font, new Vector2((float)x + 6, (float)y - 4) * Placeholder.Scale, s.Name,
-                HorizontalAlignment.Left, -1, 14, Placeholder.ShipColor(s, _me));
+            DrawString(font, new Vector2((float)x + 6, (float)y - 4) * SisScreen.Scale, s.Name,
+                HorizontalAlignment.Left, -1, 14, SisScreen.ShipColor(s, _me));
         }
     }
 
@@ -222,11 +225,11 @@ public partial class SystemView : Control
     private void Markers(IEnumerable<ShipSnapshot> ships, SystemStamp world)
     {
         var image = Sprites!.Sprites.Image(world);
-        var at = new Vector2(world.X - image.HotSpotX + image.Width / 2f, world.Y - image.HotSpotY + image.Height / 2f) * Placeholder.Scale;
-        float radius = image.Width / 2f * Placeholder.Scale;
+        var at = new Vector2(world.X - image.HotSpotX + image.Width / 2f, world.Y - image.HotSpotY + image.Height / 2f) * SisScreen.Scale;
+        float radius = image.Width / 2f * SisScreen.Scale;
         int i = 0;
         foreach (var s in ships)
-            Placeholder.OrbitMarker(this, at, radius, Placeholder.ShipColor(s, _me), s.Name, i++);
+            SisScreen.OrbitMarker(this, at, radius, SisScreen.ShipColor(s, _me), s.Name, i++);
     }
 }
 
@@ -253,10 +256,10 @@ public partial class OrbitView : Control
     public Names Names { get; set; } = null!;
 
     /// <summary>UQM's words and fonts for the orbit screen (set with <see cref="Names"/>).</summary>
-    public OrbitScreenText Text { get; set; } = null!;
+    public OrbitScreenText? Text { get; set; }
 
     /// <summary>The worlds' surfaces (set with <see cref="Names"/>).</summary>
-    public PlanetSurfaces Surfaces { get; set; } = null!;
+    public PlanetSurfaces? Surfaces { get; set; }
 
     private PlanetSurface? _surface;     // the orbited world's surface, made once per visit
     private ImageTexture? _surfaceMap;
@@ -274,7 +277,7 @@ public partial class OrbitView : Control
         _systems = systems;
         ClipContents = false;
         TextureFilter = TextureFilterEnum.Nearest;   // UQM's fonts, pixel for pixel
-        Size = Placeholder.Size;
+        Size = SisScreen.Size;
     }
 
     public OrbitView() : this(null!)
@@ -293,12 +296,12 @@ public partial class OrbitView : Control
             _surfaceMap = null;
             _tintedMaps.Clear();
             _building = null;
-            if (menu.Orbit.Report is { } report)
+            if (menu.Orbit.Report is { } report && Surfaces != null)
             {
                 // Made off the main thread (some milliseconds), so entering orbit
                 // doesn't hold up a frame; the placeholder shows until it's ready.
                 var (system, surfaces, planet, moon) = (_systems[w.Star], Surfaces, w.Planet, w.Moon);
-                _building = Task.Run(() => surfaces.Orbited(system, planet, moon, report));
+                _building = Task.Run(() => surfaces!.Orbited(system, planet, moon, report));
             }
         }
         if (_building is { IsCompleted: true } built)
@@ -335,27 +338,27 @@ public partial class OrbitView : Control
         var font = ThemeDB.FallbackFont;
         DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.02f, 0.02f, 0.05f));
         DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.3f, 0.3f, 0.4f), false, 1);
-        if (_menu is null)
-            return;
+        if (_menu is null || Text is null)
+            return;   // not in orbit, or nothing to draw with (a headless run)
         WorldId w = _menu.World;
         SolarSystem system = _systems[w.Star];
         WorldDesc desc = _world;
         OrbitData orbit = _menu.Orbit;
 
         // The world, above the scan map.
-        float mapTop = (IpGeometry.ScreenHeight - Surface.MapHeight) * Placeholder.Scale;
-        var centre = new Vector2(PlanetSphere.CenterX, PlanetSphere.CenterY) * Placeholder.Scale;
-        float radius = PlanetSphere.Radius * Placeholder.Scale;
+        float mapTop = (IpGeometry.ScreenHeight - Surface.MapHeight) * SisScreen.Scale;
+        var centre = new Vector2(PlanetSphere.CenterX, PlanetSphere.CenterY) * SisScreen.Scale;
+        float radius = PlanetSphere.Radius * SisScreen.Scale;
         if (_sphere != null)
             DrawSphere();
         else
-            DrawCircle(centre, radius, Placeholder.World(system, desc));
+            DrawCircle(centre, radius, SisScreen.World(system, desc));
         // UQM's title over the scan screen (GetPlanetTitle, in MicroFont); above the
         // screen, in the engine's font, which world and star it is.
         string titleWords = Names.Title(system, w.Planet, w.Moon);
         if (_title?.Words != titleWords)
             _title = (titleWords, Text.Title(titleWords));
-        UqmText.Draw(this, _title.Value.Text, Vector2.Zero, Placeholder.Scale);
+        UqmText.Draw(this, _title.Value.Text, Vector2.Zero, SisScreen.Scale);
         DrawString(font, new Vector2(0, -6), $"{Names.PlanetOrMoon(system.Star, w.Planet, w.Moon)}, {Names.Cluster(system.Star)}",
             HorizontalAlignment.Left, -1, 13, Colors.Gray);
 
@@ -363,7 +366,7 @@ public partial class OrbitView : Control
         int i = 0;
         foreach (var s in _snapshot?.Ships.Where(s => s.Id != _me && s.Activity == Activity.Orbit && s.SystemStar == w.Star
                      && s.OrbitPlanet == w.Planet && s.OrbitMoon == w.Moon) ?? Enumerable.Empty<ShipSnapshot>())
-            Placeholder.OrbitMarker(this, centre, radius, Placeholder.ShipColor(s, _me), s.Name, i++);
+            SisScreen.OrbitMarker(this, centre, radius, SisScreen.ShipColor(s, _me), s.Name, i++);
 
         if (_menu.Scan.Visible)
         {
@@ -372,7 +375,7 @@ public partial class OrbitView : Control
                 if (!ReferenceEquals(_report?.Report, report))
                     _report = (report, Text.Report(report));
                 foreach (var t in _report.Value.Text)
-                    UqmText.Draw(this, t, Vector2.Zero, Placeholder.Scale);
+                    UqmText.Draw(this, t, Vector2.Zero, SisScreen.Scale);
             }
         }
         // UQM shows the surface map below the planet throughout orbit; scans draw over it.
@@ -383,7 +386,7 @@ public partial class OrbitView : Control
     private void DrawMap(Font font, float mapTop, bool scanning)
     {
         var scan = _menu!.Scan;
-        var map = new Rect2(0, mapTop, Size.X, Surface.MapHeight * Placeholder.Scale);
+        var map = new Rect2(0, mapTop, Size.X, Surface.MapHeight * SisScreen.Scale);
         // The world's surface, as UQM generates and colours it.
         if (_surfaceMap != null)
             DrawTextureRect(_surfaceMap, map, false);
@@ -396,34 +399,34 @@ public partial class OrbitView : Control
         {
             // The map is redrawn tinted down to the scan line, as UQM's DrawPlanet
             // does: the tint colour added at half strength (renderTintFrame).
-            Color c = Placeholder.ToColor(OrbitScan.TintColors[(int)tint]);
+            Color c = SisScreen.ToColor(OrbitScan.TintColors[(int)tint]);
             int line = Math.Min(scan.Line, Surface.MapHeight - 1);
-            float lineY = line * Placeholder.Scale;
+            float lineY = line * SisScreen.Scale;
             if (scan.Line >= 0 && _surface != null)
             {
                 if (!_tintedMaps.TryGetValue(tint, out var tinted))
                     _tintedMaps[tint] = tinted = SurfaceTexture(PlanetSurfaces.Tinted(_surface.Colors, OrbitScan.TintColors[(int)tint]));
                 DrawTextureRectRegion(tinted,
-                    new Rect2(map.Position, new Vector2(map.Size.X, (line + 1) * Placeholder.Scale)),
+                    new Rect2(map.Position, new Vector2(map.Size.X, (line + 1) * SisScreen.Scale)),
                     new Rect2(0, 0, SurfaceMap.Width, line + 1));
             }
             if (scan.Sweeping && scan.Line >= 0 && scan.Line < Surface.MapHeight)
                 DrawLine(new Vector2(0, mapTop + lineY), new Vector2(Size.X, mapTop + lineY), c, 2);
             // Which scan is drawn, in the scan menu's words (UQM shows only the tint).
-            var label = Text.StarCon.Layout(Text.MenuEntry(tint switch
+            var label = Text!.StarCon.Layout(Text.MenuEntry(tint switch
             {
                 ScanType.Mineral => OrbitMenuItem.MineralScan,
                 ScanType.Energy => OrbitMenuItem.EnergyScan,
                 _ => OrbitMenuItem.BiologicalScan,
             }), IpGeometry.ScreenWidth >> 1, IpGeometry.ScreenHeight - Surface.MapHeight - 3, TextAlign.Center);
-            UqmText.Draw(this, new DrawnText(Text.StarCon, label, OrbitScan.TextColors[(int)tint]), Vector2.Zero, Placeholder.Scale);
+            UqmText.Draw(this, new DrawnText(Text.StarCon, label, OrbitScan.TextColors[(int)tint]), Vector2.Zero, SisScreen.Scale);
         }
 
         foreach (var dot in scan.Dots(_taken))
         {
-            var at = map.Position + new Vector2(dot.Info.X + 0.5f, dot.Info.Y + 0.5f) * Placeholder.Scale;
-            float r = (1f + dot.Frame) * Placeholder.Scale * 0.6f;
-            Color c = dot.Flash is { } f ? Placeholder.ToColor(f) : dot.Scan switch
+            var at = map.Position + new Vector2(dot.Info.X + 0.5f, dot.Info.Y + 0.5f) * SisScreen.Scale;
+            float r = (1f + dot.Frame) * SisScreen.Scale * 0.6f;
+            Color c = dot.Flash is { } f ? SisScreen.ToColor(f) : dot.Scan switch
             {
                 ScanType.Mineral => MineralColors[_systems.Generator.Types.ElementCategory(dot.Info.Type)],
                 ScanType.Energy => new Color(1f, 0.35f, 0.35f),
@@ -439,21 +442,21 @@ public partial class OrbitView : Control
         // left of the space screen below the status lines.
         var items = _menu!.Items;
         if (!ReferenceEquals(_menuLayout?.Items, items) || _menuLayout.Value.Selected != _menu.Selected)
-            _menuLayout = (items, _menu.Selected, Text.Menu(items, items.ToList().IndexOf(_menu.Selected)));
+            _menuLayout = (items, _menu.Selected, Text!.Menu(items, items.ToList().IndexOf(_menu.Selected)));
         var menu = _menuLayout.Value.Menu;
         var areaAt = new Vector2(-Position.X + 12, 400);
-        var origin = areaAt - new Vector2(OrbitScreenText.MenuAreaX - 1, OrbitScreenText.MenuAreaY) * Placeholder.Scale;
-        UqmText.Draw(this, menu, origin, Placeholder.Scale);
+        var origin = areaAt - new Vector2(OrbitScreenText.MenuAreaX - 1, OrbitScreenText.MenuAreaY) * SisScreen.Scale;
+        UqmText.Draw(this, menu, origin, SisScreen.Scale);
 
         // Entries that come in a later stage say so, in the engine's font beside the box.
-        float right = areaAt.X + (OrbitScreenText.MenuAreaWidth + 1) * Placeholder.Scale + 6;
+        float right = areaAt.X + (OrbitScreenText.MenuAreaWidth + 1) * SisScreen.Scale + 6;
         for (int i = 0; i < items.Count; ++i)
         {
             if (!OrbitMenu.Available(items[i]) && menu.Texts[i].Layout.Glyphs.Count > 0)
-                DrawString(font, new Vector2(right, origin.Y + menu.Texts[i].Layout.Glyphs[0].Y * Placeholder.Scale),
+                DrawString(font, new Vector2(right, origin.Y + menu.Texts[i].Layout.Glyphs[0].Y * SisScreen.Scale),
                     "(later)", HorizontalAlignment.Left, -1, 13, Colors.Gray);
         }
-        float below = areaAt.Y + OrbitScreenText.MenuAreaHeight * Placeholder.Scale;
+        float below = areaAt.Y + OrbitScreenText.MenuAreaHeight * SisScreen.Scale;
         float width = Position.X - 24;
         DrawString(font, new Vector2(areaAt.X, below + 22), _message, HorizontalAlignment.Left, width, 14, Colors.Khaki);
         DrawString(font, new Vector2(areaAt.X, below + 44), "Arrows: choose. Enter: select. Esc: back",
@@ -482,13 +485,13 @@ public partial class OrbitView : Control
             _sphereStep = steps;
         }
         var at = new Vector2(PlanetSphere.CenterX - (PlanetSphere.Radius + 1), PlanetSphere.CenterY - (PlanetSphere.Radius + 1));
-        DrawTextureRect(_sphereTexture!, new Rect2(at * Placeholder.Scale, Vector2.One * PlanetSphere.Diameter * Placeholder.Scale), false);
+        DrawTextureRect(_sphereTexture!, new Rect2(at * SisScreen.Scale, Vector2.One * PlanetSphere.Diameter * SisScreen.Scale), false);
         if (_menu!.Shielded)
         {
             _shieldHalo ??= ImageTexture.CreateFromImage(Image.CreateFromData(PlanetSphere.ShieldDiameter, PlanetSphere.ShieldDiameter,
                 false, Image.Format.Rgba8, PlanetSphere.ShieldHalo()));
             var h = new Vector2(PlanetSphere.CenterX - (PlanetSphere.ShieldRadius + 1), PlanetSphere.CenterY - (PlanetSphere.ShieldRadius + 1));
-            DrawTextureRect(_shieldHalo, new Rect2(h * Placeholder.Scale, Vector2.One * PlanetSphere.ShieldDiameter * Placeholder.Scale), false);
+            DrawTextureRect(_shieldHalo, new Rect2(h * SisScreen.Scale, Vector2.One * PlanetSphere.ShieldDiameter * SisScreen.Scale), false);
         }
     }
 
@@ -503,23 +506,4 @@ public partial class OrbitView : Control
         }
         return ImageTexture.CreateFromImage(Image.CreateFromData(SurfaceMap.Width, SurfaceMap.Height, false, Image.Format.Rgb8, data));
     }
-
-    public static string Label(OrbitMenuItem item) => item switch
-    {
-        OrbitMenuItem.Scan => "Scan",
-        OrbitMenuItem.Starmap => "Starmap",
-        OrbitMenuItem.Manifest => "Manifest",
-        OrbitMenuItem.GameMenu => "Game menu",
-        OrbitMenuItem.Navigate => "Navigate (leave orbit)",
-        OrbitMenuItem.Cargo => "Cargo",
-        OrbitMenuItem.Devices => "Devices",
-        OrbitMenuItem.Roster => "Roster",
-        OrbitMenuItem.ExitManifest => "Exit",
-        OrbitMenuItem.MineralScan => "Mineral scan",
-        OrbitMenuItem.EnergyScan => "Energy scan",
-        OrbitMenuItem.BiologicalScan => "Biological scan",
-        OrbitMenuItem.AutoScan => "Auto scan",
-        OrbitMenuItem.DispatchLander => "Dispatch lander",
-        _ => "Exit scan",
-    };
 }

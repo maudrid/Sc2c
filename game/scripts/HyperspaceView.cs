@@ -12,9 +12,11 @@ using System.Linq;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
+using Crateris.Core.Session;
 using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
 using Crateris.Core.World;
+using Crateris.Presentation;
 using Godot;
 
 namespace Crateris.Game;
@@ -30,25 +32,18 @@ namespace Crateris.Game;
 public partial class HyperspaceView : Control
 {
     /// <summary>LoadHyperspace's background: MAKE_RGB15 (0x07, 0x00, 0x00).</summary>
-    private static readonly Color Background = Placeholder.ToColor(Rgb.From15(0x07, 0x00, 0x00));
+    private static readonly Color Background = SisScreen.ToColor(Rgb.From15(0x07, 0x00, 0x00));
 
     private readonly StarMap _map;
     private WorldSnapshot? _snapshot;
     private string _me = "";
-    private long _lastFrame = -1;
-
-    // Each ship last seen in hyperspace, and the entries into stars being played.
-    private readonly Dictionary<string, ShipSnapshot> _inHyperspace = new();
-    private readonly Dictionary<string, Entry> _entries = new();
-
-    /// <summary>A ship's entry into a star (<see cref="StarEntry"/>), from the hyperspace frame after contact.</summary>
-    private sealed record Entry(ShipSnapshot Last, IReadOnlyList<StarEntry.Step> Steps, long StartFrame);
+    private StarEntryTracker? _entries;
 
     public HyperspaceView(StarMap map)
     {
         _map = map;
         ClipContents = true;
-        Size = Placeholder.Size;
+        Size = SisScreen.Size;
         TextureFilter = TextureFilterEnum.Nearest;
     }
 
@@ -59,67 +54,37 @@ public partial class HyperspaceView : Control
     /// <summary>The sprites (set once the content is open, before the game starts).</summary>
     public SpriteTextures? Sprites { get; set; }
 
-    public void Show(WorldSnapshot? snapshot, string me)
+    /// <summary>A snapshot to draw, and the entries into stars it shows.</summary>
+    public void Show(WorldSnapshot? snapshot, string me, StarEntryTracker entries)
     {
         _snapshot = snapshot;
         _me = me;
-        if (snapshot != null && snapshot.Frame != _lastFrame)
-        {
-            _lastFrame = snapshot.Frame;
-            Track(snapshot);
-        }
+        _entries = entries;
         QueueRedraw();
-    }
-
-    /// <summary>
-    /// Whether a ship's entry into a star is still playing. The server puts
-    /// the ship in the system at once (docs/differences.md row 24); its
-    /// player's screen stays on hyperspace until the entry has played.
-    /// </summary>
-    public bool Entering(string id) => _entries.ContainsKey(id);
-
-    /// <summary>Starts an entry for each ship that has just gone from hyperspace into a star, and ends finished ones.</summary>
-    private void Track(WorldSnapshot snapshot)
-    {
-        foreach (var ship in snapshot.Ships)
-        {
-            if (ship.Activity == Activity.Hyperspace)
-            {
-                _inHyperspace[ship.Id] = ship;
-                _entries.Remove(ship.Id);
-            }
-            else if (_inHyperspace.Remove(ship.Id, out var last) && ship.Activity == Activity.OuterSystem
-                     && ship.SystemStar is int star && Sprites != null)
-            {
-                var (x, y) = (last.LogX + (long)(last.ViewX - HyperFlight.CenterX), last.LogY + (long)(last.ViewY - HyperFlight.CenterY));
-                _entries[ship.Id] = new Entry(last, StarEntry.Animate(x, y, last.Facing, _map.Stars[star],
-                    Sprites.Sprites.HyperFlagship.Count), snapshot.Frame);
-            }
-        }
-        foreach (var id in _inHyperspace.Keys.Where(id => !snapshot.Ships.Any(s => s.Id == id)).ToList())
-            _inHyperspace.Remove(id);
-        foreach (var (id, e) in _entries.ToList())
-            if (snapshot.Frame - e.StartFrame > e.Steps.Count || !snapshot.Ships.Any(s => s.Id == id))
-                _entries.Remove(id);
     }
 
     public override void _Draw()
     {
         DrawRect(new Rect2(Vector2.Zero, Size), Background);
-        // The local player's ship, or until it's known, the first one; while
-        // its entry into a star plays, where it was in hyperspace.
+        // The local player's ship, or until it's known, the first one.
         var me = _snapshot?.Ships.FirstOrDefault(s => s.Id == _me) ?? _snapshot?.Ships.FirstOrDefault();
-        if (me != null && _entries.TryGetValue(me.Id, out var mine))
-            me = mine.Last;
-        if (me == null || me.Activity != Activity.Hyperspace || Sprites == null)
+        if (me == null || Sprites == null || _entries == null)
             return;
+        // Where the screen is: the ship's place, or while its entry into a
+        // star plays, where it touched the star.
+        int logX = me.LogX, logY = me.LogY;
+        if (_entries.Of(me.Id) is { } mine)
+            (logX, logY) = (mine.State.LogX, mine.State.LogY);
+        else if (me.Activity != Activity.Hyperspace)
+            return;
+        int ux = Units.LogXToUniverse(logX), uy = Units.LogYToUniverse(logY);
 
-        foreach (Star star in _map.InYRange(me.UniverseY - HyperScreen.StarReachY, me.UniverseY + HyperScreen.StarReachY))
+        foreach (Star star in _map.InYRange(uy - HyperScreen.StarReachY, uy + HyperScreen.StarReachY))
         {
-            if (!HyperScreen.Shows(star, me.UniverseX, me.UniverseY))
+            if (!HyperScreen.Shows(star, ux, uy))
                 continue;
-            var (x, y) = HyperScreen.Star(star, me.LogX, me.LogY);
-            Sprites.Draw(this, Sprites.Sprites.Hyper(false, SpaceSprites.StarFrame(star)), x, y);
+            var (x, y) = HyperScreen.Star(star, logX, logY);
+            Sprites.Draw(this, Sprites.Sprites.Hyper(false, star.HyperspaceFrame), x, y);
         }
 
         // Only ships in hyperspace are drawn here (stage 2, decision 3), and
@@ -127,25 +92,23 @@ public partial class HyperspaceView : Control
         // shows no thrust outside battle (ion trails are battle only).
         var font = ThemeDB.FallbackFont;
         foreach (var ship in _snapshot!.Ships.Where(s => s.Activity == Activity.Hyperspace
-                     && HyperScreen.ShowsShip(s.UniverseX, s.UniverseY, me.UniverseX, me.UniverseY)))
+                     && HyperScreen.ShowsShip(s.UniverseX, s.UniverseY, ux, uy)))
         {
-            var (x, y) = HyperScreen.Ship(ship.LogX, ship.LogY, ship.ViewX, ship.ViewY, me.LogX, me.LogY);
+            var (x, y) = HyperScreen.Ship(ship.LogX, ship.LogY, ship.ViewX, ship.ViewY, logX, logY);
             Sprites.Draw(this, Sprites.Sprites.Hyper(true, ship.Facing), x, y);
-            DrawString(font, new Vector2(x + 9, y - 6) * Placeholder.Scale, ship.Name, HorizontalAlignment.Left, -1, 14,
-                Placeholder.ShipColor(ship, _me));
+            DrawString(font, new Vector2(x + 9, y - 6) * SisScreen.Scale, ship.Name, HorizontalAlignment.Left, -1, 14,
+                SisScreen.ShipColor(ship, _me));
         }
 
         // Ships entering a star: turning and drifting onto it, as UQM plays it.
-        foreach (var (id, e) in _entries)
+        foreach (var e in _entries.Current)
         {
-            int step = (int)Math.Clamp(_snapshot.Frame - e.StartFrame - 1, 0, e.Steps.Count - 1);
-            var at = e.Steps[step];
-            if (!HyperScreen.ShowsShip(Units.LogXToUniverse((int)at.X), Units.LogYToUniverse((int)at.Y), me.UniverseX, me.UniverseY))
+            if (!HyperScreen.ShowsShip(Units.LogXToUniverse((int)e.X), Units.LogYToUniverse((int)e.Y), ux, uy))
                 continue;
-            var (x, y) = HyperScreen.Sprite(at.X, at.Y, me.LogX, me.LogY);
-            Sprites.Draw(this, Sprites.Sprites.Hyper(true, at.Frame), x, y);
-            DrawString(font, new Vector2(x + 9, y - 6) * Placeholder.Scale, e.Last.Name, HorizontalAlignment.Left, -1, 14,
-                Placeholder.ShipColor(e.Last, _me));
+            var (x, y) = HyperScreen.Sprite(e.X, e.Y, logX, logY);
+            Sprites.Draw(this, Sprites.Sprites.Hyper(true, e.Frame), x, y);
+            DrawString(font, new Vector2(x + 9, y - 6) * SisScreen.Scale, e.Ship.Name, HorizontalAlignment.Left, -1, 14,
+                SisScreen.ShipColor(e.Ship, _me));
         }
     }
 }

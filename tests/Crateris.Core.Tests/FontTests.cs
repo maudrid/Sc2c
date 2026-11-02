@@ -9,6 +9,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Crateris.Core.Content;
+using Crateris.Presentation;
 
 namespace Crateris.Core.Tests;
 

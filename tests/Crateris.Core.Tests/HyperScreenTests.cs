@@ -9,6 +9,7 @@
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Uqm;
+using Crateris.Presentation;
 
 namespace Crateris.Core.Tests;
 
