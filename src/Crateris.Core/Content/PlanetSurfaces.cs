@@ -17,6 +17,9 @@ namespace Crateris.Core.Content;
 /// <summary>A world's surface: its height map and its coloured map (the scan screen's map), <see cref="SurfaceMap.Width"/> x <see cref="SurfaceMap.Height"/>, row by row.</summary>
 public sealed record PlanetSurface(sbyte[] Heights, Rgb[] Colors);
 
+/// <summary>A world as the orbit screen shows it: the surface (the scan screen's map, with a shield's red) and the rotating planet (<see cref="PlanetSurfaces.Orbited"/>).</summary>
+public sealed record OrbitedWorld(PlanetSurface Surface, PlanetSphere Sphere);
+
 /// <summary>
 /// Worlds' surfaces as UQM's GeneratePlanetSurface makes them on entering
 /// orbit: the height map (<see cref="SurfaceMap"/>) coloured through the
@@ -50,6 +53,28 @@ public sealed class PlanetSurfaces
         var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
         var surface = Generated(system, planet, moon, orbit);
         return WorldTypes.IsShielded(world.DataIndex) ? ShieldTinted(surface) : surface;
+    }
+
+    /// <summary>
+    /// Everything the orbit screen shows of a world, as GeneratePlanetSurface
+    /// makes it on entering orbit: the surface (<see cref="For"/>, with a
+    /// shield's red) and the rotating planet, which wraps the map as made,
+    /// before the shield's tint, with its light map (flat for a gas giant),
+    /// lit from where the world is (a moon from its planet's place) and
+    /// tilted by its axial tilt. The orbit screen and the tests both build it
+    /// here. Takes some milliseconds; safe to call from any thread.
+    /// </summary>
+    public OrbitedWorld Orbited(SolarSystem system, int planet, int? moon, PlanetInfo orbit)
+    {
+        var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
+        var generated = Generated(system, planet, moon, orbit);
+        var type = system.Generator.Types[WorldTypes.PlanetType(world.DataIndex)];
+        bool shielded = WorldTypes.IsShielded(world.DataIndex);
+        var sun = system.Planets[planet];
+        var sphere = new PlanetSphere(generated.Colors,
+            PlanetSphere.LightMap(generated.Heights, type.Algorithm == MapAlgorithm.GasGiant),
+            sun.X, sun.Y, orbit.AxialTilt, shielded);
+        return new OrbitedWorld(shielded ? ShieldTinted(generated) : generated, sphere);
     }
 
     /// <summary>A surface with the shield's red added to its coloured map (ApplyShieldTint).</summary>

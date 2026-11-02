@@ -535,6 +535,7 @@ public partial class Main : Node2D
                 LogScan();
             _wasSweeping = _orbitMenu.Scan.Sweeping;
         }
+        _orbitView.Advance(delta);
         _orbitView.Show(_orbitMenu, Taken, _snapshot, _playerId, _orbitMessage);
         _systemView.Advance(delta);
         if (!_isHost)

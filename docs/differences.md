@@ -30,6 +30,7 @@ Every deliberate difference between Attack on Crateris and vanilla UQM 0.8.0: wh
 | 20 | Planet landing | One player, one lander | Players on the same planet share one landing screen, each with their own lander; each node is taken once | Lets players explore a planet together | Planned |
 | 21 | Chat | None | Text chat between players, in every activity | Co-op needs a way to talk | Planned |
 | 22 | Cargo trading | One ship holds all minerals and bio data (`ElementAmounts`, `TotalBioMass` in `SIS_STATE`) | Players in the same solar system can trade cargo, limited by the receiver's free storage | Lets a group pool minerals for one player to sell | Planned |
+| 28 | The rotating planet's face | Each time the player enters orbit the planet starts at the same frame (`InitSphereRotation` in `src/uqm/planets/pl_stuff.c`) and turns one map column every `PLANET_ROTATION_RATE` from there (`RotatePlanetSphere`) | The planet turns by the shared world clock at UQM's rate (`PlanetSphere.StepAt`): which face is at the front depends only on the time, not on when the player arrived | With each player's planet turning from their own arrival, two players orbiting the same world see different sides of it. Turning by the shared clock shows them the same world. Only the starting face differs from UQM; the speed, direction and drawing are UQM's | Done in the content stage (item 7) |
 | 26 | ~~Remembering scans~~ | Nothing is remembered: each time a player orbits a world they scan it again (`ScanSystem` in `src/uqm/planets/scan.c`); only taken nodes are saved | **Withdrawn: same as UQM.** Scans aren't remembered. Each scan shows what's left at that moment, from the shared taken-node state, so it already reflects nodes a friend has just collected | Remembering scans added nothing: scanning is free, quick and always current, and nothing in the game would show a past scan | Withdrawn 2026-11-01 |
 
 ## Temporary differences
@@ -53,6 +54,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
+| 2026-11-02 | 28 | Added the rotating planet's face: it turns by the shared clock, so players at the same world see the same side |
 | 2026-11-01 | 23–25, 27 | Stage 2 built. No new differences: the orbit screen, its menus and scans work as UQM's; rows 23 to 25 and 27 stay temporary until the content stage and stage 3 |
 | 2026-11-01 | 14, 27 | Stage 2: joining in a system or while the host is in orbit; worlds that would start a conversation leave the ship in flight until stage 3 |
 | 2026-11-01 | 26 | Withdrawn: scans aren't remembered, as in UQM. A scan shows what's left at that moment, including what a friend has just taken |

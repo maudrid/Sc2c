@@ -53,6 +53,7 @@ public class PlanetSphereTests
         var golden = Golden.Load("planet-spheres").GetProperty("worlds").EnumerateArray().ToList();
         Assert.True(golden.Count > 50, $"only {golden.Count} worlds");
         int frames = 0, shields = 0;
+        bool earth = false;
         foreach (var w in golden)
         {
             int star = w[0].GetInt32(), planet = w[1].GetInt32(), moon = w[2].GetInt32();
@@ -60,11 +61,9 @@ public class PlanetSphereTests
             var system = Systems[star];
             var desc = SurfaceMapTests.World(star, planet, moon);
             var report = system.EnterOrbit(planet, moon < 0 ? null : moon).Report!;
-            var surface = surfaces.Generated(system, planet, moon < 0 ? null : moon, report);
-            var sun = system.Planets[planet];   // a moon is lit from its planet's place
-            var sphere = new PlanetSphere(surface.Colors,
-                PlanetSphere.LightMap(surface.Heights, Type(desc).Algorithm == MapAlgorithm.GasGiant),
-                sun.X, sun.Y, report.AxialTilt, WorldTypes.IsShielded(desc.DataIndex));
+            // Built as the orbit screen builds it.
+            var sphere = surfaces.Orbited(system, planet, moon < 0 ? null : moon, report).Sphere;
+            earth |= system.Star.Special == "SOL_DEFINED" && planet == 2 && moon < 0;
             foreach (var f in w[3].EnumerateArray())
             {
                 int step = f[0].GetInt32();
@@ -79,6 +78,7 @@ public class PlanetSphereTests
             else
                 Assert.False(WorldTypes.IsShielded(desc.DataIndex), $"{where} is shielded, but UQM made no halo");
         }
+        Assert.True(earth, "UQM drew no Earth (its surface is its own images)");
         Assert.True(frames > 300 && shields > 0, $"{frames} frames, {shields} shields");
     }
 
@@ -95,5 +95,28 @@ public class PlanetSphereTests
         Assert.Equal(0, east.Offset(SurfaceMap.Width));
         Assert.Equal(41, PlanetSphere.TicksPerStep);   // 12 s a turn, 242 steps
         Assert.Equal((121, 69), (PlanetSphere.CenterX, PlanetSphere.CenterY));
+    }
+
+    [Fact]
+    public void ItTurnsOnTheSharedClockAtUqmsRate()
+    {
+        // The step depends only on the world time, so players who entered
+        // orbit at different times see the same face.
+        Assert.Equal(35, PlanetSphere.TicksPerWorldFrame);
+        Assert.Equal(0, PlanetSphere.StepAt(0));
+        Assert.Equal(0, PlanetSphere.StepAt(41.0 / 35 - 0.001));
+        Assert.Equal(1, PlanetSphere.StepAt(41.0 / 35));
+        // One turn (242 steps of 41 ticks) in 12 seconds, less UQM's integer division.
+        double turn = SurfaceMap.Width * PlanetSphere.TicksPerStep / 35.0;
+        Assert.Equal(SurfaceMap.Width, PlanetSphere.StepAt(turn));
+        Assert.InRange(turn / Crateris.Core.World.GameClock.FramesPerSecond, 11.8, 12.0);
+        // Smoothed time between frames still steps forward, never back.
+        long last = PlanetSphere.StepAt(1000);
+        for (double t = 1000; t < 1300; t += 0.1)
+        {
+            long s = PlanetSphere.StepAt(t);
+            Assert.InRange(s - last, 0, 1);
+            last = s;
+        }
     }
 }

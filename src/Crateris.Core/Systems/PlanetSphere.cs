@@ -76,6 +76,19 @@ public sealed class PlanetSphere
     /// <summary>Which way it turns: +1 or -1 map columns a step (InitSphereRotation: 1 - 2 * (AxialTilt &amp; 1)).</summary>
     public int Direction { get; }
 
+    /// <summary>UQM ticks (ONE_SECOND 840) in one world frame (24 a second).</summary>
+    public const int TicksPerWorldFrame = 840 / Crateris.Core.World.GameClock.FramesPerSecond;
+
+    /// <summary>
+    /// The rotation step shown at world time <paramref name="frame"/> (world
+    /// frames, as the shared clock counts them): one step every
+    /// PLANET_ROTATION_RATE ticks. Unlike UQM, where the planet starts at
+    /// InitSphereRotation's frame on entering orbit, it turns on the shared
+    /// clock, so every player at a world sees the same face at the same
+    /// moment (docs/differences.md row 28).
+    /// </summary>
+    public static long StepAt(double frame) => (long)Math.Floor(frame * TicksPerWorldFrame / TicksPerStep);
+
     /// <summary>The map column at the front after <paramref name="steps"/> rotation steps (the first frame, InitSphereRotation's, is step 1).</summary>
     public int Offset(long steps) => (int)(((steps * Direction) % SurfaceMap.Width + SurfaceMap.Width) % SurfaceMap.Width);
 

@@ -24,6 +24,7 @@
 #include "uqm/ipdisp.c"
 #include "uqm/planets/scan.c"
 #include "uqm/planets/plangen.c"
+#include "sha256.h"
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,10 +44,30 @@ enum { SHEET_SIS = 1, SHEET_ORBITAL, SHEET_JUNK, SHEET_POINT, SHEET_SUN };
 #define FRAME_SHEET(f) ((int) (((intptr_t) (f)) >> 16))
 #define FRAME_INDEX(f) ((COUNT) (((intptr_t) (f)) & 0xFFFF))
 
+/* Earth's surface definition frames (graphics.earthmask) in surfaces mode:
+ * real frames, since GeneratePlanetSurface reads their bounds. */
+#define MAX_DEFINED_FRAMES 8
+static FRAME_DESC defined_frames[MAX_DEFINED_FRAMES];
+static COUNT defined_count;
+
+static int
+is_defined_frame (FRAME f)
+{
+	return f >= &defined_frames[0] && f < &defined_frames[MAX_DEFINED_FRAMES];
+}
+
 FRAME
 SetAbsFrameIndex (FRAME f, COUNT i)
 {
+	if (is_defined_frame (f))
+		return i < defined_count ? &defined_frames[i] : NULL;
 	return MAKE_FRAME (FRAME_SHEET (f), i);
+}
+
+COUNT
+GetFrameCount (FRAME f)
+{
+	return is_defined_frame (f) ? defined_count : 0;
 }
 COUNT GetFrameIndex (FRAME f) { return FRAME_INDEX (f); }
 /* DecFrameIndex (stars_in_space) is UQM's one-pixel collision frame. */
@@ -362,11 +383,13 @@ print_coarse_scan (void)
 /* ---- Surfaces mode: the planet surface as GeneratePlanetSurface makes it.
  * LoadPlanet runs UQM's real GeneratePlanetSurface (plangen.c, gentopo.c)
  * and its rotating planet (pl_stuff.c). The height map is taken when it
- * asks for the colour map, just after making it; the coloured map as the
- * first RenderTopography draws it into the topography frame, and read back
- * from there (ReadFramePixelColors); each rendered sphere and shield as it
- * is written to its frame (WriteFramePixelColors). Without the colour
- * tables the run is cut short (longjmp) once the height map is made. */
+ * asks for the colour map, just after making it (or, for Earth, when its
+ * colours are read back, after its elevations are read); the coloured map
+ * as the first RenderTopography draws it into the topography frame (or
+ * Earth's own image), and read back from there (ReadFramePixelColors);
+ * each rendered sphere and shield as it is written to its frame
+ * (WriteFramePixelColors). Without the colour tables the run is cut short
+ * (longjmp) once the height map is made, and Earth isn't run. */
 static int surfaces_mode;
 static const char *tables_dir;   /* colour and translate tables, or NULL */
 static int in_surface;
@@ -380,16 +403,116 @@ static Color sphere_pixels[128 * 128], shield_pixels[128 * 128];
 static int sphere_written, shield_written;
 int optWhichShield = OPT_PC;   /* UQM's default: the shield doesn't throb */
 
+/* Earth's frames' pixels: frame 0 RGB (3 bytes a pixel), frame 1 palette
+ * indexes (1 byte), as UQM's own PNG loader loads them. */
+static unsigned char *defined_pixels[MAX_DEFINED_FRAMES];
+static int defined_channels[MAX_DEFINED_FRAMES];
+
+static void
+bad_defined (const char *path, const char *why)
+{
+	fprintf (stderr, "%s: %s\n", path, why);
+	exit (1);
+}
+
+/* Earth's frames, from DIR/graphics.earthmask.N.pnm (P6 for colours, P5
+ * for indexes; written by golden_uqm.py from UQM's loader), once. */
+static void
+load_defined_frames (void)
+{
+	static int loaded;
+	COUNT i;
+	if (loaded)
+		return;
+	loaded = 1;
+	for (i = 0; i < MAX_DEFINED_FRAMES; ++i)
+	{
+		char path[4096], kind;
+		int w, h, max, channels;
+		size_t n;
+		FILE *f;
+		snprintf (path, sizeof path, "%s/graphics.earthmask.%u.pnm",
+				tables_dir, i);
+		f = fopen (path, "rb");
+		if (!f)
+			break;
+		if (fscanf (f, "P%c %d %d %d", &kind, &w, &h, &max) != 4
+				|| (kind != '5' && kind != '6') || max != 255
+				|| w <= 0 || h <= 0 || w > 4096 || h > 4096
+				|| fgetc (f) != '\n')
+			bad_defined (path, "isn't a P5 or P6 image");
+		channels = kind == '6' ? 3 : 1;
+		n = (size_t) w * h * channels;
+		defined_pixels[i] = malloc (n);
+		if (fread (defined_pixels[i], 1, n, f) != n)
+			bad_defined (path, "is cut short");
+		fclose (f);
+		defined_channels[i] = channels;
+		memset (&defined_frames[i], 0, sizeof defined_frames[i]);
+		defined_frames[i].Index = i;
+		defined_frames[i].Bounds.width = w;
+		defined_frames[i].Bounds.height = h;
+	}
+	defined_count = i;
+	if (defined_count == 0)
+		bad_defined (tables_dir, "has no graphics.earthmask frames");
+}
+
+DRAWABLE
+RescaleFrame (FRAME f, int width, int height)
+{
+	/* 0.8.0's Earth images are the map's size; anything else would need
+	 * UQM's scaler. */
+	(void) f;
+	fprintf (stderr, "a surface definition frame isn't %d x %d\n",
+			width, height);
+	exit (1);
+}
+
 BOOLEAN
 ReadFramePixelColors (FRAME f, Color *pixels, int width, int height)
 {
 	int x, y;
-	(void) f;
+	if (!have_topo)
+	{	/* Earth: the elevations are read, not yet a light map. */
+		memcpy (surface_topo, pSolarSysState->Orbit.lpTopoData,
+				MAP_WIDTH * MAP_HEIGHT);
+		have_topo = 1;
+	}
+	if (is_defined_frame (f))
+	{	/* Earth's own image is its coloured map. */
+		const unsigned char *src = defined_pixels[f->Index];
+		if (defined_channels[f->Index] != 3)
+			bad_defined (tables_dir, "Earth's surface frame isn't RGB");
+		for (y = 0; y < MAP_HEIGHT; ++y)
+			for (x = 0; x < MAP_WIDTH; ++x, src += 3)
+			{
+				Color *c = &surface_colors[y * MAP_WIDTH + x];
+				c->r = src[0];
+				c->g = src[1];
+				c->b = src[2];
+				c->a = 0xff;
+			}
+		surface_colored = MAP_WIDTH * MAP_HEIGHT;
+	}
 	/* Only the topography frame is read: a map of MAP_WIDTH columns into
 	 * rows of width. */
 	for (y = 0; y < height && y < MAP_HEIGHT; ++y)
 		for (x = 0; x < width && x < MAP_WIDTH; ++x)
 			pixels[y * width + x] = surface_colors[y * MAP_WIDTH + x];
+	return TRUE;
+}
+
+BOOLEAN
+ReadFramePixelIndexes (FRAME f, BYTE *pixels, int width, int height)
+{
+	int y;
+	if (!is_defined_frame (f) || defined_channels[f->Index] != 1
+			|| width != GetFrameWidth (f) || height != GetFrameHeight (f))
+		bad_defined (tables_dir, "Earth's elevation frame isn't palette indexes of the map's size");
+	for (y = 0; y < height; ++y)
+		memcpy (pixels + y * width, defined_pixels[f->Index] + y * width,
+				width);
 	return TRUE;
 }
 
@@ -491,7 +614,7 @@ DrawBatch (PRIMITIVE *base, PRIM_LINKS links, BATCH_FLAGS flags)
 {
 	COUNT i;
 	(void) flags;
-	if (fg_frame_calls != 1)
+	if (fg_frame_calls != 1 || surface_defined)
 		return;	/* only the first RenderTopography: the scan map */
 	for (i = GetPredLink (links); i != END_OF_LIST;
 			i = GetSuccLink (GetPrimLinks (&base[i])))
@@ -512,12 +635,21 @@ LoadPlanet (FRAME SurfDefFrame)
 		have_topo = surface_colored = fg_frame_calls = 0;
 		surface_complete = sphere_written = shield_written = 0;
 		surface_defined = SurfDefFrame != NULL;
-		if (!surface_defined)
-		{	/* Earth's surface is its own image, read by the engine. */
+		/* As FreePlanet leaves it on leaving the last world's orbit; Earth's
+		 * RenderTopography (its 4x map) tests it. */
+		pSolarSysState->XlatRef = 0;
+		if (surface_defined && tables_dir)
+		{	/* Earth: its own images, as UQM's loader loads them. */
+			load_defined_frames ();
+			SurfDefFrame = &defined_frames[0];
+		}
+		if (!surface_defined || tables_dir)
+		{
 			in_surface = 1;
 			if (!setjmp (surface_done))
 			{
-				GeneratePlanetSurface (pSolarSysState->pOrbitalDesc, NULL);
+				GeneratePlanetSurface (pSolarSysState->pOrbitalDesc,
+						surface_defined ? SurfDefFrame : NULL);
 				surface_complete = 1;
 			}
 			in_surface = 0;
@@ -700,29 +832,67 @@ orbits_main (void)
 	return 0;
 }
 
-/* "surfaces [DIR]": every world's surface as GeneratePlanetSurface makes
- * it on entering orbit, one line per world in orbits mode's order:
- * [star, planet, moon or -1, entered, defined (Earth's own image),
- * height map (signed bytes, in hex) or "", coloured map (RGB, in hex) or
- * "", light map (signed bytes, in hex) or "", spheres, shield]. The light
- * map is UQM's GenerateLightMap of the height map (zeros for a gas giant),
- * as GeneratePlanetSurface makes it. The coloured map needs the colour and
- * translate tables, in DIR as files named by resource id; so do the
- * spheres: for the first world of each planet type (with or without a
- * shield), [rotation step, RGBA in hex] for the frames RenderPlanetSphere
- * makes at SPHERE_STEPS (step 1 is InitSphereRotation's, each later one a
- * PrepareNextRotationFrame), and the shield halo (CreateShieldMask, RGBA)
- * or "". */
+/* "surfaces [-f STAR:PLANET:MOON]... [DIR]": every world's surface as
+ * GeneratePlanetSurface makes it on entering orbit, one line per world in
+ * orbits mode's order: [star, planet, moon or -1, entered, defined (Earth's
+ * own image), height map, coloured map, light map, spheres, shield, whole
+ * height map]. Maps and frames are given as the SHA-256 (in hex) of their
+ * bytes, row by row, or "": the height and light maps MAP_WIDTH x
+ * MAP_HEIGHT signed bytes, the coloured map R, G, B bytes, frames R, G, B,
+ * A. The light map is UQM's GenerateLightMap of the height map (zeros for
+ * a gas giant), as GeneratePlanetSurface makes it. The coloured map needs
+ * the colour and translate tables, in DIR as files named by resource id,
+ * and so do Earth (its frames in DIR, see load_defined_frames) and the
+ * spheres: for Earth and for the first other world of each planet type
+ * (with or without a shield), [rotation step, SHA-256] for the frames
+ * RenderPlanetSphere makes at SPHERE_STEPS (step 1 is InitSphereRotation's,
+ * each later one a PrepareNextRotationFrame), and the shield halo's
+ * (CreateShieldMask) or "". The whole height map, in hex, is given only
+ * for the worlds named with -f. */
 static const int SPHERE_STEPS[] = { 1, 2, 3, 100, 242, 243 };
 #define NUM_SPHERE_STEPS (sizeof SPHERE_STEPS / sizeof SPHERE_STEPS[0])
 static unsigned char sphere_seen[256];
+#define MAX_FULL_MAPS 16
+static int full_maps[MAX_FULL_MAPS][3], num_full_maps;
 
+/* The SHA-256 of n bytes, in quotes. */
 static void
-print_rgba (const Color *c, int n)
+print_hash (const void *data, size_t n)
+{
+	Sha256 sha;
+	char hex[65];
+	sha256_init (&sha);
+	sha256_add (&sha, data, n);
+	sha256_hex (&sha, hex);
+	printf ("\"%s\"", hex);
+}
+
+/* The SHA-256 of n colours as R, G, B (and A) bytes, in quotes. */
+static void
+print_color_hash (const Color *c, int n, int alpha)
+{
+	Sha256 sha;
+	char hex[65];
+	int i;
+	sha256_init (&sha);
+	for (i = 0; i < n; ++i)
+	{
+		unsigned char px[4] = { c[i].r, c[i].g, c[i].b, c[i].a };
+		sha256_add (&sha, px, alpha ? 4 : 3);
+	}
+	sha256_hex (&sha, hex);
+	printf ("\"%s\"", hex);
+}
+
+static int
+wants_full_map (COUNT s, COUNT p, int m)
 {
 	int i;
-	for (i = 0; i < n; ++i)
-		printf ("%02x%02x%02x%02x", c[i].r, c[i].g, c[i].b, c[i].a);
+	for (i = 0; i < num_full_maps; ++i)
+		if (full_maps[i][0] == (int) s && full_maps[i][1] == (int) p
+				&& full_maps[i][2] == m)
+			return 1;
+	return 0;
 }
 
 static void
@@ -734,20 +904,17 @@ surface_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
 	surface_complete = sphere_written = shield_written = 0;
 	entered = enter_orbit (world);
 
-	printf ("[%u, %u, %d, %d, %d, \"", s, p, m, entered, surface_defined);
+	printf ("[%u, %u, %d, %d, %d, ", s, p, m, entered, surface_defined);
 	if (entered && have_topo)
-	{
-		for (i = 0; i < MAP_WIDTH * MAP_HEIGHT; ++i)
-			printf ("%02x", (unsigned char) surface_topo[i]);
-	}
-	printf ("\", \"");
+		print_hash (surface_topo, MAP_WIDTH * MAP_HEIGHT);
+	else
+		printf ("\"\"");
+	printf (", ");
 	if (entered && surface_colored == MAP_WIDTH * MAP_HEIGHT)
-	{
-		for (i = 0; i < MAP_WIDTH * MAP_HEIGHT; ++i)
-			printf ("%02x%02x%02x", surface_colors[i].r, surface_colors[i].g,
-					surface_colors[i].b);
-	}
-	printf ("\", \"");
+		print_color_hash (surface_colors, MAP_WIDTH * MAP_HEIGHT, 0);
+	else
+		printf ("\"\"");
+	printf (", ");
 	if (entered && have_topo)
 	{	/* As GeneratePlanetSurface does after the colouring. */
 		static SBYTE light[320 * 240];
@@ -758,15 +925,18 @@ surface_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
 			GenerateLightMap (light, MAP_WIDTH, MAP_HEIGHT);
 		else
 			memset (light, 0, MAP_WIDTH * MAP_HEIGHT);
-		for (i = 0; i < MAP_WIDTH * MAP_HEIGHT; ++i)
-			printf ("%02x", (unsigned char) light[i]);
+		print_hash (light, MAP_WIDTH * MAP_HEIGHT);
 	}
-	printf ("\", [");
-	if (entered && surface_complete && !sphere_seen[world->data_index])
+	else
+		printf ("\"\"");
+	printf (", [");
+	if (entered && surface_complete
+			&& (surface_defined || !sphere_seen[world->data_index]))
 	{
 		int step = 1;
 		size_t n;
-		sphere_seen[world->data_index] = 1;
+		if (!surface_defined)
+			sphere_seen[world->data_index] = 1;
 		for (n = 0; n < NUM_SPHERE_STEPS; ++n)
 		{
 			while (step < SPHERE_STEPS[n])
@@ -774,27 +944,54 @@ surface_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
 				PrepareNextRotationFrame ();
 				++step;
 			}
-			printf ("%s[%d, \"", n ? ", " : "", step);
-			print_rgba (sphere_pixels, DIAMETER * DIAMETER);
-			printf ("\"]");
+			printf ("%s[%d, ", n ? ", " : "", step);
+			print_color_hash (sphere_pixels, DIAMETER * DIAMETER, 1);
+			printf ("]");
 		}
-		printf ("], \"");
+		printf ("], ");
 		if (shield_written)
-			print_rgba (shield_pixels, SHIELD_DIAM * SHIELD_DIAM);
-		printf ("\"]\n");
+			print_color_hash (shield_pixels, SHIELD_DIAM * SHIELD_DIAM, 1);
+		else
+			printf ("\"\"");
 	}
 	else
-		printf ("], \"\"]\n");
+		printf ("], \"\"");
+	printf (", \"");
+	if (entered && have_topo && wants_full_map (s, p, m))
+		for (i = 0; i < MAP_WIDTH * MAP_HEIGHT; ++i)
+			printf ("%02x", (unsigned char) surface_topo[i]);
+	printf ("\"]\n");
 	pSolarSysState->InOrbit = FALSE;
 }
 
 static int
-surfaces_main (const char *dir)
+surfaces_main (int argc, char *argv[])
 {
 	static const WorldWalk walk = { NULL, surface_world, NULL };
+	int i;
 
+	for (i = 0; i < argc; ++i)
+	{
+		if (strcmp (argv[i], "-f") == 0 && i + 1 < argc)
+		{
+			int *w = full_maps[num_full_maps];
+			if (num_full_maps == MAX_FULL_MAPS
+					|| sscanf (argv[++i], "%d:%d:%d", &w[0], &w[1], &w[2]) != 3)
+			{
+				fprintf (stderr, "bad -f %s\n", argv[i]);
+				return 1;
+			}
+			++num_full_maps;
+		}
+		else if (!tables_dir)
+			tables_dir = argv[i];
+		else
+		{
+			fprintf (stderr, "surfaces: unexpected %s\n", argv[i]);
+			return 1;
+		}
+	}
 	surfaces_mode = 1;
-	tables_dir = dir;
 	walk_worlds (&walk);
 	return 0;
 }
@@ -1324,7 +1521,7 @@ main (int argc, char *argv[])
 	SysGenRNG = RandomContext_New ();
 
 	if (argc > 1 && strcmp (argv[1], "surfaces") == 0)
-		return surfaces_main (argc > 2 ? argv[2] : NULL);
+		return surfaces_main (argc - 2, argv + 2);
 	if (argc > 1 && strcmp (argv[1], "orbits") == 0)
 		return orbits_main ();
 	if (argc > 1 && strcmp (argv[1], "ip") == 0)

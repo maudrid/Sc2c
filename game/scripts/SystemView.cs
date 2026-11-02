@@ -9,6 +9,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
@@ -289,8 +290,10 @@ public partial class OrbitView : Control
     private PlanetSphere? _sphere;       // the rotating planet
     private ImageTexture? _sphereTexture;
     private long _sphereStep = -1;
-    private ulong _orbitStart;
+    private Task<OrbitedWorld>? _building;   // the surface and sphere, being made off the main thread
     private static ImageTexture? _shieldHalo;
+    private readonly PlaybackClock _clock = new();   // the shared world time the planet turns by
+    private long _lastFrame = -1;
 
     public OrbitView(SystemCatalog systems)
     {
@@ -313,22 +316,29 @@ public partial class OrbitView : Control
             _surface = null;
             _sphere = null;
             _sphereStep = -1;
+            _surfaceMap = null;
+            _tintedMaps.Clear();
+            _building = null;
             if (menu.Orbit.Report is { } report)
             {
-                var system = _systems[w.Star];
-                var generated = Surfaces.Generated(system, w.Planet, w.Moon, report);
-                bool shielded = WorldTypes.IsShielded(_world.DataIndex);
-                _surface = shielded ? PlanetSurfaces.ShieldTinted(generated) : generated;
-                // The sphere wraps the map as made, before the shield's tint; a moon is lit from its planet's place.
-                var sun = system.Planets[w.Planet];
-                var type = system.Generator.Types[WorldTypes.PlanetType(_world.DataIndex)];
-                _sphere = new PlanetSphere(generated.Colors,
-                    PlanetSphere.LightMap(generated.Heights, type.Algorithm == Crateris.Core.Data.MapAlgorithm.GasGiant),
-                    sun.X, sun.Y, report.AxialTilt, shielded);
-                _orbitStart = Time.GetTicksMsec();
+                // Made off the main thread (some milliseconds), so entering orbit
+                // doesn't hold up a frame; the placeholder shows until it's ready.
+                var (system, surfaces, planet, moon) = (_systems[w.Star], Surfaces, w.Planet, w.Moon);
+                _building = Task.Run(() => surfaces.Orbited(system, planet, moon, report));
             }
-            _surfaceMap = _surface is null ? null : SurfaceTexture(_surface.Colors);
-            _tintedMaps.Clear();
+        }
+        if (_building is { IsCompleted: true } built)
+        {
+            _building = null;
+            var orbited = built.GetAwaiter().GetResult();   // a failure is thrown here, on the main thread
+            _surface = orbited.Surface;
+            _sphere = orbited.Sphere;
+            _surfaceMap = SurfaceTexture(_surface.Colors);
+        }
+        if (snapshot != null && snapshot.Frame != _lastFrame)
+        {
+            _lastFrame = snapshot.Frame;
+            _clock.Observe(snapshot.Frame);
         }
         _menu = menu;
         _taken = taken;
@@ -476,13 +486,17 @@ public partial class OrbitView : Control
             HorizontalAlignment.Left, width, 13, Colors.Gray);
     }
 
+    /// <summary>Local time passes: the planet turns by the shared world time, smoothed as the ships are.</summary>
+    public void Advance(double seconds) => _clock.Advance(seconds);
+
     // The rotating planet as UQM draws it (DrawPlanetSphere): the sphere, then the
     // shield's halo over it, centred at (SIS_SCREEN_WIDTH / 2, PLANET_ORG_Y), each
     // frame's hot spot one pixel past its radius. It turns one map column every
-    // PLANET_ROTATION_RATE; the first frame is InitSphereRotation's.
+    // PLANET_ROTATION_RATE, by the shared world time (PlanetSphere.StepAt), so every
+    // player at the world sees the same face.
     private void DrawSphere()
     {
-        long steps = 1 + (long)((Time.GetTicksMsec() - _orbitStart) * 840 / 1000) / PlanetSphere.TicksPerStep;
+        long steps = PlanetSphere.StepAt(_clock.Time);
         if (steps != _sphereStep)
         {
             var image = Image.CreateFromData(PlanetSphere.Diameter, PlanetSphere.Diameter, false, Image.Format.Rgba8,

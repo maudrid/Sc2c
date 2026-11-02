@@ -844,9 +844,13 @@ def record_images(uqm, exe, package):
     return data
 
 
-def surface_lines(exe, tables_dir=None):
-    """The systems program's surfaces mode, one parsed line at a time."""
-    proc = subprocess.Popen([exe, "surfaces"] + ([tables_dir] if tables_dir else []),
+def surface_lines(exe, tables_dir=None, full=()):
+    """The systems program's surfaces mode, one parsed line at a time; the
+    worlds in full also have their whole height map."""
+    args = [exe, "surfaces"]
+    for star, planet, moon in full:
+        args += ["-f", f"{star}:{planet}:{moon}"]
+    proc = subprocess.Popen(args + ([tables_dir] if tables_dir else []),
                             stdout=subprocess.PIPE, text=True)
     for line in proc.stdout:
         yield json.loads(line)
@@ -859,10 +863,54 @@ def surface_lines(exe, tables_dir=None):
 # and Jupiter).
 FULL_HEIGHT_MAPS = [(82, 0, -1), (82, 3, -1), (82, 4, -1)]
 
+# Earth's surface definition (EARTH_MASK_ANIM), the one world whose surface
+# is its own images.
+EARTH_SURFACE = "graphics.earthmask"
 
-def planet_tables(strings_exe, package, tmp):
+
+def write_earth_frames(images_exe, z, ani_path, tables):
+    """Earth's surface frames as UQM loads them (_GetCelData: each line of
+    the .ani names an image, and one that doesn't load is dropped), each
+    through UQM's own PNG loader, into tables as graphics.earthmask.N.pnm:
+    RGB (P6) for a true colour image, palette indexes (P5) for a palette
+    one."""
+    folder = ani_path.rsplit("/", 1)[0] + "/" if "/" in ani_path else ""
+    names = [line.split()[0] for line in z.read(ani_path).decode().splitlines()
+             if line.split()]
+    files = []
+    for i, name in enumerate(names):
+        path = os.path.join(tables, f"earth{i}.png")
+        try:
+            data = z.read(folder + name)
+        except KeyError:
+            continue
+        with open(path, "wb") as f:
+            f.write(data)
+        files.append(path)
+    out = subprocess.run([images_exe, *files], capture_output=True,
+                         text=True, check=True).stdout.splitlines()
+    n = 0
+    for line in out:
+        result = json.loads(line)
+        if not result[0]:
+            continue
+        _, bpp, _, w, h, _, _, pixels = result
+        pixels = bytes.fromhex(pixels)
+        if bpp == 8:
+            kind = b"P5"
+        elif bpp == 24:
+            kind = b"P6"
+        else:
+            sys.exit(f"{EARTH_SURFACE} frame {n} has {bpp} bits a pixel")
+        with open(os.path.join(tables, f"{EARTH_SURFACE}.{n}.pnm"), "wb") as f:
+            f.write(kind + f"\n{w} {h}\n255\n".encode() + pixels)
+        n += 1
+
+
+def planet_tables(strings_exe, images_exe, package, tmp):
     """The package's planet colour maps and translate tables (BINTAB), as
-    files named by resource id in a new folder under tmp."""
+    files named by resource id in a new folder under tmp, with Earth's
+    surface frames (write_earth_frames)."""
     import hashlib
     import zipfile
     with open(package, "rb") as f:
@@ -874,38 +922,44 @@ def planet_tables(strings_exe, package, tmp):
         index_file = os.path.join(tmp, "uqm.rmp")
         with open(index_file, "wb") as f:
             f.write(z.read("uqm.rmp"))
-        for key, (kind, path) in read_resource_index(strings_exe, index_file).items():
+        index = read_resource_index(strings_exe, index_file)
+        for key, (kind, path) in index.items():
             if kind == "BINTAB" and key.startswith("planet."):
                 with open(os.path.join(tables, key), "wb") as f:
                     f.write(z.read(path))
+        write_earth_frames(images_exe, z, index[EARTH_SURFACE][1], tables)
     return tables
 
 
-def record_planet_surfaces(uqm, systems_exe, strings_exe, package=None):
+def record_planet_surfaces(uqm, systems_exe, strings_exe, images_exe=None,
+                           package=None):
     """Every world's surface as UQM's own GeneratePlanetSurface makes it:
     the height maps (code only), and with the package the coloured maps
-    (content, so hashes only). One run of the surfaces mode gives both.
-    Returns {"surface-heights": ..., "surface-colors": ... (with the
-    package)}."""
-    import hashlib
-    def h(hex_text):
-        return hashlib.sha256(bytes.fromhex(hex_text)).hexdigest() if hex_text else None
-
+    and rotating planets (content, so hashes only). One run of the
+    surfaces mode gives all of them, hashed by the program itself.
+    Returns {"surface-heights": ..., "surface-colors": ... and
+    "planet-spheres": ... (with the package)}."""
     heights, full, colors, spheres = [], [], [], []
     with tempfile.TemporaryDirectory() as tmp:
-        tables = planet_tables(strings_exe, package, tmp) if package else None
+        tables = planet_tables(strings_exe, images_exe, package, tmp) if package else None
         for (star, planet, moon, entered, defined, topo, colored, light,
-             frames, shield) in surface_lines(systems_exe, tables):
-            heights.append([star, planet, moon, entered, defined, h(topo), h(light)])
+             frames, shield, whole) in surface_lines(systems_exe, tables, FULL_HEIGHT_MAPS):
+            # Earth's maps come from its images, content: not in the code-only file.
+            heights.append([star, planet, moon, entered, defined,
+                            None if defined else topo or None,
+                            None if defined else light or None])
             if frames:
                 spheres.append([star, planet, moon,
-                                [[step, h(rgba)] for step, rgba in frames], h(shield)])
-            if (star, planet, moon) in FULL_HEIGHT_MAPS:
-                full.append({"world": [star, planet, moon], "heights": topo})
-            colors.append([star, planet, moon, h(colored)])
+                                [[step, rgba] for step, rgba in frames], shield or None])
+            if whole:
+                full.append({"world": [star, planet, moon], "heights": whole})
+            colors.append([star, planet, moon, colored or None])
+    if len(full) != len(FULL_HEIGHT_MAPS):
+        raise RuntimeError(f"only {len(full)} whole height maps")
     out = {}
     data = header(uqm, ["tools/extract/golden/systems.c",
                         "tools/extract/golden/stubs.c",
+                        "tools/extract/golden/sha256.h",
                         "src/uqm/planets/plangen.c",
                         "src/uqm/planets/gentopo.c"], [
         "Every world's height map as UQM 0.8.0's own GeneratePlanetSurface "
@@ -914,7 +968,9 @@ def record_planet_surfaces(uqm, systems_exe, strings_exe, package=None):
         "worlds: [star, planet, moon or -1, orbit entered, defined (Earth, "
         "whose surface is an image), SHA-256 of the MAP_WIDTH x MAP_HEIGHT "
         "signed bytes, row by row, or null, SHA-256 of the light map "
-        "GenerateLightMap makes of it (all zeros for a gas giant) or null].",
+        "GenerateLightMap makes of it (all zeros for a gas giant) or null]. "
+        "Earth's maps are content (its images), so null here; its sphere is "
+        "in planet-spheres.json.",
         "full: the whole height map of a few worlds, in hex.",
     ])
     data["worlds"] = heights
@@ -922,25 +978,31 @@ def record_planet_surfaces(uqm, systems_exe, strings_exe, package=None):
     out["surface-heights"] = data
     if package:
         data = header(uqm, ["tools/extract/golden/systems.c",
+                            "tools/extract/golden/sha256.h",
                             "src/uqm/planets/plangen.c"], [
             "Every world's coloured surface map (the scan screen's map) as UQM "
             "0.8.0's own RenderTopography draws it, with the colour maps and "
             "translate tables (BINTAB) of the official content package "
-            f"(SHA-256 {CONTENT_SHA256}). Content, so each map is the SHA-256 of "
-            "its MAP_WIDTH x MAP_HEIGHT pixels as R, G, B bytes, row by row.",
-            "worlds: [star, planet, moon or -1, SHA-256 or null (not entered, "
-            "or Earth, whose map is its own image)].",
+            f"(SHA-256 {CONTENT_SHA256}), and Earth's its own image "
+            f"({EARTH_SURFACE} frame 0, through UQM's own PNG loader). "
+            "Content, so each map is the SHA-256 of its MAP_WIDTH x "
+            "MAP_HEIGHT pixels as R, G, B bytes, row by row.",
+            "worlds: [star, planet, moon or -1, SHA-256 or null (not entered)].",
         ])
         data["worlds"] = colors
         out["surface-colors"] = data
         data = header(uqm, ["tools/extract/golden/systems.c",
+                            "tools/extract/golden/sha256.h",
+                            "tools/extract/golden/images.c",
                             "src/uqm/planets/plangen.c",
-                            "src/uqm/planets/pl_stuff.c"], [
+                            "src/uqm/planets/pl_stuff.c",
+                            "src/libs/graphics/sdl/png2sdl.c"], [
             "The rotating planet as UQM 0.8.0's own RenderPlanetSphere draws "
-            "it, for the first world of each planet type (with and without a "
-            "shield), with the package's colour tables (SHA-256 "
-            f"{CONTENT_SHA256}), and UQM's default (PC) shield. Content, so "
-            "hashes only.",
+            "it, for Earth (its surface and elevations from its own images, "
+            f"{EARTH_SURFACE}, through UQM's own PNG loader) and the first "
+            "other world of each planet type (with and without a shield), "
+            f"with the package's colour tables (SHA-256 {CONTENT_SHA256}), "
+            "and UQM's default (PC) shield. Content, so hashes only.",
             "worlds: [star, planet, moon or -1, [[rotation step, SHA-256 of "
             "the DIAMETER x DIAMETER RGBA frame], ...], SHA-256 of the "
             "SHIELD_DIAM x SHIELD_DIAM RGBA halo (CreateShieldMask) or null]. "
@@ -1038,7 +1100,7 @@ def main():
                            ("ip-geometry", record_ip(uqm, systems)),
                            ("ip-flight", record_ip_flight(uqm, systems)),
                            ("system-layout", record_layout(uqm, systems)),
-                           *record_planet_surfaces(uqm, systems, strings, args.content).items(),
+                           *record_planet_surfaces(uqm, systems, strings, images, args.content).items(),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),

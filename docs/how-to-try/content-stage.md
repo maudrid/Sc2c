@@ -129,7 +129,7 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSu
 
 ## So far: the rotating planet
 
-Item 7 is built. In orbit, the world turns above its map as in UQM: its own surface wrapped round a sphere, tilted by its axial tilt, lit from the side its sun is on (a moon by its planet's sun), with its relief shading the light. It turns one map column at a time, a full turn every 12 seconds, east or west depending on its tilt. A shielded world (Earth in a new game) is drawn reddened inside UQM's red halo.
+Item 7 is built. In orbit, the world turns above its map as in UQM: its own surface wrapped round a sphere, tilted by its axial tilt, lit from the side its sun is on (a moon by its planet's sun), with its relief shading the light. It turns one map column at a time, a full turn every 12 seconds, east or west depending on its tilt. It turns by the shared game clock, so players orbiting the same world see the same side of it at the same moment (`docs/differences.md` row 28). The surface and sphere are made off the main thread as orbit starts, so entering orbit doesn't stall a frame; for that moment the placeholder circle shows. A shielded world (Earth in a new game) is drawn reddened inside UQM's red halo.
 
 UQM's own planet drawing is used throughout, with UQM's default (PC) shield, which glows steadily; the 3DO option's pulsing shield isn't ported. The zoom of the planet onto the screen as orbit starts isn't either: the planet is simply there, already turning.
 
@@ -140,13 +140,14 @@ UQM's own planet drawing is used throughout, with UQM's default (PC) shield, whi
 1. `godot --path game -- --host --start-orbit 82:4` (Jupiter): its bands and great storm turn across the sphere.
 2. `--start-orbit 82:2` (Earth): red under its shield, with the halo round it.
 3. `--start-orbit 82:2:1` (Luna), then a planet of another system: worlds lit from different sides, depending on where their sun is.
-4. Compare with UQM 0.8.0 orbiting the same world: the planet should look the same, at three times UQM's size. (UQM's planet starts a little further round, after its zoom-in.)
+4. Compare with UQM 0.8.0 orbiting the same world: the planet should look the same, at three times UQM's size. (Which side faces you first differs: UQM starts each visit at the same face, Crateris turns by the shared clock.)
+5. With a guest (`--join`), orbit the same world from both: both planets show the same side, turning together.
 
 ### Run the tests
 
 ```
 dotnet test --filter EveryWorldsLightMapIsTheOneUqmMakes   # no content needed
-CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSphereTests   # 3 tests
+CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm dotnet test --filter PlanetSphereTests   # 4 tests
 ```
 
-`EveryWorldsLightMapIsTheOneUqmMakes` checks the light map (the relief shading) of all 3,799 generated worlds against UQM's own code. `TheRotatingPlanetIsDrawnAsUqmDrawsIt` checks UQM's own drawing of the planet, for the first world of each planet type with and without a shield (61 worlds), at six points of its turn, pixel for pixel (by hash), and the shield's halo. `ItTurnsAsUqmTurnsIt` checks the direction, the steps and the place on screen.
+`EveryWorldsLightMapIsTheOneUqmMakes` checks the light map (the relief shading) of all 3,799 generated worlds against UQM's own code. `TheRotatingPlanetIsDrawnAsUqmDrawsIt` checks UQM's own drawing of the planet, for Earth (from its own images) and the first world of each planet type with and without a shield (62 worlds), built by the same code the orbit screen uses, at six points of its turn, pixel for pixel (by hash), and the shield's halo. `ItTurnsAsUqmTurnsIt` checks the direction, the steps and the place on screen; `ItTurnsOnTheSharedClockAtUqmsRate` that the step follows the world time at UQM's 12 seconds a turn.

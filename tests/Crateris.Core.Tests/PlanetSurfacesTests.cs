@@ -104,6 +104,8 @@ public class PlanetSurfacesTests
         var shown = surfaces.For(sol, 2, null, earthOrbit);
         Assert.All(shown.Colors, c => Assert.Equal(255, c.R));
         Assert.Equal(plain.Colors.Select(c => (c.G, c.B)), shown.Colors.Select(c => (c.G, c.B)));
+        // The orbit screen's map is the same one.
+        Assert.Equal(shown.Colors, surfaces.Orbited(sol, 2, null, earthOrbit).Surface.Colors);
         // An unshielded world is shown as made.
         var marsOrbit = sol.EnterOrbit(3, null).Report!;
         Assert.Equal(surfaces.Generated(sol, 3, null, marsOrbit).Colors, surfaces.For(sol, 3, null, marsOrbit).Colors);
