@@ -381,40 +381,37 @@ public class LanderTests
             int dx = Math.Abs(e.X - l.X);
             return Math.Min(dx, PlanetsideMap.Width - dx) + Math.Abs(e.Y - l.Y);
         }
+        const uint seed = 11;
+        var surface = new PlanetsideSurface(new TfbRandom(seed), null, null, TestContent.Shapes,
+            new[] { new SurfaceCreature(0, 0, 0, 15) }, Life);
+        var weasel = surface.Elements.Single();
+        int near = (weasel.X + 80) % PlanetsideMap.Width;
+        int far = (weasel.X + 330) % PlanetsideMap.Width;
+        Lander a, b;
+        if (nearLandsFirst)
         {
-            const uint seed = 11;
-            var surface = new PlanetsideSurface(new TfbRandom(seed), null, null, TestContent.Shapes,
-                new[] { new SurfaceCreature(0, 0, 0, 15) }, Life);
-            var weasel = surface.Elements.Single();
-            int near = (weasel.X + 80) % PlanetsideMap.Width;
-            int far = (weasel.X + 330) % PlanetsideMap.Width;
-            Lander a, b;
-            if (nearLandsFirst)
-            {
-                b = SendDown(surface, Hold(50), near, weasel.Y);
-                a = SendDown(surface, Hold(50), far, weasel.Y);
-            }
-            else
-            {
-                a = SendDown(surface, Hold(50), far, weasel.Y);
-                b = SendDown(surface, Hold(50), near, weasel.Y);
-            }
-            // It overshoots and circles a lander it hunts, so take the
-            // closest it comes to each.
-            int toB = Gap(weasel, b), closestB = toB, closestA = Gap(weasel, a);
-            bool noticed = false;
-            for (int i = 0; i < 400; ++i)
-            {
-                surface.Step(_ => LanderInput.None);
-                noticed |= (weasel.MassPoints & SurfaceElement.Aware) != 0;
-                closestB = Math.Min(closestB, Gap(weasel, b));
-                closestA = Math.Min(closestA, Gap(weasel, a));
-            }
-            Assert.True(noticed, "it noticed a lander");
-            Assert.True(closestB < 16, $"it went for the nearer lander (from {toB} to {closestB} at closest)");
-            Assert.True(closestA > 150, $"and not for the far one ({closestA} at closest)");
-            return;
+            b = SendDown(surface, Hold(50), near, weasel.Y);
+            a = SendDown(surface, Hold(50), far, weasel.Y);
         }
+        else
+        {
+            a = SendDown(surface, Hold(50), far, weasel.Y);
+            b = SendDown(surface, Hold(50), near, weasel.Y);
+        }
+        // It overshoots and circles a lander it hunts, so take the
+        // closest it comes to each.
+        int toB = Gap(weasel, b), closestB = toB, closestA = Gap(weasel, a);
+        bool noticed = false;
+        for (int i = 0; i < 400; ++i)
+        {
+            surface.Step(_ => LanderInput.None);
+            noticed |= (weasel.MassPoints & SurfaceElement.Aware) != 0;
+            closestB = Math.Min(closestB, Gap(weasel, b));
+            closestA = Math.Min(closestA, Gap(weasel, a));
+        }
+        Assert.True(noticed, "it noticed a lander");
+        Assert.True(closestB < 16, $"it went for the nearer lander (from {toB} to {closestB} at closest)");
+        Assert.True(closestA > 150, $"and not for the far one ({closestA} at closest)");
     }
 
     [Fact]

@@ -241,7 +241,9 @@ public sealed class PlanetsideSurface
 
     private int FramesIn(SurfaceElement e) => e.Sheet switch
     {
-        SurfaceSheet.Lander => _shapes!.Lander.Count,   // only an explosion animates on it
+        // Only an explosion animates on it; without the shapes (no contact
+        // tested), as far as its frames go.
+        SurfaceSheet.Lander => _shapes?.Lander.Count ?? Lander.ExplosionFrame + Lander.ExplosionLife,
         SurfaceSheet.MiscData => _shapes!.MiscData.Count,
         SurfaceSheet.Canister => _shapes!.Canister.Count,
         _ => _shapes!.Life[e.LifeKind].Count,
