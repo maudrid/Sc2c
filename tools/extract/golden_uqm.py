@@ -309,6 +309,43 @@ def pickup_nodes(seed, count, cx, cy):
     return nodes
 
 
+def tfb_random(seed):
+    """TFB_Random's next seed (libs/math/random.c, unsigned 32-bit)."""
+    seed = (16807 * (seed % 127773) - 2836 * (seed // 127773)) & 0xFFFFFFFF
+    if seed > 2147483647:
+        seed -= 2147483647
+    elif seed == 0:
+        seed = 1
+    return seed
+
+
+def landing_place(seed, x, y):
+    """Where PlanetSide puts the lander for a site: the facing, then
+    InitPlanetSide's jitter, wrapping east and west and kept off the poles."""
+    r = tfb_random(seed)            # the facing
+    r = tfb_random(r)
+    x = (x - (64 - r % 128)) % 968
+    r = tfb_random(r)
+    y = max(0, min(299, y - (64 - r % 128)))
+    return x, y
+
+
+def seam_scenarios():
+    """Landings within a few units of the east-west edge, with nodes just
+    across it, so the lander touches them the nearer way round."""
+    out = []
+    for name, want, node_x, base in [("seam-east", range(0, 3), 241, 500),
+                                     ("seam-west", range(965, 968), 0, 600)]:
+        seed = next(s for s in range(base, base + 100000)
+                    if landing_place(s, 0, 148)[0] in want)
+        x, y = landing_place(seed, 0, 148)
+        nodes = [[k * 7 % 133, (20 << 8) | 1, node_x, (y >> 2) + dy]
+                 for k, dy in enumerate((-1, 0, 1))]
+        out.append([name, seed, 0, 0, 0, 0, 0, 148, 50, 500, nodes,
+                    [(5, 0)] + lander_script(seed, 300)])
+    return out
+
+
 def pickup_scenarios():
     """Landings among mineral nodes: [name, seed, upgrades (1 speed, 2
     shot, 4 cargo), tectonics, weather, temperature, site x, y, crew,
@@ -336,7 +373,7 @@ def pickup_scenarios():
                                                 ("west-east", 241, 37, 964, 148)]):
         out.append([f"packed-{name}", 400 + k, [0, 4, 2, 6][k], 0, 0, 0, sx, sy, 50, 500,
                     pickup_nodes(400 + k, 30, cx, cy), lander_script(400 + k, 900)])
-    return out
+    return out + seam_scenarios()
 
 
 def record_lander_pickups(uqm, lander_exe, strings_exe, images_exe, package):
@@ -362,9 +399,12 @@ def record_lander_pickups(uqm, lander_exe, strings_exe, images_exe, package):
         "from code and the masks' shapes; no content.",
         "Landings on the three worlds with the most mineral nodes and no "
         "energy or life (world-surfaces.json's nodes; named world-STAR-"
-        "PLANET-MOON), landing on the first node, and on nodes packed "
-        "round the site, with and without the cargo upgrade (4) and "
-        "firing, and with little storage room left.",
+        "PLANET-MOON), landing on the first node; on nodes packed round the "
+        "site, with and without the cargo upgrade (4) and firing, and with "
+        "little storage room left; among nodes at each pole and either side "
+        "of the east-west edge; and (seam-east, seam-west) with the lander "
+        "coming down within a few units of the edge and nodes just across "
+        "it, touched the nearer way round.",
         "input as in lander.json, with storage (the room left in the "
         "storage bays) and nodes ([element, density, x, y] on the scan "
         "map, by node number). frames as in lander.json: [phase, x, y, "

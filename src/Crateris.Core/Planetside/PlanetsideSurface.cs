@@ -87,9 +87,9 @@ public sealed class PlanetsideSurface
 
     /// <summary>
     /// The nodes taken in the last frame, in order (setNodeRetrieved):
-    /// picked up, or hit by a bolt. A node can be listed twice, as UQM
-    /// retrieves it twice, when a lander's bolt and the lander both touch
-    /// it in one frame.
+    /// picked up, or hit by a bolt. A node can be listed more than once, as
+    /// UQM retrieves it again, when more than one of a lander's bolts, or a
+    /// bolt and the lander, touch it in one frame.
     /// </summary>
     public IReadOnlyList<(ScanType Scan, int Node)> Taken => _taken;
 
