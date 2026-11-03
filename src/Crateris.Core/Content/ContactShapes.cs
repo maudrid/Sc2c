@@ -37,15 +37,20 @@ public sealed class ContactShapes
         HyperPoint = sheets["graphics.ambient"][^1];
         Lander = sheets["graphics.lander"];
         MiscData = sheets["graphics.miscdata"];
+        Canister = sheets["graphics.lifecan"];
+        Life = Enumerable.Range(0, LifeSheets).Select(n => sheets[$"graphics.life.{n}"]).ToArray();
     }
+
+    /// <summary>The creature sheets: graphics.life.0 to 25 (load_life_form), one a kind.</summary>
+    public const int LifeSheets = 26;
 
     /// <summary>The resources the shapes come from.</summary>
     public static readonly IReadOnlyList<string> Resources = new[]
     {
         "graphics.flagship", "graphics.planets", "graphics.orbitbackground", "graphics.stars",
         "ship.flagship.graphics.hyperspace", "graphics.hyperstars", "graphics.ambient",
-        "graphics.lander", "graphics.miscdata",
-    };
+        "graphics.lander", "graphics.miscdata", "graphics.lifecan",
+    }.Concat(Enumerable.Range(0, LifeSheets).Select(n => $"graphics.life.{n}")).ToArray();
 
     /// <summary>Every sheet's frames, by resource id.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<IntersectFrame>> Sheets { get; }
@@ -63,6 +68,12 @@ public sealed class ContactShapes
 
     /// <summary>The scan dots and the nodes on the surface (MiscDataFrame).</summary>
     public IReadOnlyList<IntersectFrame> MiscData { get; }
+
+    /// <summary>A canned creature (graphics.lifecan, PlanetSideFrame[0]).</summary>
+    public IReadOnlyList<IntersectFrame> Canister { get; }
+
+    /// <summary>Each kind of creature's sheet, by kind.</summary>
+    public IReadOnlyList<IReadOnlyList<IntersectFrame>> Life { get; }
 
     /// <summary>The frames of MiscDataFrame the mineral nodes on the surface are drawn and touched with: from NUM_SCANDOT_TRANSITIONS * 2, five a category.</summary>
     public const int FirstMineralFrame = 4 * 2, MineralFramesPerCategory = 5;
@@ -116,6 +127,10 @@ public sealed class ContactShapes
         Need("graphics.lander", shapes.Lander, 2 * Uqm.UqmMath.Facings);
         Need("graphics.miscdata", shapes.MiscData, 0, Enumerable.Range(FirstMineralFrame,
             Data.PlanetTypes.ElementCategoryNames.Count * MineralFramesPerCategory).ToArray());
+        // A creature or canister shows any of its sheet's frames.
+        Need("graphics.lifecan", shapes.Canister, shapes.Canister.Count);
+        for (int n = 0; n < LifeSheets; ++n)
+            Need($"graphics.life.{n}", shapes.Life[n], shapes.Life[n].Count);
         return shapes;
     }
 

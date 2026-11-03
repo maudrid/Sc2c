@@ -31,32 +31,40 @@
  *
  * Input on stdin, one landing per line:
  *   name seed upgrades tectonics weather temperature x y crew storage
- *   n  type density x y ...  n  frames flags ...
+ *   n  scan type density x y ...  n  frames flags ...
  * seed is TFB_Random's (TFB_SeedRandom) when PlanetSide starts;
  * upgrades 1 IMPROVED_LANDER_SPEED, 2 IMPROVED_LANDER_SHOT, 4
- * IMPROVED_LANDER_CARGO; x and y the landing site (planetLoc, in
+ * IMPROVED_LANDER_CARGO, 8 the biological shield (LANDER_SHIELDS); x and y
+ * the landing site (planetLoc, in
  * planetside map units); crew the ship's crew; storage the room left in
  * the storage bays (GetStorageBayCapacity - TotalElementMass). Then the
- * mineral nodes, by node number: element type, density (MAKE_WORD (gross
- * size, quantity)) and place on the scan map, put on the surface as
- * GeneratePlanetSide puts them. Each step's flags hold for that many of
+ * nodes, each scan's by node number: the scan (0 mineral, 2 biological),
+ * the element or creature type, the density (a mineral's MAKE_WORD (gross
+ * size, quantity)) and the place on the scan map, put on the surface as
+ * GeneratePlanetSide puts them, with generateBioNode's random draws
+ * (TFB_Random is seeded before them, as it runs on from them into the
+ * landing in UQM). Each step's flags hold for that many of
  * DoPlanetSide's frames: 1 left, 2 right, 4 thrust, 8 fire, 16 take off
  * (KEY_ESCAPE). After the steps the lander takes off.
  *
  * Output: one JSON object per landing: every frame drawn on the surface
  * (each ScrollPlanetSide):
  *   [phase, x, y, facing, offset, crew, seed, elements, nodes, hold, text,
- *    taken]
+ *    taken, damage, explosion]
  * phase "L" landing (the second of waiting, then the descent), "G" on
  * the ground (DoPlanetSide), "T" taking off; x, y the lander's place
  * (curLanderLoc); offset how far above its place the lander is drawn
  * (landingOffset; 0 on the ground; null if not drawn); seed TFB_Random's
  * after the frame; elements each moving element's [x, y, life_span,
- * playerNr] in the element queue's order; nodes how many nodes are left in
- * the queue (they don't move, so aren't listed); hold the lander's
+ * playerNr, mass_points] for a bolt or the explosion, [x, y, scan_node,
+ * playerNr, hit_points, mass_points, sheet, frame, thrust_wait, flashing
+ * (STAMPFILL_PRIM)] for a creature, in the element queue's order; nodes
+ * how many mineral nodes are left in the queue (they don't move, so
+ * aren't listed); hold the lander's
  * [ElementLevel, BiologicalLevel, ElementAmounts...]; text the mineral
  * text [NumFrames, amount, baseline x, y]; taken the nodes retrieved this
- * frame, [scan, node] (setNodeRetrieved). After the landing: crew_left,
+ * frame, [scan, node] (setNodeRetrieved); damage and explosion the
+ * lander's damage_index and explosion_index. After the landing: crew_left,
  * the ship's crew and landers, and its ElementAmounts, TotalElementMass
  * and TotalBioMass.
  */
@@ -74,8 +82,11 @@ int ScreenWidth = 320, ScreenHeight = 240;
 
 /* ---- Frames: real FRAME_DESCs, a row a sheet ---- */
 
-/* Sheets 0 to 7 are LanderFrame[0..7]; 8 is MiscDataFrame. */
-enum { SHEET_LANDER = 0, SHEET_MISC = 8, NUM_SHEETS };
+/* Sheets 0 to 7 are LanderFrame[0..7]; 8 is MiscDataFrame; 9 the
+ * canister (graphics.lifecan, PlanetSideFrame[0]); 10 + n graphics.life.n
+ * (load_life_form). */
+enum { SHEET_LANDER = 0, SHEET_MISC = 8, SHEET_CAN = 9, SHEET_LIFE = 10,
+		NUM_SHEETS = SHEET_LIFE + NUM_CREATURE_TYPES + NUM_SPECIAL_CREATURE_TYPES };
 #define SHEET_FRAMES 128
 static FRAME_DESC sheet_frames[NUM_SHEETS][SHEET_FRAMES];
 static COUNT sheet_counts[NUM_SHEETS];
@@ -84,16 +95,31 @@ static int sheet_drawables[NUM_SHEETS];
 #define FRAME_SHEET(f) ((int) (((FRAME_DESC *) (f) - &sheet_frames[0][0]) / SHEET_FRAMES))
 #define FRAME_INDEX(f) ((COUNT) (((FRAME_DESC *) (f) - &sheet_frames[0][0]) % SHEET_FRAMES))
 
+/* A sheet's frames: as the masks give them, or (for the lander's sheets
+ * without masks, item 5's landings) as many as indexes are used. */
+static COUNT
+frames_in (int sheet)
+{
+	return sheet_counts[sheet] ? sheet_counts[sheet] : SHEET_FRAMES;
+}
+
+/* pixmap.c's frame indexing: wrapping round the sheet's frames. */
 FRAME
 SetAbsFrameIndex (FRAME f, COUNT i)
 {
-	return MAKE_FRAME (FRAME_SHEET (f), i % SHEET_FRAMES);
+	int s = FRAME_SHEET (f);
+	return MAKE_FRAME (s, i % frames_in (s));
 }
 
 FRAME
 SetRelFrameIndex (FRAME f, SIZE offs)
 {
-	return SetAbsFrameIndex (f, FRAME_INDEX (f) + offs);
+	int s = FRAME_SHEET (f);
+	int n = frames_in (s);
+	if (offs < 0)
+		while ((offs += n) < 0)
+			;
+	return MAKE_FRAME (s, ((SWORD) FRAME_INDEX (f) + offs) % n);
 }
 
 FRAME
@@ -102,10 +128,25 @@ SetEquFrameIndex (FRAME dst, FRAME src)
 	return SetAbsFrameIndex (dst, FRAME_INDEX (src));
 }
 
-FRAME IncFrameIndex (FRAME f) { return SetRelFrameIndex (f, 1); }
-FRAME DecFrameIndex (FRAME f) { return SetRelFrameIndex (f, -1); }
+FRAME
+IncFrameIndex (FRAME f)
+{
+	int s = FRAME_SHEET (f);
+	return MAKE_FRAME (s, FRAME_INDEX (f) + 1 < frames_in (s) ? FRAME_INDEX (f) + 1 : 0);
+}
+
+FRAME
+DecFrameIndex (FRAME f)
+{
+	int s = FRAME_SHEET (f);
+	return MAKE_FRAME (s, FRAME_INDEX (f) > 0 ? FRAME_INDEX (f) - 1 : frames_in (s) - 1);
+}
+
 COUNT GetFrameIndex (FRAME f) { return FRAME_INDEX (f); }
-COUNT GetFrameCount (FRAME f) { (void) f; return 1; }
+COUNT GetFrameCount (FRAME f) { return frames_in (FRAME_SHEET (f)); }
+
+/* load_life_form (cons_res.c): graphics.life.N. */
+FRAME load_life_form (BYTE selector) { return MAKE_FRAME (SHEET_LIFE + selector, 0); }
 
 /* Each sheet is its own drawable: the lander's shots, being its frames,
  * are the lander's (CheckObjectCollision tells them apart by it). */
@@ -339,47 +380,117 @@ COUNT GetStorageBayCapacity (void) { return storage_room; }
 
 /* ---- Nodes ---- */
 
-#define MAX_NODES 32
-static int node_type[MAX_NODES], node_density[MAX_NODES], node_x[MAX_NODES],
-		node_y[MAX_NODES], num_nodes;
+#define MAX_NODES 64
+static int node_scan[MAX_NODES], node_type[MAX_NODES], node_density[MAX_NODES],
+		node_x[MAX_NODES], node_y[MAX_NODES], num_nodes;
 
-/* GeneratePlanetSide's mineral nodes, last node first (scan.c). */
+/* scan.c's generateBioNode, as it is: a moving creature at a random place,
+ * its sheet loaded for up to MAX_LIFE_VARIATION kinds, its hit points,
+ * and a random frame of its sheet. */
 static void
-put_mineral_nodes (void)
+bio_node (ELEMENT *NodeElementPtr, BYTE *life_init_tab, COUNT creatureType)
 {
-	int n;
-	for (n = num_nodes - 1; n >= 0; --n)
+	SOLARSYS_STATE *system = pSolarSysState;
+	COUNT i;
+
+	if (CreatureData[creatureType].Attributes & SPEED_MASK)
 	{
-		HELEMENT hNodeElement = AllocElement ();
-		ELEMENT *NodeElementPtr;
-		if (!hNodeElement)
+		i = TFB_Random ();
+		NodeElementPtr->current.location.x =
+				(LOBYTE (i) % (MAP_WIDTH - (8 << 1))) + 8;
+		NodeElementPtr->current.location.y =
+				(HIBYTE (i) % (MAP_HEIGHT - (8 << 1))) + 8;
+	}
+
+	if (system->PlanetSideFrame[0] == 0)
+		system->PlanetSideFrame[0] = MAKE_FRAME (SHEET_CAN, 0);
+
+	for (i = 0; i < MAX_LIFE_VARIATION
+			&& life_init_tab[i] != (BYTE)(creatureType + 1);
+			++i)
+	{
+		if (life_init_tab[i] != 0)
 			continue;
-		LockElement (hNodeElement, &NodeElementPtr);
-		NodeElementPtr->scan_node = MAKE_WORD (MINERAL_SCAN, n + 1);
-		NodeElementPtr->playerNr = PS_NON_PLAYER;
-		NodeElementPtr->current.location.x = node_x[n];
-		NodeElementPtr->current.location.y = node_y[n];
-		SetPrimType (&DisplayArray[NodeElementPtr->PrimIndex], STAMP_PRIM);
-		NodeElementPtr->turn_wait = node_type[n];
-		NodeElementPtr->mass_points = HIBYTE (node_density[n]);
-		NodeElementPtr->current.image.frame = SetAbsFrameIndex (
-				MiscDataFrame, (NUM_SCANDOT_TRANSITIONS * 2)
-				+ ElementCategory (node_type[n]) * 5);
-		NodeElementPtr->next.image.frame = SetRelFrameIndex (
-				NodeElementPtr->current.image.frame,
-				LOBYTE (node_density[n]) + 1);
-		DisplayArray[NodeElementPtr->PrimIndex].Object.Stamp.frame =
-				IncFrameIndex (NodeElementPtr->next.image.frame);
-		NodeElementPtr->next.location.x =
-				NodeElementPtr->current.location.x << MAG_SHIFT;
-		NodeElementPtr->next.location.y =
-				NodeElementPtr->current.location.y << MAG_SHIFT;
-		UnlockElement (hNodeElement);
-		PutElement (hNodeElement);
+
+		life_init_tab[i] = (BYTE)creatureType + 1;
+
+		system->PlanetSideFrame[i + 3] = load_life_form (creatureType);
+		break;
+	}
+
+	NodeElementPtr->mass_points = (BYTE)creatureType;
+	NodeElementPtr->hit_points = HINIBBLE (
+			CreatureData[creatureType].ValueAndHitPoints);
+	DisplayArray[NodeElementPtr->PrimIndex].
+			Object.Stamp.frame = SetAbsFrameIndex (
+			system->PlanetSideFrame[i + 3], (COUNT)TFB_Random ());
+}
+
+/* GeneratePlanetSide (scan.c): the life nodes, then (no energy nodes on
+ * a default world) the mineral nodes, last node first in each. */
+static void
+put_nodes (void)
+{
+	BYTE life_init_tab[MAX_LIFE_VARIATION];
+	int scan;
+	memset (life_init_tab, 0, sizeof life_init_tab);
+	for (scan = BIOLOGICAL_SCAN; scan >= MINERAL_SCAN; --scan)
+	{
+		int n, count = 0;
+		FRAME f = SetAbsFrameIndex (MiscDataFrame,
+				NUM_SCANDOT_TRANSITIONS * (scan - ENERGY_SCAN));
+		for (n = 0; n < num_nodes; ++n)
+			count += node_scan[n] == scan;
+		while (count--)
+		{
+			HELEMENT hNodeElement;
+			ELEMENT *NodeElementPtr;
+			int k, seen = -1;
+			for (k = 0; k < num_nodes; ++k)
+				if (node_scan[k] == scan && ++seen == count)
+					break;
+			hNodeElement = AllocElement ();
+			if (!hNodeElement)
+				continue;
+			LockElement (hNodeElement, &NodeElementPtr);
+			NodeElementPtr->scan_node = MAKE_WORD (scan, count + 1);
+			NodeElementPtr->playerNr = PS_NON_PLAYER;
+			NodeElementPtr->current.location.x = node_x[k];
+			NodeElementPtr->current.location.y = node_y[k];
+			SetPrimType (&DisplayArray[NodeElementPtr->PrimIndex], STAMP_PRIM);
+			if (scan == MINERAL_SCAN)
+			{
+				NodeElementPtr->turn_wait = node_type[k];
+				NodeElementPtr->mass_points = HIBYTE (node_density[k]);
+				NodeElementPtr->current.image.frame = SetAbsFrameIndex (
+						MiscDataFrame, (NUM_SCANDOT_TRANSITIONS * 2)
+						+ ElementCategory (node_type[k]) * 5);
+				NodeElementPtr->next.image.frame = SetRelFrameIndex (
+						NodeElementPtr->current.image.frame,
+						LOBYTE (node_density[k]) + 1);
+				DisplayArray[NodeElementPtr->PrimIndex].Object.Stamp.frame =
+						IncFrameIndex (NodeElementPtr->next.image.frame);
+			}
+			else
+			{
+				NodeElementPtr->current.image.frame = f;
+				NodeElementPtr->next.image.frame = SetRelFrameIndex (
+						f, NUM_SCANDOT_TRANSITIONS - 1);
+				NodeElementPtr->turn_wait = MAKE_BYTE (4, 4);
+				NodeElementPtr->preprocess_func = object_animation;
+				bio_node (NodeElementPtr, life_init_tab, node_type[k]);
+			}
+			NodeElementPtr->next.location.x =
+					NodeElementPtr->current.location.x << MAG_SHIFT;
+			NodeElementPtr->next.location.y =
+					NodeElementPtr->current.location.y << MAG_SHIFT;
+			UnlockElement (hNodeElement);
+			PutElement (hNodeElement);
+		}
 	}
 }
 
-/* The default generator's pickupMinerals: always picked up. */
+/* The default generator's pickupMinerals and pickupLife: always picked up. */
 bool
 callPickupForScanType (SOLARSYS_STATE *solarSys, PLANET_DESC *world,
 		COUNT node, BYTE scan)
@@ -493,12 +604,24 @@ RedrawSurfaceScan (const POINT *newLoc)
 	{
 		ELEMENT *e;
 		LockElement (h, &e);
-		if (e->playerNr == PS_NON_PLAYER && !(e->state_flags & FINITE_LIFE))
-			++nodes;   /* nodes don't move: counted, not listed */
+		if (e->playerNr == PS_NON_PLAYER && !(e->state_flags & FINITE_LIFE)
+				&& LOBYTE (e->scan_node) == MINERAL_SCAN)
+			++nodes;   /* minerals don't move: counted, not listed */
+		else if (e->playerNr == PS_NON_PLAYER)
+		{	/* a creature, alive or canned */
+			PRIMITIVE *pp = &DisplayArray[e->PrimIndex];
+			printf ("%s[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d]", first ? "" : ", ",
+					e->next.location.x, e->next.location.y, e->scan_node,
+					e->playerNr, e->hit_points, e->mass_points,
+					FRAME_SHEET (pp->Object.Stamp.frame),
+					FRAME_INDEX (pp->Object.Stamp.frame), e->thrust_wait,
+					GetPrimType (pp) == STAMPFILL_PRIM);
+			first = 0;
+		}
 		else
-		{
-			printf ("%s[%d, %d, %d, %d]", first ? "" : ", ", e->next.location.x,
-					e->next.location.y, e->life_span, e->playerNr);
+		{	/* a bolt, or the lander's explosion */
+			printf ("%s[%d, %d, %d, %d, %d]", first ? "" : ", ", e->next.location.x,
+					e->next.location.y, e->life_span, e->playerNr, e->mass_points);
 			first = 0;
 		}
 		next = GetSuccElement (e);
@@ -514,7 +637,7 @@ RedrawSurfaceScan (const POINT *newLoc)
 				p->MineralText[0].baseline.x, p->MineralText[0].baseline.y);
 		for (i = 0; i < num_taken; ++i)
 			printf ("%s[%d, %d]", i ? ", " : "", taken_scan[i], taken_node[i]);
-		printf ("]]");
+		printf ("], %d, %d]", damage_index, explosion_index);
 		num_taken = 0;
 	}
 }
@@ -560,6 +683,7 @@ land (const char *name, DWORD seed, int upgrades, int tectonics, int weather,
 	SET_GAME_STATE (IMPROVED_LANDER_SPEED, (upgrades & 1) != 0);
 	SET_GAME_STATE (IMPROVED_LANDER_SHOT, (upgrades & 2) != 0);
 	SET_GAME_STATE (IMPROVED_LANDER_CARGO, (upgrades & 4) != 0);
+	SET_GAME_STATE (LANDER_SHIELDS, (upgrades & 8) ? 1 << BIOLOGICAL_DISASTER : 0);
 	GLOBAL_SIS (NumLanders) = 1;
 	GLOBAL_SIS (TotalElementMass) = 0;
 	GLOBAL_SIS (TotalBioMass) = 0;
@@ -576,14 +700,14 @@ land (const char *name, DWORD seed, int upgrades, int tectonics, int weather,
 		fprintf (stderr, "%s: nodes need the masks\n", name);
 		exit (1);
 	}
-	put_mineral_nodes ();
+	TFB_SeedRandom (seed);   /* GeneratePlanetSide's draws come first */
+	put_nodes ();
 	num_taken = 0;
 	now = 0;
 	phase = 'L';
 	frames_out = 0;
 	lander_drawn = 0;
 	step_at = step_used = 0;
-	TFB_SeedRandom (seed);
 
 	printf ("{\"name\": \"%s\", \"seed\": %lu, \"upgrades\": %d, "
 			"\"frames\": [", name, (unsigned long) seed, upgrades);
@@ -623,8 +747,8 @@ main (int argc, char *argv[])
 		num_nodes = n;
 		for (i = 0; i < n; ++i)
 		{
-			if (scanf ("%d %d %d %d", &node_type[i], &node_density[i],
-					&node_x[i], &node_y[i]) != 4)
+			if (scanf ("%d %d %d %d %d", &node_scan[i], &node_type[i],
+					&node_density[i], &node_x[i], &node_y[i]) != 5)
 				return 1;
 		}
 		if (scanf ("%d", &n) != 1)

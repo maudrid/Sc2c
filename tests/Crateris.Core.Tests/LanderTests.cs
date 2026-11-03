@@ -27,10 +27,16 @@ public class LanderTests
 {
     private static readonly JsonElement Recorded = Golden.Load("lander");
     private static readonly Lazy<JsonElement> Pickups = new(() => Golden.Load("lander-pickups"));
+    private static readonly Lazy<JsonElement> Creatures = new(() => Golden.Load("lander-creatures"));
+    private static readonly Lifeforms Life = Lifeforms.Load(Path.Combine(AppContext.BaseDirectory, "data"));
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));
 
     public static IEnumerable<object[]> Landings() =>
         Recorded.GetProperty("landings").EnumerateArray().Select(l => new object[] { l.GetProperty("name").GetString()! });
+
+    public static IEnumerable<object[]> CreatureLandings() =>
+        Golden.Load("lander-creatures").GetProperty("landings").EnumerateArray()
+            .Select(l => new object[] { l.GetProperty("name").GetString()! });
 
     public static IEnumerable<object[]> PickupLandings() =>
         Golden.Load("lander-pickups").GetProperty("landings").EnumerateArray()
@@ -41,7 +47,7 @@ public class LanderTests
 
     private static LanderUpgrades Upgrades(int flags) =>
         ((flags & 1) != 0 ? LanderUpgrades.Speed : 0) | ((flags & 2) != 0 ? LanderUpgrades.Shot : 0)
-        | ((flags & 4) != 0 ? LanderUpgrades.Cargo : 0);
+        | ((flags & 4) != 0 ? LanderUpgrades.Cargo : 0) | ((flags & 8) != 0 ? LanderUpgrades.BioShield : 0);
 
     [Theory]
     [MemberData(nameof(Landings))]
@@ -50,6 +56,10 @@ public class LanderTests
     [ContentTheory]
     [MemberData(nameof(PickupLandings))]
     public void EveryPickupIsUqms(string name) => Replay(Landing(Pickups.Value, name), TestContent.Shapes);
+
+    [ContentTheory]
+    [MemberData(nameof(CreatureLandings))]
+    public void EveryCreatureIsUqms(string name) => Replay(Landing(Creatures.Value, name), TestContent.Shapes);
 
     /// <summary>
     /// Replays a recorded landing frame by frame: the lander, the moving
@@ -60,11 +70,14 @@ public class LanderTests
     {
         string name = landing.GetProperty("name").GetString()!;
         var input = landing.GetProperty("input");
-        var minerals = input.GetProperty("nodes").EnumerateArray()
-            .Select((n, i) => new SurfaceMineral(i, n[2].GetInt32(), n[3].GetInt32(), n[0].GetInt32(), n[1].GetInt32()))
-            .ToList();
+        // Nodes as [scan, type, density, x, y], each scan's numbered in order.
+        var placed = input.GetProperty("nodes").EnumerateArray().Select(n => n.Ints()).ToList();
+        var minerals = placed.Where(n => n[0] == 0)
+            .Select((n, i) => new SurfaceMineral(i, n[3], n[4], n[1], n[2])).ToList();
+        var creatures = placed.Where(n => n[0] == 2)
+            .Select((n, i) => new SurfaceCreature(i, n[3], n[4], n[1])).ToList();
         var surface = new PlanetsideSurface(new TfbRandom(landing.GetProperty("seed").GetUInt32()), minerals,
-            Systems.Generator.Types.ElementCategory, shapes);
+            Systems.Generator.Types.ElementCategory, shapes, creatures, Life);
         // The bays' room left as recorded: one bay, the rest already full of common elements.
         int room = input.GetProperty("storage").GetInt32();
         var hold = Hold(input.GetProperty("crew").GetInt32(), Upgrades(landing.GetProperty("upgrades").GetInt32()));
@@ -92,26 +105,39 @@ public class LanderTests
                 LanderPhase.Ground => "G",
                 _ => "T",
             };
-            var moving = surface.Elements.Where(e => e.Kind == SurfaceElementKind.Bolt).Select(e => $"[{e.X}, {e.Y}, {e.LifeSpan}, 0]");
+            var moving = surface.Elements.Where(e => e.Kind != SurfaceElementKind.Mineral).Select(e => e.Kind switch
+            {
+                SurfaceElementKind.Bolt => $"[{e.X}, {e.Y}, {e.LifeSpan}, 0, 1]",
+                SurfaceElementKind.Explosion => $"[{e.X}, {e.Y}, {e.LifeSpan}, 0, 0]",
+                _ => $"[{e.X}, {e.Y}, {((e.Node + 1) << 8) | (int)e.Scan}, 1, {e.HitPoints}, {e.MassPoints}, "
+                    + $"{(e.Sheet == SurfaceSheet.Canister ? 9 : 10 + e.LifeKind)}, {e.Frame}, {e.ThrustWait}, {(e.Flash is null ? 0 : 1)}]",
+            });
             int nodes = surface.Elements.Count(e => e.Kind == SurfaceElementKind.Mineral);
             var text = lander.Text is { } t ? $"{t.Frames} '{t.Amount}' {t.X},{t.Y}" : "0 '' 0,0";
             var taken = surface.Taken.Select(n => $"[{(int)n.Scan}, {n.Node}]");
-            string got = $"{phase} {lander.X},{lander.Y} facing {lander.Facing} offset {-lander.Height} crew {lander.Crew} "
+            // The recording sees the lander's plain stamp: not one filled with
+            // the damage colour (a hit without a shield's help).
+            string offset = lander.Drawn && lander.Flash != LanderFlash.Damage ? $"{-lander.Height}" : "null";
+            string got = $"{phase} {lander.X},{lander.Y} facing {lander.Facing} offset {offset} crew {lander.Crew} "
                 + $"seed {surface.Random.Seed} [{string.Join(", ", moving)}] nodes {nodes} "
                 + $"hold {lander.MineralMass} {lander.BioData} [{string.Join(", ", lander.Minerals)}] text {text} "
-                + $"taken [{string.Join(", ", taken)}]";
-            var wantMoving = want[7].EnumerateArray().Select(b => $"[{b[0]}, {b[1]}, {b[2]}, {b[3]}]");
+                + $"taken [{string.Join(", ", taken)}] damage {lander.DamageIndex} explosion {lander.ExplosionIndex}";
+            var wantMoving = want[7].EnumerateArray().Select(b => $"[{string.Join(", ", b.EnumerateArray())}]");
             var h = want[9].Ints();
             var wt = want[10];
             string wantText = $"{wt[0]} '{wt[1].GetString()}' {wt[2]},{wt[3]}";
             var wantTaken = want[11].EnumerateArray().Select(n => $"[{n[0]}, {n[1]}]");
-            string expected = $"{want[0].GetString()} {want[1]},{want[2]} facing {want[3]} offset {want[4]} crew {want[5]} "
+            string wantOffset = want[4].ValueKind == JsonValueKind.Null ? "null" : $"{want[4]}";
+            string expected = $"{want[0].GetString()} {want[1]},{want[2]} facing {want[3]} offset {wantOffset} crew {want[5]} "
                 + $"seed {want[6]} [{string.Join(", ", wantMoving)}] nodes {want[8]} "
                 + $"hold {h[0]} {h[1]} [{string.Join(", ", h.Skip(2))}] text {wantText} "
-                + $"taken [{string.Join(", ", wantTaken)}]";
+                + $"taken [{string.Join(", ", wantTaken)}] damage {want[12]} explosion {want[13]}";
             Assert.True(expected == got, $"{name}, frame {frame} ({keys}):\n want {expected}\n got  {got}");
             frame++;
         }
+        // A lost lander's last call has no frame of its own: it's given up.
+        if (lander.Phase != LanderPhase.Gone)
+            surface.Step(_ => LanderInput.None);
         Assert.Equal(LanderPhase.Gone, lander.Phase);
         Assert.Empty(surface.Landers);
         // The crew went aboard from the ship and came back with the cargo (AnimateLanderWarmup, PlanetSide).
@@ -338,6 +364,54 @@ public class LanderTests
             surface.Step(l => l.Phase == LanderPhase.Ground ? LanderInput.TakeOff : LanderInput.None);
         Assert.NotNull(hold.LanderOut);   // still the next trip's
         Assert.Empty(surface.Landers);
+    }
+
+    [ContentFact]
+    public void ACreatureHuntsTheNearestLander()
+    {
+        // A Crazy Weasel (fast, hunts, quick to notice), and two landers:
+        // one coming down close by, one a third of the way round the world.
+        var surface = new PlanetsideSurface(new TfbRandom(11), null, null, TestContent.Shapes,
+            new[] { new SurfaceCreature(0, 0, 0, 15) }, Life);
+        var weasel = surface.Elements.Single();
+        int near = (weasel.X + 80) % PlanetsideMap.Width, far = (weasel.X + 330) % PlanetsideMap.Width;
+        var a = SendDown(surface, Hold(50), far, weasel.Y);
+        var b = SendDown(surface, Hold(50), near, weasel.Y);
+        static int Gap(SurfaceElement e, Lander l)
+        {
+            int dx = Math.Abs(e.X - l.X);
+            return Math.Min(dx, PlanetsideMap.Width - dx) + Math.Abs(e.Y - l.Y);
+        }
+        // It overshoots and circles a lander it hunts, so take the closest
+        // it comes to each.
+        int toB = Gap(weasel, b), closestB = toB, closestA = Gap(weasel, a);
+        bool noticed = false;
+        for (int i = 0; i < 400; ++i)
+        {
+            surface.Step(_ => LanderInput.None);
+            noticed |= (weasel.MassPoints & SurfaceElement.Aware) != 0;
+            closestB = Math.Min(closestB, Gap(weasel, b));
+            closestA = Math.Min(closestA, Gap(weasel, a));
+        }
+        Assert.True(noticed, "it noticed a lander");
+        Assert.True(closestB < 16, $"it went for the nearer lander (from {toB} to {closestB} at closest)");
+        Assert.True(closestA > 150, $"and not for the far one ({closestA} at closest)");
+    }
+
+    [ContentFact]
+    public void ALanderWhoseCrewAllDieIsLostWithItsCargo()
+    {
+        // Monstrous hunters all round a lander with one crew member.
+        var hunters = Enumerable.Range(0, 8).Select(i => new SurfaceCreature(i, 121 + (i % 4) - 2, 37 + i / 4, 9)).ToList();
+        var hold = Hold(1);
+        var surface = new PlanetsideSurface(new TfbRandom(3), null, null, TestContent.Shapes, hunters, Life);
+        var lander = SendDown(surface, hold, 484, 148);
+        for (int i = 0; i < 3000 && lander.Phase != LanderPhase.Gone; ++i)
+            surface.Step(_ => LanderInput.None);
+        Assert.Equal(LanderPhase.Gone, lander.Phase);
+        Assert.Equal(0, lander.Crew);
+        Assert.True(lander.ExplosionIndex > Lander.ExplosionLife + Lander.ExplosionWaitFrames);
+        Assert.Equal((0, 0, 0), (hold.Crew, hold.Landers, hold.MineralMass));   // the lander lost with its crew
     }
 
     [Fact]

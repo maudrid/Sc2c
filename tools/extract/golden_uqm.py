@@ -226,7 +226,7 @@ def run_lander(exe, scenarios, masks=None):
     returns its landings with their input."""
     lines = []
     for name, seed, upgrades, tect, weather, temp, x, y, crew, storage, nodes, steps in scenarios:
-        flat_nodes = " ".join(f"{t} {d} {nx} {ny}" for t, d, nx, ny in nodes)
+        flat_nodes = " ".join(" ".join(map(str, n)) for n in nodes)
         flat = " ".join(f"{n} {f}" for n, f in steps)
         lines.append(f"{name} {seed} {upgrades} {tect} {weather} {temp} {x} {y} "
                      f"{crew} {storage} {len(nodes)} {flat_nodes} {len(steps)} {flat}")
@@ -292,7 +292,7 @@ def pickup_worlds():
                 if minerals and not energy and not life and w[3][8] != 0xFFFF:
                     worlds.append((-len(minerals), s, p, m - 1, minerals))
     worlds.sort()
-    return [[s, p, m, [[t, d, x, y] for x, y, t, d in minerals]]
+    return [[s, p, m, [[0, t, d, x, y] for x, y, t, d in minerals]]
             for _, s, p, m, minerals in worlds]
 
 
@@ -305,7 +305,7 @@ def pickup_nodes(seed, count, cx, cy):
     for _ in range(count):
         x = (cx + rng.randint(-25, 25)) % 242
         y = max(0, min(74, cy + rng.randint(-12, 12)))
-        nodes.append([rng.randrange(133), (rng.randint(1, 70) << 8) | rng.randint(0, 2), x, y])
+        nodes.append([0, rng.randrange(133), (rng.randint(1, 70) << 8) | rng.randint(0, 2), x, y])
     return nodes
 
 
@@ -339,7 +339,7 @@ def seam_scenarios():
         seed = next(s for s in range(base, base + 100000)
                     if landing_place(s, 0, 148)[0] in want)
         x, y = landing_place(seed, 0, 148)
-        nodes = [[k * 7 % 133, (20 << 8) | 1, node_x, (y >> 2) + dy]
+        nodes = [[0, k * 7 % 133, (20 << 8) | 1, node_x, (y >> 2) + dy]
                  for k, dy in enumerate((-1, 0, 1))]
         out.append([name, seed, 0, 0, 0, 0, 0, 148, 50, 500, nodes,
                     [(5, 0)] + lander_script(seed, 300)])
@@ -353,7 +353,7 @@ def pickup_scenarios():
     worlds = pickup_worlds()
     out = []
     for k, (s, p, m, nodes) in enumerate(worlds[:3]):
-        t, d, x, y = nodes[0]
+        _, t, d, x, y = nodes[0]
         out.append([f"world-{s}-{p}-{m}", 200 + k, [0, 4, 3][k], 0, 0, 0, x * 4, y * 4,
                     50, 500, nodes, lander_script(200 + k, 1500)])
     for k, (upgrades, storage, fire) in enumerate([(0, 500, False), (4, 500, False),
@@ -374,6 +374,105 @@ def pickup_scenarios():
         out.append([f"packed-{name}", 400 + k, [0, 4, 2, 6][k], 0, 0, 0, sx, sy, 50, 500,
                     pickup_nodes(400 + k, 30, cx, cy), lander_script(400 + k, 900)])
     return out + seam_scenarios()
+
+
+def creature_worlds():
+    """Worlds with creatures (of the 23 ordinary kinds) and no energy
+    nodes, chosen so that every kind is on one of them, most kinds first:
+    [star, planet, moon or -1, nodes ([scan, type, density, x, y], life
+    then minerals)]."""
+    with open(os.path.join(REPO, "tests", "golden", "world-surfaces.json")) as f:
+        systems = json.load(f)["systems"]
+    worlds = []
+    for s, star in enumerate(systems):
+        for p, planet in enumerate(star):
+            for m, w in enumerate(planet):
+                if len(w) < 5 or not w[1] or w[4] is None:
+                    continue
+                minerals, energy, life = w[4]
+                if not life or energy or any(t >= 23 for _, _, t, _ in life):
+                    continue
+                nodes = ([[2, t, d, x, y] for x, y, t, d in life]
+                         + [[0, t, d, x, y] for x, y, t, d in minerals])
+                worlds.append((s, p, m - 1, {t for _, _, t, _ in life}, nodes))
+    chosen, left = [], set(range(23))
+    while left:
+        best = max(worlds, key=lambda w: (len(w[3] & left), len(w[4])))
+        if not best[3] & left:
+            break
+        chosen.append(best)
+        left -= best[3]
+    return [[s, p, m, nodes] for s, p, m, _, nodes in chosen], left
+
+
+def creature_scenarios():
+    """Landings among creatures: [name, seed, upgrades (1 speed, 2 shot, 4
+    cargo, 8 biological shield), tectonics, weather, temperature, site x,
+    y, crew, storage room, nodes, steps]."""
+    worlds, missing = creature_worlds()
+    if missing:
+        raise RuntimeError(f"no world has creatures of kinds {sorted(missing)}")
+    out = []
+    for k, (s, p, m, nodes) in enumerate(worlds):
+        _, _, _, x, y = nodes[0]
+        out.append([f"life-{s}-{p}-{m}", 500 + k, [0, 2, 4, 3][k % 4], 0, 0, 0,
+                    x * 4, y * 4, 50, 500, nodes, lander_script(500 + k, 600)])
+    # The deadliest kinds at the site, a lander with few crew; then the
+    # same with the biological shield.
+    # Three kinds at most, as UQM has sheets for (MAX_LIFE_VARIATION).
+    deadly = [[2, t, 0, 121 + dx, 37 + dy] for t in (9, 14, 13)
+              for dx, dy in ((-6, 0), (6, 0), (0, 5), (0, -5))]
+    for k, upgrades in enumerate((0, 8)):
+        out.append([f"deadly-{'shielded' if upgrades else 'bare'}", 600 + k, upgrades,
+                    0, 0, 0, 484, 148, 4, 500, deadly, lander_script(600 + k, 800)])
+    # Harmless still creatures round the site, to stun, can and pick up.
+    import math
+    ring = [[2, (0, 1, 4)[i % 3], 0, 121 + round(r * math.cos(i * 0.7)), 37 + round(r * math.sin(i * 0.7) / 2)]
+            for i, r in enumerate([5, 7, 9, 11, 13, 15] * 4)]
+    for k in range(2):
+        out.append([f"harvest-{k}", 700 + k, [0, 2][k], 0, 0, 0, 484, 148, 50, 500, ring,
+                    lander_script(700 + k, 900)])
+    return out
+
+
+def record_lander_creatures(uqm, lander_exe, strings_exe, images_exe, package):
+    """UQM's own lander among creatures, with the package's masks."""
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp, LANDER_SHEETS)
+        landings = run_lander(lander_exe, creature_scenarios(), masks)
+    canned = sum(1 for l in landings for f in l["frames"] for e in f[7]
+                 if len(e) > 5 and e[4] == 0)
+    if canned < 10:
+        raise RuntimeError(f"hardly any creature canned ({canned} frames)")
+    if not any(l["landers"] == 0 for l in landings):
+        raise RuntimeError("no lander lost in the creature landings")
+    data = header(uqm, ["tools/extract/golden/lander.c",
+                        "tools/extract/golden/lander_stubs.c",
+                        "src/uqm/planets/lander.c", "src/uqm/planets/scan.c",
+                        "src/libs/graphics/intersec.c"], [
+        "UQM 0.8.0's own lander among creatures, recorded as lander.json "
+        "is, with the life nodes put on the surface as GeneratePlanetSide "
+        "and generateBioNode put them (TFB_Random's draws for the moving "
+        "ones' places and every creature's first frame come first) and "
+        "contact found by UQM's own DrawablesIntersect with the masks of "
+        "graphics.lander, graphics.miscdata, graphics.lifecan and "
+        "graphics.life.0 to 25 from the official content package (SHA-256 "
+        f"{CONTENT_SHA256}). Positions and events come from code and the "
+        "masks' shapes; no content.",
+        "Landings on worlds with creatures and no energy nodes, chosen so "
+        "every ordinary kind (0 to 22) is on one, with their mineral nodes "
+        "too, landing on the first creature's node and firing, with "
+        "upgrades by turn; and among the most dangerous kinds with 4 crew, "
+        "without and with the biological shield (8).",
+        "input as in lander-pickups.json, nodes [scan (0 mineral, 2 life), "
+        "type, density, x, y]. frames as in lander.json; a creature's "
+        "element is [x, y, scan_node, playerNr, hit_points, mass_points "
+        "(its kind, | 128 when aware; its value once canned), sheet (9 "
+        "canister, 10 + n graphics.life.n), frame, thrust_wait, flashing].",
+    ])
+    data["masks"] = {k: [m[:4] + [m[4]] for m in v] for k, v in hashes.items()}
+    data["landings"] = landings
+    return data
 
 
 def record_lander_pickups(uqm, lander_exe, strings_exe, images_exe, package):
@@ -406,13 +505,8 @@ def record_lander_pickups(uqm, lander_exe, strings_exe, images_exe, package):
         "coming down within a few units of the edge and nodes just across "
         "it, touched the nearer way round.",
         "input as in lander.json, with storage (the room left in the "
-        "storage bays) and nodes ([element, density, x, y] on the scan "
-        "map, by node number). frames as in lander.json: [phase, x, y, "
-        "facing, offset, crew, seed, moving elements [x, y, life_span, "
-        "playerNr], nodes left, hold [ElementLevel, BiologicalLevel, "
-        "ElementAmounts by category], mineral text [NumFrames, amount, "
-        "baseline x, y], taken [[scan, node]]]. After: the ship's "
-        "element_amounts, total_element_mass and total_bio_mass.",
+        "storage bays) and nodes ([scan (0), element, density, x, y] on the "
+        "scan map, by node number). frames as in lander.json.",
     ])
     data["masks"] = {k: [m[:4] + [m[4]] for m in v] for k, v in hashes.items()}
     data["landings"] = landings
@@ -1213,7 +1307,8 @@ CONTACT_SHEETS = [
 LANDER_SHEETS = [
     (0, "graphics.lander"),
     (8, "graphics.miscdata"),
-]
+    (9, "graphics.lifecan"),        # a canned creature (PlanetSideFrame[0])
+] + [(10 + n, f"graphics.life.{n}") for n in range(26)]   # load_life_form
 
 
 def write_masks(strings_exe, images_exe, package, tmp, sheets=None):
@@ -1611,7 +1706,8 @@ def main():
                               ("images", record_images(uqm, images, args.content)),
                               ("binary-tables", record_binary_tables(uqm, strings, args.content)),
                               *record_contact(uqm, systems, strings, images, args.content).items(),
-                              ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content))]
+                              ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content)),
+                              ("lander-creatures", record_lander_creatures(uqm, lander, strings, images, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:

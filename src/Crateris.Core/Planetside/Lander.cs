@@ -29,6 +29,12 @@ public enum LanderInput
     TakeOff = 16,
 }
 
+/// <summary>What hurts a lander's crew: the order of UQM's disasters, as the lander's shields are numbered (LANDER_SHIELDS).</summary>
+public enum LanderDisaster { Biological = 0, Earthquake, Lightning, Lavaspot }
+
+/// <summary>How a lander is drawn after a hit (ScrollPlanetSide).</summary>
+public enum LanderFlash { None, Damage, Shield }
+
 /// <summary>Where a lander is in its visit to the surface.</summary>
 public enum LanderPhase
 {
@@ -83,6 +89,14 @@ public sealed class Lander
 
     /// <summary>NUM_TEXT_FRAMES: frames the mineral text shows for.</summary>
     public const int TextFrames = 32;
+    /// <summary>DAMAGE_CYCLE: frames a hurt lander flashes for.</summary>
+    public const int DamageCycle = 6;
+    /// <summary>EXPLOSION_LIFE: the explosion's frames, three surface frames each.</summary>
+    public const int ExplosionLife = 10;
+    /// <summary>EXPLOSION_WAIT_FRAMES: two seconds after the explosion before the lander is given up (ONE_SECOND * 2 / PLANET_SIDE_RATE).</summary>
+    public const int ExplosionWaitFrames = 840 * 2 / 24;
+    /// <summary>The explosion's first frame in the lander's sheet.</summary>
+    public const int ExplosionFrame = 46;
 
     private readonly PlanetsideSurface _surface;
     private readonly ShipHold _hold;
@@ -138,7 +152,7 @@ public sealed class Lander
     /// <summary>Minerals aboard by element category (ElementAmounts).</summary>
     public IReadOnlyList<int> Minerals => _minerals;
 
-    /// <summary>Bio data aboard (BiologicalLevel), up to <see cref="ShipHold.MaxScrounged"/>; picked up from creatures, item 7.</summary>
+    /// <summary>Bio data aboard (BiologicalLevel), up to <see cref="ShipHold.MaxScrounged"/>: canned creatures picked up.</summary>
     public int BioData { get; private set; }
 
     /// <summary>
@@ -161,6 +175,21 @@ public sealed class Lander
     /// </summary>
     public int Height { get; private set; } = OffScreen;
 
+    /// <summary>Frames left of the hurt lander's flash (damage_index).</summary>
+    public int DamageIndex { get; private set; }
+
+    /// <summary>Whether the last hurt was stopped by a shield (shieldHit): the flash is the shield's.</summary>
+    public bool ShieldHit { get; private set; }
+
+    /// <summary>How far a lost lander's explosion has gone (explosion_index): 0 before it.</summary>
+    public int ExplosionIndex { get; internal set; }
+
+    /// <summary>Whether the lander was drawn in the last frame: alive, still flashing, or early in its explosion.</summary>
+    public bool Drawn { get; private set; } = true;
+
+    /// <summary>Whether the last frame was one (a lost lander's last call has no frame: it's given up).</summary>
+    internal bool FrameDrawn { get; private set; }
+
     /// <summary>
     /// The lander's part of a surface frame: it moves and fires. Keys count
     /// only on the ground; take-off there starts going up in the same frame
@@ -168,10 +197,34 @@ public sealed class Lander
     /// </summary>
     internal void Frame(LanderInput input)
     {
-        if (Phase == LanderPhase.Ground && (input & LanderInput.TakeOff) != 0)
+        FrameDrawn = true;
+        if (Phase == LanderPhase.Ground && Crew > 0 && (input & LanderInput.TakeOff) != 0)
         {
             Phase = LanderPhase.TakingOff;
             _phaseFrame = 0;
+        }
+        else if (Phase == LanderPhase.Ground && Crew == 0 && DamageIndex == 0)
+        {
+            // DoPlanetSide with all the crew dead and the flash over: the
+            // explosion, then two seconds, then the lander is given up.
+            if (ExplosionIndex > ExplosionLife + ExplosionWaitFrames)
+            {
+                Phase = LanderPhase.Gone;
+                FrameDrawn = false;
+                return;
+            }
+            if (ExplosionIndex > ExplosionLife)
+                ExplosionIndex++;
+            else if (ExplosionIndex == 0)
+            {
+                _surface.AddFirst(new SurfaceElement
+                {
+                    Kind = SurfaceElementKind.Explosion, X = X, Y = Y, Owner = this,
+                    TurnWait = 0x22,   // MAKE_BYTE (2, 2): a new frame every 3
+                    LifeSpan = ExplosionLife * 3, Sheet = SurfaceSheet.Lander, Frame = ExplosionFrame,
+                });
+                ExplosionIndex++;
+            }
         }
         FramePhase = Phase;
         switch (Phase)
@@ -185,7 +238,10 @@ public sealed class Lander
                     Land();
                 break;
             case LanderPhase.Ground:
-                Drive(input);
+                if (Crew > 0)
+                    Drive(input);
+                else
+                    Scroll(0, 0);   // dead: no keys
                 break;
             case LanderPhase.TakingOff:
                 Height = _phaseFrame < Heights.Count ? Heights[_phaseFrame] : OffScreen;
@@ -200,6 +256,60 @@ public sealed class Lander
 
     /// <summary>The ship whose lander this is.</summary>
     public ShipHold Hold => _hold;
+
+    /// <summary>
+    /// ScrollPlanetSide's drawing: the lander is drawn while it has crew,
+    /// while its flash lasts, and for the explosion's first frames; its
+    /// flash counts down as it's drawn.
+    /// </summary>
+    internal void Draw()
+    {
+        Drawn = Crew > 0 || DamageIndex > 0 || ExplosionIndex < 3;
+        Flash = !Drawn || DamageIndex == 0 ? LanderFlash.None : ShieldHit ? LanderFlash.Shield : LanderFlash.Damage;
+        if (Flash != LanderFlash.None)
+            DamageIndex--;
+    }
+
+    /// <summary>
+    /// How the last frame drew the lander after a hit: filled with the
+    /// damage colour (DamageColorCycle at <see cref="DamageIndex"/>), or,
+    /// if a shield held, with its shield's white over it.
+    /// </summary>
+    public LanderFlash Flash { get; private set; }
+
+    /// <summary>
+    /// DeltaLanderCrew: a crew member dies, unless the lander has a shield
+    /// against it and the shield holds (95 times in 100); either way the
+    /// lander flashes.
+    /// </summary>
+    internal void Hurt(LanderDisaster disaster)
+    {
+        if (Crew < 1)
+            return;
+        var shield = disaster switch
+        {
+            LanderDisaster.Biological => LanderUpgrades.BioShield,
+            LanderDisaster.Earthquake => LanderUpgrades.QuakeShield,
+            LanderDisaster.Lightning => LanderUpgrades.LightningShield,
+            _ => LanderUpgrades.LavaShield,
+        };
+        ShieldHit = (_hold.Upgrades & shield) != 0;
+        if (!ShieldHit || _surface.Random.Next() % 100 >= 95)
+        {
+            ShieldHit = false;
+            Crew--;
+        }
+        DamageIndex = DamageCycle;
+    }
+
+    /// <summary>pickupBioNode: bio data, as much as there's room for of 50 (nothing if full).</summary>
+    internal bool PickUpBioData(int amount)
+    {
+        if (BioData >= ShipHold.MaxScrounged)
+            return false;
+        BioData += Math.Min(amount, ShipHold.MaxScrounged - BioData);
+        return true;
+    }
 
     // PlanetSide after the take-off: the crew go back to the ship with the
     // minerals by category and the bio data. A hold restored since the
