@@ -181,7 +181,7 @@ public sealed class PlayerSession
             MenuOutcome.Refused => "The world is shielded.",
             MenuOutcome.LeaveOrbit => "Leaving orbit...",
             MenuOutcome.PickingSite => $"Pick a landing site. Fuel: {OrbitMenu.LandingFuel / 100.0:0.0}",
-            // The lander itself comes later in stage 2b (items 4 and 8).
+            // The lander itself comes later in stage 2b (items 5 and 9).
             MenuOutcome.Dispatch => "The lander comes in a later step.",
             _ => "",
         };

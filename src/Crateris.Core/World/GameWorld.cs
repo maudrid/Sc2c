@@ -369,7 +369,7 @@ public sealed class GameWorld
     /// planetside map units: checks the world and the ship as DoScan does,
     /// then takes the fuel and the lander leaves with its crew. Returns why
     /// not, changing nothing, if it can't go. The surface the lander goes
-    /// down to comes in stage 2b's items 4 and 8, which call this from the
+    /// down to comes in stage 2b's items 5 and 9, which call this from the
     /// player's input; until then only the tests do.
     /// </summary>
     public DispatchRefusal Dispatch(string id, int siteX, int siteY)
