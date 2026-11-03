@@ -43,132 +43,6 @@ public enum LanderPhase
 }
 
 /// <summary>
-/// Something on the surface that the frame moves: so far the lander's
-/// bolts (an ELEMENT in UQM's display queue).
-/// </summary>
-public sealed class SurfaceElement
-{
-    public int X { get; internal set; }
-    public int Y { get; internal set; }
-
-    /// <summary>Frames left (life_span); at 0 it's removed on the next frame.</summary>
-    public int LifeSpan { get; internal set; }
-
-    /// <summary>Whether its life counts down (FINITE_LIFE).</summary>
-    public bool FiniteLife { get; init; }
-
-    /// <summary>A lander's shot (PS_HUMAN_PLAYER): it isn't stopped at the poles.</summary>
-    public bool LanderShot { get; init; }
-
-    internal Velocity Velocity;
-}
-
-/// <summary>
-/// A planet's surface while landers are on it: its random generator
-/// (TFB_Random), its landers and what's on it, in UQM's display queue
-/// order. Each frame (<see cref="Step"/>) every lander moves and fires;
-/// then each draws one random number for the hazards around it
-/// (BuildObjectList's roll, per lander as decision 3 has it; the hazards
-/// themselves are item 8); then everything on the surface moves, once.
-/// With one lander that's UQM's frame.
-/// </summary>
-public sealed class PlanetsideSurface
-{
-    private readonly List<SurfaceElement> _elements = new();
-    private readonly List<Lander> _landers = new();
-
-    public PlanetsideSurface(TfbRandom random) => Random = random;
-
-    public TfbRandom Random { get; }
-
-    /// <summary>What's on the surface, head of the queue first.</summary>
-    public IReadOnlyList<SurfaceElement> Elements => _elements;
-
-    /// <summary>The landers on the surface or coming down, in the order they came.</summary>
-    public IReadOnlyList<Lander> Landers => _landers;
-
-    /// <summary>
-    /// A ship's lander, sent out with its crew (<see cref="ShipHold.LanderLeaves"/>,
-    /// which <see cref="GameWorld.Dispatch"/> does with the fuel), comes
-    /// down at a site (planetside map units), with the ship's lander
-    /// upgrades (<see cref="Lander"/>). It starts with the next frame.
-    /// </summary>
-    public Lander Land(ShipHold hold, int siteX, int siteY)
-    {
-        if (siteX is < 0 or >= PlanetsideMap.Width || siteY is < 0 or >= PlanetsideMap.Height)
-            throw new ArgumentOutOfRangeException(nameof(siteX), $"the site ({siteX}, {siteY}) is off the map");
-        if (hold.LanderOut is null)
-            throw new InvalidOperationException("the ship hasn't sent a lander out");
-        if (_landers.Any(l => l.Hold == hold))
-            throw new InvalidOperationException("that ship's lander is already here");
-        var lander = new Lander(this, hold, siteX, siteY);
-        _landers.Add(lander);
-        return lander;
-    }
-
-    /// <summary>
-    /// One surface frame, 35 a second, with each lander's keys, all asked
-    /// for before anything moves (so a callback that throws changes nothing,
-    /// and one landing a new lander starts it next frame). A lander whose
-    /// take-off ends leaves the surface and goes back to its ship.
-    /// </summary>
-    public void Step(Func<Lander, LanderInput> keys)
-    {
-        var landers = _landers.ToArray();
-        var input = new LanderInput[landers.Length];
-        for (int i = 0; i < landers.Length; ++i)
-            input[i] = keys(landers[i]);
-        for (int i = 0; i < landers.Length; ++i)
-            landers[i].Frame(input[i]);
-        foreach (var _ in landers)
-            Random.Next();   // the hazards' roll around each lander: lava, quakes and lightning (item 8)
-        MoveElements();
-        foreach (var lander in landers)
-        {
-            if (lander.Phase != LanderPhase.Gone)
-                continue;
-            _landers.Remove(lander);
-            lander.BackAboard();
-        }
-    }
-
-    /// <summary>Puts an element at the head of the queue (InsertElement before GetHeadElement).</summary>
-    internal void AddFirst(SurfaceElement element) => _elements.Insert(0, element);
-
-    /// <summary>
-    /// BuildObjectList after the roll: each element in order is removed if
-    /// its life is over, or has its life counted down and moves by its
-    /// velocity, wrapping east and west; all but a lander's shots stop at
-    /// the poles.
-    /// </summary>
-    private void MoveElements()
-    {
-        for (int i = 0; i < _elements.Count;)
-        {
-            var e = _elements[i];
-            if (e.LifeSpan == 0)
-            {
-                _elements.RemoveAt(i);
-                continue;
-            }
-            if (e.FiniteLife)
-                e.LifeSpan--;
-            var (dx, dy) = e.Velocity.Next(1);
-            if (dx != 0 || dy != 0)
-            {
-                int x = (short)(e.X + dx), y = (short)(e.Y + dy);
-                if (!e.LanderShot)
-                    y = Math.Clamp(y, 0, PlanetsideMap.Height - 1);
-                x = x < 0 ? x + PlanetsideMap.Width : x % PlanetsideMap.Width;
-                e.X = x;
-                e.Y = y;
-            }
-            i++;
-        }
-    }
-}
-
-/// <summary>
 /// One lander's visit to a planet's surface, as UQM's PlanetSide runs it,
 /// at 35 frames a second: it comes down near the picked site facing a
 /// random way, is driven while on the ground (turning one facing every 3
@@ -207,11 +81,15 @@ public sealed class Lander
     /// </summary>
     public static readonly IReadOnlyList<int> Heights = MakeHeights();
 
+    /// <summary>NUM_TEXT_FRAMES: frames the mineral text shows for.</summary>
+    public const int TextFrames = 32;
+
     private readonly PlanetsideSurface _surface;
     private readonly ShipHold _hold;
     private readonly bool _fast, _quickShot;
+    private readonly int[] _minerals = new int[ShipHold.Categories];
     private Velocity _velocity;
-    private int _turnWait, _weaponWait, _phaseFrame;
+    private int _turnWait, _weaponWait, _phaseFrame, _lastDx, _lastDy;
 
     /// <summary>
     /// The ship's lander, out with its crew, comes down with the ship's
@@ -224,6 +102,7 @@ public sealed class Lander
         _surface = surface;
         _hold = hold;
         Crew = hold.LanderOut!.Value.Crew;
+        MineralCapacity = hold.LanderOut.Value.MineralCapacity;
         _fast = (hold.Upgrades & LanderUpgrades.Speed) != 0;
         _quickShot = (hold.Upgrades & LanderUpgrades.Shot) != 0;
         Facing = UqmMath.NormalizeFacing((int)surface.Random.Next());
@@ -248,6 +127,26 @@ public sealed class Lander
 
     /// <summary>The crew aboard.</summary>
     public int Crew { get; private set; }
+
+    /// <summary>Minerals aboard (ElementLevel), and the most it can carry (MaxElementLevel: 50, or 100 with the cargo upgrade, no more than the ship's bays have room for).</summary>
+    public int MineralMass { get; private set; }
+
+    /// <inheritdoc cref="MineralMass"/>
+    public int MineralCapacity { get; }
+
+    /// <summary>Minerals aboard by element category (ElementAmounts).</summary>
+    public IReadOnlyList<int> Minerals => _minerals;
+
+    /// <summary>Bio data aboard (BiologicalLevel), up to <see cref="ShipHold.MaxScrounged"/>.</summary>
+    public int BioData { get; private set; }
+
+    /// <summary>
+    /// The text shown after a pickup (MineralText, NumFrames): frames left,
+    /// the amount, the element (its name is the text's other lines), and
+    /// where it's drawn on the lander's view (its baseline), which moves
+    /// with the ground. Null when there's none.
+    /// </summary>
+    public MineralText? Text { get; private set; }
 
     public LanderPhase Phase { get; private set; } = LanderPhase.Landing;
 
@@ -301,13 +200,15 @@ public sealed class Lander
     /// <summary>The ship whose lander this is.</summary>
     public ShipHold Hold => _hold;
 
-    // PlanetSide after the take-off: the crew go back to the ship (cargo is
-    // item 6). A hold restored since the lander left (a save loaded) has
-    // already counted them back aboard (ShipHold.Save), so has no lander out.
+    // PlanetSide after the take-off: the crew go back to the ship with the
+    // minerals by category and the bio data. A hold restored since the
+    // lander left (a save loaded) has already counted the crew back aboard
+    // (ShipHold.Save), so has no lander out, and what it carried is lost
+    // with the surface it was picked up on.
     internal void BackAboard()
     {
         if (_hold.LanderOut is not null)
-            _hold.LanderReturns(Crew, new int[ShipHold.Categories], 0);
+            _hold.LanderReturns(Crew, _minerals, BioData);
     }
 
     // DoPlanetSide's first call: the lander sets off the way it faces.
@@ -358,7 +259,12 @@ public sealed class Lander
     {
         var (wdx, wdy) = thrust ? _velocity.Current() : ((short)0, (short)0);
         int angle = UqmMath.FacingToAngle(Facing);
-        var bolt = new SurfaceElement { X = X, Y = Y, LifeSpan = BoltLife, FiniteLife = true, LanderShot = true };
+        // The shot images follow the lander's 16 facings in its sheet.
+        var bolt = new SurfaceElement
+        {
+            Kind = SurfaceElementKind.Bolt, X = X, Y = Y, LifeSpan = BoltLife,
+            Frame = Facing + UqmMath.Facings, Owner = this,
+        };
         bolt.Velocity.SetComponents((short)(UqmMath.Cosine(angle, Velocity.WorldToVelocity(BoltSpeed)) + wdx),
             (short)(UqmMath.Sine(angle, Velocity.WorldToVelocity(BoltSpeed)) + wdy));
         _surface.AddFirst(bolt);
@@ -373,6 +279,7 @@ public sealed class Lander
         if (y < 0 || y > PlanetsideMap.Height - 1)
         {
             y = Math.Clamp(y, 0, PlanetsideMap.Height - 1);
+            dy = y - Y;
             dx = 0;
             _velocity.Zero();
         }
@@ -383,6 +290,44 @@ public sealed class Lander
             x -= PlanetsideMap.Width;
         X = x;
         Y = y;
+        _lastDx = dx;
+        _lastDy = dy;
+    }
+
+    /// <summary>
+    /// pickupMineralNode: the lander takes what it has room for of a
+    /// deposit (nothing if it's full: the deposit stays), into its element
+    /// category, and shows the amount and the element where it touched
+    /// (<paramref name="dx"/>, <paramref name="dy"/>: the deposit's contact
+    /// point from the lander's, on the view).
+    /// </summary>
+    internal bool PickUpMinerals(SurfaceElement deposit, int amount, int dx, int dy)
+    {
+        if (MineralMass >= MineralCapacity)
+            return false;
+        amount = Math.Min(amount, MineralCapacity - MineralMass);
+        MineralMass += amount;
+        _minerals[deposit.Category] += amount;
+        Text = new MineralText(TextFrames, amount, deposit.Element,
+            (PlanetsideSurface.ViewWidth >> 1) + dx, (PlanetsideSurface.ViewHeight >> 1) + dy);
+        return true;
+    }
+
+    /// <summary>pickupBioNode: bio data, as much as there's room for of 50 (nothing if full). Creatures are item 7.</summary>
+    internal bool PickUpBioData(int amount)
+    {
+        if (BioData >= ShipHold.MaxScrounged)
+            return false;
+        BioData += Math.Min(amount, ShipHold.MaxScrounged - BioData);
+        return true;
+    }
+
+    // ScrollPlanetSide's end: the mineral text counts down and moves with the ground.
+    internal void TextFrame()
+    {
+        if (Text is not { } t || t.Frames == 0)
+            return;
+        Text = t with { Frames = t.Frames - 1, X = t.X - _lastDx, Y = t.Y - _lastDy };
     }
 
     private static int[] MakeHeights()
@@ -393,3 +338,6 @@ public sealed class Lander
         return heights.ToArray();
     }
 }
+
+/// <summary>The text shown after a pickup: frames left, the amount, the element, and its baseline on the lander's view.</summary>
+public readonly record struct MineralText(int Frames, int Amount, int Element, int X, int Y);

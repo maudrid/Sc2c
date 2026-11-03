@@ -66,7 +66,8 @@ FLIGHT_LINK = ["uqm/ship.c", "uqm/ships/sis_ship/sis_ship.c",
                "uqm/globdata.c"]
 MATH_LINK = ["uqm/trans.c", "libs/math/sqrt.c", "uqm/velocity.c"]
 LANDER_LINK = ["uqm/velocity.c", "uqm/trans.c", "uqm/displist.c",
-               "uqm/globdata.c", "libs/math/sqrt.c"]   # random.c is included
+               "uqm/globdata.c", "libs/math/sqrt.c", "libs/graphics/intersec.c",
+               "libs/graphics/boxint.c", "uqm/plandata.c"]   # random.c is included
 LANDER_STUBS = os.path.join(HERE, "golden", "lander_stubs.c")
 
 
@@ -219,24 +220,34 @@ def record_flight(uqm, exe):
     return data
 
 
-def record_lander(uqm, exe):
-    """UQM's own lander on the surface, frame by frame (lander.c)."""
+def run_lander(exe, scenarios, masks=None):
+    """Runs the lander program on landings [name, seed, upgrades,
+    tectonics, weather, temperature, x, y, crew, storage, nodes, steps];
+    returns its landings with their input."""
     lines = []
-    for name, seed, upgrades, tect, weather, temp, x, y, crew, steps in LANDER_SCENARIOS:
+    for name, seed, upgrades, tect, weather, temp, x, y, crew, storage, nodes, steps in scenarios:
+        flat_nodes = " ".join(f"{t} {d} {nx} {ny}" for t, d, nx, ny in nodes)
         flat = " ".join(f"{n} {f}" for n, f in steps)
         lines.append(f"{name} {seed} {upgrades} {tect} {weather} {temp} {x} {y} "
-                     f"{crew} {len(steps)} {flat}")
-    out = subprocess.run([exe], input="\n".join(lines) + "\n",
+                     f"{crew} {storage} {len(nodes)} {flat_nodes} {len(steps)} {flat}")
+    out = subprocess.run([exe] + ([masks] if masks else []), input="\n".join(lines) + "\n",
                          capture_output=True, text=True, check=True).stdout
     landings = json.loads("[" + out.replace("}\n{", "},\n{") + "]")
-    if len(landings) != len(LANDER_SCENARIOS):
+    if len(landings) != len(scenarios):
         raise RuntimeError("the lander program lost a landing")
-    for landing, scenario in zip(landings, LANDER_SCENARIOS):
+    for landing, scenario in zip(landings, scenarios):
         landing["input"] = {"tectonics": scenario[3], "weather": scenario[4],
                             "temperature": scenario[5], "site": scenario[6:8],
-                            "crew": scenario[8], "steps": scenario[9]}
-        if not any(f[0] == "G" for f in landing["frames"]) and scenario[9][0][1] != 16:
+                            "crew": scenario[8], "storage": scenario[9],
+                            "nodes": scenario[10], "steps": scenario[11]}
+        if not any(f[0] == "G" for f in landing["frames"]) and scenario[11][0][1] != 16:
             raise RuntimeError(f"{landing['name']}: never on the ground")
+    return landings
+
+
+def record_lander(uqm, exe):
+    """UQM's own lander on the surface, frame by frame (lander.c)."""
+    landings = run_lander(exe, [[*s[:9], 500, [], s[9]] for s in LANDER_SCENARIOS])
     data = header(uqm, ["tools/extract/golden/lander.c",
                         "tools/extract/golden/lander_stubs.c",
                         "src/uqm/planets/lander.c", "src/uqm/velocity.c",
@@ -257,9 +268,105 @@ def record_lander(uqm, exe):
         "offset (landingOffset: how far above its place the lander is "
         "drawn, 0 on the ground, null if not drawn), crew aboard the "
         "lander, TFB_Random's seed after the frame, the element queue's "
-        "[x, y, life_span] in order (the lander's bolts)]. crew_left, "
-        "ship_crew and landers: after PlanetSide returns.",
+        "[x, y, life_span, playerNr] in order (the lander's bolts), the "
+        "nodes left (0), the lander's hold, the mineral text and the nodes "
+        "taken (all empty here; see lander-pickups.json)]. crew_left, ship_crew and "
+        "landers: after PlanetSide returns.",
     ])
+    data["landings"] = landings
+    return data
+
+
+def pickup_worlds():
+    """Worlds with mineral nodes only (no energy, no life), most nodes first:
+    [star, planet, moon or -1, nodes]."""
+    with open(os.path.join(REPO, "tests", "golden", "world-surfaces.json")) as f:
+        systems = json.load(f)["systems"]
+    worlds = []
+    for s, star in enumerate(systems):
+        for p, planet in enumerate(star):
+            for m, w in enumerate(planet):
+                if len(w) < 5 or not w[1] or w[4] is None:
+                    continue
+                minerals, energy, life = w[4]
+                if minerals and not energy and not life and w[3][8] != 0xFFFF:
+                    worlds.append((-len(minerals), s, p, m - 1, minerals))
+    worlds.sort()
+    return [[s, p, m, [[t, d, x, y] for x, y, t, d in minerals]]
+            for _, s, p, m, minerals in worlds]
+
+
+def pickup_nodes(seed, count, cx, cy):
+    """Mineral nodes packed round a site on the scan map: every size class
+    and many amounts and elements, from a seeded generator."""
+    import random
+    rng = random.Random(seed)
+    nodes = []
+    for _ in range(count):
+        x = (cx + rng.randint(-25, 25)) % 242
+        y = max(0, min(74, cy + rng.randint(-12, 12)))
+        nodes.append([rng.randrange(133), (rng.randint(1, 70) << 8) | rng.randint(0, 2), x, y])
+    return nodes
+
+
+def pickup_scenarios():
+    """Landings among mineral nodes: [name, seed, upgrades (1 speed, 2
+    shot, 4 cargo), tectonics, weather, temperature, site x, y, crew,
+    storage room, nodes, steps]."""
+    worlds = pickup_worlds()
+    out = []
+    for k, (s, p, m, nodes) in enumerate(worlds[:3]):
+        t, d, x, y = nodes[0]
+        out.append([f"world-{s}-{p}-{m}", 200 + k, [0, 4, 3][k], 0, 0, 0, x * 4, y * 4,
+                    50, 500, nodes, lander_script(200 + k, 1500)])
+    for k, (upgrades, storage, fire) in enumerate([(0, 500, False), (4, 500, False),
+                                                  (0, 30, False), (4, 70, False),
+                                                  (2, 500, True), (6, 500, True)]):
+        nodes = pickup_nodes(300 + k, 30, 121, 37)
+        steps = lander_script(300 + k, 1200)
+        if not fire:
+            steps = [(n, f & ~8) for n, f in steps]
+        out.append([f"packed-{k}", 300 + k, upgrades, 0, 0, 0, 484, 148, 50, storage,
+                    nodes, steps])
+    return out
+
+
+def record_lander_pickups(uqm, lander_exe, strings_exe, images_exe, package):
+    """UQM's own lander picking up mineral nodes, with the package's masks
+    of the lander and the nodes (the shapes; positions and pickups are
+    code)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp, LANDER_SHEETS)
+        landings = run_lander(lander_exe, pickup_scenarios(), masks)
+    taken = sum(len(f[11]) for l in landings for f in l["frames"])
+    if taken < 30:
+        raise RuntimeError(f"only {taken} nodes taken in the pickup landings")
+    data = header(uqm, ["tools/extract/golden/lander.c",
+                        "tools/extract/golden/lander_stubs.c",
+                        "src/uqm/planets/lander.c", "src/uqm/planets/scan.c",
+                        "src/libs/graphics/intersec.c"], [
+        "UQM 0.8.0's own lander picking up mineral nodes, recorded as "
+        "lander.json is, with the nodes put on the surface as "
+        "GeneratePlanetSide puts them and CheckObjectCollision's contacts "
+        "found by UQM's own DrawablesIntersect with the masks of "
+        "graphics.lander and graphics.miscdata from the official content "
+        f"package (SHA-256 {CONTENT_SHA256}). Positions and pickups come "
+        "from code and the masks' shapes; no content.",
+        "Landings on the three worlds with the most mineral nodes and no "
+        "energy or life (world-surfaces.json's nodes; named world-STAR-"
+        "PLANET-MOON), landing on the first node, and on nodes packed "
+        "round the site, with and without the cargo upgrade (4) and "
+        "firing, and with little storage room left.",
+        "input as in lander.json, with storage (the room left in the "
+        "storage bays) and nodes ([element, density, x, y] on the scan "
+        "map, by node number). frames as in lander.json: [phase, x, y, "
+        "facing, offset, crew, seed, moving elements [x, y, life_span, "
+        "playerNr], nodes left, hold [ElementLevel, BiologicalLevel, "
+        "ElementAmounts by category], mineral text [NumFrames, amount, "
+        "baseline x, y], taken [[scan, node]]]. After: the ship's "
+        "element_amounts, total_element_mass and total_bio_mass.",
+    ])
+    data["masks"] = {k: [m[:4] + [m[4]] for m in v] for k, v in hashes.items()}
     data["landings"] = landings
     return data
 
@@ -1052,7 +1159,16 @@ CONTACT_SHEETS = [
 ]
 
 
-def write_masks(strings_exe, images_exe, package, tmp):
+# The sheets the lander's collisions test (CheckObjectCollision): the
+# lander and its shots (LanderFrame[0]) and the nodes (MiscDataFrame), as
+# the lander program numbers them.
+LANDER_SHEETS = [
+    (0, "graphics.lander"),
+    (8, "graphics.miscdata"),
+]
+
+
+def write_masks(strings_exe, images_exe, package, tmp, sheets=None):
     """Every frame of the contact sheets as UQM loads it (_GetCelData:
     each .ani line names an image, its transparent colour and hot spot,
     and an image that doesn't load is dropped), with its collision mask
@@ -1073,7 +1189,7 @@ def write_masks(strings_exe, images_exe, package, tmp):
         with open(index_file, "wb") as f:
             f.write(z.read("uqm.rmp"))
         index = read_resource_index(strings_exe, index_file)
-        for sheet, key in CONTACT_SHEETS:
+        for sheet, key in sheets or CONTACT_SHEETS:
             ani_path = index[key][1]
             folder = ani_path.rsplit("/", 1)[0] + "/" if "/" in ani_path else ""
             frames, args = [], []
@@ -1446,7 +1562,8 @@ def main():
                               ("fonts", record_fonts(uqm, fonts, strings, args.content)),
                               ("images", record_images(uqm, images, args.content)),
                               ("binary-tables", record_binary_tables(uqm, strings, args.content)),
-                              *record_contact(uqm, systems, strings, images, args.content).items()]
+                              *record_contact(uqm, systems, strings, images, args.content).items(),
+                              ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:

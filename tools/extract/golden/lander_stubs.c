@@ -19,7 +19,6 @@ long CaptureDrawable () { return 0; }
 long CaptureStringTable () { return 0; }
 long CloneShipFragment () { return 0; }
 long CreateContextAux () { return 0; }
-long DecFrameIndex () { return 0; }
 long DestroyContext () { return 0; }
 long DestroyDrawable () { return 0; }
 long DestroyMusic () { return 0; }
@@ -32,12 +31,9 @@ long DrawLanders () { return 0; }
 long DrawPlanetSurfaceBorder () { return 0; }
 long DrawStarBackGround () { return 0; }
 long DrawStorageBays () { return 0; }
-long DrawablesIntersect () { return 0; }
 long FindMasterShip () { return 0; }
 long GetContextClipRect () { return 0; }
-long GetFrameParentDrawable () { return 0; }
 long GetFrameRect () { return 0; }
-long GetStringAddress () { return 0; }
 long InitGroupInfo () { return 0; }
 long InitPlanetInfo () { return 0; }
 long InitSISContexts () { return 0; }
@@ -50,7 +46,6 @@ long ReleaseStringTable () { return 0; }
 long RepairBackRect () { return 0; }
 long RotatePlanetSphere () { return 0; }
 long ScreenTransition () { return 0; }
-long SetAbsStringTableIndex () { return 0; }
 long SetContext () { return 0; }
 long SetContextClipRect () { return 0; }
 long SetContextFGFrame () { return 0; }
@@ -62,16 +57,13 @@ long SetTransitionSource () { return 0; }
 long UnbatchGraphics () { return 0; }
 long UninitGroupInfo () { return 0; }
 long UninitPlanetInfo () { return 0; }
-long callPickupForScanType () { return 0; }
 long font_DrawText () { return 0; }
 long free_ship () { return 0; }
 long load_orbit_theme () { return 0; }
 long load_ship () { return 0; }
 long log_add () { return 0; }
-long setNodeRetrieved () { return 0; }
 long utf8StringCopy () { return 0; }
 long utf8StringCountN () { return 0; }
 
-char CurStarDescPtr[64], Elements[4096], FlagStatFrame[64], FontGradFrame[64],
-		GameStrings[64], MiscDataFrame[64], PlanetContext[64], Screen[64],
-		TinyFont[64], master_q[256];
+char CurStarDescPtr[64], FlagStatFrame[64], FontGradFrame[64],
+		PlanetContext[64], Screen[64], TinyFont[64], master_q[256];

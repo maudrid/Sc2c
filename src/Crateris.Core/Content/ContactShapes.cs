@@ -35,6 +35,8 @@ public sealed class ContactShapes
         HyperFlagship = sheets["ship.flagship.graphics.hyperspace"];
         HyperStars = sheets["graphics.hyperstars"];
         HyperPoint = sheets["graphics.ambient"][^1];
+        Lander = sheets["graphics.lander"];
+        MiscData = sheets["graphics.miscdata"];
     }
 
     /// <summary>The resources the shapes come from.</summary>
@@ -42,6 +44,7 @@ public sealed class ContactShapes
     {
         "graphics.flagship", "graphics.planets", "graphics.orbitbackground", "graphics.stars",
         "ship.flagship.graphics.hyperspace", "graphics.hyperstars", "graphics.ambient",
+        "graphics.lander", "graphics.miscdata",
     };
 
     /// <summary>Every sheet's frames, by resource id.</summary>
@@ -54,6 +57,15 @@ public sealed class ContactShapes
     public IReadOnlyList<IntersectFrame> HyperFlagship { get; }
     public IReadOnlyList<IntersectFrame> HyperStars { get; }
     public IntersectFrame HyperPoint { get; }
+
+    /// <summary>The lander's sheet (LanderFrame[0]): its 16 facings, then its shots' 16.</summary>
+    public IReadOnlyList<IntersectFrame> Lander { get; }
+
+    /// <summary>The scan dots and the nodes on the surface (MiscDataFrame).</summary>
+    public IReadOnlyList<IntersectFrame> MiscData { get; }
+
+    /// <summary>The frames of MiscDataFrame the mineral nodes on the surface are drawn and touched with: from NUM_SCANDOT_TRANSITIONS * 2, five a category.</summary>
+    public const int FirstMineralFrame = 4 * 2, MineralFramesPerCategory = 5;
 
     /// <summary>Reads the shapes; anything wrong with them is a <see cref="ContentPackageException"/>.</summary>
     public static ContactShapes Load(ContentPackage package) => Load(new AnimationSheets(package));
@@ -101,6 +113,9 @@ public sealed class ContactShapes
         Need("graphics.hyperstars", shapes.HyperStars, Enum.GetValues<Data.StarSize>().Length * Data.Star.StarColors);
         Need("graphics.stars", new[] { shapes.IpPoint }, 1);
         Need("graphics.ambient", new[] { shapes.HyperPoint }, 1);
+        Need("graphics.lander", shapes.Lander, 2 * Uqm.UqmMath.Facings);
+        Need("graphics.miscdata", shapes.MiscData, 0, Enumerable.Range(FirstMineralFrame,
+            Data.PlanetTypes.ElementCategoryNames.Count * MineralFramesPerCategory).ToArray());
         return shapes;
     }
 
