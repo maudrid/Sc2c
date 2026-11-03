@@ -8,6 +8,7 @@
 
 using Crateris.Core.Content;
 using Crateris.Core.Hyperspace;
+using Crateris.Core.Net;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
 
@@ -119,6 +120,38 @@ public sealed class PlayerSession
     /// held are ignored. Logs each ship's activity when it changes, and
     /// keeps the orbit menu and star entries up to date.
     /// </summary>
+    /// <summary>
+    /// A snapshot message from the host (<see cref="SnapshotReceiver"/>):
+    /// observed once decoded. A delta from a snapshot not kept here is
+    /// dropped; the host's next one is from a snapshot this guest has said
+    /// it has. Bad data is refused with <see cref="InvalidDataException"/>.
+    /// </summary>
+    public void ReceiveSnapshot(ReadOnlySpan<byte> data)
+    {
+        var (_, baseFrame) = SnapshotCodec.Peek(data);
+        if (_snapshots.Receive(data) is { } snapshot)
+        {
+            if (baseFrame is null)
+                SnapshotsFull++;
+            else
+                SnapshotsDelta++;
+            Observe(snapshot);
+        }
+        else
+            SnapshotsWithoutBase++;
+    }
+
+    /// <summary>Snapshot messages received in full, as deltas, and as deltas from a snapshot not kept (dropped).</summary>
+    public int SnapshotsFull { get; private set; }
+
+    /// <inheritdoc cref="SnapshotsFull"/>
+    public int SnapshotsDelta { get; private set; }
+
+    /// <inheritdoc cref="SnapshotsFull"/>
+    public int SnapshotsWithoutBase { get; private set; }
+
+    private readonly SnapshotReceiver _snapshots = new();
+
     public void Observe(WorldSnapshot snapshot)
     {
         if (Snapshot != null && snapshot.Frame <= Snapshot.Frame)

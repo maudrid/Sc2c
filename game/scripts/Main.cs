@@ -402,8 +402,21 @@ public partial class Main : Node2D
         _player?.Notify(_welcome.Message);
     }
 
+    private int _badSnapshots;
+
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
-    private void ReceiveSnapshot(byte[] data) => _player?.Observe(Protocol.Decode<WorldSnapshot>(data));
+    private void ReceiveSnapshot(byte[] data)
+    {
+        try
+        {
+            _player?.ReceiveSnapshot(data);
+        }
+        catch (InvalidDataException e)
+        {
+            _badSnapshots++;
+            GD.PushWarning($"Dropped a bad snapshot: {e.Message}");
+        }
+    }
 
     private void Fail(string message)
     {
@@ -435,8 +448,12 @@ public partial class Main : Node2D
             {
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
+                // Each guest gets its own: a delta from what it has, or in full.
                 if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
-                    Rpc(MethodName.ReceiveSnapshot, Protocol.Encode(snapshot));
+                {
+                    foreach (long peer in _host.GuestPeers)
+                        RpcId(peer, MethodName.ReceiveSnapshot, _host.SnapshotFor(peer));
+                }
             }
             else if (_connected && _player.Snapshot is { } snap)
             {
@@ -584,6 +601,13 @@ public partial class Main : Node2D
                 notice = _player?.Notice ?? "",
                 log = _log,
                 snapshot = _player?.Snapshot,
+                snapshots = new
+                {
+                    full = _player?.SnapshotsFull ?? 0,
+                    deltas = _player?.SnapshotsDelta ?? 0,
+                    without_base = _player?.SnapshotsWithoutBase ?? 0,
+                    bad = _badSnapshots,
+                },
             };
             File.WriteAllText(_options.ReportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }

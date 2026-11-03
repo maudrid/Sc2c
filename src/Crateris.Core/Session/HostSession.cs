@@ -25,6 +25,7 @@ namespace Crateris.Core.Session;
 public sealed class HostSession
 {
     private readonly Dictionary<long, string> _peers = new();
+    private readonly SnapshotSender _snapshots = new();
 
     private HostSession(GameWorld world) => World = world;
 
@@ -35,6 +36,9 @@ public sealed class HostSession
 
     /// <summary>Guests in the game, by peer.</summary>
     public int Guests => _peers.Count;
+
+    /// <summary>The peers of the guests in the game, who are sent snapshots.</summary>
+    public IEnumerable<long> GuestPeers => _peers.Keys;
 
     /// <summary>Whether a peer has a player in the game (a refused hello from it mustn't close its connection).</summary>
     public bool InGame(long peer) => _peers.ContainsKey(peer);
@@ -111,15 +115,25 @@ public sealed class HostSession
             ? $"{name} ({playerId}): {result}"
             : $"{name} ({playerId}): {result}, peer {peer} is already {already}");
         if (Protocol.Accepted(result))
+        {
             _peers[peer] = playerId;
+            _snapshots.Forget(peer);   // a new guest starts from a full snapshot
+        }
         return new Protocol.Welcome(result, answered, World.Settings.InputDelayFrames, message);
     }
 
-    /// <summary>A guest's input for a frame (only the four input bits count).</summary>
+    /// <summary>
+    /// A guest's input for a frame (only the four input bits count). It's
+    /// stamped for the newest snapshot the guest has plus the input delay,
+    /// so it also says which snapshot the guest has.
+    /// </summary>
     public void GuestInput(long peer, long frame, int input)
     {
         if (_peers.TryGetValue(peer, out var id))
+        {
             World.SubmitInput(id, frame, (ShipInput)(input & 15));
+            _snapshots.Acknowledge(peer, frame - World.Settings.InputDelayFrames);
+        }
     }
 
     public void GuestUndockShown(long peer)
@@ -131,6 +145,7 @@ public sealed class HostSession
     /// <summary>A guest's connection has gone: it leaves the game (its ship is kept for its return).</summary>
     public void GuestLeft(long peer)
     {
+        _snapshots.Forget(peer);
         if (_peers.Remove(peer, out var id))
         {
             World.Leave(id);
@@ -143,6 +158,14 @@ public sealed class HostSession
     {
         World.SubmitInput(HostId, World.Frame + World.Settings.InputDelayFrames, hostInput);
         World.Step();
-        return World.Snapshot();
+        var snapshot = World.Snapshot();
+        _snapshots.Record(snapshot);
+        return snapshot;
     }
+
+    /// <summary>
+    /// The latest snapshot as the message for one guest: a delta from the
+    /// newest one it's known to have, or in full (<see cref="SnapshotSender"/>).
+    /// </summary>
+    public byte[] SnapshotFor(long peer) => _snapshots.For(peer).ToArray();
 }

@@ -36,19 +36,30 @@ Then (stage 2) a host starts in orbit round Earth's Moon, guest C joins
 and undocks in Earth's inner system, the host does an auto scan from the
 orbit menu (finding the Moon's nodes) and leaves orbit with the menu's
 Navigate, and both are in the Sol system, also in the save.
+
+Snapshots (stage 2b, item 4): guests A, B and C each got one full
+snapshot or a few, then deltas. Then guest E joins a host through a
+relay that loses a fifth of the packets each way: it joins, turns by its
+own input, sees the host fly, and rebuilds the snapshots from deltas
+with none bad.
 """
 
 import json
 import os
+import random
+import select
 import shutil
 import subprocess
 import sys
+import socket
 import tempfile
+import threading
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(REPO, "game")
 PORT = "24711"
+RELAY_PORT = "24712"
 GODOT = os.environ.get("GODOT", "godot")
 PACKAGE = "uqm-0.8.0-content.uqm"
 
@@ -89,6 +100,54 @@ def report(out, name):
 
 def ship(snapshot, pid):
     return next((s for s in snapshot["Ships"] if s["Id"] == pid), None)
+
+
+class LossyRelay:
+    """A UDP relay between guests and the host that loses a share of the
+    datagrams each way, at random (seeded): ENet's reliable messages are
+    sent again, the snapshot stream has to cope (stage 2b, item 4)."""
+
+    def __init__(self, listen_port, target_port, loss, seed=1):
+        self.target = ("127.0.0.1", int(target_port))
+        self.loss = loss
+        self.random = random.Random(seed)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(("127.0.0.1", int(listen_port)))
+        self.upstream = {}   # guest address -> socket to the host
+        self.back = {}       # socket to the host -> guest address
+        self.passed = self.dropped = 0
+        self.running = True
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.thread.start()
+
+    def forward(self, sock, data, to):
+        if self.random.random() < self.loss:
+            self.dropped += 1
+        else:
+            self.passed += 1
+            sock.sendto(data, to)
+
+    def run(self):
+        while self.running:
+            ready, _, _ = select.select([self.sock, *self.back], [], [], 0.1)
+            for s in ready:
+                data, frm = s.recvfrom(65536)
+                if s is self.sock:
+                    up = self.upstream.get(frm)
+                    if up is None:
+                        up = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                        up.bind(("127.0.0.1", 0))
+                        self.upstream[frm] = up
+                        self.back[up] = frm
+                    self.forward(up, data, self.target)
+                else:
+                    self.forward(self.sock, data, self.back[s])
+
+    def close(self):
+        self.running = False
+        self.thread.join()
+        for s in [self.sock, *self.back]:
+            s.close()
 
 
 def main():
@@ -258,6 +317,40 @@ def main():
           "D was told the host closed the game before it finished undocking")
     check(closed >= 0 and rd["status"] == "The host closed the game." and lines[-1] == lines[closed],
           "nothing happened on D after the host closed the game")
+
+    # Snapshots are deltas from what each guest has (stage 2b, item 4).
+    for name, r in (("A", ra1), ("B", rb), ("C", rc)):
+        n = r["snapshots"]
+        check(n["full"] >= 1 and n["deltas"] > 10 * n["full"] and n["bad"] == 0,
+              f"{name} got deltas after a full snapshot ({n['full']} full, {n['deltas']} deltas)")
+
+    # Through a relay that loses a fifth of the packets each way, guest E
+    # still joins, flies by its own input, and rebuilds the host's
+    # snapshots from deltas.
+    relay = LossyRelay(RELAY_PORT, PORT, 0.2)
+    host5 = start(out, "host5", "--host", "--no-upnp", "--port", PORT,
+                  "--name", "Host", "--id", "host", "--save", os.path.join(out, "save5.json"),
+                  "--script", "thrust:60,left:6,thrust:60,none:500", "--quit-after", "360")
+    time.sleep(1)
+    e = start(out, "e", "--join", f"127.0.0.1:{RELAY_PORT}", "--name", "E",
+              "--id", "guest-e", "--script", "right:12,thrust:60,none:500", "--quit-after", "240")
+    for p in (e, host5):
+        p.wait(timeout=90)
+    relay.close()
+    re_ = report(out, "e")
+    n = re_["snapshots"]
+    print(f"     relay: {relay.dropped} of {relay.dropped + relay.passed} datagrams lost; "
+          f"E: {n['full']} full, {n['deltas']} deltas, {n['without_base']} without a base, {n['bad']} bad")
+    check(relay.dropped > 50, "the relay lost packets")
+    check(re_["welcome"] == "Joined", "E joined through the lossy relay")
+    check(n["deltas"] > 100 and n["deltas"] > 10 * n["full"] and n["bad"] == 0,
+          "E rebuilt the host's snapshots from deltas")
+    # E's own ship, as the host's snapshots give it.
+    e_ship, e_host = ship(re_["snapshot"], "guest-e"), ship(re_["snapshot"], "host")
+    check(e_ship is not None and e_ship["Facing"] != 0,
+          "E turned by its own input, sent through the relay")
+    check(e_host is not None and e_host["UniverseY"] > 1450 + 20 and e_host["Facing"] != 0,
+          "E saw the host fly north and turn")
 
     print(f"\nlogs and reports in {out}")
     if failures:

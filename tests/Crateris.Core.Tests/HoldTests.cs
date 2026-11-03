@@ -146,7 +146,9 @@ public class HoldTests
         Assert.Equal((47, 1, 39, 7, hold.Upgrades), (loaded.Crew, loaded.Landers, loaded.MineralMass, loaded.BioData, loaded.Upgrades));
         Assert.Equal(hold.Minerals, loaded.Minerals);
 
-        var sent = Protocol.Decode<WorldSnapshot>(Protocol.Encode(world.Snapshot())).Ships[0].Hold!;
+        var writer = new WireWriter();
+        SnapshotCodec.Encode(writer, world.Snapshot());
+        var sent = SnapshotCodec.Decode(writer.Written).Ships[0].Hold!;
         Assert.Equal((47, 1, 500, 39, 7, hold.Upgrades), (sent.Crew, sent.Landers, sent.StorageCapacity,
             sent.MineralMass, sent.BioData, sent.Upgrades));
         Assert.Equal(hold.Minerals, sent.Minerals);

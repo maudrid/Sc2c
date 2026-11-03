@@ -290,7 +290,9 @@ public class ProtocolTests
         world.SubmitInput("g", 1, ShipInput.Thrust);
         world.Step();
         var snap = world.Snapshot();
-        var back = Crateris.Core.Net.Protocol.Decode<WorldSnapshot>(Crateris.Core.Net.Protocol.Encode(snap));
+        var writer = new Crateris.Core.Net.WireWriter();
+        Crateris.Core.Net.SnapshotCodec.Encode(writer, snap);
+        var back = Crateris.Core.Net.SnapshotCodec.Decode(writer.Written);
         Assert.Equal(snap.Frame, back.Frame);
         Assert.Equal(snap.Ships, back.Ships);
 

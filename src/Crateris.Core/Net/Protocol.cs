@@ -14,14 +14,17 @@ namespace Crateris.Core.Net;
 
 /// <summary>
 /// Messages between host and clients. They travel as Godot RPCs; the
-/// payloads that carry structure (welcome, snapshot) are JSON bytes so
-/// they can be tested here without Godot.
+/// payloads that carry structure are bytes made here, so they can be
+/// tested without Godot: the welcome as JSON, snapshots in a binary format
+/// (<see cref="SnapshotCodec"/>).
 ///
 /// Flow: a client connects and sends Hello (stable player id, name,
-/// protocol version). The host answers Welcome (or a refusal), then sends a
-/// Snapshot every frame to everyone. Clients send Input every frame for
-/// "latest snapshot frame + input delay". A client that has shown the
-/// undocking scene sends UndockShown.
+/// protocol version). The host answers Welcome (or a refusal), then sends
+/// each guest in the game a Snapshot every frame: a delta from the newest
+/// one the guest is known to have, or in full (<see cref="SnapshotSender"/>).
+/// Clients send Input every frame for "latest snapshot frame + input
+/// delay", which also tells the host which snapshot they have. A client
+/// that has shown the undocking scene sends UndockShown.
 /// </summary>
 public static class Protocol
 {
@@ -30,8 +33,9 @@ public static class Protocol
     /// 3: snapshots carry entries into stars, and an escort's entry follows
     /// its host's (only the host's is drawn).
     /// 4: snapshots carry each ship's hold (crew, landers, minerals, bio data).
+    /// 5: snapshots are binary, and deltas from what each guest has.
     /// </summary>
-    public const int Version = 4;
+    public const int Version = 5;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()
