@@ -476,6 +476,119 @@ def record_lander_creatures(uqm, lander_exe, strings_exe, images_exe, package):
     return data
 
 
+def world_nodes(star, planet, moon):
+    """A world's report and nodes from world-surfaces.json: (tectonics,
+    weather, temperature, nodes [scan, type, density, x, y], life then
+    minerals)."""
+    with open(os.path.join(REPO, "tests", "golden", "world-surfaces.json")) as f:
+        w = json.load(f)["systems"][star][planet][moon + 1]
+    report, (minerals, energy, life) = w[3], w[4]
+    if energy:
+        raise RuntimeError(f"world {star}-{planet}-{moon} has energy nodes")
+    return (report[1], report[2], report[6],
+            [[2, t, d, x, y] for x, y, t, d in life] + [[0, t, d, x, y] for x, y, t, d in minerals])
+
+
+def hazard_scenarios():
+    """Landings among hazards: [name, seed, upgrades (1 speed, 2 shot, 4
+    cargo; shields 8 biological, 16 quake, 32 lightning, 64 lava),
+    tectonics, weather, temperature, site x, y, crew, storage room, nodes,
+    steps], on real worlds with their nodes."""
+    worlds = [("shaky", 293, 1, -1), ("stormy", 212, 0, -1), ("stormy-hot", 484, 0, -1),
+              ("hot-life", 317, 4, -1), ("all-three", 240, 1, -1)]
+    out = []
+    for k, (name, s, p, m) in enumerate(worlds):
+        tect, weather, temp, nodes = world_nodes(s, p, m)
+        out.append([f"{name}-{s}-{p}-{m}", 800 + k, [0, 2, 4, 3, 1][k], tect, weather, temp,
+                    484, 148, 50, 500, nodes, lander_script(800 + k, 700)])
+    tect, weather, temp, nodes = world_nodes(240, 1, -1)
+    # Few crew among every hazard: bare, with every shield, with each one.
+    for k, (label, shields) in enumerate([("bare", 0), ("shielded", 120), ("quake-shield", 16),
+                                          ("lightning-shield", 32), ("lava-shield", 64)]):
+        out.append([f"few-crew-{label}", 900 + k, shields, tect, weather, temp,
+                    300 + 100 * k, 150, 6, 500, nodes, lander_script(900 + k, 900)])
+    # Lava and quakes round the poles (their places wrap north and south,
+    # spreading lava stops at the poles) and across the east-west edge.
+    _, _, hot, hot_nodes = world_nodes(393, 1, -1)
+    for k, (label, x, y) in enumerate([("north", 200, 0), ("south", 700, 299),
+                                       ("west-edge", 2, 150), ("east-edge", 965, 150)]):
+        out.append([f"hot-{label}", 950 + k, 0, 7, 0, hot, x, y, 50, 500, hot_nodes,
+                    [(20, 0)] + lander_script(950 + k, 500)])
+    # Milder worlds, where a lander can come back.
+    for k, (name, s, p, m, upgrades) in enumerate([("mild", 394, 0, 1, 0), ("mild", 285, 0, -1, 2),
+                                                   ("mild-shielded", 394, 0, 1, 120)]):
+        tect, weather, temp, mild = world_nodes(s, p, m)
+        out.append([f"{name}-{s}-{p}-{m}", 970 + k, upgrades, tect, weather, temp, 484, 148, 50, 500,
+                    mild, lander_script(970 + k, 500)])
+    # Hazards while the lander comes down and takes off at once.
+    out.append(["all-three-take-off", 960, 0, tect, weather, temp, 484, 148, 50, 500, nodes, [(1, 16)]])
+    return out
+
+
+def hazard_chances(exe):
+    """PlanetSide's hazard chances for every world orbited in
+    world-surfaces.json, from its report as generateOrbital leaves it:
+    [star, planet, moon, [tectonics, weather, fire]] out of 256."""
+    with open(os.path.join(REPO, "tests", "golden", "world-surfaces.json")) as f:
+        systems = json.load(f)["systems"]
+    worlds = [(s, p, m - 1, w[3]) for s, star in enumerate(systems) for p, planet in enumerate(star)
+              for m, w in enumerate(planet) if len(w) > 3 and w[1]]
+    out = subprocess.run([exe, "chances"], input="".join(f"{r[1]} {r[2]} {r[6]}\n" for *_, r in worlds),
+                         capture_output=True, text=True, check=True).stdout
+    chances = json.loads(out)
+    if len(chances) != len(worlds):
+        raise RuntimeError("the lander program lost a world's chances")
+    return [[s, p, m, c] for (s, p, m, _), c in zip(worlds, chances)]
+
+
+def record_lander_hazards(uqm, lander_exe, strings_exe, images_exe, package):
+    """UQM's own lander among quakes, lightning and lava, with the
+    package's masks; and every world's hazard chances."""
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp, HAZARD_SHEETS)
+        landings = run_lander(lander_exe, hazard_scenarios(), masks)
+    hazards = [e for l in landings for f in l["frames"] for e in f[7] if len(e) == 9]
+    for sheet, what in ((1, "quake"), (2, "lightning"), (3, "lava")):
+        if not any(e[5] == sheet for e in hazards):
+            raise RuntimeError(f"no {what} in the hazard landings")
+    if not any(l["landers"] == 0 for l in landings):
+        raise RuntimeError("no lander lost in the hazard landings")
+    data = header(uqm, ["tools/extract/golden/lander.c",
+                        "tools/extract/golden/lander_stubs.c",
+                        "src/uqm/planets/lander.c", "src/uqm/planets/scan.c",
+                        "src/libs/graphics/intersec.c"], [
+        "UQM 0.8.0's own lander among hazards, recorded as lander-creatures."
+        "json is, with PlanetSide's chances of quakes, lightning and lava "
+        "from the world's tectonics, weather and temperature "
+        "(GetHazardChance, GetThermalHazardRating), and contact found by "
+        "UQM's own DrawablesIntersect with the masks of graphics.lander, "
+        "graphics.quake, graphics.lightning, graphics.lavaspot, "
+        "graphics.miscdata, graphics.lifecan and graphics.life.0 to 25 from "
+        f"the official content package (SHA-256 {CONTENT_SHA256}). Positions "
+        "and events come from code and the masks' shapes; no content.",
+        "Landings on real worlds with their nodes (world-STAR-PLANET-MOON's "
+        "report and nodes in world-surfaces.json): the shakiest, the "
+        "stormiest, stormy and hot, hot with life, and one with all three; "
+        "on that one with 6 crew, bare, with every shield (8 biological, 16 "
+        "quake, 32 lightning, 64 lava) and with each hazard's shield alone; "
+        "on a hot world, with quakes too, at each pole and either side of "
+        "the east-west edge; on two milder worlds, without and with every "
+        "shield; and taking off at once.",
+        "input and frames as in lander-creatures.json; a hazard's element "
+        "is [x, y, life_span, playerNr, mass_points (1 a quake, 2 "
+        "lightning, 0 harmless lightning, 3 lava), sheet (1 graphics.quake, "
+        "2 graphics.lightning, 3 graphics.lavaspot), frame, facing, "
+        "turn_wait].",
+        "chances: every orbited world's [star, planet, moon (-1 the planet), "
+        "[TectonicsChance, WeatherChance, FireChance]], out of 256 a frame, "
+        "as PlanetSide sets them from the world's report.",
+    ])
+    data["masks"] = {k: [m[:4] + [m[4]] for m in v] for k, v in hashes.items()}
+    data["landings"] = landings
+    data["chances"] = hazard_chances(lander_exe)
+    return data
+
+
 def record_lander_pickups(uqm, lander_exe, strings_exe, images_exe, package):
     """UQM's own lander picking up mineral nodes, with the package's masks
     of the lander and the nodes (the shapes; positions and pickups are
@@ -1311,6 +1424,13 @@ LANDER_SHEETS = [
     (9, "graphics.lifecan"),        # a canned creature (PlanetSideFrame[0])
 ] + [(10 + n, f"graphics.life.{n}") for n in range(26)]   # load_life_form
 
+# And the hazards' sheets (LanderFrame[1] to [3]).
+HAZARD_SHEETS = LANDER_SHEETS + [
+    (1, "graphics.quake"),
+    (2, "graphics.lightning"),
+    (3, "graphics.lavaspot"),
+]
+
 
 def write_masks(strings_exe, images_exe, package, tmp, sheets=None):
     """Every frame of the contact sheets as UQM loads it (_GetCelData:
@@ -1708,7 +1828,8 @@ def main():
                               ("binary-tables", record_binary_tables(uqm, strings, args.content)),
                               *record_contact(uqm, systems, strings, images, args.content).items(),
                               ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content)),
-                              ("lander-creatures", record_lander_creatures(uqm, lander, strings, images, args.content))]
+                              ("lander-creatures", record_lander_creatures(uqm, lander, strings, images, args.content)),
+                              ("lander-hazards", record_lander_hazards(uqm, lander, strings, images, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:

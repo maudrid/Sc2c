@@ -1,7 +1,9 @@
 // Attack on Crateris
 // Copyright (C) 2026 Attack on Crateris contributors.
 // Ported from The Ur-Quan Masters 0.8.0, src/uqm/planets/lander.c
-// (BuildObjectList, CheckObjectCollision, pickupMineralNode, pickupBioNode)
+// (BuildObjectList, CheckObjectCollision, pickupMineralNode, pickupBioNode,
+// object_animation, shotCreature, AddGroundDisaster, AddLightning,
+// lightning_process)
 // and src/uqm/planets/scan.c (GeneratePlanetSide),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002.
 //
@@ -22,12 +24,13 @@ namespace Crateris.Core.Planetside;
 /// A planet's surface while landers are on it: its random generator
 /// (TFB_Random), its landers and what's on it, in UQM's display queue
 /// order. Each frame (<see cref="Step"/>) every lander moves and fires;
-/// then each draws one random number for the hazards around it
-/// (BuildObjectList's roll, per lander as decision 3 has it; the hazards
-/// themselves are item 8); then everything on the surface moves, once;
-/// then each lander on the ground picks up what it touches, and its bolts
-/// hit what they touch (CheckObjectCollision). With one lander that's
-/// UQM's frame. Creatures notice, hunt and flee the nearest lander
+/// then around each lander quakes, lightning and lava may start, by the
+/// world's chances (BuildObjectList's roll, per lander as decision 3 has
+/// it); then everything on the surface moves, once; then each lander on
+/// the ground picks up what it touches, is hurt by what it touches, and
+/// its bolts hit what they touch (CheckObjectCollision), and lightning that
+/// struck it this frame takes a crew member. With one lander that's UQM's
+/// frame. Creatures notice, hunt and flee the nearest lander
 /// (decision 2). Energy nodes are only on story worlds, whose generators
 /// give them their images; they come with those worlds in stage 3
 /// (decision 4).
@@ -60,15 +63,23 @@ public sealed class PlanetsideSurface
     /// (<paramref name="shapes"/>), so a surface with nodes must have them;
     /// <paramref name="elementCategory"/> gives an element's category
     /// (<see cref="PlanetTypes.ElementCategory"/>), <paramref name="lifeforms"/>
-    /// the creatures' kinds.
+    /// the creatures' kinds, <paramref name="hazards"/> the world's chances
+    /// of quakes, lightning and lava (none if not given); hazards need the
+    /// shapes too.
     /// </summary>
     public PlanetsideSurface(TfbRandom random, IEnumerable<SurfaceMineral>? minerals = null,
         Func<int, int>? elementCategory = null, ContactShapes? shapes = null,
-        IEnumerable<SurfaceCreature>? creatures = null, Lifeforms? lifeforms = null)
+        IEnumerable<SurfaceCreature>? creatures = null, Lifeforms? lifeforms = null,
+        HazardChances hazards = default)
     {
         Random = random;
         _shapes = shapes;
         _lifeforms = lifeforms;
+        if (hazards.Tectonics < 0 || hazards.Weather < 0 || hazards.Fire < 0)
+            throw new ArgumentOutOfRangeException(nameof(hazards), "a hazard's chance can't be negative");
+        if (hazards != HazardChances.None && shapes is null)
+            throw new ArgumentException("a surface with hazards needs the shapes");
+        Hazards = hazards;
         var nodes = (minerals ?? Array.Empty<SurfaceMineral>()).OrderByDescending(m => m.Node).ToList();
         var life = (creatures ?? Array.Empty<SurfaceCreature>()).OrderByDescending(c => c.Node).ToList();
         if (nodes.Count > 0 && (shapes is null || elementCategory is null))
@@ -125,6 +136,9 @@ public sealed class PlanetsideSurface
 
     public TfbRandom Random { get; }
 
+    /// <summary>The world's chances of quakes, lightning and lava, out of 256 a frame around each lander.</summary>
+    public HazardChances Hazards { get; }
+
     /// <summary>What's on the surface, head of the queue first.</summary>
     public IReadOnlyList<SurfaceElement> Elements => _elements;
 
@@ -176,8 +190,9 @@ public sealed class PlanetsideSurface
             landers[i].Frame(input[i]);
         foreach (var lander in landers)
         {
+            lander.Struck = false;
             if (lander.FrameDrawn)
-                Random.Next();   // the hazards' roll around each lander: lava, quakes and lightning (item 8)
+                StartHazards(lander);
         }
         MoveElements();
         foreach (var lander in landers)
@@ -192,6 +207,8 @@ public sealed class PlanetsideSurface
                     && _elements.Any(e => !e.LanderShot))
                 CheckObjectCollision(lander, null);
             lander.TextFrame();
+            if (lander.Struck)
+                lander.Hurt(LanderDisaster.Lightning);
         }
         foreach (var lander in landers)
         {
@@ -204,6 +221,117 @@ public sealed class PlanetsideSurface
 
     /// <summary>Puts an element at the head of the queue (InsertElement before GetHeadElement).</summary>
     internal void AddFirst(SurfaceElement element) => _elements.Insert(0, element);
+
+    /// <summary>
+    /// BuildObjectList's roll around a lander: one random number, whose
+    /// third byte starts a lava spot, second an earthquake and first a bolt
+    /// of lightning, each if under its chance.
+    /// </summary>
+    private void StartHazards(Lander lander)
+    {
+        uint r = Random.Next();
+        if (((r >> 16) & 0xFF) < Hazards.Fire)
+            AddGroundDisaster(SurfaceElementKind.Lava, lander);
+        if (((r >> 8) & 0xFF) < Hazards.Tectonics)
+            AddGroundDisaster(SurfaceElementKind.Quake, lander);
+        if ((r & 0xFF) < Hazards.Weather)
+            AddLightning(lander);
+    }
+
+    /// <summary>
+    /// AddGroundDisaster: a quake or a lava spot somewhere in the middle
+    /// three quarters of the lander's view each way, wrapping round the
+    /// map both ways (as UQM's place does, even north and south), at the
+    /// end of the queue. A quake shows a new frame every 3, a lava spot
+    /// every frame, heading a random way; each lasts as long as its frames.
+    /// </summary>
+    private SurfaceElement AddGroundDisaster(SurfaceElementKind kind, Lander lander)
+    {
+        uint r = Random.Next();
+        var e = new SurfaceElement
+        {
+            Kind = kind,
+            Owner = lander,
+            MassPoints = (int)(kind == SurfaceElementKind.Quake ? LanderDisaster.Earthquake : LanderDisaster.Lavaspot),
+            X = (int)((lander.X + (PlanetsideMap.Width - ViewWidth * 3 / 8) + (r & 0xFFFF) % (ViewWidth * 3 / 4))
+                % PlanetsideMap.Width),
+            Y = (int)((lander.Y + (PlanetsideMap.Height - ViewHeight * 3 / 8) + (r >> 16) % (ViewHeight * 3 / 4))
+                % PlanetsideMap.Height),
+        };
+        if (kind == SurfaceElementKind.Quake)
+        {
+            e.Sheet = SurfaceSheet.Quake;
+            e.TurnWait = 0x22;   // MAKE_BYTE (2, 2): a new frame every 3
+        }
+        else
+        {
+            e.Sheet = SurfaceSheet.Lava;
+            e.Facing = UqmMath.NormalizeFacing((int)Random.Next());
+            e.TurnWait = 0;      // a new frame every frame
+        }
+        e.LifeSpan = FramesIn(e) * ((e.TurnWait & 0xF) + 1) - 1;
+        _elements.Add(e);
+        return e;
+    }
+
+    /// <summary>
+    /// AddLightning: a bolt of lightning, harmful 1 time in 4, lasting 11
+    /// to 20 frames, somewhere on the lander's view but its 6-unit edges,
+    /// at the end of the queue.
+    /// </summary>
+    private void AddLightning(Lander lander)
+    {
+        bool harmful = Random.Next() % 100 < 25;
+        uint r = Random.Next();
+        int life = 10 + (int)((r >> 16) % 10) + 1;
+        _elements.Add(new SurfaceElement
+        {
+            Kind = SurfaceElementKind.Lightning,
+            Owner = lander,
+            MassPoints = harmful ? (int)LanderDisaster.Lightning : 0,
+            LifeSpan = life,
+            Cycle = life,
+            X = (int)((lander.X + (PlanetsideMap.Width - ((ViewWidth >> 1) - 6)) + (r & 0xFF) % (ViewWidth - 12))
+                % PlanetsideMap.Width),
+            Y = (int)((lander.Y + (PlanetsideMap.Height - ((ViewHeight >> 1) - 6)) + ((r >> 8) & 0xFF) % (ViewHeight - 12))
+                % PlanetsideMap.Height),
+            Sheet = SurfaceSheet.Lightning,
+            Frame = 0,
+        });
+    }
+
+    /// <summary>
+    /// lightning_process: each frame a bolt of lightning shows one of its
+    /// frames at random; a harmful one keeps to its lander and, while the
+    /// lander has crew, strikes it 1 time in 10 when it's on the ground
+    /// (KILL_CREW: one crew member as the frame ends, however many strike).
+    /// Lightning round a lander that has left stays where it is and strikes
+    /// nothing.
+    /// </summary>
+    private void Lightning(SurfaceElement e)
+    {
+        if ((e.TurnWait & 0xF) != 0)
+        {
+            e.TurnWait--;
+            return;
+        }
+        int frames = FramesIn(e) - ContactShapes.LightningStrikeFrames;
+        if (e.Frame >= frames)
+            e.Frame = e.Frame + 1 < FramesIn(e) ? e.Frame + 1 : 0;   // the strike's frames: never reached in UQM
+        else
+        {
+            var lander = e.Owner!;
+            if (e.MassPoints == (int)LanderDisaster.Lightning && _landers.Contains(lander))
+            {
+                if (lander.Crew > 0 && Random.Next() % 100 < 10 && lander.FramePhase == LanderPhase.Ground)
+                    lander.Struck = true;
+                e.X = lander.X;
+                e.Y = lander.Y;
+            }
+            e.Frame = (int)(Random.Next() % (uint)frames);
+        }
+        e.TurnWait += e.TurnWait >> 4;
+    }
 
     /// <summary>
     /// BuildObjectList after the roll: each element in order is removed if
@@ -223,7 +351,9 @@ public sealed class PlanetsideSurface
             }
             if (e.FiniteLife)
                 e.LifeSpan--;
-            if (e.Kind is SurfaceElementKind.Creature or SurfaceElementKind.Explosion)
+            if (e.Kind == SurfaceElementKind.Lightning)
+                Lightning(e);
+            else if (e.Kind is not (SurfaceElementKind.Bolt or SurfaceElementKind.Mineral))
                 Animate(e);
             var (dx, dy) = e.Velocity.Next(1);
             if (dx != 0 || dy != 0)
@@ -246,6 +376,9 @@ public sealed class PlanetsideSurface
         SurfaceSheet.Lander => _shapes?.Lander.Count ?? Lander.ExplosionFrame + Lander.ExplosionLife,
         SurfaceSheet.MiscData => _shapes!.MiscData.Count,
         SurfaceSheet.Canister => _shapes!.Canister.Count,
+        SurfaceSheet.Quake => _shapes!.Quake.Count,
+        SurfaceSheet.Lightning => _shapes!.Lightning.Count,
+        SurfaceSheet.Lava => _shapes!.Lava.Count,
         _ => _shapes!.Life[e.LifeKind].Count,
     };
 
@@ -255,7 +388,9 @@ public sealed class PlanetsideSurface
     /// frame); every turn_wait it shows its next frame, and on every fourth
     /// a creature still standing takes a new heading by its behaviour, from
     /// the nearest lander (decision 2). An explosion shows its frames and
-    /// moves its lander's explosion on.
+    /// moves its lander's explosion on. A quake and a lava spot show their
+    /// frames; as a lava spot shows its fifth, it spreads 9 times in 10: a
+    /// new spot 4 units on its way, heading up to a facing either side.
     /// </summary>
     private void Animate(SurfaceElement e)
     {
@@ -289,6 +424,10 @@ public sealed class PlanetsideSurface
                 e.Frame = e.Frame > 0 ? e.Frame - 1 : FramesIn(e) - 1;   // the last frame is drawn twice
             return;
         }
+        if (e.Kind == SurfaceElementKind.Lava && frameIndex == 5 && Random.Next() % 100 < 90)
+            SpreadLava(e);
+        if (e.Hazard)
+            return;
         if ((frameIndex & 3) != 0 || e.HitPoints == 0)
             return;
         var kind = _lifeforms![e.MassPoints & ~SurfaceElement.Aware];
@@ -347,6 +486,22 @@ public sealed class PlanetsideSurface
     }
 
     /// <summary>
+    /// A lava spot spreading: AddGroundDisaster's spot (its random place
+    /// thrown away) put 4 units the old one's way, kept off the poles and
+    /// wrapping east and west, its heading turned by up to a facing.
+    /// </summary>
+    private void SpreadLava(SurfaceElement e)
+    {
+        var spot = AddGroundDisaster(SurfaceElementKind.Lava, e.Owner!);
+        int angle = UqmMath.FacingToAngle(e.Facing);
+        int x = (short)(e.X + UqmMath.Cosine(angle, 4));
+        int y = (short)(e.Y + UqmMath.Sine(angle, 4));
+        spot.Y = Math.Clamp(y, 0, PlanetsideMap.Height - 1);
+        spot.X = x < 0 ? x + PlanetsideMap.Width : x % PlanetsideMap.Width;
+        spot.Facing = UqmMath.NormalizeFacing(e.Facing + (int)(Random.Next() % 3) - 1);
+    }
+
+    /// <summary>
     /// The lander a creature reacts to: in UQM the one lander, wherever
     /// it is, alive or not; here the nearest (decision 2), east and west
     /// the nearer way round, the earlier on the surface if two are as near,
@@ -395,6 +550,9 @@ public sealed class PlanetsideSurface
         SurfaceSheet.Lander => _shapes!.Lander[e.Frame],
         SurfaceSheet.MiscData => _shapes!.MiscData[e.Frame],
         SurfaceSheet.Canister => _shapes!.Canister[e.Frame],
+        SurfaceSheet.Quake => _shapes!.Quake[e.Frame],
+        SurfaceSheet.Lightning => _shapes!.Lightning[e.Frame],
+        SurfaceSheet.Lava => _shapes!.Lava[e.Frame],
         _ => _shapes!.Life[e.LifeKind][e.Frame],
     };
 
@@ -440,6 +598,11 @@ public sealed class PlanetsideSurface
             }
             if (prim.Kind == SurfaceElementKind.Explosion)
                 continue;   // a lander's own drawable; a dead lander touches nothing
+            // Lightning goes at the end of UQM's display list, before
+            // everything else in its walk, so no bolt is checked against it,
+            // and touching it does nothing.
+            if (prim.Kind == SurfaceElementKind.Lightning)
+                continue;
             // Taken this frame by another lander: it's that lander's (one
             // node, one taker). A lander can touch again what it or its
             // bolt took this frame, as UQM's one lander can.
@@ -459,6 +622,19 @@ public sealed class PlanetsideSurface
                 }
                 if (e != prim)
                     continue;
+                if (e.Hazard)
+                {
+                    // A quake or lava hurts the lander 1 time in 4 each frame
+                    // it touches it; a bolt that touches one just goes.
+                    if (bolt is null)
+                    {
+                        if (lander.Crew == 0)
+                            break;
+                        if (Random.Next() % 100 < 25)
+                            lander.Hurt((LanderDisaster)e.MassPoints);
+                    }
+                    continue;
+                }
                 int retrieved;
                 if (bolt is null)
                 {

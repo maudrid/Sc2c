@@ -13,17 +13,17 @@ namespace Crateris.Core.World;
 /// <summary>
 /// Lander upgrades and shields, each ship's own (UQM's IMPROVED_LANDER_SPEED,
 /// IMPROVED_LANDER_CARGO, IMPROVED_LANDER_SHOT and the LANDER_SHIELDS bits,
-/// one per disaster as in lander.h's order). None to start with; they come
+/// one per disaster in planets.h's order, as <see cref="Planetside.LanderDisaster"/> numbers them). None to start with; they come
 /// from the Melnorme and the Chmmr in stage 3.
 /// </summary>
 [Flags]
 public enum LanderUpgrades
 {
     None = 0,
-    /// <summary>Shield against earthquakes (1 &lt;&lt; EARTHQUAKE_DISASTER).</summary>
-    QuakeShield = 1 << 0,
     /// <summary>Shield against creatures (1 &lt;&lt; BIOLOGICAL_DISASTER).</summary>
-    BioShield = 1 << 1,
+    BioShield = 1 << 0,
+    /// <summary>Shield against earthquakes (1 &lt;&lt; EARTHQUAKE_DISASTER).</summary>
+    QuakeShield = 1 << 1,
     /// <summary>Shield against lightning (1 &lt;&lt; LIGHTNING_DISASTER).</summary>
     LightningShield = 1 << 2,
     /// <summary>Shield against lava (1 &lt;&lt; LAVASPOT_DISASTER).</summary>

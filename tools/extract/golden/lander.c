@@ -25,16 +25,24 @@
  * DrawablesIntersect can read their bounds, hot spots and masks.
  *
  * Usage: lander [MASKS]. MASKS is a folder of SHEET.INDEX.mask files
- * (as the systems program's -k), for sheet 0 graphics.lander and 8
- * graphics.miscdata, the frames CheckObjectCollision tests; needed for
- * landings with nodes.
+ * (as the systems program's -k), for sheet 0 graphics.lander, 1
+ * graphics.quake, 2 graphics.lightning, 3 graphics.lavaspot and 8
+ * graphics.miscdata (and the creatures'), the frames CheckObjectCollision
+ * tests; needed for landings with nodes or hazards.
+ *
+ * Or: lander chances, reading lines "tectonics weather temperature" and
+ * writing PlanetSide's chances out of 256 for each, [TectonicsChance,
+ * WeatherChance, FireChance] (GetHazardChance, GetThermalHazardRating).
  *
  * Input on stdin, one landing per line:
  *   name seed upgrades tectonics weather temperature x y crew storage
  *   n  scan type density x y ...  n  frames flags ...
  * seed is TFB_Random's (TFB_SeedRandom) when PlanetSide starts;
  * upgrades 1 IMPROVED_LANDER_SPEED, 2 IMPROVED_LANDER_SHOT, 4
- * IMPROVED_LANDER_CARGO, 8 the biological shield (LANDER_SHIELDS); x and y
+ * IMPROVED_LANDER_CARGO, and LANDER_SHIELDS' 8 biological, 16 quake, 32
+ * lightning, 64 lava shields; tectonics and weather the world's ratings
+ * (PlanetInfo's, 0 to 7) and temperature its SurfaceTemperature, from which
+ * PlanetSide sets the hazards' chances; x and y
  * the landing site (planetLoc, in
  * planetside map units); crew the ship's crew; storage the room left in
  * the storage bays (GetStorageBayCapacity - TotalElementMass). Then the
@@ -48,7 +56,7 @@
  * (KEY_ESCAPE). After the steps the lander takes off.
  *
  * Output: one JSON object per landing: every frame drawn on the surface
- * (each ScrollPlanetSide):
+ * (each ScrollPlanetSide, as it ends):
  *   [phase, x, y, facing, offset, crew, seed, elements, nodes, hold, text,
  *    taken, damage, explosion]
  * phase "L" landing (the second of waiting, then the descent), "G" on
@@ -58,7 +66,10 @@
  * after the frame; elements each moving element's [x, y, life_span,
  * playerNr, mass_points] for a bolt or the explosion, [x, y, scan_node,
  * playerNr, hit_points, mass_points, sheet, frame, thrust_wait, flashing
- * (STAMPFILL_PRIM)] for a creature, in the element queue's order; nodes
+ * (STAMPFILL_PRIM)] for a creature, [x, y, life_span, playerNr,
+ * mass_points, sheet, frame, facing, turn_wait] for a hazard (sheet 1 a
+ * quake, 2 lightning, mass_points 0 if harmless, 3 lava), in the element
+ * queue's order; nodes
  * how many mineral nodes are left in the queue (they don't move, so
  * aren't listed); hold the lander's
  * [ElementLevel, BiologicalLevel, ElementAmounts...]; text the mineral
@@ -586,13 +597,23 @@ peek_seed (void)
 	return seed;   /* random.c's */
 }
 
+static int frame_due;
+
+/* ScrollPlanetSide's frame ends with RedrawSurfaceScan, then a crew
+ * member lightning killed (KILL_CREW), then UnbatchGraphics: the frame is
+ * recorded there. */
 void
 RedrawSurfaceScan (const POINT *newLoc)
 {
+	if (newLoc != NULL)   /* NULL: ReturnToOrbit, not a surface frame */
+		frame_due = 1;
+}
+
+static void
+record_frame (void)
+{
 	HELEMENT h, next;
 	int first = 1, nodes = 0;
-	if (newLoc == NULL)
-		return;   /* ReturnToOrbit: not a surface frame */
 	printf ("%s\n  [\"%c\", %d, %d, %d, ", frames_out++ ? "," : "", phase,
 			curLanderLoc.x, curLanderLoc.y, GetFrameIndex (LanderFrame[0]));
 	if (lander_drawn)
@@ -607,6 +628,16 @@ RedrawSurfaceScan (const POINT *newLoc)
 		if (e->playerNr == PS_NON_PLAYER && !(e->state_flags & FINITE_LIFE)
 				&& LOBYTE (e->scan_node) == MINERAL_SCAN)
 			++nodes;   /* minerals don't move: counted, not listed */
+		else if (e->playerNr == PS_NON_PLAYER && (e->state_flags & FINITE_LIFE))
+		{	/* a quake, a bolt of lightning or a lava spot */
+			PRIMITIVE *pp = &DisplayArray[e->PrimIndex];
+			printf ("%s[%d, %d, %d, %d, %d, %d, %d, %d, %d]", first ? "" : ", ",
+					e->next.location.x, e->next.location.y, e->life_span,
+					e->playerNr, e->mass_points,
+					FRAME_SHEET (pp->Object.Stamp.frame),
+					FRAME_INDEX (pp->Object.Stamp.frame), e->facing, e->turn_wait);
+			first = 0;
+		}
 		else if (e->playerNr == PS_NON_PLAYER)
 		{	/* a creature, alive or canned */
 			PRIMITIVE *pp = &DisplayArray[e->PrimIndex];
@@ -643,6 +674,14 @@ RedrawSurfaceScan (const POINT *newLoc)
 }
 
 /* ---- Drawing ---- */
+
+void
+UnbatchGraphics (void)
+{
+	if (frame_due)
+		record_frame ();
+	frame_due = 0;
+}
 
 void
 DrawStamp (STAMP *s)
@@ -683,7 +722,11 @@ land (const char *name, DWORD seed, int upgrades, int tectonics, int weather,
 	SET_GAME_STATE (IMPROVED_LANDER_SPEED, (upgrades & 1) != 0);
 	SET_GAME_STATE (IMPROVED_LANDER_SHOT, (upgrades & 2) != 0);
 	SET_GAME_STATE (IMPROVED_LANDER_CARGO, (upgrades & 4) != 0);
-	SET_GAME_STATE (LANDER_SHIELDS, (upgrades & 8) ? 1 << BIOLOGICAL_DISASTER : 0);
+	SET_GAME_STATE (LANDER_SHIELDS,
+			((upgrades & 8) ? 1 << BIOLOGICAL_DISASTER : 0)
+			| ((upgrades & 16) ? 1 << EARTHQUAKE_DISASTER : 0)
+			| ((upgrades & 32) ? 1 << LIGHTNING_DISASTER : 0)
+			| ((upgrades & 64) ? 1 << LAVASPOT_DISASTER : 0));
 	GLOBAL_SIS (NumLanders) = 1;
 	GLOBAL_SIS (TotalElementMass) = 0;
 	GLOBAL_SIS (TotalBioMass) = 0;
@@ -695,9 +738,10 @@ land (const char *name, DWORD seed, int upgrades, int tectonics, int weather,
 	MiscDataFrame = MAKE_FRAME (SHEET_MISC, 0);
 	Elements = element_array;
 	init_display_list ();
-	if (num_nodes && !have_masks)
+	if ((num_nodes && !have_masks) || ((tectonics > 1 || weather > 1 || temp >= 100)
+			&& !(sheet_counts[1] && sheet_counts[2] && sheet_counts[3])))
 	{
-		fprintf (stderr, "%s: nodes need the masks\n", name);
+		fprintf (stderr, "%s: nodes and hazards need the masks\n", name);
 		exit (1);
 	}
 	TFB_SeedRandom (seed);   /* GeneratePlanetSide's draws come first */
@@ -733,6 +777,22 @@ main (int argc, char *argv[])
 
 	for (i = 0; i < NUM_SHEETS; ++i)
 		sheet_counts[i] = 0;
+	if (argc > 1 && strcmp (argv[1], "chances") == 0)
+	{
+		int first = 1;
+		printf ("[");
+		while (scanf ("%d %d %d", &tectonics, &weather, &temp) == 3)
+		{
+			printf ("%s[%d, %d, %d]", first ? "" : ", ",
+					GetHazardChance (EARTHQUAKE_DISASTER, tectonics),
+					GetHazardChance (LIGHTNING_DISASTER, weather),
+					GetHazardChance (LAVASPOT_DISASTER,
+					GetThermalHazardRating (temp)));
+			first = 0;
+		}
+		printf ("]\n");
+		return 0;
+	}
 	if (argc > 1)
 		load_masks (argv[1]);
 	while (scanf ("%63s %lu %d %d %d %d %d %d %d %d %d", name, &seed,

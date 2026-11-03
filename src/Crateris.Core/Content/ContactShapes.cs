@@ -38,6 +38,9 @@ public sealed class ContactShapes
         Lander = sheets["graphics.lander"];
         MiscData = sheets["graphics.miscdata"];
         Canister = sheets["graphics.lifecan"];
+        Quake = sheets["graphics.quake"];
+        Lightning = sheets["graphics.lightning"];
+        Lava = sheets["graphics.lavaspot"];
         Life = Enumerable.Range(0, LifeSheets).Select(n => sheets[$"graphics.life.{n}"]).ToArray();
     }
 
@@ -50,6 +53,7 @@ public sealed class ContactShapes
         "graphics.flagship", "graphics.planets", "graphics.orbitbackground", "graphics.stars",
         "ship.flagship.graphics.hyperspace", "graphics.hyperstars", "graphics.ambient",
         "graphics.lander", "graphics.miscdata", "graphics.lifecan",
+        "graphics.quake", "graphics.lightning", "graphics.lavaspot",
     }.Concat(Enumerable.Range(0, LifeSheets).Select(n => $"graphics.life.{n}")).ToArray();
 
     /// <summary>Every sheet's frames, by resource id.</summary>
@@ -71,6 +75,18 @@ public sealed class ContactShapes
 
     /// <summary>A canned creature (graphics.lifecan, PlanetSideFrame[0]).</summary>
     public IReadOnlyList<IntersectFrame> Canister { get; }
+
+    /// <summary>The hazards' sheets: an earthquake (LanderFrame[1]), lightning ([2]) and a lava spot ([3]).</summary>
+    public IReadOnlyList<IntersectFrame> Quake { get; }
+
+    /// <inheritdoc cref="Quake"/>
+    public IReadOnlyList<IntersectFrame> Lightning { get; }
+
+    /// <inheritdoc cref="Quake"/>
+    public IReadOnlyList<IntersectFrame> Lava { get; }
+
+    /// <summary>graphics.lightning's last frames, the strike on the ground, which UQM never shows: lightning shows one of the others at random (lightning_process).</summary>
+    public const int LightningStrikeFrames = 7;
 
     /// <summary>Each kind of creature's sheet, by kind.</summary>
     public IReadOnlyList<IReadOnlyList<IntersectFrame>> Life { get; }
@@ -131,6 +147,12 @@ public sealed class ContactShapes
         Need("graphics.lifecan", shapes.Canister, Math.Max(1, shapes.Canister.Count));
         for (int n = 0; n < LifeSheets; ++n)
             Need($"graphics.life.{n}", shapes.Life[n], Math.Max(1, shapes.Life[n].Count));
+        // Quakes and lava spots show every frame; lightning, the last seven
+        // aside, one at random, and touches nothing.
+        Need("graphics.quake", shapes.Quake, shapes.Quake.Count);
+        Need("graphics.lavaspot", shapes.Lava, shapes.Lava.Count);
+        if (shapes.Lightning.Count <= LightningStrikeFrames)
+            throw new ContentPackageException($"graphics.lightning has {shapes.Lightning.Count} frames; lightning needs more than {LightningStrikeFrames}");
         return shapes;
     }
 

@@ -21,13 +21,15 @@ namespace Crateris.Core.Tests;
 /// wrap, firing, taking off and TFB_Random's draws (tests/golden/lander.json),
 /// and picking up mineral nodes, with the bolts that destroy them, partial
 /// pickups and the cargo into the ship (lander-pickups.json, with the
-/// content's shapes).
+/// content's shapes), creatures (lander-creatures.json) and quakes,
+/// lightning and lava (lander-hazards.json).
 /// </summary>
 public class LanderTests
 {
     private static readonly JsonElement Recorded = Golden.Load("lander");
     private static readonly Lazy<JsonElement> Pickups = new(() => Golden.Load("lander-pickups"));
     private static readonly Lazy<JsonElement> Creatures = new(() => Golden.Load("lander-creatures"));
+    private static readonly Lazy<JsonElement> HazardFile = new(() => Golden.Load("lander-hazards"));
     private static readonly Lifeforms Life = Lifeforms.Load(Path.Combine(AppContext.BaseDirectory, "data"));
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));
 
@@ -42,12 +44,18 @@ public class LanderTests
         Golden.Load("lander-pickups").GetProperty("landings").EnumerateArray()
             .Select(l => new object[] { l.GetProperty("name").GetString()! });
 
+    public static IEnumerable<object[]> HazardLandings() =>
+        Golden.Load("lander-hazards").GetProperty("landings").EnumerateArray()
+            .Select(l => new object[] { l.GetProperty("name").GetString()! });
+
     private static JsonElement Landing(JsonElement file, string name) =>
         file.GetProperty("landings").EnumerateArray().Single(l => l.GetProperty("name").GetString() == name);
 
     private static LanderUpgrades Upgrades(int flags) =>
         ((flags & 1) != 0 ? LanderUpgrades.Speed : 0) | ((flags & 2) != 0 ? LanderUpgrades.Shot : 0)
-        | ((flags & 4) != 0 ? LanderUpgrades.Cargo : 0) | ((flags & 8) != 0 ? LanderUpgrades.BioShield : 0);
+        | ((flags & 4) != 0 ? LanderUpgrades.Cargo : 0) | ((flags & 8) != 0 ? LanderUpgrades.BioShield : 0)
+        | ((flags & 16) != 0 ? LanderUpgrades.QuakeShield : 0) | ((flags & 32) != 0 ? LanderUpgrades.LightningShield : 0)
+        | ((flags & 64) != 0 ? LanderUpgrades.LavaShield : 0);
 
     [Theory]
     [MemberData(nameof(Landings))]
@@ -60,6 +68,10 @@ public class LanderTests
     [ContentTheory]
     [MemberData(nameof(CreatureLandings))]
     public void EveryCreatureIsUqms(string name) => Replay(Landing(Creatures.Value, name), TestContent.Shapes);
+
+    [ContentTheory]
+    [MemberData(nameof(HazardLandings))]
+    public void EveryHazardIsUqms(string name) => Replay(Landing(HazardFile.Value, name), TestContent.Shapes);
 
     /// <summary>
     /// Replays a recorded landing frame by frame: the lander, the moving
@@ -76,8 +88,10 @@ public class LanderTests
             .Select((n, i) => new SurfaceMineral(i, n[3], n[4], n[1], n[2])).ToList();
         var creatures = placed.Where(n => n[0] == 2)
             .Select((n, i) => new SurfaceCreature(i, n[3], n[4], n[1])).ToList();
+        var chances = HazardChances.For(input.GetProperty("tectonics").GetInt32(), input.GetProperty("weather").GetInt32(),
+            input.GetProperty("temperature").GetInt32());
         var surface = new PlanetsideSurface(new TfbRandom(landing.GetProperty("seed").GetUInt32()), minerals,
-            Systems.Generator.Types.ElementCategory, shapes, creatures, Life);
+            Systems.Generator.Types.ElementCategory, shapes, creatures, Life, chances);
         // The bays' room left as recorded: one bay, the rest already full of common elements.
         int room = input.GetProperty("storage").GetInt32();
         var hold = Hold(input.GetProperty("crew").GetInt32(), Upgrades(landing.GetProperty("upgrades").GetInt32()));
@@ -109,6 +123,10 @@ public class LanderTests
             {
                 SurfaceElementKind.Bolt => $"[{e.X}, {e.Y}, {e.LifeSpan}, 0, 1]",
                 SurfaceElementKind.Explosion => $"[{e.X}, {e.Y}, {e.LifeSpan}, 0, 0]",
+                SurfaceElementKind.Quake or SurfaceElementKind.Lightning or SurfaceElementKind.Lava =>
+                    $"[{e.X}, {e.Y}, {e.LifeSpan}, 1, {e.MassPoints}, {e.Sheet switch { SurfaceSheet.Quake => 1, SurfaceSheet.Lightning => 2, _ => 3 }}, "
+                    // facing and cycle are one field in UQM's ELEMENT (a union).
+                    + $"{e.Frame}, {(e.Kind == SurfaceElementKind.Lightning ? e.Cycle : e.Facing)}, {e.TurnWait}]",
                 _ => $"[{e.X}, {e.Y}, {((e.Node + 1) << 8) | (int)e.Scan}, 1, {e.HitPoints}, {e.MassPoints}, "
                     + $"{(e.Sheet == SurfaceSheet.Canister ? 9 : 10 + e.LifeKind)}, {e.Frame}, {e.ThrustWait}, {(e.Flash is null ? 0 : 1)}]",
             });
@@ -255,9 +273,10 @@ public class LanderTests
     [ContentFact]
     public void TheLandersAndNodesShapesAreTheOnesUqmTested()
     {
-        // The recorder's masks of graphics.lander and graphics.miscdata, as
-        // CheckObjectCollision's DrawablesIntersect read them.
-        foreach (var sheet in Pickups.Value.GetProperty("masks").EnumerateObject())
+        // The recorders' masks of the lander, the nodes, the creatures and
+        // the hazards, as CheckObjectCollision's DrawablesIntersect read them.
+        foreach (var sheet in new[] { Pickups.Value, Creatures.Value, HazardFile.Value }
+                     .SelectMany(f => f.GetProperty("masks").EnumerateObject()))
         {
             var frames = TestContent.Shapes.Sheets[sheet.Name];
             var want = sheet.Value.EnumerateArray().ToList();

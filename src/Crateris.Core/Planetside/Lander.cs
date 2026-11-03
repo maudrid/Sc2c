@@ -29,7 +29,7 @@ public enum LanderInput
     TakeOff = 16,
 }
 
-/// <summary>What hurts a lander's crew: the order of UQM's disasters, as the lander's shields are numbered (LANDER_SHIELDS).</summary>
+/// <summary>What hurts a lander's crew: UQM's disasters (planets.h), each with its shield's bit (1 &lt;&lt; disaster) in LANDER_SHIELDS and <see cref="LanderUpgrades"/>.</summary>
 public enum LanderDisaster { Biological = 0, Earthquake, Lightning, Lavaspot }
 
 /// <summary>How a lander is drawn after a hit (ScrollPlanetSide).</summary>
@@ -187,6 +187,9 @@ public sealed class Lander
     /// <summary>Whether the lander was drawn in the last frame: alive, still flashing, or early in its explosion.</summary>
     public bool Drawn { get; private set; } = true;
 
+    /// <summary>Whether lightning struck it this frame (KILL_CREW): it's hurt as the frame ends.</summary>
+    internal bool Struck { get; set; }
+
     /// <summary>Whether the last frame was one (a lost lander's last call has no frame: it's given up).</summary>
     internal bool FrameDrawn { get; private set; }
 
@@ -286,14 +289,7 @@ public sealed class Lander
     {
         if (Crew < 1)
             return;
-        var shield = disaster switch
-        {
-            LanderDisaster.Biological => LanderUpgrades.BioShield,
-            LanderDisaster.Earthquake => LanderUpgrades.QuakeShield,
-            LanderDisaster.Lightning => LanderUpgrades.LightningShield,
-            _ => LanderUpgrades.LavaShield,
-        };
-        ShieldHit = (_hold.Upgrades & shield) != 0;
+        ShieldHit = ((int)_hold.Upgrades & (1 << (int)disaster)) != 0;
         if (!ShieldHit || _surface.Random.Next() % 100 >= 95)
         {
             ShieldHit = false;

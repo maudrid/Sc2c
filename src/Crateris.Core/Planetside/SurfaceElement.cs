@@ -25,6 +25,12 @@ public enum SurfaceElementKind
     Creature,
     /// <summary>A lander blowing up (PS_HUMAN_PLAYER, FINITE_LIFE, mass_points DEATH_EXPLOSION).</summary>
     Explosion,
+    /// <summary>An earthquake (PS_NON_PLAYER, FINITE_LIFE, mass_points EARTHQUAKE_DISASTER).</summary>
+    Quake,
+    /// <summary>A bolt of lightning (FINITE_LIFE, mass_points LIGHTNING_DISASTER, or 0 if harmless).</summary>
+    Lightning,
+    /// <summary>A lava spot (FINITE_LIFE, mass_points LAVASPOT_DISASTER).</summary>
+    Lava,
 }
 
 /// <summary>The sheet a surface element is drawn and touched with.</summary>
@@ -38,6 +44,12 @@ public enum SurfaceSheet
     Canister,
     /// <summary>graphics.life.N (load_life_form): a creature of kind N.</summary>
     Life,
+    /// <summary>graphics.quake (LanderFrame[1]).</summary>
+    Quake,
+    /// <summary>graphics.lightning (LanderFrame[2]).</summary>
+    Lightning,
+    /// <summary>graphics.lavaspot (LanderFrame[3]).</summary>
+    Lava,
 }
 
 /// <summary>
@@ -59,7 +71,10 @@ public sealed class SurfaceElement
     public int LifeSpan { get; internal set; }
 
     /// <summary>Whether its life counts down (FINITE_LIFE).</summary>
-    public bool FiniteLife => Kind is SurfaceElementKind.Bolt or SurfaceElementKind.Explosion;
+    public bool FiniteLife => Kind is not (SurfaceElementKind.Mineral or SurfaceElementKind.Creature);
+
+    /// <summary>A quake, lightning or lava.</summary>
+    public bool Hazard => Kind is SurfaceElementKind.Quake or SurfaceElementKind.Lightning or SurfaceElementKind.Lava;
 
     /// <summary>A lander's (PS_HUMAN_PLAYER): it isn't stopped at the poles, and can't be picked up.</summary>
     public bool LanderShot => Kind is SurfaceElementKind.Bolt or SurfaceElementKind.Explosion;
@@ -90,7 +105,9 @@ public sealed class SurfaceElement
 
     /// <summary>
     /// A creature's mass_points: its kind, with <see cref="Aware"/> once it
-    /// has noticed a lander; once canned, its bio value instead.
+    /// has noticed a lander; once canned, its bio value instead. A
+    /// hazard's: its disaster (<see cref="LanderDisaster"/>), 0 for
+    /// harmless lightning.
     /// </summary>
     public int MassPoints { get; internal set; }
 
@@ -112,6 +129,16 @@ public sealed class SurfaceElement
     /// </summary>
     public int? Flash { get; internal set; }
 
+    /// <summary>A lava spot's heading, 0 to 15 (facing): where it spreads.</summary>
+    public int Facing { get; internal set; }
+
+    /// <summary>A bolt of lightning's life at the start (cycle): its colour fades as it goes.</summary>
+    public int Cycle { get; init; }
+
+    /// <summary>
+    /// The lander a bolt or an explosion is, or the lander a hazard came
+    /// round (decision 3): harmful lightning keeps to it and strikes it.
+    /// </summary>
     internal Lander? Owner { get; init; }
 
     /// <summary>The lander that took it (or whose bolt did), when <see cref="Disappearing"/>.</summary>

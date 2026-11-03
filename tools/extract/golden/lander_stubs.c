@@ -54,7 +54,6 @@ long SetContextForeGroundColor () { return 0; }
 long SetMenuSounds () { return 0; }
 long SetRaceAllied () { return 0; }
 long SetTransitionSource () { return 0; }
-long UnbatchGraphics () { return 0; }
 long UninitGroupInfo () { return 0; }
 long UninitPlanetInfo () { return 0; }
 long font_DrawText () { return 0; }
