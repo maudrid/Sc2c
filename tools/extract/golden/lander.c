@@ -12,8 +12,9 @@
  * Built by tools/extract/golden_uqm.py against the UQM 0.8.0 source. It
  * includes lander.c and runs its PlanetSide as UQM does: the warm-up, the
  * launch, InitPlanetSide's jitter, the landing, DoPlanetSide's frames
- * under DoInput, the take-off. Linked with UQM's real velocity.c,
- * trans.c, random.c (TFB_Random) and displist.c (the element queue);
+ * under DoInput, the take-off. Includes UQM's random.c (TFB_Random), so
+ * its seed can be read without reseeding; linked with UQM's real
+ * velocity.c, trans.c and displist.c (the element queue);
  * AllocElement and FreeElement are process.c's, copied here because
  * process.c brings the whole battle engine. Drawing, sound and the scan
  * map are stubbed; the clock is a counter that SleepThreadUntil moves on,
@@ -43,6 +44,8 @@
  */
 
 #include "uqm/planets/lander.c"
+/* random.c's own TFB_Random, in this file so its seed can be read. */
+#include "libs/math/random.c"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -263,9 +266,7 @@ static int drawn_offset, lander_drawn, frames_out;
 static DWORD
 peek_seed (void)
 {
-	DWORD s = TFB_SeedRandom (1);
-	TFB_SeedRandom (s);
-	return s;
+	return seed;   /* random.c's */
 }
 
 void
@@ -375,8 +376,13 @@ main (void)
 	while (scanf ("%63s %lu %d %d %d %d %d %d %d %d", name, &seed, &upgrades,
 			&tectonics, &weather, &temp, &x, &y, &crew, &n) == 10)
 	{
+		if (n < 0 || n > MAX_STEPS)
+		{
+			fprintf (stderr, "%s: more than %d steps\n", name, MAX_STEPS);
+			return 1;
+		}
 		num_steps = n;
-		for (i = 0; i < n && i < MAX_STEPS; ++i)
+		for (i = 0; i < n; ++i)
 		{
 			if (scanf ("%d %d", &step_frames[i], &step_flags[i]) != 2)
 				return 1;

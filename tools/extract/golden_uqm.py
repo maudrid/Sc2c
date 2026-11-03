@@ -65,8 +65,8 @@ FLIGHT_LINK = ["uqm/ship.c", "uqm/ships/sis_ship/sis_ship.c",
                "uqm/velocity.c", "uqm/trans.c", "libs/math/sqrt.c",
                "uqm/globdata.c"]
 MATH_LINK = ["uqm/trans.c", "libs/math/sqrt.c", "uqm/velocity.c"]
-LANDER_LINK = ["uqm/velocity.c", "uqm/trans.c", "libs/math/random.c",
-               "uqm/displist.c", "uqm/globdata.c", "libs/math/sqrt.c"]
+LANDER_LINK = ["uqm/velocity.c", "uqm/trans.c", "uqm/displist.c",
+               "uqm/globdata.c", "libs/math/sqrt.c"]   # random.c is included
 LANDER_STUBS = os.path.join(HERE, "golden", "lander_stubs.c")
 
 

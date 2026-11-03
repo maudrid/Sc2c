@@ -65,13 +65,17 @@ public sealed class SurfaceElement
 
 /// <summary>
 /// A planet's surface while landers are on it: its random generator
-/// (TFB_Random) and what's on it, in UQM's display queue order. Each frame
-/// draws one random number for the hazards (BuildObjectList; the hazards
-/// themselves are item 8), then moves everything on it.
+/// (TFB_Random), its landers and what's on it, in UQM's display queue
+/// order. Each frame (<see cref="Step"/>) every lander moves and fires;
+/// then each draws one random number for the hazards around it
+/// (BuildObjectList's roll, per lander as decision 3 has it; the hazards
+/// themselves are item 8); then everything on the surface moves, once.
+/// With one lander that's UQM's frame.
 /// </summary>
 public sealed class PlanetsideSurface
 {
     private readonly List<SurfaceElement> _elements = new();
+    private readonly List<Lander> _landers = new();
 
     public PlanetsideSurface(TfbRandom random) => Random = random;
 
@@ -80,18 +84,59 @@ public sealed class PlanetsideSurface
     /// <summary>What's on the surface, head of the queue first.</summary>
     public IReadOnlyList<SurfaceElement> Elements => _elements;
 
+    /// <summary>The landers on the surface or coming down, in the order they came.</summary>
+    public IReadOnlyList<Lander> Landers => _landers;
+
+    /// <summary>
+    /// A ship sends its lander down at a site (planetside map units): the
+    /// crew go aboard from the ship's hold, up to 12 (AnimateLanderWarmup),
+    /// and the lander comes down (<see cref="Lander"/>). The fuel is the
+    /// host's to take (<see cref="GameWorld.Dispatch"/>).
+    /// </summary>
+    public Lander Land(ShipHold hold, int siteX, int siteY)
+    {
+        if (siteX is < 0 or >= PlanetsideMap.Width || siteY is < 0 or >= PlanetsideMap.Height)
+            throw new ArgumentOutOfRangeException(nameof(siteX), $"the site ({siteX}, {siteY}) is off the map");
+        var lander = new Lander(this, hold, siteX, siteY);
+        _landers.Add(lander);
+        return lander;
+    }
+
+    /// <summary>
+    /// One surface frame, 35 a second, with each lander's keys. A lander
+    /// whose take-off ends goes back to its ship, with its crew, and leaves
+    /// the surface.
+    /// </summary>
+    public void Step(Func<Lander, LanderInput> keys)
+    {
+        foreach (var lander in _landers)
+            lander.Frame(keys(lander));
+        foreach (var _ in _landers)
+            Random.Next();   // the hazards' roll: lava, quakes and lightning (item 8)
+        MoveElements();
+        for (int i = 0; i < _landers.Count;)
+        {
+            if (_landers[i].Phase == LanderPhase.Gone)
+            {
+                _landers[i].BackAboard();
+                _landers.RemoveAt(i);
+            }
+            else
+                i++;
+        }
+    }
+
     /// <summary>Puts an element at the head of the queue (InsertElement before GetHeadElement).</summary>
     internal void AddFirst(SurfaceElement element) => _elements.Insert(0, element);
 
     /// <summary>
-    /// BuildObjectList: the hazard roll, then each element in order is
-    /// removed if its life is over, or has its life counted down and moves
-    /// by its velocity, wrapping east and west; all but a lander's shots
-    /// stop at the poles.
+    /// BuildObjectList after the roll: each element in order is removed if
+    /// its life is over, or has its life counted down and moves by its
+    /// velocity, wrapping east and west; all but a lander's shots stop at
+    /// the poles.
     /// </summary>
-    internal void BuildObjectList()
+    private void MoveElements()
     {
-        Random.Next();   // the hazards' roll: lava, quakes and lightning (item 8)
         for (int i = 0; i < _elements.Count;)
         {
             var e = _elements[i];
@@ -122,11 +167,13 @@ public sealed class PlanetsideSurface
 /// at 35 frames a second: it comes down near the picked site facing a
 /// random way, is driven while on the ground (turning one facing every 3
 /// frames, moving at one speed while thrust is held, firing a bolt every
-/// 15 frames, or 7 with the shot upgrade), and takes off again. The
+/// 16 frames, or 8 with the shot upgrade), and takes off again. The
 /// surface wraps east and west; at a pole the lander stops, and keeps
-/// still under thrust until it turns. Each <see cref="Step"/> is one
-/// frame. What UQM shows before the landing (the crew going aboard, the
-/// launch from the ship) takes no frames here.
+/// still under thrust until it turns. Its surface steps it
+/// (<see cref="PlanetsideSurface.Step"/>). The crew go aboard from the
+/// ship's hold as it leaves, and back when it has taken off; UQM's
+/// animations of that, and of the launch from the ship, take no frames
+/// here.
 /// </summary>
 public sealed class Lander
 {
@@ -140,7 +187,7 @@ public sealed class Lander
     public const int OffScreen = 83;
     /// <summary>SHUTTLE_TURN_WAIT: frames between turns.</summary>
     public const int TurnWait = 2;
-    /// <summary>SHUTTLE_FIRE_WAIT: frames between bolts (halved with the shot upgrade).</summary>
+    /// <summary>SHUTTLE_FIRE_WAIT: frames to wait after a bolt before the next (halved with the shot upgrade), so a bolt every 16 frames, or 8.</summary>
     public const int FireWait = 15;
     /// <summary>The lander's speed in world units, over <see cref="SpeedDenominator"/>: 16, or 28 upgraded.</summary>
     public const int Speed = 2 * 8, FastSpeed = 2 * 14, SpeedDenominator = 10;
@@ -155,24 +202,24 @@ public sealed class Lander
     public static readonly IReadOnlyList<int> Heights = MakeHeights();
 
     private readonly PlanetsideSurface _surface;
+    private readonly ShipHold _hold;
     private readonly bool _fast, _quickShot;
     private Velocity _velocity;
     private int _turnWait, _weaponWait, _phaseFrame;
 
     /// <summary>
-    /// The lander comes down: it faces a random way (PlanetSide), then lands
-    /// up to <see cref="RandomMiss"/> from the site each way, wrapping east
-    /// and west and kept off the poles (InitPlanetSide). <paramref name="crew"/>
-    /// is what it took aboard (up to 12).
+    /// The lander leaves its ship with up to 12 crew and the ship's lander
+    /// upgrades, and comes down: it faces a random way (PlanetSide), then
+    /// lands up to <see cref="RandomMiss"/> from the site each way,
+    /// wrapping east and west and kept off the poles (InitPlanetSide).
     /// </summary>
-    public Lander(PlanetsideSurface surface, int siteX, int siteY, int crew, LanderUpgrades upgrades)
+    internal Lander(PlanetsideSurface surface, ShipHold hold, int siteX, int siteY)
     {
-        if (crew is < 1 or > ShipHold.LanderCrew)
-            throw new ArgumentOutOfRangeException(nameof(crew), "a lander takes 1 to 12 crew");
         _surface = surface;
-        _fast = (upgrades & LanderUpgrades.Speed) != 0;
-        _quickShot = (upgrades & LanderUpgrades.Shot) != 0;
-        Crew = crew;
+        _hold = hold;
+        Crew = hold.LanderLeaves();
+        _fast = (hold.Upgrades & LanderUpgrades.Speed) != 0;
+        _quickShot = (hold.Upgrades & LanderUpgrades.Shot) != 0;
         Facing = UqmMath.NormalizeFacing((int)surface.Random.Next());
         int x = siteX - (RandomMiss - (int)(surface.Random.Next() % (RandomMiss << 1)));
         if (x < 0)
@@ -198,6 +245,9 @@ public sealed class Lander
 
     public LanderPhase Phase { get; private set; } = LanderPhase.Landing;
 
+    /// <summary>The phase the last frame was drawn in: a frame that lands is the landing's last, the one that ends the take-off its last.</summary>
+    public LanderPhase FramePhase { get; private set; } = LanderPhase.Landing;
+
     /// <summary>
     /// How far above its place the lander was drawn in the last frame
     /// (landingOffset, as a height): 0 on the ground, <see cref="OffScreen"/>
@@ -206,12 +256,18 @@ public sealed class Lander
     public int Height { get; private set; } = OffScreen;
 
     /// <summary>
-    /// One surface frame. Keys count only on the ground; take-off there
-    /// starts going up in the same frame (DoPlanetSide stops, and the
-    /// take-off's first frame comes in its place).
+    /// The lander's part of a surface frame: it moves and fires. Keys count
+    /// only on the ground; take-off there starts going up in the same frame
+    /// (DoPlanetSide stops, and the take-off's first frame comes in its place).
     /// </summary>
-    public void Step(LanderInput input)
+    internal void Frame(LanderInput input)
     {
+        if (Phase == LanderPhase.Ground && (input & LanderInput.TakeOff) != 0)
+        {
+            Phase = LanderPhase.TakingOff;
+            _phaseFrame = 0;
+        }
+        FramePhase = Phase;
         switch (Phase)
         {
             case LanderPhase.Landing:
@@ -223,12 +279,6 @@ public sealed class Lander
                     Land();
                 break;
             case LanderPhase.Ground:
-                if ((input & LanderInput.TakeOff) != 0)
-                {
-                    Phase = LanderPhase.TakingOff;
-                    _phaseFrame = 0;
-                    goto case LanderPhase.TakingOff;
-                }
                 Drive(input);
                 break;
             case LanderPhase.TakingOff:
@@ -241,6 +291,9 @@ public sealed class Lander
                 throw new InvalidOperationException("the lander has gone back to orbit");
         }
     }
+
+    // PlanetSide after the take-off: the crew go back to the ship (cargo is item 6).
+    internal void BackAboard() => _hold.LanderReturns(Crew, new int[ShipHold.Categories], 0);
 
     // DoPlanetSide's first call: the lander sets off the way it faces.
     private void Land()
@@ -298,7 +351,7 @@ public sealed class Lander
 
     // ScrollPlanetSide: the lander moves, stopping at a pole (where its
     // velocity is lost, and with it any move east or west), wrapping east
-    // and west; then the surface's frame.
+    // and west. The rest of the frame is the surface's (PlanetsideSurface.Step).
     private void Scroll(int dx, int dy)
     {
         int y = Y + dy;
@@ -315,7 +368,6 @@ public sealed class Lander
             x -= PlanetsideMap.Width;
         X = x;
         Y = y;
-        _surface.BuildObjectList();
     }
 
     private static int[] MakeHeights()

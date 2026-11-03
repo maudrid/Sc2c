@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using System.Text.Json;
+using Crateris.Core.Data;
 using Crateris.Core.Planetside;
 using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
@@ -39,10 +40,9 @@ public class LanderTests
         var landing = Landing(name);
         var input = landing.GetProperty("input");
         var surface = new PlanetsideSurface(new TfbRandom(landing.GetProperty("seed").GetUInt32()));
-        int shipCrew = input.GetProperty("crew").GetInt32();
+        var hold = Hold(input.GetProperty("crew").GetInt32(), Upgrades(landing.GetProperty("upgrades").GetInt32()));
         var site = input.GetProperty("site").Ints();
-        var lander = new Lander(surface, site[0], site[1], Math.Min(shipCrew, ShipHold.LanderCrew),
-            Upgrades(landing.GetProperty("upgrades").GetInt32()));
+        var lander = surface.Land(hold, site[0], site[1]);
 
         // The steps' flags, one a ground frame; then take off.
         var flags = input.GetProperty("steps").EnumerateArray()
@@ -54,18 +54,13 @@ public class LanderTests
             var keys = LanderInput.None;
             if (lander.Phase == LanderPhase.Ground)
                 keys = flags.MoveNext() ? flags.Current : LanderInput.TakeOff;
-            lander.Step(keys);
-            string phase = lander.Phase switch
+            surface.Step(_ => keys);
+            string phase = lander.FramePhase switch
             {
                 LanderPhase.Landing => "L",
                 LanderPhase.Ground => "G",
                 _ => "T",
             };
-            // The frame that lands is the last of the landing.
-            if (want[0].GetString() == "L" && lander.Phase == LanderPhase.Ground)
-                phase = "L";
-            if (want[0].GetString() == "T" && lander.Phase == LanderPhase.Gone)
-                phase = "T";
             var bolts = surface.Elements.Select(e => $"[{e.X}, {e.Y}, {e.LifeSpan}]");
             string got = $"{phase} {lander.X},{lander.Y} facing {lander.Facing} offset {-lander.Height} crew {lander.Crew} "
                 + $"seed {surface.Random.Seed} [{string.Join(", ", bolts)}]";
@@ -76,7 +71,60 @@ public class LanderTests
             frame++;
         }
         Assert.Equal(LanderPhase.Gone, lander.Phase);
+        Assert.Empty(surface.Landers);
+        // The crew went aboard from the ship and came back (AnimateLanderWarmup, PlanetSide).
         Assert.Equal(landing.GetProperty("crew_left").GetInt32(), lander.Crew);
+        Assert.Equal(landing.GetProperty("ship_crew").GetInt32(), hold.Crew);
+        Assert.Equal(landing.GetProperty("landers").GetInt32(), hold.Landers);
+        Assert.Null(hold.LanderOut);
+    }
+
+    private static ShipHold Hold(int crew, LanderUpgrades upgrades = LanderUpgrades.None) =>
+        new(new ShipLoadout(1, 1, 0, 0, crew, 0)) { Upgrades = upgrades };
+
+    [Fact]
+    public void TheCrewGoAboardFromTheShipAndComeBack()
+    {
+        var hold = Hold(5);
+        var surface = new PlanetsideSurface(new TfbRandom(3));
+        var lander = surface.Land(hold, 100, 100);
+        Assert.Equal((5, 0), (lander.Crew, hold.Crew));   // all five; the ship keeps none
+        Assert.NotNull(hold.LanderOut);
+        Assert.Throws<InvalidOperationException>(() => surface.Land(hold, 100, 100));   // one lander out at a time
+        while (lander.Phase != LanderPhase.Gone)
+            surface.Step(l => l.Phase == LanderPhase.Ground ? LanderInput.TakeOff : LanderInput.None);
+        Assert.Equal(5, hold.Crew);
+        Assert.Throws<ArgumentOutOfRangeException>(() => surface.Land(hold, PlanetsideMap.Width, 0));
+    }
+
+    [Fact]
+    public void TwoLandersShareTheSurfaceFrameWithoutDoublingIt()
+    {
+        // Each lander moves once a frame and draws its own hazard roll;
+        // what's on the surface moves once, however many landers there are.
+        var alone = new PlanetsideSurface(new TfbRandom(42));
+        var a = alone.Land(Hold(50), 300, 150);
+        var pair = new PlanetsideSurface(new TfbRandom(42));
+        var b = pair.Land(Hold(50), 300, 150);
+        var other = pair.Land(Hold(50), 600, 150);
+        static LanderInput Keys(Lander l) => l.Phase == LanderPhase.Ground ? LanderInput.Fire : LanderInput.None;
+        while (a.Phase != LanderPhase.Ground)
+        {
+            alone.Step(Keys);
+            pair.Step(Keys);
+        }
+        alone.Step(Keys);
+        pair.Step(Keys);   // one bolt each
+        var bolt = alone.Elements.Single();
+        var same = pair.Elements.Single(e => (e.LifeSpan, e.Y) == (bolt.LifeSpan, bolt.Y) && Math.Abs(e.X - b.X) < 20);
+        for (int i = 0; i < 5; ++i)
+        {
+            alone.Step(Keys);
+            pair.Step(Keys);
+        }
+        Assert.Equal(Lander.BoltLife - 6, bolt.LifeSpan);
+        Assert.Equal((bolt.LifeSpan, bolt.X - a.X, bolt.Y - a.Y), (same.LifeSpan, same.X - b.X, same.Y - b.Y));
+        Assert.Equal(2, pair.Landers.Count);
     }
 
     [Fact]
@@ -97,10 +145,10 @@ public class LanderTests
     {
         for (uint seed = 1; seed < 500; ++seed)
         {
-            var north = new Lander(new PlanetsideSurface(new TfbRandom(seed)), 0, 0, 12, LanderUpgrades.None);
+            var north = new PlanetsideSurface(new TfbRandom(seed)).Land(Hold(12), 0, 0);
             Assert.InRange(north.Y, 0, Lander.RandomMiss);
             Assert.True(north.X <= Lander.RandomMiss || north.X >= PlanetsideMap.Width - Lander.RandomMiss, $"x {north.X}");
-            var south = new Lander(new PlanetsideSurface(new TfbRandom(seed)), 0, PlanetsideMap.Height - 1, 12, LanderUpgrades.None);
+            var south = new PlanetsideSurface(new TfbRandom(seed)).Land(Hold(12), 0, PlanetsideMap.Height - 1);
             Assert.InRange(south.Y, PlanetsideMap.Height - 1 - Lander.RandomMiss, PlanetsideMap.Height - 1);
         }
         Assert.Equal(new[] { 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91 }, Lander.Heights);
