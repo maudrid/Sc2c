@@ -1236,6 +1236,31 @@ def record_planetside(uqm, systems_exe, strings_exe, images_exe=None, package=No
     return out
 
 
+def record_landing(uqm, systems_exe):
+    """For every world, DoScan's checks before dispatching the lander and
+    getLandingFuelNeeded's fuel (scan.c). Code only."""
+    out = subprocess.run([systems_exe, "landing"], capture_output=True,
+                         text=True, check=True).stdout
+    worlds = [json.loads(line) for line in out.splitlines()]
+    if not any(w[4] for w in worlds):
+        raise RuntimeError("no world the lander can go down to")
+    wrong = [w[0:3] for w in worlds if (w[3] == 0) != (w[5] < 0) or (w[4] and not w[3])]
+    if wrong:
+        raise RuntimeError(f"landing mode: inconsistent worlds {wrong[:5]}")
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "src/uqm/planets/scan.c"], [
+        "For every world, entered from a new game as orbits mode does, what "
+        "UQM 0.8.0's own DoScan (scan.c) checks of the world before it "
+        "dispatches the lander, and the fuel getLandingFuelNeeded says the "
+        "landing costs. Code only, no content.",
+        "worlds: [star, planet, moon or -1, entered (1 or 0), dispatchable "
+        "(1 if neither shielded nor a gas giant), fuel in 1/100 units "
+        "(FUEL_TANK_SCALE), -1 if not entered].",
+    ])
+    data["worlds"] = worlds
+    return data
+
+
 def record_binary_tables(uqm, exe, package):
     """Every BINTAB resource in the official content package, as UQM's own
     _GetBinaryTableData reads it. Content, so only lengths and hashes."""
@@ -1324,6 +1349,7 @@ def main():
                            ("system-sprites", record_sprites(uqm, systems)),
                            *record_planet_surfaces(uqm, systems, strings, images, args.content).items(),
                            *record_planetside(uqm, systems, strings, images, args.content).items(),
+                           ("landing", record_landing(uqm, systems)),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),

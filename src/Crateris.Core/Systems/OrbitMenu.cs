@@ -46,6 +46,10 @@ public enum MenuOutcome
     ScanSkipped,
     /// <summary>Navigate: leave orbit. The client tells the host.</summary>
     LeaveOrbit,
+    /// <summary>Dispatch lander: the landing site picker opened (<see cref="OrbitMenu.Site"/>).</summary>
+    PickingSite,
+    /// <summary>A landing site was picked: the lander goes down at <see cref="OrbitMenu.Site"/>. The client tells the host.</summary>
+    Dispatch,
 }
 
 /// <summary>
@@ -76,6 +80,7 @@ public sealed class OrbitMenu
 
     private readonly OrbitData _orbit;
     private int _cursor;
+    private LandingSite? _site;
 
     public OrbitMenu(WorldId world, OrbitData orbit)
     {
@@ -115,20 +120,50 @@ public sealed class OrbitMenu
     public bool GasGiant => _orbit.Report?.AtmoDensity == PlanetInfo.GasGiantAtmosphere;
 
     /// <summary>
+    /// The landing site, from opening the scan menu (ScanSystem puts it in
+    /// the middle of the map) until it closes; null while the scan menu is
+    /// shut, and on a world the lander can't go down to.
+    /// </summary>
+    public LandingSite? Site => _site;
+
+    /// <summary>Whether the landing site is being picked: the scan map shows the cursor and the fuel the landing costs.</summary>
+    public bool Picking { get; private set; }
+
+    /// <summary>The fuel a landing here costs, in 1/100 units (shown while picking).</summary>
+    public uint LandingFuel => _orbit.Report is { } r ? Landing.FuelNeeded(r) : 0;
+
+    /// <summary>Why Dispatch lander was last refused, for the message (<see cref="MenuOutcome.Refused"/>).</summary>
+    public DispatchRefusal LastRefusal { get; private set; }
+
+    /// <summary>
     /// Whether an entry does something in this stage. The others are
     /// shown but say they come later (<see cref="MenuOutcome.NotYet"/>).
     /// </summary>
     public static bool Available(OrbitMenuItem item) => item is not
         (OrbitMenuItem.Starmap or OrbitMenuItem.GameMenu or OrbitMenuItem.Cargo
-         or OrbitMenuItem.Devices or OrbitMenuItem.Roster or OrbitMenuItem.DispatchLander);
+         or OrbitMenuItem.Devices or OrbitMenuItem.Roster);
 
     /// <summary>
     /// One key press. <paramref name="taken"/> gives the host's current
     /// taken-node mask for a scan type of this world; it's read when a scan
-    /// starts.
+    /// starts. <paramref name="kit"/> gives the ship's fuel, landers and
+    /// crew as the host last said, for Dispatch lander's checks; without
+    /// it only the world is checked.
     /// </summary>
-    public MenuOutcome Press(MenuKey key, Func<ScanType, uint> taken)
+    public MenuOutcome Press(MenuKey key, Func<ScanType, uint> taken, Func<(uint Fuel, int Landers, int Crew)?>? kit = null)
     {
+        if (Picking)
+        {
+            // DoPickPlanetSide: select lands, cancel goes back to the scan
+            // menu with the site kept; the direction keys move the site
+            // while held (Advance), not by presses.
+            if (key is MenuKey.Select or MenuKey.Cancel)
+            {
+                Picking = false;
+                return key == MenuKey.Select ? MenuOutcome.Dispatch : MenuOutcome.Moved;
+            }
+            return MenuOutcome.None;
+        }
         if (Scan.Sweeping)
         {
             // WaitForAnyButtonUntil: any key finishes the scan being drawn.
@@ -149,14 +184,16 @@ public sealed class OrbitMenu
             case MenuKey.Cancel:
                 return Cancel();
             case MenuKey.Select:
-                return Choose(taken);
+                return Choose(taken, kit);
         }
         return MenuOutcome.None;
     }
 
-    /// <summary>Time passes (draws the scan line by line).</summary>
-    public void Advance(double seconds)
+    /// <summary>Time passes (draws the scan line by line; while picking, moves the landing site by the keys held).</summary>
+    public void Advance(double seconds, HeldKeys held = HeldKeys.None)
     {
+        if (Picking)
+            _site!.Advance(seconds, held);
         Scan.Advance(seconds);
         AfterScan();
     }
@@ -186,7 +223,7 @@ public sealed class OrbitMenu
         }
     }
 
-    private MenuOutcome Choose(Func<ScanType, uint> taken)
+    private MenuOutcome Choose(Func<ScanType, uint> taken, Func<(uint Fuel, int Landers, int Crew)?>? kit)
     {
         OrbitMenuItem item = Selected;
         switch (item)
@@ -196,6 +233,7 @@ public sealed class OrbitMenu
                 // earlier in this visit is shown again.
                 Open(MenuPage.Scan, OrbitMenuItem.AutoScan);
                 Scan.ShowFound();
+                _site = Landing.World(_orbit) == DispatchRefusal.None ? new LandingSite() : null;
                 return MenuOutcome.Moved;
             case OrbitMenuItem.Manifest:
                 Open(MenuPage.Manifest, OrbitMenuItem.Cargo);
@@ -209,9 +247,17 @@ public sealed class OrbitMenu
                 CloseScan();
                 return MenuOutcome.Moved;
             case OrbitMenuItem.DispatchLander:
-                if (Shielded || GasGiant)
+            {
+                // DoScan: the world first, then the fuel, a lander and crew.
+                LastRefusal = kit?.Invoke() is { } k
+                    ? Landing.Check(_orbit, k.Fuel, k.Landers, k.Crew)
+                    : Landing.World(_orbit);
+                if (LastRefusal != DispatchRefusal.None)
                     return MenuOutcome.Refused;
-                return MenuOutcome.NotYet;   // the lander is stage 2b
+                Picking = true;
+                _site!.BeginPick();
+                return MenuOutcome.PickingSite;
+            }
             case OrbitMenuItem.MineralScan:
             case OrbitMenuItem.EnergyScan:
             case OrbitMenuItem.BiologicalScan:
@@ -228,6 +274,7 @@ public sealed class OrbitMenu
     private void CloseScan()
     {
         Scan.Hide();
+        _site = null;
         Open(MenuPage.Orbit, OrbitMenuItem.Scan);
     }
 

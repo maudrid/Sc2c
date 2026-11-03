@@ -459,7 +459,7 @@ public partial class Main : Node2D
     {
         if (!_running)
             return;
-        _player?.Advance(delta);
+        _player?.Advance(delta, _player.Scripted || _about.Visible ? HeldKeys.None : HeldArrows());
         _orbitView.Advance(delta);
         if (_player != null)
             _orbitView.Show(_player.OrbitMenu, _player.Taken, _player.Snapshot, _player.PlayerId, _player.OrbitMessage);
@@ -515,6 +515,13 @@ public partial class Main : Node2D
         if (key is MenuKey mk)
             _player.PressMenu(mk);
     }
+
+    /// <summary>The arrow keys held, which move the landing site while it's picked.</summary>
+    private static HeldKeys HeldArrows() =>
+        (Input.IsKeyPressed(Key.Up) ? HeldKeys.Up : 0)
+        | (Input.IsKeyPressed(Key.Down) ? HeldKeys.Down : 0)
+        | (Input.IsKeyPressed(Key.Left) ? HeldKeys.Left : 0)
+        | (Input.IsKeyPressed(Key.Right) ? HeldKeys.Right : 0);
 
     /// <summary>Shows the screen the session picks, with what it holds.</summary>
     private void ShowViews(PlayerSession player)

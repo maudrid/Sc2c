@@ -1250,6 +1250,33 @@ planetside_main (int argc, char *argv[])
 	return 0;
 }
 
+/* "landing": for every world in orbits mode's order, what DoScan checks
+ * before dispatching the lander and what it costs, one line per world:
+ * [star, planet, moon or -1, entered, dispatchable, fuel]. dispatchable is
+ * DoScan's test of the world (neither PLANET_SHIELDED nor a gas giant's
+ * atmosphere); fuel is getLandingFuelNeeded, in FUEL_TANK_SCALE units, or
+ * -1 for a world whose orbit isn't entered. */
+static void
+landing_world (COUNT s, COUNT p, int m, PLANET_DESC *world)
+{
+	int entered = enter_orbit (world);
+	int dispatchable = entered
+			&& !(pSolarSysState->pOrbitalDesc->data_index & PLANET_SHIELDED)
+			&& pSolarSysState->SysInfo.PlanetInfo.AtmoDensity
+			!= GAS_GIANT_ATMOSPHERE;
+	printf ("[%u, %u, %d, %d, %d, %d]\n", s, p, m, entered, dispatchable,
+			entered ? (int) getLandingFuelNeeded () : -1);
+	pSolarSysState->InOrbit = FALSE;
+}
+
+static int
+landing_main (void)
+{
+	static const WorldWalk walk = { NULL, landing_world, NULL };
+	walk_worlds (&walk);
+	return 0;
+}
+
 /* ---- IP geometry mode: where a ship arrives in a system ---- */
 
 static int
@@ -1992,6 +2019,8 @@ main (int argc, char *argv[])
 		return planetside_main (argc - 2, argv + 2);
 	if (argc > 1 && strcmp (argv[1], "orbits") == 0)
 		return orbits_main ();
+	if (argc > 1 && strcmp (argv[1], "landing") == 0)
+		return landing_main ();
 	if (argc > 1 && strcmp (argv[1], "ip") == 0)
 		return ip_main ();
 	if (argc > 2 && strcmp (argv[1], "names") == 0)

@@ -173,16 +173,24 @@ public sealed class PlayerSession
         if (OrbitMenu == null)
             return;
         OrbitMenuItem item = OrbitMenu.Selected;
-        MenuOutcome outcome = OrbitMenu.Press(key, Taken);
+        MenuOutcome outcome = OrbitMenu.Press(key, Taken, Kit);
         OrbitMessage = outcome switch
         {
             MenuOutcome.NotYet => $"{MenuLabel(item)} comes in a later stage.",
-            MenuOutcome.Refused => OrbitMenu.Shielded ? "The world is shielded." : "The lander can't go down to a gas giant.",
+            MenuOutcome.Refused when item == OrbitMenuItem.DispatchLander => RefusalMessage(OrbitMenu.LastRefusal),
+            MenuOutcome.Refused => "The world is shielded.",
             MenuOutcome.LeaveOrbit => "Leaving orbit...",
+            MenuOutcome.PickingSite => $"Pick a landing site. Fuel: {OrbitMenu.LandingFuel / 100.0:0.0}",
+            // The lander itself comes later in stage 2b (items 4 and 8).
+            MenuOutcome.Dispatch => "The lander comes in a later step.",
             _ => "",
         };
         if (outcome == MenuOutcome.ScanStarted)
             Log($"Scan started: {item}");
+        if (outcome == MenuOutcome.PickingSite)
+            Log("Picking a landing site");
+        if (outcome == MenuOutcome.Dispatch)
+            Log($"Landing site picked: {OrbitMenu.Site!.X}, {OrbitMenu.Site.Y}");
         if (outcome == MenuOutcome.LeaveOrbit)
         {
             Log("Leaving orbit");
@@ -191,6 +199,21 @@ public sealed class PlayerSession
         // A key can finish the last scan type: log it as when it runs out.
         NoteScanEnd();
     }
+
+    /// <summary>The ship's fuel, landers and crew as the host last said, for Dispatch lander's checks.</summary>
+    private (uint Fuel, int Landers, int Crew)? Kit() =>
+        Me is { Hold: { } hold } me ? (me.Fuel, hold.Landers, hold.Crew) : null;
+
+    /// <summary>Why the lander can't go, in a message.</summary>
+    public static string RefusalMessage(DispatchRefusal refusal) => refusal switch
+    {
+        DispatchRefusal.Shielded => "The world is shielded.",
+        DispatchRefusal.GasGiant => "The lander can't go down to a gas giant.",
+        DispatchRefusal.Fuel => "Not enough fuel to land.",
+        DispatchRefusal.NoLander => "No lander aboard.",
+        DispatchRefusal.NoCrew => "No crew to send down.",
+        _ => "",
+    };
 
     /// <summary>The engine's own label for a menu item, in messages.</summary>
     public static string MenuLabel(OrbitMenuItem item) => item switch
@@ -212,13 +235,13 @@ public sealed class PlayerSession
         _ => "Exit scan",
     };
 
-    /// <summary>Local time passes: the orbit screen's scans sweep, notices run out.</summary>
-    public void Advance(double seconds)
+    /// <summary>Local time passes: the orbit screen's scans sweep, the landing site moves by the keys held, notices run out.</summary>
+    public void Advance(double seconds, HeldKeys held = HeldKeys.None)
     {
         _time += seconds;
         if (OrbitMenu == null)
             return;
-        OrbitMenu.Advance(seconds);
+        OrbitMenu.Advance(seconds, held);
         NoteScanEnd();
     }
 

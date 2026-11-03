@@ -105,7 +105,7 @@ public class OrbitMenuTests
         menu.Press(MenuKey.Select, NothingTaken);                                     // Scan
         menu.Press(MenuKey.Down, NothingTaken);
         Assert.Equal(OrbitMenuItem.DispatchLander, menu.Selected);
-        Assert.Equal(MenuOutcome.NotYet, menu.Press(MenuKey.Select, NothingTaken));   // the lander is stage 2b
+        Assert.Equal(MenuOutcome.PickingSite, menu.Press(MenuKey.Select, NothingTaken));   // the landing site picker
     }
 
     [Fact]
@@ -118,6 +118,7 @@ public class OrbitMenuTests
         Assert.False(earth.Scan.Sweeping);
         earth.Press(MenuKey.Down, NothingTaken);
         Assert.Equal(MenuOutcome.Refused, earth.Press(MenuKey.Select, NothingTaken));   // Dispatch
+        Assert.Equal(DispatchRefusal.Shielded, earth.LastRefusal);
 
         var jupiter = Orbit(Sol, 4);
         Assert.True(jupiter.GasGiant);
@@ -126,6 +127,7 @@ public class OrbitMenuTests
         jupiter.Advance(10);
         Assert.Equal(OrbitMenuItem.DispatchLander, jupiter.Selected);
         Assert.Equal(MenuOutcome.Refused, jupiter.Press(MenuKey.Select, NothingTaken));
+        Assert.Equal(DispatchRefusal.GasGiant, jupiter.LastRefusal);
     }
 
     [Fact]

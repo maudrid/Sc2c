@@ -364,6 +364,30 @@ public sealed class GameWorld
         ship.Ip.PlaceInOrbit(planet, moon);
     }
 
+    /// <summary>
+    /// Sends a player's lander down at a landing site (DispatchLander), in
+    /// planetside map units: checks the world and the ship as DoScan does,
+    /// then takes the fuel and the lander leaves with its crew. Returns why
+    /// not, changing nothing, if it can't go. The surface the lander goes
+    /// down to comes in stage 2b's items 4 and 8, which call this from the
+    /// player's input; until then only the tests do.
+    /// </summary>
+    public DispatchRefusal Dispatch(string id, int siteX, int siteY)
+    {
+        var player = Find(id) ?? throw new ArgumentException($"no player {id}");
+        if (siteX < 0 || siteX >= PlanetsideMap.Width || siteY < 0 || siteY >= PlanetsideMap.Height)
+            throw new ArgumentOutOfRangeException(nameof(siteX), $"the landing site ({siteX}, {siteY}) is off the map");
+        PlayerShip ship = player.Ship;
+        if (ship.Orbit is not { Entered: true } orbit)
+            throw new InvalidOperationException($"{id} isn't in orbit");
+        var refusal = Landing.Check(orbit, ship);
+        if (refusal != DispatchRefusal.None)
+            return refusal;
+        ship.Flight.Fuel -= Landing.FuelNeeded(orbit.Report!);
+        ship.Hold.LanderLeaves();
+        return DispatchRefusal.None;
+    }
+
     public WorldSnapshot Snapshot()
     {
         var present = _players.Where(p => p.Present).ToList();
