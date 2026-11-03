@@ -88,41 +88,47 @@ public sealed class PlanetsideSurface
     public IReadOnlyList<Lander> Landers => _landers;
 
     /// <summary>
-    /// A ship sends its lander down at a site (planetside map units): the
-    /// crew go aboard from the ship's hold, up to 12 (AnimateLanderWarmup),
-    /// and the lander comes down (<see cref="Lander"/>). The fuel is the
-    /// host's to take (<see cref="GameWorld.Dispatch"/>).
+    /// A ship's lander, sent out with its crew (<see cref="ShipHold.LanderLeaves"/>,
+    /// which <see cref="GameWorld.Dispatch"/> does with the fuel), comes
+    /// down at a site (planetside map units), with the ship's lander
+    /// upgrades (<see cref="Lander"/>). It starts with the next frame.
     /// </summary>
     public Lander Land(ShipHold hold, int siteX, int siteY)
     {
         if (siteX is < 0 or >= PlanetsideMap.Width || siteY is < 0 or >= PlanetsideMap.Height)
             throw new ArgumentOutOfRangeException(nameof(siteX), $"the site ({siteX}, {siteY}) is off the map");
+        if (hold.LanderOut is null)
+            throw new InvalidOperationException("the ship hasn't sent a lander out");
+        if (_landers.Any(l => l.Hold == hold))
+            throw new InvalidOperationException("that ship's lander is already here");
         var lander = new Lander(this, hold, siteX, siteY);
         _landers.Add(lander);
         return lander;
     }
 
     /// <summary>
-    /// One surface frame, 35 a second, with each lander's keys. A lander
-    /// whose take-off ends goes back to its ship, with its crew, and leaves
-    /// the surface.
+    /// One surface frame, 35 a second, with each lander's keys, all asked
+    /// for before anything moves (so a callback that throws changes nothing,
+    /// and one landing a new lander starts it next frame). A lander whose
+    /// take-off ends leaves the surface and goes back to its ship.
     /// </summary>
     public void Step(Func<Lander, LanderInput> keys)
     {
-        foreach (var lander in _landers)
-            lander.Frame(keys(lander));
-        foreach (var _ in _landers)
-            Random.Next();   // the hazards' roll: lava, quakes and lightning (item 8)
+        var landers = _landers.ToArray();
+        var input = new LanderInput[landers.Length];
+        for (int i = 0; i < landers.Length; ++i)
+            input[i] = keys(landers[i]);
+        for (int i = 0; i < landers.Length; ++i)
+            landers[i].Frame(input[i]);
+        foreach (var _ in landers)
+            Random.Next();   // the hazards' roll around each lander: lava, quakes and lightning (item 8)
         MoveElements();
-        for (int i = 0; i < _landers.Count;)
+        foreach (var lander in landers)
         {
-            if (_landers[i].Phase == LanderPhase.Gone)
-            {
-                _landers[i].BackAboard();
-                _landers.RemoveAt(i);
-            }
-            else
-                i++;
+            if (lander.Phase != LanderPhase.Gone)
+                continue;
+            _landers.Remove(lander);
+            lander.BackAboard();
         }
     }
 
@@ -170,10 +176,10 @@ public sealed class PlanetsideSurface
 /// 16 frames, or 8 with the shot upgrade), and takes off again. The
 /// surface wraps east and west; at a pole the lander stops, and keeps
 /// still under thrust until it turns. Its surface steps it
-/// (<see cref="PlanetsideSurface.Step"/>). The crew go aboard from the
-/// ship's hold as it leaves, and back when it has taken off; UQM's
-/// animations of that, and of the launch from the ship, take no frames
-/// here.
+/// (<see cref="PlanetsideSurface.Step"/>). It comes with the crew the ship
+/// sent out (<see cref="ShipHold.LanderLeaves"/>), who go back when it has
+/// taken off; UQM's animations of the crew boarding and of the launch from
+/// the ship take no frames here.
 /// </summary>
 public sealed class Lander
 {
@@ -208,16 +214,16 @@ public sealed class Lander
     private int _turnWait, _weaponWait, _phaseFrame;
 
     /// <summary>
-    /// The lander leaves its ship with up to 12 crew and the ship's lander
-    /// upgrades, and comes down: it faces a random way (PlanetSide), then
-    /// lands up to <see cref="RandomMiss"/> from the site each way,
-    /// wrapping east and west and kept off the poles (InitPlanetSide).
+    /// The ship's lander, out with its crew, comes down with the ship's
+    /// lander upgrades: it faces a random way (PlanetSide), then lands up to
+    /// <see cref="RandomMiss"/> from the site each way, wrapping east and
+    /// west and kept off the poles (InitPlanetSide).
     /// </summary>
     internal Lander(PlanetsideSurface surface, ShipHold hold, int siteX, int siteY)
     {
         _surface = surface;
         _hold = hold;
-        Crew = hold.LanderLeaves();
+        Crew = hold.LanderOut!.Value.Crew;
         _fast = (hold.Upgrades & LanderUpgrades.Speed) != 0;
         _quickShot = (hold.Upgrades & LanderUpgrades.Shot) != 0;
         Facing = UqmMath.NormalizeFacing((int)surface.Random.Next());
@@ -292,8 +298,17 @@ public sealed class Lander
         }
     }
 
-    // PlanetSide after the take-off: the crew go back to the ship (cargo is item 6).
-    internal void BackAboard() => _hold.LanderReturns(Crew, new int[ShipHold.Categories], 0);
+    /// <summary>The ship whose lander this is.</summary>
+    public ShipHold Hold => _hold;
+
+    // PlanetSide after the take-off: the crew go back to the ship (cargo is
+    // item 6). A hold restored since the lander left (a save loaded) has
+    // already counted them back aboard (ShipHold.Save), so has no lander out.
+    internal void BackAboard()
+    {
+        if (_hold.LanderOut is not null)
+            _hold.LanderReturns(Crew, new int[ShipHold.Categories], 0);
+    }
 
     // DoPlanetSide's first call: the lander sets off the way it faces.
     private void Land()

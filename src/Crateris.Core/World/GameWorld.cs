@@ -367,7 +367,8 @@ public sealed class GameWorld
     /// <summary>
     /// Sends a player's lander down at a landing site (DispatchLander), in
     /// planetside map units: checks the world and the ship as DoScan does,
-    /// then takes the fuel and the lander leaves with its crew. Returns why
+    /// then takes the fuel and the lander leaves with its crew, for
+    /// <see cref="Planetside.PlanetsideSurface.Land"/> to bring down. Returns why
     /// not, changing nothing, if it can't go. The surface the lander goes
     /// down to comes in stage 2b's items 5 and 9, which call this from the
     /// player's input; until then only the tests do.
