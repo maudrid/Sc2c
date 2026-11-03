@@ -26,7 +26,9 @@ namespace Crateris.Core.Planetside;
 /// themselves are item 8); then everything on the surface moves, once;
 /// then each lander on the ground picks up what it touches, and its bolts
 /// hit what they touch (CheckObjectCollision). With one lander that's
-/// UQM's frame.
+/// UQM's frame. Only mineral nodes are on it so far: energy nodes (which
+/// stop bolts in UQM, and do nothing else yet, decision 4) and creatures
+/// come with item 7.
 /// </summary>
 public sealed class PlanetsideSurface
 {
@@ -83,7 +85,12 @@ public sealed class PlanetsideSurface
     /// <summary>The landers on the surface or coming down, in the order they came.</summary>
     public IReadOnlyList<Lander> Landers => _landers;
 
-    /// <summary>The nodes taken in the last frame, in order (setNodeRetrieved): picked up, or hit by a bolt.</summary>
+    /// <summary>
+    /// The nodes taken in the last frame, in order (setNodeRetrieved):
+    /// picked up, or hit by a bolt. A node can be listed twice, as UQM
+    /// retrieves it twice, when a lander's bolt and the lander both touch
+    /// it in one frame.
+    /// </summary>
     public IReadOnlyList<(ScanType Scan, int Node)> Taken => _taken;
 
     /// <summary>
@@ -235,6 +242,11 @@ public sealed class PlanetsideSurface
                     CheckObjectCollision(lander, index);
                 continue;   // another lander's bolt: not this lander's to touch (item 9)
             }
+            // Taken this frame by another lander: it's that lander's (one
+            // node, one taker). A lander can touch again what it or its
+            // bolt took this frame, as UQM's one lander can.
+            if (prim.Disappearing && prim.TakenBy != lander)
+                continue;
             var (px, py) = ViewPlace(prim, lander);
             var control = new IntersectControl(FrameOf(prim), px, py);
             if (Intersection.DrawablesIntersect(landerControl, control, Intersection.MaxTimeValue) == 0)
@@ -244,6 +256,7 @@ public sealed class PlanetsideSurface
                 if (e == bolt)
                 {
                     e.Disappearing = true;
+                    e.TakenBy = lander;
                     continue;
                 }
                 if (e != prim)
@@ -259,6 +272,7 @@ public sealed class PlanetsideSurface
                 // The default generator's pickupMinerals keeps nothing back.
                 _taken.Add((e.Scan, e.Node));
                 e.Disappearing = true;
+                e.TakenBy = lander;
             }
         }
     }

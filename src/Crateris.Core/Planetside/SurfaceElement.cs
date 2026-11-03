@@ -70,6 +70,9 @@ public sealed class SurfaceElement
 
     internal Lander? Owner { get; init; }
 
+    /// <summary>The lander that took it (or whose bolt did), when <see cref="Disappearing"/>.</summary>
+    internal Lander? TakenBy { get; set; }
+
     internal Velocity Velocity;
 }
 

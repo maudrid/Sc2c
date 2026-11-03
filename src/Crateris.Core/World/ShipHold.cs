@@ -152,6 +152,13 @@ public sealed class ShipHold
     public (int Crew, int MineralCapacity)? LanderOut { get; private set; }
 
     /// <summary>
+    /// How many times a lander has left since the hold was made (not saved):
+    /// tells a lander's trip from a later one, after the hold is restored
+    /// from a save while the first was still down.
+    /// </summary>
+    public int LanderTrips { get; private set; }
+
+    /// <summary>
     /// A lander leaves, taking up to 12 crew (AnimateLanderWarmup). UQM
     /// dispatches one only with a lander and crew aboard (DoScan), one at a
     /// time. Returns the crew it took.
@@ -166,6 +173,7 @@ public sealed class ShipHold
             throw new InvalidOperationException("no crew to take the lander down");
         int crew = CrewForLander;
         LanderOut = (crew, LanderMineralCapacity);
+        LanderTrips++;
         Crew -= crew;
         _snapshot = null;
         return crew;

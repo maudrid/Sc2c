@@ -328,6 +328,14 @@ def pickup_scenarios():
             steps = [(n, f & ~8) for n, f in steps]
         out.append([f"packed-{k}", 300 + k, upgrades, 0, 0, 0, 484, 148, 50, storage,
                     nodes, steps])
+    # Among nodes at each pole (the text moving as the lander stops there)
+    # and across the east-west edge (contact the nearer way round).
+    for k, (name, cx, cy, sx, sy) in enumerate([("north-pole", 60, 2, 240, 0),
+                                                ("south-pole", 180, 72, 720, 299),
+                                                ("east-west", 0, 37, 4, 148),
+                                                ("west-east", 241, 37, 964, 148)]):
+        out.append([f"packed-{name}", 400 + k, [0, 4, 2, 6][k], 0, 0, 0, sx, sy, 50, 500,
+                    pickup_nodes(400 + k, 30, cx, cy), lander_script(400 + k, 900)])
     return out
 
 

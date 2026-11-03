@@ -89,7 +89,7 @@ public sealed class Lander
     private readonly bool _fast, _quickShot;
     private readonly int[] _minerals = new int[ShipHold.Categories];
     private Velocity _velocity;
-    private int _turnWait, _weaponWait, _phaseFrame, _lastDx, _lastDy;
+    private int _turnWait, _weaponWait, _phaseFrame, _lastDx, _lastDy, _trip;
 
     /// <summary>
     /// The ship's lander, out with its crew, comes down with the ship's
@@ -102,6 +102,7 @@ public sealed class Lander
         _surface = surface;
         _hold = hold;
         Crew = hold.LanderOut!.Value.Crew;
+        _trip = hold.LanderTrips;
         MineralCapacity = hold.LanderOut.Value.MineralCapacity;
         _fast = (hold.Upgrades & LanderUpgrades.Speed) != 0;
         _quickShot = (hold.Upgrades & LanderUpgrades.Shot) != 0;
@@ -137,7 +138,7 @@ public sealed class Lander
     /// <summary>Minerals aboard by element category (ElementAmounts).</summary>
     public IReadOnlyList<int> Minerals => _minerals;
 
-    /// <summary>Bio data aboard (BiologicalLevel), up to <see cref="ShipHold.MaxScrounged"/>.</summary>
+    /// <summary>Bio data aboard (BiologicalLevel), up to <see cref="ShipHold.MaxScrounged"/>; picked up from creatures, item 7.</summary>
     public int BioData { get; private set; }
 
     /// <summary>
@@ -203,11 +204,12 @@ public sealed class Lander
     // PlanetSide after the take-off: the crew go back to the ship with the
     // minerals by category and the bio data. A hold restored since the
     // lander left (a save loaded) has already counted the crew back aboard
-    // (ShipHold.Save), so has no lander out, and what it carried is lost
-    // with the surface it was picked up on.
+    // (ShipHold.Save), so has no lander out, or has sent another since: this
+    // trip is over, and what it carried is lost with the surface it was
+    // picked up on (item 9 decides how the host avoids that).
     internal void BackAboard()
     {
-        if (_hold.LanderOut is not null)
+        if (_hold.LanderOut is not null && _hold.LanderTrips == _trip)
             _hold.LanderReturns(Crew, _minerals, BioData);
     }
 
@@ -310,15 +312,6 @@ public sealed class Lander
         _minerals[deposit.Category] += amount;
         Text = new MineralText(TextFrames, amount, deposit.Element,
             (PlanetsideSurface.ViewWidth >> 1) + dx, (PlanetsideSurface.ViewHeight >> 1) + dy);
-        return true;
-    }
-
-    /// <summary>pickupBioNode: bio data, as much as there's room for of 50 (nothing if full). Creatures are item 7.</summary>
-    internal bool PickUpBioData(int amount)
-    {
-        if (BioData >= ShipHold.MaxScrounged)
-            return false;
-        BioData += Math.Min(amount, ShipHold.MaxScrounged - BioData);
         return true;
     }
 

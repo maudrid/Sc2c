@@ -298,6 +298,48 @@ public class LanderTests
         Assert.Equal(1, surface.Elements.Count(e => e.Kind == SurfaceElementKind.Mineral));
     }
 
+    [ContentFact]
+    public void TwoLandersCantBothTakeOneDeposit()
+    {
+        // Two landers coming down a unit or two apart, on one deposit.
+        uint seed = 1;
+        Lander a, b;
+        for (; ; ++seed)
+        {
+            var probe = new PlanetsideSurface(new TfbRandom(seed));
+            a = SendDown(probe, Hold(50), 484, 148);
+            b = SendDown(probe, Hold(50), 484, 148);
+            if (Math.Abs(a.X - b.X) <= 2 && Math.Abs(a.Y - b.Y) <= 2)
+                break;
+        }
+        var deposit = new[] { new SurfaceMineral(0, a.X >> 2, a.Y >> 2, 0, (30 << 8) | 1) };
+        var surface = new PlanetsideSurface(new TfbRandom(seed), deposit, Systems.Generator.Types.ElementCategory, TestContent.Shapes);
+        a = SendDown(surface, Hold(50), 484, 148);
+        b = SendDown(surface, Hold(50), 484, 148);
+        while (a.Phase != LanderPhase.Ground)
+            surface.Step(_ => LanderInput.None);
+        surface.Step(_ => LanderInput.None);
+        Assert.Equal((ScanType.Mineral, 0), Assert.Single(surface.Taken));
+        Assert.Equal(30, a.MineralMass + b.MineralMass);
+        Assert.Contains(0, new[] { a.MineralMass, b.MineralMass });
+    }
+
+    [Fact]
+    public void AnEarlierTripsLanderDoesntReturnToALaterOne()
+    {
+        // A save loaded while the lander was down, then another lander sent:
+        // the first one's take-off is no longer the hold's to take back.
+        var hold = Hold(50);
+        var surface = new PlanetsideSurface(new TfbRandom(8));
+        var old = SendDown(surface, hold, 400, 150);
+        hold.Restore(hold.Save());
+        hold.LanderLeaves();   // the next trip
+        while (old.Phase != LanderPhase.Gone)
+            surface.Step(l => l.Phase == LanderPhase.Ground ? LanderInput.TakeOff : LanderInput.None);
+        Assert.NotNull(hold.LanderOut);   // still the next trip's
+        Assert.Empty(surface.Landers);
+    }
+
     [Fact]
     public void TfbRandomIsUqms()
     {
