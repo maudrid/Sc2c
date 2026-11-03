@@ -20,11 +20,14 @@ namespace Crateris.Core.Systems;
 /// orbit of a world that is neither shielded nor a gas giant, by joining
 /// each pair of neighbouring heights with a line and adding a little random
 /// variance along it. The variance comes from frandom, a generator whose
-/// seed UQM starts at 0x12345678 when the program starts and never resets;
-/// here it starts afresh for each world (docs/plans/stage-2b.md, decision 1),
-/// so a world's terrain is UQM's for the first world orbited in a session,
-/// and the same for every player on every visit. Nothing collides with the
-/// terrain; it's only drawn.
+/// seed UQM starts at 0x12345678 when the program starts and never resets,
+/// so in UQM a world's terrain depends on which landable worlds were orbited
+/// before it in that run, and differs from one visit to the next. Here it
+/// starts afresh for each world (docs/plans/stage-2b.md, decision 1), so a
+/// world's terrain is UQM's when it is the first landable world orbited
+/// since the program started, and the same for every player on every visit
+/// (docs/differences.md, row 29). Nothing collides with the terrain; it's
+/// only drawn.
 /// </summary>
 public static class PlanetsideMap
 {
@@ -40,9 +43,14 @@ public static class PlanetsideMap
     private const int AvgVariance = 250;    // AVG_VARIANCE
     private const int StepRange = 4 - 1;    // STEP_RANGE
 
-    /// <summary>Whether a world has a planetside map: the lander can go down to it (not shielded, not a gas giant).</summary>
+    /// <summary>
+    /// Whether a world has a planetside map: the lander can go down to it.
+    /// It must be a planet type (not the starbase or the Sa-Matra, which
+    /// have no planet data and no orbit screen), not shielded and not a gas giant.
+    /// </summary>
     public static bool Landable(byte dataIndex, PlanetInfo report) =>
-        !WorldTypes.IsShielded(dataIndex) && report.AtmoDensity != PlanetInfo.GasGiantAtmosphere;
+        WorldTypes.HasPlanetData(dataIndex) && !WorldTypes.IsShielded(dataIndex)
+        && report.AtmoDensity != PlanetInfo.GasGiantAtmosphere;
 
     /// <summary>The planetside map of a world of this type, from its height map, as GeneratePlanetSurface calls TopoScale4x.</summary>
     public static sbyte[] Generate(sbyte[] heights, PlanetType type) =>
@@ -166,7 +174,7 @@ public static class PlanetsideMap
         return dst;
     }
 
-    /// <summary>frandom: UQM's small generator for the planetside map.</summary>
+    /// <summary>frandom: UQM's small generator for the planetside map, starting at <see cref="FirstSeed"/>.</summary>
     private sealed class FRandom
     {
         private uint _seed = FirstSeed;

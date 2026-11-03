@@ -84,16 +84,19 @@ public sealed class PlanetSurfaces
     /// A world's planetside map, the one the lander drives over, coloured
     /// as the scan map is (GeneratePlanetSurface: TopoScale4x, then
     /// RenderTopography at four times the size), or null if the lander
-    /// can't go down there (shielded, or a gas giant). Its heights are
-    /// <see cref="PlanetsideMap.Generate"/>'s.
+    /// can't go down there (not a planet type, shielded, or a gas giant).
+    /// Its heights are <see cref="PlanetsideMap.Generate"/>'s, made from
+    /// <paramref name="surface"/>'s height map when given (the surface
+    /// <see cref="For"/> or <see cref="Orbited"/> made on entering orbit),
+    /// otherwise from the world's height map made afresh.
     /// </summary>
-    public Rgb[]? Planetside(SolarSystem system, int planet, int? moon, PlanetInfo orbit)
+    public Rgb[]? Planetside(SolarSystem system, int planet, int? moon, PlanetInfo orbit, PlanetSurface? surface = null)
     {
         var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
         if (!PlanetsideMap.Landable(world.DataIndex, orbit))
             return null;
         var type = system.Generator.Types[WorldTypes.PlanetType(world.DataIndex)];
-        var heights = PlanetsideMap.Generate(Generated(system, planet, moon, orbit).Heights, type);
+        var heights = PlanetsideMap.Generate(surface?.Heights ?? Heights(system, planet, moon), type);
         return Color(heights, type, orbit.SurfaceTemperature,
             Table(type.ColorMapResource), Table(type.TranslateTableResource));
     }
@@ -128,14 +131,26 @@ public sealed class PlanetSurfaces
     /// <summary>The surface as made and coloured, before any shield's tint (what RenderTopography draws).</summary>
     public PlanetSurface Generated(SolarSystem system, int planet, int? moon, PlanetInfo orbit)
     {
-        if (system.Star.Special == "SOL_DEFINED" && planet == 2 && moon is null)
+        if (IsEarth(system, planet, moon))
             return LazyInitializer.EnsureInitialized(ref _earth, Earth);
         var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
         var type = system.Generator.Types[WorldTypes.PlanetType(world.DataIndex)];
-        var heights = SurfaceMap.Generate(type, world.RandSeed);
+        var heights = Heights(system, planet, moon);
         return new PlanetSurface(heights, Color(heights, type, orbit.SurfaceTemperature,
             Table(type.ColorMapResource), Table(type.TranslateTableResource)));
     }
+
+    /// <summary>A world's height map as made on entering orbit, without colouring it: Earth's from its image, others' <see cref="SurfaceMap.Generate"/>.</summary>
+    private sbyte[] Heights(SolarSystem system, int planet, int? moon)
+    {
+        if (IsEarth(system, planet, moon))
+            return LazyInitializer.EnsureInitialized(ref _earth, Earth).Heights;
+        var world = moon is int m ? system.Moons(planet)[m] : system.Planets[planet];
+        return SurfaceMap.Generate(system.Generator.Types[WorldTypes.PlanetType(world.DataIndex)], world.RandSeed);
+    }
+
+    private static bool IsEarth(SolarSystem system, int planet, int? moon) =>
+        system.Star.Special == "SOL_DEFINED" && planet == 2 && moon is null;
 
     private BinaryTable Table(string id) => _tables.GetOrAdd(id, i => BinaryTable.Load(_package, i));
 

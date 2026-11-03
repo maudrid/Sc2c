@@ -6,7 +6,6 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
-using System.Security.Cryptography;
 using Crateris.Core.Systems;
 using Crateris.Presentation;
 
@@ -21,19 +20,29 @@ public class PlanetsideMapTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));
 
-    private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    private static string Hash(byte[] bytes) => Golden.Sha256(bytes);
 
-    private static List<(int Star, int Planet, int Moon, bool Landable, string? Want)> Worlds(string file, int wantAt) =>
+    private static bool IsHash(System.Text.Json.JsonElement e) => e.ValueKind == System.Text.Json.JsonValueKind.String;
+
+    /// <summary>A reference file's worlds: where each is, whether it's landable (by <paramref name="landable"/>), and the hash it should have (at <paramref name="wantAt"/>), or null.</summary>
+    private static List<(int Star, int Planet, int Moon, bool Landable, string? Want)> Worlds(
+        string file, Func<System.Text.Json.JsonElement, bool> landable, int wantAt) =>
         Golden.Load(file).GetProperty("worlds").EnumerateArray()
-            .Select(w => (w[0].GetInt32(), w[1].GetInt32(), w[2].GetInt32(),
-                file == "planetside-heights" ? w[3].GetInt32() == 1 : w[3].ValueKind == System.Text.Json.JsonValueKind.String,
-                w[wantAt].ValueKind == System.Text.Json.JsonValueKind.String ? w[wantAt].GetString() : null))
+            .Select(w => (w[0].GetInt32(), w[1].GetInt32(), w[2].GetInt32(), landable(w),
+                IsHash(w[wantAt]) ? w[wantAt].GetString() : null))
             .ToList();
+
+    // planetside-heights.json says whether each world is landable; planetside-colors.json gives a map for each one that is.
+    private static List<(int Star, int Planet, int Moon, bool Landable, string? Want)> Heights() =>
+        Worlds("planetside-heights", w => w[3].GetInt32() == 1, 4);
+
+    private static List<(int Star, int Planet, int Moon, bool Landable, string? Want)> Colors() =>
+        Worlds("planetside-colors", w => IsHash(w[3]), 3);
 
     [Fact]
     public void EveryLandableWorldsPlanetsideMapIsTheOneUqmMakes()
     {
-        var worlds = Worlds("planetside-heights", 4);
+        var worlds = Heights();
         // Landable as UQM decides: every world UQM made a map for, and no other.
         var orbits = worlds.Select(w => Systems[w.Star].EnterOrbit(w.Planet, w.Moon < 0 ? null : w.Moon)).ToList();
         for (int i = 0; i < worlds.Count; ++i)
@@ -62,7 +71,7 @@ public class PlanetsideMapTests
     [ContentFact]
     public void EveryLandableWorldsPlanetsideMapIsColouredAsUqmColoursIt()
     {
-        var worlds = Worlds("planetside-colors", 3).Where(w => w.Landable).ToList();
+        var worlds = Colors().Where(w => w.Landable).ToList();
         Assert.True(worlds.Count > 2000, $"only {worlds.Count} landable worlds");
         var reports = worlds.Select(w => Systems[w.Star].EnterOrbit(w.Planet, w.Moon < 0 ? null : w.Moon).Report!).ToList();
         var surfaces = TestContent.With(p => new PlanetSurfaces(p));
@@ -91,16 +100,32 @@ public class PlanetsideMapTests
     [Fact]
     public void ItsTheSameEveryTime()
     {
-        // frandom starts afresh for each world: the same map, however many were made before.
-        var sol = Systems[Systems.Map.Stars.First(s => s.Special == "SOL_DEFINED").Number];
-        var luna = sol.Moons(2)[1];
-        var type = Systems.Generator.Types[WorldTypes.PlanetType(luna.DataIndex)];
-        var heights = SurfaceMap.Generate(type, luna.RandSeed);
-        var first = PlanetsideMap.Generate(heights, type);
-        var mars = sol.Planets[3];
-        var marsType = Systems.Generator.Types[WorldTypes.PlanetType(mars.DataIndex)];
-        PlanetsideMap.Generate(SurfaceMap.Generate(marsType, mars.RandSeed), marsType);
-        Assert.Equal(first, PlanetsideMap.Generate(heights, type));
+        // frandom starts afresh for each world: Luna's map is UQM's first
+        // map of a session, however many maps were made before it.
+        var sol = Systems.Map.Stars.First(s => s.Special == "SOL_DEFINED").Number;
+        string want = Heights().Single(w => (w.Star, w.Planet, w.Moon) == (sol, 2, 1)).Want!;
+        sbyte[] Map(int planet, int? moon)
+        {
+            var desc = SurfaceMapTests.World(sol, planet, moon ?? -1);
+            var type = Systems.Generator.Types[WorldTypes.PlanetType(desc.DataIndex)];
+            return PlanetsideMap.Generate(SurfaceMap.Generate(type, desc.RandSeed), type);
+        }
+        Assert.Equal(want, Hash(SurfaceMapTests.Bytes(Map(2, 1))));
+        Map(3, null);   // Mars
+        Map(2, 1);
+        Assert.Equal(want, Hash(SurfaceMapTests.Bytes(Map(2, 1))));
         Assert.Equal((968, 300), (PlanetsideMap.Width, PlanetsideMap.Height));
+    }
+
+    [Fact]
+    public void NoPlanetsideMapForAWorldWithoutPlanetData()
+    {
+        // The starbase and the Sa-Matra have no planet type, whatever their report says.
+        var sol = Systems[Systems.Map.Stars.First(s => s.Special == "SOL_DEFINED").Number];
+        var rocky = sol.EnterOrbit(2, 1).Report!;   // Luna's
+        Assert.True(PlanetsideMap.Landable(SurfaceMapTests.World(sol.Star.Number, 2, 1).DataIndex, rocky));
+        for (int index = WorldTypes.NumberOfPlanetTypes; index < 256; ++index)
+            if (!WorldTypes.HasPlanetData((byte)index))
+                Assert.False(PlanetsideMap.Landable((byte)index, rocky), $"data index {index}");
     }
 }

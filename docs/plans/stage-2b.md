@@ -101,7 +101,7 @@ Rough size: items 4 to 7 are the large ones (`lander.c` is 2,100 lines, and the 
 All eight recommendations were accepted on 2026-11-02.
 
 1. **The planetside terrain's random generator** (`frandom`, never reset in UQM, so a world's terrain depends on which worlds were orbited before it).
-   - **Start it afresh for each world (recommended):** `frandom` starts from UQM's own first seed (`0x12345678`) for each world, so a world always looks the same, to every player, on every visit. It's UQM's terrain for the first world orbited in a session; after that UQM's differs, but only in looks, since nothing collides with the terrain. A new row in `docs/differences.md`.
+   - **Start it afresh for each world (recommended):** `frandom` starts from UQM's own first seed (`0x12345678`) for each world, so a world always looks the same, to every player, on every visit. It's UQM's terrain for the first landable world orbited since UQM started; after that, and on a second visit to any world, UQM's differs, but only in looks, since nothing collides with the terrain. A new row in `docs/differences.md`.
    - Keep one generator on the host, run in the order players orbit, and send its state. Matches UQM's behaviour of changing with history, but each player's terrain would depend on everyone's orbits, and it needs the host to send it.
    - Leave it to each client, as UQM does. Players sharing a surface would see different terrain under the same nodes.
 2. **Creatures with several landers.**

@@ -6,6 +6,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace Crateris.Core.Tests;
@@ -23,4 +24,7 @@ internal static class Golden
     public static int[] Ints(this JsonElement e) => e.EnumerateArray().Select(x => x.GetInt32()).ToArray();
 
     public static long[] Longs(this JsonElement e) => e.EnumerateArray().Select(x => x.GetInt64()).ToArray();
+
+    /// <summary>The SHA-256 of some bytes in lower-case hex, as the reference files give content.</summary>
+    public static string Sha256(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 }

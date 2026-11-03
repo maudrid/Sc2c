@@ -1169,13 +1169,14 @@ def record_planet_surfaces(uqm, systems_exe, strings_exe, images_exe=None,
 
 
 def planetside_lines(exe, tables_dir=None):
-    """The systems program's planetside mode, one parsed line at a time."""
-    proc = subprocess.Popen([exe, "planetside"] + ([tables_dir] if tables_dir else []),
-                            stdout=subprocess.PIPE, text=True)
-    for line in proc.stdout:
-        yield json.loads(line)
-    if proc.wait():
-        raise RuntimeError("the planetside mode failed")
+    """The systems program's planetside mode, its lines parsed. The program
+    is run to the end first, so a failure (which leaves a line half
+    printed) is reported as one, not as bad JSON."""
+    proc = subprocess.run([exe, "planetside"] + ([tables_dir] if tables_dir else []),
+                          stdout=subprocess.PIPE, text=True)
+    if proc.returncode:
+        raise RuntimeError(f"the planetside mode failed (exit {proc.returncode})")
+    return [json.loads(line) for line in proc.stdout.splitlines()]
 
 
 def record_planetside(uqm, systems_exe, strings_exe, images_exe=None, package=None):
@@ -1191,6 +1192,9 @@ def record_planetside(uqm, systems_exe, strings_exe, images_exe=None, package=No
                for star, planet, moon, landable, topo, _ in planetside_lines(systems_exe)]
     if sum(1 for w in heights if w[3]) == 0:
         raise RuntimeError("no landable worlds")
+    wrong = [w[0:3] for w in heights if bool(w[3]) != bool(w[4])]
+    if wrong:
+        raise RuntimeError(f"worlds with a height map if and only if not landable: {wrong[:5]}")
     data = header(uqm, sources, [
         "Every world's planetside map, the 4x map UQM 0.8.0's own "
         "GeneratePlanetSurface makes with TopoScale4x (plangen.c) on entering "
@@ -1208,14 +1212,16 @@ def record_planetside(uqm, systems_exe, strings_exe, images_exe=None, package=No
     if package:
         with tempfile.TemporaryDirectory() as tmp:
             tables = planet_tables(strings_exe, images_exe, package, tmp)
-            colors = [[star, planet, moon, colored or None]
-                      for star, planet, moon, landable, _, colored
-                      in planetside_lines(systems_exe, tables)]
-        if [c[0:3] for c in colors] != [h[0:3] for h in heights]:
-            raise RuntimeError("the planetside runs visited different worlds")
-        missing = [h[0:3] for h, c in zip(heights, colors) if h[3] and not c[3]]
-        if missing:
-            raise RuntimeError(f"landable worlds without a coloured map: {missing[:5]}")
+            lines = planetside_lines(systems_exe, tables)
+        if [line[0:4] for line in lines] != [h[0:4] for h in heights]:
+            raise RuntimeError("the planetside runs visited different worlds, "
+                               "or found different ones landable")
+        wrong = [line[0:3] for line in lines if bool(line[3]) != bool(line[5])]
+        if wrong:
+            raise RuntimeError("worlds with a coloured map if and only if "
+                               f"not landable: {wrong[:5]}")
+        colors = [[star, planet, moon, colored or None]
+                  for star, planet, moon, _, _, colored in lines]
         data = header(uqm, sources, [
             "Every landable world's coloured planetside map as UQM 0.8.0's own "
             "RenderTopography draws the 4x map, with the colour maps and "

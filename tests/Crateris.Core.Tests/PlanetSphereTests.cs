@@ -23,7 +23,7 @@ public class PlanetSphereTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));
 
-    private static string Hash(byte[] b) => Convert.ToHexString(SHA256.HashData(b)).ToLowerInvariant();
+    private static string Hash(byte[] b) => Golden.Sha256(b);
 
     private static PlanetType Type(WorldDesc w) => Systems.Generator.Types[WorldTypes.PlanetType(w.DataIndex)];
 

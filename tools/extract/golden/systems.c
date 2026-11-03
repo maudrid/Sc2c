@@ -492,8 +492,13 @@ static int planetside_mode;
 #define PLANETSIDE_WIDTH (MAP_WIDTH << 2)
 #define PLANETSIDE_HEIGHT (MAP_HEIGHT << 2)
 static SBYTE planetside_topo[320 * 4 * 240 * 4];
+/* Each drawing between two SetContextFGFrame calls is caught in
+ * planetside_drawing; one that fills the whole 4x map is RenderTopography
+ * drawing it, and is kept in planetside_colors. planetside_maps counts
+ * them (one is expected), planetside_stray the points drawn outside it. */
+static Color planetside_drawing[320 * 4 * 240 * 4];
 static Color planetside_colors[320 * 4 * 240 * 4];
-static int planetside_colored;
+static int planetside_drawn, planetside_maps, planetside_stray;
 
 /* Earth's frames' pixels: frame 0 RGB (3 bytes a pixel), frame 1 palette
  * indexes (1 byte), as UQM's own PNG loader loads them. */
@@ -685,6 +690,20 @@ GetColorMapAddress (COLORMAP colormap)
 	return (COLORMAPPTR) GetStringAddress (colormap);
 }
 
+/* Ends a drawing in planetside mode: one that drew every point of the 4x
+ * map once is the 4x map. */
+static void
+planetside_end_drawing (void)
+{
+	if (planetside_drawn == PLANETSIDE_WIDTH * PLANETSIDE_HEIGHT)
+	{
+		memcpy (planetside_colors, planetside_drawing,
+				sizeof planetside_colors);
+		++planetside_maps;
+	}
+	planetside_drawn = 0;
+}
+
 FRAME
 SetContextFGFrame (FRAME f)
 {
@@ -692,6 +711,8 @@ SetContextFGFrame (FRAME f)
 	 * frame back; then come the 4x map and the shield tint. */
 	if (in_surface)
 		++fg_frame_calls;
+	if (planetside_mode && in_surface)
+		planetside_end_drawing ();
 	(void) f;
 	return 0;
 }
@@ -714,16 +735,21 @@ DrawBatch (PRIMITIVE *base, PRIM_LINKS links, BATCH_FLAGS flags)
 	COUNT i;
 	(void) flags;
 	if (planetside_mode)
-	{	/* Planetside mode: the second RenderTopography, the 4x map. */
-		if (fg_frame_calls != 3)
-			return;
+	{	/* Planetside mode: every drawing is caught, and the one that
+		 * fills the 4x map kept (planetside_end_drawing). */
 		for (i = GetPredLink (links); i != END_OF_LIST;
 				i = GetSuccLink (GetPrimLinks (&base[i])))
 		{
 			POINT p = base[i].Object.Point;
-			planetside_colors[p.y * PLANETSIDE_WIDTH + p.x] =
+			if (p.x < 0 || p.y < 0 || p.x >= PLANETSIDE_WIDTH
+					|| p.y >= PLANETSIDE_HEIGHT)
+			{
+				++planetside_stray;
+				continue;
+			}
+			planetside_drawing[p.y * PLANETSIDE_WIDTH + p.x] =
 					GetPrimColor (&base[i]);
-			++planetside_colored;
+			++planetside_drawn;
 		}
 		return;
 	}
@@ -1117,14 +1143,19 @@ surfaces_main (int argc, char *argv[])
  * 0x12345678 when the program starts and never resets; the engine starts
  * it afresh for each world (docs/plans/stage-2b.md, decision 1). So each
  * world runs in a child process of its own, in which frandom has never
- * run: the child is UQM's code for the first world orbited in a session.
+ * run: the child is UQM's code for the first landable world orbited
+ * since the program started.
  * Without DIR, the child takes the height map as surfaces mode does and
  * runs UQM's TopoScale4x on it, with GeneratePlanetSurface's arguments;
  * the height map is given as the SHA-256 of its PLANETSIDE_WIDTH x
  * PLANETSIDE_HEIGHT signed bytes, row by row. With DIR (the colour and
  * translate tables, as in surfaces mode), the child runs the whole of
  * GeneratePlanetSurface and the coloured map is caught as RenderTopography
- * draws the 4x map, given as the SHA-256 of its R, G, B bytes. Maps not
+ * draws the 4x map: of the drawings between SetContextFGFrame calls, the
+ * one that draws every point of the 4x map. The child fails unless a
+ * landable world has exactly one such drawing, an unlandable one none,
+ * and nothing is drawn outside the 4x map. It is given as the SHA-256 of
+ * its R, G, B bytes. Maps not
  * made are "". The parent then enters orbit itself without making the
  * surface, so the walk goes on as in surfaces mode and its own frandom
  * never runs. */
@@ -1137,8 +1168,9 @@ planetside_child (PLANET_DESC *world)
 	surfaces_mode = 1;
 	have_topo = surface_defined = surface_colored = 0;
 	surface_complete = sphere_written = shield_written = 0;
-	planetside_colored = 0;
+	planetside_drawn = planetside_maps = planetside_stray = 0;
 	entered = enter_orbit (world);
+	planetside_end_drawing ();
 	type = &PlanData[world->data_index & ~PLANET_SHIELDED];
 	landable = entered && !(world->data_index & PLANET_SHIELDED)
 			&& pSolarSysState->SysInfo.PlanetInfo.AtmoDensity
@@ -1154,8 +1186,16 @@ planetside_child (PLANET_DESC *world)
 	else
 		printf ("\"\"");
 	printf (", ");
-	if (landable && tables_dir
-			&& planetside_colored == PLANETSIDE_WIDTH * PLANETSIDE_HEIGHT)
+	if (tables_dir && (planetside_stray
+			|| planetside_maps != (landable ? 1 : 0)))
+	{	/* Not the drawing this mode expects: say so, and fail. */
+		fprintf (stderr, "planetside: %d 4x maps drawn (%d expected), "
+				"%d points outside the 4x map\n", planetside_maps,
+				landable ? 1 : 0, planetside_stray);
+		fflush (stdout);
+		_exit (1);
+	}
+	if (landable && tables_dir)
 		print_color_hash (planetside_colors,
 				PLANETSIDE_WIDTH * PLANETSIDE_HEIGHT, 0);
 	else
