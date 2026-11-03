@@ -10,4 +10,10 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- The tests check rules UQM has no recording for (co-op ones) on the
+         surface's own internals. -->
+    <InternalsVisibleTo Include="Crateris.Core.Tests" />
+  </ItemGroup>
+
 </Project>

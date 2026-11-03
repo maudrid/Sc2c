@@ -302,6 +302,16 @@ public sealed class Lander
         DamageIndex = DamageCycle;
     }
 
+    /// <summary>For tests of rules UQM has no recording for: puts the lander at a place.</summary>
+    internal void PlaceForTest(int x, int y)
+    {
+        X = x;
+        Y = y;
+    }
+
+    /// <summary>For tests of rules UQM has no recording for: the crew all die at once.</summary>
+    internal void KillForTest() => Crew = 0;
+
     /// <summary>pickupBioNode: bio data, as much as there's room for of 50 (nothing if full).</summary>
     internal bool PickUpBioData(int amount)
     {

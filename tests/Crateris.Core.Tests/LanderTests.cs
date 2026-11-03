@@ -366,52 +366,108 @@ public class LanderTests
         Assert.Empty(surface.Landers);
     }
 
-    [ContentFact]
-    public void ACreatureHuntsTheNearestLander()
+    [ContentTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ACreatureHuntsTheNearestLander(bool nearLandsFirst)
     {
         // A Crazy Weasel (fast, hunts, quick to notice), and two landers:
         // one coming down close by, one a third of the way round the world.
-        var surface = new PlanetsideSurface(new TfbRandom(11), null, null, TestContent.Shapes,
-            new[] { new SurfaceCreature(0, 0, 0, 15) }, Life);
-        var weasel = surface.Elements.Single();
-        int near = (weasel.X + 80) % PlanetsideMap.Width, far = (weasel.X + 330) % PlanetsideMap.Width;
-        var a = SendDown(surface, Hold(50), far, weasel.Y);
-        var b = SendDown(surface, Hold(50), near, weasel.Y);
+        // (Noticing is a roll every 20 frames, so a creature can wander off
+        // first; the rule itself, across the east-west edge and with ties
+        // and wrecks, is checked exactly below.)
         static int Gap(SurfaceElement e, Lander l)
         {
             int dx = Math.Abs(e.X - l.X);
             return Math.Min(dx, PlanetsideMap.Width - dx) + Math.Abs(e.Y - l.Y);
         }
-        // It overshoots and circles a lander it hunts, so take the closest
-        // it comes to each.
-        int toB = Gap(weasel, b), closestB = toB, closestA = Gap(weasel, a);
-        bool noticed = false;
-        for (int i = 0; i < 400; ++i)
         {
-            surface.Step(_ => LanderInput.None);
-            noticed |= (weasel.MassPoints & SurfaceElement.Aware) != 0;
-            closestB = Math.Min(closestB, Gap(weasel, b));
-            closestA = Math.Min(closestA, Gap(weasel, a));
+            const uint seed = 11;
+            var surface = new PlanetsideSurface(new TfbRandom(seed), null, null, TestContent.Shapes,
+                new[] { new SurfaceCreature(0, 0, 0, 15) }, Life);
+            var weasel = surface.Elements.Single();
+            int near = (weasel.X + 80) % PlanetsideMap.Width;
+            int far = (weasel.X + 330) % PlanetsideMap.Width;
+            Lander a, b;
+            if (nearLandsFirst)
+            {
+                b = SendDown(surface, Hold(50), near, weasel.Y);
+                a = SendDown(surface, Hold(50), far, weasel.Y);
+            }
+            else
+            {
+                a = SendDown(surface, Hold(50), far, weasel.Y);
+                b = SendDown(surface, Hold(50), near, weasel.Y);
+            }
+            // It overshoots and circles a lander it hunts, so take the
+            // closest it comes to each.
+            int toB = Gap(weasel, b), closestB = toB, closestA = Gap(weasel, a);
+            bool noticed = false;
+            for (int i = 0; i < 400; ++i)
+            {
+                surface.Step(_ => LanderInput.None);
+                noticed |= (weasel.MassPoints & SurfaceElement.Aware) != 0;
+                closestB = Math.Min(closestB, Gap(weasel, b));
+                closestA = Math.Min(closestA, Gap(weasel, a));
+            }
+            Assert.True(noticed, "it noticed a lander");
+            Assert.True(closestB < 16, $"it went for the nearer lander (from {toB} to {closestB} at closest)");
+            Assert.True(closestA > 150, $"and not for the far one ({closestA} at closest)");
+            return;
         }
-        Assert.True(noticed, "it noticed a lander");
-        Assert.True(closestB < 16, $"it went for the nearer lander (from {toB} to {closestB} at closest)");
-        Assert.True(closestA > 150, $"and not for the far one ({closestA} at closest)");
+    }
+
+    [Fact]
+    public void TheNearestLanderIsTheNearestWithCrewTheNearerWayRound()
+    {
+        var surface = new PlanetsideSurface(new TfbRandom(1));
+        var a = SendDown(surface, Hold(50), 484, 148);
+        var b = SendDown(surface, Hold(50), 484, 148);
+        var c = new SurfaceElement { Kind = SurfaceElementKind.Creature };
+        void Place(Lander l, int x, int y) => l.PlaceForTest(x, y);
+        Lander? At(int x, int y)
+        {
+            c.X = x;
+            c.Y = y;
+            return surface.Nearest(c);
+        }
+        Place(a, 100, 150);
+        Place(b, 300, 150);
+        Assert.Same(a, At(150, 150));                         // nearer, landed first
+        Assert.Same(b, At(260, 150));                         // nearer, landed second
+        Assert.Same(a, At(200, 150));                         // as near: the earlier
+        Place(b, 950, 150);
+        Assert.Same(b, At(5, 150));                           // across the east-west edge
+        Place(a, 30, 150);
+        b.KillForTest();
+        Assert.Same(a, At(940, 150));                         // a wreck is passed over for a lander with crew
+        a.KillForTest();
+        Assert.Same(b, At(940, 150));                         // with no crew anywhere, the nearest wreck
     }
 
     [ContentFact]
     public void ALanderWhoseCrewAllDieIsLostWithItsCargo()
     {
-        // Monstrous hunters all round a lander with one crew member.
-        var hunters = Enumerable.Range(0, 8).Select(i => new SurfaceCreature(i, 121 + (i % 4) - 2, 37 + i / 4, 9)).ToList();
+        // A deposit where the lander comes down, so it carries something;
+        // monstrous hunters (put at random places, as they move) to kill
+        // its one crew member.
+        const uint seed = 3;
+        var hunters = Enumerable.Range(0, 8).Select(i => new SurfaceCreature(i, 0, 0, 9)).ToList();
+        // The hunters' places come first in the random stream, then the landing.
+        var probe = SendDown(new PlanetsideSurface(new TfbRandom(seed), null, null, TestContent.Shapes, hunters, Life),
+            Hold(1), 484, 148);
+        var deposit = new[] { new SurfaceMineral(0, probe.X >> 2, probe.Y >> 2, 0, (20 << 8) | 1) };
         var hold = Hold(1);
-        var surface = new PlanetsideSurface(new TfbRandom(3), null, null, TestContent.Shapes, hunters, Life);
+        var surface = new PlanetsideSurface(new TfbRandom(seed), deposit, Systems.Generator.Types.ElementCategory,
+            TestContent.Shapes, hunters, Life);
         var lander = SendDown(surface, hold, 484, 148);
-        for (int i = 0; i < 3000 && lander.Phase != LanderPhase.Gone; ++i)
+        for (int i = 0; i < 6000 && lander.Phase != LanderPhase.Gone; ++i)
             surface.Step(_ => LanderInput.None);
         Assert.Equal(LanderPhase.Gone, lander.Phase);
         Assert.Equal(0, lander.Crew);
+        Assert.Equal(20, lander.MineralMass);                 // it carried the deposit
         Assert.True(lander.ExplosionIndex > Lander.ExplosionLife + Lander.ExplosionWaitFrames);
-        Assert.Equal((0, 0, 0), (hold.Crew, hold.Landers, hold.MineralMass));   // the lander lost with its crew
+        Assert.Equal((0, 0, 0), (hold.Crew, hold.Landers, hold.MineralMass));   // lost with its crew and cargo
     }
 
     [Fact]

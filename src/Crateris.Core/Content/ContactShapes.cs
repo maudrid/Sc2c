@@ -128,9 +128,9 @@ public sealed class ContactShapes
         Need("graphics.miscdata", shapes.MiscData, 0, Enumerable.Range(FirstMineralFrame,
             Data.PlanetTypes.ElementCategoryNames.Count * MineralFramesPerCategory).ToArray());
         // A creature or canister shows any of its sheet's frames.
-        Need("graphics.lifecan", shapes.Canister, shapes.Canister.Count);
+        Need("graphics.lifecan", shapes.Canister, Math.Max(1, shapes.Canister.Count));
         for (int n = 0; n < LifeSheets; ++n)
-            Need($"graphics.life.{n}", shapes.Life[n], shapes.Life[n].Count);
+            Need($"graphics.life.{n}", shapes.Life[n], Math.Max(1, shapes.Life[n].Count));
         return shapes;
     }
 

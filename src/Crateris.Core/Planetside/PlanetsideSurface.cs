@@ -241,7 +241,7 @@ public sealed class PlanetsideSurface
 
     private int FramesIn(SurfaceElement e) => e.Sheet switch
     {
-        SurfaceSheet.Lander => _shapes?.Lander.Count ?? 64,
+        SurfaceSheet.Lander => _shapes!.Lander.Count,   // only an explosion animates on it
         SurfaceSheet.MiscData => _shapes!.MiscData.Count,
         SurfaceSheet.Canister => _shapes!.Canister.Count,
         _ => _shapes!.Life[e.LifeKind].Count,
@@ -345,18 +345,23 @@ public sealed class PlanetsideSurface
     }
 
     /// <summary>
-    /// The lander a creature reacts to: in UQM the one lander; here the
-    /// nearest, east and west the nearer way round (decision 2), the
-    /// earlier on the surface if two are as near.
+    /// The lander a creature reacts to: in UQM the one lander, wherever
+    /// it is, alive or not; here the nearest (decision 2), east and west
+    /// the nearer way round, the earlier on the surface if two are as near,
+    /// and one with crew before a dead one, so creatures don't hunt or flee
+    /// a wreck while a crewed lander is there. With one lander that's UQM's.
     /// </summary>
-    private Lander? Nearest(SurfaceElement e)
+    internal Lander? Nearest(SurfaceElement e)
     {
+        bool anyCrewed = _landers.Any(l => l.Crew > 0);
         Lander? best = null;
         long bestDistance = long.MaxValue;
         // Every lander still on the surface, the one whose take-off ends this
         // frame too (it's there until the frame is over).
         foreach (var l in _landers)
         {
+            if (anyCrewed && l.Crew == 0)
+                continue;
             long dx = Math.Abs(l.X - e.X);
             dx = Math.Min(dx, PlanetsideMap.Width - dx);
             long dy = l.Y - e.Y;
@@ -471,9 +476,11 @@ public sealed class PlanetsideSurface
                 else
                 {
                     // A stun bolt. UQM reads the creature's kind from its
-                    // mass_points, which once it's canned are its value:
-                    // a canned creature whose value names a kind worth
-                    // something can't be shot again; the rest go.
+                    // mass_points, which once it's canned are its value; every
+                    // value names a kind worth something, so a canned creature
+                    // takes bolts and nothing comes of them. A live creature
+                    // worth nothing (a Brainbox Bulldozer) is destroyed by one,
+                    // nothing picked up.
                     if (e.Kind == SurfaceElementKind.Creature
                             && _lifeforms![e.MassPoints & ~SurfaceElement.Aware].BioValue is var value and > 0)
                     {

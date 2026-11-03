@@ -417,8 +417,9 @@ def creature_scenarios():
         _, _, _, x, y = nodes[0]
         out.append([f"life-{s}-{p}-{m}", 500 + k, [0, 2, 4, 3][k % 4], 0, 0, 0,
                     x * 4, y * 4, 50, 500, nodes, lander_script(500 + k, 600)])
-    # The deadliest kinds at the site, a lander with few crew; then the
-    # same with the biological shield.
+    # The deadliest kinds (they move, so generateBioNode puts them at random
+    # places), a lander with few crew; then the same with the biological
+    # shield.
     # Three kinds at most, as UQM has sheets for (MAX_LIFE_VARIATION).
     deadly = [[2, t, 0, 121 + dx, 37 + dy] for t in (9, 14, 13)
               for dx, dy in ((-6, 0), (6, 0), (0, 5), (0, -5))]
