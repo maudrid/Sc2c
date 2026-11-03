@@ -65,6 +65,45 @@ FLIGHT_LINK = ["uqm/ship.c", "uqm/ships/sis_ship/sis_ship.c",
                "uqm/velocity.c", "uqm/trans.c", "libs/math/sqrt.c",
                "uqm/globdata.c"]
 MATH_LINK = ["uqm/trans.c", "libs/math/sqrt.c", "uqm/velocity.c"]
+LANDER_LINK = ["uqm/velocity.c", "uqm/trans.c", "libs/math/random.c",
+               "uqm/displist.c", "uqm/globdata.c", "libs/math/sqrt.c"]
+LANDER_STUBS = os.path.join(HERE, "golden", "lander_stubs.c")
+
+
+def lander_script(seed, frames):
+    """A long scripted drive: steps of 1 to 40 frames of any mix of left,
+    right, thrust and fire (never take-off), from a seeded generator."""
+    import random
+    rng = random.Random(seed)
+    steps, total = [], 0
+    while total < frames:
+        n = rng.randint(1, 40)
+        steps.append((n, rng.choice([0, 4, 4, 4, 5, 6, 12, 12, 13, 14, 8, 1, 2, 9, 10])))
+        total += n
+    return steps
+
+
+# Landings: [name, TFB_Random seed, upgrades (1 speed, 2 shot), tectonics,
+# weather, temperature, site x, y (planetside map units), ship's crew,
+# steps]. No hazards yet (item 8): every chance is 0, but BuildObjectList
+# still draws its random number each frame.
+LANDER_SCENARIOS = [
+    ["still", 1, 0, 0, 0, 0, 484, 148, 50, [(10, 0)]],
+    ["take-off-at-once", 2, 0, 0, 0, 0, 484, 148, 50, [(1, 16)]],
+    ["five-crew", 3, 0, 0, 0, 0, 300, 100, 5, [(20, 4), (5, 16)]],
+    ["turn-and-drive", 7, 0, 0, 0, 0, 10, 2, 50,
+     [(30, 4), (10, 2), (30, 12), (20, 8), (12, 1), (40, 4), (6, 13)]],
+    ["north-pole", 9, 0, 0, 0, 0, 100, 0, 50,
+     [(3, 1), (60, 4), (6, 2), (40, 4), (20, 0)]],
+    ["south-pole", 10, 0, 0, 0, 0, 900, 299, 50,
+     [(80, 4), (5, 1), (80, 4)]],
+    ["east-edge", 11, 0, 0, 0, 0, 967, 150, 50, [(200, 12)]],
+    ["west-edge", 12, 0, 0, 0, 0, 0, 150, 50, [(200, 12)]],
+    ["long-drive", 101, 0, 0, 0, 0, 484, 148, 50, lander_script(101, 1500)],
+    ["long-drive-speed", 102, 1, 0, 0, 0, 200, 50, 50, lander_script(102, 1500)],
+    ["long-drive-shot", 103, 2, 0, 0, 0, 700, 250, 50, lander_script(103, 1500)],
+    ["long-drive-both", 104, 3, 0, 0, 0, 484, 148, 30, lander_script(104, 1500)],
+]
 STRINGS_LINK = ["libs/strings/getstr.c", "libs/strings/strings.c",
                 "libs/memory/w_memlib.c", "libs/resource/propfile.c",
                 "libs/resource/loadres.c"]
@@ -177,6 +216,51 @@ def record_flight(uqm, exe):
         "per-frame scroll limit depend on it.",
     ])
     data["scenarios"] = scenarios
+    return data
+
+
+def record_lander(uqm, exe):
+    """UQM's own lander on the surface, frame by frame (lander.c)."""
+    lines = []
+    for name, seed, upgrades, tect, weather, temp, x, y, crew, steps in LANDER_SCENARIOS:
+        flat = " ".join(f"{n} {f}" for n, f in steps)
+        lines.append(f"{name} {seed} {upgrades} {tect} {weather} {temp} {x} {y} "
+                     f"{crew} {len(steps)} {flat}")
+    out = subprocess.run([exe], input="\n".join(lines) + "\n",
+                         capture_output=True, text=True, check=True).stdout
+    landings = json.loads("[" + out.replace("}\n{", "},\n{") + "]")
+    if len(landings) != len(LANDER_SCENARIOS):
+        raise RuntimeError("the lander program lost a landing")
+    for landing, scenario in zip(landings, LANDER_SCENARIOS):
+        landing["input"] = {"tectonics": scenario[3], "weather": scenario[4],
+                            "temperature": scenario[5], "site": scenario[6:8],
+                            "crew": scenario[8], "steps": scenario[9]}
+        if not any(f[0] == "G" for f in landing["frames"]) and scenario[9][0][1] != 16:
+            raise RuntimeError(f"{landing['name']}: never on the ground")
+    data = header(uqm, ["tools/extract/golden/lander.c",
+                        "tools/extract/golden/lander_stubs.c",
+                        "src/uqm/planets/lander.c", "src/uqm/velocity.c",
+                        "src/libs/math/random.c"], [
+        "UQM 0.8.0's own lander, recorded by running lander.c's PlanetSide "
+        "(the warm-up, InitPlanetSide's jitter, the landing, DoPlanetSide "
+        "under DoInput, the take-off) with drawing and sound stubbed, a "
+        "clock that each sleep moves on (so every frame takes no time), "
+        "TFB_Random seeded and the input scripted (tools/extract/golden/"
+        "lander.c). Code only, no content.",
+        "input.steps: [frames, flags], each held for that many of "
+        "DoPlanetSide's frames (its first call only sets the lander going): "
+        "1 left, 2 right, 4 thrust, 8 fire, 16 take off. After the steps "
+        "the lander takes off. upgrades: 1 IMPROVED_LANDER_SPEED, 2 "
+        "IMPROVED_LANDER_SHOT. site: planetLoc, in planetside map units.",
+        "frames: every ScrollPlanetSide, [phase (L landing, G on the "
+        "ground, T taking off), x, y (curLanderLoc), facing (0 to 15), "
+        "offset (landingOffset: how far above its place the lander is "
+        "drawn, 0 on the ground, null if not drawn), crew aboard the "
+        "lander, TFB_Random's seed after the frame, the element queue's "
+        "[x, y, life_span] in order (the lander's bolts)]. crew_left, "
+        "ship_crew and landers: after PlanetSide returns.",
+    ])
+    data["landings"] = landings
     return data
 
 
@@ -1323,6 +1407,9 @@ def main():
         build(uqm, os.path.join(HERE, "golden", "flight.c"), FLIGHT_LINK,
               flight)
         build(uqm, os.path.join(HERE, "golden", "math.c"), MATH_LINK, math)
+        lander = os.path.join(build_dir, "lander")
+        build(uqm, os.path.join(HERE, "golden", "lander.c"), LANDER_LINK,
+              lander, extra=[LANDER_STUBS])
         systems = os.path.join(build_dir, "systems")
         build(uqm, os.path.join(HERE, "golden", "systems.c"),
               systems_link(uqm), systems, extra=[SYSTEMS_STUBS],
@@ -1342,6 +1429,7 @@ def main():
         os.makedirs(args.out, exist_ok=True)
         for name, data in (("hyperspace-flight", record_flight(uqm, flight)),
                            ("uqm-math", record_math(uqm, math)),
+                           ("lander", record_lander(uqm, lander)),
                            ("star-systems", record_systems(uqm, systems)),
                            ("world-surfaces", record_surfaces(uqm, systems)),
                            ("ip-geometry", record_ip(uqm, systems)),
