@@ -189,6 +189,27 @@ public class SnapshotCodecTests
         }
     }
 
+    [Fact]
+    public void ADeltaCantRenameAShipOrRepeatOne()
+    {
+        var r = new Random(9);
+        var b = new WorldSnapshot(1, 2155, 2, 17, new[] { AnyShip(r, "a") });
+        // A delta whose ship from the base comes with a new id.
+        var w = new WireWriter();
+        w.Byte(1);              // a delta
+        w.UInt(2);              // frame 2
+        w.UInt(1);              // from frame 1
+        w.Byte(0);              // the date and worlds as the base's
+        w.UInt(1);              // one ship
+        w.UInt(1);              // the base's first
+        w.UInt(1UL << 24);      // its id changed
+        w.String("b");
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(w.Written, b));
+        // Two ships with one id.
+        var twice = b with { Ships = new[] { AnyShip(r, "a"), AnyShip(r, "a") } };
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Encode(twice)));
+    }
+
     // ---- The stream: the host's history and acknowledgements ----
 
     [Fact]
@@ -207,11 +228,11 @@ public class SnapshotCodecTests
             s = Next(r, s, frame);
             sender.Record(s);
             sent[frame] = s;
-            if (sender.SendsFull(1))
+            var bytes = sender.For(1);
+            if (SnapshotCodec.Peek(bytes).Base is null)
                 full++;
             else
                 deltas++;
-            var bytes = sender.For(1).ToArray();
             // A long outage now and then; otherwise a fifth lost, the rest
             // arriving up to 3 frames late, so some overtake others.
             bool outage = frame % 500 is >= 200 and < 240;
@@ -245,29 +266,49 @@ public class SnapshotCodecTests
     {
         var r = new Random(7);
         var sender = new SnapshotSender();
+        long? BaseOf(byte[] message) => SnapshotCodec.Peek(message).Base;
         var s = AnySnapshot(r, 10);
         sender.Record(s);
-        sender.Acknowledge(1, 10);           // not sent to it yet
-        Assert.True(sender.SendsFull(1));
-        sender.For(1);                       // frame 10, in full
+        sender.Acknowledge(1, 10);                // not sent to it yet
+        Assert.Null(BaseOf(sender.For(1)));       // frame 10, in full
         sender.Record(s = Next(r, s, 11));
-        sender.Acknowledge(1, 9);            // before it joined
-        sender.Acknowledge(1, 11);           // not sent yet
-        Assert.True(sender.SendsFull(1));
+        sender.Acknowledge(1, 9);                 // before it joined
+        sender.Acknowledge(1, 11);                // not sent yet
+        Assert.Null(BaseOf(sender.For(1)));       // frame 11, in full
         sender.Acknowledge(1, 10);
-        Assert.False(sender.SendsFull(1));
-        Assert.Equal((11L, (long?)10), SnapshotCodec.Peek(sender.For(1)));
-        sender.Acknowledge(1, 9);            // older than it said: ignored
         sender.Record(s = Next(r, s, 12));
-        Assert.Equal((12L, (long?)10), SnapshotCodec.Peek(sender.For(1)));
+        Assert.Equal(10, BaseOf(sender.For(1)));
+        sender.Acknowledge(1, 9);                 // older than it said: ignored
+        sender.Record(s = Next(r, s, 13));
+        Assert.Equal(10, BaseOf(sender.For(1)));
 
         // Silent for longer than the history: a full snapshot again.
-        for (int f = 13; f < 13 + SnapshotSender.History; ++f)
+        for (int f = 14; f < 14 + SnapshotSender.History; ++f)
             sender.Record(s = Next(r, s, f));
-        Assert.True(sender.SendsFull(1));
-        sender.Forget(1);
-        Assert.True(sender.SendsFull(1));
+        Assert.Null(BaseOf(sender.For(1)));
+        sender.Acknowledge(1, s.Frame);
+        sender.Forget(1);                         // gone: what it had is forgotten
+        sender.Record(s = Next(r, s, s.Frame + 1));
+        Assert.Null(BaseOf(sender.For(1)));
         Assert.Throws<ArgumentException>(() => sender.Record(s));
+    }
+
+    [Fact]
+    public void GuestsOnTheSameBaseShareOneMessage()
+    {
+        var r = new Random(8);
+        var sender = new SnapshotSender();
+        var s = AnySnapshot(r, 1);
+        sender.Record(s);
+        var first = sender.For(1);
+        Assert.Same(first, sender.For(2));        // both in full
+        sender.Acknowledge(1, 1);
+        sender.Acknowledge(2, 1);
+        sender.Record(s = Next(r, s, 2));
+        var delta = sender.For(1);
+        Assert.Same(delta, sender.For(2));
+        Assert.Null(SnapshotCodec.Peek(sender.For(3)).Base);   // a new guest: its own, in full
+        Assert.NotSame(delta, sender.For(3));
     }
 
     // ---- A real game: size, time and the host session ----
@@ -372,7 +413,7 @@ public class SnapshotCodecTests
         var first = host.SnapshotFor(1);
         Assert.Null(SnapshotCodec.Peek(first).Base);                  // nothing acknowledged: in full
         Assert.Equal(snap.Ships, guest.Receive(first)!.Ships);
-        host.GuestInput(1, snap.Frame + delay, 0);                     // "I have this frame"
+        host.GuestInput(1, snap.Frame + delay, 0, snap.Frame);         // "I have this frame"
         var next = host.Step(ShipInput.Thrust);
         var bytes = host.SnapshotFor(1);
         Assert.Equal(snap.Frame, SnapshotCodec.Peek(bytes).Base);

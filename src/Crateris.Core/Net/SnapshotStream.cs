@@ -16,9 +16,9 @@ namespace Crateris.Core.Net;
 /// one it's known to have. Each guest is sent a delta from that one; a
 /// guest with none (just joined, or silent for longer than the history
 /// holds) gets a full snapshot. A lost message costs nothing: the next
-/// delta is from the same base, so it covers the lost one too. Guests
-/// acknowledge with the input they send anyway: input is stamped for the
-/// newest snapshot frame the guest has plus the input delay.
+/// delta is from the same base, so it covers the lost one too. Guests say
+/// which snapshot they have with the input they send every frame. Guests
+/// on the same base get the same message, encoded once.
 /// </summary>
 public sealed class SnapshotSender
 {
@@ -28,6 +28,8 @@ public sealed class SnapshotSender
     private readonly WorldSnapshot?[] _history = new WorldSnapshot?[History];
     private readonly Dictionary<long, Guest> _guests = new();
     private readonly WireWriter _writer = new();
+    // The latest snapshot's messages, by base frame (-1 for the full one).
+    private readonly Dictionary<long, byte[]> _messages = new();
     private WorldSnapshot? _latest;
 
     private sealed class Guest
@@ -47,33 +49,36 @@ public sealed class SnapshotSender
             throw new ArgumentException("snapshots are recorded in frame order", nameof(snapshot));
         _latest = snapshot;
         _history[snapshot.Frame % History] = snapshot;
+        _messages.Clear();
     }
 
     /// <summary>
     /// The latest snapshot as the message for one guest: a delta from the
-    /// newest snapshot it has, if that's still kept, otherwise in full. The
-    /// bytes are valid until the next call.
+    /// newest snapshot it has, if that's still kept, otherwise in full.
+    /// Guests on the same base share the message; don't change it.
     /// </summary>
-    public ReadOnlySpan<byte> For(long peer)
+    public byte[] For(long peer)
     {
         var latest = _latest ?? throw new InvalidOperationException("no snapshot recorded yet");
         if (!_guests.TryGetValue(peer, out var guest))
             _guests[peer] = guest = new Guest();
-        SnapshotCodec.Encode(_writer, latest, BaseFor(guest, latest));
+        var baseSnapshot = BaseFor(guest, latest);
+        long key = baseSnapshot?.Frame ?? -1;
+        if (!_messages.TryGetValue(key, out var message))
+        {
+            SnapshotCodec.Encode(_writer, latest, baseSnapshot);
+            _messages[key] = message = _writer.Written.ToArray();
+        }
         if (guest.FirstSent < 0)
             guest.FirstSent = latest.Frame;
         guest.LastSent = latest.Frame;
-        return _writer.Written;
+        return message;
     }
 
-    /// <summary>Whether the next message for a guest would be a full snapshot.</summary>
-    public bool SendsFull(long peer) =>
-        _latest is null || !_guests.TryGetValue(peer, out var g) || BaseFor(g, _latest) is null;
-
     /// <summary>
-    /// A guest has the snapshot of this frame (its input's frame less the
-    /// input delay). Frames it can't have (never sent to it) are ignored,
-    /// and so are older ones than it has said before.
+    /// A guest says it has the snapshot of this frame. Frames it can't have
+    /// (never sent to it) are ignored, and so are older ones than it has
+    /// said before.
     /// </summary>
     public void Acknowledge(long peer, long frame)
     {
@@ -104,25 +109,28 @@ public sealed class SnapshotReceiver
     public const int Keep = 32;
 
     private readonly WorldSnapshot?[] _kept = new WorldSnapshot?[Keep];
+    private readonly Func<long, WorldSnapshot?> _baseOf;
+
+    public SnapshotReceiver() => _baseOf = Kept;
 
     /// <summary>
     /// The snapshot a message carries, or null if it's a delta from a
     /// snapshot not kept here (the host then sends a delta from one that is,
     /// or a full one, once the guest's acknowledgements show what it has).
-    /// Bad data is refused with <see cref="InvalidDataException"/>.
+    /// <paramref name="full"/> says whether it was a full snapshot. Bad
+    /// data is refused with <see cref="InvalidDataException"/>.
     /// </summary>
-    public WorldSnapshot? Receive(ReadOnlySpan<byte> data)
+    public WorldSnapshot? Receive(ReadOnlySpan<byte> data, out bool full)
     {
-        var (frame, baseFrame) = SnapshotCodec.Peek(data);
-        WorldSnapshot? baseSnapshot = null;
-        if (baseFrame is long bf)
-        {
-            baseSnapshot = _kept[bf % Keep];
-            if (baseSnapshot?.Frame != bf)
-                return null;
-        }
-        var snapshot = SnapshotCodec.Decode(data, baseSnapshot);
-        _kept[frame % Keep] = snapshot;
+        var snapshot = SnapshotCodec.Decode(data, _baseOf, out long? baseFrame);
+        full = baseFrame is null;
+        if (snapshot is not null)
+            _kept[snapshot.Frame % Keep] = snapshot;
         return snapshot;
     }
+
+    /// <inheritdoc cref="Receive(ReadOnlySpan{byte}, out bool)"/>
+    public WorldSnapshot? Receive(ReadOnlySpan<byte> data) => Receive(data, out _);
+
+    private WorldSnapshot? Kept(long frame) => _kept[frame % Keep] is { } s && s.Frame == frame ? s : null;
 }

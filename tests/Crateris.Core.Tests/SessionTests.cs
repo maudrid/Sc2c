@@ -69,8 +69,8 @@ public class SessionTests
         Assert.Equal(host.World.Settings.InputDelayFrames, welcome.InputDelayFrames);
         Assert.Equal(1, host.Guests);
         // Input from the peer goes to its player; from an unknown peer, nowhere.
-        host.GuestInput(5, host.World.Frame + 1, (int)ShipInput.Thrust);
-        host.GuestInput(99, host.World.Frame + 1, (int)ShipInput.Thrust);
+        host.GuestInput(5, host.World.Frame + 1, (int)ShipInput.Thrust, host.World.Frame);
+        host.GuestInput(99, host.World.Frame + 1, (int)ShipInput.Thrust, host.World.Frame);
         host.Step(ShipInput.None);
         // A second hello on the same connection changes nothing.
         var again = host.Hello(5, "other", "Other", Protocol.Version);

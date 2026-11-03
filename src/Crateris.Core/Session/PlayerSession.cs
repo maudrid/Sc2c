@@ -116,11 +116,6 @@ public sealed class PlayerSession
     }
 
     /// <summary>
-    /// A snapshot arrived (or the host made one). Older ones than the one
-    /// held are ignored. Logs each ship's activity when it changes, and
-    /// keeps the orbit menu and star entries up to date.
-    /// </summary>
-    /// <summary>
     /// A snapshot message from the host (<see cref="SnapshotReceiver"/>):
     /// observed once decoded. A delta from a snapshot not kept here is
     /// dropped; the host's next one is from a snapshot this guest has said
@@ -128,10 +123,9 @@ public sealed class PlayerSession
     /// </summary>
     public void ReceiveSnapshot(ReadOnlySpan<byte> data)
     {
-        var (_, baseFrame) = SnapshotCodec.Peek(data);
-        if (_snapshots.Receive(data) is { } snapshot)
+        if (_snapshots.Receive(data, out bool full) is { } snapshot)
         {
-            if (baseFrame is null)
+            if (full)
                 SnapshotsFull++;
             else
                 SnapshotsDelta++;
@@ -152,6 +146,11 @@ public sealed class PlayerSession
 
     private readonly SnapshotReceiver _snapshots = new();
 
+    /// <summary>
+    /// A snapshot arrived (or the host made one). Older ones than the one
+    /// held are ignored. Logs each ship's activity when it changes, and
+    /// keeps the orbit menu and star entries up to date.
+    /// </summary>
     public void Observe(WorldSnapshot snapshot)
     {
         if (Snapshot != null && snapshot.Frame <= Snapshot.Frame)

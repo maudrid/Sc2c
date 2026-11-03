@@ -350,7 +350,7 @@ public partial class Main : Node2D
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
-    private void SendInput(long frame, int input) => _host?.GuestInput(Multiplayer.GetRemoteSenderId(), frame, input);
+    private void SendInput(long frame, int input, long has) => _host?.GuestInput(Multiplayer.GetRemoteSenderId(), frame, input, has);
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void UndockShown() => _host?.GuestUndockShown(Multiplayer.GetRemoteSenderId());
@@ -457,7 +457,7 @@ public partial class Main : Node2D
             }
             else if (_connected && _player.Snapshot is { } snap)
             {
-                RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input);
+                RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input, snap.Frame);
                 if (_player.UndockTick())
                     RpcId(1, MethodName.UndockShown);
             }

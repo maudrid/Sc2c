@@ -23,8 +23,9 @@ namespace Crateris.Core.Net;
 /// each guest in the game a Snapshot every frame: a delta from the newest
 /// one the guest is known to have, or in full (<see cref="SnapshotSender"/>).
 /// Clients send Input every frame for "latest snapshot frame + input
-/// delay", which also tells the host which snapshot they have. A client
-/// that has shown the undocking scene sends UndockShown.
+/// delay", with the latest snapshot frame they have, which the host's next
+/// deltas for them are from. A client that has shown the undocking scene
+/// sends UndockShown.
 /// </summary>
 public static class Protocol
 {

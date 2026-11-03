@@ -123,16 +123,16 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// A guest's input for a frame (only the four input bits count). It's
-    /// stamped for the newest snapshot the guest has plus the input delay,
-    /// so it also says which snapshot the guest has.
+    /// A guest's input for a frame (only the four input bits count), with
+    /// the frame of the newest snapshot it has (<paramref name="has"/>),
+    /// which the host's next snapshots for it are deltas from.
     /// </summary>
-    public void GuestInput(long peer, long frame, int input)
+    public void GuestInput(long peer, long frame, int input, long has)
     {
         if (_peers.TryGetValue(peer, out var id))
         {
             World.SubmitInput(id, frame, (ShipInput)(input & 15));
-            _snapshots.Acknowledge(peer, frame - World.Settings.InputDelayFrames);
+            _snapshots.Acknowledge(peer, has);
         }
     }
 
@@ -167,5 +167,5 @@ public sealed class HostSession
     /// The latest snapshot as the message for one guest: a delta from the
     /// newest one it's known to have, or in full (<see cref="SnapshotSender"/>).
     /// </summary>
-    public byte[] SnapshotFor(long peer) => _snapshots.For(peer).ToArray();
+    public byte[] SnapshotFor(long peer) => _snapshots.For(peer);
 }

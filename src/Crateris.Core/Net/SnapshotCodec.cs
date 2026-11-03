@@ -100,7 +100,7 @@ public static class SnapshotCodec
                     mask |= 1UL << BitName;
                 if (!Equals(ship.Entry, old.Entry))
                     mask |= 1UL << BitEntry;
-                if (!SameHold(ship.Hold, old.Hold))
+                if (!Equals(ship.Hold, old.Hold))
                     mask |= 1UL << BitHold;
             }
             writer.UInt(mask);
@@ -124,35 +124,52 @@ public static class SnapshotCodec
     public static (long Frame, long? Base) Peek(ReadOnlySpan<byte> data)
     {
         var r = new WireReader(data);
+        long frame = Header(ref r, out long? baseFrame);
+        return (frame, baseFrame);
+    }
+
+    private static long Header(ref WireReader r, out long? baseFrame)
+    {
         byte kind = r.Byte();
         long frame = Frame(r.UInt());
+        baseFrame = null;
         if (kind == KindFull)
-            return (frame, null);
+            return frame;
         if (kind != KindDelta)
             throw new InvalidDataException($"Unknown snapshot kind {kind}.");
         ulong back = r.UInt();
         if (back == 0 || back > (ulong)frame)
             throw new InvalidDataException("A delta's base must be an earlier frame.");
-        return (frame, frame - (long)back);
+        baseFrame = frame - (long)back;
+        return frame;
     }
 
     /// <summary>
     /// Reads a message. A delta needs its base: <paramref name="baseSnapshot"/>
     /// must be the snapshot of the frame <see cref="Peek"/> names.
     /// </summary>
-    public static WorldSnapshot Decode(ReadOnlySpan<byte> data, WorldSnapshot? baseSnapshot = null)
-    {
-        var (frame, baseFrame) = Peek(data);
-        if (baseFrame is long bf && baseSnapshot?.Frame != bf)
-            throw new ArgumentException($"this delta needs the snapshot of frame {bf}", nameof(baseSnapshot));
-        if (baseFrame is null)
-            baseSnapshot = null;
+    public static WorldSnapshot Decode(ReadOnlySpan<byte> data, WorldSnapshot? baseSnapshot = null) =>
+        Decode(data, frame => baseSnapshot?.Frame == frame ? baseSnapshot : null, out _)
+        ?? throw new ArgumentException($"this delta needs the snapshot of frame {Peek(data).Base}", nameof(baseSnapshot));
 
+    /// <summary>
+    /// Reads a message in one pass, asking <paramref name="baseOf"/> for a
+    /// delta's base by its frame (<paramref name="baseFrame"/>, null for a
+    /// full snapshot); null if it hasn't got it.
+    /// </summary>
+    public static WorldSnapshot? Decode(ReadOnlySpan<byte> data, Func<long, WorldSnapshot?> baseOf, out long? baseFrame)
+    {
         var r = new WireReader(data);
-        r.Byte();
-        r.UInt();
-        if (baseSnapshot is not null)
-            r.UInt();
+        long frame = Header(ref r, out baseFrame);
+        WorldSnapshot? baseSnapshot = null;
+        if (baseFrame is long bf)
+        {
+            baseSnapshot = baseOf(bf);
+            if (baseSnapshot is null)
+                return null;
+            if (baseSnapshot.Frame != bf)
+                throw new ArgumentException($"the base given for frame {bf} is frame {baseSnapshot.Frame}", nameof(baseOf));
+        }
         byte parts = r.Byte();
         if ((parts & ~(PartDate | PartOrbited)) != 0 || (baseSnapshot is null && parts != (PartDate | PartOrbited)))
             throw new InvalidDataException("Bad snapshot parts.");
@@ -179,7 +196,9 @@ public static class SnapshotCodec
                 old = baseSnapshot.Ships[(int)at - 1];
             }
             ulong mask = r.UInt();
-            if ((mask & ~AllFields) != 0 || (old is null && mask != AllFields))
+            // A new ship has every field; a ship from the base keeps its id
+            // (ships are matched by id).
+            if ((mask & ~AllFields) != 0 || (old is null ? mask != AllFields : (mask & (1UL << BitId)) != 0))
                 throw new InvalidDataException("Bad ship fields.");
             if (old is not null && mask == 0)
             {
@@ -201,6 +220,14 @@ public static class SnapshotCodec
             var hold = (mask & (1UL << BitHold)) != 0 ? ReadHold(ref r) : old!.Hold;
             ships[i] = FromNumbers(v, id, name, entry, hold);
         }
+        for (int i = 1; i < count; ++i)
+        {
+            for (int j = 0; j < i; ++j)
+            {
+                if (ships[i].Id == ships[j].Id)
+                    throw new InvalidDataException($"Two ships are {ships[i].Id}.");
+            }
+        }
         if (!r.AtEnd)
             throw new InvalidDataException("The snapshot has bytes left over.");
         return new WorldSnapshot(frame, year, month, day, ships, worlds);
@@ -209,7 +236,7 @@ public static class SnapshotCodec
     private static void ToNumbers(ShipSnapshot s, Span<long> v)
     {
         v[Flags] = (s.IsHost ? 1 : 0) | (s.Thrusting ? 2 : 0) | (s.UndockPending ? 4 : 0)
-            | ((long)s.Kind << 3) | ((long)s.Activity << 5);
+            | ((int)s.Kind << 3) | ((int)s.Activity << 5);
         v[LogX] = s.LogX;
         v[LogY] = s.LogY;
         v[UniverseX] = s.UniverseX;
@@ -345,36 +372,8 @@ public static class SnapshotCodec
         return worlds;
     }
 
-    private static bool SameWorlds(IReadOnlyList<OrbitedWorldSnapshot>? a, IReadOnlyList<OrbitedWorldSnapshot>? b)
-    {
-        if (a is null || b is null)
-            return a is null && b is null;
-        if (a.Count != b.Count)
-            return false;
-        for (int i = 0; i < a.Count; ++i)
-        {
-            if (a[i] != b[i])
-                return false;
-        }
-        return true;
-    }
-
-    private static bool SameHold(HoldSnapshot? a, HoldSnapshot? b)
-    {
-        if (ReferenceEquals(a, b))
-            return true;
-        if (a is null || b is null)
-            return false;
-        if ((a.Crew, a.Landers, a.StorageCapacity, a.BioData, a.Upgrades) != (b.Crew, b.Landers, b.StorageCapacity, b.BioData, b.Upgrades)
-            || a.Minerals.Count != b.Minerals.Count)
-            return false;
-        for (int i = 0; i < a.Minerals.Count; ++i)
-        {
-            if (a.Minerals[i] != b.Minerals[i])
-                return false;
-        }
-        return true;
-    }
+    private static bool SameWorlds(IReadOnlyList<OrbitedWorldSnapshot>? a, IReadOnlyList<OrbitedWorldSnapshot>? b) =>
+        a is null || b is null ? a == b : a.SequenceEqual(b);
 
     private static int IndexOf(IReadOnlyList<ShipSnapshot> ships, string id)
     {
