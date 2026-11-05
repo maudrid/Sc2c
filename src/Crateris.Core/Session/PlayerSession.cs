@@ -218,10 +218,6 @@ public sealed class PlayerSession
     private int _seenLanderCrew = -1;
     private readonly HashSet<string> _seenLanders = new();
 
-    /// <summary>
-    /// The landing site picked in the orbit menu, to send to the host
-    /// once (the host sends the lander down, or refuses); null if none is waiting.
-    /// </summary>
     /// <summary>The cargo units dropped in the cargo display since last asked, by category, to send to the host.</summary>
     public IReadOnlyList<int> TakeDiscards()
     {
@@ -230,6 +226,10 @@ public sealed class PlayerSession
         return all;
     }
 
+    /// <summary>
+    /// The landing site picked in the orbit menu, to send to the host
+    /// once (the host sends the lander down, or refuses); null if none is waiting.
+    /// </summary>
     public (int X, int Y)? TakeLandingRequest()
     {
         var site = _landingSite;
@@ -401,17 +401,29 @@ public sealed class PlayerSession
     /// last frame drew them: the world's mineral nodes not taken, and those
     /// taken in that frame (still drawn in it).
     /// </summary>
-    public IReadOnlyList<(int Node, SurfaceNode Info)> Deposits()
+    public IReadOnlyList<(int Node, SurfaceNode Info)> Deposits() =>
+        OrbitMenu?.Orbit.Nodes is { } nodes && SnapshotCodec.SurfaceSeen(Snapshot, PlayerId) is not null
+            ? PlanetWorldState.Remaining(TakenAsDrawn(ScanType.Mineral), nodes.Minerals)
+            : Array.Empty<(int, SurfaceNode)>();
+
+    /// <summary>
+    /// The taken-node mask as the surface's last frame drew it: deposits
+    /// taken in that frame were still drawn, on the surface and on the scan
+    /// map (RedrawSurfaceScan comes after the lander touches them, before
+    /// they go).
+    /// </summary>
+    public uint TakenAsDrawn(ScanType scan)
     {
-        if (OrbitMenu?.Orbit.Nodes is not { } nodes || SnapshotCodec.SurfaceSeen(Snapshot, PlayerId) is not { } surface)
-            return Array.Empty<(int, SurfaceNode)>();
-        uint mask = Taken(ScanType.Mineral);
-        foreach (int node in surface.DepositsTaken ?? Array.Empty<int>())
+        uint mask = Taken(scan);
+        if (scan == ScanType.Mineral && SnapshotCodec.SurfaceSeen(Snapshot, PlayerId) is { } surface)
         {
-            if (node < PlanetWorldState.MaxNodes)
-                mask &= ~(1u << node);
+            foreach (int node in surface.DepositsTaken ?? Array.Empty<int>())
+            {
+                if (node < PlanetWorldState.MaxNodes)
+                    mask &= ~(1u << node);
+            }
         }
-        return PlanetWorldState.Remaining(mask, nodes.Minerals);
+        return mask;
     }
 
     /// <summary>The host's taken-node mask for a scan type of the world being orbited.</summary>

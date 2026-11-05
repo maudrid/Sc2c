@@ -281,7 +281,13 @@ public static partial class SnapshotCodec
     {
         var phase = (LanderPhase)ToInt(v[LPhase]);
         var flash = (LanderFlash)ToInt(v[LFlash]);
-        if (!Enum.IsDefined(phase) || !Enum.IsDefined(flash) || v[LDrawn] is not (0 or 1) || v[LHasText] is not (0 or 1))
+        // What the client draws by: the flash's colour, the text's colour
+        // and element name, the gauges' cells.
+        if (!Enum.IsDefined(phase) || !Enum.IsDefined(flash) || v[LDrawn] is not (0 or 1) || v[LHasText] is not (0 or 1)
+                || v[LDamage] is < 0 or > Lander.DamageCycle || v[LCrewTaken] is < 0 or > Core.World.ShipHold.LanderCrew
+                || v[LCrew] < 0 || v[LCrew] > v[LCrewTaken]
+                || (v[LHasText] == 1 && (v[LTextFrames] is < 0 or >= Lander.TextFrames
+                    || v[LTextElement] is < 0 or >= Core.Content.GameStrings.ElementsCount)))
             throw new InvalidDataException("Bad lander.");
         MineralText? text = v[LHasText] == 1
             ? new MineralText(ToInt(v[LTextFrames]), ToInt(v[LTextAmount]), ToInt(v[LTextElement]), ToInt(v[LTextX]), ToInt(v[LTextY]))

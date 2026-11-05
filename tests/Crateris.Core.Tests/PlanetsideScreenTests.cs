@@ -63,9 +63,7 @@ public class PlanetsideScreenTests
         int frame = int.Parse(f[2]);
         return frame switch
         {
-            32 or 33 => "base",
-            34 or 58 => "gun",
-            35 or 36 or 57 => "engine",
+            // Every other frame is its own: each is drawn once and stays.
             41 or 42 => $"bio {f[4]}",
             43 or 44 => $"minerals {f[4]}",
             55 or 56 => $"crew {f[3]} {f[4]}",
@@ -99,6 +97,7 @@ public class PlanetsideScreenTests
         var flags = input.GetProperty("steps").EnumerateArray()
             .SelectMany(s => Enumerable.Repeat((LanderInput)s[1].GetInt32(), s[0].GetInt32())).GetEnumerator();
         var gauges = new Dictionary<string, string>();
+        var takenEarlier = new HashSet<int>();
         int frame = 0;
         foreach (var want in landing.GetProperty("frames").EnumerateArray())
         {
@@ -111,8 +110,14 @@ public class PlanetsideScreenTests
 
             var snapshot = new SurfaceSnapshot(0, 0, null, new[] { LanderSnapshot.Of("me", lander) },
                 surface.Elements.Where(e => e.Kind != SurfaceElementKind.Mineral).Select(SurfaceElementSnapshot.Of).ToList());
-            var deposits = surface.Elements.Where(e => e.Kind == SurfaceElementKind.Mineral)
-                .Select(e => new SurfaceDeposit(e.Node, e.X, e.Y, e.Frame)).ToList();
+            // The deposits as a client makes them: the nodes less those taken
+            // in earlier frames (this frame's are still drawn).
+            var deposits = PlanetsideScreen.Deposits(minerals.Where(m => !takenEarlier.Contains(m.Node))
+                .Select(m => (m.Node, new SurfaceNode((short)m.X, (short)m.Y, m.Element, (ushort)m.Density))).ToList(),
+                Systems.Generator.Types.ElementCategory);
+            Assert.Equal(surface.Elements.Where(e => e.Kind == SurfaceElementKind.Mineral)
+                .Select(e => new SurfaceDeposit(e.Node, e.X, e.Y, e.Frame)), deposits);
+            takenEarlier.UnionWith(surface.Taken.Where(t => t.Scan == ScanType.Mineral).Select(t => t.Node));
             var got = PlanetsideScreen.Draw(snapshot, "me", deposits).Select(Op).ToList();
             // The first frame's list starts with the launch animation
             // (AnimateLaunch) and the map drawn once for the screen's

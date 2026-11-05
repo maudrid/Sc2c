@@ -36,7 +36,10 @@ public static class Protocol
     /// 4: snapshots carry each ship's hold (crew, landers, minerals, bio data).
     /// 5: snapshots are binary, and deltas from what each guest has.
     /// 6: landers on surfaces: a guest's dispatch and its refusal, the fire
-    /// and take-off input bits, and each guest's own surface in its snapshots.
+    /// and take-off input bits, each guest's own surface in its snapshots
+    /// (its landers with the crew they took, what's on it as drawn with its
+    /// fill colour, the deposits taken in its last frame), and dropping
+    /// cargo overboard.
     /// </summary>
     public const int Version = 6;
     public const int DefaultPort = 24642;

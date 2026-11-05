@@ -219,7 +219,7 @@ public partial class PlanetsideView : Control
             DrawRect(map, new Color(0.12f, 0.1f, 0.08f));
         if (Mine() is not var (surface, lander) || _player?.OrbitMenu is not { } menu || menu.Orbit.Nodes is not { } nodes)
             return;
-        foreach (var d in PlanetsideScreen.ScanMap(surface, _player.PlayerId, nodes, menu.Scan.Found, _player.Taken,
+        foreach (var d in PlanetsideScreen.ScanMap(surface, _player.PlayerId, nodes, menu.Scan.Found, _player.TakenAsDrawn,
                      _systems.Generator.Types.ElementCategory))
             Stamp(this, map.Position, d);
 

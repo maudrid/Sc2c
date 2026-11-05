@@ -37,9 +37,13 @@ public class SurfaceSnapshotTests
         _ => r.Next(0, 1000),
     };
 
-    private static LanderSnapshot AnyLander(Random r, string id) => new(id, AnyInt(r), AnyInt(r), r.Next(16), AnyInt(r),
-        (LanderPhase)r.Next(4), r.Next(13), (LanderFlash)r.Next(3), r.Next(2) == 0, r.Next(7), AnyInt(r), r.Next(101), r.Next(51),
-        r.Next(2) == 0 ? null : new MineralText(r.Next(33), AnyInt(r), r.Next(130), AnyInt(r), AnyInt(r)), r.Next(13));
+    private static LanderSnapshot AnyLander(Random r, string id)
+    {
+        int took = r.Next(13);
+        return new(id, AnyInt(r), AnyInt(r), r.Next(16), AnyInt(r),
+            (LanderPhase)r.Next(4), r.Next(took + 1), (LanderFlash)r.Next(3), r.Next(2) == 0, r.Next(7), AnyInt(r), r.Next(101), r.Next(51),
+            r.Next(2) == 0 ? null : new MineralText(r.Next(32), AnyInt(r), r.Next(133), AnyInt(r), AnyInt(r)), took);
+    }
 
     private static SurfaceElementSnapshot AnyElement(Random r, int id) => new(id, (SurfaceElementKind)r.Next(7),
         AnyInt(r), AnyInt(r), (SurfaceSheet)r.Next(7), r.Next(60), r.Next(26),
@@ -67,7 +71,7 @@ public class SurfaceSnapshotTests
             elements.Insert(0, AnyElement(r, ++lastId));
         if (r.Next(4) == 0)
             elements.Add(AnyElement(r, ++lastId));
-        var landers = s.Landers.Select(l => r.Next(3) == 0 ? l : l with { X = l.X + r.Next(-2, 3), Crew = r.Next(13) }).ToList();
+        var landers = s.Landers.Select(l => r.Next(3) == 0 ? l : l with { X = l.X + r.Next(-2, 3), Crew = r.Next(l.CrewTaken + 1) }).ToList();
         if (r.Next(30) == 0 && landers.Count > 1)
             landers.RemoveAt(r.Next(landers.Count));
         if (r.Next(30) == 0 && landers.All(l => l.PlayerId != "other"))
