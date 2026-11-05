@@ -22,12 +22,12 @@ public static partial class SnapshotCodec
     // A lander's numbers.
     private const int LX = 0, LY = 1, LFacing = 2, LHeight = 3, LPhase = 4, LCrew = 5, LFlash = 6, LDrawn = 7,
         LDamage = 8, LExplosion = 9, LMinerals = 10, LBio = 11, LTextFrames = 12, LTextAmount = 13,
-        LTextElement = 14, LTextX = 15, LTextY = 16, LHasText = 17;
-    private const int LanderNumbers = 18;
+        LTextElement = 14, LTextX = 15, LTextY = 16, LHasText = 17, LCrewTaken = 18;
+    private const int LanderNumbers = 19;
     private const ulong AllLanderFields = (1UL << (LanderNumbers + 1)) - 1;   // and the player's id
 
     // An element's numbers.
-    private const int EKind = 0, EX = 1, EY = 2, ESheet = 3, EFrame = 4, ELifeKind = 5, EFlash = 6, ELife = 7, ECycle = 8;
+    private const int EKind = 0, EX = 1, EY = 2, ESheet = 3, EFrame = 4, ELifeKind = 5, EFill = 6, ELife = 7, ECycle = 8;
     private const int ElementNumbers = 9;
     private const ulong AllElementFields = (1UL << ElementNumbers) - 1;
 
@@ -265,6 +265,7 @@ public static partial class SnapshotCodec
         v[LTextX] = t.X;
         v[LTextY] = t.Y;
         v[LHasText] = l.Text is null ? 0 : 1;
+        v[LCrewTaken] = l.CrewTaken;
     }
 
     private static LanderSnapshot LanderFromNumbers(ReadOnlySpan<long> v, string id)
@@ -278,7 +279,7 @@ public static partial class SnapshotCodec
             : null;
         return new LanderSnapshot(id, ToInt(v[LX]), ToInt(v[LY]), ToInt(v[LFacing]), ToInt(v[LHeight]), phase,
             ToInt(v[LCrew]), flash, v[LDrawn] == 1, ToInt(v[LDamage]), ToInt(v[LExplosion]), ToInt(v[LMinerals]),
-            ToInt(v[LBio]), text);
+            ToInt(v[LBio]), text, ToInt(v[LCrewTaken]));
     }
 
     private static void ToNumbers(SurfaceElementSnapshot e, Span<long> v)
@@ -289,7 +290,7 @@ public static partial class SnapshotCodec
         v[ESheet] = (int)e.Sheet;
         v[EFrame] = e.Frame;
         v[ELifeKind] = e.LifeKind;
-        v[EFlash] = Optional(e.Flash);
+        v[EFill] = e.Fill is { } c ? ((long)c.R << 16 | (long)c.G << 8 | c.B) + 1 : 0;
         v[ELife] = e.LifeSpan;
         v[ECycle] = e.Cycle;
     }
@@ -298,9 +299,11 @@ public static partial class SnapshotCodec
     {
         var kind = (SurfaceElementKind)ToInt(v[EKind]);
         var sheet = (SurfaceSheet)ToInt(v[ESheet]);
-        if (!Enum.IsDefined(kind) || !Enum.IsDefined(sheet))
+        if (!Enum.IsDefined(kind) || !Enum.IsDefined(sheet) || v[EFill] is < 0 or > 0x1000000)
             throw new InvalidDataException("Bad surface element.");
+        long fill = v[EFill] - 1;
+        Systems.Rgb? color = fill < 0 ? null : new Systems.Rgb((byte)(fill >> 16), (byte)(fill >> 8), (byte)fill);
         return new SurfaceElementSnapshot(id, kind, ToInt(v[EX]), ToInt(v[EY]), sheet, ToInt(v[EFrame]),
-            ToInt(v[ELifeKind]), ToOptional(v[EFlash]), ToInt(v[ELife]), ToInt(v[ECycle]));
+            ToInt(v[ELifeKind]), color, ToInt(v[ELife]), ToInt(v[ECycle]));
     }
 }

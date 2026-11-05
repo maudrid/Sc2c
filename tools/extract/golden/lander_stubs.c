@@ -24,9 +24,6 @@ long DestroyDrawable () { return 0; }
 long DestroyMusic () { return 0; }
 long DestroySound () { return 0; }
 long DestroyStringTable () { return 0; }
-long DrawBatch () { return 0; }
-long DrawFilledRectangle () { return 0; }
-long DrawFilledStamp () { return 0; }
 long DrawLanders () { return 0; }
 long DrawPlanetSurfaceBorder () { return 0; }
 long DrawStarBackGround () { return 0; }
@@ -46,17 +43,14 @@ long ReleaseStringTable () { return 0; }
 long RepairBackRect () { return 0; }
 long RotatePlanetSphere () { return 0; }
 long ScreenTransition () { return 0; }
-long SetContext () { return 0; }
 long SetContextClipRect () { return 0; }
 long SetContextFGFrame () { return 0; }
 long SetContextFont () { return 0; }
-long SetContextForeGroundColor () { return 0; }
 long SetMenuSounds () { return 0; }
 long SetRaceAllied () { return 0; }
 long SetTransitionSource () { return 0; }
 long UninitGroupInfo () { return 0; }
 long UninitPlanetInfo () { return 0; }
-long font_DrawText () { return 0; }
 long free_ship () { return 0; }
 long load_orbit_theme () { return 0; }
 long load_ship () { return 0; }

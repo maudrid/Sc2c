@@ -115,7 +115,7 @@ public sealed class Lander
     {
         _surface = surface;
         _hold = hold;
-        Crew = hold.LanderOut!.Value.Crew;
+        Crew = CrewTaken = hold.LanderOut!.Value.Crew;
         _trip = hold.LanderTrips;
         MineralCapacity = hold.LanderOut.Value.MineralCapacity;
         _fast = (hold.Upgrades & LanderUpgrades.Speed) != 0;
@@ -142,6 +142,9 @@ public sealed class Lander
 
     /// <summary>The crew aboard.</summary>
     public int Crew { get; private set; }
+
+    /// <summary>The crew it came down with (its gauge's cells).</summary>
+    public int CrewTaken { get; }
 
     /// <summary>Minerals aboard (ElementLevel), and the most it can carry (MaxElementLevel: 50, or 100 with the cargo upgrade, no more than the ship's bays have room for).</summary>
     public int MineralMass { get; private set; }
@@ -174,6 +177,9 @@ public sealed class Lander
     /// while it waits above the screen.
     /// </summary>
     public int Height { get; private set; } = OffScreen;
+
+    /// <summary>The flash's frames left as the lander was drawn this frame (a hit after it shows from the next).</summary>
+    public int DrawnDamageIndex { get; private set; }
 
     /// <summary>Frames left of the hurt lander's flash (damage_index).</summary>
     public int DamageIndex { get; private set; }
@@ -271,6 +277,7 @@ public sealed class Lander
         Flash = !Drawn || DamageIndex == 0 ? LanderFlash.None : ShieldHit ? LanderFlash.Shield : LanderFlash.Damage;
         if (Flash != LanderFlash.None)
             DamageIndex--;
+        DrawnDamageIndex = DamageIndex;
     }
 
     /// <summary>
@@ -445,10 +452,15 @@ public sealed class Lander
     // ScrollPlanetSide's end: the mineral text counts down and moves with the ground.
     internal void TextFrame()
     {
+        TextDrawn = false;
         if (Text is not { } t || t.Frames == 0)
             return;
         Text = t with { Frames = t.Frames - 1, X = t.X - _lastDx, Y = t.Y - _lastDy };
+        TextDrawn = true;
     }
+
+    /// <summary>Whether the mineral text was drawn in the last frame (its frames counting down).</summary>
+    public bool TextDrawn { get; private set; }
 
     private static int[] MakeHeights()
     {

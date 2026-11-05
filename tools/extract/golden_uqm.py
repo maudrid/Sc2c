@@ -220,7 +220,7 @@ def record_flight(uqm, exe):
     return data
 
 
-def run_lander(exe, scenarios, masks=None):
+def run_lander(exe, scenarios, masks=None, draw=False):
     """Runs the lander program on landings [name, seed, upgrades,
     tectonics, weather, temperature, x, y, crew, storage, nodes, steps];
     returns its landings with their input."""
@@ -230,7 +230,7 @@ def run_lander(exe, scenarios, masks=None):
         flat = " ".join(f"{n} {f}" for n, f in steps)
         lines.append(f"{name} {seed} {upgrades} {tect} {weather} {temp} {x} {y} "
                      f"{crew} {storage} {len(nodes)} {flat_nodes} {len(steps)} {flat}")
-    out = subprocess.run([exe] + ([masks] if masks else []), input="\n".join(lines) + "\n",
+    out = subprocess.run([exe] + ([masks] if masks else []) + (["draw"] if draw else []), input="\n".join(lines) + "\n",
                          capture_output=True, text=True, check=True).stdout
     landings = json.loads("[" + out.replace("}\n{", "},\n{") + "]")
     if len(landings) != len(scenarios):
@@ -537,6 +537,56 @@ def hazard_scenarios():
         out.append([f"crowded-hot-{k}", 981 + k, 120 | 2, 7, 0, hot, 484, 148, 50, 500,
                     crowd(hot_nodes, 70), lander_script(981 + k, 3000)])
     return out
+
+
+def drawing_scenarios():
+    """Landings whose drawing is recorded: among deposits, creatures to
+    can, the deadliest with the shield, every hazard with few crew (the
+    lander lost) and with every shield, cut to a few hundred frames."""
+    by_name = {sc[0]: sc for sc in pickup_scenarios() + creature_scenarios() + hazard_scenarios()}
+    out = []
+    for name, frames in (("packed-4", 400), ("packed-west-east", 350), ("harvest-0", 500), ("deadly-shielded", 400),
+                         ("few-crew-bare", 400), ("mild-shielded-394-0-1", 400)):
+        key = name if name in by_name else next(k for k in by_name if k.startswith(name))
+        sc = list(by_name[key])
+        steps, total = [], 0
+        for n, flags in sc[11]:
+            if total >= frames:
+                break
+            steps.append((min(n, frames - total), flags))
+            total += steps[-1][0]
+        sc[11] = steps
+        out.append(sc)
+    return out
+
+
+def record_lander_drawing(uqm, lander_exe, strings_exe, images_exe, package):
+    """What UQM's lander draws on the surface view and in its gauges."""
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, _ = write_masks(strings_exe, images_exe, package, tmp, HAZARD_SHEETS)
+        landings = run_lander(lander_exe, drawing_scenarios(), masks, draw=True)
+    data = header(uqm, ["tools/extract/golden/lander.c",
+                        "tools/extract/golden/lander_stubs.c",
+                        "src/uqm/planets/lander.c", "src/libs/graphics/frame.c"], [
+        "What UQM 0.8.0's own lander draws, frame by frame, recorded as "
+        "lander-hazards.json is (and with its masks) with the drawing "
+        "recorded: each frame adds two lists after the explosion, what was "
+        "drawn on the surface view (PlanetContext: ScrollPlanetSide's map, "
+        "DrawBatch's display list from its head, the lander, its shadow and "
+        "shield, the mineral text) and in the lander's gauges (RadarContext: "
+        "InitLander before the landing, as PickPlanetSide calls it, then "
+        "AnimateLanderWarmup, DeltaLanderCrew and FillLanderHold), in order. "
+        "Each is [\"m\", x, y] the planet's map, [\"s\", sheet, frame, x, "
+        "y] a stamp, [\"f\", sheet, frame, x, y, r, g, b] a filled stamp, "
+        "[\"r\", x, y, width, height, r, g, b] a filled rectangle, or "
+        "[\"t\", x, y, align, text, characters (-1 all), r, g, b] text "
+        "(the game's strings are empty here; the amount is code). Sheets "
+        "as in lander.json. Code and the masks' shapes; no content.",
+        "Landings from lander-pickups.json, lander-creatures.json and "
+        "lander-hazards.json, cut to their first few hundred frames.",
+    ])
+    data["landings"] = landings
+    return data
 
 
 def hazard_chances(exe):
@@ -1848,7 +1898,8 @@ def main():
                               *record_contact(uqm, systems, strings, images, args.content).items(),
                               ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content)),
                               ("lander-creatures", record_lander_creatures(uqm, lander, strings, images, args.content)),
-                              ("lander-hazards", record_lander_hazards(uqm, lander, strings, images, args.content))]
+                              ("lander-hazards", record_lander_hazards(uqm, lander, strings, images, args.content)),
+                              ("lander-drawing", record_lander_drawing(uqm, lander, strings, images, args.content))]
                              if args.content else [])):
             path = os.path.join(args.out, name + ".json")
             with open(path, "w") as f:

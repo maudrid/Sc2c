@@ -9,6 +9,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
 using Crateris.Core.World;
 
@@ -146,6 +147,17 @@ public sealed class SurfaceElement
 
     /// <summary>The lander that took it (or whose bolt did), when <see cref="Disappearing"/>.</summary>
     internal Lander? TakenBy { get; set; }
+
+    /// <summary>
+    /// How it was drawn this frame (UQM draws after everything moves and
+    /// before anything touches): its sheet and frame then, and the colour it
+    /// was filled with (null: drawn plainly). A bolt's hit or a canning that
+    /// frame shows from the next.
+    /// </summary>
+    public (SurfaceSheet Sheet, int Frame, Rgb? Fill) Drawn { get; internal set; }
+
+    /// <summary>Its display primitive (PrimIndex), which keeps the last colour set on it.</summary>
+    internal int Prim { get; set; }
 
     internal Velocity Velocity;
 }

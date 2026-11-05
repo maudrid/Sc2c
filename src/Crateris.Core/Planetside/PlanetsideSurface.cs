@@ -248,6 +248,7 @@ public sealed class PlanetsideSurface
     internal void AddFirst(SurfaceElement element)
     {
         element.Id = ++_lastId;
+        element.Prim = AllocPrim();
         _elements.Insert(0, element);
     }
 
@@ -255,8 +256,48 @@ public sealed class PlanetsideSurface
     private void Add(SurfaceElement element)
     {
         element.Id = ++_lastId;
+        element.Prim = AllocPrim();
         _elements.Add(element);
     }
+
+    /// <summary>DamageColorCycle's damage_tab: white, then from deep red to pale yellow.</summary>
+    public static readonly IReadOnlyList<Rgb> DamageColors = new[]
+    {
+        new Rgb(0xFF, 0xFF, 0xFF), Rgb.From15(0x1B, 0x00, 0x00), Rgb.From15(0x1F, 0x07, 0x00), Rgb.From15(0x1F, 0x0E, 0x00),
+        Rgb.From15(0x1F, 0x15, 0x00), Rgb.From15(0x1F, 0x1C, 0x00), Rgb.From15(0x1F, 0x1F, 0x0A),
+    };
+
+    private static readonly Rgb White = new(0xFF, 0xFF, 0xFF);
+
+    // The display primitives (DisplayArray): AllocElement takes the one
+    // freed last, or the next never used, and a primitive keeps the last
+    // colour set on it (black never set), which a new quake is drawn with
+    // until its first new frame sets its own.
+    private readonly List<Rgb> _primColors = new();
+    private readonly List<int> _freePrims = new();
+
+    private int AllocPrim()
+    {
+        if (_freePrims.Count > 0)
+        {
+            int p = _freePrims[^1];
+            _freePrims.RemoveAt(_freePrims.Count - 1);
+            return p;
+        }
+        _primColors.Add(default);
+        return _primColors.Count - 1;
+    }
+
+    private void SetPrimColor(SurfaceElement e, Rgb c) => _primColors[e.Prim] = c;
+
+    // How an element is filled as DrawBatch draws it: a creature while it
+    // flashes, a quake and lightning always (STAMPFILL_PRIM).
+    private Rgb? Fill(SurfaceElement e) => e.Kind switch
+    {
+        SurfaceElementKind.Creature => e.Flash is int k ? DamageColors[k] : null,
+        SurfaceElementKind.Quake or SurfaceElementKind.Lightning => _primColors[e.Prim],
+        _ => null,
+    };
 
     private int _lastId;
 
@@ -357,6 +398,7 @@ public sealed class PlanetsideSurface
             Frame = 0,
         };
         Add(bolt);
+        SetPrimColor(bolt, White);
         return bolt;
     }
 
@@ -384,6 +426,7 @@ public sealed class PlanetsideSurface
             e.Frame = e.Frame + 1 < FramesIn(e) ? e.Frame + 1 : 0;   // the strike's frames: never reached in UQM
         else
         {
+            SetPrimColor(e, White);   // its fade, always white in RGB
             var lander = e.Owner!;
             if (e.MassPoints == (int)LanderDisaster.Lightning && _landers.Contains(lander))
             {
@@ -411,6 +454,7 @@ public sealed class PlanetsideSurface
             if ((e.FiniteLife && e.LifeSpan == 0) || e.Disappearing)
             {
                 _elements.RemoveAt(i);
+                _freePrims.Add(e.Prim);   // FreeElement
                 continue;
             }
             if (e.FiniteLife)
@@ -429,6 +473,7 @@ public sealed class PlanetsideSurface
                 e.X = x;
                 e.Y = y;
             }
+            e.Drawn = (e.Sheet, e.Frame, Fill(e));   // DrawBatch comes next
             i++;
         }
     }
@@ -462,6 +507,7 @@ public sealed class PlanetsideSurface
         {
             // DamageColorCycle (c, 0): white, then 6 down to 1, then white again.
             int next = c == 0 ? 6 : c - 1;
+            SetPrimColor(e, DamageColors[next]);
             if (next == 0)
             {
                 e.Flash = null;
@@ -488,6 +534,8 @@ public sealed class PlanetsideSurface
                 e.Frame = e.Frame > 0 ? e.Frame - 1 : FramesIn(e) - 1;   // the last frame is drawn twice
             return;
         }
+        if (e.Kind == SurfaceElementKind.Quake)
+            SetPrimColor(e, White);   // its shade, always white in RGB
         if (e.Kind == SurfaceElementKind.Lava && frameIndex == 5 && Random.Next() % 100 < 90)
             SpreadLava(e);
         if (e.Hazard)
@@ -772,5 +820,6 @@ public sealed class PlanetsideSurface
             e.MassPoints |= SurfaceElement.Aware;
         }
         e.Flash = 0;
+        SetPrimColor(e, White);
     }
 }

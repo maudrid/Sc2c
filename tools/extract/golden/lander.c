@@ -86,6 +86,7 @@
 #include "libs/graphics/drawable.h"   /* FRAME_DESC, as intersec.c reads it */
 #include "libs/graphics/tfb_draw.h"
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -330,6 +331,10 @@ init_display_list (void)
 {
 	COUNT i;
 	InitQueue (&disp_q, MAX_DISPLAY_ELEMENTS, sizeof (ELEMENT));
+	/* Each landing as if the program had just started: no primitive keeps
+	 * a colour from an earlier one (a new quake is drawn in its
+	 * primitive's last colour until it sets its own). */
+	memset (DisplayArray, 0, sizeof DisplayArray);
 	for (i = 0; i < MAX_DISPLAY_PRIMS; ++i)
 		SetPrimLinks (&DisplayArray[i], END_OF_LIST, i + 1);
 	SetPrimLinks (&DisplayArray[i - 1], END_OF_LIST, END_OF_LIST);
@@ -587,6 +592,15 @@ DoInput (void *pInputState, BOOLEAN resetInput)
 	phase = 'T';
 }
 
+/* The drawing recorded (see "Drawing"). */
+static int record_draws;
+static char radar_context[64];
+static CONTEXT current_context;
+static Color fg_color;
+#define DRAW_BUF (1 << 20)
+static char planet_draws[DRAW_BUF], radar_draws[DRAW_BUF];
+static size_t planet_len, radar_len;
+
 /* ---- Recording: every ScrollPlanetSide ends with RedrawSurfaceScan ---- */
 
 static int drawn_offset, lander_drawn, frames_out;
@@ -668,12 +682,124 @@ record_frame (void)
 				p->MineralText[0].baseline.x, p->MineralText[0].baseline.y);
 		for (i = 0; i < num_taken; ++i)
 			printf ("%s[%d, %d]", i ? ", " : "", taken_scan[i], taken_node[i]);
-		printf ("], %d, %d]", damage_index, explosion_index);
+		printf ("], %d, %d", damage_index, explosion_index);
+		if (record_draws)
+		{
+			printf (", [%.*s], [%.*s]", (int) planet_len, planet_draws,
+					(int) radar_len, radar_draws);
+			planet_len = radar_len = 0;
+		}
+		printf ("]");
 		num_taken = 0;
 	}
 }
 
 /* ---- Drawing ---- */
+
+/* With "draw" (the second argument), each frame also lists what UQM drew
+ * on the surface view (PlanetContext) and the lander's gauges
+ * (RadarContext), in order. */
+
+static void
+draw_out (const char *fmt, ...)
+{
+	char *buf;
+	size_t *len;
+	va_list ap;
+	if (!record_draws)
+		return;
+	if (current_context == (CONTEXT) radar_context)
+		buf = radar_draws, len = &radar_len;
+	else if (current_context == (CONTEXT) PlanetContext)
+		buf = planet_draws, len = &planet_len;
+	else
+		return;
+	if (*len)
+		*len += snprintf (buf + *len, DRAW_BUF - *len, ", ");
+	va_start (ap, fmt);
+	*len += vsnprintf (buf + *len, DRAW_BUF - *len, fmt, ap);
+	va_end (ap);
+	if (*len >= DRAW_BUF - 256)
+	{
+		fprintf (stderr, "too much drawn in a frame\n");
+		exit (1);
+	}
+}
+
+CONTEXT
+SetContext (CONTEXT c)
+{
+	CONTEXT old = current_context;
+	current_context = c;
+	return old;
+}
+
+Color
+SetContextForeGroundColor (Color c)
+{
+	Color old = fg_color;
+	fg_color = c;
+	return old;
+}
+
+/* A stamp: ["s", sheet, frame, x, y]; the planet's map (no frame here) ["m", x, y]. */
+static void
+draw_stamp (const STAMP *s)
+{
+	if (s->frame == NULL)
+		draw_out ("[\"m\", %d, %d]", s->origin.x, s->origin.y);
+	else
+		draw_out ("[\"s\", %d, %d, %d, %d]", FRAME_SHEET (s->frame),
+				FRAME_INDEX (s->frame), s->origin.x, s->origin.y);
+}
+
+/* A filled stamp: ["f", sheet, frame, x, y, r, g, b]. */
+static void
+draw_filled (const STAMP *s, Color c)
+{
+	draw_out ("[\"f\", %d, %d, %d, %d, %d, %d, %d]", FRAME_SHEET (s->frame),
+			FRAME_INDEX (s->frame), s->origin.x, s->origin.y, c.r, c.g, c.b);
+}
+
+void
+DrawFilledStamp (STAMP *s)
+{
+	draw_filled (s, fg_color);
+}
+
+/* ["r", x, y, width, height, r, g, b] */
+void
+DrawFilledRectangle (RECT *r)
+{
+	draw_out ("[\"r\", %d, %d, %d, %d, %d, %d, %d]", r->corner.x, r->corner.y,
+			r->extent.width, r->extent.height, fg_color.r, fg_color.g, fg_color.b);
+}
+
+/* ["t", x, y, align, text, characters (-1 all), r, g, b] */
+void
+font_DrawText (TEXT *t)
+{
+	draw_out ("[\"t\", %d, %d, %d, \"%s\", %d, %d, %d, %d]", t->baseline.x, t->baseline.y,
+			t->align, t->pStr ? t->pStr : "", t->CharCount == (COUNT) ~0 ? -1 : (int) t->CharCount,
+			fg_color.r, fg_color.g, fg_color.b);
+}
+
+/* frame.c's DrawBatch: the display list from its head. */
+void
+DrawBatch (PRIMITIVE *base, PRIM_LINKS links, BATCH_FLAGS flags)
+{
+	COUNT i;
+	PRIMITIVE *p;
+	(void) flags;
+	for (i = GetPredLink (links); i != END_OF_LIST; i = GetSuccLink (GetPrimLinks (p)))
+	{
+		p = &base[i];
+		if (GetPrimType (p) == STAMP_PRIM)
+			draw_stamp (&p->Object.Stamp);
+		else if (GetPrimType (p) == STAMPFILL_PRIM)
+			draw_filled (&p->Object.Stamp, GetPrimColor (p));
+	}
+}
 
 void
 UnbatchGraphics (void)
@@ -686,6 +812,7 @@ UnbatchGraphics (void)
 void
 DrawStamp (STAMP *s)
 {
+	draw_stamp (s);
 	/* The lander itself: a facing image at the middle of the surface. */
 	if (s->frame != NULL   /* the planet's map isn't modelled */
 			&& FRAME_SHEET (s->frame) == SHEET_LANDER && FRAME_INDEX (s->frame) < 16
@@ -757,6 +884,8 @@ land (const char *name, DWORD seed, int upgrades, int tectonics, int weather,
 			"\"frames\": [", name, (unsigned long) seed, upgrades);
 	pt.x = x;
 	pt.y = y;
+	planet_len = radar_len = 0;
+	InitLander (0);   /* PickPlanetSide's, before DispatchLander */
 	PlanetSide (pt);
 	printf ("\n], \"crew_left\": %d, \"ship_crew\": %d, \"landers\": %d, "
 			"\"element_amounts\": [", crew_left, (int) GLOBAL_SIS (CrewEnlisted),
@@ -795,6 +924,8 @@ main (int argc, char *argv[])
 	}
 	if (argc > 1)
 		load_masks (argv[1]);
+	record_draws = argc > 2 && strcmp (argv[2], "draw") == 0;
+	RadarContext = (CONTEXT) radar_context;
 	while (scanf ("%63s %lu %d %d %d %d %d %d %d %d %d", name, &seed,
 			&upgrades, &tectonics, &weather, &temp, &x, &y, &crew, &storage,
 			&n) == 11)
