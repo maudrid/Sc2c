@@ -63,11 +63,16 @@ public class HazardTests
     {
         Assert.Throws<ArgumentException>(() => new PlanetsideSurface(new TfbRandom(1), hazards: new HazardChances(3, 0, 0)));
         // A negative chance is refused before the shapes are asked for, so this
-        // needs no content: Assert.Throws takes the exact type, so it can't be
-        // the missing shapes' ArgumentException.
+        // needs no content (were the order to change, the missing shapes' plain
+        // ArgumentException wouldn't pass for an ArgumentOutOfRangeException).
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             new PlanetsideSurface(new TfbRandom(1), hazards: new HazardChances(0, -1, 0)));
     }
+
+    [ContentFact]
+    public void ANegativeChanceIsRefusedWithTheShapesToo() =>
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new PlanetsideSurface(new TfbRandom(1), shapes: TestContent.Shapes, hazards: new HazardChances(0, -1, 0)));
 
     private static Lander SendDown(PlanetsideSurface surface, int crew, int x, int y)
     {
