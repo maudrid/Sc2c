@@ -51,6 +51,9 @@ public class SharedSurfaceTests
 
     private static Lander LanderOf(GameWorld world, string id) => world.Find(id)!.Ship.Lander!;
 
+    // East and west the nearer way round.
+    private static int Across(int dx) => Math.Min(Math.Abs(dx), PlanetsideMap.Width - Math.Abs(dx));
+
     // Until both landers are on the ground.
     private static void Land(GameWorld world, params string[] ids)
     {
@@ -260,7 +263,7 @@ public class SharedSurfaceTests
             Run(world, 1);
             foreach (var e in surface.Elements.Where(e => e.Hazard && seen.Add(e)))
             {
-                int toHost = Math.Abs(e.X - host.X), toGuest = Math.Abs(e.X - guest.X);
+                int toHost = Across(e.X - host.X), toGuest = Across(e.X - guest.X);
                 Assert.Same(toHost < toGuest ? host : guest, e.Owner);
             }
         }
@@ -308,6 +311,9 @@ public class LandingSessionTests
         player.PressMenu(MenuKey.Select);   // picking the site
         player.PressMenu(MenuKey.Select);   // picked
         var site = player.TakeLandingRequest()!.Value;
+        var waiting = menu.Page;
+        player.PressMenu(MenuKey.Cancel);   // asked, not yet down: the menu takes no keys
+        Assert.Equal(waiting, menu.Page);
         Assert.Null(player.TakeLandingRequest());   // once
         Assert.Equal(DispatchRefusal.None, world.Dispatch("host", site.X, site.Y));
         Step();

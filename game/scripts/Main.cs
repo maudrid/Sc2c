@@ -458,7 +458,9 @@ public partial class Main : Node2D
             // A guest's script starts once it is in the game, so a slow join
             // doesn't use up its first steps (the network test depends on it).
             bool inGame = _host != null || (_connected && _player.Snapshot != null);
-            var input = inGame ? _player.NextInput(ReadKeys(_player.Screen == PlayerScreen.Planetside)) : ShipInput.None;
+            // No ship keys while the about screen is up (its Esc mustn't take off).
+            var keys = _about.Visible ? ShipInput.None : ReadKeys(_player.Screen == PlayerScreen.Planetside);
+            var input = inGame ? _player.NextInput(keys) : ShipInput.None;
             var landing = inGame ? _player.TakeLandingRequest() : null;
             if (_host != null)
             {

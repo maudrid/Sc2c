@@ -43,6 +43,7 @@ public sealed class PlayerSession
     private readonly Dictionary<string, Activity> _seenActivity = new();
     private int _leaveFrames;
     private (int X, int Y)? _landingSite;
+    private bool _landingAsked;   // sent, not yet down or refused: the menu takes no keys
     private LanderPhase? _seenLanderPhase;
     private bool _wasSweeping;
     private int _undockFrames = -1;
@@ -186,6 +187,8 @@ public sealed class PlayerSession
                 Log($"Saw {other.PlayerId}'s lander");
         }
         var lander = MyLander;
+        if (lander is not null)
+            _landingAsked = false;   // it's down: the request is answered
         if (lander is { Crew: 0 } && _seenLanderCrew > 0)
             Log("The lander's crew are all dead");
         var phase = lander?.Phase;
@@ -207,6 +210,7 @@ public sealed class PlayerSession
     public void LandingRefused(DispatchRefusal refusal)
     {
         OrbitMessage = RefusalMessage(refusal);
+        _landingAsked = false;
         Log($"Landing refused: {refusal}");
     }
 
@@ -258,8 +262,8 @@ public sealed class PlayerSession
     /// <summary>A key for the orbit screen's menus.</summary>
     public void PressMenu(MenuKey key)
     {
-        if (OrbitMenu == null || Me?.Activity == Activity.Planetside)
-            return;   // the keys drive the lander then; the menu waits for its return
+        if (OrbitMenu == null || Me?.Activity == Activity.Planetside || _landingAsked)
+            return;   // the keys drive the lander then (or will soon); the menu waits for its return
         OrbitMenuItem item = OrbitMenu.Selected;
         MenuOutcome outcome = OrbitMenu.Press(key, Taken, Kit);
         OrbitMessage = outcome switch
@@ -280,6 +284,7 @@ public sealed class PlayerSession
         {
             Log($"Landing site picked: {OrbitMenu.Site!.X}, {OrbitMenu.Site.Y}");
             _landingSite = (OrbitMenu.Site.X, OrbitMenu.Site.Y);
+            _landingAsked = true;
         }
         if (outcome == MenuOutcome.LeaveOrbit)
         {
