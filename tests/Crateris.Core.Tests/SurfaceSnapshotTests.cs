@@ -23,6 +23,7 @@ namespace Crateris.Core.Tests;
 /// was sent with its base, rebuilt exactly over loss and reordering, and
 /// small enough.
 /// </summary>
+[Trait("Topic", "net")]
 public class SurfaceSnapshotTests
 {
     private readonly ITestOutputHelper _out;

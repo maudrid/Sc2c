@@ -21,6 +21,7 @@ namespace Crateris.Core.Tests;
 /// side (guests, input, start options) and the local player's (keys, orbit
 /// menus, the screen, the status), run here without Godot.
 /// </summary>
+[Trait("Topic", "world")]
 public class SessionTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

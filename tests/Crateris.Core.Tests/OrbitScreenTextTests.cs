@@ -13,6 +13,7 @@ using Crateris.Presentation;
 namespace Crateris.Core.Tests;
 
 /// <summary>The orbit screen's words: UQM's menu numbering, and the report and menus laid out as UQM's PC version does.</summary>
+[Trait("Topic", "content")]
 public class OrbitScreenTextTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));

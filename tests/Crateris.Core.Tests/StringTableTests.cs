@@ -18,6 +18,7 @@ namespace Crateris.Core.Tests;
 /// string table of the real package as hashes (string-tables.json), and
 /// the numbering of gamestr.h (string-numbering.json).
 /// </summary>
+[Trait("Topic", "content")]
 public class StringTableTests
 {
     [Fact]

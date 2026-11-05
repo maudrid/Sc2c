@@ -23,6 +23,7 @@ namespace Crateris.Core.Tests;
 /// their own: one of them times the codec.
 /// </summary>
 [Collection(TimingSensitive.Name)]
+[Trait("Topic", "net")]
 public class SnapshotCodecTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

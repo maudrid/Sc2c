@@ -12,3 +12,4 @@ Before reporting any piece of work as complete (a plan item, a fix, a review's f
 
 - The UQM content package must never be committed to the repository.
 - Tests that need the content read it from `CRATERIS_CONTENT`; without it they're skipped, so set it when checking work.
+- Tests are grouped by topic (`tests/topics.json`, a `[Trait("Topic", ...)]` on each test class). While working, run the topics a change touches with `python3 tools/run_tests.py --changed`; run every topic (`python3 tools/run_tests.py`) before reporting work complete. A new test class needs a topic, and a new source file a topic that covers it (`TopicTests` checks both).

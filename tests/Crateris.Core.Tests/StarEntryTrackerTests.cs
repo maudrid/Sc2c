@@ -19,6 +19,7 @@ namespace Crateris.Core.Tests;
 /// input ignored while one plays, and clients play it from the contact the
 /// host sends, at the right step even if they missed snapshots.
 /// </summary>
+[Trait("Topic", "hyperspace")]
 public class StarEntryTrackerTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

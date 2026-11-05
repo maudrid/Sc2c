@@ -13,6 +13,7 @@ using Crateris.Core.Uqm;
 namespace Crateris.Core.Tests;
 
 /// <summary>The flagship's entry into a star, as UQM's init_transition and unhyper_transition play it.</summary>
+[Trait("Topic", "hyperspace")]
 public class StarEntryTests
 {
     private static readonly Star Sol = new(82, 1752, 1450, StarSize.Dwarf, StarColor.Yellow, "SOL_DEFINED");

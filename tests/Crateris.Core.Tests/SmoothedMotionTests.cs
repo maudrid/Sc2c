@@ -13,6 +13,7 @@ using Crateris.Presentation;
 namespace Crateris.Core.Tests;
 
 /// <summary>Ships in systems are drawn moving evenly (stage 2, decision 8).</summary>
+[Trait("Topic", "systems")]
 public class SmoothedMotionTests
 {
     [Fact]

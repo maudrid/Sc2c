@@ -17,6 +17,7 @@ namespace Crateris.Core.Tests;
 /// System generation against tests/golden/star-systems.json, recorded by
 /// running UQM 0.8.0's own generators for every star.
 /// </summary>
+[Trait("Topic", "systems")]
 public class StarSystemTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

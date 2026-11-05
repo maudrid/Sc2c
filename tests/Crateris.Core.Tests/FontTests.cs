@@ -17,6 +17,7 @@ namespace Crateris.Core.Tests;
 /// Fonts and text layout against UQM's own _GetFontData, TextRect and
 /// _text_blt (tests/golden/fonts.json, as hashes), and PNG decoding.
 /// </summary>
+[Trait("Topic", "content")]
 public class FontTests
 {
     private static string Hash(string json) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();

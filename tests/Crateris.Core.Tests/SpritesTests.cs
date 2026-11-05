@@ -16,6 +16,7 @@ namespace Crateris.Core.Tests;
 /// Colour maps as UQM's SetColorMap sets them, and the system and
 /// hyperspace sprites drawn from the package with them.
 /// </summary>
+[Trait("Topic", "content")]
 public class SpritesTests
 {
     private static byte[] Entry(int start, int end, int maps, byte fill)

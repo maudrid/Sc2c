@@ -18,6 +18,7 @@ namespace Crateris.Core.Tests;
 /// recorded by running UQM 0.8.0's own generateOrbital and node generators
 /// for every world.
 /// </summary>
+[Trait("Topic", "systems")]
 public class SurfaceTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

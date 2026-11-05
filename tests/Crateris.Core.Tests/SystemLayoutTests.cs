@@ -16,6 +16,7 @@ namespace Crateris.Core.Tests;
 /// UQM's own DrawSystem would draw for every star: orbit ellipses and
 /// planets at each zoom, and every planet's inner view with its moons.
 /// </summary>
+[Trait("Topic", "systems")]
 public class SystemLayoutTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

@@ -22,6 +22,7 @@ namespace Crateris.Core.Tests;
 /// server's thread pool could be starved past the stall limit.
 /// </summary>
 [Collection(TimingSensitive.Name)]
+[Trait("Topic", "content")]
 public sealed class ContentInstallerTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"crateris-install-{Guid.NewGuid():N}");

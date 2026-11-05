@@ -12,6 +12,7 @@ using Crateris.Core.World;
 
 namespace Crateris.Core.Tests;
 
+[Trait("Topic", "world")]
 public class GameWorldTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
@@ -279,6 +280,7 @@ public class GameWorldTests
     }
 }
 
+[Trait("Topic", "world")]
 public class ProtocolTests
 {
     [Fact]

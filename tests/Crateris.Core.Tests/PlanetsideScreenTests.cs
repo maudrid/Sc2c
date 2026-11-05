@@ -23,6 +23,7 @@ namespace Crateris.Core.Tests;
 /// every stamp, filled stamp and line of text on the surface view in
 /// order, and the gauges as UQM leaves them after each frame.
 /// </summary>
+[Trait("Topic", "drawing")]
 public class PlanetsideScreenTests
 {
     private static readonly Lazy<JsonElement> Recorded = new(() => Golden.Load("lander-drawing"));
@@ -141,6 +142,7 @@ public class PlanetsideScreenTests
 }
 
 /// <summary>The Manifest's cargo display (stage 2b, item 10) against UQM's own cargo.c (lander-drawing.json's cargo).</summary>
+[Trait("Topic", "drawing")]
 public class CargoDisplayTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));

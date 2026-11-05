@@ -12,6 +12,7 @@ using Crateris.Core.Systems;
 namespace Crateris.Core.Tests;
 
 /// <summary>Surface height maps against UQM's own GeneratePlanetSurface for every world (tests/golden/surface-heights.json).</summary>
+[Trait("Topic", "planet-maps")]
 public class SurfaceMapTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));
@@ -20,6 +21,15 @@ public class SurfaceMapTests
         moon < 0 ? Systems[star].Planets[planet] : Systems[star].Moons(planet)[moon];
 
     internal static byte[] Bytes(sbyte[] map) => (byte[])(Array)map;
+
+    // Every world's height map, made once for the planet-maps tests that
+    // need it (it's checked against UQM's here; the light maps, colours and
+    // planetside maps are made from it). Don't change the arrays.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int Type, uint Seed), Lazy<sbyte[]>> HeightCache = new();
+
+    /// <summary>A world's height map (<see cref="SurfaceMap.Generate"/>), made once for every test.</summary>
+    internal static sbyte[] HeightMap(Data.PlanetType type, uint seed) =>
+        HeightCache.GetOrAdd((type.Index, seed), _ => new Lazy<sbyte[]>(() => SurfaceMap.Generate(type, seed))).Value;
 
     [Fact]
     public void EveryWorldsHeightMapIsTheOneUqmMakes()
@@ -42,7 +52,7 @@ public class SurfaceMapTests
         Parallel.ForEach(maps, m =>
         {
             int type = WorldTypes.PlanetType(m.Desc.DataIndex);
-            var map = SurfaceMap.Generate(Systems.Generator.Types[type], m.Desc.RandSeed);
+            var map = HeightMap(Systems.Generator.Types[type], m.Desc.RandSeed);
             if (m.Want != Convert.ToHexString(SHA256.HashData(Bytes(map))).ToLowerInvariant())
                 wrong.Add($"{m.Where} (type {type})");
         });

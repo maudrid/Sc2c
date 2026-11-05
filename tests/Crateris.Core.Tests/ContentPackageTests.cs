@@ -84,6 +84,7 @@ public sealed class ContentTheoryAttribute : TheoryAttribute
     }
 }
 
+[Trait("Topic", "content")]
 public class ResourceIndexTests
 {
     [Fact]
@@ -149,6 +150,7 @@ public class ResourceIndexTests
     }
 }
 
+[Trait("Topic", "content")]
 public class ContentPackageTests
 {
     // A package made by the test, with nothing from UQM in it.

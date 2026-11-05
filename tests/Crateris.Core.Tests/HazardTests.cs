@@ -20,6 +20,7 @@ namespace Crateris.Core.Tests;
 /// against UQM's, the shields' bits, and the rules for several landers
 /// (decision 3), which UQM, with its one lander, has no recording of.
 /// </summary>
+[Trait("Topic", "lander")]
 public class HazardTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));

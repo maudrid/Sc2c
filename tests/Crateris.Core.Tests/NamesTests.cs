@@ -17,6 +17,7 @@ namespace Crateris.Core.Tests;
 /// Names against what UQM's own code gives for every star, planet and moon
 /// (tests/golden/names.json, as hashes), and a few in plain words.
 /// </summary>
+[Trait("Topic", "content")]
 public class NamesTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));

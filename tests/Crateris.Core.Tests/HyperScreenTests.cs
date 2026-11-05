@@ -14,6 +14,7 @@ using Crateris.Presentation;
 namespace Crateris.Core.Tests;
 
 /// <summary>Places on UQM's hyperspace screen, worked out from process.c and hyper.c.</summary>
+[Trait("Topic", "hyperspace")]
 public class HyperScreenTests
 {
     [Fact]

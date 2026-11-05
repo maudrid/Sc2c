@@ -17,6 +17,7 @@ namespace Crateris.Core.Tests;
 /// canvas (tests/golden/sprite-masks.json), and the intersection against
 /// UQM's own DrawablesIntersect on 4,000 cases (intersections.json).
 /// </summary>
+[Trait("Topic", "content")]
 public class ContactTests
 {
     private static readonly Lazy<ContactShapes> Shapes = new(() => TestContent.With(ContactShapes.Load));

@@ -19,6 +19,7 @@ namespace Crateris.Core.Tests;
 /// (tests/golden/surface-heights.json, code only) and UQM's rendered frames
 /// of a sample of worlds at several rotation steps (planet-spheres.json).
 /// </summary>
+[Trait("Topic", "planet-maps")]
 public class PlanetSphereTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));
@@ -40,7 +41,7 @@ public class PlanetSphereTests
         Parallel.ForEach(worlds, w =>
         {
             var type = Type(w.Desc);
-            var light = PlanetSphere.LightMap(SurfaceMap.Generate(type, w.Desc.RandSeed), type.Algorithm == MapAlgorithm.GasGiant);
+            var light = PlanetSphere.LightMap(SurfaceMapTests.HeightMap(type, w.Desc.RandSeed), type.Algorithm == MapAlgorithm.GasGiant);
             if (Hash(SurfaceMapTests.Bytes(light)) != w.Want)
                 wrong.Add(w.Where);
         });

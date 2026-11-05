@@ -20,6 +20,7 @@ namespace Crateris.Core.Tests;
 /// sprites' shapes from the content package, replayed here with the same
 /// input and the same shapes.
 /// </summary>
+[Trait("Topic", "systems")]
 public class IpFlightTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

@@ -20,6 +20,7 @@ namespace Crateris.Core.Tests;
 /// they touch from the world for everyone, and go back to orbit with their
 /// cargo; leaving while landed and saving keep the crew and cargo.
 /// </summary>
+[Trait("Topic", "shared-surface")]
 public class SharedSurfaceTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
@@ -286,6 +287,7 @@ public class SharedSurfaceTests
 }
 
 /// <summary>The client's side of a landing (stage 2b, item 9).</summary>
+[Trait("Topic", "shared-surface")]
 public class LandingSessionTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
@@ -366,6 +368,7 @@ public class LandingSessionTests
 }
 
 /// <summary>The Manifest's cargo display and discarding (stage 2b, item 10; UQM's CargoMenu, DoDiscardCargo).</summary>
+[Trait("Topic", "shared-surface")]
 public class CargoMenuTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

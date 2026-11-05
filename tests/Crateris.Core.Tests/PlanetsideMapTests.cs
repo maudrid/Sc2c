@@ -16,6 +16,7 @@ namespace Crateris.Core.Tests;
 /// RenderTopography for every landable world, with frandom started afresh
 /// for each (tests/golden/planetside-heights.json, planetside-colors.json).
 /// </summary>
+[Trait("Topic", "planet-maps")]
 public class PlanetsideMapTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));
@@ -61,7 +62,7 @@ public class PlanetsideMapTests
         {
             var desc = SurfaceMapTests.World(w.Star, w.Planet, w.Moon);
             var type = Systems.Generator.Types[WorldTypes.PlanetType(desc.DataIndex)];
-            var map = PlanetsideMap.Generate(SurfaceMap.Generate(type, desc.RandSeed), type);
+            var map = PlanetsideMap.Generate(SurfaceMapTests.HeightMap(type, desc.RandSeed), type);
             if (Hash(SurfaceMapTests.Bytes(map)) != w.Want)
                 wrong.Add($"star {w.Star} planet {w.Planet} moon {w.Moon} (type {type.Name})");
         });
@@ -79,7 +80,11 @@ public class PlanetsideMapTests
         Parallel.For(0, worlds.Count, i =>
         {
             var w = worlds[i];
-            var colors = surfaces.Planetside(Systems[w.Star], w.Planet, w.Moon < 0 ? null : w.Moon, reports[i]);
+            // From the world's height map (made once for these tests), as the orbit screen gives it.
+            var desc = SurfaceMapTests.World(w.Star, w.Planet, w.Moon);
+            var type = Systems.Generator.Types[WorldTypes.PlanetType(desc.DataIndex)];
+            var colors = surfaces.Planetside(Systems[w.Star], w.Planet, w.Moon < 0 ? null : w.Moon, reports[i],
+                new PlanetSurface(SurfaceMapTests.HeightMap(type, desc.RandSeed), Array.Empty<Rgb>()));
             if (colors is null || Hash(PlanetSurfacesTests.RgbBytes(colors)) != w.Want)
                 wrong.Add($"star {w.Star} planet {w.Planet} moon {w.Moon}");
         });

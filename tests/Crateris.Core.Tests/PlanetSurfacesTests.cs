@@ -18,6 +18,7 @@ namespace Crateris.Core.Tests;
 /// (tests/golden/surface-colors.json), binary tables against UQM's
 /// _GetBinaryTableData (binary-tables.json), and Earth's own surface.
 /// </summary>
+[Trait("Topic", "planet-maps")]
 public class PlanetSurfacesTests
 {
     private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));

@@ -18,6 +18,7 @@ namespace Crateris.Core.Tests;
 /// what UQM's own DrawSystem and CreateStarBackGround stamp for every star:
 /// each sprite's sheet, frame, place and colour table entry, in UQM's order.
 /// </summary>
+[Trait("Topic", "systems")]
 public class SystemSpritesTests
 {
     private static readonly SystemCatalog Catalog = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));

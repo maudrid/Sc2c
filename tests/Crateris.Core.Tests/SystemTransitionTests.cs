@@ -15,6 +15,7 @@ using Crateris.Core.Uqm;
 namespace Crateris.Core.Tests;
 
 /// <summary>Entering and leaving star systems.</summary>
+[Trait("Topic", "systems")]
 public class SystemTransitionTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

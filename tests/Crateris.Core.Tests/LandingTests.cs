@@ -18,6 +18,7 @@ namespace Crateris.Core.Tests;
 /// (tests/golden/landing.json), and the landing site picker against
 /// DoPickPlanetSide's rules.
 /// </summary>
+[Trait("Topic", "world")]
 public class LandingTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

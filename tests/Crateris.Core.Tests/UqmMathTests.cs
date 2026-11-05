@@ -11,6 +11,7 @@ using Crateris.Core.Uqm;
 namespace Crateris.Core.Tests;
 
 /// <summary>The C# math must match UQM's (tests/golden/uqm-math.json).</summary>
+[Trait("Topic", "hyperspace")]
 public class UqmMathTests
 {
     private static readonly System.Text.Json.JsonElement G = Golden.Load("uqm-math");

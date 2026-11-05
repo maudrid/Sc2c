@@ -17,6 +17,7 @@ namespace Crateris.Core.Tests;
 /// Each ship's landing kit and hold (stage 2b, item 1): crew, landers,
 /// storage, minerals and bio data, with UQM's limits, sent and saved.
 /// </summary>
+[Trait("Topic", "world")]
 public class HoldTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

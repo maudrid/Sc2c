@@ -15,6 +15,7 @@ using Crateris.Core.World;
 namespace Crateris.Core.Tests;
 
 /// <summary>The host's per-player activities: hyperspace, systems and orbit (with the content's shapes for contact).</summary>
+[Trait("Topic", "world")]
 public class ActivityTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

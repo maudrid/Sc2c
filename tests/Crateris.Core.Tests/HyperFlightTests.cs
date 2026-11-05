@@ -14,6 +14,7 @@ namespace Crateris.Core.Tests;
 /// Hyperspace flight must match UQM frame by frame
 /// (tests/golden/hyperspace-flight.json, recorded from UQM's own code).
 /// </summary>
+[Trait("Topic", "hyperspace")]
 public class HyperFlightTests
 {
     private static readonly System.Text.Json.JsonElement G = Golden.Load("hyperspace-flight");

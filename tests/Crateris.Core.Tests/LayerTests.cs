@@ -17,6 +17,7 @@ namespace Crateris.Core.Tests;
 /// (Crateris.Presentation) or of Godot, and the content's frames are
 /// checked for contact as they're read.
 /// </summary>
+[Trait("Topic", "content")]
 public class LayerTests
 {
     [Fact]

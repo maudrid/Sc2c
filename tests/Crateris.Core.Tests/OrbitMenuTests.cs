@@ -15,6 +15,7 @@ namespace Crateris.Core.Tests;
 /// The orbit screen's menus and scans, as UQM's PC menus and ScanPlanet
 /// work them, with the scan showing what is left on the host right now.
 /// </summary>
+[Trait("Topic", "systems")]
 public class OrbitMenuTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

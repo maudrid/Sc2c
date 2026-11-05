@@ -14,6 +14,7 @@ using Crateris.Core.World;
 namespace Crateris.Core.Tests;
 
 /// <summary>Taken nodes: shared world state, kept in the host save.</summary>
+[Trait("Topic", "world")]
 public class PlanetWorldStateTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");

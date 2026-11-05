@@ -24,6 +24,7 @@ namespace Crateris.Core.Tests;
 /// content's shapes), creatures (lander-creatures.json) and quakes,
 /// lightning and lava (lander-hazards.json).
 /// </summary>
+[Trait("Topic", "lander")]
 public class LanderTests
 {
     private static readonly JsonElement Recorded = Golden.Load("lander");
