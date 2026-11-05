@@ -306,6 +306,7 @@ public partial class Main : Node2D
                 Log(host.StartAt(at.X, at.Y));
             if (_options.StartOrbit is { } o)
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
+            host.GuestsStartInOrbit = _options.GuestsInOrbit;
         }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
         {
@@ -354,6 +355,9 @@ public partial class Main : Node2D
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void UndockShown() => _host?.GuestUndockShown(Multiplayer.GetRemoteSenderId());
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RequestLanding(int x, int y) => _host?.GuestDispatch(Multiplayer.GetRemoteSenderId(), x, y);
 
     private void SaveGame()
     {
@@ -443,9 +447,12 @@ public partial class Main : Node2D
             // A guest's script starts once it is in the game, so a slow join
             // doesn't use up its first steps (the network test depends on it).
             bool inGame = _host != null || (_connected && _player.Snapshot != null);
-            var input = inGame ? _player.NextInput(ReadKeys()) : ShipInput.None;
+            var input = inGame ? _player.NextInput(ReadKeys(_player.Screen == PlayerScreen.Planetside)) : ShipInput.None;
+            var landing = inGame ? _player.TakeLandingRequest() : null;
             if (_host != null)
             {
+                if (landing is { } site)
+                    _host.Dispatch(_host.HostId, site.X, site.Y);
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
                 // Each guest gets its own: a delta from what it has, or in full.
@@ -457,6 +464,8 @@ public partial class Main : Node2D
             }
             else if (_connected && _player.Snapshot is { } snap)
             {
+                if (landing is { } site)
+                    RpcId(1, MethodName.RequestLanding, site.X, site.Y);
                 RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input, snap.Frame);
                 if (_player.UndockTick())
                     RpcId(1, MethodName.UndockShown);
@@ -492,7 +501,9 @@ public partial class Main : Node2D
     }
 
     /// <summary>The ship keys held (the session ignores them when a script plays, or in orbit).</summary>
-    private static ShipInput ReadKeys()
+    // The keys held. On a planet's surface, as UQM's: Space, Enter or Ctrl
+    // fires, Esc takes off; elsewhere Space and Enter are the action key.
+    private static ShipInput ReadKeys(bool onSurface)
     {
         var input = ShipInput.None;
         if (Input.IsKeyPressed(Key.Left))
@@ -501,7 +512,15 @@ public partial class Main : Node2D
             input |= ShipInput.Right;
         if (Input.IsKeyPressed(Key.Up))
             input |= ShipInput.Thrust;
-        if (Input.IsKeyPressed(Key.Enter) || Input.IsKeyPressed(Key.Space))
+        bool select = Input.IsKeyPressed(Key.Enter) || Input.IsKeyPressed(Key.Space);
+        if (onSurface)
+        {
+            if (select || Input.IsKeyPressed(Key.Ctrl))
+                input |= ShipInput.Fire;
+            if (Input.IsKeyPressed(Key.Escape))
+                input |= ShipInput.Action;
+        }
+        else if (select)
             input |= ShipInput.Action;
         return input;
     }

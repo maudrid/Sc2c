@@ -27,10 +27,10 @@ namespace Crateris.Core.Net;
 /// every field written. Ships whose fields didn't change are the base's own
 /// records when decoded, so a delta builds little.
 /// </summary>
-public static class SnapshotCodec
+public static partial class SnapshotCodec
 {
     private const byte KindFull = 0, KindDelta = 1;
-    private const byte PartDate = 1, PartOrbited = 2;
+    private const byte PartDate = 1, PartOrbited = 2, PartSurface = 4;
 
     // The ship's numbers, in the order of the mask's bits.
     private const int Flags = 0, LogX = 1, LogY = 2, UniverseX = 3, UniverseY = 4, Facing = 5,
@@ -46,10 +46,13 @@ public static class SnapshotCodec
     /// <summary>
     /// Writes <paramref name="snapshot"/> into <paramref name="writer"/>
     /// (cleared first): as a delta from <paramref name="baseSnapshot"/>, an
-    /// earlier snapshot the receiver has, or in full without one.
+    /// earlier snapshot the receiver has, or in full without one. Of the
+    /// surfaces, only <paramref name="viewer"/>'s goes: the one its own
+    /// lander is on (none for no viewer), as a delta from the one it was
+    /// sent with the base, if it's the same world's.
     /// Doesn't allocate once the writer's buffer is big enough.
     /// </summary>
-    public static void Encode(WireWriter writer, WorldSnapshot snapshot, WorldSnapshot? baseSnapshot = null)
+    public static void Encode(WireWriter writer, WorldSnapshot snapshot, WorldSnapshot? baseSnapshot = null, string? viewer = null)
     {
         if (baseSnapshot is not null && baseSnapshot.Frame >= snapshot.Frame)
             throw new ArgumentException("a delta's base must be an earlier snapshot", nameof(baseSnapshot));
@@ -62,7 +65,10 @@ public static class SnapshotCodec
         bool dateChanged = baseSnapshot is null
             || (snapshot.Year, snapshot.Month, snapshot.Day) != (baseSnapshot.Year, baseSnapshot.Month, baseSnapshot.Day);
         bool orbitedChanged = baseSnapshot is null || !SameWorlds(snapshot.OrbitedWorlds, baseSnapshot.OrbitedWorlds);
-        writer.Byte((byte)((dateChanged ? PartDate : 0) | (orbitedChanged ? PartOrbited : 0)));
+        var surface = SurfaceSeen(snapshot, viewer);
+        var baseSurface = SurfaceSeen(baseSnapshot, viewer);
+        bool surfaceChanged = surface is not null || baseSurface is not null;
+        writer.Byte((byte)((dateChanged ? PartDate : 0) | (orbitedChanged ? PartOrbited : 0) | (surfaceChanged ? PartSurface : 0)));
         if (dateChanged)
         {
             writer.Int((long)snapshot.Year - (baseSnapshot?.Year ?? 0));
@@ -71,6 +77,8 @@ public static class SnapshotCodec
         }
         if (orbitedChanged)
             WriteWorlds(writer, snapshot.OrbitedWorlds);
+        if (surfaceChanged)
+            WriteSurface(writer, surface, baseSurface);
 
         writer.UInt((ulong)snapshot.Ships.Count);
         Span<long> now = stackalloc long[Numbers];
@@ -171,7 +179,8 @@ public static class SnapshotCodec
                 throw new ArgumentException($"the base given for frame {bf} is frame {baseSnapshot.Frame}", nameof(baseOf));
         }
         byte parts = r.Byte();
-        if ((parts & ~(PartDate | PartOrbited)) != 0 || (baseSnapshot is null && parts != (PartDate | PartOrbited)))
+        if ((parts & ~(PartDate | PartOrbited | PartSurface)) != 0
+                || (baseSnapshot is null && (parts & (PartDate | PartOrbited)) != (PartDate | PartOrbited)))
             throw new InvalidDataException("Bad snapshot parts.");
         int year = baseSnapshot?.Year ?? 0, month = baseSnapshot?.Month ?? 0, day = baseSnapshot?.Day ?? 0;
         if ((parts & PartDate) != 0)
@@ -181,6 +190,8 @@ public static class SnapshotCodec
             day = ToInt(day + r.Int());
         }
         var worlds = (parts & PartOrbited) != 0 ? ReadWorlds(ref r) : baseSnapshot!.OrbitedWorlds;
+        var surfaces = (parts & PartSurface) != 0 ? ReadSurface(ref r, baseSnapshot?.Surfaces?.FirstOrDefault())
+            : baseSnapshot?.Surfaces;
 
         int count = Count(r.UInt(), 64);
         var ships = new ShipSnapshot[count];
@@ -230,7 +241,7 @@ public static class SnapshotCodec
         }
         if (!r.AtEnd)
             throw new InvalidDataException("The snapshot has bytes left over.");
-        return new WorldSnapshot(frame, year, month, day, ships, worlds);
+        return new WorldSnapshot(frame, year, month, day, ships, worlds, surfaces);
     }
 
     private static void ToNumbers(ShipSnapshot s, Span<long> v)

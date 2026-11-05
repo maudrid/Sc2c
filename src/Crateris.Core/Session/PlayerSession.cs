@@ -9,13 +9,14 @@
 using Crateris.Core.Content;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
+using Crateris.Core.Planetside;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
 
 namespace Crateris.Core.Session;
 
 /// <summary>Which screen the local player sees.</summary>
-public enum PlayerScreen { Hyperspace, System, Orbit }
+public enum PlayerScreen { Hyperspace, System, Orbit, Planetside }
 
 /// <summary>
 /// The local player's side of a game, the same for the host and a guest,
@@ -41,6 +42,8 @@ public sealed class PlayerSession
     private readonly InputScript? _script;
     private readonly Dictionary<string, Activity> _seenActivity = new();
     private int _leaveFrames;
+    private (int X, int Y)? _landingSite;
+    private LanderPhase? _seenLanderPhase;
     private bool _wasSweeping;
     private int _undockFrames = -1;
     private double _time;
@@ -166,6 +169,48 @@ public sealed class PlayerSession
         }
         Entries.Observe(snapshot);
         UpdateOrbitMenu();
+        NoteLander();
+    }
+
+    /// <summary>The local player's lander on its surface, as the last snapshot gives it; null if it isn't down.</summary>
+    public LanderSnapshot? MyLander =>
+        SnapshotCodec.SurfaceSeen(Snapshot, PlayerId)?.Landers.FirstOrDefault(l => l.PlayerId == PlayerId);
+
+    // Logs the lander's landing, its crew all dying, its return with what
+    // it brought, and the first sight of each other lander on its surface.
+    private void NoteLander()
+    {
+        foreach (var other in SnapshotCodec.SurfaceSeen(Snapshot, PlayerId)?.Landers ?? Array.Empty<LanderSnapshot>())
+        {
+            if (other.PlayerId != PlayerId && _seenLanders.Add(other.PlayerId))
+                Log($"Saw {other.PlayerId}'s lander");
+        }
+        var lander = MyLander;
+        if (lander is { Crew: 0 } && _seenLanderCrew > 0)
+            Log("The lander's crew are all dead");
+        _seenLanderCrew = lander?.Crew ?? -1;
+        var phase = lander?.Phase;
+        if (phase == _seenLanderPhase)
+            return;
+        if (phase == LanderPhase.Ground)
+            Log("Landed");
+        else if (phase is null && Me?.Hold is { } hold)
+            Log($"Back in orbit: crew {hold.Crew}, landers {hold.Landers}, minerals {hold.MineralMass}, bio {hold.BioData}");
+        _seenLanderPhase = phase;
+    }
+
+    private int _seenLanderCrew = -1;
+    private readonly HashSet<string> _seenLanders = new();
+
+    /// <summary>
+    /// The landing site picked in the orbit menu, to send to the host
+    /// once (the host sends the lander down, or refuses); null if none is waiting.
+    /// </summary>
+    public (int X, int Y)? TakeLandingRequest()
+    {
+        var site = _landingSite;
+        _landingSite = null;
+        return site;
     }
 
     /// <summary>
@@ -188,7 +233,7 @@ public sealed class PlayerSession
                 PressMenu(key);
         }
         else
-            input = Me?.Activity == Activity.Orbit ? ShipInput.None : keys;
+            input = Me?.Activity == Activity.Orbit ? ShipInput.None : keys;   // on the surface, the lander's keys
         if (Entering)
             return ShipInput.None;
         if (_leaveFrames > 0)
@@ -213,8 +258,7 @@ public sealed class PlayerSession
             MenuOutcome.Refused => "The world is shielded.",
             MenuOutcome.LeaveOrbit => "Leaving orbit...",
             MenuOutcome.PickingSite => $"Pick a landing site. Fuel: {OrbitMenu.LandingFuel / 100.0:0.0}",
-            // The lander itself comes later in stage 2b (items 5 and 9).
-            MenuOutcome.Dispatch => "The lander comes in a later step.",
+            MenuOutcome.Dispatch => "Dispatching the lander...",
             _ => "",
         };
         if (outcome == MenuOutcome.ScanStarted)
@@ -222,7 +266,10 @@ public sealed class PlayerSession
         if (outcome == MenuOutcome.PickingSite)
             Log("Picking a landing site");
         if (outcome == MenuOutcome.Dispatch)
+        {
             Log($"Landing site picked: {OrbitMenu.Site!.X}, {OrbitMenu.Site.Y}");
+            _landingSite = (OrbitMenu.Site.X, OrbitMenu.Site.Y);
+        }
         if (outcome == MenuOutcome.LeaveOrbit)
         {
             Log("Leaving orbit");
@@ -244,6 +291,9 @@ public sealed class PlayerSession
         DispatchRefusal.Fuel => "Not enough fuel to land.",
         DispatchRefusal.NoLander => "No lander aboard.",
         DispatchRefusal.NoCrew => "No crew to send down.",
+        DispatchRefusal.NotInOrbit => "The ship isn't in orbit.",
+        DispatchRefusal.LanderOut => "The lander is already down.",
+        DispatchRefusal.OffTheMap => "That site is off the map.",
         _ => "",
     };
 
@@ -337,7 +387,12 @@ public sealed class PlayerSession
             var me = Me;
             if (me == null || me.Activity == Activity.Hyperspace || Entering)
                 return PlayerScreen.Hyperspace;
-            return me.Activity == Activity.Orbit ? PlayerScreen.Orbit : PlayerScreen.System;
+            return me.Activity switch
+            {
+                Activity.Orbit => PlayerScreen.Orbit,
+                Activity.Planetside => PlayerScreen.Planetside,
+                _ => PlayerScreen.System,
+            };
         }
     }
 
@@ -354,6 +409,8 @@ public sealed class PlayerSession
                 lines.Add($"Fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
                 if (me.Hold is { } h)
                     lines.Add($"Crew {h.Crew}, landers {h.Landers}, minerals {h.MineralMass} / {h.StorageCapacity}, bio {h.BioData}");
+                if (MyLander is { } l)
+                    lines.Add($"Lander: {l.Phase.ToString().ToLowerInvariant()}, crew {l.Crew}, minerals {l.MineralMass}, bio {l.BioData}");
             }
             lines.Add($"Players ({Snapshot.Ships.Count}):");
             foreach (var s in Snapshot.Ships)
@@ -364,7 +421,9 @@ public sealed class PlayerSession
             var host = Snapshot?.Ships.FirstOrDefault(s => s.IsHost);
             lines.Add($"Undocking from {host?.Name ?? "the"}'s flagship...");
         }
-        if (Me?.Activity != Activity.Orbit && !Entering)
+        if (Me?.Activity == Activity.Planetside)
+            lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
+        else if (Me?.Activity != Activity.Orbit && !Entering)
             lines.Add("Arrows: turn and thrust");
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();
@@ -382,6 +441,8 @@ public sealed class PlayerSession
         return s.Activity switch
         {
             Activity.InnerSystem when s.InnerPlanet is int p => $"the {cluster} system, near {_names?.PlanetName(at, p) ?? $"planet {p}"}",
+            Activity.Planetside when s.OrbitPlanet is int p =>
+                $"landed on {_names?.PlanetOrMoon(at, p, s.OrbitMoon) ?? $"planet {p}" + (s.OrbitMoon is int m ? $" moon {m}" : "")}, {cluster}",
             Activity.Orbit when s.OrbitPlanet is int p =>
                 $"orbiting {_names?.PlanetOrMoon(at, p, s.OrbitMoon) ?? $"planet {p}" + (s.OrbitMoon is int m ? $" moon {m}" : "")}, {cluster}",
             _ => $"the {cluster} system",

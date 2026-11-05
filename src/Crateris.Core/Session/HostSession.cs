@@ -84,6 +84,13 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --guests-in-orbit (testing): each guest joining for the first time is
+    /// put in orbit where the host is, after its undocking, rather than in
+    /// the inner system beside it.
+    /// </summary>
+    public bool GuestsStartInOrbit { get; set; }
+
+    /// <summary>
     /// A guest says hello: refused if its version differs or its connection
     /// already has a player, otherwise joined (or refused, if the game is full). The welcome goes back to it; an
     /// accepted guest's input and undocking are taken from its peer from now on.
@@ -114,6 +121,8 @@ public sealed class HostSession
         Logged?.Invoke(already is null
             ? $"{name} ({playerId}): {result}"
             : $"{name} ({playerId}): {result}, peer {peer} is already {already}");
+        if (result == JoinResult.Joined && GuestsStartInOrbit && World.Host.Ship.OrbitedWorld is { } w)
+            World.PutInOrbit(playerId, w.Star, w.Planet, w.Moon);
         if (Protocol.Accepted(result))
         {
             _peers[peer] = playerId;
@@ -123,7 +132,7 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// A guest's input for a frame (only the four input bits count), with
+    /// A guest's input for a frame (only the five input bits count), with
     /// the frame of the newest snapshot it has (<paramref name="has"/>),
     /// which the host's next snapshots for it are deltas from.
     /// </summary>
@@ -131,9 +140,32 @@ public sealed class HostSession
     {
         if (_peers.TryGetValue(peer, out var id))
         {
-            World.SubmitInput(id, frame, (ShipInput)(input & 15));
+            World.SubmitInput(id, frame, (ShipInput)(input & 31));
             _snapshots.Acknowledge(peer, has);
         }
+    }
+
+    /// <summary>
+    /// A guest sends its lander down at a site it picked (planetside map
+    /// units): refused, and logged, if it can't go now (a site off the map,
+    /// the ship no longer in orbit, its lander already down).
+    /// </summary>
+    public DispatchRefusal GuestDispatch(long peer, int siteX, int siteY) =>
+        _peers.TryGetValue(peer, out var id) ? Dispatch(id, siteX, siteY) : DispatchRefusal.NotInOrbit;
+
+    /// <summary>A player's lander goes down (the host's own through here too).</summary>
+    public DispatchRefusal Dispatch(string id, int siteX, int siteY)
+    {
+        if (siteX < 0 || siteX >= PlanetsideMap.Width || siteY < 0 || siteY >= PlanetsideMap.Height)
+        {
+            Logged?.Invoke($"{id}: landing site {siteX}, {siteY} is off the map");
+            return DispatchRefusal.OffTheMap;
+        }
+        var refusal = World.Dispatch(id, siteX, siteY);
+        Logged?.Invoke(refusal == DispatchRefusal.None
+            ? $"{id}: lander down at {siteX}, {siteY}"
+            : $"{id}: lander refused ({refusal})");
+        return refusal;
     }
 
     public void GuestUndockShown(long peer)
@@ -167,5 +199,5 @@ public sealed class HostSession
     /// The latest snapshot as the message for one guest: a delta from the
     /// newest one it's known to have, or in full (<see cref="SnapshotSender"/>).
     /// </summary>
-    public byte[] SnapshotFor(long peer) => _snapshots.For(peer);
+    public byte[] SnapshotFor(long peer) => _snapshots.For(peer, _peers.GetValueOrDefault(peer));
 }

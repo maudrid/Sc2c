@@ -27,7 +27,8 @@ namespace Crateris.Game;
 /// --first-run-use FILE (the first-run screen acts as if the player chose
 /// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
 /// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],
-/// --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
+/// --guests-in-orbit (host: guests joining for the first time start in
+/// orbit where the host is), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless).
 /// With no options the game starts as a solo host.
 /// </summary>
@@ -59,6 +60,9 @@ public sealed class Options
 
     /// <summary>--start-orbit star:planet[:moon]: a new game starts in orbit there (testing and debugging).</summary>
     public (int Star, int Planet, int? Moon)? StartOrbit { get; private set; }
+
+    /// <summary>--guests-in-orbit: guests joining for the first time are put in orbit where the host is (testing).</summary>
+    public bool GuestsInOrbit { get; private set; }
 
     /// <summary>--start-at X:Y: the host starts in hyperspace at these universe coordinates (testing and debugging).</summary>
     public (short X, short Y)? StartAt { get; private set; }
@@ -98,6 +102,7 @@ public sealed class Options
                 case "--first-run-use": o.FirstRunUse = Next(); break;
                 case "--quit-after-join": o.QuitAfterJoinFrames = long.Parse(Next()); break;
                 case "--no-upnp": o.UseUpnp = false; break;
+                case "--guests-in-orbit": o.GuestsInOrbit = true; break;
                 case "--seconds-per-day":
                     o.SecondsPerDay = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
                     break;

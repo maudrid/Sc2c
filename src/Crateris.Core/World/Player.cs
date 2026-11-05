@@ -29,6 +29,8 @@ public enum Activity
     InnerSystem,
     /// <summary>In orbit around a planet or moon; the ship doesn't move.</summary>
     Orbit,
+    /// <summary>In orbit, with its lander on the world's surface, 35 frames a second.</summary>
+    Planetside,
 }
 
 /// <summary>A player's ship. The host flies the flagship; guests captain escorts.</summary>
@@ -70,9 +72,16 @@ public sealed class PlayerShip
     /// <summary>In orbit: the world's report, scan seeds and nodes (from <see cref="IpFlight.OrbitData"/>).</summary>
     public OrbitData? Orbit => Ip?.OrbitData;
 
+    /// <summary>The world orbited, or null when not in orbit.</summary>
+    public WorldId? OrbitedWorld => Ip?.Orbit is { } o ? new WorldId(SystemStar!.Value, o.Planet, o.Moon) : null;
+
+    /// <summary>The ship's lander on the orbited world's surface, while it's there (not saved: a save keeps it in orbit).</summary>
+    public Planetside.Lander? Lander { get; internal set; }
+
     public Activity Activity => Ip switch
     {
         null => Activity.Hyperspace,
+        { Orbit: not null } when Lander is not null => Activity.Planetside,
         { Orbit: not null } => Activity.Orbit,
         { InnerPlanet: not null } => Activity.InnerSystem,
         _ => Activity.OuterSystem,

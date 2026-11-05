@@ -9,7 +9,9 @@
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
+using Crateris.Core.Planetside;
 using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
 
 namespace Crateris.Core.World;
 
@@ -54,8 +56,13 @@ public sealed record ShipSnapshot(
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
 
+/// <summary>
+/// The game at a frame: the date, the ships of the players present, the
+/// worlds being orbited (with their taken nodes) and the surfaces with
+/// landers on them. A guest is sent only its own lander's surface.
+/// </summary>
 public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IReadOnlyList<ShipSnapshot> Ships,
-    IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null);
+    IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null, IReadOnlyList<SurfaceSnapshot>? Surfaces = null);
 
 /// <summary>
 /// The host's authoritative game: world state (clock, planets) and every
@@ -63,13 +70,20 @@ public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IRe
 /// (<see cref="World.Activity"/>). The world steps at 24 frames a second,
 /// hyperspace's rate; players in systems take 30 system frames a second,
 /// one or two per world frame (five every four), so both match UQM's
-/// rates frame for frame. Not thread-safe; the server calls it from one thread.
+/// rates frame for frame. Players whose landers are on a world's surface
+/// share that world's one surface (<see cref="PlanetsideSurface"/>), which
+/// takes 35 surface frames a second, one or two a world frame. Not
+/// thread-safe; the server calls it from one thread.
 /// </summary>
 public sealed class GameWorld
 {
     private readonly List<Player> _players = new();
     private readonly Dictionary<string, InputBuffer> _inputs = new();
     private readonly HashSet<string> _actionHeld = new();   // the action key was down last frame
+    // Each world with landers on it has one surface, in the order they were made.
+    private readonly List<(WorldId World, PlanetsideSurface Surface)> _surfaces = new();
+    private readonly Dictionary<Lander, Player> _landerPlayers = new();
+    private readonly Dictionary<Lander, LanderInput> _landerInput = new();
 
     public GameSettings Settings { get; }
     public GameClock Clock { get; }
@@ -202,6 +216,7 @@ public sealed class GameWorld
         var player = Find(id);
         if (player == null)
             return;
+        Withdraw(player);   // decision 5: its lander takes off at once, with its crew and cargo
         player.Present = false;
         _inputs[id].Clear();
         _actionHeld.Remove(id);
@@ -221,6 +236,18 @@ public sealed class GameWorld
         if (Find(id) is { Present: true })
             _inputs[id].Submit(frame, input);
     }
+
+    /// <summary>The surfaces with landers on them, by world, in the order they were made.</summary>
+    public IReadOnlyList<(WorldId World, PlanetsideSurface Surface)> Surfaces => _surfaces;
+
+    /// <summary>The surface of a world, if any lander is on it.</summary>
+    public PlanetsideSurface? SurfaceOf(WorldId world) =>
+        _surfaces.FirstOrDefault(s => s.World == world).Surface;
+
+    /// <summary>Surface frames (35 a second) to run in world frame <paramref name="frame"/> (24 a second).</summary>
+    public static int SurfaceFramesIn(long frame) =>
+        (int)(frame * PlanetsideSurface.FrameRate / GameClock.FramesPerSecond
+              - (frame - 1) * PlanetsideSurface.FrameRate / GameClock.FramesPerSecond);
 
     /// <summary>System frames (30 a second) to run in world frame <paramref name="frame"/> (24 a second).</summary>
     public static int SystemFramesIn(long frame) =>
@@ -254,6 +281,10 @@ public sealed class GameWorld
                     if (actionPressed)
                         LeaveOrbit(p.Ship);
                     break;
+                case Activity.Planetside:
+                    // The surfaces step after everyone's input is in.
+                    _landerInput[p.Ship.Lander!] = ToLanderInput(input);
+                    break;
                 default:
                     // While the entry into the star plays, the ship can't be
                     // flown and its system hasn't loaded yet, as in UQM.
@@ -268,7 +299,62 @@ public sealed class GameWorld
                     break;
             }
         }
+        StepSurfaces();
         Clock.Tick(Settings.SecondsPerGameDay);
+    }
+
+    // The keys on the surface: turn, thrust, fire, and the action key takes off.
+    private static LanderInput ToLanderInput(ShipInput input) =>
+        (LanderInput)(int)(input & (ShipInput.Left | ShipInput.Right | ShipInput.Thrust))
+        | ((input & ShipInput.Fire) != 0 ? LanderInput.Fire : 0)
+        | ((input & ShipInput.Action) != 0 ? LanderInput.TakeOff : 0);
+
+    /// <summary>
+    /// Every surface's frames for this world frame, each lander with its
+    /// player's input; what's taken is taken from the world for everyone;
+    /// a lander that has gone back (or been lost) leaves its ship in orbit,
+    /// and a surface with no landers left goes (the next landing there
+    /// starts a new one, its creatures where UQM would put them again).
+    /// </summary>
+    private void StepSurfaces()
+    {
+        int frames = SurfaceFramesIn(Frame);
+        for (int k = 0; k < _surfaces.Count; ++k)
+        {
+            var (world, surface) = _surfaces[k];
+            for (int i = 0; i < frames && surface.Landers.Count > 0; ++i)
+            {
+                surface.Step(l => _landerInput.GetValueOrDefault(l));
+                foreach (var (scan, node) in surface.Taken)
+                {
+                    if (node < PlanetWorldState.MaxNodes)
+                        Planets.SetRetrieved(world, scan, node);
+                }
+                foreach (var gone in _landerPlayers.Keys.Where(l => l.Phase == LanderPhase.Gone).ToList())
+                    LanderGone(gone);
+            }
+        }
+        _surfaces.RemoveAll(s => s.Surface.Landers.Count == 0);
+        _landerInput.Clear();
+    }
+
+    private void LanderGone(Lander lander)
+    {
+        if (_landerPlayers.Remove(lander, out var player) && player.Ship.Lander == lander)
+            player.Ship.Lander = null;
+        _landerInput.Remove(lander);
+    }
+
+    // A player's lander off its surface at once, back to the ship.
+    private void Withdraw(Player player)
+    {
+        if (player.Ship.Lander is not { } lander)
+            return;
+        var surface = _surfaces.First(s => s.Surface.Landers.Contains(lander));
+        surface.Surface.Withdraw(lander);
+        LanderGone(lander);
+        if (surface.Surface.Landers.Count == 0)
+            _surfaces.Remove(surface);
     }
 
     private void StepHyperspace(PlayerShip ship, ShipInput input)
@@ -348,6 +434,7 @@ public sealed class GameWorld
         if (!Systems[star].EnterOrbit(planet, moon).Entered)
             throw new ArgumentException($"star {star} planet {planet} moon {moon}: that world can't be orbited");
 
+        Withdraw(player);
         PlayerShip ship = player.Ship;
         // Put straight there: no entry plays, so no input is held for one.
         ship.Entry = null;
@@ -365,13 +452,14 @@ public sealed class GameWorld
     }
 
     /// <summary>
-    /// Sends a player's lander down at a landing site (DispatchLander), in
-    /// planetside map units: checks the world and the ship as DoScan does,
-    /// then takes the fuel and the lander leaves with its crew, for
-    /// <see cref="Planetside.PlanetsideSurface.Land"/> to bring down. Returns why
-    /// not, changing nothing, if it can't go. The surface the lander goes
-    /// down to comes in stage 2b's items 5 and 9, which call this from the
-    /// player's input; until then only the tests do.
+    /// Sends a present player's lander down at a landing site
+    /// (DispatchLander), in planetside map units: checks the world and the
+    /// ship as DoScan does, then takes the fuel, the lander leaves with its
+    /// crew and comes down on the world's surface, made now if no other
+    /// lander is there, with the nodes not yet taken and the world's hazards.
+    /// It starts with the next surface frame. Returns why not, changing
+    /// nothing, if it can't go (a request can come after the ship has left
+    /// orbit, or while its lander is down).
     /// </summary>
     public DispatchRefusal Dispatch(string id, int siteX, int siteY)
     {
@@ -379,14 +467,42 @@ public sealed class GameWorld
         if (siteX < 0 || siteX >= PlanetsideMap.Width || siteY < 0 || siteY >= PlanetsideMap.Height)
             throw new ArgumentOutOfRangeException(nameof(siteX), $"the landing site ({siteX}, {siteY}) is off the map");
         PlayerShip ship = player.Ship;
-        if (ship.Orbit is not { Entered: true } orbit)
-            throw new InvalidOperationException($"{id} isn't in orbit");
+        if (!player.Present || ship.Orbit is not { Entered: true } orbit || ship.Entry is not null)
+            return DispatchRefusal.NotInOrbit;
+        if (ship.Lander is not null || ship.Hold.LanderOut is not null)
+            return DispatchRefusal.LanderOut;
         var refusal = Landing.Check(orbit, ship);
         if (refusal != DispatchRefusal.None)
             return refusal;
+        if (Systems is null)
+            throw new InvalidOperationException("this world has no systems");
+        var world = ship.OrbitedWorld!.Value;
+        var surface = SurfaceOf(world) ?? NewSurface(world, orbit);
         ship.Flight.Fuel -= Landing.FuelNeeded(orbit.Report!);
         ship.Hold.LanderLeaves();
+        var lander = surface.Land(ship.Hold, siteX, siteY);
+        ship.Lander = lander;
+        _landerPlayers[lander] = player;
         return DispatchRefusal.None;
+    }
+
+    // A world's surface as a first lander finds it: its nodes not yet
+    // taken (GeneratePlanetSide), its creatures, its hazards; its own
+    // TFB_Random, seeded from the frame and the world, so no two landings
+    // are alike (UQM's runs on from the program's start).
+    private PlanetsideSurface NewSurface(WorldId world, OrbitData orbit)
+    {
+        var nodes = orbit.Nodes ?? throw new InvalidOperationException($"{world} has no surface to land on");
+        var minerals = Planets.Remaining(world, ScanType.Mineral, nodes.Minerals)
+            .Select(n => new SurfaceMineral(n.Node, n.Info.X, n.Info.Y, n.Info.Type, n.Info.Density));
+        var life = Planets.Remaining(world, ScanType.Biological, nodes.Life)
+            .Select(n => new SurfaceCreature(n.Node, n.Info.X, n.Info.Y, n.Info.Type));
+        uint seed = unchecked((uint)(Frame * 1_000_003 + world.Star * 7919 + world.Planet * 131 + (world.Moon ?? -1)));
+        var surface = new PlanetsideSurface(new TfbRandom(seed), minerals, Systems!.Generator.Types.ElementCategory,
+            Shapes, life, Systems.Lifeforms ?? throw new InvalidOperationException("the systems were loaded without their lifeforms"),
+            HazardChances.For(orbit.Report!));
+        _surfaces.Add((world, surface));
+        return surface;
     }
 
     public WorldSnapshot Snapshot()
@@ -418,6 +534,10 @@ public sealed class GameWorld
                 Planets.RetrieveMask(w, ScanType.Biological)))
             .ToList();
 
-        return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited);
+        var surfaces = _surfaces.Select(s => new SurfaceSnapshot(s.World.Star, s.World.Planet, s.World.Moon,
+                s.Surface.Landers.Select(l => LanderSnapshot.Of(_landerPlayers[l].Id, l)).ToList(),
+                s.Surface.Elements.Where(e => e.Kind != SurfaceElementKind.Mineral).Select(SurfaceElementSnapshot.Of).ToList()))
+            .ToList();
+        return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces);
     }
 }

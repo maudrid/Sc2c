@@ -29,6 +29,12 @@ public enum DispatchRefusal
     NoLander,
     /// <summary>No crew aboard.</summary>
     NoCrew,
+    /// <summary>The ship isn't in orbit (a request that came too late, after it left).</summary>
+    NotInOrbit,
+    /// <summary>The ship's lander is already down.</summary>
+    LanderOut,
+    /// <summary>The site asked for is off the map (a bad request).</summary>
+    OffTheMap,
 }
 
 /// <summary>

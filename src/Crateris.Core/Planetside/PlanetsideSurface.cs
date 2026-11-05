@@ -40,6 +40,9 @@ public sealed class PlanetsideSurface
     /// <summary>SURFACE_WIDTH and SURFACE_HEIGHT: the surface view, the lander at its middle.</summary>
     public const int ViewWidth = 242, ViewHeight = 147;
 
+    /// <summary>PLANET_SIDE_RATE: surface frames a second (the 3DO's speed).</summary>
+    public const int FrameRate = 35;
+
     /// <summary>
     /// MAX_DISPLAY_ELEMENTS: how much UQM's display queue holds, nodes and
     /// all. When it's full, no bolt, explosion or hazard can start
@@ -112,7 +115,7 @@ public sealed class PlanetsideSurface
                 x = (r & 0xFF) % (SurfaceMap.Width - (8 << 1)) + 8;
                 y = (r >> 8) % (SurfaceMap.Height - (8 << 1)) + 8;
             }
-            _elements.Add(new SurfaceElement
+            Add(new SurfaceElement
             {
                 Kind = SurfaceElementKind.Creature,
                 Scan = ScanType.Biological,
@@ -130,7 +133,7 @@ public sealed class PlanetsideSurface
         foreach (var m in nodes)
         {
             int category = elementCategory!(m.Element);
-            _elements.Add(new SurfaceElement
+            Add(new SurfaceElement
             {
                 Kind = SurfaceElementKind.Mineral,
                 Scan = ScanType.Mineral,
@@ -242,7 +245,35 @@ public sealed class PlanetsideSurface
     internal bool HasRoom(Lander lander) => _elements.Count(e => e.Owner is null || e.Owner == lander) < MaxElements;
 
     /// <summary>Puts an element at the head of the queue (InsertElement before GetHeadElement).</summary>
-    internal void AddFirst(SurfaceElement element) => _elements.Insert(0, element);
+    internal void AddFirst(SurfaceElement element)
+    {
+        element.Id = ++_lastId;
+        _elements.Insert(0, element);
+    }
+
+    // PutElement: at the end of the queue.
+    private void Add(SurfaceElement element)
+    {
+        element.Id = ++_lastId;
+        _elements.Add(element);
+    }
+
+    private int _lastId;
+
+    /// <summary>
+    /// A lander leaves the surface at once, its player gone (decision 5):
+    /// it goes back to its ship with its crew and what it carries, as at
+    /// the end of a take-off; one whose crew have all died is lost with
+    /// them. What it left on the surface (its bolts, the hazards round it)
+    /// stays until it's over, touching nothing of the lander's.
+    /// </summary>
+    public void Withdraw(Lander lander)
+    {
+        if (!_landers.Remove(lander))
+            throw new InvalidOperationException("that lander isn't on this surface");
+        lander.Withdrawn();
+        lander.BackAboard();
+    }
 
     /// <summary>
     /// BuildObjectList's roll around a lander: one random number, whose
@@ -295,7 +326,7 @@ public sealed class PlanetsideSurface
             e.TurnWait = 0;      // a new frame every frame
         }
         e.LifeSpan = FramesIn(e) * ((e.TurnWait & 0xF) + 1) - 1;
-        _elements.Add(e);
+        Add(e);
         return e;
     }
 
@@ -325,7 +356,7 @@ public sealed class PlanetsideSurface
             Sheet = SurfaceSheet.Lightning,
             Frame = 0,
         };
-        _elements.Add(bolt);
+        Add(bolt);
         return bolt;
     }
 

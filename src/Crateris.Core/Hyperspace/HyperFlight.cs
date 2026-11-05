@@ -23,8 +23,11 @@ public enum ShipInput : byte
     Right = 2,
     Thrust = 4,
 
-    /// <summary>The select key: in orbit, leave orbit (UQM's Navigate). Ignored while flying.</summary>
+    /// <summary>The select key: in orbit, leave orbit (UQM's Navigate); on a planet's surface, take off. Ignored while flying.</summary>
     Action = 8,
+
+    /// <summary>The weapon key: on a planet's surface, the lander fires. Ignored elsewhere until battle.</summary>
+    Fire = 16,
 }
 
 /// <summary>

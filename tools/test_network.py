@@ -38,7 +38,11 @@ orbit menu (finding the Moon's nodes) and leaves orbit with the menu's
 Navigate, and both are in the Sol system, also in the save.
 
 Snapshots (stage 2b, item 4): guests A, B and C each got one full
-snapshot or a few, then deltas. Then guest E joins a host through a
+snapshot or a few, then deltas.
+
+Landing (stage 2b, item 9): the host and guest F, both in orbit round
+Luna, send their landers down, see each other's on the one surface,
+drive and fire, take off and are back in orbit with their crew. Then guest E joins a host through a
 relay that loses a fifth of the packets each way: it joins, turns by its
 own input, sees the host fly, and rebuilds the snapshots from deltas
 with none bad.
@@ -351,6 +355,51 @@ def main():
           "E turned by its own input, sent through the relay")
     check(e_host is not None and e_host["UniverseY"] > 1450 + 20 and e_host["Facing"] != 0,
           "E saw the host fly north and turn")
+
+    # Stage 2b, item 9: the host and guest F both orbit Luna (F put there as
+    # it joins); each opens the scan menu, chooses Dispatch lander and picks
+    # the site in the middle of the map; both land on Luna's one surface and
+    # see each other's lander, drive and fire, take off and are back in
+    # orbit with their crew. The save keeps them in orbit.
+    PLANETSIDE = 4
+    lander_script = ("none:40,select:2,down:2,select:2,select:2,none:60,thrust:30,right:8,"
+                     "thrust+fire:40,left:6,thrust:30,action:4,none:400")
+    save6 = os.path.join(out, "save6.json")
+    host6 = start(out, "host6", "--host", "--no-upnp", "--port", PORT,
+                  "--name", "Host", "--id", "host", "--save", save6,
+                  "--start-orbit", "82:2:1", "--guests-in-orbit",
+                  "--script", lander_script, "--quit-after", "480")
+    time.sleep(1)
+    f = start(out, "f", "--join", f"127.0.0.1:{PORT}", "--name", "F",
+              "--id", "guest-f", "--script", lander_script, "--quit-after", "400")
+    for p in (f, host6):
+        p.wait(timeout=90)
+    h6, rf = report(out, "host6"), report(out, "f")
+    hl = [line.split("] ", 1)[1] for line in h6["log"]]
+    fl = [line.split("] ", 1)[1] for line in rf["log"]]
+    check(rf["welcome"] == "Joined", "F joined the host in orbit round Luna")
+    check("host: lander down at 484, 148" in hl and "guest-f: lander down at 484, 148" in hl,
+          "the host sent both landers down where they picked")
+    for name, lines in (("host", hl), ("F", fl)):
+        check("Landed" in lines, f"{name}'s lander landed on Luna")
+        check(any(l.startswith("Back in orbit: crew") for l in lines), f"{name}'s lander took off and is back in orbit")
+    check("Saw guest-f's lander" in hl and "Saw host's lander" in fl,
+          "the host and F each saw the other's lander on the one surface")
+    check(any(l.startswith("Saw guest-f Planetside") for l in fl) and any(l.startswith("Saw host Planetside") for l in fl),
+          "F saw both ships on the surface")
+    back_f = next((l for l in fl if l.startswith("Back in orbit")), "")
+    back_h = next((l for l in hl if l.startswith("Back in orbit")), "")
+    check("crew 10, landers 1" in back_f and "crew 50, landers 1" in back_h,
+          "both came back with their crew and lander")
+    f_ship, f_host = ship(rf["snapshot"], "guest-f"), ship(rf["snapshot"], "host")
+    check(f_ship is not None and f_ship["Activity"] == ORBIT and f_host is not None and f_host["Activity"] == ORBIT,
+          "F's last snapshot has both ships back in orbit")
+    with open(save6) as fh:
+        saved6 = json.load(fh)
+    check(all(p.get("system", {}).get("orbit_moon") == 1 for p in saved6["players"]),
+          "the save keeps both ships in orbit round Luna")
+    n = rf["snapshots"]
+    check(n["bad"] == 0 and n["deltas"] > 10 * n["full"], f"F got deltas with its surface ({n['full']} full, {n['deltas']} deltas)")
 
     print(f"\nlogs and reports in {out}")
     if failures:

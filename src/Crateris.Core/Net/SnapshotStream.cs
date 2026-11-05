@@ -28,8 +28,9 @@ public sealed class SnapshotSender
     private readonly WorldSnapshot?[] _history = new WorldSnapshot?[History];
     private readonly Dictionary<long, Guest> _guests = new();
     private readonly WireWriter _writer = new();
-    // The latest snapshot's messages, by base frame (-1 for the full one).
-    private readonly Dictionary<long, byte[]> _messages = new();
+    // The latest snapshot's messages, by base frame (-1 for the full one)
+    // and the surfaces the guest sees in it and was sent with the base.
+    private readonly Dictionary<(long, SurfaceSnapshot?, SurfaceSnapshot?), byte[]> _messages = new();
     private WorldSnapshot? _latest;
 
     private sealed class Guest
@@ -53,20 +54,23 @@ public sealed class SnapshotSender
     }
 
     /// <summary>
-    /// The latest snapshot as the message for one guest: a delta from the
-    /// newest snapshot it has, if that's still kept, otherwise in full.
-    /// Guests on the same base share the message; don't change it.
+    /// The latest snapshot as the message for one guest, whose player is
+    /// <paramref name="viewer"/>: a delta from the newest snapshot it has,
+    /// if that's still kept, otherwise in full, with the surface its lander
+    /// is on (<see cref="SnapshotCodec.Encode"/>). Guests on the same base
+    /// and surface share the message; don't change it.
     /// </summary>
-    public byte[] For(long peer)
+    public byte[] For(long peer, string? viewer = null)
     {
         var latest = _latest ?? throw new InvalidOperationException("no snapshot recorded yet");
         if (!_guests.TryGetValue(peer, out var guest))
             _guests[peer] = guest = new Guest();
         var baseSnapshot = BaseFor(guest, latest);
-        long key = baseSnapshot?.Frame ?? -1;
+        var key = (baseSnapshot?.Frame ?? -1, SnapshotCodec.SurfaceSeen(latest, viewer),
+            SnapshotCodec.SurfaceSeen(baseSnapshot, viewer));
         if (!_messages.TryGetValue(key, out var message))
         {
-            SnapshotCodec.Encode(_writer, latest, baseSnapshot);
+            SnapshotCodec.Encode(_writer, latest, baseSnapshot, viewer);
             _messages[key] = message = _writer.Written.ToArray();
         }
         if (guest.FirstSent < 0)

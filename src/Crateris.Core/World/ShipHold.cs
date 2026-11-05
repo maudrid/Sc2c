@@ -216,6 +216,21 @@ public sealed class ShipHold
     /// <summary>The hold for the save; a lander that is out is saved as back aboard with its crew.</summary>
     public HoldState Save() => new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades);
 
+    /// <summary>
+    /// The hold for the save while its lander is on a surface (decision 5:
+    /// saves keep players in orbit): as if the lander came back now with
+    /// the crew and cargo it has (<see cref="LanderReturns"/>), lost if its
+    /// crew have all died. The hold itself doesn't change.
+    /// </summary>
+    public HoldState SaveWithLanderBack(int crew, IReadOnlyList<int> minerals, int bioData)
+    {
+        if (LanderOut is null)
+            return Save();
+        if (crew == 0)
+            return new(Crew, Landers - 1, _minerals.ToArray(), BioData, _upgrades);
+        return new(Crew + crew, Landers, _minerals.Zip(minerals, (a, b) => a + b).ToArray(), BioData + bioData, _upgrades);
+    }
+
     /// <summary>Puts a saved hold back (the loadout gives the storage). A bad one is an <see cref="InvalidDataException"/>.</summary>
     public void Restore(HoldState state)
     {

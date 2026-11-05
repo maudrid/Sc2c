@@ -201,7 +201,7 @@ public class LandingTests
         Assert.Equal(DispatchRefusal.None, world.Dispatch("host", 100, 100));
         Assert.Equal(before - cost, ship.Flight.Fuel);
         Assert.NotNull(ship.Hold.LanderOut);
-        Assert.Equal(DispatchRefusal.NoLander, world.Dispatch("host", 100, 100));   // it's already down
+        Assert.Equal(DispatchRefusal.LanderOut, world.Dispatch("host", 100, 100));   // it's already down
         Assert.Equal(before - cost, ship.Flight.Fuel);
 
         world.PutInOrbit("host", Sol, 2);   // Earth: shielded

@@ -323,6 +323,13 @@ public sealed class Lander
     // (ShipHold.Save), so has no lander out, or has sent another since: this
     // trip is over, and what it carried is lost with the surface it was
     // picked up on (item 9 decides how the host avoids that).
+    /// <summary>Taken off the surface at once (<see cref="PlanetsideSurface.Withdraw"/>).</summary>
+    internal void Withdrawn()
+    {
+        Phase = LanderPhase.Gone;
+        FrameDrawn = false;
+    }
+
     internal void BackAboard()
     {
         if (_hold.LanderOut is not null && _hold.LanderTrips == _trip)

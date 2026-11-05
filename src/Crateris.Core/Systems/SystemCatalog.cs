@@ -19,19 +19,24 @@ public sealed class SystemCatalog
 {
     private readonly SolarSystem?[] _systems;
 
-    public SystemCatalog(StarMap map, SystemGenerator generator)
+    public SystemCatalog(StarMap map, SystemGenerator generator, Lifeforms? lifeforms = null)
     {
         Map = map;
         Generator = generator;
+        Lifeforms = lifeforms;
         _systems = new SolarSystem?[map.Stars.Count];
     }
 
     public StarMap Map { get; }
 
+    /// <summary>The kinds of creature, for the surfaces of worlds (loaded with the catalog from its data).</summary>
+    public Lifeforms? Lifeforms { get; }
+
     public SystemGenerator Generator { get; }
 
     public static SystemCatalog Load(string dataDirectory, SystemStoryState? story = null) =>
-        new(StarMap.Load(dataDirectory), new SystemGenerator(PlanetTypes.Load(dataDirectory), story));
+        new(StarMap.Load(dataDirectory), new SystemGenerator(PlanetTypes.Load(dataDirectory), story),
+            Lifeforms.Load(dataDirectory));
 
     /// <summary>The system of a star (map number).</summary>
     public SolarSystem this[int star] => _systems[star] ??= Generator.Generate(Map.Stars[star]);

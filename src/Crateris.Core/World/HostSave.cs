@@ -76,7 +76,8 @@ public static class HostSave
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
                     f.StarJustLeft),
                 p.Ship.SystemStar, p.Ship.Ip?.Save(),
-                p.Ship.Hold.Save());
+                // A lander on a surface is saved as back aboard with its crew and cargo.
+                p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save());
         }).ToList();
         var c = world.Clock;
         var worlds = world.Planets.Worlds

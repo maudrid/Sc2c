@@ -64,6 +64,9 @@ public sealed class SurfaceElement
 
     public SurfaceElementKind Kind { get; init; }
 
+    /// <summary>Its number on its surface, in the order things were put there: the same from frame to frame (snapshots tell elements apart by it).</summary>
+    public int Id { get; internal set; }
+
     public int X { get; internal set; }
     public int Y { get; internal set; }
 

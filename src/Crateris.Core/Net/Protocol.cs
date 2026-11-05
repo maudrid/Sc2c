@@ -35,8 +35,10 @@ public static class Protocol
     /// its host's (only the host's is drawn).
     /// 4: snapshots carry each ship's hold (crew, landers, minerals, bio data).
     /// 5: snapshots are binary, and deltas from what each guest has.
+    /// 6: landers on surfaces: a guest's dispatch, the fire input bit, and
+    /// each guest's own surface in its snapshots.
     /// </summary>
-    public const int Version = 5;
+    public const int Version = 6;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()
