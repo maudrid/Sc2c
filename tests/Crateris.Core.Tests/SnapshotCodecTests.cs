@@ -398,6 +398,9 @@ public class SnapshotCodecTests
             SnapshotCodec.Decode(delta, before);
         double decodeDelta = clock.Elapsed.TotalMicroseconds / n;
         _out.WriteLine($"encode full {encodeFull:0.00} µs, delta {encodeDelta:0.00} µs; decode full {decodeFull:0.00} µs, delta {decodeDelta:0.00} µs");
+        // Coverage (mapping the topics) counts every line, which allocates and takes time.
+        if (Golden.Mapping)
+            return;
         Assert.Equal(0, allocated);
         // Loose bounds, so a slow or busy test machine passes; JSON took 23 and 31 µs.
         Assert.True(encodeFull < 15 && encodeDelta < 15, $"encoding takes {encodeFull:0.0} / {encodeDelta:0.0} µs");

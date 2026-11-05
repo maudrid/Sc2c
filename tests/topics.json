@@ -1,7 +1,7 @@
 {
   "_notes": [
     "The test topics. Each test class carries [Trait(\"Topic\", NAME)] with one of these names. tools/run_tests.py runs the topics asked for together in one test run (or each in its own with --separate), and with --changed only those a change can affect, as tests/topic-map.json (made by --map) says.",
-    "all: files whose change runs every topic (the UQM maths and data everything uses, the test project's shared files).",
+    "all: files whose change runs every topic (the UQM maths and data everything uses, the test project's shared files, and the two files outside the code that tests read: the design's content notice and the game's project file).",
     "weight: roughly how long the topic takes, so with --separate the heaviest start first. alone: with --separate, the topic has timing-sensitive tests, so it runs after the others, by itself (in one run, xUnit's own collection does that)."
   ],
   "all": [
@@ -13,7 +13,9 @@
     "tests/topics.json",
     "tests/Crateris.Core.Tests/Crateris.Core.Tests.csproj",
     "tests/Crateris.Core.Tests/Golden.cs",
-    "tests/Crateris.Core.Tests/ContentPackageTests.cs"
+    "tests/Crateris.Core.Tests/ContentPackageTests.cs",
+    "docs/design.md",
+    "game/project.godot"
   ],
   "topics": {
     "content": {

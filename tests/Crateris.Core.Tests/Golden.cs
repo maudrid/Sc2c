@@ -28,13 +28,20 @@ internal static class Golden
     /// <summary>
     /// Whether the tests run to map which source files each topic runs
     /// (tools/run_tests.py --map, with coverage): the every-world loops
-    /// then take a few worlds (<see cref="Sample{T}"/>), as only which code
+    /// then take a few worlds, spread over them all (<see cref="Sample{T}"/>), as only which code
     /// runs matters, not the results.
     /// </summary>
     public static bool Mapping => Environment.GetEnvironmentVariable("CRATERIS_TOPIC_MAP") == "1";
 
     /// <summary>All the cases, or a few of them while mapping (<see cref="Mapping"/>).</summary>
-    public static List<T> Sample<T>(this IEnumerable<T> all) => Mapping ? all.Take(24).ToList() : all.ToList();
+    public static List<T> Sample<T>(this IEnumerable<T> all)
+    {
+        var list = all.ToList();
+        if (!Mapping || list.Count <= 24)
+            return list;
+        // Spread over the whole list, so every kind of case is there (first and last included).
+        return Enumerable.Range(0, 24).Select(i => list[i * (list.Count - 1) / 23]).ToList();
+    }
 
     /// <summary>The SHA-256 of some bytes in lower-case hex, as the reference files give content.</summary>
     public static string Sha256(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
