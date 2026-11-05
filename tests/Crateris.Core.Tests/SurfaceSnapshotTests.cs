@@ -249,4 +249,32 @@ public class SurfaceSnapshotTests
         Assert.True(mostElements > 60, $"only {mostElements} elements");
         Assert.True(most < 800, $"a delta is {most} bytes");
     }
+    [ContentFact]
+    public void GuestsShareAMessageOnlyWhenTheySeeTheSameSurface()
+    {
+        var systems = SystemCatalog.Load(DataDir);
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Zelnick",
+            systems, TestContent.Shapes);
+        Assert.Equal(DispatchRefusal.NotInOrbit, host.GuestDispatch(9, 484, 148));   // not a guest
+        host.GuestsStartInOrbit = true;
+        host.World.PutInOrbit("host", 82, 2, 1);
+        for (int g = 1; g <= 3; ++g)
+            host.Hello(g, "guest" + g, "Guest " + g, Protocol.Version);
+        Assert.All(host.World.Players, p => Assert.Equal(Activity.Orbit, p.Ship.Activity));   // --guests-in-orbit
+        host.World.PutInOrbit("guest3", 82, 3);   // Mars
+        Assert.Equal(DispatchRefusal.OffTheMap, host.GuestDispatch(1, -1, 148));
+        Assert.Equal(DispatchRefusal.None, host.GuestDispatch(1, 484, 148));
+        Assert.Equal(DispatchRefusal.None, host.GuestDispatch(2, 600, 148));
+        Assert.Equal(DispatchRefusal.None, host.GuestDispatch(3, 484, 148));
+        Assert.Equal(DispatchRefusal.None, host.Dispatch("host", 300, 148));
+        host.Step(ShipInput.None);
+        // Guests 1 and 2 on Luna share one message; 3, on Mars, has its own.
+        var a = host.SnapshotFor(1);
+        var b = host.SnapshotFor(2);
+        var c = host.SnapshotFor(3);
+        Assert.Same(a, b);
+        Assert.NotSame(a, c);
+        Assert.Equal(new WorldId(82, 3), Assert.Single(SnapshotCodec.Decode(c).Surfaces!).World);
+        Assert.Equal(new WorldId(82, 2, 1), Assert.Single(SnapshotCodec.Decode(a).Surfaces!).World);
+    }
 }

@@ -303,11 +303,11 @@ public sealed class GameWorld
         Clock.Tick(Settings.SecondsPerGameDay);
     }
 
-    // The keys on the surface: turn, thrust, fire, and the action key takes off.
+    // The keys on the surface: turn, thrust, fire, take off.
     private static LanderInput ToLanderInput(ShipInput input) =>
         (LanderInput)(int)(input & (ShipInput.Left | ShipInput.Right | ShipInput.Thrust))
         | ((input & ShipInput.Fire) != 0 ? LanderInput.Fire : 0)
-        | ((input & ShipInput.Action) != 0 ? LanderInput.TakeOff : 0);
+        | ((input & ShipInput.TakeOff) != 0 ? LanderInput.TakeOff : 0);
 
     /// <summary>
     /// Every surface's frames for this world frame, each lander with its

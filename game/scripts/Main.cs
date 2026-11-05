@@ -357,7 +357,18 @@ public partial class Main : Node2D
     private void UndockShown() => _host?.GuestUndockShown(Multiplayer.GetRemoteSenderId());
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void RequestLanding(int x, int y) => _host?.GuestDispatch(Multiplayer.GetRemoteSenderId(), x, y);
+    private void RequestLanding(int x, int y)
+    {
+        if (_host == null)
+            return;
+        long peer = Multiplayer.GetRemoteSenderId();
+        var refusal = _host.GuestDispatch(peer, x, y);
+        if (refusal != DispatchRefusal.None && _host.InGame(peer))
+            RpcId(peer, MethodName.LandingRefused, (int)refusal);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void LandingRefused(int refusal) => _player?.LandingRefused((DispatchRefusal)refusal);
 
     private void SaveGame()
     {
@@ -451,8 +462,9 @@ public partial class Main : Node2D
             var landing = inGame ? _player.TakeLandingRequest() : null;
             if (_host != null)
             {
-                if (landing is { } site)
-                    _host.Dispatch(_host.HostId, site.X, site.Y);
+                if (landing is { } site && _host.Dispatch(_host.HostId, site.X, site.Y) is var refusal
+                        && refusal != DispatchRefusal.None)
+                    _player.LandingRefused(refusal);
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
                 // Each guest gets its own: a delta from what it has, or in full.
@@ -502,7 +514,8 @@ public partial class Main : Node2D
 
     /// <summary>The ship keys held (the session ignores them when a script plays, or in orbit).</summary>
     // The keys held. On a planet's surface, as UQM's: Space, Enter or Ctrl
-    // fires, Esc takes off; elsewhere Space and Enter are the action key.
+    // fires, Esc takes off (a key of its own, never leaving orbit); elsewhere
+    // Space and Enter are the action key.
     private static ShipInput ReadKeys(bool onSurface)
     {
         var input = ShipInput.None;
@@ -518,7 +531,7 @@ public partial class Main : Node2D
             if (select || Input.IsKeyPressed(Key.Ctrl))
                 input |= ShipInput.Fire;
             if (Input.IsKeyPressed(Key.Escape))
-                input |= ShipInput.Action;
+                input |= ShipInput.TakeOff;
         }
         else if (select)
             input |= ShipInput.Action;
@@ -566,7 +579,8 @@ public partial class Main : Node2D
         _view.Show(player.Snapshot, player.PlayerId, player.Entries);
         _view.Visible = screen == PlayerScreen.Hyperspace;
         _systemView.Visible = screen == PlayerScreen.System;
-        _orbitView.Visible = screen == PlayerScreen.Orbit;
+        // Until item 10 draws the surface, the orbit screen stays up while the lander is down.
+        _orbitView.Visible = screen is PlayerScreen.Orbit or PlayerScreen.Planetside;
         if (player.Snapshot != null && _systemView.Visible)
             _systemView.Show(player.Snapshot, player.PlayerId);
     }

@@ -85,8 +85,8 @@ public sealed class HostSession
 
     /// <summary>
     /// --guests-in-orbit (testing): each guest joining for the first time is
-    /// put in orbit where the host is, after its undocking, rather than in
-    /// the inner system beside it.
+    /// put in orbit where the host is as it joins (its undocking scene still
+    /// shows), rather than in the inner system beside it.
     /// </summary>
     public bool GuestsStartInOrbit { get; set; }
 
@@ -132,7 +132,7 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// A guest's input for a frame (only the five input bits count), with
+    /// A guest's input for a frame (only the six input bits count), with
     /// the frame of the newest snapshot it has (<paramref name="has"/>),
     /// which the host's next snapshots for it are deltas from.
     /// </summary>
@@ -140,7 +140,7 @@ public sealed class HostSession
     {
         if (_peers.TryGetValue(peer, out var id))
         {
-            World.SubmitInput(id, frame, (ShipInput)(input & 31));
+            World.SubmitInput(id, frame, (ShipInput)(input & 63));
             _snapshots.Acknowledge(peer, has);
         }
     }

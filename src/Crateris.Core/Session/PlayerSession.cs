@@ -188,15 +188,26 @@ public sealed class PlayerSession
         var lander = MyLander;
         if (lander is { Crew: 0 } && _seenLanderCrew > 0)
             Log("The lander's crew are all dead");
-        _seenLanderCrew = lander?.Crew ?? -1;
         var phase = lander?.Phase;
         if (phase == _seenLanderPhase)
+        {
+            _seenLanderCrew = lander?.Crew ?? -1;
             return;
+        }
         if (phase == LanderPhase.Ground)
             Log("Landed");
         else if (phase is null && Me?.Hold is { } hold)
-            Log($"Back in orbit: crew {hold.Crew}, landers {hold.Landers}, minerals {hold.MineralMass}, bio {hold.BioData}");
+            Log((_seenLanderCrew == 0 ? "Lander lost. " : "")
+                + $"Back in orbit: crew {hold.Crew}, landers {hold.Landers}, minerals {hold.MineralMass}, bio {hold.BioData}");
         _seenLanderPhase = phase;
+        _seenLanderCrew = lander?.Crew ?? -1;
+    }
+
+    /// <summary>The host refused the landing asked for (a race: the ship left orbit, or its lander was already down).</summary>
+    public void LandingRefused(DispatchRefusal refusal)
+    {
+        OrbitMessage = RefusalMessage(refusal);
+        Log($"Landing refused: {refusal}");
     }
 
     private int _seenLanderCrew = -1;
@@ -247,8 +258,8 @@ public sealed class PlayerSession
     /// <summary>A key for the orbit screen's menus.</summary>
     public void PressMenu(MenuKey key)
     {
-        if (OrbitMenu == null)
-            return;
+        if (OrbitMenu == null || Me?.Activity == Activity.Planetside)
+            return;   // the keys drive the lander then; the menu waits for its return
         OrbitMenuItem item = OrbitMenu.Selected;
         MenuOutcome outcome = OrbitMenu.Press(key, Taken, Kit);
         OrbitMessage = outcome switch
@@ -449,11 +460,15 @@ public sealed class PlayerSession
         };
     }
 
-    /// <summary>Keeps the orbit menu for the current visit to a world (none when not in orbit).</summary>
+    /// <summary>
+    /// Keeps the orbit menu for the current visit to a world, through a
+    /// landing too (UQM comes back to the scan screen with what was found);
+    /// none when not in orbit.
+    /// </summary>
     private void UpdateOrbitMenu()
     {
         var me = Me;
-        if (me?.Activity == Activity.Orbit && me.SystemStar is int star && me.OrbitPlanet is int planet)
+        if (me?.Activity is Activity.Orbit or Activity.Planetside && me.SystemStar is int star && me.OrbitPlanet is int planet)
         {
             var world = new WorldId(star, planet, me.OrbitMoon);
             if (OrbitMenu?.World != world)

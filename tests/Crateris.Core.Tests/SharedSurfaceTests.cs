@@ -122,7 +122,7 @@ public class SharedSurfaceTests
 
         // The host takes off: back in orbit with the minerals; the guest stays.
         var hold = world.Host.Ship.Hold;
-        Run(world, 2, id => id == "host" ? ShipInput.Action : ShipInput.None);
+        Run(world, 2, id => id == "host" ? ShipInput.TakeOff : ShipInput.None);
         Run(world, 40);
         Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
         Assert.Null(world.Host.Ship.Lander);
@@ -131,7 +131,7 @@ public class SharedSurfaceTests
         Assert.Equal(new[] { LanderOf(world, "guest") }, world.SurfaceOf(Moon)!.Landers);
 
         // The guest takes off too: the surface goes. A new one has the deposit gone.
-        Run(world, 2, _ => ShipInput.Action);
+        Run(world, 2, _ => ShipInput.TakeOff);
         Run(world, 40);
         Assert.Empty(world.Surfaces);
         world.Dispatch("guest", 484, 148);
@@ -238,5 +238,93 @@ public class SharedSurfaceTests
         Assert.Null(world.Host.Ship.Lander);
         Assert.Empty(world.Surfaces);
         Assert.Equal(50, world.Host.Ship.Hold.Crew);
+    }
+    [ContentFact]
+    public void EachPlayersHazardsStartRoundItsOwnLander()
+    {
+        // Decision 3, through the host: on the world with every hazard at
+        // its worst, two landers far apart each have their own.
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host",
+            Systems, TestContent.Shapes);
+        world.Join("guest", "Guest");
+        world.PutInOrbit("host", 240, 1);
+        world.PutInOrbit("guest", 240, 1);
+        world.Dispatch("host", 200, 150);
+        world.Dispatch("guest", 700, 150);
+        var surface = world.SurfaceOf(new WorldId(240, 1))!;
+        var host = LanderOf(world, "host");
+        var guest = LanderOf(world, "guest");
+        var seen = new HashSet<SurfaceElement>();
+        for (int i = 0; i < 48 && world.Surfaces.Count > 0; ++i)
+        {
+            Run(world, 1);
+            foreach (var e in surface.Elements.Where(e => e.Hazard && seen.Add(e)))
+            {
+                int toHost = Math.Abs(e.X - host.X), toGuest = Math.Abs(e.X - guest.X);
+                Assert.Same(toHost < toGuest ? host : guest, e.Owner);
+            }
+        }
+        Assert.Contains(seen, e => e.Owner == host);
+        Assert.Contains(seen, e => e.Owner == guest);
+    }
+
+    [ContentFact]
+    public void TheTakeOffKeyNeverLeavesOrbit()
+    {
+        // A take-off press that reaches the host after the lander is back
+        // does nothing; only the action key (Navigate) leaves orbit.
+        var world = AtLuna();
+        Run(world, 3, _ => ShipInput.TakeOff);
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Run(world, 1, _ => ShipInput.None);
+        Run(world, 1, _ => ShipInput.Action);
+        Assert.Equal(Activity.InnerSystem, world.Host.Ship.Activity);
+    }
+}
+
+/// <summary>The client's side of a landing (stage 2b, item 9).</summary>
+public class LandingSessionTests
+{
+    private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
+    private static readonly SystemCatalog Systems = SystemCatalog.Load(DataDir);
+
+    [ContentFact]
+    public void TheOrbitMenuAndItsScansLastThroughALanding()
+    {
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host",
+            Systems, TestContent.Shapes);
+        world.PutInOrbit("host", 82, 2, 1);
+        var player = new Session.PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        void Step(ShipInput input = ShipInput.None)
+        {
+            world.SubmitInput("host", world.Frame + 1, input);
+            world.Step();
+            player.Observe(world.Snapshot());
+        }
+        Step();
+        var menu = player.OrbitMenu!;
+        player.PressMenu(MenuKey.Select);   // Scan: the cursor on Auto scan
+        player.PressMenu(MenuKey.Down);     // Dispatch lander
+        player.PressMenu(MenuKey.Select);   // picking the site
+        player.PressMenu(MenuKey.Select);   // picked
+        var site = player.TakeLandingRequest()!.Value;
+        Assert.Null(player.TakeLandingRequest());   // once
+        Assert.Equal(DispatchRefusal.None, world.Dispatch("host", site.X, site.Y));
+        Step();
+        Assert.Equal(Session.PlayerScreen.Planetside, player.Screen);
+        Assert.Same(menu, player.OrbitMenu);
+        Assert.NotNull(player.MyLander);
+        var page = menu.Page;
+        player.PressMenu(MenuKey.Cancel);   // the keys drive the lander, not the menu
+        Assert.Equal(page, menu.Page);
+        for (int i = 0; i < 24 * 4 && world.Host.Ship.Lander is { Phase: not LanderPhase.Ground }; ++i)
+            Step();
+        Step(ShipInput.TakeOff);
+        for (int i = 0; i < 48 && world.Host.Ship.Lander is not null; ++i)
+            Step();
+        Assert.Equal(Session.PlayerScreen.Orbit, player.Screen);
+        Assert.Same(menu, player.OrbitMenu);   // back to the same visit's scan screen
+        player.LandingRefused(DispatchRefusal.LanderOut);
+        Assert.Equal("The lander is already down.", player.OrbitMessage);
     }
 }

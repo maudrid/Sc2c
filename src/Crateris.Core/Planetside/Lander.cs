@@ -317,18 +317,20 @@ public sealed class Lander
         return true;
     }
 
-    // PlanetSide after the take-off: the crew go back to the ship with the
-    // minerals by category and the bio data. A hold restored since the
-    // lander left (a save loaded) has already counted the crew back aboard
-    // (ShipHold.Save), so has no lander out, or has sent another since: this
-    // trip is over, and what it carried is lost with the surface it was
-    // picked up on (item 9 decides how the host avoids that).
     /// <summary>Taken off the surface at once (<see cref="PlanetsideSurface.Withdraw"/>).</summary>
     internal void Withdrawn()
     {
         Phase = LanderPhase.Gone;
         FrameDrawn = false;
     }
+
+    // PlanetSide after the take-off: the crew go back to the ship with the
+    // minerals by category and the bio data. A hold restored since the
+    // lander left has already counted the crew back aboard (ShipHold.Save),
+    // so has no lander out, or has sent another since: this trip is over.
+    // The host never does that to a landed ship: a save is only loaded at
+    // the start, and it keeps a landed player's crew and cargo aboard
+    // (ShipHold.SaveWithLanderBack).
 
     internal void BackAboard()
     {

@@ -163,7 +163,7 @@ public partial class SystemView : Control
             Sprites.Draw(this, stamp);
 
         // Players orbiting a world of this system, by world.
-        var orbiting = _snapshot!.Ships.Where(s => s.Activity == Activity.Orbit && s.SystemStar == star).ToList();
+        var orbiting = _snapshot!.Ships.Where(s => s.Activity is Activity.Orbit or Activity.Planetside && s.SystemStar == star).ToList();
 
         if (me.InnerPlanet is int planet)
         {
@@ -364,7 +364,7 @@ public partial class OrbitView : Control
 
         // Others orbiting the same world.
         int i = 0;
-        foreach (var s in _snapshot?.Ships.Where(s => s.Id != _me && s.Activity == Activity.Orbit && s.SystemStar == w.Star
+        foreach (var s in _snapshot?.Ships.Where(s => s.Id != _me && s.Activity is Activity.Orbit or Activity.Planetside && s.SystemStar == w.Star
                      && s.OrbitPlanet == w.Planet && s.OrbitMoon == w.Moon) ?? Enumerable.Empty<ShipSnapshot>())
             SisScreen.OrbitMarker(this, centre, radius, SisScreen.ShipColor(s, _me), s.Name, i++);
 

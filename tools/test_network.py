@@ -361,9 +361,8 @@ def main():
     # the site in the middle of the map; both land on Luna's one surface and
     # see each other's lander, drive and fire, take off and are back in
     # orbit with their crew. The save keeps them in orbit.
-    PLANETSIDE = 4
     lander_script = ("none:40,select:2,down:2,select:2,select:2,none:60,thrust:30,right:8,"
-                     "thrust+fire:40,left:6,thrust:30,action:4,none:400")
+                     "thrust+fire:40,left:6,thrust:30,takeoff:4,none:400")
     save6 = os.path.join(out, "save6.json")
     host6 = start(out, "host6", "--host", "--no-upnp", "--port", PORT,
                   "--name", "Host", "--id", "host", "--save", save6,
