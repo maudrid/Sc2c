@@ -43,9 +43,10 @@ public sealed class PlanetsideSurface
     /// <summary>
     /// MAX_DISPLAY_ELEMENTS: how much UQM's display queue holds, nodes and
     /// all. When it's full, no bolt, explosion or hazard can start
-    /// (AllocElement fails), and none of their random numbers is drawn. A
-    /// shared surface holds this many for each lander on it, so a group
-    /// isn't short of hazards (decision 3); with one lander it's UQM's.
+    /// (AllocElement fails), and none of their random numbers is drawn. On
+    /// a shared surface each lander has UQM's queue to itself (decision 3):
+    /// the nodes and creatures, and its own bolts, explosion and hazards.
+    /// With one lander that's UQM's queue.
     /// </summary>
     public const int MaxElements = 150;
 
@@ -95,6 +96,8 @@ public sealed class PlanetsideSurface
             throw new ArgumentException("a surface with nodes needs the shapes and the element categories");
         if (life.Count > 0 && (shapes is null || lifeforms is null))
             throw new ArgumentException("a surface with creatures needs the shapes and the lifeforms");
+        // UQM skips the nodes it has no room for; no world has so many
+        // (a scan's taken nodes are 32 bits), so here it's an error.
         if (nodes.Count + life.Count > MaxElements)
             throw new ArgumentException($"a surface holds {MaxElements} nodes at most");
         if (life.Select(c => c.Kind).Distinct().Count() > Lifeforms.MaxVariation)
@@ -230,8 +233,13 @@ public sealed class PlanetsideSurface
         }
     }
 
-    /// <summary>Whether there's room for one more element (AllocElement): see <see cref="MaxElements"/>.</summary>
-    internal bool HasRoom => _elements.Count < MaxElements * Math.Max(1, _landers.Count);
+    /// <summary>
+    /// Whether there's room for one more of a lander's elements
+    /// (AllocElement): the nodes and creatures and what's that lander's
+    /// under <see cref="MaxElements"/>. Hazards round a lander that has left
+    /// count for no one.
+    /// </summary>
+    internal bool HasRoom(Lander lander) => _elements.Count(e => e.Owner is null || e.Owner == lander) < MaxElements;
 
     /// <summary>Puts an element at the head of the queue (InsertElement before GetHeadElement).</summary>
     internal void AddFirst(SurfaceElement element) => _elements.Insert(0, element);
@@ -262,7 +270,7 @@ public sealed class PlanetsideSurface
     /// </summary>
     private SurfaceElement? AddGroundDisaster(SurfaceElementKind kind, Lander lander)
     {
-        if (!HasRoom)
+        if (!HasRoom(lander))
             return null;
         uint r = Random.Next();
         var e = new SurfaceElement
@@ -298,7 +306,7 @@ public sealed class PlanetsideSurface
     /// </summary>
     private SurfaceElement? AddLightning(Lander lander)
     {
-        if (!HasRoom)
+        if (!HasRoom(lander))
             return null;
         bool harmful = Random.Next() % 100 < 25;
         uint r = Random.Next();

@@ -501,8 +501,7 @@ def hazard_scenarios():
         tect, weather, temp, nodes = world_nodes(s, p, m)
         out.append([f"{name}-{s}-{p}-{m}", 800 + k, [0, 2, 4, 3, 1][k], tect, weather, temp,
                     484, 148, 50, 500, nodes, lander_script(800 + k, 700)])
-    all_three = world_nodes(240, 1, -1)
-    tect, weather, temp, nodes = all_three
+    tect, weather, temp, nodes = world_nodes(240, 1, -1)
     # Few crew among every hazard: bare, with every shield, with each one.
     for k, (label, shields) in enumerate([("bare", 0), ("shielded", 120), ("quake-shield", 16),
                                           ("lightning-shield", 32), ("lava-shield", 64)]):
@@ -591,7 +590,7 @@ def record_lander_hazards(uqm, lander_exe, strings_exe, images_exe, package):
         "quake, 32 lightning, 64 lava) and with each hazard's shield alone; "
         "on a hot world, with quakes too, at each pole and either side of "
         "the east-west edge; on two milder worlds, without and with every "
-        "shield; taking off at once; and two long landings with every "
+        "shield; taking off at once; and three long landings with every "
         "shield (crowded-*) among so many hazards that UQM's display queue "
         "fills (MAX_DISPLAY_ELEMENTS, 150 nodes and all).",
         "input and frames as in lander-creatures.json; a hazard's element "

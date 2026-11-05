@@ -218,7 +218,7 @@ public sealed class Lander
             }
             if (ExplosionIndex > ExplosionLife)
                 ExplosionIndex++;
-            else if (ExplosionIndex == 0 && _surface.HasRoom)   // a full queue: next frame
+            else if (ExplosionIndex == 0 && _surface.HasRoom(this))   // a full queue: next frame
             {
                 _surface.AddFirst(new SurfaceElement
                 {
@@ -375,7 +375,7 @@ public sealed class Lander
     // the lander's while thrust is held.
     private void Fire(bool thrust)
     {
-        if (!_surface.HasRoom)
+        if (!_surface.HasRoom(this))
             return;   // the queue is full: no bolt, but the wait starts all the same
         var (wdx, wdy) = thrust ? _velocity.Current() : ((short)0, (short)0);
         int angle = UqmMath.FacingToAngle(Facing);

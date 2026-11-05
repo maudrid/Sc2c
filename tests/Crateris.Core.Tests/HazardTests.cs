@@ -228,7 +228,7 @@ public class HazardTests
     public void AFullQueueStartsNothingAndDrawsNothing()
     {
         // MAX_DISPLAY_ELEMENTS: with one lander, 150 elements, nodes and all;
-        // a shared surface holds 150 for each lander.
+        // on a shared surface, each lander's own and the nodes, 150.
         var surface = new PlanetsideSurface(new TfbRandom(24), shapes: TestContent.Shapes);
         var a = SendDown(surface, 50, 400, 150);
         while (a.Phase != LanderPhase.Ground)
@@ -239,8 +239,13 @@ public class HazardTests
         Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Quake, a));
         Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Lightning, a));
         Assert.Equal(seed, surface.Random.Seed);
+        // A second lander has a queue of its own; when the first leaves,
+        // its hazards count for neither.
         var b = SendDown(surface, 50, 700, 150);
-        Assert.NotNull(surface.StartHazardForTest(SurfaceElementKind.Lava, b));
+        for (int i = 0; i < PlanetsideSurface.MaxElements; ++i)
+            Assert.NotNull(surface.StartHazardForTest(SurfaceElementKind.Lava, b));
+        Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Lava, b));
+        Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Quake, a));
         Assert.Throws<ArgumentException>(() => new PlanetsideSurface(new TfbRandom(1),
             Enumerable.Range(0, PlanetsideSurface.MaxElements + 1).Select(i => new SurfaceMineral(i, 10, 10, 1, 256)),
             _ => 0, TestContent.Shapes));
