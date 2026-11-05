@@ -58,7 +58,7 @@ public class PlanetsideMapTests
         Assert.True(maps.Count > 2000, $"only {maps.Count} landable worlds");
 
         var wrong = new System.Collections.Concurrent.ConcurrentBag<string>();
-        Parallel.ForEach(maps, w =>
+        Parallel.ForEach(maps.Sample(), w =>
         {
             var desc = SurfaceMapTests.World(w.Star, w.Planet, w.Moon);
             var type = Systems.Generator.Types[WorldTypes.PlanetType(desc.DataIndex)];
@@ -74,6 +74,7 @@ public class PlanetsideMapTests
     {
         var worlds = Colors().Where(w => w.Landable).ToList();
         Assert.True(worlds.Count > 2000, $"only {worlds.Count} landable worlds");
+        worlds = worlds.Sample();
         var reports = worlds.Select(w => Systems[w.Star].EnterOrbit(w.Planet, w.Moon < 0 ? null : w.Moon).Report!).ToList();
         var surfaces = TestContent.With(p => new PlanetSurfaces(p));
         var wrong = new System.Collections.Concurrent.ConcurrentBag<string>();

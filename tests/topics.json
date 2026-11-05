@@ -1,9 +1,8 @@
 {
   "_notes": [
-    "The test topics. Each test class carries [Trait(\"Topic\", NAME)] with one of these names; tools/run_tests.py runs topics as separate test runs, several at a time, and with --changed only the topics whose files changed.",
-    "paths: the files a topic's tests exercise (globs from the repository root; ** is any folders, * anything in one name). A change to one of them runs the topic; a change to a test file runs its own topic. Every source file must be covered by some topic (TopicTests checks it).",
-    "all: files whose change runs every topic (shared code, the test project, the data every topic reads).",
-    "weight: roughly how long the topic takes, so the heaviest start first. alone: the topic has timing-sensitive tests, so it runs after the others, by itself."
+    "The test topics. Each test class carries [Trait(\"Topic\", NAME)] with one of these names. tools/run_tests.py runs the topics asked for together in one test run (or each in its own with --separate), and with --changed only those a change can affect, as tests/topic-map.json (made by --map) says.",
+    "all: files whose change runs every topic (the UQM maths and data everything uses, the test project's shared files).",
+    "weight: roughly how long the topic takes, so with --separate the heaviest start first. alone: with --separate, the topic has timing-sensitive tests, so it runs after the others, by itself (in one run, xUnit's own collection does that)."
   ],
   "all": [
     "src/Crateris.Core/Crateris.Core.csproj",
@@ -14,118 +13,37 @@
     "tests/topics.json",
     "tests/Crateris.Core.Tests/Crateris.Core.Tests.csproj",
     "tests/Crateris.Core.Tests/Golden.cs",
-    "tests/Crateris.Core.Tests/ContentPackageTests.cs",
-    "Directory.Build.props",
-    "global.json"
+    "tests/Crateris.Core.Tests/ContentPackageTests.cs"
   ],
   "topics": {
     "content": {
       "weight": 10,
-      "alone": true,
-      "paths": [
-        "src/Crateris.Core/Content/**",
-        "src/Crateris.Presentation/Sprites.cs",
-        "src/Crateris.Presentation/UqmFont.cs",
-        "src/Crateris.Presentation/OrbitScreenText.cs",
-        "tests/golden/fonts.json", "tests/golden/images.json", "tests/golden/string-*.json",
-        "tests/golden/resource-index-cases.json", "tests/golden/names.json", "tests/golden/binary-tables.json",
-        "tests/golden/sprite-masks.json", "tests/golden/intersections.json"
-      ]
+      "alone": true
     },
     "hyperspace": {
-      "weight": 2,
-      "paths": [
-        "src/Crateris.Core/Hyperspace/**",
-        "src/Crateris.Core/Session/StarEntryTracker.cs",
-        "src/Crateris.Presentation/HyperScreen.cs",
-        "tests/golden/hyperspace-flight.json",
-        "tests/golden/uqm-math.json"
-      ]
+      "weight": 2
     },
     "systems": {
-      "weight": 6,
-      "paths": [
-        "src/Crateris.Core/Systems/**",
-        "src/Crateris.Core/Content/ContactShapes.cs",
-        "src/Crateris.Presentation/SystemSprites.cs",
-        "src/Crateris.Presentation/SmoothedMotion.cs",
-        "src/Crateris.Presentation/OrbitScreenText.cs",
-        "tests/golden/star-systems.json", "tests/golden/world-surfaces.json", "tests/golden/system-layout.json",
-        "tests/golden/system-sprites.json", "tests/golden/ip-*.json"
-      ]
+      "weight": 6
     },
     "planet-maps": {
-      "weight": 100,
-      "paths": [
-        "src/Crateris.Core/Systems/SurfaceMap.cs",
-        "src/Crateris.Core/Systems/PlanetsideMap.cs",
-        "src/Crateris.Core/Systems/SystemGenerator.cs",
-        "src/Crateris.Core/Systems/PlanetAnalysis.cs",
-        "src/Crateris.Core/Systems/Surface.cs",
-        "src/Crateris.Core/Systems/WorldDesc.cs",
-        "src/Crateris.Core/Systems/WorldTypes.cs",
-        "src/Crateris.Core/Content/**",
-        "src/Crateris.Presentation/PlanetSurfaces.cs",
-        "src/Crateris.Presentation/PlanetSphere.cs",
-        "tests/golden/surface-*.json", "tests/golden/planet-spheres.json", "tests/golden/planetside-*.json",
-        "tests/golden/binary-tables.json"
-      ]
+      "weight": 100
     },
     "world": {
-      "weight": 4,
-      "paths": [
-        "src/Crateris.Core/World/**",
-        "src/Crateris.Core/Session/**",
-        "src/Crateris.Core/Net/Protocol.cs",
-        "src/Crateris.Core/Systems/Landing.cs",
-        "src/Crateris.Core/Systems/IpFlight.cs",
-        "src/Crateris.Core/Hyperspace/**",
-        "tests/golden/landing.json"
-      ]
+      "weight": 4
     },
     "net": {
       "weight": 4,
-      "alone": true,
-      "paths": [
-        "src/Crateris.Core/Net/**",
-        "src/Crateris.Core/World/**",
-        "src/Crateris.Core/Session/HostSession.cs",
-        "src/Crateris.Core/Planetside/**"
-      ]
+      "alone": true
     },
     "lander": {
-      "weight": 12,
-      "paths": [
-        "src/Crateris.Core/Planetside/**",
-        "src/Crateris.Core/Content/ContactShapes.cs",
-        "src/Crateris.Core/World/ShipHold.cs",
-        "src/Crateris.Core/Systems/PlanetsideMap.cs",
-        "src/Crateris.Core/Systems/Surface.cs",
-        "tests/golden/lander.json", "tests/golden/lander-pickups.json", "tests/golden/lander-creatures.json",
-        "tests/golden/lander-hazards.json", "tests/golden/world-surfaces.json"
-      ]
+      "weight": 12
     },
     "shared-surface": {
-      "weight": 4,
-      "paths": [
-        "src/Crateris.Core/Planetside/**",
-        "src/Crateris.Core/World/**",
-        "src/Crateris.Core/Session/**",
-        "src/Crateris.Core/Systems/OrbitMenu.cs",
-        "src/Crateris.Core/Systems/Landing.cs"
-      ]
+      "weight": 4
     },
     "drawing": {
-      "weight": 6,
-      "paths": [
-        "src/Crateris.Presentation/PlanetsideScreen.cs",
-        "src/Crateris.Presentation/PlanetsideSprites.cs",
-        "src/Crateris.Core/Planetside/**",
-        "src/Crateris.Core/World/SurfaceSnapshot.cs",
-        "src/Crateris.Core/World/ShipHold.cs",
-        "src/Crateris.Core/Content/ContactShapes.cs",
-        "tests/golden/lander-drawing.json"
-      ]
+      "weight": 6
     }
   }
 }

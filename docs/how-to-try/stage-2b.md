@@ -20,7 +20,7 @@ CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm python3 tools/run_tests.py   
 CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm python3 tools/test_network.py
 ```
 
-What should happen: every topic passes and none is skipped (350 tests, about 40 s). `dotnet test` still runs them all too. `python3 tools/run_tests.py --list` shows the topics; `python3 tools/run_tests.py lander` runs one, and `--changed` runs only the topics the files changed since the last commit touch (see "Tests by topic" below). Without the content package the tests that need it are skipped, each saying so. The network test prints `ok` lines ending in "all network checks passed"; it now also lands the host and a guest on Luna together.
+What should happen: every topic passes and none is skipped (350 tests, about 40 s). `dotnet test` still runs them all too. `python3 tools/run_tests.py --list` shows the topics; `python3 tools/run_tests.py lander` runs one, and `--changed` runs only the topics that what changed since the last commit can affect (see "Tests by topic" below). Without the content package the tests that need it are skipped, each saying so. The network test prints `ok` lines ending in "all network checks passed"; it now also lands the host and a guest on Luna together.
 
 ## Play it: the whole stage in one go
 
@@ -79,20 +79,25 @@ xvfb-run -a -s "-screen 0 1024x768x24" godot --rendering-driver opengl3 --path g
 
 ## Tests by topic
 
-Every test class belongs to one topic (`[Trait("Topic", ...)]`), and `tests/topics.json` says which source files and UQM recordings each topic covers, and which shared files (the UQM maths, the data, the test project) concern them all. `TopicTests` checks the map stays whole: every class in a known topic, every source file and recording covered. `tools/run_tests.py` builds once and runs the topics you ask for:
+Every test class belongs to one topic (`[Trait("Topic", ...)]`, the topics listed in `tests/topics.json`). `tools/run_tests.py` builds once and runs the topics you ask for:
 
 ```
-python3 tools/run_tests.py --list            # the topics, and what each covers
+python3 tools/run_tests.py --list            # the topics, and how many files each depends on
 python3 tools/run_tests.py lander drawing    # just these
-python3 tools/run_tests.py --changed         # the topics touched by what changed since HEAD (or --since REF)
+python3 tools/run_tests.py --changed         # the topics a change since HEAD can affect (or --since REF)
 python3 tools/run_tests.py                   # every topic
 python3 tools/run_tests.py --separate -j 3   # each topic in a test run of its own, three at a time
+python3 tools/run_tests.py --map             # remake tests/topic-map.json (about 4 minutes)
 dotnet test --filter Topic=lander            # one topic with dotnet directly
 ```
 
-By default the chosen topics run together in one test run, where xUnit runs their test classes in parallel on every core, and the results are reported topic by topic; the timing-sensitive tests run by themselves after the rest. That's the quickest way to run several topics: the data and content are loaded once. `--separate` runs each topic as its own test run, several at a time, heaviest first: each topic isolated, at the cost of loading everything again for each (on a 4-core machine about 47 s for every topic, against 37 s together). A change to the documents, the game's scripts or the tools runs no topic; a change to a shared file runs them all.
+By default the chosen topics run together in one test run, where xUnit runs their test classes in parallel on every core, and the results are reported topic by topic; the timing-sensitive tests run by themselves after the rest. That's the quickest way to run several topics: the data and content are loaded once. `--separate` runs each topic as its own test run, several at a time, heaviest first: each topic isolated, at the cost of loading everything again for each (on a 4-core machine about 47 s for every topic, against 37 s together).
 
-Measured on a 4-core machine: every topic together 37 s (it was 56 s before the planet-map tests shared the world height maps they all start from); the lander alone about 6 s, the shared surface about 3 s. The planet maps (every world's maps, about 30 s of a core's work each way) are the long one.
+`--changed` decides with `tests/topic-map.json`, which `--map` makes by running each topic under coverage: for each topic, the source files its tests ran, the files declaring the types they name and the enum values and constants their code uses (compiled in, so coverage doesn't see them), the test files whose helpers they use, and the recordings they load. A changed file runs the topics whose map holds it. A source, test or recording file the map doesn't know (a new one, or one no test runs) runs every topic, and so does a shared file (`tests/topics.json` "all": the UQM maths, the data, the test project). Documents, the game's scripts and the tools run none. `TopicTests`, which checks every test class is in a known topic and the map covers every topic, always runs.
+
+The map is a snapshot of what calls what: remake it with `--map` after a change to that (the runner says when source changed since the map was made), and commit it with the change. It narrows the work while you go; the full run is what says the work is done. Many core files (the orbit menu, the lander, the world) reach most topics, so `--changed` saves most on the edges: the surface view runs only the drawing topic, the planet sphere only the planet maps, the snapshot codec only net and world.
+
+Measured on a 4-core machine: every topic together 37 s (it was 56 s before the planet-map tests shared the world height maps they all start from); the lander alone about 8 s, the shared surface about 1 s. The planet maps (every world's maps) are the long one. Under `--map` their every-world loops take the first 24 worlds only (`Golden.Sample`), which reach the same code.
 
 ## Known limits of stage 2b
 

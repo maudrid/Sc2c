@@ -14,9 +14,11 @@ namespace Crateris.Core.Tests;
 
 /// <summary>
 /// The test topics (tests/topics.json, tools/run_tests.py) stay whole:
-/// every test class is in one known topic, every topic has tests, and
-/// every source file and UQM recording is covered by a topic, so running
-/// only the topics a change touches can't miss one.
+/// every test class is in one known topic, every topic has tests, and the
+/// topic map (which files each topic's tests depend on, made by
+/// tools/run_tests.py --map) has every topic. A file the map doesn't know
+/// runs every topic with --changed, and these checks run with every
+/// --changed run.
 /// </summary>
 [Trait("Topic", "world")]
 public class TopicTests
@@ -68,20 +70,19 @@ public class TopicTests
     }
 
     [Fact]
-    public void EverySourceFileAndRecordingIsInATopic()
+    public void TheTopicMapCoversEveryTopic()
     {
-        string root = Root();
-        var globs = Topics.Value.GetProperty("all").EnumerateArray()
-            .Concat(Topics.Value.GetProperty("topics").EnumerateObject().SelectMany(t => t.Value.GetProperty("paths").EnumerateArray()))
-            .Select(g => Glob(g.GetString()!)).ToList();
-        var files = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
-            .Concat(Directory.EnumerateFiles(Path.Combine(root, "tests", "golden"), "*.json"))
-            .Select(f => Path.GetRelativePath(root, f).Replace('\\', '/'))
-            .Where(f => !f.Contains("/bin/") && !f.Contains("/obj/"))
-            .ToList();
-        Assert.True(files.Count > 100, $"only {files.Count} files");
-        var uncovered = files.Where(f => !globs.Any(g => g.IsMatch(f))).ToList();
-        Assert.True(uncovered.Count == 0, "not in any topic: " + string.Join(", ", uncovered));
+        // tests/topic-map.json (tools/run_tests.py --map): which files each
+        // topic's tests depend on. A file it doesn't know runs every topic.
+        var map = JsonDocument.Parse(File.ReadAllText(Path.Combine(Root(), "tests", "topic-map.json"))).RootElement;
+        var known = Topics.Value.GetProperty("topics").EnumerateObject().Select(t => t.Name).OrderBy(n => n);
+        Assert.Equal(known, map.GetProperty("topics").EnumerateObject().Select(t => t.Name).OrderBy(n => n));
+        foreach (var t in map.GetProperty("topics").EnumerateObject())
+            Assert.True(t.Value.GetArrayLength() > 5, $"topic {t.Name} depends on only {t.Value.GetArrayLength()} files");
+        foreach (var g in Topics.Value.GetProperty("all").EnumerateArray())
+            Assert.True(Directory.EnumerateFiles(Root(), "*", SearchOption.AllDirectories)
+                .Select(f => Path.GetRelativePath(Root(), f).Replace('\\', '/')).Any(f => Glob(g.GetString()!).IsMatch(f)),
+                $"tests/topics.json's all names {g}, which matches no file");
     }
 
     [Fact]

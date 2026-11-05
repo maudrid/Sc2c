@@ -68,6 +68,7 @@ public class PlanetSurfacesTests
             .ToList();
         Assert.True(golden.Count > 3700, $"only {golden.Count} maps");
         // Systems and orbits are worked out first, one at a time; the maps then on every core.
+        golden = golden.Sample();
         var reports = golden.Select(w => Systems[w.Star].EnterOrbit(w.Planet, w.Moon < 0 ? null : w.Moon).Report!).ToList();
         var surfaces = TestContent.With(p => new PlanetSurfaces(p));
         var wrong = new System.Collections.Concurrent.ConcurrentBag<string>();

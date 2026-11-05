@@ -49,7 +49,7 @@ public class SurfaceMapTests
 
         // The maps are independent, so they are made on every core.
         var wrong = new System.Collections.Concurrent.ConcurrentBag<string>();
-        Parallel.ForEach(maps, m =>
+        Parallel.ForEach(maps.Sample(), m =>
         {
             int type = WorldTypes.PlanetType(m.Desc.DataIndex);
             var map = HeightMap(Systems.Generator.Types[type], m.Desc.RandSeed);

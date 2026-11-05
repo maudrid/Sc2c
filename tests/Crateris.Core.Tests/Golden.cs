@@ -25,6 +25,17 @@ internal static class Golden
 
     public static long[] Longs(this JsonElement e) => e.EnumerateArray().Select(x => x.GetInt64()).ToArray();
 
+    /// <summary>
+    /// Whether the tests run to map which source files each topic runs
+    /// (tools/run_tests.py --map, with coverage): the every-world loops
+    /// then take a few worlds (<see cref="Sample{T}"/>), as only which code
+    /// runs matters, not the results.
+    /// </summary>
+    public static bool Mapping => Environment.GetEnvironmentVariable("CRATERIS_TOPIC_MAP") == "1";
+
+    /// <summary>All the cases, or a few of them while mapping (<see cref="Mapping"/>).</summary>
+    public static List<T> Sample<T>(this IEnumerable<T> all) => Mapping ? all.Take(24).ToList() : all.ToList();
+
     /// <summary>The SHA-256 of some bytes in lower-case hex, as the reference files give content.</summary>
     public static string Sha256(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 }

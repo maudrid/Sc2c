@@ -38,7 +38,7 @@ public class PlanetSphereTests
             .ToList();
         Assert.True(worlds.Count > 3700, $"only {worlds.Count} light maps");
         var wrong = new System.Collections.Concurrent.ConcurrentBag<string>();
-        Parallel.ForEach(worlds, w =>
+        Parallel.ForEach(worlds.Sample(), w =>
         {
             var type = Type(w.Desc);
             var light = PlanetSphere.LightMap(SurfaceMapTests.HeightMap(type, w.Desc.RandSeed), type.Algorithm == MapAlgorithm.GasGiant);
