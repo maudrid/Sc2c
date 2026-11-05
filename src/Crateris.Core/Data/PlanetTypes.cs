@@ -59,11 +59,15 @@ public sealed class PlanetTypes
 
     private readonly int[] _elementCategory;
 
-    private PlanetTypes(PlanetType[] types, int[] elementCategory)
+    private PlanetTypes(PlanetType[] types, int[] elementCategory, int[] worth)
     {
         _types = types;
         _elementCategory = elementCategory;
+        CategoryWorth = worth;
     }
+
+    /// <summary>Each element category's worth a unit (ElementWorth, as InitGameStructures sets it at the start).</summary>
+    public IReadOnlyList<int> CategoryWorth { get; }
 
     /// <summary>The names of UQM's element categories, in order (elemdata.h: COMMON, CORROSIVE and so on).</summary>
     public static readonly IReadOnlyList<string> ElementCategoryNames = new[]
@@ -141,6 +145,9 @@ public sealed class PlanetTypes
                 TranslateTableResource = t.GetProperty("color_table_resource").GetString() ?? "",
             });
         }
-        return new PlanetTypes(list.ToArray(), categories);
+        var worth = new int[ElementCategoryNames.Count];
+        foreach (var c in elementsDoc.RootElement.GetProperty("categories").EnumerateArray())
+            worth[ElementCategoryNames.ToList().IndexOf(c.GetProperty("category").GetString()!)] = c.GetProperty("worth").GetInt32();
+        return new PlanetTypes(list.ToArray(), categories, worth);
     }
 }

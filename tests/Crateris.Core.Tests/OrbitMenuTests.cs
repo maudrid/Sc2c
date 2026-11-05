@@ -86,7 +86,12 @@ public class OrbitMenuTests
         Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Select, NothingTaken));    // Manifest opens
         Assert.Equal(new[] { OrbitMenuItem.Cargo, OrbitMenuItem.Devices, OrbitMenuItem.Roster, OrbitMenuItem.ExitManifest },
             menu.Items);
-        foreach (var _ in Enumerable.Range(0, 3))
+        Assert.True(OrbitMenu.Available(menu.Selected));                               // Cargo works since item 10
+        Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Select, NothingTaken));
+        Assert.True(menu.CargoOpen);
+        menu.Press(MenuKey.Cancel, NothingTaken);
+        menu.Press(MenuKey.Down, NothingTaken);
+        foreach (var _ in Enumerable.Range(0, 2))
         {
             Assert.False(OrbitMenu.Available(menu.Selected));
             Assert.Equal(MenuOutcome.NotYet, menu.Press(MenuKey.Select, NothingTaken));

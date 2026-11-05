@@ -60,6 +60,7 @@ public partial class Main : Node2D
     private HyperspaceView _view = null!;
     private SystemView _systemView = null!;
     private OrbitView _orbitView = null!;
+    private PlanetsideView _planetsideView = null!;
     private Label _hud = null!;
     private SystemCatalog _systems = null!;
 
@@ -99,6 +100,8 @@ public partial class Main : Node2D
         AddChild(_systemView);
         _orbitView = new OrbitView(_systems) { Position = systemScreenAt, Visible = false };
         AddChild(_orbitView);
+        _planetsideView = new PlanetsideView(_systems) { Position = systemScreenAt, Visible = false };
+        AddChild(_planetsideView);
         var layer = new CanvasLayer();
         AddChild(layer);
         // Left of the system screen; long lines wrap.
@@ -209,8 +212,9 @@ public partial class Main : Node2D
             if (!Headless)
             {
                 _view.Sprites = _systemView.Sprites = new SpriteTextures(new SpaceSprites(content, sheets));
-                _orbitView.Text = OrbitScreenText.Load(content);
-                _orbitView.Surfaces = new PlanetSurfaces(content);
+                _orbitView.Text = _planetsideView.Text = OrbitScreenText.Load(content);
+                _orbitView.Surfaces = _planetsideView.Surfaces = new PlanetSurfaces(content);
+                _orbitView.Sprites = _planetsideView.Sprites = new PlanetsideSprites(content, sheets);
             }
         }
         catch (ContentPackageException e)
@@ -367,6 +371,9 @@ public partial class Main : Node2D
             RpcId(peer, MethodName.LandingRefused, (int)refusal);
     }
 
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void DiscardCargo(int category) => _host?.GuestDiscard(Multiplayer.GetRemoteSenderId(), category);
+
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void LandingRefused(int refusal) => _player?.LandingRefused((DispatchRefusal)refusal);
 
@@ -462,8 +469,11 @@ public partial class Main : Node2D
             var keys = _about.Visible ? ShipInput.None : ReadKeys(_player.Screen == PlayerScreen.Planetside);
             var input = inGame ? _player.NextInput(keys) : ShipInput.None;
             var landing = inGame ? _player.TakeLandingRequest() : null;
+            var discards = inGame ? _player.TakeDiscards() : Array.Empty<int>();
             if (_host != null)
             {
+                foreach (int category in discards)
+                    _host.World.DiscardCargo(_host.HostId, category);
                 if (landing is { } site && _host.Dispatch(_host.HostId, site.X, site.Y) is var refusal
                         && refusal != DispatchRefusal.None)
                     _player.LandingRefused(refusal);
@@ -480,6 +490,8 @@ public partial class Main : Node2D
             {
                 if (landing is { } site)
                     RpcId(1, MethodName.RequestLanding, site.X, site.Y);
+                foreach (int category in discards)
+                    RpcId(1, MethodName.DiscardCargo, category);
                 RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input, snap.Frame);
                 if (_player.UndockTick())
                     RpcId(1, MethodName.UndockShown);
@@ -581,8 +593,10 @@ public partial class Main : Node2D
         _view.Show(player.Snapshot, player.PlayerId, player.Entries);
         _view.Visible = screen == PlayerScreen.Hyperspace;
         _systemView.Visible = screen == PlayerScreen.System;
-        // Until item 10 draws the surface, the orbit screen stays up while the lander is down.
-        _orbitView.Visible = screen is PlayerScreen.Orbit or PlayerScreen.Planetside;
+        _orbitView.Visible = screen == PlayerScreen.Orbit;
+        _planetsideView.Visible = screen == PlayerScreen.Planetside;
+        if (_planetsideView.Visible)
+            _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)
             _systemView.Show(player.Snapshot, player.PlayerId);
     }
@@ -592,7 +606,8 @@ public partial class Main : Node2D
         if (_player != null)
             _player.Status = _status;
         _hud.Text = _player == null ? _status : string.Join("\n", _player.StatusLines());
-        _hud.Visible = _firstRun == null && _contentError == null;   // those screens stand alone
+        // Those screens stand alone; the cargo display covers the status area, as UQM's does.
+        _hud.Visible = _firstRun == null && _contentError == null && _player?.OrbitMenu?.CargoOpen != true;
     }
 
     // ---------------------------------------------------- quit / report

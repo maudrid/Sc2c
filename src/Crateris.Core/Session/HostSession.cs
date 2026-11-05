@@ -168,6 +168,13 @@ public sealed class HostSession
         return refusal;
     }
 
+    /// <summary>A guest drops a unit of cargo overboard (anything wrong is ignored).</summary>
+    public void GuestDiscard(long peer, int category)
+    {
+        if (_peers.TryGetValue(peer, out var id))
+            World.DiscardCargo(id, category);
+    }
+
     public void GuestUndockShown(long peer)
     {
         if (_peers.TryGetValue(peer, out var id))

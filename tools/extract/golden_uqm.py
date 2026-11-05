@@ -560,11 +560,39 @@ def drawing_scenarios():
     return out
 
 
+def cargo_cases():
+    """Holds for the cargo display: [amounts by category (8), bio data,
+    the bays' capacity (GetStorageBayCapacity), the category selected]."""
+    import random
+    rng = random.Random(5)
+    cases = [[0] * 8 + [0, 500, 0], [1, 2, 3, 4, 5, 6, 7, 8, 9, 500, 7],
+             [500, 0, 0, 0, 0, 0, 0, 0, 0, 500, 3], [10, 0, 999, 0, 0, 0, 0, 0, 50, 1500, 2]]
+    for _ in range(8):
+        a = [rng.choice([0, rng.randint(1, 9), rng.randint(10, 99), rng.randint(100, 999)]) for _ in range(8)]
+        bays = (sum(a) + 499) // 500 + rng.randint(0, 3)
+        cases.append(a + [rng.randint(0, 150), max(bays, 1) * 500, rng.randint(0, 7)])
+    return cases
+
+
+def record_cargo(lander_exe, masks):
+    """UQM's cargo display (cargo.c's DrawCargoStrings) for each case."""
+    with open(os.path.join(REPO, "data", "elements.json")) as f:
+        worth = [c["worth"] for c in json.load(f)["categories"]]
+    lines = [" ".join(map(str, c[:9] + worth + c[9:])) for c in cargo_cases()]
+    out = subprocess.run([lander_exe, masks, "cargo"], input="\n".join(lines) + "\n",
+                         capture_output=True, text=True, check=True).stdout
+    draws = json.loads(out)
+    if len(draws) != len(lines):
+        raise RuntimeError("the lander program lost a cargo display")
+    return [{"input": c, "draws": d} for c, d in zip(cargo_cases(), draws)]
+
+
 def record_lander_drawing(uqm, lander_exe, strings_exe, images_exe, package):
     """What UQM's lander draws on the surface view and in its gauges."""
     with tempfile.TemporaryDirectory() as tmp:
         masks, _ = write_masks(strings_exe, images_exe, package, tmp, HAZARD_SHEETS)
         landings = run_lander(lander_exe, drawing_scenarios(), masks, draw=True)
+        cargo = record_cargo(lander_exe, masks)
     data = header(uqm, ["tools/extract/golden/lander.c",
                         "tools/extract/golden/lander_stubs.c",
                         "src/uqm/planets/lander.c", "src/libs/graphics/frame.c"], [
@@ -584,8 +612,15 @@ def record_lander_drawing(uqm, lander_exe, strings_exe, images_exe, package):
         "as in lander.json. Code and the masks' shapes; no content.",
         "Landings from lander-pickups.json, lander-creatures.json and "
         "lander-hazards.json, cut to their first few hundred frames.",
+        "cargo: the Manifest's cargo display as cargo.c's DrawCargoStrings "
+        "first draws it (in the status area, StatusContext), for holds "
+        "[amounts by element category (8), bio data, the bays' capacity, "
+        "the category selected], with each category's worth from "
+        "elements.json: the same kinds of drawing call, text with a font "
+        "after its colour (1 StarConFont, 2 TinyFont).",
     ])
     data["landings"] = landings
+    data["cargo"] = cargo
     return data
 
 

@@ -45,9 +45,14 @@ public sealed record SurfaceElementSnapshot(int Id, SurfaceElementKind Kind, int
             e.Kind == SurfaceElementKind.Lightning ? e.LifeSpan : 0, e.Cycle);
 }
 
-/// <summary>A world's surface: its landers in the order they came, and what's on it in UQM's queue order but the deposits.</summary>
+/// <summary>
+/// A world's surface: its landers in the order they came, what's on it in
+/// UQM's queue order but the deposits, and the deposits (mineral nodes)
+/// taken in its last frame, which were still drawn in it (UQM draws
+/// before the lander touches).
+/// </summary>
 public sealed record SurfaceSnapshot(int Star, int Planet, int? Moon, IReadOnlyList<LanderSnapshot> Landers,
-    IReadOnlyList<SurfaceElementSnapshot> Elements)
+    IReadOnlyList<SurfaceElementSnapshot> Elements, IReadOnlyList<int>? DepositsTaken = null)
 {
     public WorldId World => new(Star, Planet, Moon);
 }

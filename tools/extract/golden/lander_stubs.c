@@ -45,7 +45,6 @@ long RotatePlanetSphere () { return 0; }
 long ScreenTransition () { return 0; }
 long SetContextClipRect () { return 0; }
 long SetContextFGFrame () { return 0; }
-long SetContextFont () { return 0; }
 long SetMenuSounds () { return 0; }
 long SetRaceAllied () { return 0; }
 long SetTransitionSource () { return 0; }
@@ -59,4 +58,4 @@ long utf8StringCopy () { return 0; }
 long utf8StringCountN () { return 0; }
 
 char CurStarDescPtr[64], FlagStatFrame[64], FontGradFrame[64],
-		PlanetContext[64], Screen[64], TinyFont[64], master_q[256];
+		PlanetContext[64], Screen[64], master_q[256];

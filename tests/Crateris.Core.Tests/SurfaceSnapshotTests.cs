@@ -72,7 +72,8 @@ public class SurfaceSnapshotTests
             landers.RemoveAt(r.Next(landers.Count));
         if (r.Next(30) == 0 && landers.All(l => l.PlayerId != "other"))
             landers.Add(AnyLander(r, "other"));
-        return s with { Landers = landers, Elements = elements };
+        return s with { Landers = landers, Elements = elements,
+            DepositsTaken = r.Next(8) == 0 ? new[] { r.Next(32) } : Array.Empty<int>() };
     }
 
     private static ShipSnapshot Ship(string id, WorldId? landedOn) => new(id, id, id == "host", ShipKind.Escort,
@@ -91,6 +92,7 @@ public class SurfaceSnapshotTests
         Assert.Equal(want.World, s.World);
         Assert.Equal(want.Landers, s.Landers);
         Assert.Equal(want.Elements, s.Elements);
+        Assert.Equal(want.DepositsTaken ?? Array.Empty<int>(), s.DepositsTaken);
     }
 
     [Fact]

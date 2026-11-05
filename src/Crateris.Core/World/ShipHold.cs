@@ -209,6 +209,19 @@ public sealed class ShipHold
         BioData += bioData;
     }
 
+    /// <summary>
+    /// A unit of an element category goes overboard (the Manifest's cargo
+    /// display, DoDiscardCargo); false, changing nothing, if there's none.
+    /// </summary>
+    public bool Discard(int category)
+    {
+        if (category < 0 || category >= Categories || _minerals[category] == 0)
+            return false;
+        _minerals[category]--;
+        _snapshot = null;
+        return true;
+    }
+
     /// <summary>The hold for snapshots, made again only when it changes.</summary>
     public HoldSnapshot Snapshot() =>
         _snapshot ??= new HoldSnapshot(Crew, Landers, StorageCapacity, _minerals.ToArray(), BioData, _upgrades);

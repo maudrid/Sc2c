@@ -43,6 +43,7 @@ public sealed class PlayerSession
     private readonly Dictionary<string, Activity> _seenActivity = new();
     private int _leaveFrames;
     private (int X, int Y)? _landingSite;
+    private readonly Queue<int> _discards = new();
     private bool _landingAsked;   // sent, not yet down or refused: the menu takes no keys
     private LanderPhase? _seenLanderPhase;
     private bool _wasSweeping;
@@ -221,6 +222,14 @@ public sealed class PlayerSession
     /// The landing site picked in the orbit menu, to send to the host
     /// once (the host sends the lander down, or refuses); null if none is waiting.
     /// </summary>
+    /// <summary>The cargo units dropped in the cargo display since last asked, by category, to send to the host.</summary>
+    public IReadOnlyList<int> TakeDiscards()
+    {
+        var all = _discards.ToArray();
+        _discards.Clear();
+        return all;
+    }
+
     public (int X, int Y)? TakeLandingRequest()
     {
         var site = _landingSite;
@@ -276,6 +285,16 @@ public sealed class PlayerSession
             MenuOutcome.Dispatch => "Dispatching the lander...",
             _ => "",
         };
+        if (outcome == MenuOutcome.DiscardCargo)
+        {
+            // DoDiscardCargo: only if there's some of it (a failure sound otherwise).
+            int category = OrbitMenu.CargoSelected;
+            if (Me?.Hold is { } hold && hold.Minerals[category] > 0)
+            {
+                _discards.Enqueue(category);
+                Log($"Discarding a unit of category {category}");
+            }
+        }
         if (outcome == MenuOutcome.ScanStarted)
             Log($"Scan started: {item}");
         if (outcome == MenuOutcome.PickingSite)
@@ -375,6 +394,24 @@ public sealed class PlayerSession
         UndockDone = true;
         Notify("Undocked. You're flying your escort.");
         return true;
+    }
+
+    /// <summary>
+    /// The deposits on the surface the local player's lander is on, as its
+    /// last frame drew them: the world's mineral nodes not taken, and those
+    /// taken in that frame (still drawn in it).
+    /// </summary>
+    public IReadOnlyList<(int Node, SurfaceNode Info)> Deposits()
+    {
+        if (OrbitMenu?.Orbit.Nodes is not { } nodes || SnapshotCodec.SurfaceSeen(Snapshot, PlayerId) is not { } surface)
+            return Array.Empty<(int, SurfaceNode)>();
+        uint mask = Taken(ScanType.Mineral);
+        foreach (int node in surface.DepositsTaken ?? Array.Empty<int>())
+        {
+            if (node < PlanetWorldState.MaxNodes)
+                mask &= ~(1u << node);
+        }
+        return PlanetWorldState.Remaining(mask, nodes.Minerals);
     }
 
     /// <summary>The host's taken-node mask for a scan type of the world being orbited.</summary>

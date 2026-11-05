@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using System.Text.Json;
+using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Planetside;
 using Crateris.Core.Systems;
@@ -131,5 +132,40 @@ public class PlanetsideScreenTests
             frame++;
         }
         Assert.True(frame > 150, $"only {frame} frames compared");
+    }
+}
+
+/// <summary>The Manifest's cargo display (stage 2b, item 10) against UQM's own cargo.c (lander-drawing.json's cargo).</summary>
+public class CargoDisplayTests
+{
+    private static readonly SystemCatalog Systems = SystemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "data"));
+
+    private static string Op(JsonElement e) => e[0].GetString() == "t"
+        ? $"t {e[1]},{e[2]} {e[3]} '{e[4].GetString()}' {e[6]},{e[7]},{e[8]} font {e[9]}"
+        : string.Join(" ", e.EnumerateArray());
+
+    private static string Op(SurfaceDraw d) => d.Kind switch
+    {
+        SurfaceDrawKind.Stamp => $"s {(int)d.Sheet} {d.Frame} {d.X} {d.Y}",
+        SurfaceDrawKind.Rectangle => $"r {d.X} {d.Y} {d.Width} {d.Height} {d.Color.R} {d.Color.G} {d.Color.B}",
+        _ => $"t {d.X},{d.Y} {(int)d.Align} '{d.Text}' {d.Color.R},{d.Color.G},{d.Color.B} font {(d.Font == SurfaceFont.StarCon ? 1 : 2)}",
+    };
+
+    [ContentFact]
+    public void TheCargoDisplayIsUqms()
+    {
+        var icon = TestContent.Shapes.MiscData[ContactShapes.FirstMineralFrame + 3];
+        int n = 0;
+        foreach (var c in Golden.Load("lander-drawing").GetProperty("cargo").EnumerateArray())
+        {
+            var input = c.GetProperty("input").Ints();
+            var hold = new HoldSnapshot(0, 1, input[9], input[..8], input[8]);
+            var got = CargoDisplay.Draw(hold, input[10], Systems.Generator.Types.CategoryWorth, (icon.Width, icon.Height))
+                .Select(Op).ToList();
+            var want = c.GetProperty("draws").EnumerateArray().Select(Op).ToList();
+            Assert.True(want.SequenceEqual(got), $"case {n}:\n want {string.Join("; ", want)}\n got  {string.Join("; ", got)}");
+            n++;
+        }
+        Assert.True(n >= 10);
     }
 }

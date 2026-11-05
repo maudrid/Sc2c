@@ -505,6 +505,14 @@ public sealed class GameWorld
         return surface;
     }
 
+    /// <summary>
+    /// A present player drops a unit of an element category overboard (the
+    /// Manifest's cargo display); false, changing nothing, if there's none
+    /// or no such category.
+    /// </summary>
+    public bool DiscardCargo(string id, int category) =>
+        Find(id) is { Present: true } player && player.Ship.Hold.Discard(category);
+
     public WorldSnapshot Snapshot()
     {
         var present = _players.Where(p => p.Present).ToList();
@@ -536,7 +544,8 @@ public sealed class GameWorld
 
         var surfaces = _surfaces.Select(s => new SurfaceSnapshot(s.World.Star, s.World.Planet, s.World.Moon,
                 s.Surface.Landers.Select(l => LanderSnapshot.Of(_landerPlayers[l].Id, l)).ToList(),
-                s.Surface.Elements.Where(e => e.Kind != SurfaceElementKind.Mineral).Select(SurfaceElementSnapshot.Of).ToList()))
+                s.Surface.Elements.Where(e => e.Kind != SurfaceElementKind.Mineral).Select(SurfaceElementSnapshot.Of).ToList(),
+                s.Surface.Taken.Where(t => t.Scan == ScanType.Mineral).Select(t => t.Node).Distinct().ToList()))
             .ToList();
         return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces);
     }

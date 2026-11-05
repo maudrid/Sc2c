@@ -50,6 +50,8 @@ public enum MenuOutcome
     PickingSite,
     /// <summary>A landing site was picked: the lander goes down at <see cref="OrbitMenu.Site"/>. The client tells the host.</summary>
     Dispatch,
+    /// <summary>In the cargo display, select: a unit of the selected category goes overboard (<see cref="OrbitMenu.CargoSelected"/>). The client tells the host.</summary>
+    DiscardCargo,
 }
 
 /// <summary>
@@ -140,8 +142,17 @@ public sealed class OrbitMenu
     /// shown but say they come later (<see cref="MenuOutcome.NotYet"/>).
     /// </summary>
     public static bool Available(OrbitMenuItem item) => item is not
-        (OrbitMenuItem.Starmap or OrbitMenuItem.GameMenu or OrbitMenuItem.Cargo
-         or OrbitMenuItem.Devices or OrbitMenuItem.Roster);
+        (OrbitMenuItem.Starmap or OrbitMenuItem.GameMenu or OrbitMenuItem.Devices or OrbitMenuItem.Roster);
+
+    /// <summary>
+    /// Whether the Manifest's cargo display is open (CargoMenu): the
+    /// direction keys choose an element category, select drops a unit of
+    /// it, cancel goes back to the Manifest.
+    /// </summary>
+    public bool CargoOpen { get; private set; }
+
+    /// <summary>The element category the cargo display has lit, 0 to 7 (it opens on the first).</summary>
+    public int CargoSelected { get; private set; }
 
     /// <summary>
     /// One key press. <paramref name="taken"/> gives the host's current
@@ -163,6 +174,26 @@ public sealed class OrbitMenu
                 return key == MenuKey.Select ? MenuOutcome.Dispatch : MenuOutcome.Moved;
             }
             return MenuOutcome.None;
+        }
+        if (CargoOpen)
+        {
+            // DoDiscardCargo: the categories wrap round; bio data can't be chosen.
+            switch (key)
+            {
+                case MenuKey.Up:
+                case MenuKey.Left:
+                    CargoSelected = (CargoSelected + 7) % 8;
+                    return MenuOutcome.Moved;
+                case MenuKey.Down:
+                case MenuKey.Right:
+                    CargoSelected = (CargoSelected + 1) % 8;
+                    return MenuOutcome.Moved;
+                case MenuKey.Select:
+                    return MenuOutcome.DiscardCargo;
+                default:
+                    CargoOpen = false;
+                    return MenuOutcome.Moved;
+            }
         }
         if (Scan.Sweeping)
         {
@@ -237,6 +268,10 @@ public sealed class OrbitMenu
                 return MenuOutcome.Moved;
             case OrbitMenuItem.Manifest:
                 Open(MenuPage.Manifest, OrbitMenuItem.Cargo);
+                return MenuOutcome.Moved;
+            case OrbitMenuItem.Cargo:
+                CargoOpen = true;
+                CargoSelected = 0;
                 return MenuOutcome.Moved;
             case OrbitMenuItem.ExitManifest:
                 Open(MenuPage.Orbit, OrbitMenuItem.Manifest);

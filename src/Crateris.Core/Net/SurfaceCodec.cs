@@ -107,6 +107,11 @@ public static partial class SnapshotCodec
                 w.String(l.PlayerId);
         }
 
+        var taken = surface.DepositsTaken ?? Array.Empty<int>();
+        w.UInt((ulong)taken.Count);
+        foreach (int node in taken)
+            w.UInt((ulong)node);
+
         Span<long> enow = stackalloc long[ElementNumbers];
         Span<long> ewas = stackalloc long[ElementNumbers];
         w.UInt((ulong)surface.Elements.Count);
@@ -188,6 +193,10 @@ public static partial class SnapshotCodec
             landers[i] = LanderFromNumbers(v, id);
         }
 
+        var taken = new int[Count(r.UInt(), 64)];
+        for (int i = 0; i < taken.Length; ++i)
+            taken[i] = Count(r.UInt(), 1023);
+
         var elements = new SurfaceElementSnapshot[Count(r.UInt(), 4096)];
         Span<long> ev = stackalloc long[ElementNumbers];
         long lastId = 0;
@@ -224,7 +233,7 @@ public static partial class SnapshotCodec
                     throw new InvalidDataException($"Two landers are {landers[i].PlayerId}'s.");
             }
         }
-        return new[] { new SurfaceSnapshot(star, planet, moon, landers, elements) };
+        return new[] { new SurfaceSnapshot(star, planet, moon, landers, elements, taken) };
     }
 
     // An element by its id, looking on from where the last one was found:

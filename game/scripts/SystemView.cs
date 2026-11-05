@@ -74,6 +74,20 @@ public static class SisScreen
         c.DrawString(ThemeDB.FallbackFont, at + new Vector2(7, -4), name + " (orbit)", HorizontalAlignment.Left, -1, 13, color);
     }
 
+    /// <summary>
+    /// Where UQM's status area (STATUS_WIDTH wide, at the left here) has its
+    /// origin, in a view on the system screen: put so its menu box sits at
+    /// the left, below the status lines.
+    /// </summary>
+    public static Vector2 StatusOrigin(Control view) =>
+        new Vector2(-view.Position.X + 12, MenuTop) - new Vector2(OrbitScreenText.MenuAreaX - 1, OrbitScreenText.MenuAreaY) * Scale;
+
+    /// <summary>The top of the menu box, in the system screen's coordinates.</summary>
+    public const float MenuTop = 424;
+
+    /// <summary>The radar box in the status area (RADAR_X, RADAR_Y less the status area's place): the lander's gauges.</summary>
+    public const int RadarX = 4, RadarY = 10 + IpGeometry.ScreenHeight - 53;
+
     public static Color ShipColor(ShipSnapshot s, string me) =>
         s.Id == me ? Colors.Cyan : (s.IsHost ? Colors.Gold : Colors.LightGreen);
 }
@@ -261,6 +275,11 @@ public partial class OrbitView : Control
     /// <summary>The worlds' surfaces (set with <see cref="Names"/>).</summary>
     public PlanetSurfaces? Surfaces { get; set; }
 
+    /// <summary>The scan map's dots and cursor, and the lander's gauges (set with <see cref="Names"/>).</summary>
+    public PlanetsideSprites? Sprites { get; set; }
+
+    private readonly StampTextures _stamps = new();
+
     private PlanetSurface? _surface;     // the orbited world's surface, made once per visit
     private ImageTexture? _surfaceMap;
     private readonly Dictionary<ScanType, ImageTexture> _tintedMaps = new();
@@ -424,6 +443,13 @@ public partial class OrbitView : Control
 
         foreach (var dot in scan.Dots(_taken))
         {
+            if (Sprites != null)
+            {
+                // UQM's dot images (MiscDataFrame), filled with the sweep's flash.
+                int frame = PlanetsideScreen.DotFrame(dot.Scan, dot.Info, dot.Frame, _systems.Generator.Types.ElementCategory);
+                _stamps.Draw(this, Sprites.Image(PlanetsideSheet.MiscData, frame), map.Position, dot.Info.X, dot.Info.Y, dot.Flash);
+                continue;
+            }
             var at = map.Position + new Vector2(dot.Info.X + 0.5f, dot.Info.Y + 0.5f) * SisScreen.Scale;
             float r = (1f + dot.Frame) * SisScreen.Scale * 0.6f;
             Color c = dot.Flash is { } f ? SisScreen.ToColor(f) : dot.Scan switch
@@ -433,6 +459,13 @@ public partial class OrbitView : Control
                 _ => new Color(0.4f, 1f, 0.4f),
             };
             DrawCircle(at, r, c);
+        }
+        // Picking the landing site: its cursor, flashing (flashPlanetLocation).
+        if (_menu.Picking && _menu.Site is { } site && Sprites != null)
+        {
+            var (cx, cy) = site.Cursor;
+            _stamps.Draw(this, Sprites.Image(PlanetsideSheet.MiscData, PlanetsideScreen.CursorFrame), map.Position, cx, cy,
+                site.FlashColor);
         }
     }
 
@@ -444,9 +477,36 @@ public partial class OrbitView : Control
         if (!ReferenceEquals(_menuLayout?.Items, items) || _menuLayout.Value.Selected != _menu.Selected)
             _menuLayout = (items, _menu.Selected, Text!.Menu(items, items.ToList().IndexOf(_menu.Selected)));
         var menu = _menuLayout.Value.Menu;
-        var areaAt = new Vector2(-Position.X + 12, 400);
-        var origin = areaAt - new Vector2(OrbitScreenText.MenuAreaX - 1, OrbitScreenText.MenuAreaY) * SisScreen.Scale;
-        UqmText.Draw(this, menu, origin, SisScreen.Scale);
+        var origin = SisScreen.StatusOrigin(this);
+        var areaAt = origin + new Vector2(OrbitScreenText.MenuAreaX - 1, OrbitScreenText.MenuAreaY) * SisScreen.Scale;
+        var myHold = _snapshot?.Ships.FirstOrDefault(s => s.Id == _me)?.Hold;
+        if (_menu.CargoOpen && Sprites != null && myHold is { } cargo)
+        {
+            // The Manifest's cargo display, in the status area (DrawCargoStrings),
+            // the selected category's description below the menu (DrawStatusMessage).
+            var icon = Sprites.Image(PlanetsideSheet.MiscData, Crateris.Core.Content.ContactShapes.FirstMineralFrame + 3);
+            foreach (var d in CargoDisplay.Draw(cargo, _menu.CargoSelected, _systems.Generator.Types.CategoryWorth,
+                         (icon.Width, icon.Height), Text!.Cargo(0), Text.Cargo(1)))
+                _stamps.Draw(this, origin, d, Sprites, Text);
+            UqmText.Draw(this, menu, origin, SisScreen.Scale);
+            DrawString(font, new Vector2(areaAt.X, areaAt.Y + OrbitScreenText.MenuAreaHeight * SisScreen.Scale + 66),
+                Text.Cargo(2 + _menu.CargoSelected), HorizontalAlignment.Left, Position.X - 24, 13, Colors.Khaki);
+        }
+        else if (_menu.Picking && Sprites != null && myHold is { } hold)
+        {
+            // While the site is picked, the lander's gauges take the menu's place (InitLander).
+            var radar = origin + new Vector2(SisScreen.RadarX, SisScreen.RadarY) * SisScreen.Scale;
+            foreach (var d in LanderGauges.Idle(hold))
+            {
+                if (d.Kind == SurfaceDrawKind.Rectangle)
+                    DrawRect(new Rect2(radar + new Vector2(d.X, d.Y) * SisScreen.Scale, new Vector2(d.Width, d.Height) * SisScreen.Scale),
+                        UqmText.ToColor(d.Color));
+                else
+                    _stamps.Draw(this, Sprites.Image(d.Sheet, d.Frame), radar, d.X, d.Y);
+            }
+        }
+        else
+            UqmText.Draw(this, menu, origin, SisScreen.Scale);
 
         // Entries that come in a later stage say so, in the engine's font beside the box.
         float right = areaAt.X + (OrbitScreenText.MenuAreaWidth + 1) * SisScreen.Scale + 6;

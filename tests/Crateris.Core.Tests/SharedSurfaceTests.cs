@@ -333,4 +333,80 @@ public class LandingSessionTests
         player.LandingRefused(DispatchRefusal.LanderOut);
         Assert.Equal("The lander is already down.", player.OrbitMessage);
     }
+
+    [ContentFact]
+    public void TheClientsDepositsAreTheOnesTheSurfaceDrew()
+    {
+        // The world's nodes less the taken ones, and those taken in the
+        // last frame (still drawn in it), are the host's deposits each frame.
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host",
+            Systems, TestContent.Shapes);
+        world.PutInOrbit("host", 82, 2, 1);
+        var player = new Session.PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        world.Dispatch("host", 484, 148);
+        var lander = world.Host.Ship.Lander!;
+        var surface = world.SurfaceOf(new WorldId(82, 2, 1))!;
+        int taken = 0;
+        for (int frame = 0; frame < 24 * 12; ++frame)
+        {
+            if (lander.Phase == LanderPhase.Ground && frame % 24 == 0
+                    && surface.Elements.FirstOrDefault(e => e.Kind == SurfaceElementKind.Mineral) is { } d)
+                lander.PlaceForTest(d.X, d.Y);   // onto a deposit now and then
+            world.SubmitInput("host", world.Frame + 1, ShipInput.None);
+            world.Step();
+            player.Observe(world.Snapshot());
+            if (world.Host.Ship.Lander is null)
+                break;
+            var want = surface.Elements.Where(e => e.Kind == SurfaceElementKind.Mineral).Select(e => e.Node).OrderBy(n => n);
+            Assert.Equal(want, player.Deposits().Select(d => d.Node).OrderBy(n => n));
+            taken += world.SurfaceOf(new WorldId(82, 2, 1))?.Taken.Count ?? 0;
+        }
+        Assert.True(taken > 2, $"only {taken} deposits taken");
+    }
+}
+
+/// <summary>The Manifest's cargo display and discarding (stage 2b, item 10; UQM's CargoMenu, DoDiscardCargo).</summary>
+public class CargoMenuTests
+{
+    private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
+    private static readonly SystemCatalog Systems = SystemCatalog.Load(DataDir);
+
+    [ContentFact]
+    public void TheCargoDisplayChoosesACategoryAndDropsAUnitOfIt()
+    {
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host",
+            Systems, TestContent.Shapes);
+        world.PutInOrbit("host", 82, 2, 1);
+        var hold = world.Host.Ship.Hold;
+        hold.Restore(new HoldState(hold.Crew, hold.Landers, new[] { 0, 0, 3, 0, 0, 0, 0, 0 }, 0, hold.Upgrades));
+        var player = new Session.PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        player.Observe(world.Snapshot());
+        var menu = player.OrbitMenu!;
+        player.PressMenu(MenuKey.Down);     // Starmap
+        player.PressMenu(MenuKey.Down);     // Manifest
+        player.PressMenu(MenuKey.Select);   // Cargo
+        player.PressMenu(MenuKey.Select);   // the cargo display
+        Assert.True(menu.CargoOpen);
+        Assert.Equal(0, menu.CargoSelected);
+        player.PressMenu(MenuKey.Select);   // none of category 0: nothing goes
+        Assert.Empty(player.TakeDiscards());
+        player.PressMenu(MenuKey.Up);       // wraps round to the last
+        Assert.Equal(7, menu.CargoSelected);
+        player.PressMenu(MenuKey.Right);
+        player.PressMenu(MenuKey.Right);
+        player.PressMenu(MenuKey.Right);
+        Assert.Equal(2, menu.CargoSelected);
+        player.PressMenu(MenuKey.Select);
+        player.PressMenu(MenuKey.Select);
+        var drops = player.TakeDiscards();
+        Assert.Equal(new[] { 2, 2 }, drops);
+        foreach (int c in drops)
+            Assert.True(world.DiscardCargo("host", c));
+        Assert.Equal(1, hold.Minerals[2]);
+        Assert.False(world.DiscardCargo("host", 0));   // none there
+        Assert.False(world.DiscardCargo("host", 8));   // no such category
+        player.PressMenu(MenuKey.Cancel);
+        Assert.False(menu.CargoOpen);
+        Assert.Equal(OrbitMenu.MenuPage.Manifest, menu.Page);
+    }
 }

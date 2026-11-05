@@ -81,6 +81,8 @@
  */
 
 #include "uqm/planets/lander.c"
+/* The Manifest's cargo display (DrawCargoStrings), for the cargo mode. */
+#include "uqm/planets/cargo.c"
 /* random.c's own TFB_Random, in this file so its seed can be read. */
 #include "libs/math/random.c"
 #include "libs/graphics/drawable.h"   /* FRAME_DESC, as intersec.c reads it */
@@ -594,7 +596,8 @@ DoInput (void *pInputState, BOOLEAN resetInput)
 
 /* The drawing recorded (see "Drawing"). */
 static int record_draws;
-static char radar_context[64];
+static char radar_context[64], status_context[64];
+CONTEXT StatusContext = (CONTEXT) status_context;
 static CONTEXT current_context;
 static Color fg_color;
 #define DRAW_BUF (1 << 20)
@@ -708,8 +711,8 @@ draw_out (const char *fmt, ...)
 	va_list ap;
 	if (!record_draws)
 		return;
-	if (current_context == (CONTEXT) radar_context)
-		buf = radar_draws, len = &radar_len;
+	if (current_context == (CONTEXT) radar_context || current_context == (CONTEXT) status_context)
+		buf = radar_draws, len = &radar_len;   /* one of them at a time */
 	else if (current_context == (CONTEXT) PlanetContext)
 		buf = planet_draws, len = &planet_len;
 	else
@@ -775,13 +778,88 @@ DrawFilledRectangle (RECT *r)
 			r->extent.width, r->extent.height, fg_color.r, fg_color.g, fg_color.b);
 }
 
-/* ["t", x, y, align, text, characters (-1 all), r, g, b] */
+static int text_font;   /* 1 StarConFont, 2 TinyFont, 0 any other */
+FONT StarConFont, TinyFont;
+FONT
+SetContextFont (FONT f)
+{
+	text_font = f == StarConFont ? 1 : f == TinyFont ? 2 : 0;
+	return 0;
+}
+
+/* util.c's DrawStarConBox, here so its rectangles are recorded. */
+void
+DrawStarConBox (RECT *pRect, SIZE BorderWidth, Color TopLeftColor,
+		Color BottomRightColor, BOOLEAN FillInterior, Color InteriorColor)
+{
+	RECT r;
+	if (BorderWidth == 0)
+		BorderWidth = 2;
+	else
+	{
+		SetContextForeGroundColor (TopLeftColor);
+		r.corner = pRect->corner;
+		r.extent.width = pRect->extent.width;
+		r.extent.height = 1;
+		DrawFilledRectangle (&r);
+		if (BorderWidth == 2)
+		{
+			++r.corner.x; ++r.corner.y; r.extent.width -= 2;
+			DrawFilledRectangle (&r);
+		}
+		r.corner = pRect->corner;
+		r.extent.width = 1;
+		r.extent.height = pRect->extent.height;
+		DrawFilledRectangle (&r);
+		if (BorderWidth == 2)
+		{
+			++r.corner.x; ++r.corner.y; r.extent.height -= 2;
+			DrawFilledRectangle (&r);
+		}
+		SetContextForeGroundColor (BottomRightColor);
+		r.corner.x = pRect->corner.x + pRect->extent.width - 1;
+		r.corner.y = pRect->corner.y + 1;
+		r.extent.height = pRect->extent.height - 1;
+		DrawFilledRectangle (&r);
+		if (BorderWidth == 2)
+		{
+			--r.corner.x; ++r.corner.y; r.extent.height -= 2;
+			DrawFilledRectangle (&r);
+		}
+		r.corner.x = pRect->corner.x;
+		r.extent.width = pRect->extent.width;
+		r.corner.y = pRect->corner.y + pRect->extent.height - 1;
+		r.extent.height = 1;
+		DrawFilledRectangle (&r);
+		if (BorderWidth == 2)
+		{
+			++r.corner.x; --r.corner.y; r.extent.width -= 2;
+			DrawFilledRectangle (&r);
+		}
+	}
+	if (FillInterior)
+	{
+		SetContextForeGroundColor (InteriorColor);
+		r.corner.x = pRect->corner.x + BorderWidth;
+		r.corner.y = pRect->corner.y + BorderWidth;
+		r.extent.width = pRect->extent.width - (BorderWidth << 1);
+		r.extent.height = pRect->extent.height - (BorderWidth << 1);
+		DrawFilledRectangle (&r);
+	}
+}
+
+/* ["t", x, y, align, text, characters (-1 all), r, g, b, font] */
 void
 font_DrawText (TEXT *t)
 {
-	draw_out ("[\"t\", %d, %d, %d, \"%s\", %d, %d, %d, %d]", t->baseline.x, t->baseline.y,
-			t->align, t->pStr ? t->pStr : "", t->CharCount == (COUNT) ~0 ? -1 : (int) t->CharCount,
-			fg_color.r, fg_color.g, fg_color.b);
+	if (current_context == (CONTEXT) status_context)
+		draw_out ("[\"t\", %d, %d, %d, \"%s\", %d, %d, %d, %d, %d]", t->baseline.x, t->baseline.y,
+				t->align, t->pStr ? t->pStr : "", t->CharCount == (COUNT) ~0 ? -1 : (int) t->CharCount,
+				fg_color.r, fg_color.g, fg_color.b, text_font);
+	else
+		draw_out ("[\"t\", %d, %d, %d, \"%s\", %d, %d, %d, %d]", t->baseline.x, t->baseline.y,
+				t->align, t->pStr ? t->pStr : "", t->CharCount == (COUNT) ~0 ? -1 : (int) t->CharCount,
+				fg_color.r, fg_color.g, fg_color.b);
 }
 
 /* frame.c's DrawBatch: the display list from its head. */
@@ -906,6 +984,48 @@ main (int argc, char *argv[])
 
 	for (i = 0; i < NUM_SHEETS; ++i)
 		sheet_counts[i] = 0;
+	if (argc > 2 && strcmp (argv[2], "cargo") == 0)
+	{
+		/* Lines "a0 .. a7 bio worth0 .. worth7 capacity selected": the cargo
+		 * display as DrawCargoStrings first draws it, in the status area. */
+		int first = 1;
+		load_masks (argv[1]);
+		MiscDataFrame = MAKE_FRAME (SHEET_MISC, 0);
+		record_draws = 1;
+		StarConFont = (FONT) &sheet_drawables[1];
+		TinyFont = (FONT) &sheet_drawables[2];
+		printf ("[");
+		for (;;)
+		{
+			int a[NUM_ELEMENT_CATEGORIES], w[NUM_ELEMENT_CATEGORIES], bio, room, sel, k, total = 0;
+			for (k = 0; k < NUM_ELEMENT_CATEGORIES; ++k)
+				if (scanf ("%d", &a[k]) != 1)
+					goto done;
+			if (scanf ("%d", &bio) != 1)
+				goto done;
+			for (k = 0; k < NUM_ELEMENT_CATEGORIES; ++k)
+				if (scanf ("%d", &w[k]) != 1)
+					goto done;
+			if (scanf ("%d %d", &room, &sel) != 2)
+				goto done;
+			for (k = 0; k < NUM_ELEMENT_CATEGORIES; ++k)
+			{
+				GLOBAL_SIS (ElementAmounts[k]) = a[k];
+				GLOBAL (ElementWorth[k]) = w[k];
+				total += a[k];
+			}
+			GLOBAL_SIS (TotalElementMass) = total;
+			GLOBAL_SIS (TotalBioMass) = bio;
+			storage_room = room;
+			radar_len = 0;
+			DrawCargoStrings ((BYTE) ~0, sel);
+			printf ("%s[%.*s]", first ? "" : ",\n", (int) radar_len, radar_draws);
+			first = 0;
+		}
+	done:
+		printf ("]\n");
+		return 0;
+	}
 	if (argc > 1 && strcmp (argv[1], "chances") == 0)
 	{
 		int first = 1;

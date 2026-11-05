@@ -82,6 +82,12 @@ public sealed class OrbitScreenText
         UqmFont.Load(package, "font.starcon"), UqmFont.Load(package, "font.tiny"), UqmFont.Load(package, "font.micro"));
 
     /// <summary>A menu entry's words: GAME_STRING (MAINMENU_STRING_BASE + PM_ALT_...).</summary>
+    /// <summary>An element's name (ELEMENTS_STRING_BASE), as the mineral text shows it.</summary>
+    public string ElementName(int element) => _strings[GameStrings.ElementsBase + element];
+
+    /// <summary>A string of the cargo display (CARGO_STRING_BASE): 0 the title, 1 "free", 2 on each category's description.</summary>
+    public string Cargo(int index) => _strings[GameStrings.CargoBase + index];
+
     public string MenuEntry(OrbitMenuItem item) => _strings[GameStrings.MainMenuBase + PmAltScan + (int)item];
 
     /// <summary>The title, centred at the top of the space screen in MicroFont (PrintCoarseScanPC).</summary>
