@@ -284,4 +284,26 @@ public class SurfaceSnapshotTests
         Assert.Equal(new WorldId(82, 3), Assert.Single(SnapshotCodec.Decode(c).Surfaces!).World);
         Assert.Equal(new WorldId(82, 2, 1), Assert.Single(SnapshotCodec.Decode(a).Surfaces!).World);
     }
+    [Fact]
+    public void ALanderThatWouldDrawOutsideUqmsTablesIsRefused()
+    {
+        var luna = new WorldId(82, 2, 1);
+        var good = new LanderSnapshot("viewer", 1, 2, 3, 0, LanderPhase.Ground, 5, LanderFlash.Damage, true, 6, 0, 0, 0,
+            new MineralText(31, 4, 132, 0, 0), 12);
+        SurfaceSnapshot Surface(LanderSnapshot l, SurfaceElementSnapshot? e = null) => new(luna.Star, luna.Planet, luna.Moon,
+            new[] { l }, e is null ? Array.Empty<SurfaceElementSnapshot>() : new[] { e });
+        byte[] Bytes(SurfaceSnapshot surface) =>
+            Full(new WorldSnapshot(1, 2155, 3, 1, new[] { Ship("viewer", luna) }, null, new[] { surface }), "viewer");
+        Assert.NotNull(SnapshotCodec.Decode(Bytes(Surface(good))).Surfaces);
+        foreach (var bad in new[]
+                 {
+                     good with { Facing = 16 }, good with { DamageIndex = 7 }, good with { Text = new MineralText(32, 4, 0, 0, 0) },
+                     good with { Text = new MineralText(0, 4, 133, 0, 0) }, good with { Crew = 13 }, good with { CrewTaken = 13 },
+                 })
+            Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Bytes(Surface(bad))));
+        var element = new SurfaceElementSnapshot(1, SurfaceElementKind.Creature, 0, 0, SurfaceSheet.Life, 0, 25, null, 0, 0);
+        Assert.NotNull(SnapshotCodec.Decode(Bytes(Surface(good, element))).Surfaces);
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Bytes(Surface(good, element with { LifeKind = 26 }))));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Bytes(Surface(good, element with { Frame = -1 }))));
+    }
 }

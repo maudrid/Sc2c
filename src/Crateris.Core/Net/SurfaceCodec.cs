@@ -284,7 +284,7 @@ public static partial class SnapshotCodec
         // What the client draws by: the flash's colour, the text's colour
         // and element name, the gauges' cells.
         if (!Enum.IsDefined(phase) || !Enum.IsDefined(flash) || v[LDrawn] is not (0 or 1) || v[LHasText] is not (0 or 1)
-                || v[LDamage] is < 0 or > Lander.DamageCycle || v[LCrewTaken] is < 0 or > Core.World.ShipHold.LanderCrew
+                || v[LFacing] is < 0 or >= Uqm.UqmMath.Facings || v[LDamage] is < 0 or > Lander.DamageCycle || v[LCrewTaken] is < 0 or > Core.World.ShipHold.LanderCrew
                 || v[LCrew] < 0 || v[LCrew] > v[LCrewTaken]
                 || (v[LHasText] == 1 && (v[LTextFrames] is < 0 or >= Lander.TextFrames
                     || v[LTextElement] is < 0 or >= Core.Content.GameStrings.ElementsCount)))
@@ -314,7 +314,8 @@ public static partial class SnapshotCodec
     {
         var kind = (SurfaceElementKind)ToInt(v[EKind]);
         var sheet = (SurfaceSheet)ToInt(v[ESheet]);
-        if (!Enum.IsDefined(kind) || !Enum.IsDefined(sheet) || v[EFill] is < 0 or > 0x1000000)
+        if (!Enum.IsDefined(kind) || !Enum.IsDefined(sheet) || v[EFill] is < 0 or > 0x1000000
+                || v[EFrame] < 0 || v[ELifeKind] is < 0 or >= Content.ContactShapes.LifeSheets)
             throw new InvalidDataException("Bad surface element.");
         long fill = v[EFill] - 1;
         Systems.Rgb? color = fill < 0 ? null : new Systems.Rgb((byte)(fill >> 16), (byte)(fill >> 8), (byte)fill);
