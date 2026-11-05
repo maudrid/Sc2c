@@ -391,7 +391,7 @@ COUNT GetStorageBayCapacity (void) { return storage_room; }
 
 /* ---- Nodes ---- */
 
-#define MAX_NODES 64
+#define MAX_NODES MAX_DISPLAY_ELEMENTS
 static int node_scan[MAX_NODES], node_type[MAX_NODES], node_density[MAX_NODES],
 		node_x[MAX_NODES], node_y[MAX_NODES], num_nodes;
 

@@ -40,6 +40,15 @@ public sealed class PlanetsideSurface
     /// <summary>SURFACE_WIDTH and SURFACE_HEIGHT: the surface view, the lander at its middle.</summary>
     public const int ViewWidth = 242, ViewHeight = 147;
 
+    /// <summary>
+    /// MAX_DISPLAY_ELEMENTS: how much UQM's display queue holds, nodes and
+    /// all. When it's full, no bolt, explosion or hazard can start
+    /// (AllocElement fails), and none of their random numbers is drawn. A
+    /// shared surface holds this many for each lander on it, so a group
+    /// isn't short of hazards (decision 3); with one lander it's UQM's.
+    /// </summary>
+    public const int MaxElements = 150;
+
     private readonly List<SurfaceElement> _elements = new();
     private readonly List<Lander> _landers = new();
     private readonly List<(ScanType Scan, int Node)> _taken = new();
@@ -86,6 +95,8 @@ public sealed class PlanetsideSurface
             throw new ArgumentException("a surface with nodes needs the shapes and the element categories");
         if (life.Count > 0 && (shapes is null || lifeforms is null))
             throw new ArgumentException("a surface with creatures needs the shapes and the lifeforms");
+        if (nodes.Count + life.Count > MaxElements)
+            throw new ArgumentException($"a surface holds {MaxElements} nodes at most");
         if (life.Select(c => c.Kind).Distinct().Count() > Lifeforms.MaxVariation)
             throw new ArgumentException($"a surface has sheets for {Lifeforms.MaxVariation} kinds of creature at most");
         foreach (var c in life)
@@ -219,6 +230,9 @@ public sealed class PlanetsideSurface
         }
     }
 
+    /// <summary>Whether there's room for one more element (AllocElement): see <see cref="MaxElements"/>.</summary>
+    internal bool HasRoom => _elements.Count < MaxElements * Math.Max(1, _landers.Count);
+
     /// <summary>Puts an element at the head of the queue (InsertElement before GetHeadElement).</summary>
     internal void AddFirst(SurfaceElement element) => _elements.Insert(0, element);
 
@@ -244,9 +258,12 @@ public sealed class PlanetsideSurface
     /// map both ways (as UQM's place does, even north and south), at the
     /// end of the queue. A quake shows a new frame every 3, a lava spot
     /// every frame, heading a random way; each lasts as long as its frames.
+    /// None if the queue is full.
     /// </summary>
-    private SurfaceElement AddGroundDisaster(SurfaceElementKind kind, Lander lander)
+    private SurfaceElement? AddGroundDisaster(SurfaceElementKind kind, Lander lander)
     {
+        if (!HasRoom)
+            return null;
         uint r = Random.Next();
         var e = new SurfaceElement
         {
@@ -277,14 +294,16 @@ public sealed class PlanetsideSurface
     /// <summary>
     /// AddLightning: a bolt of lightning, harmful 1 time in 4, lasting 11
     /// to 20 frames, somewhere on the lander's view but its 6-unit edges,
-    /// at the end of the queue.
+    /// at the end of the queue (none if the queue is full).
     /// </summary>
-    private void AddLightning(Lander lander)
+    private SurfaceElement? AddLightning(Lander lander)
     {
+        if (!HasRoom)
+            return null;
         bool harmful = Random.Next() % 100 < 25;
         uint r = Random.Next();
         int life = 10 + (int)((r >> 16) % 10) + 1;
-        _elements.Add(new SurfaceElement
+        var bolt = new SurfaceElement
         {
             Kind = SurfaceElementKind.Lightning,
             Owner = lander,
@@ -297,8 +316,14 @@ public sealed class PlanetsideSurface
                 % PlanetsideMap.Height),
             Sheet = SurfaceSheet.Lightning,
             Frame = 0,
-        });
+        };
+        _elements.Add(bolt);
+        return bolt;
     }
+
+    /// <summary>For tests of rules UQM has no recording for: starts a hazard round a lander, as the roll would.</summary>
+    internal SurfaceElement? StartHazardForTest(SurfaceElementKind kind, Lander lander) =>
+        kind == SurfaceElementKind.Lightning ? AddLightning(lander) : AddGroundDisaster(kind, lander);
 
     /// <summary>
     /// lightning_process: each frame a bolt of lightning shows one of its
@@ -389,7 +414,7 @@ public sealed class PlanetsideSurface
     /// a creature still standing takes a new heading by its behaviour, from
     /// the nearest lander (decision 2). An explosion shows its frames and
     /// moves its lander's explosion on. A quake and a lava spot show their
-    /// frames; as a lava spot shows its fifth, it spreads 9 times in 10: a
+    /// frames; on a lava spot's fifth frame it spreads 9 times in 10: a
     /// new spot 4 units on its way, heading up to a facing either side.
     /// </summary>
     private void Animate(SurfaceElement e)
@@ -487,12 +512,14 @@ public sealed class PlanetsideSurface
 
     /// <summary>
     /// A lava spot spreading: AddGroundDisaster's spot (its random place
-    /// thrown away) put 4 units the old one's way, kept off the poles and
+    /// thrown away; none if the queue is full) put 4 units the old one's way, kept off the poles and
     /// wrapping east and west, its heading turned by up to a facing.
     /// </summary>
     private void SpreadLava(SurfaceElement e)
     {
         var spot = AddGroundDisaster(SurfaceElementKind.Lava, e.Owner!);
+        if (spot is null)
+            return;   // the queue is full
         int angle = UqmMath.FacingToAngle(e.Facing);
         int x = (short)(e.X + UqmMath.Cosine(angle, 4));
         int y = (short)(e.Y + UqmMath.Sine(angle, 4));
@@ -599,8 +626,9 @@ public sealed class PlanetsideSurface
             if (prim.Kind == SurfaceElementKind.Explosion)
                 continue;   // a lander's own drawable; a dead lander touches nothing
             // Lightning goes at the end of UQM's display list, before
-            // everything else in its walk, so no bolt is checked against it,
-            // and touching it does nothing.
+            // everything else in the walk, so no bolt is checked against it;
+            // a lander touching it is, but CheckObjectCollision does nothing
+            // for lightning (only quakes and lava hurt on touch).
             if (prim.Kind == SurfaceElementKind.Lightning)
                 continue;
             // Taken this frame by another lander: it's that lander's (one

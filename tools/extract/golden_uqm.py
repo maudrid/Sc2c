@@ -501,7 +501,8 @@ def hazard_scenarios():
         tect, weather, temp, nodes = world_nodes(s, p, m)
         out.append([f"{name}-{s}-{p}-{m}", 800 + k, [0, 2, 4, 3, 1][k], tect, weather, temp,
                     484, 148, 50, 500, nodes, lander_script(800 + k, 700)])
-    tect, weather, temp, nodes = world_nodes(240, 1, -1)
+    all_three = world_nodes(240, 1, -1)
+    tect, weather, temp, nodes = all_three
     # Few crew among every hazard: bare, with every shield, with each one.
     for k, (label, shields) in enumerate([("bare", 0), ("shielded", 120), ("quake-shield", 16),
                                           ("lightning-shield", 32), ("lava-shield", 64)]):
@@ -517,11 +518,25 @@ def hazard_scenarios():
     # Milder worlds, where a lander can come back.
     for k, (name, s, p, m, upgrades) in enumerate([("mild", 394, 0, 1, 0), ("mild", 285, 0, -1, 2),
                                                    ("mild-shielded", 394, 0, 1, 120)]):
-        tect, weather, temp, mild = world_nodes(s, p, m)
-        out.append([f"{name}-{s}-{p}-{m}", 970 + k, upgrades, tect, weather, temp, 484, 148, 50, 500,
+        t, w, h, mild = world_nodes(s, p, m)
+        out.append([f"{name}-{s}-{p}-{m}", 970 + k, upgrades, t, w, h, 484, 148, 50, 500,
                     mild, lander_script(970 + k, 500)])
     # Hazards while the lander comes down and takes off at once.
     out.append(["all-three-take-off", 960, 0, tect, weather, temp, 484, 148, 50, 500, nodes, [(1, 16)]])
+    # Long landings with every shield among so many hazards that UQM's
+    # display queue fills (MAX_DISPLAY_ELEMENTS, nodes and all): what can't
+    # start doesn't. The worlds' deposits are copied far off round the map
+    # (the lander drives a few hundred units at most) to fill it sooner.
+    def crowd(nodes, n):
+        minerals = [m for m in nodes if m[0] == 0]
+        far = [[0, t, d, (x * 7 + 3 * i) % 30 + 200, (y + 5 * i) % 75]
+               for i in range(n // len(minerals) + 1) for _, t, d, x, y in minerals]
+        return nodes + far[:n]
+    out.append(["crowded-all-three", 980, 120 | 2, tect, weather, temp, 484, 148, 50, 500,
+                crowd(nodes, 90), lander_script(980, 3000)])
+    for k in range(2):
+        out.append([f"crowded-hot-{k}", 981 + k, 120 | 2, 7, 0, hot, 484, 148, 50, 500,
+                    crowd(hot_nodes, 70), lander_script(981 + k, 3000)])
     return out
 
 
@@ -553,6 +568,9 @@ def record_lander_hazards(uqm, lander_exe, strings_exe, images_exe, package):
             raise RuntimeError(f"no {what} in the hazard landings")
     if not any(l["landers"] == 0 for l in landings):
         raise RuntimeError("no lander lost in the hazard landings")
+    full = sum(1 for l in landings for f in l["frames"] if len(f[7]) + f[8] >= 150)
+    if full < 100:
+        raise RuntimeError(f"the display queue was full in only {full} frames")
     data = header(uqm, ["tools/extract/golden/lander.c",
                         "tools/extract/golden/lander_stubs.c",
                         "src/uqm/planets/lander.c", "src/uqm/planets/scan.c",
@@ -573,7 +591,9 @@ def record_lander_hazards(uqm, lander_exe, strings_exe, images_exe, package):
         "quake, 32 lightning, 64 lava) and with each hazard's shield alone; "
         "on a hot world, with quakes too, at each pole and either side of "
         "the east-west edge; on two milder worlds, without and with every "
-        "shield; and taking off at once.",
+        "shield; taking off at once; and two long landings with every "
+        "shield (crowded-*) among so many hazards that UQM's display queue "
+        "fills (MAX_DISPLAY_ELEMENTS, 150 nodes and all).",
         "input and frames as in lander-creatures.json; a hazard's element "
         "is [x, y, life_span, playerNr, mass_points (1 a quake, 2 "
         "lightning, 0 harmless lightning, 3 lava), sheet (1 graphics.quake, "

@@ -151,4 +151,98 @@ public class HazardTests
         Assert.DoesNotContain(surface.Landers, l => l == leaving);
         Assert.Contains(staying, surface.Landers);
     }
+    // Two landers on the ground with no hazards of the world's own, the
+    // second put where the first is.
+    private static (PlanetsideSurface, Lander, Lander) Together(uint seed, int crewA = 50)
+    {
+        var surface = new PlanetsideSurface(new TfbRandom(seed), shapes: TestContent.Shapes);
+        var a = SendDown(surface, crewA, 400, 150);
+        var b = SendDown(surface, 50, 400, 150);
+        while (a.Phase != LanderPhase.Ground || b.Phase != LanderPhase.Ground)
+            surface.Step(_ => LanderInput.None);
+        b.PlaceForTest(a.X, a.Y);
+        return (surface, a, b);
+    }
+
+    [ContentFact]
+    public void HarmfulLightningStrikesOnlyItsOwnLanderAndOnceAFrame()
+    {
+        // Decision 3: a bolt of lightning round lander A strikes A, not B
+        // under it; however many strike A in a frame, A loses one crew
+        // member (KILL_CREW).
+        var (surface, a, b) = Together(21);
+        for (int i = 0; i < 40; ++i)
+            surface.StartHazardForTest(SurfaceElementKind.Lightning, a);
+        int most = 0, lost = 0;
+        for (int frame = 0; frame < 8; ++frame)
+        {
+            most = Math.Max(most, surface.Elements.Count(e => e.Kind == SurfaceElementKind.Lightning
+                && e.MassPoints == (int)LanderDisaster.Lightning));
+            int crew = a.Crew;
+            surface.Step(_ => LanderInput.None);
+            Assert.InRange(crew - a.Crew, 0, 1);
+            lost += crew - a.Crew;
+        }
+        Assert.True(most >= 5, $"only {most} harmful bolts at once");
+        Assert.True(lost > 0, "lightning never struck its lander");
+        Assert.Equal(12, b.Crew);
+        Assert.Equal(0, b.DamageIndex);
+    }
+
+    [ContentFact]
+    public void AQuakeRoundOneLanderHurtsAnotherThatTouchesIt()
+    {
+        var (surface, a, b) = Together(22);
+        var quake = surface.StartHazardForTest(SurfaceElementKind.Quake, a)!;
+        a.PlaceForTest((a.X + 400) % PlanetsideMap.Width, a.Y);   // well away
+        b.PlaceForTest(quake.X, quake.Y);
+        while (surface.Elements.Contains(quake))
+            surface.Step(_ => LanderInput.None);
+        Assert.True(b.Crew < 12, "the quake never hurt the lander on it");
+        Assert.Equal(12, a.Crew);
+    }
+
+    [ContentFact]
+    public void ALanderLostToHazardsLeavesTheOtherOnTheSurface()
+    {
+        var (surface, a, b) = Together(23, crewA: 1);
+        var holdA = a.Hold;
+        a.PlaceForTest((a.X + 400) % PlanetsideMap.Width, a.Y);
+        for (int frame = 0; frame < 3000 && a.Phase != LanderPhase.Gone; ++frame)
+        {
+            // Lava wherever A is, until its one crew member dies.
+            if (a.Crew > 0 && !surface.Elements.Any(e => e.Kind == SurfaceElementKind.Lava))
+            {
+                var lava = surface.StartHazardForTest(SurfaceElementKind.Lava, a)!;
+                a.PlaceForTest(lava.X, lava.Y);
+            }
+            surface.Step(_ => LanderInput.None);
+        }
+        Assert.Equal(LanderPhase.Gone, a.Phase);
+        Assert.Equal((0, 0), (holdA.Crew, holdA.Landers));   // lost with its crew
+        Assert.Equal(new[] { b }, surface.Landers);
+        Assert.Equal((12, LanderPhase.Ground), (b.Crew, b.Phase));
+    }
+
+    [ContentFact]
+    public void AFullQueueStartsNothingAndDrawsNothing()
+    {
+        // MAX_DISPLAY_ELEMENTS: with one lander, 150 elements, nodes and all;
+        // a shared surface holds 150 for each lander.
+        var surface = new PlanetsideSurface(new TfbRandom(24), shapes: TestContent.Shapes);
+        var a = SendDown(surface, 50, 400, 150);
+        while (a.Phase != LanderPhase.Ground)
+            surface.Step(_ => LanderInput.None);
+        while (surface.Elements.Count < PlanetsideSurface.MaxElements)
+            Assert.NotNull(surface.StartHazardForTest(SurfaceElementKind.Quake, a));
+        uint seed = surface.Random.Seed;
+        Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Quake, a));
+        Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Lightning, a));
+        Assert.Equal(seed, surface.Random.Seed);
+        var b = SendDown(surface, 50, 700, 150);
+        Assert.NotNull(surface.StartHazardForTest(SurfaceElementKind.Lava, b));
+        Assert.Throws<ArgumentException>(() => new PlanetsideSurface(new TfbRandom(1),
+            Enumerable.Range(0, PlanetsideSurface.MaxElements + 1).Select(i => new SurfaceMineral(i, 10, 10, 1, 256)),
+            _ => 0, TestContent.Shapes));
+    }
 }
