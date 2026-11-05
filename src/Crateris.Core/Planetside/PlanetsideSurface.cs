@@ -237,7 +237,7 @@ public sealed class PlanetsideSurface
     /// Whether there's room for one more of a lander's elements
     /// (AllocElement): the nodes and creatures and what's that lander's
     /// under <see cref="MaxElements"/>. Hazards round a lander that has left
-    /// count for no one.
+    /// count for no one else (only for the lava they spread).
     /// </summary>
     internal bool HasRoom(Lander lander) => _elements.Count(e => e.Owner is null || e.Owner == lander) < MaxElements;
 

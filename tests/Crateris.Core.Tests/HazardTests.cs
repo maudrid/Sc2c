@@ -227,8 +227,7 @@ public class HazardTests
     [ContentFact]
     public void AFullQueueStartsNothingAndDrawsNothing()
     {
-        // MAX_DISPLAY_ELEMENTS: with one lander, 150 elements, nodes and all;
-        // on a shared surface, each lander's own and the nodes, 150.
+        // MAX_DISPLAY_ELEMENTS: with one lander, 150 elements, nodes and all.
         var surface = new PlanetsideSurface(new TfbRandom(24), shapes: TestContent.Shapes);
         var a = SendDown(surface, 50, 400, 150);
         while (a.Phase != LanderPhase.Ground)
@@ -239,15 +238,36 @@ public class HazardTests
         Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Quake, a));
         Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Lightning, a));
         Assert.Equal(seed, surface.Random.Seed);
-        // A second lander has a queue of its own; when the first leaves,
-        // its hazards count for neither.
-        var b = SendDown(surface, 50, 700, 150);
-        for (int i = 0; i < PlanetsideSurface.MaxElements; ++i)
-            Assert.NotNull(surface.StartHazardForTest(SurfaceElementKind.Lava, b));
-        Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Lava, b));
-        Assert.Null(surface.StartHazardForTest(SurfaceElementKind.Quake, a));
         Assert.Throws<ArgumentException>(() => new PlanetsideSurface(new TfbRandom(1),
             Enumerable.Range(0, PlanetsideSurface.MaxElements + 1).Select(i => new SurfaceMineral(i, 10, 10, 1, 256)),
             _ => 0, TestContent.Shapes));
+    }
+
+    [ContentFact]
+    public void EachLanderHasUqmsQueueToItself()
+    {
+        // On a shared surface each lander's queue holds the nodes and its own
+        // elements, 150 in all: with 100 deposits, 50 hazards each.
+        var deposits = Enumerable.Range(0, 100).Select(i => new SurfaceMineral(i, 10 + i % 50, 5 + i / 50, 1, 256));
+        var surface = new PlanetsideSurface(new TfbRandom(25), deposits, _ => 0, TestContent.Shapes);
+        var a = SendDown(surface, 50, 400, 150);
+        var b = SendDown(surface, 50, 700, 150);
+        while (a.Phase != LanderPhase.Ground)
+            surface.Step(_ => LanderInput.None);
+        int Fill(Lander l)
+        {
+            int n = 0;
+            while (surface.StartHazardForTest(SurfaceElementKind.Quake, l) is not null)
+                n++;
+            return n;
+        }
+        Assert.Equal((50, 50), (Fill(a), Fill(b)));
+        // When a lander leaves (its quakes outlast its take-off), what it
+        // left behind takes no one's room.
+        while (a.Phase != LanderPhase.Gone)
+            surface.Step(l => l == a && l.Phase == LanderPhase.Ground ? LanderInput.TakeOff : LanderInput.None);
+        Assert.Contains(surface.Elements, e => e.Owner == a);
+        var c = SendDown(surface, 50, 100, 150);
+        Assert.Equal(PlanetsideSurface.MaxElements - 100, Fill(c));
     }
 }
