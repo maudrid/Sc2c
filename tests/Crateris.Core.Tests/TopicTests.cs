@@ -74,6 +74,9 @@ public class TopicTests
     {
         // tests/topic-map.json (tools/run_tests.py --map): which files each
         // topic's tests depend on. A file it doesn't know runs every topic.
+        // Not while the map is being made: it may be the one being mended.
+        if (Golden.Mapping)
+            return;
         var map = JsonDocument.Parse(File.ReadAllText(Path.Combine(Root(), "tests", "topic-map.json"))).RootElement;
         var known = Topics.Value.GetProperty("topics").EnumerateObject().Select(t => t.Name).OrderBy(n => n);
         Assert.Equal(known, map.GetProperty("topics").EnumerateObject().Select(t => t.Name).OrderBy(n => n));

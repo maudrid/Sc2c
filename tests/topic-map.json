@@ -114,7 +114,7 @@
   "tests/Crateris.Core.Tests/SystemLayoutTests.cs": "cf64d529e4194252",
   "tests/Crateris.Core.Tests/SystemSpritesTests.cs": "78848b34fee06427",
   "tests/Crateris.Core.Tests/SystemTransitionTests.cs": "5d652faa6c216749",
-  "tests/Crateris.Core.Tests/TopicTests.cs": "44585646588b7a43",
+  "tests/Crateris.Core.Tests/TopicTests.cs": "d3b1218ba101ee7f",
   "tests/Crateris.Core.Tests/UqmMathTests.cs": "1bbd7738fc0fd4a7",
   "tests/golden/star-systems.json": "8df8ef17035f2037",
   "tests/golden/surface-heights.json": "bf48a372b384277a",

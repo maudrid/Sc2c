@@ -36,9 +36,10 @@ uses, and the recordings it names. A changed file runs the topics whose
 map holds it, and a changed test file the topics its classes are in now
 and were before. A shared file (tests/topics.json "all") runs every
 topic, and so does any file the map doesn't know (new, or run by no
-test) outside docs/, game/ and tools/; those run none. The map keeps a
-fingerprint of every file it was made from, and a file changed since
-counts as changed: an old map runs more topics, never too few, and
+test) outside docs/, game/, tools/ and the read-me, licence and git
+files (NO_TESTS); those run none. The map keeps a fingerprint of every
+source, test and recording file, and one changed since, or new, counts
+as changed: an old map runs more topics, never too few, and
 --map brings it back to the fewest. TopicTests always runs. Every topic
 is the check before calling work done.
 
@@ -79,7 +80,7 @@ SOURCE_ROOTS = ("src/", "tests/Crateris.Core.Tests/", "tests/golden/")
 # Files whose change can't affect a test (the tests read none of them but
 # those listed in tests/topics.json "all"). A changed file anywhere else
 # that the map doesn't know runs every topic.
-NO_TESTS = ("docs/", "game/", "tools/", "tests/topic-map.json", "README.md", "LICENSE", ".gitignore",
+NO_TESTS = ("docs/", "game/", "tools/", "tests/topic-map.json", "README.md", "COPYING", ".gitignore",
             ".gitattributes", "CLAUDE.md")
 SUMMARY = re.compile(r"(Passed|Failed)!\s+-\s+Failed:\s+(\d+), Passed:\s+(\d+), Skipped:\s+(\d+), Total:\s+(\d+)")
 
@@ -207,7 +208,7 @@ def coverage_files(topic, out_dir):
     return files
 
 
-def make_map(topics):
+def make_map(topics, fingerprints):
     if not os.environ.get("CRATERIS_CONTENT"):
         sys.exit("set CRATERIS_CONTENT: without the content its tests are skipped and the map would miss what they run")
     declares, names, inlined = source_index()
@@ -234,7 +235,7 @@ def make_map(topics):
             # The types the code it runs names: a type with nothing to run (a struct of
             # fields, say) is in no coverage, but a change to it changes that code.
             for path in [f for f in files if f.startswith("src/")]:
-                for n in names[path]:
+                for n in names.get(path, ()):
                     files.update(declares.get(n, ()))
             # The enum values and constants that code uses, and theirs in turn.
             todo = list(files)
@@ -251,7 +252,7 @@ def make_map(topics):
                    "name; the enums and constants that code uses; the test files and recordings they use). "
                    "--changed reads it. \"files\" is each mapped file's fingerprint when it was made: a file "
                    "changed since then counts as changed too, so an old map runs more topics, never too few."],
-        "files": mapped_files(),
+        "files": fingerprints,
         "topics": result,
     }
     with open(MAP_FILE, "w") as f:
@@ -281,9 +282,10 @@ def trait_topics(path, since):
 
 
 def stale_files(topic_map):
-    """The mapped files changed (or gone) since the map was made."""
-    now = mapped_files()
-    return sorted(f for f, h in topic_map.get("files", {}).items() if now.get(f) != h)
+    """The files changed, gone or new since the map was made (a new one isn't in
+    the map, so runs every topic)."""
+    now, then = mapped_files(), topic_map.get("files", {})
+    return sorted(f for f in set(now) | set(then) if now.get(f) != then.get(f))
 
 
 def topics_for(files, topics, everything, topic_map, since="HEAD"):
@@ -373,6 +375,10 @@ def main():
         print("every topic on a change to: " + ", ".join(everything_globs))
         return 0
 
+    if args.map and args.no_build:
+        sys.exit("--map builds first: coverage of an old build would be mapped against the sources as they are")
+    # The files as they are before the build and the long run (an edit meanwhile then counts as one).
+    fingerprints = mapped_files() if args.map else None
     if not args.no_build:
         build = subprocess.run(["dotnet", "build", PROJECT, "-v", "q", "-nologo"], cwd=REPO,
                                capture_output=True, text=True)
@@ -380,7 +386,7 @@ def main():
             print(build.stdout + build.stderr)
             sys.exit("the test project didn't build")
     if args.map:
-        make_map(topics)
+        make_map(topics, fingerprints)
         return 0
 
     unknown = [t for t in args.topics if t not in topics]
@@ -397,7 +403,7 @@ def main():
         print(f"{len(files)} files changed since {args.since}"
               + (f", {len(stale)} since the topic map was made" if stale else "")
               + f": topics {', '.join(sorted(chosen)) or 'none'}" + (f" ({why})" if why else ""))
-        if len(stale) > 20:
+        if len(set(stale) - set(files)) > 20:
             print("note: the topic map is old, so more topics run than need to; remake it with --map")
     order = sorted(chosen, key=lambda n: -topics[n].get("weight", 1))
 
