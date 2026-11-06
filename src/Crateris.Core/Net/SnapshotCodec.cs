@@ -23,8 +23,8 @@ namespace Crateris.Core.Net;
 /// since the base), a bitmask of the fields that changed, and those fields.
 /// Numbers are written as their difference from the base ship's (so a ship
 /// moving a little costs a byte or two a field, and one standing still
-/// nothing but its mask); the id, the name, the star entry and the hold
-/// whole. A full snapshot is the same, measured from a base of zeros, with
+/// nothing but its mask); the id, the name, the star entry, the hold and
+/// the ship's and captain's names whole. A full snapshot is the same, measured from a base of zeros, with
 /// every field written. Ships whose fields didn't change are the base's own
 /// records when decoded, so a delta builds little.
 /// </summary>
@@ -41,8 +41,9 @@ public static partial class SnapshotCodec
     private const int Numbers = 24;
 
     // The fields written whole.
-    private const int BitId = Numbers, BitName = Numbers + 1, BitEntry = Numbers + 2, BitHold = Numbers + 3;
-    private const ulong AllFields = (1UL << (Numbers + 4)) - 1;
+    private const int BitId = Numbers, BitName = Numbers + 1, BitEntry = Numbers + 2, BitHold = Numbers + 3,
+        BitNames = Numbers + 4;
+    private const ulong AllFields = (1UL << (Numbers + 5)) - 1;
 
     /// <summary>
     /// Writes <paramref name="snapshot"/> into <paramref name="writer"/>
@@ -115,6 +116,8 @@ public static partial class SnapshotCodec
                     mask |= 1UL << BitEntry;
                 if (!Equals(ship.Hold, old.Hold))
                     mask |= 1UL << BitHold;
+                if (ship.ShipName != old.ShipName || ship.CaptainName != old.CaptainName)
+                    mask |= 1UL << BitNames;
             }
             writer.UInt(mask);
             for (int f = 0; f < Numbers; ++f)
@@ -130,6 +133,11 @@ public static partial class SnapshotCodec
                 WriteEntry(writer, ship.Entry);
             if ((mask & (1UL << BitHold)) != 0)
                 WriteHold(writer, ship.Hold);
+            if ((mask & (1UL << BitNames)) != 0)
+            {
+                writer.String(ship.ShipName);
+                writer.String(ship.CaptainName);
+            }
         }
     }
 
@@ -235,7 +243,13 @@ public static partial class SnapshotCodec
             string name = (mask & (1UL << BitName)) != 0 ? r.String() ?? throw new InvalidDataException("A ship has no name.") : old!.Name;
             var entry = (mask & (1UL << BitEntry)) != 0 ? ReadEntry(ref r) : old!.Entry;
             var hold = (mask & (1UL << BitHold)) != 0 ? ReadHold(ref r) : old!.Hold;
-            ships[i] = FromNumbers(v, id, name, entry, hold);
+            string? shipName = old?.ShipName, captainName = old?.CaptainName;
+            if ((mask & (1UL << BitNames)) != 0)
+            {
+                shipName = Name(r.String());
+                captainName = Name(r.String());
+            }
+            ships[i] = FromNumbers(v, id, name, entry, hold) with { ShipName = shipName, CaptainName = captainName };
         }
         for (int i = 1; i < count; ++i)
         {
@@ -425,6 +439,11 @@ public static partial class SnapshotCodec
             throw new InvalidDataException("A number in the snapshot is out of range.");
         return sum;
     }
+
+    // A ship's or captain's name: at most UQM's 15 bytes, or none (the default).
+    private static string? Name(string? name) =>
+        name is null || System.Text.Encoding.UTF8.GetByteCount(name) <= World.ShipNames.MaxBytes
+            ? name : throw new InvalidDataException("A ship's or captain's name is longer than UQM's.");
 
     private static long Frame(ulong v) => v <= long.MaxValue ? (long)v : throw new InvalidDataException("Bad frame.");
 

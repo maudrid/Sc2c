@@ -43,6 +43,12 @@ public sealed class PlayerShip
     public ShipHold Hold { get; }
 
     /// <summary>
+    /// The ship's name (ShipName), or null for the flagship's UQM name
+    /// (<see cref="ShipNames"/>). An escort's is set when it's made.
+    /// </summary>
+    public string? Name { get; internal set; }
+
+    /// <summary>
     /// Flight in hyperspace. While in a system it keeps the hyperspace
     /// position the ship returns to: the star's (ExploreSolarSys).
     /// </summary>
@@ -114,6 +120,12 @@ public sealed class Player
 
     /// <summary>Connected and flying. Absent players' ships wait in the save, not in space.</summary>
     public bool Present { get; set; }
+
+    /// <summary>
+    /// The captain's name (CommanderName), or null for the default: the
+    /// flagship's UQM name, a guest's the name they join with (<see cref="ShipNames"/>).
+    /// </summary>
+    public string? CaptainName { get; internal set; }
 
     /// <summary>Set on a guest's first join until their client has shown the undocking scene.</summary>
     public bool UndockPending { get; set; }

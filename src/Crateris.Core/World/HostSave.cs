@@ -35,9 +35,11 @@ public static class HostSave
     /// the prices, the races' standing and the clock's events); an older
     /// save has a new game's story state, its events counted from the
     /// save's own day, so those already past aren't queued, as UQM's
-    /// AddEvent queues none in the past.
+    /// AddEvent queues none in the past. 7 added the ship's and captain's
+    /// names (PlayerState.ShipName, CaptainName: none for a default); an
+    /// escort from an older save is named from the settings.
     /// </summary>
-    public const int Version = 6;
+    public const int Version = 7;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -67,7 +69,8 @@ public static class HostSave
 
     public sealed record PlayerState(
         string Id, string Name, bool IsHost, ShipKind Kind, ShipLoadout Loadout, bool UndockPending,
-        FlightState Flight, int? SystemStar = null, IpFlightState? System = null, HoldState? Hold = null);
+        FlightState Flight, int? SystemStar = null, IpFlightState? System = null, HoldState? Hold = null,
+        string? ShipName = null, string? CaptainName = null);
 
     public static string ToJson(GameWorld world)
     {
@@ -83,7 +86,8 @@ public static class HostSave
                     f.StarJustLeft),
                 p.Ship.SystemStar, p.Ship.Ip?.Save(),
                 // A lander on a surface is saved as back aboard with its crew and cargo.
-                p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save());
+                p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save(),
+                p.Ship.Name, p.CaptainName);
         }).ToList();
         var c = world.Clock;
         var worlds = world.Planets.Worlds
@@ -185,10 +189,16 @@ public static class HostSave
             }
             else if (ps.System is not null)
                 throw new InvalidDataException($"Player {ps.Id}: system flight without a system.");
+            if (ps.ShipName is { } shipName && ShipNames.Fit(shipName) != shipName
+                    || ps.CaptainName is { } captain && ShipNames.Fit(captain) != captain)
+                throw new InvalidDataException($"Player {ps.Id}: a name is longer than UQM's {ShipNames.MaxBytes} bytes.");
+            // An escort from before names were kept gets the settings' name.
+            ship.Name = ps.ShipName ?? (ps.Kind == ShipKind.Escort ? ShipNames.Fit(save.Settings.EscortShipName) : null);
             world.AddPlayer(new Player(ps.Id, ps.Name, ps.IsHost, ship)
             {
                 Present = false,
                 UndockPending = ps.UndockPending,
+                CaptainName = ps.CaptainName,
             });
         }
         if (save.Version < 6 && save.Story is not null)

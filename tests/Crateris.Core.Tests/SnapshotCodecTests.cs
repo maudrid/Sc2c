@@ -52,7 +52,9 @@ public class SnapshotCodecTests
         _ => new string('x', r.Next(300)),
     };
 
-    private static ShipSnapshot AnyShip(Random r, string id) => new(
+    private static string? AnyName(Random r) => r.Next(3) == 0 ? null : ShipNames.Fit(AnyText(r));
+
+    private static ShipSnapshot AnyShip(Random r, string id) => new ShipSnapshot(
         id, AnyText(r), r.Next(2) == 0, (ShipKind)r.Next(2),
         AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r),
         (uint)r.NextInt64(0, uint.MaxValue + 1L), (uint)r.NextInt64(0, uint.MaxValue + 1L), r.Next(2) == 0, r.Next(2) == 0,
@@ -63,7 +65,8 @@ public class SnapshotCodecTests
             (short)r.Next(short.MinValue, short.MaxValue + 1), (short)r.Next(short.MinValue, short.MaxValue + 1),
             AnyInt(r), AnyInt(r), AnyInt(r), r.Next(2) == 0 ? null : AnyText(r)),
         r.Next(3) == 0 ? null : new HoldSnapshot(AnyInt(r), AnyInt(r), AnyInt(r),
-            Enumerable.Range(0, r.Next(9)).Select(_ => AnyInt(r)).ToArray(), AnyInt(r), (LanderUpgrades)r.Next(128)));
+            Enumerable.Range(0, r.Next(9)).Select(_ => AnyInt(r)).ToArray(), AnyInt(r), (LanderUpgrades)r.Next(128)))
+        with { ShipName = AnyName(r), CaptainName = AnyName(r) };
 
     private static WorldSnapshot AnySnapshot(Random r, long frame) => new(frame, AnyInt(r), AnyInt(r), AnyInt(r),
         Enumerable.Range(0, r.Next(5)).Select(i => AnyShip(r, "p" + r.Next(6))).DistinctBy(s => s.Id).ToArray(),
@@ -79,7 +82,7 @@ public class SnapshotCodecTests
         {
             0 => AnyShip(r, sh.Id),
             1 => sh with { Hold = r.Next(2) == 0 ? null : new HoldSnapshot(r.Next(50), 1, 500, new int[8], r.Next(50)) },
-            2 => sh with { Name = AnyText(r), Entry = null },
+            2 => sh with { Name = AnyText(r), Entry = null, ShipName = r.Next(2) == 0 ? sh.ShipName : AnyName(r) },
             3 => sh,
             _ => sh with { LogX = sh.LogX + r.Next(-20, 21), LogY = unchecked(sh.LogY + r.Next(-20, 21)), Facing = r.Next(16) },
         }).ToList();

@@ -52,7 +52,8 @@ public sealed record ShipSnapshot(
     int IpX = 0, int IpY = 0, int ScreenX = 0, int ScreenY = 0, int IpFacing = 0, int ZoomRadius = 0,
     int? OrbitPlanet = null, int? OrbitMoon = null, int IpVelocityX = 0, int IpVelocityY = 0,
     short ViewX = Crateris.Core.Hyperspace.HyperFlight.CenterX, short ViewY = Crateris.Core.Hyperspace.HyperFlight.CenterY,
-    StarEntryState? Entry = null, HoldSnapshot? Hold = null);
+    StarEntryState? Entry = null, HoldSnapshot? Hold = null,
+    string? ShipName = null, string? CaptainName = null);
 
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
@@ -200,7 +201,7 @@ public sealed class GameWorld
         // the inner system next to the host's world (stage 2, decision 6).
         var hostShip = Host.Ship;
         var host = hostShip.Flight;
-        var ship = new PlayerShip(ShipKind.Escort, Settings.EscortLoadout);
+        var ship = new PlayerShip(ShipKind.Escort, Settings.EscortLoadout) { Name = ShipNames.Fit(Settings.EscortShipName) };
         ship.Flight.LogX = host.LogX;
         ship.Flight.LogY = host.LogY;
         ship.Flight.Facing = host.Facing;
@@ -528,6 +529,22 @@ public sealed class GameWorld
     public bool DiscardCargo(string id, int category) =>
         Find(id) is { Present: true } player && player.Ship.Hold.Discard(category);
 
+    /// <summary>
+    /// Renames a player's ship or captain, or both (UQM's NameCaptainOrShip,
+    /// from the starbase's outfitting): each cut to UQM's 15 bytes; null
+    /// leaves it as it is. False if there's no such player.
+    /// </summary>
+    public bool Rename(string id, string? shipName, string? captainName)
+    {
+        if (Find(id) is not { } player)
+            return false;
+        if (shipName is not null)
+            player.Ship.Name = ShipNames.Fit(shipName);
+        if (captainName is not null)
+            player.CaptainName = ShipNames.Fit(captainName);
+        return true;
+    }
+
     public WorldSnapshot Snapshot()
     {
         var present = _players.Where(p => p.Present).ToList();
@@ -543,7 +560,8 @@ public sealed class GameWorld
                 p.UndockPending, p.Ship.Activity, p.Ship.SystemStar, ip?.InnerPlanet,
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
                 ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy, f.ViewX, f.ViewY,
-                p.Ship.Entry is { } e && e.PlayingAt(Frame) ? e : null, p.Ship.Hold.Snapshot());
+                p.Ship.Entry is { } e && e.PlayingAt(Frame) ? e : null, p.Ship.Hold.Snapshot(),
+                p.Ship.Name, p.CaptainName);
         }).ToList();
 
         // Worlds being orbited, with what has been taken from them, so an

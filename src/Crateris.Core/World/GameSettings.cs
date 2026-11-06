@@ -39,4 +39,10 @@ public sealed record GameSettings
     /// </summary>
     public ShipLoadout EscortLoadout { get; init; } = new(Thrusters: 2, Jets: 2, FuelTanks: 1,
         HighEfficiencyTanks: 0, Crew: 10, Fuel: 1000, Landers: 1, StorageBays: 1);
+
+    /// <summary>
+    /// A new guest's escort's name, until they rename it (stage 3, decision
+    /// 10); cut to UQM's 15 bytes. Placeholder.
+    /// </summary>
+    public string EscortShipName { get; init; } = "Wayfarer";
 }
