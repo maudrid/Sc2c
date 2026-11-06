@@ -25,6 +25,13 @@
  *   strings FILE...        each string table as UQM reads it: per string,
  *                          its length and its bytes in hex (the recorder
  *                          keeps only hashes of them; they are content)
+ *   strings conversation FILE...
+ *                          each conversation (CONVERSATION resource) as
+ *                          UQM's _GetConversationData reads it: per entry,
+ *                          its name, its text's length and bytes and its
+ *                          voice clip's name (null without one), each in
+ *                          hex. Linked with stringhashtable.c for its name
+ *                          index; its file calls go to the C library.
  */
 
 #include "libs/strings/strintrn.h"
@@ -55,6 +62,98 @@ long
 uio_ftell (uio_Stream *stream)
 {
 	return ftell ((FILE *) stream);
+}
+
+/* _GetConversationData opens its file by path in contentDir. */
+uio_DirHandle *contentDir;
+
+uio_Stream *
+res_OpenResFile (uio_DirHandle *dir, const char *filename, const char *mode)
+{
+	(void) dir;
+	return (uio_Stream *) fopen (filename, mode);
+}
+
+BOOLEAN
+res_CloseResFile (uio_Stream *fp)
+{
+	if (fp)
+		fclose ((FILE *) fp);
+	return TRUE;
+}
+
+size_t
+LengthResFile (uio_Stream *fp)
+{
+	long here = ftell ((FILE *) fp), length;
+	fseek ((FILE *) fp, 0, SEEK_END);
+	length = ftell ((FILE *) fp);
+	fseek ((FILE *) fp, here, SEEK_SET);
+	return (size_t) length;
+}
+
+/* No timestamp files: the base content has none. */
+uio_Stream *
+uio_fopen (uio_DirHandle *dir, const char *path, const char *mode)
+{
+	(void) dir;
+	(void) path;
+	(void) mode;
+	return NULL;
+}
+
+int
+uio_fclose (uio_Stream *stream)
+{
+	return stream ? fclose ((FILE *) stream) : 0;
+}
+
+static void
+print_hex (const char *data, int length)
+{
+	int j;
+	putchar ('"');
+	for (j = 0; j < length; ++j)
+		printf ("%02x", (unsigned char) data[j]);
+	putchar ('"');
+}
+
+static int
+print_conversations (int argc, char *argv[])
+{
+	int a;
+	printf ("[");
+	for (a = 2; a < argc; ++a)
+	{
+		RESOURCE_DATA res;
+		STRING_TABLE table;
+		int i, n;
+
+		res.ptr = NULL;
+		_GetConversationData (argv[a], &res);
+		table = (STRING_TABLE) res.ptr;
+		printf ("%s[", a > 2 ? ",\n" : "");
+		/* size entries: their texts, then their names, then (with any) their clips. */
+		n = table ? table->size : 0;
+		for (i = 0; i < n; ++i)
+		{
+			STRING_TABLE_ENTRY_DESC *text = &table->strings[i];
+			STRING_TABLE_ENTRY_DESC *name = &table->strings[n + i];
+			printf ("%s[", i ? ", " : "");
+			print_hex (name->data, name->length > 0 ? name->length - 1 : 0);
+			printf (", %d, ", text->length);
+			print_hex (text->data, text->length);
+			printf (", ");
+			if ((table->flags & HAS_SOUND_CLIPS) && table->strings[2 * n + i].length > 0)
+				print_hex (table->strings[2 * n + i].data, table->strings[2 * n + i].length - 1);
+			else
+				printf ("null");
+			printf ("]");
+		}
+		printf ("]");
+	}
+	printf ("]\n");
+	return 0;
 }
 
 /* GetResourceData (libs/resource/loadres.c) reads with ReadResFile. */
@@ -167,6 +266,8 @@ main (int argc, char *argv[])
 	}
 	if (argc > 2 && strcmp (argv[1], "index") == 0)
 		return print_index (argv[2]);
+	if (argc > 1 && strcmp (argv[1], "conversation") == 0)
+		return print_conversations (argc, argv);
 	if (argc > 1 && strcmp (argv[1], "bintab") == 0)
 	{	/* binary tables (BINTAB), as _GetBinaryTableData reads them */
 		load = _GetBinaryTableData;

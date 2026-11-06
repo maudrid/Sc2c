@@ -62,6 +62,9 @@ The first runs 21 checks on the committed files (counts, known values, notices).
 - **`sprite-masks.json`** (needs `--content`): the collision masks of the sprite sheets UQM tests for contact (the flagship in a system and in hyperspace, the worlds, the orbit background, the hyperspace stars, and the sheets of UQM's one-pixel frame), each frame read by UQM's own PNG loader with its colour key set as `process_image` sets it and a pixel counted as `TFB_DrawCanvas_Intersect` counts it (the images program's `mask` mode); hashes only. The systems program loads the same masks into real frames for `ip-flight.json` and `intersections.json`.
 - **`intersections.json`** (needs `--content` to record): UQM's own `DrawablesIntersect` on 4,000 cases chosen by the systems program's `intersect` mode: pairs of frames UQM tests for contact (and a few others) near each other, still or moving, with a time limit, and what it returns (when they touch, and where both end). Positions and times only.
 - **`binary-tables.json`** (needs `--content`): every BINTAB resource as UQM's `_GetBinaryTableData` reads it (the strings program's `bintab` mode); lengths and hashes only.
+- **`conversation-cases.json`:** conversation inputs written for the test (in `tools/extract/golden_uqm.py`, not UQM content), each with exactly what UQM's own `_GetConversationData` makes of it, entry by entry: the name, the text byte for byte and the voice clip, through its quirks with headers (a clip after a tab, none, a name without parentheses, parentheses in the clip), blank lines, line endings, NULs, long lines, a repeated name and the 2,048-entry limit. Recorded by the strings program's `conversation` mode, linked with `stringhashtable.c` for the name index.
+- **`conversations.json`** (needs `--content`): every conversation (CONVERSATION resource) of the package as UQM's loader reads it: each entry's name and voice clip, and its text's length and SHA-256 (the texts are content).
+- **`comm-graphics.json`** (needs `--content`): every conversation's frames (`comm.*.graphics`) as `_GetCelData` loads them: each frame's image, transparent colour, colour map and hot spot from its `.ani` line, and the SHA-256 of the image as UQM's own PNG loader gives it. The conversations' colour tables and fonts are in `binary-tables.json` and `fonts.json` already.
 
 ```
 python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 [--content uqm-0.8.0-content.uqm]
@@ -188,6 +191,21 @@ The module enum from `sis.h`: lander, thruster, jets, crew pod, storage bay, fue
 
 **Used by:** outfitting, and choosing the escort module set (an open item).
 
+### `conversations.json`: the conversation scripts
+
+Each of the 27 scripts in `src/uqm/comm/*/` (one per folder): its init function, its race description (`LOCDATA`) as the compiler builds it, and its phrase ids. The extractor compiles a program for each script that includes the script's own `.c` file, so its `static LOCDATA` is visible, and prints it with every macro evaluated (`ONE_SECOND / 15` is 56 time units); the phrase ids are `strings.h`'s enum as the preprocessor leaves it (its `#if 0` block in the Pkunk's dropped). Then which scripts `init_race` (`commglue.c`) may run for each conversation id.
+
+| UQM | Field | Notes |
+| --- | --- | --- |
+| `AlienFrameRes`, `AlienFontRes`, `AlienColorMapRes`, `AlienSongRes`, `AlienAltSongRes`, `ConversationPhrasesRes` | `frames`, `font`, `color_map`, `song`, `alt_song`, `phrases` | Content resource ids (`comm.commander.graphics` and so on) |
+| `AlienTextFColor`, `AlienTextBColor`, `AlienTextBaseline`, `AlienTextWidth`, `AlienTextAlign`, `AlienTextValign` | `text_fore`, `text_back`, `text_baseline`, `text_width`, `text_align`, `text_valign` | Where the alien's subtitles go; colours as `[r, g, b, a]` |
+| `AlienAmbientArray`, `AlienTransitionDesc`, `AlienTalkDesc` | `ambient`, `transition`, `talk` | Each `ANIMATION_DESC` as `[StartIndex, NumFrames, AnimFlags, BaseFrameRate, RandomFrameRate, BaseRestartRate, RandomRestartRate, BlockMask]` |
+| `strings.h` | `phrases` | In order: the script's phrase `n` is entry `n - 1` of its conversation (`NPCPhrase`), and every script's list matches its conversation's entries name for name (`ConversationContentTests`) |
+
+The description is the one before the script's init function runs: that function changes it for the story state (the commander turns an animation and the low-power music on or off by `RADIOACTIVES_PROVIDED`), and it's code, ported with each script. `init_race` runs the commander's script before the starbase is available and the starbase's after, the Spathi's away from home and at it (by `GLOBAL_FLAGS_AND_DATA`), and the Chmmr's for `URQUAN_DRONE_CONVERSATION`, which has no case of its own.
+
+**Used by:** the conversation engine and the communication screen (stage 3a).
+
 ### `constants.json`: limits and rates
 
 Named constants from UQM headers: clock rates, slot counts, capacities, fuel and cost scales, universe size, Sol, QuasiSpace and Arilou positions, queue limits, and two constants defined inside functions (`RUN_AWAY_FUEL_COST` 500 in `pickship.c`, `LOST_DAYS` 14 in `starbase.c`).
@@ -235,7 +253,7 @@ The content package (CC BY-NC-SA 2.5) is downloaded on first run and read in pla
 - **Star names:** `name_postfix` indexes the game strings (`content/base/gamestrings.txt`, `STAR_STRING_BASE`); `name_prefix` 0 means none, otherwise index - 1 into the Greek-letter numbers at `STAR_NUMBER_BASE` (`GetClusterName`, `starmap.c`).
 - **Ship and race text, art, sounds:** `race_strings_resource` and the `ship.<name>.*` ids in `content/uqm.rmp`.
 - **Planet colours:** `color_map_resource`, `color_table_resource`.
-- **Dialogue lines:** referenced by phrase id from the conversation scripts.
+- **Dialogue lines:** referenced by phrase id from the conversation scripts; each script's ids are in `conversations.json`, and `Conversation` (`src/Crateris.Core/Content/Conversation.cs`) reads the lines as UQM does.
 - **Creature, module, element and device names:** content strings.
 
 ## Not extracted yet

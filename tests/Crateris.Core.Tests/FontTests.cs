@@ -20,7 +20,7 @@ namespace Crateris.Core.Tests;
 [Trait("Topic", "content")]
 public class FontTests
 {
-    private static string Hash(string json) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
+    internal static string Hash(string json) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json))).ToLowerInvariant();
 
     private static string GlyphJson(FontGlyph g) =>
         $"[{g.Char},{g.Width},{g.Height},{g.HotSpotX},{g.HotSpotY},{g.DispWidth},{g.DispHeight},\"{Convert.ToHexString(g.Alpha).ToLowerInvariant()}\"]";
@@ -82,7 +82,7 @@ public class FontTests
     }
 
     // A result as images.c prints it: [0], or [1, bpp, alpha, width, height, key, palette, pixels].
-    private static string ImageJson(byte[] data)
+    internal static string ImageJson(byte[] data)
     {
         Png png;
         try

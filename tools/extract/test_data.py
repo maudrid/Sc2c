@@ -34,7 +34,7 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 DATA = os.path.join(REPO, "data")
 FILES = ["starmap", "planet-types", "elements", "lifeforms", "ships",
          "races", "game-state", "new-game", "modules", "constants",
-         "events"]
+         "events", "conversations"]
 
 
 def load(name):
@@ -239,6 +239,32 @@ class StateAndRules(unittest.TestCase):
         ev = load("events")["events"]
         self.assertEqual(len(ev), 18)
         self.assertEqual([e["id"] for e in ev], list(range(18)))
+
+
+class Conversations(unittest.TestCase):
+    def test_every_script_and_conversation(self):
+        d = load("conversations")
+        scripts = {s["script"]: s for s in d["scripts"]}
+        self.assertEqual(len(scripts), 27)
+        convs = {c["conversation"]: c for c in d["conversations"]}
+        self.assertEqual(convs["COMMANDER_CONVERSATION"]["scripts"], ["comandr", "starbas"])
+        self.assertEqual(convs["SPATHI_CONVERSATION"]["scripts"], ["spathi", "spahome"])
+        self.assertTrue(convs["URQUAN_DRONE_CONVERSATION"]["default"])
+        for c in d["conversations"]:
+            for s in c["scripts"]:
+                self.assertIn(s, scripts)
+        for s in d["scripts"]:
+            self.assertTrue(s["phrases"], s["script"])
+            self.assertEqual(len(set(s["phrases"])), len(s["phrases"]), s["script"])
+            self.assertTrue(s["description"]["phrases"].endswith(".dialogue"), s["script"])
+
+    def test_the_commanders_description(self):
+        c = next(s for s in load("conversations")["scripts"] if s["script"] == "comandr")["description"]
+        # comandr.c: the blink, YOYO_ANIM at ONE_SECOND / 15, restarting every ONE_SECOND * 8 (840 a second).
+        self.assertEqual(c["ambient"][0], [1, 3, 4, 56, 0, 0, 6720, 0])
+        self.assertEqual(c["talk"], [4, 6, 0, 84, 56, 98, 70, 0])
+        self.assertEqual(c["frames"], "comm.commander.graphics")
+        self.assertEqual(c["text_align"], 1)
 
 
 @unittest.skipUnless(os.environ.get("UQM_SC2"),

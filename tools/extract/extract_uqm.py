@@ -985,6 +985,118 @@ def extract_events(uqm):
         "gameev.c). What each event does is code; see docs/uqm-data.md."])
 
 
+# ---------------------------------------------------------- conversations
+
+LOCDATA_PRINT = r"""
+#define S(x) ((x) ? (x) : "")
+#define PA(a) printf("[%u,%u,%u,%u,%u,%u,%u,%lu]", (unsigned)(a).StartIndex, \
+    (unsigned)(a).NumFrames, (unsigned)(a).AnimFlags, (unsigned)(a).BaseFrameRate, \
+    (unsigned)(a).RandomFrameRate, (unsigned)(a).BaseRestartRate, \
+    (unsigned)(a).RandomRestartRate, (unsigned long)(a).BlockMask)
+#define PC(c) printf("[%u,%u,%u,%u]", (c).r, (c).g, (c).b, (c).a)
+{
+    const LOCDATA *d = &DESC;
+    unsigned i;
+    printf("{\"frames\": \"%s\", \"font\": \"%s\", \"color_map\": \"%s\", "
+           "\"song\": \"%s\", \"alt_song\": \"%s\", \"song_flags\": %lu, \"phrases\": \"%s\", ",
+           S(d->AlienFrameRes), S(d->AlienFontRes), S(d->AlienColorMapRes), S(d->AlienSongRes),
+           S(d->AlienAltSongRes), (unsigned long)d->AlienSongFlags, S(d->ConversationPhrasesRes));
+    printf("\"text_fore\": "); PC(d->AlienTextFColor);
+    printf(", \"text_back\": "); PC(d->AlienTextBColor);
+    printf(", \"text_baseline\": [%d,%d], \"text_width\": %u, \"text_align\": %d, \"text_valign\": %d, ",
+           (int)d->AlienTextBaseline.x, (int)d->AlienTextBaseline.y, (unsigned)d->AlienTextWidth,
+           (int)d->AlienTextAlign, (int)d->AlienTextValign);
+    printf("\"number_speech\": %s, \"ambient\": [", d->AlienNumberSpeech ? "true" : "false");
+    for (i = 0; i < d->NumAnimations; ++i) { if (i) printf(","); PA(d->AlienAmbientArray[i]); }
+    printf("], \"transition\": "); PA(d->AlienTransitionDesc);
+    printf(", \"talk\": "); PA(d->AlienTalkDesc);
+    printf("}\n");
+}
+"""
+
+
+def extract_conversations(uqm):
+    """Each conversation script's race description (LOCDATA) as compiled,
+    before its set-up changes it; its phrase ids (strings.h, as the
+    compiler sees them); and which script each conversation id runs
+    (init_race)."""
+    comm = os.path.join(uqm.uqm, "comm")
+    scripts = []
+    for d in sorted(os.listdir(comm)):
+        folder = os.path.join(comm, d)
+        if not os.path.isdir(folder):
+            continue
+        for f in sorted(os.listdir(folder)):
+            if not f.endswith(".c"):
+                continue
+            text = uqm.read(f"src/uqm/comm/{d}/{f}")
+            m = re.search(r"^(init_\w+_comm)\s*\(", text, flags=re.M)
+            if not m:
+                continue
+            desc = re.search(r"^static\s+LOCDATA\s+(\w+)\s*=", text, flags=re.M).group(1)
+            scripts.append((d, f, m.group(1), desc))
+
+    out = []
+    sources = ["src/uqm/commglue.c", "src/uqm/commglue.h", "src/uqm/commanim.h", "src/uqm/globdata.h"]
+    for d, f, init, desc in scripts:
+        line = uqm.run_c(LOCDATA_PRINT.replace("DESC", desc), [f"comm/{d}/{f}"])[-1]
+        locdata = json.loads(line)
+        # The phrase ids, as the compiler sees strings.h (#if 0 left out).
+        pre = subprocess.run(["gcc", "-E", "-P", os.path.join(comm, d, "strings.h")],
+                             capture_output=True, text=True, check=True).stdout
+        body = re.search(r"enum\s*\{(.*?)\}", pre, flags=re.S).group(1)
+        phrases = [p.strip() for p in body.split(",") if p.strip()]
+        if phrases[0] != "NULL_PHRASE" or any("=" in p for p in phrases):
+            raise RuntimeError(f"{d}/strings.h isn't a plain phrase list")
+        out.append({"script": d, "file": f"src/uqm/comm/{d}/{f}", "init": init,
+                    "description": locdata, "phrases": phrases[1:]})
+        sources += [f"src/uqm/comm/{d}/{f}", f"src/uqm/comm/{d}/strings.h"]
+
+    # init_race: which init function each conversation id runs.
+    glue = strip_comments(uqm.read("src/uqm/commglue.c"))
+    body = c_function_body(glue, "init_race (CONVERSATION comm_id)")
+    runs, current = {}, []
+    for tok in re.finditer(r"case\s+(\w+)\s*:|default\s*:|(init_\w+_comm)\s*\(", body):
+        if tok.group(1) or tok.group(0).startswith("default"):
+            name = tok.group(1) or "default"
+            current = runs.setdefault(name, [])
+        else:
+            current.append(tok.group(2))
+    ids = enum_names(uqm.read("src/uqm/commglue.h"), "ARILOU_CONVERSATION")
+    values = named_values(uqm, ids, ["uqm/commglue.h"])
+    init_script = {init: d for d, _, init, _ in scripts}
+    conversations = [{"conversation": c, "id": values[c],
+                      "scripts": [init_script[i] for i in runs.get(c, runs["default"])],
+                      **({"default": True} if c not in runs else {})}
+                     for c in ids if c != "INVALID_CONVERSATION"]
+    return wrap(uqm, sources, {"scripts": out, "conversations": conversations}, [
+        "Each conversation script (src/uqm/comm/*/): its init function, its "
+        "race description (LOCDATA) as the compiler builds it, before the "
+        "init function changes it for the story state (that's code, ported "
+        "with each script), and its phrase ids in strings.h's order: the "
+        "phrase the script calls n is entry n - 1 of its CONVERSATION "
+        "resource (NULL_PHRASE, 0, isn't listed).",
+        "description: the resource ids of its frames, font, colour map, "
+        "songs and phrases; text colours [r, g, b, a]; text_baseline, "
+        "text_width; text_align (0 ALIGN_LEFT, 1 ALIGN_CENTER, 2 "
+        "ALIGN_RIGHT) and text_valign (0 VALIGN_TOP, 1 VALIGN_MIDDLE, 2 "
+        "VALIGN_BOTTOM); song_flags (1 LDASF_USE_ALTERNATE); number_speech, "
+        "whether it has spoken numbers (voices only); each animation "
+        "(ambient, transition, talk) as [StartIndex, NumFrames, AnimFlags, "
+        "BaseFrameRate, RandomFrameRate, BaseRestartRate, "
+        "RandomRestartRate, BlockMask], rates in UQM's time units (ONE_SECOND is 840, constants.json); "
+        "AnimFlags: 1 RANDOM_ANIM, 2 CIRCULAR_ANIM, 4 YOYO_ANIM, 8 "
+        "WAIT_TALKING, 16 PAUSE_TALKING (COLORXFORM_ANIM), 32 TALK_INTRO "
+        "(ONE_SHOT_ANIM), 64 TALK_DONE, 128 ANIM_DISABLED.",
+        "conversations: each CONVERSATION id (commglue.h) and the scripts "
+        "init_race may run for it: two where it chooses by the story "
+        "(COMMANDER_CONVERSATION: comandr before STARBASE_AVAILABLE, "
+        "starbas after; SPATHI_CONVERSATION: spathi away from home, spahome "
+        "at it, by GLOBAL_FLAGS_AND_DATA bit 7); default where init_race's "
+        "default case runs the Chmmr's.",
+    ])
+
+
 # ------------------------------------------------------------------ main
 
 DATASETS = {
@@ -999,6 +1111,7 @@ DATASETS = {
     "modules": extract_modules,
     "constants": extract_constants,
     "events": extract_events,
+    "conversations": extract_conversations,
 }
 
 

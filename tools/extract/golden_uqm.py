@@ -107,7 +107,7 @@ LANDER_SCENARIOS = [
 ]
 STRINGS_LINK = ["libs/strings/getstr.c", "libs/strings/strings.c",
                 "libs/memory/w_memlib.c", "libs/resource/propfile.c",
-                "libs/resource/loadres.c"]
+                "libs/resource/loadres.c", "libs/strings/stringhashtable.c"]
 
 # The resource types UQM 0.8.0 registers (every InstallResTypeVectors
 # call); any other type is UNKNOWNRES, as newResourceDesc in resinit.c has
@@ -1016,6 +1016,97 @@ def record_string_table_cases(uqm, exe):
     return data
 
 
+# Conversation inputs of our own, for each quirk of _GetConversationData.
+CONVERSATION_CASES = [
+    ("simple", b"#(GLAD) commander-000.ogg\nHurry back.\n\n#(next)\nline one\nline two\n"),
+    ("tab_before_the_clip", b"#(A)\tpkunk-059.ogg\nsaid\n"),
+    ("no_clip", b"#(A)\na\n#(B)  \nb\n"),
+    ("text_before_first_header_is_ignored", b"stray\n#(A)\nkept\n"),
+    ("empty_entries", b"#(A)\n#(B)\n\n#(C)\nc"),
+    ("hash_lines_without_a_name", b"#(A)\na\n#\n#()\n#)(\nafter\n"),
+    ("name_without_parentheses", b"#NAME\ntext\n#NAME2 clip.ogg\nmore\n"),
+    ("clip_ends_at_a_parenthesis", b"#(A)x.ogg)rest\nt\n#((B)) y.ogg z.ogg\nu\n"),
+    ("crlf", b"#(A) a.ogg\r\nwindows\r\nlines\r\n\r\n#(B)\r\nb\r\n"),
+    ("long_line_is_read_in_pieces", b"#(A)\n" + b"x" * 1500 + b"\n#(B)\n" + b"y" * 1022 + b"#(C)\nz\n"),
+    ("nul_inside_lines", b"#(A) a\x00b.ogg\nbefore\x00after\nnext\n"),
+    ("utf8", "#(A)\nCaf\u00e9 \u2014 \u00b0\n".encode("utf-8")),
+    ("duplicate_names", b"#(A)\nfirst\n#(A)\nsecond\n"),
+    ("too_many_entries", b"".join(b"#(s%d)\n%d\n" % (i, i) for i in range(2100))),
+]
+
+
+def read_conversations(exe, files):
+    out = subprocess.run([exe, "conversation", *files], capture_output=True,
+                         text=True, check=True).stdout
+    return json.loads(out)
+
+
+def record_conversation_cases(uqm, exe):
+    with tempfile.TemporaryDirectory() as tmp:
+        files = []
+        for i, (_, text) in enumerate(CONVERSATION_CASES):
+            local = os.path.join(tmp, f"{i}.txt")
+            with open(local, "wb") as f:
+                f.write(text)
+            files.append(local)
+        tables = read_conversations(exe, files)
+    data = header(uqm, ["tools/extract/golden/strings.c",
+                        "src/libs/strings/getstr.c"], [
+        "Conversation inputs written for this test (CONVERSATION_CASES in "
+        "tools/extract/golden_uqm.py, not UQM content), as UQM's own "
+        "_GetConversationData reads them. input is the file in hex; each "
+        "entry is [name in hex, text length, text in hex, voice clip in hex "
+        "or null], the text's length counting UQM's terminating NUL.",
+    ])
+    data["cases"] = [{"name": name, "input": text.hex(), "entries": entries}
+                     for (name, text), entries in zip(CONVERSATION_CASES, tables)]
+    return data
+
+
+def record_conversations(uqm, exe, package):
+    """Every CONVERSATION resource of the official content package, as
+    UQM's own _GetConversationData reads it: names and clips in full
+    (they're ids), texts as hashes (they're content)."""
+    import hashlib
+    import zipfile
+    with open(package, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
+            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        entries = [(key, path.split(":")[0]) for key, (kind, path)
+                   in read_resource_index(exe, index_file).items()
+                   if kind == "CONVERSATION"]
+        files = []
+        for i, (key, path) in enumerate(entries):
+            local = os.path.join(tmp, f"{i}.txt")
+            with open(local, "wb") as f:
+                f.write(z.read(path))
+            files.append(local)
+        tables = read_conversations(exe, files)
+    out = {}
+    for (key, path), table in zip(entries, tables):
+        out[key] = {"path": path, "entries": [
+            [bytes.fromhex(n).decode("utf-8"), length,
+             hashlib.sha256(bytes.fromhex(t)).hexdigest(),
+             None if c is None else bytes.fromhex(c).decode("utf-8")]
+            for n, length, t, c in table]}
+    data = header(uqm, ["tools/extract/golden/strings.c",
+                        "src/libs/strings/getstr.c"], [
+        "Every conversation (CONVERSATION resource) of the official UQM "
+        f"0.8.0 content package (SHA-256 {CONTENT_SHA256}), as UQM's own "
+        "_GetConversationData reads it. Each entry is [name, text length "
+        "(counting UQM's terminating NUL; 0 for an empty entry), SHA-256 of "
+        "the text's bytes, voice clip or null]. The texts are content (CC "
+        "BY-NC-SA 2.5), so only their hashes are here; the names are the "
+        "scripts' phrase ids.",
+    ])
+    data["conversations"] = out
+    return data
+
+
 def read_string_tables(exe, package, keep=lambda key: True):
     """The STRTAB resources of the official content package whose ids
     pass keep, as UQM's own _GetStringData reads them: {id: (path,
@@ -1416,6 +1507,67 @@ def record_images(uqm, exe, package):
             results[i], separators=(",", ":")).encode()).hexdigest()}
             for n, i in v]
         for k, v in sorted(sample.items())}
+    return data
+
+
+def record_comm_graphics(uqm, strings_exe, images_exe, package):
+    """Every conversation's frames (the comm.*.graphics resources) as UQM
+    loads them (_GetCelData: each .ani line names an image, its
+    transparent colour, its colour map and hot spot; an image that doesn't
+    load is dropped), each image read by UQM's own PNG loader and kept as
+    the hash of its result, since images are content."""
+    import hashlib
+    import zipfile
+    with open(package, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
+            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    sheets = {}
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        keys = sorted(k for k, (kind, _) in index.items()
+                      if kind == "GFXRES" and k.startswith("comm.") and k.endswith(".graphics"))
+        for key in keys:
+            ani_path = index[key][1]
+            folder = ani_path.rsplit("/", 1)[0] + "/" if "/" in ani_path else ""
+            lines, files = [], []
+            for line in z.read(ani_path).decode().splitlines():
+                fields = line.split()
+                if not fields:
+                    continue
+                name, transparent, cmap, hx, hy = fields[0], *map(int, fields[1:5])
+                try:
+                    data = z.read(folder + name)
+                except KeyError:
+                    continue   # dropped, as _GetCelData drops it
+                path = os.path.join(tmp, f"{len(files)}.png")
+                with open(path, "wb") as f:
+                    f.write(data)
+                lines.append([folder + name, transparent, cmap, hx, hy])
+                files.append(path)
+            out = subprocess.run([images_exe, *files], capture_output=True,
+                                 text=True, check=True).stdout.splitlines()
+            frames = []
+            for entry, result in zip(lines, out):
+                result = json.loads(result)
+                if result[0] == 0:
+                    continue   # doesn't load: dropped
+                frames.append(entry + [hashlib.sha256(json.dumps(
+                    result, separators=(",", ":")).encode()).hexdigest()])
+            sheets[key] = {"path": ani_path, "frames": frames}
+    data = header(uqm, ["tools/extract/golden/images.c",
+                        "src/libs/graphics/gfxload.c",
+                        "src/libs/graphics/sdl/png2sdl.c"], [
+        "Every conversation's frames (comm.*.graphics) in the official "
+        f"content package (SHA-256 {CONTENT_SHA256}), as _GetCelData loads "
+        "them, in order: [image path, transparent colour index, colour map "
+        "index, hot spot x, hot spot y, SHA-256 of the image as UQM's own "
+        "PNG loader gives it, as images.json's results are hashed]. Frames "
+        "whose image doesn't load are left out, as UQM drops them.",
+    ])
+    data["sheets"] = sheets
     return data
 
 
@@ -1909,7 +2061,7 @@ def main():
                   includes=[SDL_INCLUDE])
         strings = os.path.join(build_dir, "strings")
         build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
-              strings)
+              strings, libs=["-lm"])   # the name index's hash table: ceil, floor
         os.makedirs(args.out, exist_ok=True)
         for name, data in (("hyperspace-flight", record_flight(uqm, flight)),
                            ("uqm-math", record_math(uqm, math)),
@@ -1923,12 +2075,15 @@ def main():
                            *record_planetside(uqm, systems, strings, images, args.content).items(),
                            ("landing", record_landing(uqm, systems)),
                            ("string-numbering", record_string_numbering(uqm, strings)),
+                           ("conversation-cases", record_conversation_cases(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
                            ("resource-index-cases", record_resource_index_cases(uqm, strings)),
                            *([("string-tables", record_string_tables(uqm, strings, args.content)),
                               ("names", record_names(uqm, systems, strings, args.content)),
                               ("fonts", record_fonts(uqm, fonts, strings, args.content)),
                               ("images", record_images(uqm, images, args.content)),
+                              ("conversations", record_conversations(uqm, strings, args.content)),
+                              ("comm-graphics", record_comm_graphics(uqm, strings, images, args.content)),
                               ("binary-tables", record_binary_tables(uqm, strings, args.content)),
                               *record_contact(uqm, systems, strings, images, args.content).items(),
                               ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content)),
