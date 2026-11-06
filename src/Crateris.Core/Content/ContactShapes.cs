@@ -41,6 +41,7 @@ public sealed class ContactShapes
         Quake = sheets["graphics.quake"];
         Lightning = sheets["graphics.lightning"];
         Lava = sheets["graphics.lavaspot"];
+        Moonbase = sheets["graphics.moonbase"];
         Life = Enumerable.Range(0, LifeSheets).Select(n => sheets[$"graphics.life.{n}"]).ToArray();
     }
 
@@ -53,7 +54,7 @@ public sealed class ContactShapes
         "graphics.flagship", "graphics.planets", "graphics.orbitbackground", "graphics.stars",
         "ship.flagship.graphics.hyperspace", "graphics.hyperstars", "graphics.ambient",
         "graphics.lander", "graphics.miscdata", "graphics.lifecan",
-        "graphics.quake", "graphics.lightning", "graphics.lavaspot",
+        "graphics.quake", "graphics.lightning", "graphics.lavaspot", "graphics.moonbase",
     }.Concat(Enumerable.Range(0, LifeSheets).Select(n => $"graphics.life.{n}")).ToArray();
 
     /// <summary>Every sheet's frames, by resource id.</summary>
@@ -84,6 +85,9 @@ public sealed class ContactShapes
 
     /// <inheritdoc cref="Quake"/>
     public IReadOnlyList<IntersectFrame> Lava { get; }
+
+    /// <summary>The Lunar base, Luna's energy node (graphics.moonbase, the Sol generator's PlanetSideFrame[1]).</summary>
+    public IReadOnlyList<IntersectFrame> Moonbase { get; }
 
     /// <summary>graphics.lightning's last frames, the strike on the ground, which UQM never shows: lightning shows one of the others at random (lightning_process).</summary>
     public const int LightningStrikeFrames = 7;
@@ -151,6 +155,8 @@ public sealed class ContactShapes
         // aside, one at random, and touches nothing.
         Need("graphics.quake", shapes.Quake, shapes.Quake.Count);
         Need("graphics.lavaspot", shapes.Lava, shapes.Lava.Count);
+        // An energy node shows every frame of its sheet.
+        Need("graphics.moonbase", shapes.Moonbase, shapes.Moonbase.Count);
         if (shapes.Lightning.Count <= LightningStrikeFrames)
             throw new ContentPackageException($"graphics.lightning has {shapes.Lightning.Count} frames; lightning needs more than {LightningStrikeFrames}");
         return shapes;

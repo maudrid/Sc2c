@@ -513,12 +513,31 @@ public sealed class GameWorld
             .Select(n => new SurfaceMineral(n.Node, n.Info.X, n.Info.Y, n.Info.Type, n.Info.Density));
         var life = Planets.Remaining(world, ScanType.Biological, nodes.Life)
             .Select(n => new SurfaceCreature(n.Node, n.Info.X, n.Info.Y, n.Info.Type));
+        string? special = Systems!.Map.Stars[world.Star].Special;
+        var energy = StoryWorlds.EnergySheet(special, world, Story) is { } sheet
+            ? Planets.Remaining(world, ScanType.Energy, nodes.Energy).Select(n => new SurfaceEnergy(n.Node, n.Info.X, n.Info.Y, sheet))
+            : null;
         uint seed = unchecked((uint)(Frame * 1_000_003 + world.Star * 7919 + world.Planet * 131 + (world.Moon ?? -1)));
-        var surface = new PlanetsideSurface(new TfbRandom(seed), minerals, Systems!.Generator.Types.ElementCategory,
+        PlanetsideSurface? surface = null;
+        surface = new PlanetsideSurface(new TfbRandom(seed), minerals, Systems!.Generator.Types.ElementCategory,
             Shapes, life, Systems.Lifeforms ?? throw new InvalidOperationException("the systems were loaded without their lifeforms"),
-            HazardChances.For(orbit.Report!));
+            HazardChances.For(orbit.Report!), energy,
+            (lander, node) => PickupEnergy(special, world, surface!, lander, node));
         _surfaces.Add((world, surface));
         return surface;
+    }
+
+    // A lander touched an energy node: the world's story decides. A
+    // discovery's report goes to its player, and word of it to the other
+    // landers there, which stay (decision 9).
+    private bool PickupEnergy(string? special, WorldId world, PlanetsideSurface surface, Lander lander, int node)
+    {
+        if (Story is null || !StoryWorlds.PickupEnergy(special, world, Story, lander, node))
+            return false;
+        if (lander.Report is { } report && _landerPlayers.TryGetValue(lander, out var finder))
+            foreach (var other in surface.Landers.Where(l => l != lander))
+                other.Told(report with { FoundBy = finder.Id });
+        return true;
     }
 
     /// <summary>

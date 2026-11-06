@@ -190,6 +190,9 @@ public class SurfaceSnapshotTests
         host.World.UndockShown("guest");
         host.World.PutInOrbit("host", 82, 2, 1);
         host.World.PutInOrbit("guest", 82, 2, 1);
+        // The Lunar base taken already, so the drive doesn't take it and go up.
+        host.World.Story!.Set("MOONBASE_DESTROYED", 1);
+        host.World.Planets.SetRetrieved(new WorldId(82, 2, 1), ScanType.Energy, 0);
         Assert.Equal(DispatchRefusal.None, host.Dispatch("host", 484, 148));
         Assert.Equal(DispatchRefusal.None, host.GuestDispatch(1, 600, 150));
         var receiver = new SnapshotReceiver();

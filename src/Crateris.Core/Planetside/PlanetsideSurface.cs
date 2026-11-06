@@ -58,6 +58,7 @@ public sealed class PlanetsideSurface
     private readonly List<(ScanType Scan, int Node)> _taken = new();
     private readonly ContactShapes? _shapes;
     private readonly Lifeforms? _lifeforms;
+    private readonly Func<Lander, int, bool>? _pickupEnergy;
 
     /// <summary>SPEED_SLOW, SPEED_MEDIUM and SPEED_FAST in velocity units (object_animation).</summary>
     public static readonly IReadOnlyList<int> CreatureSpeeds = new[]
@@ -67,7 +68,8 @@ public sealed class PlanetsideSurface
 
     /// <summary>
     /// A surface with its nodes put on it as GeneratePlanetSide puts them:
-    /// the creatures, then the mineral nodes, last node first in each, at
+    /// the creatures, then the energy nodes, then the mineral nodes, last
+    /// node first in each, at
     /// four times their place on the scan map. A moving creature is put at
     /// a random place, and every creature starts on a random frame of its
     /// sheet (generateBioNode's TFB_Random draws, in that order). The caller
@@ -78,13 +80,19 @@ public sealed class PlanetsideSurface
     /// (<see cref="PlanetTypes.ElementCategory"/>), <paramref name="lifeforms"/>
     /// the creatures' kinds, <paramref name="hazards"/> the world's chances
     /// of quakes, lightning and lava (none if not given); hazards need the
-    /// shapes too.
+    /// shapes too. <paramref name="pickupEnergy"/> is the world's
+    /// pickupEnergy, called when a lander touches an energy node: true if
+    /// the node is taken (the world's generator decides, and may send the
+    /// lander up with <see cref="Lander.Takeoff"/>); without it energy
+    /// nodes stay.
     /// </summary>
     public PlanetsideSurface(TfbRandom random, IEnumerable<SurfaceMineral>? minerals = null,
         Func<int, int>? elementCategory = null, ContactShapes? shapes = null,
         IEnumerable<SurfaceCreature>? creatures = null, Lifeforms? lifeforms = null,
-        HazardChances hazards = default)
+        HazardChances hazards = default, IEnumerable<SurfaceEnergy>? energy = null,
+        Func<Lander, int, bool>? pickupEnergy = null)
     {
+        _pickupEnergy = pickupEnergy;
         Random = random;
         _shapes = shapes;
         _lifeforms = lifeforms;
@@ -95,13 +103,16 @@ public sealed class PlanetsideSurface
         Hazards = hazards;
         var nodes = (minerals ?? Array.Empty<SurfaceMineral>()).OrderByDescending(m => m.Node).ToList();
         var life = (creatures ?? Array.Empty<SurfaceCreature>()).OrderByDescending(c => c.Node).ToList();
+        var power = (energy ?? Array.Empty<SurfaceEnergy>()).OrderByDescending(n => n.Node).ToList();
+        if (power.Count > 0 && shapes is null)
+            throw new ArgumentException("a surface with energy nodes needs the shapes");
         if (nodes.Count > 0 && (shapes is null || elementCategory is null))
             throw new ArgumentException("a surface with nodes needs the shapes and the element categories");
         if (life.Count > 0 && (shapes is null || lifeforms is null))
             throw new ArgumentException("a surface with creatures needs the shapes and the lifeforms");
         // UQM skips the nodes it has no room for; no world has so many
         // (a scan's taken nodes are 32 bits), so here it's an error.
-        if (nodes.Count + life.Count > MaxElements)
+        if (nodes.Count + life.Count + power.Count > MaxElements)
             throw new ArgumentException($"a surface holds {MaxElements} nodes at most");
         if (life.Select(c => c.Kind).Distinct().Count() > Lifeforms.MaxVariation)
             throw new ArgumentException($"a surface has sheets for {Lifeforms.MaxVariation} kinds of creature at most");
@@ -128,6 +139,23 @@ public sealed class PlanetsideSurface
                 Frame = (ushort)Random.Next() % shapes!.Life[c.Kind].Count,
                 X = x << PlanetsideMap.MagShift,
                 Y = y << PlanetsideMap.MagShift,
+            });
+        }
+        foreach (var n in power)
+        {
+            // Animated like a creature, on its generator's image (scan.c);
+            // mass_points MAX_SCROUNGED.
+            Add(new SurfaceElement
+            {
+                Kind = SurfaceElementKind.Energy,
+                Scan = ScanType.Energy,
+                Node = n.Node,
+                MassPoints = ShipHold.MaxScrounged,
+                TurnWait = 0x44,   // MAKE_BYTE (4, 4)
+                Sheet = n.Sheet,
+                Frame = 0,
+                X = n.X << PlanetsideMap.MagShift,
+                Y = n.Y << PlanetsideMap.MagShift,
             });
         }
         foreach (var m in nodes)
@@ -430,7 +458,7 @@ public sealed class PlanetsideSurface
             var lander = e.Owner!;
             if (e.MassPoints == (int)LanderDisaster.Lightning && _landers.Contains(lander))
             {
-                if (lander.Crew > 0 && Random.Next() % 100 < 10 && lander.FramePhase == LanderPhase.Ground)
+                if (lander.Crew > 0 && Random.Next() % 100 < 10 && !lander.InTransit && lander.FramePhase == LanderPhase.Ground)
                     lander.Struck = true;
                 e.X = lander.X;
                 e.Y = lander.Y;
@@ -488,6 +516,7 @@ public sealed class PlanetsideSurface
         SurfaceSheet.Quake => _shapes!.Quake.Count,
         SurfaceSheet.Lightning => _shapes!.Lightning.Count,
         SurfaceSheet.Lava => _shapes!.Lava.Count,
+        SurfaceSheet.Moonbase => _shapes!.Moonbase.Count,
         _ => _shapes!.Life[e.LifeKind].Count,
     };
 
@@ -667,6 +696,7 @@ public sealed class PlanetsideSurface
         SurfaceSheet.Quake => _shapes!.Quake[e.Frame],
         SurfaceSheet.Lightning => _shapes!.Lightning[e.Frame],
         SurfaceSheet.Lava => _shapes!.Lava[e.Frame],
+        SurfaceSheet.Moonbase => _shapes!.Moonbase[e.Frame],
         _ => _shapes!.Life[e.LifeKind][e.Frame],
     };
 
@@ -743,7 +773,7 @@ public sealed class PlanetsideSurface
                     // it touches it; a bolt that touches one just goes.
                     if (bolt is null)
                     {
-                        if (lander.Crew == 0)
+                        if (lander.Crew == 0 || lander.InTransit)
                             break;
                         if (Random.Next() % 100 < 25)
                             lander.Hurt((LanderDisaster)e.MassPoints);
@@ -753,8 +783,21 @@ public sealed class PlanetsideSurface
                 int retrieved;
                 if (bolt is null)
                 {
-                    if (lander.Crew == 0)
-                        break;      // its last crew member died this frame: it touches nothing more
+                    // Its last crew member died this frame, or it's going up
+                    // (InTransit): it touches nothing more.
+                    if (lander.Crew == 0 || lander.InTransit)
+                        break;
+                    if (e.Kind == SurfaceElementKind.Energy)
+                    {
+                        // The world's generator decides what an energy node does.
+                        if (_pickupEnergy?.Invoke(lander, e.Node) == true)
+                        {
+                            _taken.Add((e.Scan, e.Node));
+                            e.Disappearing = true;
+                            e.TakenBy = lander;
+                        }
+                        continue;
+                    }
                     if (e.Kind == SurfaceElementKind.Creature && e.HitPoints > 0)
                     {
                         // A live creature: it may hurt the crew, by its danger.
@@ -774,6 +817,8 @@ public sealed class PlanetsideSurface
                     // takes bolts and nothing comes of them. A live creature
                     // worth nothing (a Brainbox Bulldozer) is destroyed by one,
                     // nothing picked up.
+                    if (e.Kind == SurfaceElementKind.Energy)
+                        break;              // a bolt does nothing to an energy node, nor goes
                     if (e.Kind == SurfaceElementKind.Creature
                             && _lifeforms![e.MassPoints & ~SurfaceElement.Aware].BioValue is var value and > 0)
                     {

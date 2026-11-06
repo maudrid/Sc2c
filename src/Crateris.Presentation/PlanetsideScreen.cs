@@ -31,6 +31,8 @@ public enum PlanetsideSheet
     Launch = 5,
     /// <summary>The lander coming back (LanderFrame[6]).</summary>
     Return = 6,
+    /// <summary>graphics.moonbase: the Lunar base on Luna.</summary>
+    Moonbase = 7,
     MiscData = 8,
     Canister = 9,
     /// <summary>graphics.life.0; kind N is this plus N.</summary>
@@ -263,6 +265,7 @@ public static class PlanetsideScreen
             SurfaceSheet.Quake => PlanetsideSheet.Quake,
             SurfaceSheet.Lightning => PlanetsideSheet.Lightning,
             SurfaceSheet.Lava => PlanetsideSheet.Lava,
+            SurfaceSheet.Moonbase => PlanetsideSheet.Moonbase,
             _ => PlanetsideSheet.Life + e.LifeKind,
         };
         // As DrawBatch drew it: filled (a flashing creature, a quake,

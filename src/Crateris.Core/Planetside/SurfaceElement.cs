@@ -32,6 +32,8 @@ public enum SurfaceElementKind
     Lightning,
     /// <summary>A lava spot (FINITE_LIFE, mass_points LAVASPOT_DISASTER).</summary>
     Lava,
+    /// <summary>An energy node (PS_NON_PLAYER, a node of the energy scan): a story world's, drawn with its generator's image.</summary>
+    Energy,
 }
 
 /// <summary>The sheet a surface element is drawn and touched with.</summary>
@@ -51,6 +53,8 @@ public enum SurfaceSheet
     Lightning,
     /// <summary>graphics.lavaspot (LanderFrame[3]).</summary>
     Lava,
+    /// <summary>graphics.moonbase (the Sol generator's PlanetSideFrame[1]): the Lunar base.</summary>
+    Moonbase,
 }
 
 /// <summary>
@@ -75,7 +79,7 @@ public sealed class SurfaceElement
     public int LifeSpan { get; internal set; }
 
     /// <summary>Whether its life counts down (FINITE_LIFE).</summary>
-    public bool FiniteLife => Kind is not (SurfaceElementKind.Mineral or SurfaceElementKind.Creature);
+    public bool FiniteLife => Kind is not (SurfaceElementKind.Mineral or SurfaceElementKind.Creature or SurfaceElementKind.Energy);
 
     /// <summary>A quake, lightning or lava.</summary>
     public bool Hazard => Kind is SurfaceElementKind.Quake or SurfaceElementKind.Lightning or SurfaceElementKind.Lava;
@@ -164,6 +168,9 @@ public sealed class SurfaceElement
 
 /// <summary>A mineral node as GeneratePlanetSide puts it on the surface: its number, its place on the scan map, its element and density (MAKE_WORD (gross size, quantity)).</summary>
 public readonly record struct SurfaceMineral(int Node, int X, int Y, int Element, int Density);
+
+/// <summary>An energy node: its number, its place on the scan map and the sheet its generator draws it with.</summary>
+public readonly record struct SurfaceEnergy(int Node, int X, int Y, SurfaceSheet Sheet);
 
 /// <summary>A life node: its number, its place on the scan map (where a still creature stays; a moving one is put somewhere at random) and its kind.</summary>
 public readonly record struct SurfaceCreature(int Node, int X, int Y, int Kind);

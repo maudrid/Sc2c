@@ -96,7 +96,7 @@ public class SharedSurfaceTests
         Assert.Equal(Moon, s.World);
         Assert.Equal(new[] { "host", "guest" }, s.Landers.Select(l => l.PlayerId));
         Assert.DoesNotContain(s.Elements, e => e.Kind == SurfaceElementKind.Mineral);   // clients have the nodes
-        Assert.Equal(10, s.Elements.Count);
+        Assert.Equal(11, s.Elements.Count);   // the creatures and the Lunar base
         Assert.All(snapshot.Ships, sh => Assert.Equal(Activity.Planetside, sh.Activity));
 
         // 35 surface frames a second: the landing's 48 take under a second and a half.

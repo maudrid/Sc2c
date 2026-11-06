@@ -52,6 +52,9 @@
     },
     "talk": {
       "weight": 4
+    },
+    "opening": {
+      "weight": 4
     }
   }
 }

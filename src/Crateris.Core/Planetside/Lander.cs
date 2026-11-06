@@ -193,6 +193,34 @@ public sealed class Lander
     /// <summary>Whether the lander was drawn in the last frame: alive, still flashing, or early in its explosion.</summary>
     public bool Drawn { get; private set; } = true;
 
+    /// <summary>
+    /// Sent up by its world (SetLanderTakeoff: InTransit): it touches
+    /// nothing more this frame and lightning can't hurt it, and it takes off
+    /// next frame as if its player had asked.
+    /// </summary>
+    public bool InTransit { get; private set; }
+
+    /// <summary>
+    /// The lander report its player is shown (DoDiscoveryReport): the
+    /// world's discovery, such as the Lunar base's; or, when another lander
+    /// made it, word of it (decision 9). Null if none.
+    /// </summary>
+    public LanderReport? Report { get; private set; }
+
+    /// <summary>Another lander on this surface made a discovery: this one stays, and its player is told.</summary>
+    internal void Told(LanderReport report) => Report = report;
+
+    /// <summary>
+    /// What a story world's generator does when the lander picks up its
+    /// energy node (GenerateDefault_landerReport, SetLanderTakeoff): it shows
+    /// the report, and the lander goes up.
+    /// </summary>
+    internal void Takeoff(LanderReport? report)
+    {
+        Report = report;
+        InTransit = true;
+    }
+
     /// <summary>Whether lightning struck it this frame (KILL_CREW): it's hurt as the frame ends.</summary>
     internal bool Struck { get; set; }
 
@@ -207,7 +235,7 @@ public sealed class Lander
     internal void Frame(LanderInput input)
     {
         FrameDrawn = true;
-        if (Phase == LanderPhase.Ground && Crew > 0 && (input & LanderInput.TakeOff) != 0)
+        if (Phase == LanderPhase.Ground && Crew > 0 && ((input & LanderInput.TakeOff) != 0 || InTransit))
         {
             Phase = LanderPhase.TakingOff;
             _phaseFrame = 0;
@@ -473,3 +501,10 @@ public sealed class Lander
 
 /// <summary>The text shown after a pickup: frames left, the amount, the element, and its baseline on the lander's view.</summary>
 public readonly record struct MineralText(int Frames, int Amount, int Element, int X, int Y);
+
+/// <summary>
+/// A lander report (DoDiscoveryReport): the string table of the world's
+/// discovery (text.moonbase for the Lunar base), and who made it when it
+/// was another player's lander (null for this lander's own).
+/// </summary>
+public sealed record LanderReport(string Resource, string? FoundBy = null);
