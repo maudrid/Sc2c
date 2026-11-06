@@ -1,6 +1,6 @@
 # Stage 3 plan: story, conversations and the starbase
 
-**Status:** a draft for the owner's approval. Nothing is built until the decisions below are made.
+**Status:** approved by the owner on 2026-11-06, with all thirteen recommendations accepted (see "Decisions"). Stage 3a is being built: see "Progress".
 
 Build order item: "3. Story flags, conversations, dialogue locks, story pauses and the group inventory" (`docs/design.md`), after stage 2b. Stage 2b left these to stage 3 as well: energy nodes, selling minerals and bio data, buying landers, crew, fuel and lander upgrades, cargo trading between players, and the worlds that start a conversation (`docs/differences.md` row 27).
 
@@ -254,9 +254,15 @@ Rough size:
 - **Then:** items 5 and 6.
 - **Small to medium:** the rest.
 
+## Progress
+
+| Item | State | Where |
+| --- | --- | --- |
+| 1. The story state | Started | |
+
 ## Decisions
 
-Recommendations first.
+All thirteen recommendations were accepted on 2026-11-06. Recommendations first.
 
 1. **Splitting stage 3.**
    - **Three parts, 3a, 3b and 3c, as above (recommended).** 3a can be played through, from the opening to the allied starbase, without ships in space or battles.

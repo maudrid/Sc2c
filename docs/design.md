@@ -195,8 +195,11 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
 2. Solar systems and planets from seeds. **Built** (plan: `docs/plans/stage-2.md`; see `docs/how-to-try/stage-2.md`).
    - Content: the first-run content download and a minimal content reader (names, then planet colour maps). **Built** (plan: `docs/plans/content-stage.md`; see `docs/how-to-try/content-stage.md`).
    - 2b. Landing and mining: the lander, creatures, hazards, cargo and the shared landing screen. **Built** (plan: `docs/plans/stage-2b.md`; see `docs/how-to-try/stage-2b.md`).
-3. Story flags, conversations, dialogue locks, story pauses and the group inventory.
-4. Combat, including joining battles, one enemy at a time, and the minimap.
+3. Story flags, conversations, dialogue locks, story pauses and the group inventory, in three parts (plan: `docs/plans/stage-3.md`):
+   - 3a. Talking, the story state and Earth: the conversation engine and screen, story pauses, the dialogue lock, the group inventory, UQM's opening at Earth and the allied starbase, names, wallets and cargo trading. **Being built.**
+   - 3b. Ships in space and the races: alien ships in systems and hyperspace, hailing, the races' conversations, Melnorme trading. After stage 4.
+   - 3c. Story events and devices: the event calendar, energy nodes on story worlds, devices, time skips, cutscenes. After 3b.
+4. Combat, including joining battles, one enemy at a time, and the minimap. After 3a, before 3b, since most races' conversations can end in a battle.
 
 ### Working rules
 
