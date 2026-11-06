@@ -25,8 +25,8 @@ public sealed record OfficialPackage(string Title, string FileName, long Size, s
 /// optional: the 3DO version's voiceovers and its music. Nothing plays
 /// sound yet, so the add-ons are downloaded and kept unchanged for the
 /// stage that does (docs/design.md, "First-run content download"). Their
-/// SHA-256s are of the files downloaded on 2026-11-06, which matched the
-/// SHA-1 and MD5 SourceForge publishes for them.
+/// SHA-256s are of the files downloaded on 2026-11-06, the same as
+/// SourceForge publishes for them (with their SHA-1 and MD5).
 /// </summary>
 public static class OfficialPackages
 {

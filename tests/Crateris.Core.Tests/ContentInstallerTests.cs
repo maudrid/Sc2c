@@ -163,6 +163,88 @@ public sealed class ContentInstallerTests : IDisposable
         Assert.False(OfficialPackages.IsInstalled(_dir, addon));
     }
 
+    // A step for the package served at path, kept as name.
+    private DownloadStep Step(string path, string name, bool required = false) =>
+        new(new OfficialPackage(name, name + ".uqm", _package.Length, _hash, _base + path),
+            Path.Combine(_dir, ContentLocation.UserSubfolder, name + ".uqm"), required);
+
+    [Fact]
+    public async Task ARunFetchesEachInTurnAndAFailedAddonDoesntStopTheRest()
+    {
+        using var http = new HttpClient();
+        var steps = new[] { Step("package", "content", required: true), Step("wrong", "voice"), Step("redirect", "music") };
+        var started = new List<string>();
+        var r = await PackageDownloads.Run(http, steps, s => started.Add(s.Package.Title));
+        Assert.Equal(DownloadOutcome.OptionalFailed, r.Outcome);
+        Assert.Equal(new[] { "content", "voice", "music" }, started);
+        Assert.Equal(new[] { "content", "music" }, r.Installed.Select(p => p.Title));
+        Assert.Single(r.Problems);
+        Assert.Contains("isn't the official UQM 0.8.0 voice", r.Problems[0]);
+        Assert.False(File.Exists(steps[1].Destination));
+
+        var done = await PackageDownloads.Run(http, new[] { Step("package", "again") });
+        Assert.Equal((DownloadOutcome.Done, 0), (done.Outcome, done.Problems.Count));
+    }
+
+    [Fact]
+    public async Task ARequiredPackageThatFailsStopsTheRun()
+    {
+        using var http = new HttpClient();
+        var steps = new[] { Step("wrong", "content", required: true), Step("package", "music") };
+        var r = await PackageDownloads.Run(http, steps);
+        Assert.Equal(DownloadOutcome.RequiredFailed, r.Outcome);
+        Assert.Empty(r.Installed);
+        Assert.False(File.Exists(steps[1].Destination));
+    }
+
+    [Theory]
+    [InlineData(0)]   // cancelled during the content: no add-on is started
+    [InlineData(1)]   // cancelled during an add-on: the next isn't started
+    public async Task CancellingStopsTheWholeRun(int during)
+    {
+        using var http = new HttpClient();
+        var steps = new[] { Step(during == 0 ? "slow" : "package", "content", required: true),
+            Step(during == 1 ? "slow" : "package", "voice"), Step("package", "music") };
+        using var cancel = new CancellationTokenSource();
+        var started = new List<string>();
+        var r = await PackageDownloads.Run(http, steps, s =>
+        {
+            started.Add(s.Package.Title);
+            if (s == steps[during])
+                cancel.CancelAfter(300);   // part way through its slow download
+        }, cancel: cancel.Token);
+        Assert.Equal(DownloadOutcome.Cancelled, r.Outcome);
+        Assert.Equal(steps.Take(during + 1).Select(s => s.Package.Title), started);
+        Assert.Equal(steps.Take(during).Select(s => s.Package.Title), r.Installed.Select(p => p.Title));
+        Assert.False(File.Exists(steps[2].Destination));
+    }
+
+    [Fact]
+    public void TheContentIsKeptWhereItAlwaysWas()
+    {
+        Assert.Equal(ContentLocation.StoredPackage(_dir), OfficialPackages.StoredPath(_dir, OfficialPackages.Content));
+    }
+
+    /// <summary>
+    /// The real add-ons, if CRATERIS_ADDONS names a folder holding them
+    /// (they're never in the repository): each is the pinned file.
+    /// </summary>
+    [Fact]
+    public void TheRealAddonsMatchTheirPinnedHashes()
+    {
+        string? folder = Environment.GetEnvironmentVariable("CRATERIS_ADDONS");
+        if (folder is null)
+            return;   // nothing to check without them (a plain Fact: no content is needed otherwise)
+        foreach (var p in OfficialPackages.Addons)
+        {
+            string file = Path.Combine(folder, p.FileName);
+            if (!File.Exists(file))
+                continue;
+            Assert.Equal(p.Size, new FileInfo(file).Length);
+            Assert.Equal(p.Sha256, ContentPackage.Sha256Of(file));
+        }
+    }
+
     [Fact]
     public async Task AWrongAddonIsRefusedByItsOwnName()
     {

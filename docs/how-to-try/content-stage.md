@@ -60,13 +60,13 @@ To see the first-run screen again, move the game's copy away first: it's `conten
 
 The UQM project also publishes the 3DO version's voiceovers (`uqm-0.8.0-voice.uqm`, 115.2 MB) and music (`uqm-0.8.0-3domusic.uqm`, 19.0 MB), by Toys for Bob, under the same license as the content. Nothing plays sound yet: the game downloads and keeps them, unchanged, for the stage that adds it.
 
-1. On the first-run screen, tick **3DO voiceovers** or **3DO music** (unticked to start with) before **Download**: the content comes first, then each ticked add-on, each checked against its pinned SHA-256. If an add-on fails or is cancelled, the screen says so and offers **Continue** (the game doesn't need it) or **Download** to try again.
+1. On the first-run screen, tick **3DO voiceovers** or **3DO music** (unticked to start with) before **Download** (or **Use a file I already have...** for the content): the content comes first, then each ticked add-on, each checked against its pinned SHA-256. If an add-on fails, the next is still tried, and the screen then says what went wrong and offers **Continue** (the game doesn't need it) or **Download** to try again, which fetches only what isn't here yet. **Cancel** stops the whole run; once the content is in, **Continue** is offered too.
 2. Later, the about screen (**F1**) lists both under "The 3DO voiceovers and music (optional)": each is "here" or has **Download** and **Use a file I already have...** (a copy from an installed UQM's `content/addons` folder, say). The page scrolls.
-3. They're kept beside the content in Godot's user folder (`content/uqm-0.8.0-voice.uqm` and `content/uqm-0.8.0-3domusic.uqm`). The game's log says at start whether each is here.
+3. They're kept beside the content in Godot's user folder (`content/uqm-0.8.0-voice.uqm` and `content/uqm-0.8.0-3domusic.uqm`). The game's log says whether each is here, at start or once the first-run screen has finished.
 
 ![The about screen's add-ons: the voiceovers not here yet, the music here](../screenshots/content-about-addons.png)
 
-Checked by `ContentInstallerTests` (each add-on's file name, size, SHA-256 and download address; downloading one beside the content and counting it as here only at its size; refusing a wrong one by its own name, downloaded or copied). The screens were checked by screenshots under a virtual display (`--show-about` opens the about screen at start, for that).
+Checked by `ContentInstallerTests` (each add-on's file name, size, SHA-256 and download address; downloading one beside the content and counting it as here only at its size; refusing a wrong one by its own name, downloaded or copied; the first-run screen's order of downloads, `PackageDownloads`: a failed add-on not stopping the rest, a failed content stopping all, cancelling during the content or an add-on stopping the run). With `CRATERIS_ADDONS` naming a folder that holds the real add-ons, a test checks them against their pinned hashes. The screens were checked by screenshots under a virtual display (`--show-about` opens the about screen at start, for that).
 
 A headless host or guest (servers, tests) needs the package given: `--content PATH` (the file or its folder) or `CRATERIS_CONTENT`. Without one it stops at once and says so.
 

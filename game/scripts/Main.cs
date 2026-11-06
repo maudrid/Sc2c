@@ -134,6 +134,12 @@ public partial class Main : Node2D
     /// shows the first-run screen, and a headless run stops and says how to
     /// give it one.
     /// </summary>
+    private void LogAddons(string userFolder)
+    {
+        foreach (var addon in OfficialPackages.Addons)
+            Log($"{addon.Title}: {(OfficialPackages.IsInstalled(userFolder, addon) ? "here (not played yet)" : "not here")}");
+    }
+
     private void PrepareContent()
     {
         string userFolder = ProjectSettings.GlobalizePath("user://");
@@ -146,8 +152,7 @@ public partial class Main : Node2D
             {
                 found = ContentPackage.Open(path);
                 Log($"Content: {path}");
-                foreach (var addon in OfficialPackages.Addons)
-                    Log($"{addon.Title}: {(OfficialPackages.IsInstalled(userFolder, addon) ? "here (not played yet)" : "not here")}");
+                LogAddons(userFolder);
             }
         }
         catch (ContentPackageException e)
@@ -173,6 +178,8 @@ public partial class Main : Node2D
         _firstRun = new FirstRunScreen(stored, problem, userFolder);
         _firstRun.Installed += path =>
         {
+            if (_firstRun is null)
+                return;   // already started
             ContentPackage installed;
             try
             {
@@ -186,6 +193,7 @@ public partial class Main : Node2D
                 return;
             }
             Log($"Content installed: {path}");
+            LogAddons(userFolder);
             _firstRun!.QueueFree();
             _firstRun = null;
             if (UseContent(installed))

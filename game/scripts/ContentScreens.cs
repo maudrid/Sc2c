@@ -9,6 +9,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using Crateris.Core.Content;
 using Godot;
@@ -78,7 +79,7 @@ public partial class FirstRunScreen : PanelContainer
     private readonly string _userFolder;
     private readonly List<(OfficialPackage Package, CheckBox Box)> _addons = new();
     private readonly Button _continue = new() { Text = "Continue", Visible = false };
-    private bool _contentDone;
+    private bool _contentDone;   // the content is in place: a try again fetches only the add-ons
     private readonly Label _status = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart, CustomMinimumSize = new Vector2(640, 0) };
     private readonly ProgressBar _bar = new() { CustomMinimumSize = new Vector2(640, 20), Visible = false };
     private readonly Button _download = new() { Text = $"Download ({ContentPackage.OfficialSize / 1e6:0.0} MB)" };
@@ -161,62 +162,67 @@ public partial class FirstRunScreen : PanelContainer
     {
     }
 
-    private async void Download()
+    private void Download()
     {
-        Busy("Downloading from the Ur-Quan Masters project...");
+        // The content once (a try again after an add-on failed doesn't fetch it again), then the ticked add-ons.
+        var steps = new List<DownloadStep>();
+        if (!_contentDone)
+            steps.Add(new DownloadStep(OfficialPackages.Content, _destination, Required: true));
+        Fetch(steps, "Downloading from the Ur-Quan Masters project...");
+    }
+
+    // The ticked add-ons not yet here.
+    private IEnumerable<DownloadStep> TickedAddons() =>
+        _addons.Where(a => a.Box.ButtonPressed && !a.Box.Disabled)
+            .Select(a => new DownloadStep(a.Package, OfficialPackages.StoredPath(_userFolder, a.Package)));
+
+    private async void Fetch(List<DownloadStep> steps, string busy)
+    {
+        steps.AddRange(TickedAddons());
+        Busy(busy);
         using var http = new System.Net.Http.HttpClient();
         http.DefaultRequestHeaders.UserAgent.ParseAdd("AttackOnCrateris/0.1");
+        DownloadResult result;
         try
         {
-            // Once in place (a try again after an add-on failed), not fetched again.
-            if (!_contentDone)
-                await ContentInstaller.Download(http, ContentPackage.DownloadUrl, _destination,
-                    new Progress<InstallProgress>(ShowProgress), _cancel!.Token);
-            _contentDone = true;
-        }
-        catch (OperationCanceledException)
-        {
-            ShowFailure("Download cancelled.");
+            result = await PackageDownloads.Run(http, steps,
+                step => { _status.Text = step.Required ? busy : $"Downloading the {step.Package.Title} ({step.Package.SizeText})..."; _bar.Value = 0; },
+                new Progress<InstallProgress>(ShowProgress), _cancel!.Token);
         }
         catch (Exception e)
         {
-            // ContentPackageException says what went wrong; anything else is unexpected, but still told.
-            ShowFailure(e.Message + " You can try again, or use a file you already have.");
+            // Run reports what it expects; anything else is unexpected, but still told.
+            ShowFailure(e.Message);
             return;
         }
-        // The content is in place: the ticked add-ons, which the game can do without.
-        var failed = new List<string>();
-        foreach (var (package, tick) in _addons)
+        foreach (var package in result.Installed)
         {
-            if (!tick.ButtonPressed || tick.Disabled)
-                continue;
-            _status.Text = $"Downloading the {package.Title} ({package.SizeText})...";
-            _bar.Value = 0;
-            try
+            if (package == OfficialPackages.Content)
+                _contentDone = true;
+            foreach (var (p, tick) in _addons.Where(a => a.Package == package))
             {
-                await ContentInstaller.Download(http, package, OfficialPackages.StoredPath(_userFolder, package),
-                    new Progress<InstallProgress>(ShowProgress), _cancel!.Token);
-                tick.Text = $"{package.Title}: downloaded";
+                tick.Text = $"{p.Title}: downloaded";
                 tick.Disabled = true;
             }
-            catch (OperationCanceledException)
-            {
-                failed.Add($"The {package.Title} download was cancelled.");
-                _cancel = new CancellationTokenSource();
-            }
-            catch (Exception e)
-            {
-                failed.Add(e.Message);
-            }
         }
-        if (failed.Count == 0)
+        switch (result.Outcome)
         {
-            Done();
-            return;
+            case DownloadOutcome.Done:
+                Done();
+                break;
+            case DownloadOutcome.RequiredFailed:
+                ShowFailure(string.Join(" ", result.Problems) + " You can try again, or use a file you already have.");
+                break;
+            case DownloadOutcome.Cancelled:
+                ShowFailure("Cancelled.");
+                _continue.Visible = _contentDone;
+                break;
+            case DownloadOutcome.OptionalFailed:
+                // The game can start; the add-ons can be fetched again here or later from the about screen.
+                ShowFailure(string.Join(" ", result.Problems) + " The game doesn't need them: Continue to play, or Download to try again.");
+                _continue.Visible = true;
+                break;
         }
-        // The game can start; the add-ons can be fetched again here or later from the about screen.
-        ShowFailure(string.Join(" ", failed) + " The game doesn't need them: Continue to play, or Download to try again.");
-        _continue.Visible = true;
     }
 
     /// <summary>Acts as if the player chose <paramref name="path"/> with "Use a file I already have" (testing).</summary>
@@ -228,22 +234,33 @@ public partial class FirstRunScreen : PanelContainer
         try
         {
             await ContentInstaller.CopyFrom(path, _destination, new Progress<InstallProgress>(ShowProgress), _cancel!.Token);
-            Done();
+            _contentDone = true;
         }
         catch (OperationCanceledException)
         {
             ShowFailure("Cancelled.");
+            return;
         }
         catch (Exception e)
         {
             ShowFailure(e.Message);
+            return;
         }
+        // Then the ticked add-ons, if any, downloaded as with Download.
+        if (TickedAddons().Any())
+            Fetch(new List<DownloadStep>(), "Downloading the add-ons...");
+        else
+            Done();
     }
 
     private void Busy(string text)
     {
+        _cancel?.Dispose();
         _cancel = new CancellationTokenSource();
         _download.Disabled = _useFile.Disabled = true;
+        _continue.Visible = false;
+        foreach (var (package, tick) in _addons)
+            tick.Disabled = true;
         _cancelButton.Visible = true;
         _bar.Visible = true;
         _bar.Value = 0;
@@ -260,6 +277,9 @@ public partial class FirstRunScreen : PanelContainer
     public void ShowFailure(string message)
     {
         _download.Disabled = _useFile.Disabled = false;
+        // The add-ons not yet here can be ticked again.
+        foreach (var (package, tick) in _addons)
+            tick.Disabled = _userFolder == "" || OfficialPackages.IsInstalled(_userFolder, package);
         _cancelButton.Visible = false;
         _bar.Visible = false;
         _status.Text = message;
@@ -312,6 +332,7 @@ public partial class ContentErrorScreen : PanelContainer
 public partial class AddonRow : VBoxContainer
 {
     private readonly OfficialPackage _package;
+    private readonly string _userFolder;
     private readonly string _destination;
     private readonly Label _title = new() { CustomMinimumSize = new Vector2(250, 0) };
     private readonly Label _status = new() { AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -331,6 +352,7 @@ public partial class AddonRow : VBoxContainer
     public AddonRow(OfficialPackage package, string userFolder)
     {
         _package = package;
+        _userFolder = userFolder;
         _destination = OfficialPackages.StoredPath(userFolder, package);
         _download.Text = $"Download ({package.SizeText})";
         _picker.Title = $"Choose {package.FileName}";
@@ -348,16 +370,20 @@ public partial class AddonRow : VBoxContainer
         _useFile.Pressed += () => _picker.PopupCentered(new Vector2I(800, 500));
         _picker.FileSelected += UseFile;
         _cancelButton.Pressed += () => _cancel?.Cancel();
-        Refresh(userFolder);
+        _status.Visible = false;
+        Refresh();
     }
 
     public AddonRow() : this(OfficialPackages.Music, "")
     {
     }
 
-    private void Refresh(string userFolder)
+    /// <summary>Shows whether the add-on is here now (the first-run screen may have fetched it since).</summary>
+    public void Refresh()
     {
-        bool have = userFolder != "" && OfficialPackages.IsInstalled(userFolder, _package);
+        if (_cancelButton.Visible)
+            return;   // a download or copy is under way
+        bool have = _userFolder != "" && OfficialPackages.IsInstalled(_userFolder, _package);
         _title.Text = have ? $"{_package.Title}: here" : $"{_package.Title}: not here";
         _download.Visible = _useFile.Visible = !have;
     }
@@ -407,6 +433,7 @@ public partial class AddonRow : VBoxContainer
         _cancelButton.Visible = _bar.Visible = true;
         _bar.Value = 0;
         _status.Text = text;
+        _status.Visible = true;
     }
 
     private void ShowProgress(InstallProgress p)
@@ -422,7 +449,7 @@ public partial class AddonRow : VBoxContainer
         _status.Text = problem ?? "Done: kept for when the game has sound.";
         if (problem != null)
             GD.PrintErr(problem);
-        Refresh(Path.GetDirectoryName(Path.GetDirectoryName(_destination)!)!);
+        Refresh();
     }
 }
 
@@ -467,8 +494,15 @@ public partial class AboutScreen : PanelContainer
             box.AddChild(addons);
             box.AddChild(NoticeLabels.Paragraph("From the 3DO version of the game, by Toys for Bob, under the same license as the content. " +
                 "Nothing plays them yet: they're kept for when the game has sound."));
-            foreach (var package in OfficialPackages.Addons)
-                box.AddChild(new AddonRow(package, userFolder));
+            var rows = OfficialPackages.Addons.Select(package => new AddonRow(package, userFolder)).ToList();
+            foreach (var row in rows)
+                box.AddChild(row);
+            // The first-run screen may have fetched one since this screen was made.
+            VisibilityChanged += () =>
+            {
+                if (Visible)
+                    rows.ForEach(r => r.Refresh());
+            };
         }
         box.AddChild(NoticeLabels.Heading("F1 or Esc: close"));
     }
