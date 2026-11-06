@@ -9,6 +9,8 @@
       "src/uqm/commglue.h",
       "src/uqm/commanim.h",
       "src/uqm/globdata.h",
+      "src/uqm/comm.c",
+      "src/uqm/units.h",
       "src/uqm/comm/arilou/arilouc.c",
       "src/uqm/comm/arilou/strings.h",
       "src/uqm/comm/blackur/blackurc.c",
@@ -66,9 +68,9 @@
     ]
   },
   "_notes": [
-    "Each conversation script (src/uqm/comm/*/): its init function, its race description (LOCDATA) as the compiler builds it, before the init function changes it for the story state (that's code, ported with each script), and its phrase ids in strings.h's order: the phrase the script calls n is entry n - 1 of its CONVERSATION resource (NULL_PHRASE, 0, isn't listed).",
+    "Each conversation script (src/uqm/comm/*/): its init function, its race description (LOCDATA) as its init function leaves it at the start of a new game (every story bit 0; the screen 320 by 240, which the subtitles' place and width are worked out from), and its phrase ids in strings.h's order: the phrase the script calls n is entry n - 1 of its CONVERSATION resource (NULL_PHRASE, 0, isn't listed). Where an init function reads the story (the commander's low-power colour cycle and music, the Spathi's and the Utwig's music), its other branches are code, ported with the script.",
     "description: the resource ids of its frames, font, colour map, songs and phrases; text colours [r, g, b, a]; text_baseline, text_width; text_align (0 ALIGN_LEFT, 1 ALIGN_CENTER, 2 ALIGN_RIGHT) and text_valign (0 VALIGN_TOP, 1 VALIGN_MIDDLE, 2 VALIGN_BOTTOM); song_flags (1 LDASF_USE_ALTERNATE); number_speech, whether it has spoken numbers (voices only); each animation (ambient, transition, talk) as [StartIndex, NumFrames, AnimFlags, BaseFrameRate, RandomFrameRate, BaseRestartRate, RandomRestartRate, BlockMask], rates in UQM's time units (ONE_SECOND is 840, constants.json); AnimFlags: 1 RANDOM_ANIM, 2 CIRCULAR_ANIM, 4 YOYO_ANIM, 8 WAIT_TALKING, 16 PAUSE_TALKING (COLORXFORM_ANIM), 32 TALK_INTRO (ONE_SHOT_ANIM), 64 TALK_DONE, 128 ANIM_DISABLED.",
-    "conversations: each CONVERSATION id (commglue.h) and the scripts init_race may run for it: two where it chooses by the story (COMMANDER_CONVERSATION: comandr before STARBASE_AVAILABLE, starbas after; SPATHI_CONVERSATION: spathi away from home, spahome at it, by GLOBAL_FLAGS_AND_DATA bit 7); default where init_race's default case runs the Chmmr's."
+    "conversations: each CONVERSATION id (commglue.h) and the scripts init_race may run for it: two where it chooses by the story (COMMANDER_CONVERSATION: comandr before STARBASE_AVAILABLE, starbas after; SPATHI_CONVERSATION: spathi away from home, spahome at it, by GLOBAL_FLAGS_AND_DATA bit 7). URQUAN_DRONE_CONVERSATION has no case of its own, but InitCommunication (comm.c) runs it as URQUAN_CONVERSATION (as), so it's the Ur-Quan's script; default marks an id init_race would send to its default case, the Chmmr's."
   ],
   "scripts": [
     {
@@ -96,10 +98,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -451,10 +453,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -665,10 +667,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -845,8 +847,8 @@
         "font": "comm.commander.font",
         "color_map": "comm.commander.colortable",
         "song": "comm.commander.music",
-        "alt_song": "",
-        "song_flags": 0,
+        "alt_song": "comm.commander.lowpower.music",
+        "song_flags": 1,
         "phrases": "comm.commander.dialogue",
         "text_fore": [
           255,
@@ -861,10 +863,10 @@
           255
         ],
         "text_baseline": [
-          0,
-          0
+          164,
+          20
         ],
-        "text_width": 0,
+        "text_width": 143,
         "text_align": 1,
         "text_valign": 1,
         "number_speech": false,
@@ -1048,10 +1050,10 @@
           255
         ],
         "text_baseline": [
-          0,
-          0
+          121,
+          70
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 1,
         "number_speech": false,
@@ -1321,10 +1323,10 @@
           255
         ],
         "text_baseline": [
-          0,
-          0
+          121,
+          70
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 1,
         "number_speech": false,
@@ -1527,10 +1529,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": true,
@@ -1907,10 +1909,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -2124,10 +2126,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -2418,10 +2420,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -2672,8 +2674,8 @@
         "font": "comm.yehat.font",
         "color_map": "comm.yehat.colortable",
         "song": "comm.yehat.music",
-        "alt_song": "",
-        "song_flags": 0,
+        "alt_song": "comm.yehat.rebel.music",
+        "song_flags": 1,
         "phrases": "comm.yehat.rebel.dialogue",
         "text_fore": [
           255,
@@ -2688,10 +2690,10 @@
           255
         ],
         "text_baseline": [
-          0,
-          0
+          161,
+          60
         ],
-        "text_width": 0,
+        "text_width": 149,
         "text_align": 1,
         "text_valign": 1,
         "number_speech": false,
@@ -2930,10 +2932,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 240,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -3193,10 +3195,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 240,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -3497,10 +3499,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": true,
@@ -3685,8 +3687,8 @@
         "font": "comm.spathi.font",
         "color_map": "comm.safeones.colortable",
         "song": "comm.spathi.music",
-        "alt_song": "",
-        "song_flags": 0,
+        "alt_song": "comm.safeones.music",
+        "song_flags": 1,
         "phrases": "comm.safeones.dialogue",
         "text_fore": [
           255,
@@ -3701,10 +3703,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -4044,10 +4046,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -4300,8 +4302,8 @@
         "font": "comm.commander.font",
         "color_map": "comm.commander.colortable",
         "song": "comm.commander.music",
-        "alt_song": "",
-        "song_flags": 0,
+        "alt_song": "comm.starbase.music",
+        "song_flags": 1,
         "phrases": "comm.starbase.dialogue",
         "text_fore": [
           255,
@@ -4316,10 +4318,10 @@
           255
         ],
         "text_baseline": [
-          0,
-          0
+          164,
+          20
         ],
-        "text_width": 0,
+        "text_width": 143,
         "text_align": 1,
         "text_valign": 1,
         "number_speech": false,
@@ -4774,10 +4776,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -4969,10 +4971,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -5308,10 +5310,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -5649,10 +5651,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -5941,10 +5943,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -6246,10 +6248,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          121,
           0
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -6450,10 +6452,10 @@
           255
         ],
         "text_baseline": [
-          0,
-          0
+          121,
+          70
         ],
-        "text_width": 0,
+        "text_width": 224,
         "text_align": 1,
         "text_valign": 1,
         "number_speech": false,
@@ -6785,10 +6787,10 @@
           255
         ],
         "text_baseline": [
-          0,
+          181,
           0
         ],
-        "text_width": 0,
+        "text_width": 112,
         "text_align": 1,
         "text_valign": 0,
         "number_speech": false,
@@ -7115,10 +7117,10 @@
           255
         ],
         "text_baseline": [
-          0,
-          0
+          161,
+          60
         ],
-        "text_width": 0,
+        "text_width": 149,
         "text_align": 1,
         "text_valign": 1,
         "number_speech": false,
@@ -7401,7 +7403,7 @@
           0,
           0
         ],
-        "text_width": 0,
+        "text_width": 119,
         "text_align": 1,
         "text_valign": 1,
         "number_speech": false,
@@ -7974,9 +7976,9 @@
       "conversation": "URQUAN_DRONE_CONVERSATION",
       "id": 24,
       "scripts": [
-        "chmmr"
+        "urquan"
       ],
-      "default": true
+      "as": "URQUAN_CONVERSATION"
     },
     {
       "conversation": "YEHAT_REBEL_CONVERSATION",

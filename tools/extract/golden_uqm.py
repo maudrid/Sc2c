@@ -1028,6 +1028,10 @@ CONVERSATION_CASES = [
     ("clip_ends_at_a_parenthesis", b"#(A)x.ogg)rest\nt\n#((B)) y.ogg z.ogg\nu\n"),
     ("crlf", b"#(A) a.ogg\r\nwindows\r\nlines\r\n\r\n#(B)\r\nb\r\n"),
     ("long_line_is_read_in_pieces", b"#(A)\n" + b"x" * 1500 + b"\n#(B)\n" + b"y" * 1022 + b"#(C)\nz\n"),
+    # A '#' that starts fgets' second 1,023-byte piece starts an entry.
+    ("hash_at_a_piece_start", b"#(A)\n" + b"y" * 1023 + b"#(C)\nz\n"),
+    ("long_header", b"#(" + b"N" * 1100 + b") clip.ogg\ntext\n"),
+    ("nul_in_a_long_line", b"#(A)\n" + b"a" * 500 + b"\x00" + b"b" * 700 + b"\n#(B)\nb\n"),
     ("nul_inside_lines", b"#(A) a\x00b.ogg\nbefore\x00after\nnext\n"),
     ("utf8", "#(A)\nCaf\u00e9 \u2014 \u00b0\n".encode("utf-8")),
     ("duplicate_names", b"#(A)\nfirst\n#(A)\nsecond\n"),

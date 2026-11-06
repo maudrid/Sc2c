@@ -52,7 +52,7 @@ public class ConversationContentTests
     }
 
     [Fact]
-    public void UqmsNameIndexKeepsTheFirstOfANameAndEntriesStopAtMaxStrings()
+    public void TheNameIndexKeepsTheFirstOfAName()
     {
         var c = Conversation.Parse("#(A)\nfirst\n#(A)\nsecond\n#(B)\nb\n"u8);
         Assert.Equal(0, c.IndexOf("A"));
@@ -93,7 +93,7 @@ public class ConversationContentTests
         Assert.Equal(27, Scripts.All.Count);
         Assert.Equal(new[] { "comandr", "starbas" }, Scripts.For("COMMANDER_CONVERSATION").Select(s => s.Name));
         Assert.Equal(new[] { "ilwrath" }, Scripts.For("ILWRATH_CONVERSATION").Select(s => s.Name));
-        Assert.Equal(new[] { "chmmr" }, Scripts.For("URQUAN_DRONE_CONVERSATION").Select(s => s.Name));   // init_race's default
+        Assert.Equal(new[] { "urquan" }, Scripts.For("URQUAN_DRONE_CONVERSATION").Select(s => s.Name));  // as InitCommunication runs it
         var commander = Scripts["comandr"];
         Assert.Equal(4, commander.PhraseNumber("ARE_YOU_SUPPLY_SHIP"));         // strings.h: NULL_PHRASE, GLAD_..., GIVE_FUEL, GIVE_FUEL_AGAIN, ARE_YOU_...
         Assert.Equal("init_commander_comm", commander.Init);
@@ -102,6 +102,11 @@ public class ConversationContentTests
         Assert.Equal(new CommAnimation(1, 3, CommAnimationFlags.YoYo, 56, 0, 0, 6720, 0), d.Ambient[0]);   // the blink
         Assert.Equal(CommAnimationFlags.Random | CommAnimationFlags.PauseTalking, d.Ambient[2].Flags);   // the colour cycle
         Assert.Equal(new Rgba(255, 255, 255, 255), d.TextFore);
+        // As init_commander_comm leaves it at a new game: its subtitles' place, the low-power music.
+        Assert.Equal((164, 20, 143), (d.TextBaselineX, d.TextBaselineY, d.TextWidth));
+        Assert.Equal(("comm.commander.lowpower.music", true), (d.AltSong, d.UseAltSong));
+        Assert.Equal((121, 70, 224), (Scripts["ilwrath"].Description.TextBaselineX,
+            Scripts["ilwrath"].Description.TextBaselineY, Scripts["ilwrath"].Description.TextWidth));
         Assert.Throws<KeyNotFoundException>(() => commander.PhraseNumber("NO_SUCH_PHRASE"));
     }
 
@@ -132,19 +137,20 @@ public class ConversationContentTests
                 int maps = BinaryTable.Load(package, d.ColorMap).Count;
                 Assert.NotNull(UqmFont.Load(package, d.Font));
                 Assert.Equal("MUSICRES", package.Resource(d.Song).Type);
-                if (d.AltSong != "")
+                // An alternate song the base content hasn't (the commander's low-power one, the
+                // rebels', the starbase's: the 3DO music add-on's) falls back to the song, as in UQM.
+                if (d.AltSong != "" && package.Resources.ContainsKey(d.AltSong))
                     Assert.Equal("MUSICRES", package.Resource(d.AltSong).Type);
                 Assert.True(maps > 0, script.Name);
-                foreach (var a in d.Ambient.Append(d.Transition).Append(d.Talk).Where(a => a.NumFrames > 0))
-                {
-                    // A colour animation plays colour maps, wrapping round the table as UQM's
-                    // SetAbsStringTableIndex does (the Talking Pet's strobe runs 30 over its 2);
-                    // any other plays frames, which must all be there.
-                    bool colours = (a.Flags & CommAnimationFlags.PauseTalking) != 0 && d.Ambient.Contains(a);
-                    if (!colours)
-                        Assert.True(a.StartIndex + a.NumFrames <= frames,
-                            $"{script.Name}: an animation from {a.StartIndex}, {a.NumFrames} long, past its {frames} frames");
-                }
+                Assert.True(d.TextWidth > 0, script.Name);
+                // A colour animation plays colour maps, wrapping round the table as UQM's
+                // SetAbsStringTableIndex does (the Talking Pet's strobe runs 30 over its 2);
+                // the others play frames, which must all be there.
+                var pictures = d.Ambient.Where(a => (a.Flags & CommAnimationFlags.PauseTalking) == 0)
+                    .Append(d.Transition).Append(d.Talk).Where(a => a.NumFrames > 0);
+                foreach (var a in pictures)
+                    Assert.True(a.StartIndex + a.NumFrames <= frames,
+                        $"{script.Name}: an animation from {a.StartIndex}, {a.NumFrames} long, past its {frames} frames");
             }
         });
     }

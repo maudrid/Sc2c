@@ -249,7 +249,9 @@ class Conversations(unittest.TestCase):
         convs = {c["conversation"]: c for c in d["conversations"]}
         self.assertEqual(convs["COMMANDER_CONVERSATION"]["scripts"], ["comandr", "starbas"])
         self.assertEqual(convs["SPATHI_CONVERSATION"]["scripts"], ["spathi", "spahome"])
-        self.assertTrue(convs["URQUAN_DRONE_CONVERSATION"]["default"])
+        # InitCommunication runs a drone's conversation as the Ur-Quan's.
+        self.assertEqual(convs["URQUAN_DRONE_CONVERSATION"]["scripts"], ["urquan"])
+        self.assertEqual(convs["URQUAN_DRONE_CONVERSATION"]["as"], "URQUAN_CONVERSATION")
         for c in d["conversations"]:
             for s in c["scripts"]:
                 self.assertIn(s, scripts)
@@ -265,6 +267,10 @@ class Conversations(unittest.TestCase):
         self.assertEqual(c["talk"], [4, 6, 0, 84, 56, 98, 70, 0])
         self.assertEqual(c["frames"], "comm.commander.graphics")
         self.assertEqual(c["text_align"], 1)
+        # init_commander_comm: the subtitles' place, and at a new game (no
+        # radioactives yet) the low-power music.
+        self.assertEqual((c["text_baseline"], c["text_width"]), ([164, 20], 143))
+        self.assertEqual((c["alt_song"], c["song_flags"]), ("comm.commander.lowpower.music", 1))
 
 
 @unittest.skipUnless(os.environ.get("UQM_SC2"),

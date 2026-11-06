@@ -987,6 +987,47 @@ def extract_events(uqm):
 
 # ---------------------------------------------------------- conversations
 
+# What a script's init function needs to run outside UQM: the screen's
+# size (SCREEN_WIDTH is a variable, ScreenWidth), a game state of all
+# zeros (a new game's: no story bit set), UQM's getGameState,
+# getGameState32 and setGameState (globdata.c), a new game's CheckAlliance,
+# and setSegue (commglue.c, which only writes BATTLE_SEGUE).
+LOCDATA_ENV = r"""
+#include "races.h"
+int ScreenWidth = 320, ScreenHeight = 240;
+GLOBDATA GlobData;
+void setSegue (Segue segue) { (void) segue; }
+/* A new game's alliances (InitGameStructures): the humans' only. */
+COUNT CheckAlliance (COUNT race) { return race == HUMAN_SHIP ? GOOD_GUY : BAD_GUY; }
+/* globdata.c's, as UQM has them (GET_GAME_STATE, SET_GAME_STATE). */
+BYTE getGameState (BYTE *state, int startBit, int endBit)
+{
+    return (BYTE) (((startBit >> 3) == (endBit >> 3)
+            ? (state[startBit >> 3] >> (startBit & 7))
+            : ((state[startBit >> 3] >> (startBit & 7))
+              | (state[endBit >> 3] << (endBit - startBit - (endBit & 7)))))
+            & ((1 << (endBit - startBit + 1)) - 1));
+}
+DWORD getGameState32 (BYTE *state, int startBit)
+{
+    DWORD v;
+    int shift;
+    for (v = 0, shift = 0; shift < 32; shift += 8, startBit += 8)
+        v |= getGameState (state, startBit, startBit + 7) << shift;
+    return v;
+}
+void setGameState (BYTE *state, int startBit, int endBit, BYTE val)
+{
+    state[startBit >> 3] = (state[startBit >> 3]
+            & (BYTE) ~(((1 << (endBit - startBit + 1)) - 1) << (startBit & 7)))
+            | (BYTE)((val) << (startBit & 7));
+    if ((startBit >> 3) < (endBit >> 3))
+        state[endBit >> 3] = (state[endBit >> 3]
+                & (BYTE)~((1 << ((endBit & 7) + 1)) - 1))
+                | (BYTE)((val) >> (endBit - startBit - (endBit & 7)));
+}
+"""
+
 LOCDATA_PRINT = r"""
 #define S(x) ((x) ? (x) : "")
 #define PA(a) printf("[%u,%u,%u,%u,%u,%u,%u,%lu]", (unsigned)(a).StartIndex, \
@@ -995,8 +1036,9 @@ LOCDATA_PRINT = r"""
     (unsigned)(a).RandomRestartRate, (unsigned long)(a).BlockMask)
 #define PC(c) printf("[%u,%u,%u,%u]", (c).r, (c).g, (c).b, (c).a)
 {
-    const LOCDATA *d = &DESC;
+    const LOCDATA *d = INIT ();
     unsigned i;
+    if (d->NumAnimations > MAX_ANIMATIONS) { printf("too many animations\n"); return 1; }
     printf("{\"frames\": \"%s\", \"font\": \"%s\", \"color_map\": \"%s\", "
            "\"song\": \"%s\", \"alt_song\": \"%s\", \"song_flags\": %lu, \"phrases\": \"%s\", ",
            S(d->AlienFrameRes), S(d->AlienFontRes), S(d->AlienColorMapRes), S(d->AlienSongRes),
@@ -1037,9 +1079,13 @@ def extract_conversations(uqm):
             scripts.append((d, f, m.group(1), desc))
 
     out = []
-    sources = ["src/uqm/commglue.c", "src/uqm/commglue.h", "src/uqm/commanim.h", "src/uqm/globdata.h"]
+    sources = ["src/uqm/commglue.c", "src/uqm/commglue.h", "src/uqm/commanim.h", "src/uqm/globdata.h",
+               "src/uqm/comm.c", "src/uqm/units.h"]
+    env = os.path.join(uqm.build, "locdata_env.h")
+    with open(env, "w") as fh:
+        fh.write(LOCDATA_ENV)
     for d, f, init, desc in scripts:
-        line = uqm.run_c(LOCDATA_PRINT.replace("DESC", desc), [f"comm/{d}/{f}"])[-1]
+        line = uqm.run_c(LOCDATA_PRINT.replace("INIT", init), [f"comm/{d}/{f}", env])[-1]
         locdata = json.loads(line)
         # The phrase ids, as the compiler sees strings.h (#if 0 left out).
         pre = subprocess.run(["gcc", "-E", "-P", os.path.join(comm, d, "strings.h")],
@@ -1062,20 +1108,34 @@ def extract_conversations(uqm):
             current = runs.setdefault(name, [])
         else:
             current.append(tok.group(2))
+    if any(not v for v in runs.values()):
+        raise RuntimeError("init_race has a case that falls through; read it by hand")
+    # InitCommunication (comm.c) talks to a drone with the Ur-Quan's script:
+    # it turns URQUAN_DRONE_CONVERSATION into URQUAN_CONVERSATION before
+    # calling init_race (YEHAT_REBEL_CONVERSATION it turns back).
+    comm_c = strip_comments(uqm.read("src/uqm/comm.c"))
+    if not re.search(r"which_comm\s*==\s*URQUAN_DRONE_CONVERSATION\s*\)\s*\{[^}]*which_comm\s*=\s*URQUAN_CONVERSATION", comm_c):
+        raise RuntimeError("comm.c no longer turns the drone's conversation into the Ur-Quan's")
+    runs["URQUAN_DRONE_CONVERSATION"] = runs["URQUAN_CONVERSATION"]
+    aliases = {"URQUAN_DRONE_CONVERSATION": "URQUAN_CONVERSATION"}
     ids = enum_names(uqm.read("src/uqm/commglue.h"), "ARILOU_CONVERSATION")
     values = named_values(uqm, ids, ["uqm/commglue.h"])
     init_script = {init: d for d, _, init, _ in scripts}
     conversations = [{"conversation": c, "id": values[c],
                       "scripts": [init_script[i] for i in runs.get(c, runs["default"])],
-                      **({"default": True} if c not in runs else {})}
+                      **({"default": True} if c not in runs else {}),
+                      **({"as": aliases[c]} if c in aliases else {})}
                      for c in ids if c != "INVALID_CONVERSATION"]
     return wrap(uqm, sources, {"scripts": out, "conversations": conversations}, [
         "Each conversation script (src/uqm/comm/*/): its init function, its "
-        "race description (LOCDATA) as the compiler builds it, before the "
-        "init function changes it for the story state (that's code, ported "
-        "with each script), and its phrase ids in strings.h's order: the "
-        "phrase the script calls n is entry n - 1 of its CONVERSATION "
-        "resource (NULL_PHRASE, 0, isn't listed).",
+        "race description (LOCDATA) as its init function leaves it at the "
+        "start of a new game (every story bit 0; the screen 320 by 240, "
+        "which the subtitles' place and width are worked out from), and its "
+        "phrase ids in strings.h's order: the phrase the script calls n is "
+        "entry n - 1 of its CONVERSATION resource (NULL_PHRASE, 0, isn't "
+        "listed). Where an init function reads the story (the commander's "
+        "low-power colour cycle and music, the Spathi's and the Utwig's "
+        "music), its other branches are code, ported with the script.",
         "description: the resource ids of its frames, font, colour map, "
         "songs and phrases; text colours [r, g, b, a]; text_baseline, "
         "text_width; text_align (0 ALIGN_LEFT, 1 ALIGN_CENTER, 2 "
@@ -1092,8 +1152,10 @@ def extract_conversations(uqm):
         "init_race may run for it: two where it chooses by the story "
         "(COMMANDER_CONVERSATION: comandr before STARBASE_AVAILABLE, "
         "starbas after; SPATHI_CONVERSATION: spathi away from home, spahome "
-        "at it, by GLOBAL_FLAGS_AND_DATA bit 7); default where init_race's "
-        "default case runs the Chmmr's.",
+        "at it, by GLOBAL_FLAGS_AND_DATA bit 7). URQUAN_DRONE_CONVERSATION "
+        "has no case of its own, but InitCommunication (comm.c) runs it as "
+        "URQUAN_CONVERSATION (as), so it's the Ur-Quan's script; default "
+        "marks an id init_race would send to its default case, the Chmmr's.",
     ])
 
 
