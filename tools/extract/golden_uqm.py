@@ -2079,13 +2079,48 @@ def commander_starts():
     return starts
 
 
-COMM_SCRIPTS = {"comandr": commander_starts}
+def ilwrath_starts():
+    """The Ilwrath ship at Earth (ilwrathc.c's PROBE_ILWRATH_ENCOUNTER
+    branch, the only one stage 3a ports): its replies, and how many times
+    the player has asked the Ilwrath for news before (which only the
+    branches met in space read)."""
+    return [{"name": "at-earth", "state": {"PROBE_ILWRATH_ENCOUNTER": 1}, "ship": talk_ship()},
+            {"name": "at-earth-info-asked", "state": {"PROBE_ILWRATH_ENCOUNTER": 1, "ILWRATH_INFO": 3},
+             "ship": talk_ship()}]
+
+
+def starbase_starts():
+    """The allied starbase's talk (starbas.c) as the opening reaches it:
+    the starbase ready, with the Lunar base aboard (MOONBASE_ON_SHIP), on
+    a few dates, with and without minerals aboard, and a few random seeds
+    for the goodbye's lines. Only the goodbye is followed from the opening
+    (the other replies come with stage 3a's item 8, which walks them)."""
+    starts = []
+    for seed, date in ((1, (2155, 2, 17)), (2, (2155, 3, 31)), (3, (2156, 12, 1)),
+                       (40, (2155, 3, 3)), (500, (2155, 3, 4)), (6000, (2155, 3, 5)),
+                       (70000, (2155, 3, 6)), (800000, (2155, 3, 7))):
+        for minerals in (0, 12):
+            elements = [0] * 8
+            elements[RADIOACTIVE] = minerals
+            starts.append({"name": f"ready-{date[0]}-{date[1]}-{date[2]}{'-minerals' if minerals else ''}",
+                           "state": {"STARBASE_AVAILABLE": 1, "MOONBASE_DESTROYED": 1, "MOONBASE_ON_SHIP": 1,
+                                     "RADIOACTIVES_PROVIDED": 1, "GLOBAL_FLAGS_AND_DATA": 255},
+                           "ship": talk_ship(elements=elements), "date": list(date), "seed": seed,
+                           "follow": ["ByeBye"]})
+    return starts
+
+
+COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts}
+# A script's file where it isn't named after its folder.
+COMM_FILES = {"ilwrath": "ilwrathc.c"}
+# The date where a start doesn't give one: a new game's.
+TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.
 TALK_SEED = 12345
 
 
 def build_comm(uqm, script, init, out):
-    path = os.path.join(uqm.uqm, "comm", script, script + ".c")
+    path = os.path.join(uqm.uqm, "comm", script, COMM_FILES.get(script, script + ".c"))
     build(uqm, COMM_PROGRAM, COMM_LINK, out, extra=[UIO_FILES],
           libs=["-lm", "-Wl,--wrap=DeltaSISGauges", "-Wl,--wrap=DrawLanders",
                 "-Wl,--wrap=TFB_Random"],
@@ -2112,6 +2147,7 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions):
         " ".join(map(str, [ship["crew"], ship["fuel"], ship["landers"], ship["ru"],
                            *ship["elements"], *(MODULES[m] for m in ship["modules"])])),
         ship["captain"].encode().hex(), ship["ship"].encode().hex(),
+        " ".join(map(str, start.get("date", TALK_DATE))),
         str(start.get("seed", TALK_SEED)), " ".join(music)])
     by_bit = {f["start_bit"]: name for name, f in fields.items()}
 
@@ -2140,11 +2176,13 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions):
         last = events[-1]
         if "offer" in last:
             key = last.pop("key")
+            follow = start.get("follow")
             if key in seen:
                 last["seen"] = True
             else:
                 seen.add(key)
-                todo.extend(replies + [i] for i in reversed(range(len(last["offer"]))))
+                todo.extend(replies + [i] for i in reversed(range(len(last["offer"])))
+                            if follow is None or last["offer"][i][1] in follow)
         steps.append({"replies": replies, "events": events})
     return steps
 
@@ -2192,19 +2230,23 @@ def record_talks(uqm, strings_exe, package):
                              for start in starts()]
     data = header(uqm, ["tools/extract/golden/comm.c", "src/uqm/commglue.c", "src/uqm/sis.c",
                         "src/libs/math/random.c", "src/libs/strings/getstr.c"]
-                  + [f"src/uqm/comm/{s}/{s}.c" for s in COMM_SCRIPTS], [
+                  + [f"src/uqm/comm/{s}/{COMM_FILES.get(s, s + '.c')}" for s in COMM_SCRIPTS], [
         "Every path through each ported conversation script, recorded by "
         "running UQM's own script with UQM's commglue.c, sis.c and string "
         "tables, and the rest of the talk engine stubbed "
         "(tools/extract/golden/comm.c says what each event is). Each start "
         "is a story state (fields not given are 0), a flagship (crew, fuel "
         "in 1/100 units, landers, resource units, element amounts, module "
-        "slots, captain's and ship's names), the seed of the scripts' random "
-        "numbers (TFB_SeedRandom; 12345 where not given) and its steps: the replies "
+        "slots, captain's and ship's names), the date (a new game's where not "
+        "given), the seed of the scripts' random numbers (TFB_SeedRandom; "
+        "12345 where not given) and its steps: the replies "
         "chosen from the start, each the place in the replies offered, and "
         "the events after the last of them up to the next replies offered "
         "or the talk's end. An offer marked seen reaches a talk state "
-        "already walked from this start, so the walk goes no further.",
+        "already walked from this start, so the walk goes no further; a "
+        "start with follow walks only the replies calling those functions "
+        "(the rest of the script isn't ported yet). Voices are off "
+        "(usingSpeech false).",
         "Texts are content (CC BY-NC-SA 2.5), so only the first 16 hex "
         "digits of each line's SHA-256 are here; set names the field "
         "written (data/game-state.json); offer gives each reply's phrase "

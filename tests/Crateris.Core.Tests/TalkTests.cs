@@ -66,12 +66,16 @@ public class TalkTests
     private static readonly Dictionary<string, Func<ConversationScript, CommScript>> Ported = new()
     {
         ["comandr"] = p => new CommanderScript(p),
+        ["ilwrath"] = p => new IlwrathScript(p),
+        ["starbas"] = p => new StarbaseScript(p),
     };
 
     private static Talk Start(ContentPackage package, string script, JsonElement start)
     {
         var s = Scripts[script];
-        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        var date = start.TryGetProperty("date", out var dt) ? dt.Ints() : new[] { 2155, 2, 17 };
+        var clock = new GameClock(date[0], date[1], date[2]);
+        var story = StoryState.NewGame(Rules, clock);
         var own = new Dictionary<string, int>();
         foreach (var f in start.GetProperty("state").EnumerateObject())
         {
@@ -82,7 +86,7 @@ public class TalkTests
         }
         uint seed = start.TryGetProperty("seed", out var sd) ? sd.GetUInt32() : 12345;
         var talk = new Talk(Ported[script](s), s.Description, Conversation.Load(package, s.Description.Phrases),
-            BinaryTable.Load(package, s.Description.ColorMap).Count, story, own, TestShip.From(start.GetProperty("ship")), seed,
+            BinaryTable.Load(package, s.Description.ColorMap).Count, story, own, TestShip.From(start.GetProperty("ship")), clock, seed,
             id => package.Resources.TryGetValue(id, out var r) && r.Type == "MUSICRES" && package.HasFile(r.Value));
         talk.Start();
         return talk;
@@ -135,9 +139,20 @@ public class TalkTests
                     var replies = step.GetProperty("replies").Ints();
                     var talk = Start(package, script, start);
                     int from = 0;
-                    foreach (int r in replies)
+                    bool partial = start.TryGetProperty("follow", out _);
+                    var steps = start.GetProperty("steps").EnumerateArray().ToList();
+                    for (int k = 0; k < replies.Length; ++k)
                     {
                         from = talk.Events.Count;
+                        // A script ported in part offers fewer replies: the
+                        // reply is found by its function.
+                        int r = replies[k];
+                        if (partial)
+                        {
+                            var before = steps.Single(x => x.GetProperty("replies").Ints().SequenceEqual(replies[..k]));
+                            string func = before.GetProperty("events").EnumerateArray().Last().GetProperty("offer")[r][1].GetString()!;
+                            r = talk.Replies.Select(x => x.Function).ToList().IndexOf(func);
+                        }
                         talk.Choose(r);
                     }
                     var want = step.GetProperty("events").EnumerateArray().Select(e =>
@@ -147,6 +162,17 @@ public class TalkTests
                         return o.ToJsonString();
                     }).ToList();
                     var got = talk.Events.Skip(from).Select(e => Json(e).ToJsonString()).ToList();
+                    if (partial && replies.Length > 0)
+                        got[0] = want[0];   // the reply's place, found by its function above
+                    if (start.TryGetProperty("follow", out var follow) && JsonNode.Parse(want[^1])!["offer"] is JsonArray all)
+                    {
+                        // A script ported in part (the starbase's, until item 8):
+                        // it offers those of UQM's replies the walk follows, in order.
+                        var followed = follow.EnumerateArray().Select(f => f.GetString()).ToHashSet();
+                        var offer = all.Where(o => followed.Contains(o![1]!.GetValue<string>())).Select(o => o!.DeepClone()).ToArray();
+                        Assert.NotEmpty(offer);
+                        want[^1] = new JsonObject { ["offer"] = new JsonArray(offer) }.ToJsonString();
+                    }
                     Assert.True(want.SequenceEqual(got),
                         $"{script} {name} after [{string.Join(", ", replies)}]:\n  UQM: {string.Join("\n       ", want)}\n  port: {string.Join("\n       ", got)}");
                 }
@@ -190,7 +216,8 @@ public class TalkTests
             "#(HELLO) h.ogg\nHello\n#(BYE) b.ogg\nBye\n#(ask)\nWhat?\n#(name_1)\nThe One\n#(name_2)\nThe Two\n#(name_3)\nThe Three\n#(name_4)\nThe Empire of \n#(name_end)\n!\n"u8);
         var script = new ProbeScript(phrases, intro);
         var talk = new Talk(script, Plain, lines, 2, StoryState.NewGame(Rules, new GameClock(2155, 2, 17)),
-            own ?? new Dictionary<string, int>(), ship ?? new TestShip { Crew = 10, CrewCapacity = 50, Fuel = 100, FuelCapacity = 6000, Landers = 1 }, seed,
+            own ?? new Dictionary<string, int>(), ship ?? new TestShip { Crew = 10, CrewCapacity = 50, Fuel = 100, FuelCapacity = 6000, Landers = 1 },
+            new GameClock(2155, 2, 17), seed,
             _ => true);
         return (talk, script);
     }
@@ -384,7 +411,8 @@ public class TalkTests
             var phrases = Scripts["comandr"];
             var talk = new Talk(new CommanderScript(phrases), phrases.Description,
                 Conversation.Parse("#(ARE_YOU_SUPPLY_SHIP) a.ogg\nHi\n"u8), 2,
-                StoryState.NewGame(Rules, new GameClock(2155, 2, 17)), new(), new TestShip { CrewCapacity = 50, FuelCapacity = 1000 }, 1,
+                StoryState.NewGame(Rules, new GameClock(2155, 2, 17)), new(), new TestShip { CrewCapacity = 50, FuelCapacity = 1000 },
+                new GameClock(2155, 2, 17), 1,
                 id => loads);
             try
             {

@@ -27,6 +27,7 @@
  *   crew, fuel, landers, resource units, then the 8 element amounts and
  *     the 16 module slots;
  *   the captain's and the ship's names, in hex;
+ *   the date: year, month and day (GameClock);
  *   the seed of the scripts' random numbers (TFB_SeedRandom);
  *   the music resources that load, space-separated (HailAlien plays the
  *     alternate song only if it loads);
@@ -78,6 +79,8 @@ UNICODE shared_phrase_buf[2048];
 GLOBDATA GlobData;
 BOOLEAN instantVictory;
 int ScreenWidth = 320, ScreenHeight = 240;
+/* Without the voice add-on (setup.c's, set when the speech loads). */
+BOOLEAN usingSpeech = FALSE;
 
 #define MAX_REPLIES 8
 
@@ -293,6 +296,15 @@ setGameState (BYTE *state, int startBit, int endBit, BYTE val)
 				| (BYTE)((val) >> (endBit - startBit - (endBit & 7)));
 }
 
+/* globdata.c's: four 8-bit fields, low byte first. */
+void
+setGameState32 (BYTE *state, int startBit, DWORD val)
+{
+	int i;
+	for (i = 0; i < 4; ++i, val >>= 8, startBit += 8)
+		setGameState (state, startBit, startBit + 7, (BYTE) (val & 0xff));
+}
+
 /* sis.c's DeltaSISGauges, recorded as called (linked with
  * --wrap=DeltaSISGauges); its drawing goes to the stubs below. */
 void __real_DeltaSISGauges (SIZE crew, SIZE fuel, int ru);
@@ -338,13 +350,18 @@ BOOLEAN GetFrameRect (FRAME f, RECT *r) { (void) f; memset (r, 0, sizeof *r); re
 FRAME DecFrameIndex (FRAME f) { return f; }
 FRAME IncFrameIndex (FRAME f) { return f; }
 void ClearDrawable (void) {}
+FRAME SetContextFGFrame (FRAME f) { return f; }
+Color SetContextBackGroundColor (Color c) { return c; }
 BOOLEAN SetContextClipRect (RECT *r) { (void) r; return TRUE; }
 BOOLEAN GetContextClipRect (RECT *r) { memset (r, 0, sizeof *r); return TRUE; }
-CONTEXT StatusContext;
+CONTEXT StatusContext, OffScreenContext, ScreenContext, SpaceContext;
+FRAME Screen, FontGradFrame;
+FONT StarConFont, MicroFont;
+STRING GameStrings;   /* GAME_STRING gives NULL: only drawn */
+int optWhichMenu;
 FONT TinyFont;
 FRAME FlagStatFrame;
 int optWhichFonts;
-int curMsgMode = 1;   /* SMM_RES_UNITS, which DeltaSISGauges asserts */
 
 /* ------------------------------------------------------------- the talk */
 
@@ -462,6 +479,7 @@ main (void)
 	{
 		sscanf (p, "%u%n", &v, &i);
 		GLOBAL_SIS (ElementAmounts[step]) = v;
+		GLOBAL_SIS (TotalElementMass) += v;
 	}
 	for (step = 0; step < NUM_MODULE_SLOTS; ++step, p += i)
 	{
@@ -473,6 +491,14 @@ main (void)
 	read_line (line, sizeof line);
 	read_hex (line, GLOBAL_SIS (ShipName), SIS_NAME_SIZE - 1);
 	read_line (line, sizeof line);
+	{
+		unsigned y, m, dd;
+		sscanf (line, "%u %u %u", &y, &m, &dd);
+		GLOBAL (GameClock.year_index) = y;
+		GLOBAL (GameClock.month_index) = m;
+		GLOBAL (GameClock.day_index) = dd;
+	}
+	read_line (line, sizeof line);
 	TFB_SeedRandom (strtoul (line, NULL, 10));
 	read_line (music, sizeof music);
 	read_line (line, sizeof line);
@@ -480,6 +506,9 @@ main (void)
 	sscanf (p, "%d%n", &replies, &i);
 	p += i;
 
+	/* VisitStarBase's status line shows the resource units, as
+	 * DeltaSISGauges asserts. */
+	SetStatusMessageMode (SMM_RES_UNITS);
 	/* InitCommunication: the script's description, copied. */
 	check_changes ();
 	d = SCRIPT_INIT ();

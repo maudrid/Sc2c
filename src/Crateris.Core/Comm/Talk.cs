@@ -75,11 +75,14 @@ public sealed class Talk
     /// <param name="story">The group's story state.</param>
     /// <param name="ownFields">The fields that aren't shared, as they stand for this talk (0 if not given); changed as the talk writes them.</param>
     /// <param name="ship">The starter's ship.</param>
+    /// <param name="clock">The game's clock, which the scripts read the date from (GameClock).</param>
     /// <param name="seed">The scripts' random seed for this talk.</param>
     /// <param name="musicLoads">Whether a music resource loads (the content has it): the alternate song is played only if it does.</param>
     public Talk(CommScript script, CommDescription description, Conversation phrases, int colorMapCount,
-        StoryState story, Dictionary<string, int> ownFields, ITalkShip ship, uint seed, Func<string, bool> musicLoads)
+        StoryState story, Dictionary<string, int> ownFields, ITalkShip ship, World.GameClock clock, uint seed,
+        Func<string, bool> musicLoads)
     {
+        Clock = clock;
         _musicLoads = musicLoads;
         _script = script;
         Description = description;
@@ -108,6 +111,12 @@ public sealed class Talk
     }
 
     public CommDescription Description { get; }
+
+    /// <summary>The game's clock (GLOBAL (GameClock)).</summary>
+    public World.GameClock Clock { get; }
+
+    /// <summary>usingSpeech: whether the voices play. Not yet: lines are as UQM gives them without the voice add-on.</summary>
+    public bool UsingSpeech => false;
 
     public ITalkShip Ship { get; }
 
@@ -401,6 +410,28 @@ public sealed class Talk
         else
             _story.Set(field, value);
     }
+
+    /// <summary>GET_GAME_STATE_32: the four 8-bit fields from <paramref name="first"/>, low byte first.</summary>
+    public uint Get32(string first)
+    {
+        var f = _story.Table[first];
+        uint v = 0;
+        for (int i = 0; i < 4; ++i)
+            v |= (uint)Get(FieldAt(f.StartBit + 8 * i)) << (8 * i);
+        return v;
+    }
+
+    /// <summary>SET_GAME_STATE_32: each of the four bytes set in turn, low byte first.</summary>
+    public void Set32(string first, uint value)
+    {
+        var f = _story.Table[first];
+        for (int i = 0; i < 4; ++i, value >>= 8)
+            Set(FieldAt(f.StartBit + 8 * i), (byte)value);
+    }
+
+    private string FieldAt(int startBit) =>
+        _story.Table.Fields.FirstOrDefault(x => x.StartBit == startBit && x.Bits == 8)?.Name
+        ?? throw new InvalidOperationException($"no 8-bit field at bit {startBit}");
 
     public StoryState Story => _story;
 
