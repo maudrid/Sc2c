@@ -46,6 +46,9 @@
     },
     "drawing": {
       "weight": 6
+    },
+    "story": {
+      "weight": 2
     }
   }
 }

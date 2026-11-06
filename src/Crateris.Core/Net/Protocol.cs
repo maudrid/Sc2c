@@ -40,8 +40,10 @@ public static class Protocol
     /// (its landers with the crew they took, what's on it as drawn with its
     /// fill colour, the deposits taken in its last frame), and dropping
     /// cargo overboard.
+    /// 7: snapshots carry the story state (the game-state bits that changed,
+    /// the prices, the races' standing).
     /// </summary>
-    public const int Version = 6;
+    public const int Version = 7;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()

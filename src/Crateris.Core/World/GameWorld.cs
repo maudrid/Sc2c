@@ -10,6 +10,7 @@ using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Planetside;
+using Crateris.Core.Story;
 using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
 
@@ -59,10 +60,12 @@ public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint 
 /// <summary>
 /// The game at a frame: the date, the ships of the players present, the
 /// worlds being orbited (with their taken nodes) and the surfaces with
-/// landers on them. A guest is sent only its own lander's surface.
+/// landers on them, and the story state (made again only when it changes).
+/// A guest is sent only its own lander's surface.
 /// </summary>
 public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IReadOnlyList<ShipSnapshot> Ships,
-    IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null, IReadOnlyList<SurfaceSnapshot>? Surfaces = null);
+    IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null, IReadOnlyList<SurfaceSnapshot>? Surfaces = null,
+    Story.StorySnapshot? Story = null);
 
 /// <summary>
 /// The host's authoritative game: world state (clock, planets) and every
@@ -84,6 +87,8 @@ public sealed class GameWorld
     private readonly List<(WorldId World, PlanetsideSurface Surface)> _surfaces = new();
     private readonly Dictionary<Lander, Player> _landerPlayers = new();
     private readonly Dictionary<Lander, LanderInput> _landerInput = new();
+    private StorySnapshot? _storySnapshot;
+    private long _storyVersion;
 
     public GameSettings Settings { get; }
     public GameClock Clock { get; }
@@ -91,6 +96,13 @@ public sealed class GameWorld
 
     /// <summary>Planets and moons: taken nodes, shared by every player.</summary>
     public PlanetWorldState Planets { get; }
+
+    /// <summary>
+    /// The story state the group shares (docs/plans/stage-3.md, item 1):
+    /// made from the systems' <see cref="SystemCatalog.StoryRules"/>, so a
+    /// world without them (some tests) has none.
+    /// </summary>
+    public StoryState? Story { get; internal set; }
 
     /// <summary>The star map and its systems, when the world has them (always in the game; optional in tests).</summary>
     public SystemCatalog? Systems { get; }
@@ -127,6 +139,8 @@ public sealed class GameWorld
         Systems = systems;
         Shapes = shapes;
         Planets = new PlanetWorldState(systems);
+        if (!loading && systems?.StoryRules is { } rules)
+            Story = StoryState.NewGame(rules, clock);
     }
 
     /// <summary>A new game with the host in the flagship, in hyperspace at the start position.</summary>
@@ -547,6 +561,12 @@ public sealed class GameWorld
                 s.Surface.Elements.Where(e => e.Kind != SurfaceElementKind.Mineral).Select(SurfaceElementSnapshot.Of).ToList(),
                 s.Surface.Taken.Where(t => t.Scan == ScanType.Mineral).Select(t => t.Node).Distinct().ToList()))
             .ToList();
-        return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces);
+        if (Story is { } story && (_storySnapshot is null || _storyVersion != story.Version))
+        {
+            _storySnapshot = StorySnapshot.Of(story);
+            _storyVersion = story.Version;
+        }
+        return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces,
+            Story is null ? null : _storySnapshot);
     }
 }

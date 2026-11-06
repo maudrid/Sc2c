@@ -19,11 +19,12 @@ public sealed class SystemCatalog
 {
     private readonly SolarSystem?[] _systems;
 
-    public SystemCatalog(StarMap map, SystemGenerator generator, Lifeforms? lifeforms = null)
+    public SystemCatalog(StarMap map, SystemGenerator generator, Lifeforms? lifeforms = null, Story.StoryRules? storyRules = null)
     {
         Map = map;
         Generator = generator;
         Lifeforms = lifeforms;
+        StoryRules = storyRules;
         _systems = new SolarSystem?[map.Stars.Count];
     }
 
@@ -34,9 +35,12 @@ public sealed class SystemCatalog
 
     public SystemGenerator Generator { get; }
 
+    /// <summary>What the game's story state is made from (loaded with the catalog from its data).</summary>
+    public Story.StoryRules? StoryRules { get; }
+
     public static SystemCatalog Load(string dataDirectory, SystemStoryState? story = null) =>
         new(StarMap.Load(dataDirectory), new SystemGenerator(PlanetTypes.Load(dataDirectory), story),
-            Lifeforms.Load(dataDirectory));
+            Lifeforms.Load(dataDirectory), Story.StoryRules.Load(dataDirectory));
 
     /// <summary>The system of a star (map number).</summary>
     public SolarSystem this[int star] => _systems[star] ??= Generator.Generate(Map.Stars[star]);

@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
+using Crateris.Core.Story;
 using Crateris.Core.Systems;
 
 namespace Crateris.Core.World;
@@ -29,9 +30,13 @@ public static class HostSave
     /// world has been touched. 5 added each ship's hold (PlayerState.Hold:
     /// crew, landers, minerals, bio data, lander upgrades) and its loadout's
     /// landers and storage bays; a ship from an older save has its loadout's
-    /// crew, one lander and one storage bay, and nothing in its hold.
+    /// crew, one lander and one storage bay, and nothing in its hold. 6
+    /// added the story state (Story: the game-state fields that aren't 0,
+    /// the prices, the races' standing and the clock's events); an older
+    /// save has a new game's story state, its events counted from the new
+    /// game's date.
     /// </summary>
-    public const int Version = 5;
+    public const int Version = 6;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -43,7 +48,7 @@ public static class HostSave
 
     public sealed record SaveFile(
         int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players,
-        List<WorldState>? Worlds = null);
+        List<WorldState>? Worlds = null, StoryState.Saved? Story = null);
 
     /// <summary>
     /// One planet or moon with stored state: moon null for the planet itself;
@@ -86,7 +91,7 @@ public static class HostSave
                 w.Value[ScanType.Mineral], w.Value[ScanType.Energy], w.Value[ScanType.Biological]))
             .ToList();
         var save = new SaveFile(Version, world.Settings, new ClockState(c.Year, c.Month, c.Day, c.FramesIntoDay),
-            world.Frame, players, worlds);
+            world.Frame, players, worlds, world.Story?.Save());
         return JsonSerializer.Serialize(save, Options);
     }
 
@@ -185,6 +190,20 @@ public static class HostSave
                 UndockPending = ps.UndockPending,
             });
         }
+        if (systems?.StoryRules is { } rules)
+        {
+            var (y, m, d) = rules.StartDate;
+            world.Story = save.Story is { } story
+                ? StoryState.Restore(rules, story)
+                : StoryState.NewGame(rules, new GameClock(y, m, d));
+            // The systems are made from the story state (Procyon's starbase, Spathiwa's
+            // shield). Nothing in stage 3a changes what they read; the save must agree.
+            if (world.Story.SystemStory != systems.Generator.Story)
+                throw new InvalidDataException(
+                    $"The save's story ({world.Story.SystemStory}) makes different systems from the ones loaded ({systems.Generator.Story}).");
+        }
+        else if (save.Story is not null)
+            throw new InvalidDataException("The save has a story state, but no data was given to load it with.");
         var seen = new HashSet<WorldId>();
         foreach (var w in save.Worlds ?? new List<WorldState>())
         {
