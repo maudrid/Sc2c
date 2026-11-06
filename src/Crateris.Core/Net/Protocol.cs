@@ -44,8 +44,12 @@ public static class Protocol
     /// the prices, the races' standing).
     /// 8: each ship carries its stored ship's and captain's names (none for
     /// the flagship's UQM names and a guest's join name as captain).
+    /// 9: a ship's hold carries its resource units; a ship can be in a talk
+    /// (Activity.Talk); the talk a player is in is sent to them as a
+    /// reliable message when it changes (TalkView), and their reply comes
+    /// back as one.
     /// </summary>
-    public const int Version = 8;
+    public const int Version = 9;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()

@@ -6,6 +6,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Comm;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
@@ -181,12 +182,54 @@ public sealed class HostSession
             World.UndockShown(id);
     }
 
+    /// <summary>A guest chooses a reply in its talk (anything wrong is ignored).</summary>
+    public void GuestChooseReply(long peer, int index)
+    {
+        if (_peers.TryGetValue(peer, out var id))
+            ChooseReply(id, index);
+    }
+
+    /// <summary>A player chooses a reply in their talk (the host's own through here too).</summary>
+    public bool ChooseReply(string id, int index)
+    {
+        bool chosen = World.ChooseReply(id, index);
+        if (chosen)
+            Logged?.Invoke($"{id}: reply {index}");
+        return chosen;
+    }
+
+    private readonly Dictionary<string, TalkView?> _talkSent = new();
+
+    /// <summary>What a player in a talk is shown now: null if they're in none.</summary>
+    public TalkView? TalkFor(string id) =>
+        World.Find(id)?.Ship.Visit is { } v && v.Starter.Id == id ? TalkView.Of(v) : null;
+
+    /// <summary>
+    /// The talks to send the guests: each guest whose talk view has changed
+    /// since it was last sent (empty for none), as reliable messages.
+    /// </summary>
+    public List<(long Peer, byte[] Data)> TalkUpdates()
+    {
+        var updates = new List<(long, byte[])>();
+        foreach (var (peer, id) in _peers)
+        {
+            var view = TalkFor(id);
+            var sent = _talkSent.GetValueOrDefault(id);
+            if (view is null ? sent is null : view.Same(sent))
+                continue;
+            _talkSent[id] = view;
+            updates.Add((peer, view?.Encode() ?? Array.Empty<byte>()));
+        }
+        return updates;
+    }
+
     /// <summary>A guest's connection has gone: it leaves the game (its ship is kept for its return).</summary>
     public void GuestLeft(long peer)
     {
         _snapshots.Forget(peer);
         if (_peers.Remove(peer, out var id))
         {
+            _talkSent.Remove(id);
             World.Leave(id);
             Logged?.Invoke($"{id} left");
         }

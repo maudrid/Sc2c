@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Crateris.Core.Comm;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
@@ -68,6 +69,7 @@ public partial class Main : Node2D
     // official one), and the screens that get it on first run and show its notice.
     private Names _names = null!;
     private ContactShapes _shapes = null!;
+    private TalkLibrary? _talks;
     private FirstRunScreen? _firstRun;
     private ContentErrorScreen? _contentError;
     private AboutScreen _about = null!;
@@ -221,6 +223,7 @@ public partial class Main : Node2D
             var sheets = new AnimationSheets(content);   // decoded once, for the shapes and the sprites
             _names = Names.Load(content);
             _shapes = ContactShapes.Load(sheets);
+            _talks = TalkLibrary.Load(content, ConversationScripts.Load(_dataDir));
             if (!Headless)
             {
                 _view.Sprites = _systemView.Sprites = new SpriteTextures(new SpaceSprites(content, sheets));
@@ -295,6 +298,7 @@ public partial class Main : Node2D
             Log("New game");
         }
         _host.Logged += Log;
+        _host.World.TalkLibrary = _talks;
         ApplyStartOptions(_host);
         _inputDelay = _host.World.Settings.InputDelayFrames;
 
@@ -388,6 +392,22 @@ public partial class Main : Node2D
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void LandingRefused(int refusal) => _player?.LandingRefused((DispatchRefusal)refusal);
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ChooseReply(int index) => _host?.GuestChooseReply(Multiplayer.GetRemoteSenderId(), index);
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowTalk(byte[] talk)
+    {
+        try
+        {
+            _player?.ShowTalk(TalkView.Decode(talk));
+        }
+        catch (InvalidDataException e)
+        {
+            Log($"Bad talk from the host: {e.Message}");
+        }
+    }
 
     private void SaveGame()
     {
@@ -489,13 +509,18 @@ public partial class Main : Node2D
                 if (landing is { } site && _host.Dispatch(_host.HostId, site.X, site.Y) is var refusal
                         && refusal != DispatchRefusal.None)
                     _player.LandingRefused(refusal);
+                if (inGame && _player.TakeReply() is int reply)
+                    _host.ChooseReply(_host.HostId, reply);
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
+                _player.ShowTalk(_host.TalkFor(_host.HostId));
                 // Each guest gets its own: a delta from what it has, or in full.
                 if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
                 {
                     foreach (long peer in _host.GuestPeers)
                         RpcId(peer, MethodName.ReceiveSnapshot, _host.SnapshotFor(peer));
+                    foreach (var (peer, talk) in _host.TalkUpdates())
+                        RpcId(peer, MethodName.ShowTalk, talk);
                 }
             }
             else if (_connected && _player.Snapshot is { } snap)
@@ -504,6 +529,8 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.RequestLanding, site.X, site.Y);
                 foreach (int category in discards)
                     RpcId(1, MethodName.DiscardCargo, category);
+                if (_player.TakeReply() is int reply)
+                    RpcId(1, MethodName.ChooseReply, reply);
                 RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input, snap.Frame);
                 if (_player.UndockTick())
                     RpcId(1, MethodName.UndockShown);

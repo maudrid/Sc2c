@@ -112,6 +112,9 @@ public sealed class Talk
 
     public CommDescription Description { get; }
 
+    /// <summary>The script the talk runs.</summary>
+    public CommScript Script => _script;
+
     /// <summary>The game's clock (GLOBAL (GameClock)).</summary>
     public World.GameClock Clock { get; }
 

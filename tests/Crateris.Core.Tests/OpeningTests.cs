@@ -305,4 +305,58 @@ public class OpeningTests
         Assert.Equal(Activity.Talk, ship.Activity);
         Assert.Null(ship.Ip!.Orbit);   // in flight by the starbase
     }
+
+    [ContentFact]
+    public void AGuestIsSentItsTalkAndItsReplyComesBack()
+    {
+        var host = Session.HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Zelnick",
+            Systems, TestContent.Shapes);
+        host.World.TalkLibrary = Library.Value;
+        host.Hello(1, "guest", "Guest", Net.Protocol.Version);
+        host.World.UndockShown("guest");
+        host.World.PutInOrbit("guest", Sol, Earth, Luna);
+        var guest = host.World.Find("guest")!;
+        guest.Ship.Ip!.ReturnFromOrbit();
+        Assert.Empty(host.TalkUpdates());
+        host.World.VisitStarbase(guest);
+
+        var (peer, data) = Assert.Single(host.TalkUpdates());
+        Assert.Equal(1, peer);
+        var view = TalkView.Decode(data)!;
+        Assert.Equal((VisitStep.Commander, "comandr", 3), (view.Step, view.Script, view.Replies.Count));
+        Assert.Single(view.Lines);                 // ARE_YOU_SUPPLY_SHIP
+        Assert.Contains("Wayfarer", view.Replies[0]); // the escort's name, spliced in
+        Assert.Empty(host.TalkUpdates());          // sent once
+        Assert.Null(host.TalkFor("host"));
+
+        host.GuestChooseReply(1, 1);               // yes_this_is_supply_ship
+        view = TalkView.Decode(Assert.Single(host.TalkUpdates()).Data)!;
+        Assert.Equal(2, view.Replies.Count);       // i_lied, plumb_out
+        host.GuestChooseReply(1, 0);
+        host.GuestChooseReply(1, view.Replies.Count);   // no such reply: ignored
+        Assert.Single(host.TalkUpdates());
+        host.GuestChooseReply(1, IndexOf(host, "guest", "ok_i_will_get_radios"));
+        Assert.Empty(Assert.Single(host.TalkUpdates()).Data);   // over: no talk
+        Assert.Null(TalkView.Decode(Array.Empty<byte>()));
+    }
+
+    private static int IndexOf(Session.HostSession host, string id, string phrase)
+    {
+        int n = Scripts["comandr"].PhraseNumber(phrase);
+        return host.World.Find(id)!.Ship.Visit!.Talk!.Replies.Select(r => r.Phrase).ToList().IndexOf(n);
+    }
+
+    [Fact]
+    public void ATalkViewRoundTripsAndBadOnesAreRefused()
+    {
+        var view = new TalkView(VisitStep.Alliance, "comandr", new[] { "Hello", "Zoë!" }, new[] { "a", "b" });
+        Assert.True(view.Same(TalkView.Decode(view.Encode())));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(new byte[] { 99 }));
+        var w = new Net.WireWriter();
+        w.UInt(1);
+        w.String("x");
+        w.UInt(0);
+        w.UInt(9);   // more replies than a talk has
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(w.Written.ToArray()));
+    }
 }

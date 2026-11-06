@@ -6,6 +6,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Comm;
 using Crateris.Core.Content;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
@@ -257,7 +258,7 @@ public sealed class PlayerSession
                 PressMenu(key);
         }
         else
-            input = Me?.Activity == Activity.Orbit ? ShipInput.None : keys;   // on the surface, the lander's keys
+            input = Me?.Activity is Activity.Orbit or Activity.Talk ? ShipInput.None : keys;   // on the surface, the lander's keys
         if (Entering)
             return ShipInput.None;
         if (_leaveFrames > 0)
@@ -268,9 +269,63 @@ public sealed class PlayerSession
         return input;
     }
 
-    /// <summary>A key for the orbit screen's menus.</summary>
+    /// <summary>
+    /// The talk this player is in, as the host last sent it (until the
+    /// communication screen, item 11, in words); null if none.
+    /// </summary>
+    public TalkView? Talk { get; private set; }
+
+    /// <summary>The reply the cursor is on.</summary>
+    public int ReplyCursor { get; private set; }
+
+    private int? _reply;
+
+    /// <summary>The host sent this player's talk (empty: none).</summary>
+    public void ShowTalk(TalkView? view)
+    {
+        if (view is null || Talk is null || !view.Replies.SequenceEqual(Talk.Replies) || view.Script != Talk.Script)
+            ReplyCursor = 0;
+        Talk = view;
+    }
+
+    /// <summary>The reply chosen, to send to the host once; null if none is waiting.</summary>
+    public int? TakeReply()
+    {
+        var r = _reply;
+        _reply = null;
+        return r;
+    }
+
+    // In a talk the menu keys move the reply cursor (up and down, round)
+    // and choose (select), as UQM's PlayerResponseInput.
+    private void PressTalk(MenuKey key)
+    {
+        if (Talk is not { Replies.Count: > 0 } talk || _reply is not null)
+            return;
+        int n = talk.Replies.Count;
+        switch (key)
+        {
+            case MenuKey.Up:
+                ReplyCursor = (ReplyCursor + n - 1) % n;
+                break;
+            case MenuKey.Down:
+                ReplyCursor = (ReplyCursor + 1) % n;
+                break;
+            case MenuKey.Select:
+                _reply = ReplyCursor;
+                Log($"Reply {ReplyCursor}: {talk.Replies[ReplyCursor]}");
+                break;
+        }
+    }
+
+    /// <summary>A key for the orbit screen's menus (in a talk, for its replies).</summary>
     public void PressMenu(MenuKey key)
     {
+        if (Me?.Activity == Activity.Talk)
+        {
+            PressTalk(key);
+            return;
+        }
         if (OrbitMenu == null || Me?.Activity == Activity.Planetside || _landingAsked)
             return;   // the keys drive the lander then (or will soon); the menu waits for its return
         OrbitMenuItem item = OrbitMenu.Selected;
@@ -486,7 +541,20 @@ public sealed class PlayerSession
             var host = Snapshot?.Ships.FirstOrDefault(s => s.IsHost);
             lines.Add($"Undocking from {host?.Name ?? "the"}'s flagship...");
         }
-        if (Me?.Activity == Activity.Planetside)
+        if (Me?.Activity == Activity.Talk)
+        {
+            if (Talk is { } talk)
+            {
+                if (talk.Step == VisitStep.TimePassing)
+                    lines.Add("Time passes...");
+                foreach (var l in talk.Lines)
+                    lines.Add(l.Replace('\n', ' ').Replace('\r', ' '));
+                for (int i = 0; i < talk.Replies.Count; ++i)
+                    lines.Add($"{(i == ReplyCursor ? ">" : " ")} {talk.Replies[i]}");
+            }
+            lines.Add("Up, down: choose a reply; Enter: say it");
+        }
+        else if (Me?.Activity == Activity.Planetside)
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
         else if (Me?.Activity != Activity.Orbit && !Entering)
             lines.Add("Arrows: turn and thrust");
