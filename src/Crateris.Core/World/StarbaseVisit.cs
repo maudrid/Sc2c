@@ -48,10 +48,11 @@ public enum VisitStep
 /// The starbase's menu comes with item 8; until then the visit ends there,
 /// and the ship is back in flight by the starbase.
 /// <para>
-/// What the visit changed is kept apart from what it started from
-/// (<see cref="StoryBefore"/> and the starter's ship), so a save made
-/// during it is of the game before it, as UQM can't save in the middle of
-/// one; and if the starter leaves, the visit is undone.
+/// What the visit changed can be taken back: the story fields its talks
+/// wrote (only those: another player's lander may take the Lunar base
+/// meanwhile), the starter's ship and the two weeks. A save made during it
+/// is of the game without it, as UQM can't save in the middle of one; and
+/// if the starter leaves, the visit is undone.
 /// </para>
 /// </summary>
 public sealed class StarbaseVisit
@@ -69,6 +70,7 @@ public sealed class StarbaseVisit
     private int _fadeLeft;
     private uint _unitsBefore;
     private int _talks;
+    private bool _skipped;
 
     internal StarbaseVisit(GameWorld world, Player starter)
     {
@@ -112,6 +114,9 @@ public sealed class StarbaseVisit
 
     public bool Done => Step == VisitStep.Done;
 
+    /// <summary>How many sets of replies the visit's talks have offered: the set offered now is this one.</summary>
+    public int Round => Talks.Sum(t => t.Events.Count(e => e is RepliesOffered));
+
     /// <summary>The starter chooses a reply in the talk going on. False if none is offered.</summary>
     internal bool Choose(int index)
     {
@@ -130,9 +135,12 @@ public sealed class StarbaseVisit
             return;
         if (--_fadeLeft > 0)
             return;
-        // MoveGameClockDays: the clock's events wait for stage 3c.
+        // MoveGameClockDays: the day starts afresh (tick_count = day_in_ticks);
+        // the clock's events wait for stage 3c.
         for (int i = 0; i < LostDays; ++i)
             _world.Clock.NextDay();
+        _world.Clock.FramesIntoDay = 0;
+        _skipped = true;
         // The allied commander, at the starbase (GLOBAL_FLAGS_AND_DATA ~0);
         // whether he has greeted this player on this visit is theirs, and
         // the visit is new.
@@ -220,13 +228,45 @@ public sealed class StarbaseVisit
         Talk = null;
     }
 
-    /// <summary>The visit is undone: the story and the starter's ship back as they were when it started.</summary>
+    /// <summary>The shared story fields the visit's talks wrote, with what each was when the visit started.</summary>
+    public IReadOnlyDictionary<string, int> WrittenBefore()
+    {
+        var written = new Dictionary<string, int>();
+        foreach (var talk in Talks)
+            foreach (var e in talk.Events.OfType<StateSet>())
+                if (!StoryState.NotShared.ContainsKey(e.Field))
+                    written[e.Field] = StoryBefore.Fields.GetValueOrDefault(e.Field);
+        return written;
+    }
+
+    /// <summary>The story as it would be without the visit: what its talks wrote put back.</summary>
+    public StoryState.Saved StoryWithout()
+    {
+        var story = StoryState.Restore(_world.Story!.Rules, _world.Story.Save());
+        foreach (var (field, value) in WrittenBefore())
+            story.Set(field, value);
+        return story.Save();
+    }
+
+    /// <summary>The date without the visit: the two weeks, if they've passed, taken back.</summary>
+    public (int Year, int Month, int Day) DateWithout()
+    {
+        var c = _world.Clock;
+        var d = new DateTime(c.Year, c.Month, c.Day).AddDays(_skipped ? -LostDays : 0);
+        return (d.Year, d.Month, d.Day);
+    }
+
+    /// <summary>The visit is undone: what its talks wrote, the starter's ship and the two weeks put back.</summary>
     internal void Undo()
     {
-        _world.Story = StoryState.Restore(_world.Story!.Rules, StoryBefore);
+        foreach (var (field, value) in WrittenBefore())
+            _world.Story!.Set(field, value);
         Starter.Ship.Hold.Restore(HoldBefore);
         Starter.Ship.Flight.Fuel = FuelBefore;
         _world.CommanderMet = MetBefore;
+        var (y, m, d) = DateWithout();
+        (_world.Clock.Year, _world.Clock.Month, _world.Clock.Day) = (y, m, d);
+        _skipped = false;
         Finish();
     }
 }

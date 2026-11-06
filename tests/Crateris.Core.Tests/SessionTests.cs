@@ -154,7 +154,7 @@ public class SessionTests
         Assert.Equal("Attack on Crateris - stage 2", lines[0]);
         Assert.Contains("Playing.", lines);
         Assert.Contains("You: hyperspace 175.2 : 145.0", lines);
-        Assert.Contains("Crew 10, landers 1, minerals 0 / 500, bio 0", lines);
+        Assert.Contains("Crew 10, landers 1, minerals 0 / 500, bio 0, 0 RU", lines);
         Assert.Contains(lines, l => l.StartsWith("  Host (host, flagship)"));
         Assert.Contains("Arrows: turn and thrust", lines);
         player.Notify("Hello", seconds: 1);

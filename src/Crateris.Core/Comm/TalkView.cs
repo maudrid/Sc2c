@@ -14,46 +14,58 @@ namespace Crateris.Core.Comm;
 /// <summary>
 /// What the player in a talk is shown, in words, until the communication
 /// screen (stage 3a, item 11): who is talking (the script), the alien's
-/// lines since the last reply (each track with what was spliced into it),
-/// and the replies offered; or, while time passes between the visit's
-/// talks, that. Sent to them by the host when it changes, as a reliable
-/// message; an empty message means no talk.
+/// lines since the player's last reply (each track with what was spliced
+/// into it; across the visit's talks, so a talk's closing lines show
+/// before the next one's), the replies offered, and which set of replies
+/// this is (<see cref="Round"/>, which a reply is sent with, so one meant
+/// for a set already answered can't answer the next). Once the visit is
+/// over, its closing lines with no replies (<see cref="VisitStep.Done"/>).
+/// Sent to them by the host when it changes, as a reliable message; an
+/// empty message means no talk.
 /// </summary>
-public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies)
+public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
+    int Round = 0)
 {
-    /// <summary>The view of a visit as it stands, or null when it has no talk to show.</summary>
+    /// <summary>The view of a visit as it stands (its closing lines once it's over), or null without one.</summary>
     public static TalkView? Of(StarbaseVisit? visit)
     {
-        if (visit is null || visit.Done)
+        if (visit is null)
             return null;
-        if (visit.Talk is not { } talk)
-            return new TalkView(visit.Step, "", Array.Empty<string>(), Array.Empty<string>());
-        int from = 0;
-        for (int i = talk.Events.Count - 1; i >= 0; --i)
+        // From the player's last reply, through the talks after it.
+        int talkFrom = 0, eventFrom = 0, round = 0;
+        for (int t = 0; t < visit.Talks.Count; ++t)
         {
-            if (talk.Events[i] is ReplyChosen)
+            var events = visit.Talks[t].Events;
+            for (int i = 0; i < events.Count; ++i)
             {
-                from = i + 1;
-                break;
+                if (events[i] is ReplyChosen)
+                    (talkFrom, eventFrom) = (t, i + 1);
+                else if (events[i] is RepliesOffered)
+                    round++;
             }
         }
         var lines = new List<string>();
-        foreach (var e in talk.Events.Skip(from))
+        for (int t = talkFrom; t < visit.Talks.Count; ++t)
         {
-            switch (e)
+            foreach (var e in visit.Talks[t].Events.Skip(t == talkFrom ? eventFrom : 0))
             {
-                case LineQueued { Clip: not null } l:
-                    lines.Add(l.Text);
-                    break;
-                case LineQueued l when lines.Count > 0:
-                    lines[^1] += l.Text;
-                    break;
-                case MultiTrackQueued m when lines.Count > 0:
-                    lines[^1] += System.Text.Encoding.UTF8.GetString(m.TextBytes);
-                    break;
+                switch (e)
+                {
+                    case LineQueued { Clip: not null } l:
+                        lines.Add(l.Text);
+                        break;
+                    case LineQueued l when lines.Count > 0:
+                        lines[^1] += l.Text;
+                        break;
+                    case MultiTrackQueued m when lines.Count > 0:
+                        lines[^1] += System.Text.Encoding.UTF8.GetString(m.TextBytes);
+                        break;
+                }
             }
         }
-        return new TalkView(visit.Step, visit.Talk.Script.Phrases.Name, lines, talk.Replies.Select(r => r.Text).ToList());
+        var talk = visit.Talk;
+        string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
+        return new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round);
     }
 
     public byte[] Encode()
@@ -61,6 +73,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var w = new WireWriter();
         w.UInt((ulong)Step + 1);
         w.String(Script);
+        w.UInt((ulong)Round);
         w.UInt((ulong)Lines.Count);
         foreach (var l in Lines)
             w.String(l);
@@ -77,22 +90,27 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             return null;
         var r = new WireReader(data);
         ulong step = r.UInt();
-        if (step == 0 || !Enum.IsDefined((VisitStep)(int)(step - 1)))
+        if (step == 0 || step - 1 > (ulong)VisitStep.Done)
             throw new InvalidDataException("Bad talk step.");
         string script = r.String() ?? "";
+        ulong round = r.UInt();
+        if (round > int.MaxValue)
+            throw new InvalidDataException("Bad talk round.");
         var lines = new List<string>();
         for (ulong n = Count(r.UInt(), 1000); n > 0; --n)
             lines.Add(r.String() ?? "");
         var replies = new List<string>();
         for (ulong n = Count(r.UInt(), Talk.MaxReplies); n > 0; --n)
             replies.Add(r.String() ?? "");
-        return new TalkView((VisitStep)(int)(step - 1), script, lines, replies);
+        if (!r.AtEnd)
+            throw new InvalidDataException("A talk has bytes after its end.");
+        return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round);
     }
 
     private static ulong Count(ulong n, int most) =>
         n <= (ulong)most ? n : throw new InvalidDataException($"A talk has {n} of what it has at most {most} of.");
 
     public bool Same(TalkView? other) =>
-        other is not null && Step == other.Step && Script == other.Script
+        other is not null && Step == other.Step && Script == other.Script && Round == other.Round
         && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies);
 }

@@ -27,6 +27,9 @@ public static class StoryWorlds
     /// <summary>The Lunar base's string table, its lander report.</summary>
     public const string MoonbaseReport = "text.moonbase";
 
+    /// <summary>Every lander report a story world can show (their string tables).</summary>
+    public static readonly IReadOnlyList<string> Reports = new[] { MoonbaseReport };
+
     private static bool IsLuna(string? special, WorldId world) =>
         special == "SOL_DEFINED" && world.Planet == 2 && world.Moon == 1;
 

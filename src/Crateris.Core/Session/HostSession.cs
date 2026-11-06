@@ -11,6 +11,7 @@ using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
+using Crateris.Core.Planetside;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
 
@@ -182,17 +183,17 @@ public sealed class HostSession
             World.UndockShown(id);
     }
 
-    /// <summary>A guest chooses a reply in its talk (anything wrong is ignored).</summary>
-    public void GuestChooseReply(long peer, int index)
+    /// <summary>A guest chooses a reply in its talk, from the set offered in that round (anything wrong is ignored).</summary>
+    public void GuestChooseReply(long peer, int round, int index)
     {
         if (_peers.TryGetValue(peer, out var id))
-            ChooseReply(id, index);
+            ChooseReply(id, round, index);
     }
 
-    /// <summary>A player chooses a reply in their talk (the host's own through here too).</summary>
-    public bool ChooseReply(string id, int index)
+    /// <summary>A player chooses a reply in their talk, from the set offered in that round (the host's own through here too).</summary>
+    public bool ChooseReply(string id, int round, int index)
     {
-        bool chosen = World.ChooseReply(id, index);
+        bool chosen = World.ChooseReply(id, index, round);
         if (chosen)
             Logged?.Invoke($"{id}: reply {index}");
         return chosen;
@@ -200,9 +201,23 @@ public sealed class HostSession
 
     private readonly Dictionary<string, TalkView?> _talkSent = new();
 
+    /// <summary>The lander reports to show (World.TakeReports): the host's own, and each guest's by its peer.</summary>
+    public (List<LanderReport> Host, List<(long Peer, LanderReport Report)> Guests) TakeReports()
+    {
+        var host = new List<LanderReport>();
+        var guests = new List<(long, LanderReport)>();
+        foreach (var (id, report) in World.TakeReports())
+        {
+            if (id == HostId)
+                host.Add(report);
+            else if (_peers.FirstOrDefault(p => p.Value == id) is { Value: not null } peer)
+                guests.Add((peer.Key, report));
+        }
+        return (host, guests);
+    }
+
     /// <summary>What a player in a talk is shown now: null if they're in none.</summary>
-    public TalkView? TalkFor(string id) =>
-        World.Find(id)?.Ship.Visit is { } v && v.Starter.Id == id ? TalkView.Of(v) : null;
+    public TalkView? TalkFor(string id) => TalkView.Of(World.VisitOf(id));
 
     /// <summary>
     /// The talks to send the guests: each guest whose talk view has changed

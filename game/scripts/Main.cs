@@ -9,6 +9,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Crateris.Core.Comm;
@@ -70,6 +71,7 @@ public partial class Main : Node2D
     private Names _names = null!;
     private ContactShapes _shapes = null!;
     private TalkLibrary? _talks;
+    private readonly Dictionary<string, IReadOnlyList<string>> _reportTexts = new();
     private FirstRunScreen? _firstRun;
     private ContentErrorScreen? _contentError;
     private AboutScreen _about = null!;
@@ -224,6 +226,11 @@ public partial class Main : Node2D
             _names = Names.Load(content);
             _shapes = ContactShapes.Load(sheets);
             _talks = TalkLibrary.Load(content, ConversationScripts.Load(_dataDir));
+            foreach (string report in Crateris.Core.Story.StoryWorlds.Reports)
+            {
+                var table = StringTable.Load(content, report);
+                _reportTexts[report] = Enumerable.Range(0, table.Count).Select(i => table[i]).ToList();
+            }
             if (!Headless)
             {
                 _view.Sprites = _systemView.Sprites = new SpriteTextures(new SpaceSprites(content, sheets));
@@ -251,7 +258,10 @@ public partial class Main : Node2D
 
     private void StartGame()
     {
-        _player = new PlayerSession(_systems, _names, _playerId, _shapes.HyperFlagship.Count, _options.Script);
+        _player = new PlayerSession(_systems, _names, _playerId, _shapes.HyperFlagship.Count, _options.Script)
+        {
+            StringTables = id => _reportTexts.GetValueOrDefault(id) ?? Array.Empty<string>(),
+        };
         _player.Logged += Log;
         if (_options.Join)
             StartClient();
@@ -394,7 +404,7 @@ public partial class Main : Node2D
     private void LandingRefused(int refusal) => _player?.LandingRefused((DispatchRefusal)refusal);
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ChooseReply(int index) => _host?.GuestChooseReply(Multiplayer.GetRemoteSenderId(), index);
+    private void ChooseReply(int round, int index) => _host?.GuestChooseReply(Multiplayer.GetRemoteSenderId(), round, index);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowTalk(byte[] talk)
@@ -408,6 +418,10 @@ public partial class Main : Node2D
             Log($"Bad talk from the host: {e.Message}");
         }
     }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowReport(string resource, string foundBy) =>
+        _player?.ShowReport(new Crateris.Core.Planetside.LanderReport(resource, foundBy == "" ? null : foundBy));
 
     private void SaveGame()
     {
@@ -509,8 +523,8 @@ public partial class Main : Node2D
                 if (landing is { } site && _host.Dispatch(_host.HostId, site.X, site.Y) is var refusal
                         && refusal != DispatchRefusal.None)
                     _player.LandingRefused(refusal);
-                if (inGame && _player.TakeReply() is int reply)
-                    _host.ChooseReply(_host.HostId, reply);
+                if (inGame && _player.TakeReply() is var (round, reply))
+                    _host.ChooseReply(_host.HostId, round, reply);
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
                 _player.ShowTalk(_host.TalkFor(_host.HostId));
@@ -522,6 +536,14 @@ public partial class Main : Node2D
                     foreach (var (peer, talk) in _host.TalkUpdates())
                         RpcId(peer, MethodName.ShowTalk, talk);
                 }
+                var (ownReports, guestReports) = _host.TakeReports();
+                foreach (var report in ownReports)
+                    _player.ShowReport(report);
+                if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
+                {
+                    foreach (var (peer, report) in guestReports)
+                        RpcId(peer, MethodName.ShowReport, report.Resource, report.FoundBy ?? "");
+                }
             }
             else if (_connected && _player.Snapshot is { } snap)
             {
@@ -529,8 +551,8 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.RequestLanding, site.X, site.Y);
                 foreach (int category in discards)
                     RpcId(1, MethodName.DiscardCargo, category);
-                if (_player.TakeReply() is int reply)
-                    RpcId(1, MethodName.ChooseReply, reply);
+                if (_player.TakeReply() is var (round, reply))
+                    RpcId(1, MethodName.ChooseReply, round, reply);
                 RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input, snap.Frame);
                 if (_player.UndockTick())
                     RpcId(1, MethodName.UndockShown);
@@ -614,6 +636,9 @@ public partial class Main : Node2D
             Key.Escape or Key.Backspace => MenuKey.Cancel,
             _ => null,
         };
+        // A held Enter mustn't say one reply after another.
+        if (key == MenuKey.Select && k.Echo && _player.Talk is not null)
+            return;
         if (key is MenuKey mk)
             _player.PressMenu(mk);
     }

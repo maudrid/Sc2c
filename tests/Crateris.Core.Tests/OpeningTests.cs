@@ -329,14 +329,21 @@ public class OpeningTests
         Assert.Empty(host.TalkUpdates());          // sent once
         Assert.Null(host.TalkFor("host"));
 
-        host.GuestChooseReply(1, 1);               // yes_this_is_supply_ship
+        Assert.Equal(1, view.Round);
+        host.GuestChooseReply(1, view.Round, 1);   // yes_this_is_supply_ship
         view = TalkView.Decode(Assert.Single(host.TalkUpdates()).Data)!;
-        Assert.Equal(2, view.Replies.Count);       // i_lied, plumb_out
-        host.GuestChooseReply(1, 0);
-        host.GuestChooseReply(1, view.Replies.Count);   // no such reply: ignored
-        Assert.Single(host.TalkUpdates());
-        host.GuestChooseReply(1, IndexOf(host, "guest", "ok_i_will_get_radios"));
-        Assert.Empty(Assert.Single(host.TalkUpdates()).Data);   // over: no talk
+        Assert.Equal((2, 2), (view.Round, view.Replies.Count));   // i_lied, plumb_out
+        Assert.Single(view.Lines);                 // ABOUT_TIME: the lines since the reply
+        host.GuestChooseReply(1, 1, 0);            // a reply for the set already answered: ignored
+        host.GuestChooseReply(1, 2, view.Replies.Count);   // no such reply: ignored
+        Assert.Empty(host.TalkUpdates());
+        host.GuestChooseReply(1, 2, 0);
+        view = TalkView.Decode(Assert.Single(host.TalkUpdates()).Data)!;
+        host.GuestChooseReply(1, view.Round, IndexOf(host, "guest", "ok_i_will_get_radios"));
+        // Over: its closing line (THANKS_FOR_HELPING) still goes, with no replies.
+        view = TalkView.Decode(Assert.Single(host.TalkUpdates()).Data)!;
+        Assert.Equal((VisitStep.Done, 1, 0), (view.Step, view.Lines.Count, view.Replies.Count));
+        Assert.Null(host.World.Visit);
         Assert.Null(TalkView.Decode(Array.Empty<byte>()));
     }
 
@@ -349,14 +356,123 @@ public class OpeningTests
     [Fact]
     public void ATalkViewRoundTripsAndBadOnesAreRefused()
     {
-        var view = new TalkView(VisitStep.Alliance, "comandr", new[] { "Hello", "Zoë!" }, new[] { "a", "b" });
+        var view = new TalkView(VisitStep.Alliance, "comandr", new[] { "Hello", "Zoë!" }, new[] { "a", "b" }, 7);
         Assert.True(view.Same(TalkView.Decode(view.Encode())));
+        Assert.False(view.Same(view with { Round = 8 }));
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(new byte[] { 99 }));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(view.Encode().Append((byte)0).ToArray()));   // bytes after its end
+        var big = new Net.WireWriter();
+        big.UInt((1UL << 32) + 1);   // a step that only cutting it down would make Commander
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(big.Written.ToArray()));
         var w = new Net.WireWriter();
         w.UInt(1);
         w.String("x");
+        w.UInt(0);   // round
         w.UInt(0);
         w.UInt(9);   // more replies than a talk has
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(w.Written.ToArray()));
+    }
+
+    [ContentFact]
+    public void AnotherPlayerTakingTheLunarBaseDuringAVisitStaysTaken()
+    {
+        // The host talks to the commander while a guest takes the base on
+        // Luna: undoing the host's visit, or saving during it, puts back
+        // only what its talks wrote.
+        var world = WithTalks(guest: true);
+        world.PutInOrbit("guest", Sol, Earth, Luna);
+        world.VisitStarbase(world.Host);
+        Assert.Equal(DispatchRefusal.None, world.Dispatch("guest", BaseX, BaseY));
+        DriveToTheBase(world, "guest");
+        Assert.Equal(1, world.Story!.Get("MOONBASE_DESTROYED"));
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal((1, 1), (loaded.Story!.Get("MOONBASE_DESTROYED"), loaded.Story.Get("MOONBASE_ON_SHIP")));
+        world.Leave("host");
+        Assert.Equal((1, 1), (world.Story.Get("MOONBASE_DESTROYED"), world.Story.Get("MOONBASE_ON_SHIP")));
+        // The guest saw the report; the host, back later, would have been told only if landed there.
+        Assert.Contains(world.TakeReports(), r => r.PlayerId == "guest" && r.Report.FoundBy is null);
+    }
+
+    [ContentFact]
+    public void TheGiftIsSplitBetweenThePlayersInTheGameTheStarterKeepingTheRest()
+    {
+        var world = WithTalks(guest: true);
+        Assert.Equal(JoinResult.Joined, world.Join("third", "Third"));
+        world.UndockShown("third");
+        Assert.Equal(JoinResult.Joined, world.Join("away", "Away"));
+        world.Leave("away");
+        var story = world.Story!;
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(world.Host);
+        Assert.Equal(VisitStep.TimePassing, world.Visit!.Step);
+        world.Clock.FramesIntoDay = 50;
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal(1, world.Clock.FramesIntoDay);   // MoveGameClockDays: the day starts afresh (then this frame's tick)
+        Say(world, "starbas", "goodbye_commander");
+        // 2,500 between three: 833 each, the starter keeping the one left.
+        Assert.Equal((834u, 833u, 833u, 0u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits,
+            world.Find("third")!.Ship.Hold.ResourceUnits, world.Find("away")!.Ship.Hold.ResourceUnits));
+    }
+
+    [ContentFact]
+    public void LeavingAsTheStarbaseIsReadyTakesTheTwoWeeksBack()
+    {
+        var world = WithTalks();
+        var story = world.Story!;
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        var date = (world.Clock.Year, world.Clock.Month, world.Clock.Day);
+        world.VisitStarbase(world.Host);
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
+        Assert.Equal(2500u, world.Host.Ship.Hold.ResourceUnits);
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(date, (saved.Clock.Year, saved.Clock.Month, saved.Clock.Day));
+        Assert.Equal((0u, 0, 0), (saved.Host.Ship.Hold.ResourceUnits, saved.Story!.Get("STARBASE_MONTH"), saved.Story.Get("STARBASE_DAY")));
+        world.Leave("host");
+        Assert.Equal(date, (world.Clock.Year, world.Clock.Month, world.Clock.Day));
+        Assert.Equal((0u, 1), (world.Host.Ship.Hold.ResourceUnits, story.Get("MOONBASE_ON_SHIP")));
+    }
+
+    [ContentFact]
+    public void NoCargoGoesOverboardDuringAVisit()
+    {
+        var world = WithTalks();
+        world.VisitStarbase(world.Host);
+        Assert.False(world.DiscardCargo("host", 0));
+    }
+
+    [ContentFact]
+    public void SavesKeepTheResourceUnitsAndTheMeetingAndOlderOnesAreRefusedThem()
+    {
+        var world = WithTalks();
+        world.Host.Ship.Hold.ResourceUnits = 1234;
+        world.CommanderMet = true;
+        string json = HostSave.ToJson(world);
+        var loaded = HostSave.FromJson(json, Systems, TestContent.Shapes);
+        Assert.Equal((1234u, true), (loaded.Host.Ship.Hold.ResourceUnits, loaded.CommanderMet));
+        Assert.Equal(50, loaded.Host.Ship.Hold.CrewCapacity);
+        var old = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+        old["version"] = 7;
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes));
+        old["commander_met"] = false;
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes));
+        old["players"]![0]!["hold"]!["resource_units"] = 0;
+        Assert.Equal(0u, HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes).Host.Ship.Hold.ResourceUnits);
+    }
+
+    [ContentFact]
+    public void AnOlderSavesEscortHoldsItsKitsTenCrew()
+    {
+        var world = WithTalks(guest: true);
+        var old = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
+        old["version"] = 7;
+        foreach (var p in old["players"]!.AsArray())
+            p!["loadout"]!.AsObject().Remove("crew_capacity");
+        old["settings"]!["escort_loadout"]!.AsObject().Remove("crew_capacity");
+        var loaded = HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes);
+        Assert.Equal((50, 10), (loaded.Host.Ship.Hold.CrewCapacity, loaded.Find("guest")!.Ship.Hold.CrewCapacity));
+        Assert.Equal(10, loaded.Settings.EscortLoadout.CrewCapacity);
     }
 }

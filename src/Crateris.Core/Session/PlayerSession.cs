@@ -278,18 +278,58 @@ public sealed class PlayerSession
     /// <summary>The reply the cursor is on.</summary>
     public int ReplyCursor { get; private set; }
 
-    private int? _reply;
+    private (int Round, int Index)? _reply;
+    private int _answered = -1;
+    private TalkView? _lastView;
 
-    /// <summary>The host sent this player's talk (empty: none).</summary>
+    /// <summary>
+    /// The host sent this player's talk (null: none). A visit's closing
+    /// lines, once it's over, show as a notice.
+    /// </summary>
     public void ShowTalk(TalkView? view)
     {
-        if (view is null || Talk is null || !view.Replies.SequenceEqual(Talk.Replies) || view.Script != Talk.Script)
+        if (view is null ? _lastView is null : view.Same(_lastView))
+            return;
+        _lastView = view;
+        if (view?.Step == VisitStep.Done)
+        {
+            if (view.Lines.Count > 0)
+                Notify(string.Join("\n", view.Lines.Select(OneLine)));
+            view = null;
+        }
+        if (view is null || Talk is null || view.Round != Talk.Round)
             ReplyCursor = 0;
         Talk = view;
     }
 
-    /// <summary>The reply chosen, to send to the host once; null if none is waiting.</summary>
-    public int? TakeReply()
+    private static string OneLine(string text) => text.Replace('\n', ' ').Replace('\r', ' ');
+
+    /// <summary>A string table's texts by resource (the lander reports), from the content; null without it.</summary>
+    public Func<string, IReadOnlyList<string>>? StringTables { get; set; }
+
+    /// <summary>
+    /// The lander report the host sent (DoDiscoveryReport): until the
+    /// screen draws it as UQM does (item 11), shown as a notice, with who
+    /// found it when it was another player.
+    /// </summary>
+    public void ShowReport(LanderReport report)
+    {
+        var texts = StringTables?.Invoke(report.Resource) ?? Array.Empty<string>();
+        string text = string.Join("\n", texts.Select(t => t.Trim('\n', '\r')));
+        if (report.FoundBy is { } id)
+        {
+            string who = Snapshot?.Ships.FirstOrDefault(s => s.Id == id)?.Name ?? id;
+            text = $"{who}'s lander found it:\n{text}";
+        }
+        Log($"Lander report {report.Resource}" + (report.FoundBy is { } f ? $" (found by {f})" : ""));
+        Notify(text, ReportSeconds);
+    }
+
+    /// <summary>How long a lander report stays up.</summary>
+    public const double ReportSeconds = 20;
+
+    /// <summary>The reply chosen (its round and place), to send to the host once; null if none is waiting.</summary>
+    public (int Round, int Index)? TakeReply()
     {
         var r = _reply;
         _reply = null;
@@ -300,7 +340,8 @@ public sealed class PlayerSession
     // and choose (select), as UQM's PlayerResponseInput.
     private void PressTalk(MenuKey key)
     {
-        if (Talk is not { Replies.Count: > 0 } talk || _reply is not null)
+        // One reply a set: the next waits for the host's next set.
+        if (Talk is not { Replies.Count: > 0 } talk || _reply is not null || _answered == talk.Round)
             return;
         int n = talk.Replies.Count;
         switch (key)
@@ -312,7 +353,8 @@ public sealed class PlayerSession
                 ReplyCursor = (ReplyCursor + 1) % n;
                 break;
             case MenuKey.Select:
-                _reply = ReplyCursor;
+                _reply = (talk.Round, ReplyCursor);
+                _answered = talk.Round;
                 Log($"Reply {ReplyCursor}: {talk.Replies[ReplyCursor]}");
                 break;
         }
@@ -528,7 +570,7 @@ public sealed class PlayerSession
                 lines.Add($"You: {Where(me)}");
                 lines.Add($"Fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
                 if (me.Hold is { } h)
-                    lines.Add($"Crew {h.Crew}, landers {h.Landers}, minerals {h.MineralMass} / {h.StorageCapacity}, bio {h.BioData}");
+                    lines.Add($"Crew {h.Crew}, landers {h.Landers}, minerals {h.MineralMass} / {h.StorageCapacity}, bio {h.BioData}, {h.ResourceUnits} RU");
                 if (MyLander is { } l)
                     lines.Add($"Lander: {l.Phase.ToString().ToLowerInvariant()}, crew {l.Crew}, minerals {l.MineralMass}, bio {l.BioData}");
             }
@@ -548,11 +590,12 @@ public sealed class PlayerSession
                 if (talk.Step == VisitStep.TimePassing)
                     lines.Add("Time passes...");
                 foreach (var l in talk.Lines)
-                    lines.Add(l.Replace('\n', ' ').Replace('\r', ' '));
+                    lines.Add(OneLine(l));
                 for (int i = 0; i < talk.Replies.Count; ++i)
                     lines.Add($"{(i == ReplyCursor ? ">" : " ")} {talk.Replies[i]}");
+                if (talk.Replies.Count > 0)
+                    lines.Add("Up, down: choose a reply; Enter: say it");
             }
-            lines.Add("Up, down: choose a reply; Enter: say it");
         }
         else if (Me?.Activity == Activity.Planetside)
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
@@ -574,6 +617,7 @@ public sealed class PlayerSession
         return s.Activity switch
         {
             Activity.InnerSystem when s.InnerPlanet is int p => $"the {cluster} system, near {_names?.PlanetName(at, p) ?? $"planet {p}"}",
+            Activity.Talk when s.InnerPlanet is int p => $"talking at the starbase by {_names?.PlanetName(at, p) ?? $"planet {p}"}, {cluster}",
             Activity.Planetside when s.OrbitPlanet is int p =>
                 $"landed on {_names?.PlanetOrMoon(at, p, s.OrbitMoon) ?? $"planet {p}" + (s.OrbitMoon is int m ? $" moon {m}" : "")}, {cluster}",
             Activity.Orbit when s.OrbitPlanet is int p =>

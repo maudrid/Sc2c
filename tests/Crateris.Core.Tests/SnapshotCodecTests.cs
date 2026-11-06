@@ -58,14 +58,15 @@ public class SnapshotCodecTests
         id, AnyText(r), r.Next(2) == 0, (ShipKind)r.Next(2),
         AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r),
         (uint)r.NextInt64(0, uint.MaxValue + 1L), (uint)r.NextInt64(0, uint.MaxValue + 1L), r.Next(2) == 0, r.Next(2) == 0,
-        (Activity)r.Next(4), AnyOptional(r), AnyOptional(r),
+        (Activity)r.Next(Enum.GetValues<Activity>().Length), AnyOptional(r), AnyOptional(r),
         AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyOptional(r), AnyOptional(r),
         AnyInt(r), AnyInt(r), (short)r.Next(short.MinValue, short.MaxValue + 1), (short)r.Next(short.MinValue, short.MaxValue + 1),
         r.Next(3) == 0 ? null : new StarEntryState(r.NextInt64(long.MinValue, long.MaxValue), AnyInt(r), AnyInt(r),
             (short)r.Next(short.MinValue, short.MaxValue + 1), (short)r.Next(short.MinValue, short.MaxValue + 1),
             AnyInt(r), AnyInt(r), AnyInt(r), r.Next(2) == 0 ? null : AnyText(r)),
         r.Next(3) == 0 ? null : new HoldSnapshot(AnyInt(r), AnyInt(r), AnyInt(r),
-            Enumerable.Range(0, r.Next(9)).Select(_ => AnyInt(r)).ToArray(), AnyInt(r), (LanderUpgrades)r.Next(128)))
+            Enumerable.Range(0, r.Next(9)).Select(_ => AnyInt(r)).ToArray(), AnyInt(r), (LanderUpgrades)r.Next(128),
+            (uint)r.NextInt64(0, uint.MaxValue + 1L)))
         with { ShipName = AnyName(r), CaptainName = AnyName(r) };
 
     private static WorldSnapshot AnySnapshot(Random r, long frame) => new(frame, AnyInt(r), AnyInt(r), AnyInt(r),

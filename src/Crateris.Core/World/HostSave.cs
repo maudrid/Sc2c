@@ -44,8 +44,9 @@ public static class HostSave
     /// holds its crew pod's 50, an escort the kit's 10) and whether the
     /// group has met the starbase's commander (CommanderMet); an older save
     /// with either is refused. A save made during a visit to the starbase
-    /// is of the game before the visit: its story, and the starter's hold
-    /// and fuel, as the visit started (UQM can't save during one).
+    /// is of the game without the visit: the story fields its talks wrote,
+    /// the starter's hold and fuel and the date as before it (UQM can't
+    /// save during one); what other players did meanwhile is kept.
     /// </summary>
     public const int Version = 8;
     public const int OldestReadableVersion = 1;
@@ -107,8 +108,9 @@ public static class HostSave
             .Select(w => new WorldState(w.Key.Star, w.Key.Planet, w.Key.Moon,
                 w.Value[ScanType.Mineral], w.Value[ScanType.Energy], w.Value[ScanType.Biological]))
             .ToList();
-        var save = new SaveFile(Version, world.Settings, new ClockState(c.Year, c.Month, c.Day, c.FramesIntoDay),
-            world.Frame, players, worlds, visit?.StoryBefore ?? world.Story?.Save(),
+        var (year, month, day) = visit?.DateWithout() ?? (c.Year, c.Month, c.Day);
+        var save = new SaveFile(Version, world.Settings, new ClockState(year, month, day, c.FramesIntoDay),
+            world.Frame, players, worlds, visit is null ? world.Story?.Save() : visit.StoryWithout(),
             visit?.MetBefore ?? world.CommanderMet);
         return JsonSerializer.Serialize(save, Options);
     }

@@ -260,6 +260,7 @@ public sealed class GameWorld
             visit.Undo();
             EndVisitIfDone();
         }
+        _ended.Remove(id);
         player.Present = false;
         _inputs[id].Clear();
         _actionHeld.Remove(id);
@@ -481,16 +482,26 @@ public sealed class GameWorld
                 && Story.Get("CHMMR_BOMB_STATE") != 2)
             return;
         var visit = new StarbaseVisit(this, player);
+        _ended.Remove(player.Id);
         if (visit.Done)
+        {
+            _ended[player.Id] = visit;
             return;
+        }
         Visit = visit;
         player.Ship.Visit = visit;
     }
 
-    /// <summary>The player in a talk chooses a reply. False, changing nothing, if they're in none or it's no reply offered.</summary>
-    public bool ChooseReply(string id, int index)
+    /// <summary>
+    /// The player in a talk chooses a reply from the set offered in
+    /// <paramref name="round"/> (<see cref="StarbaseVisit.Round"/>; null for
+    /// whatever is offered now). False, changing nothing, if they're in
+    /// none, it's no reply offered, or it was for a set already answered.
+    /// </summary>
+    public bool ChooseReply(string id, int index, int? round = null)
     {
-        if (Find(id) is not { Present: true, Ship.Visit: { } visit } player || visit.Starter != player)
+        if (Find(id) is not { Present: true, Ship.Visit: { } visit } player || visit.Starter != player
+                || round is int r && r != visit.Round)
             return false;
         bool chosen = visit.Choose(index);
         EndVisitIfDone();
@@ -503,8 +514,15 @@ public sealed class GameWorld
         {
             v.Starter.Ship.Visit = null;
             Visit = null;
+            _ended[v.Starter.Id] = v;
         }
     }
+
+    private readonly Dictionary<string, StarbaseVisit> _ended = new();
+
+    /// <summary>The player's visit going on, or their last one, over, whose closing lines they're still shown; null if neither.</summary>
+    public StarbaseVisit? VisitOf(string id) =>
+        Find(id)?.Ship.Visit is { } v && v.Starter.Id == id ? v : _ended.GetValueOrDefault(id);
 
     private void EnterSystem(PlayerShip ship, Star star)
     {
@@ -620,9 +638,30 @@ public sealed class GameWorld
         if (Story is null || !StoryWorlds.PickupEnergy(special, world, Story, lander, node))
             return false;
         if (lander.Report is { } report && _landerPlayers.TryGetValue(lander, out var finder))
+        {
+            _reports.Add((finder.Id, report));
             foreach (var other in surface.Landers.Where(l => l != lander))
+            {
                 other.Told(report with { FoundBy = finder.Id });
+                if (_landerPlayers.TryGetValue(other, out var told))
+                    _reports.Add((told.Id, other.Report!));
+            }
+        }
         return true;
+    }
+
+    private readonly List<(string PlayerId, LanderReport Report)> _reports = new();
+
+    /// <summary>
+    /// The lander reports to show since the last call, each to its player
+    /// (DoDiscoveryReport): the finder's, and the word other landers there
+    /// got (decision 9).
+    /// </summary>
+    public List<(string PlayerId, LanderReport Report)> TakeReports()
+    {
+        var all = _reports.ToList();
+        _reports.Clear();
+        return all;
     }
 
     /// <summary>
@@ -631,7 +670,7 @@ public sealed class GameWorld
     /// or no such category.
     /// </summary>
     public bool DiscardCargo(string id, int category) =>
-        Find(id) is { Present: true } player && player.Ship.Hold.Discard(category);
+        Find(id) is { Present: true, Ship.Visit: null } player && player.Ship.Hold.Discard(category);
 
     /// <summary>
     /// Renames a player's ship or captain, or both (UQM's NameCaptainOrShip,
