@@ -116,7 +116,7 @@ public partial class Main : Node2D
 
         _screens = new CanvasLayer { Layer = 10 };
         AddChild(_screens);
-        _about = new AboutScreen { Visible = false };
+        _about = new AboutScreen(ProjectSettings.GlobalizePath("user://")) { Visible = _options.ShowAbout };
         _screens.AddChild(_about);
 
         _name = _options.Name ?? System.Environment.UserName;
@@ -146,6 +146,8 @@ public partial class Main : Node2D
             {
                 found = ContentPackage.Open(path);
                 Log($"Content: {path}");
+                foreach (var addon in OfficialPackages.Addons)
+                    Log($"{addon.Title}: {(OfficialPackages.IsInstalled(userFolder, addon) ? "here (not played yet)" : "not here")}");
             }
         }
         catch (ContentPackageException e)
@@ -168,7 +170,7 @@ public partial class Main : Node2D
             return;
         }
         Log(why);
-        _firstRun = new FirstRunScreen(stored, problem);
+        _firstRun = new FirstRunScreen(stored, problem, userFolder);
         _firstRun.Installed += path =>
         {
             ContentPackage installed;

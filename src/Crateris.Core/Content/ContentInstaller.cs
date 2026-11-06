@@ -41,7 +41,7 @@ public static class ContentInstaller
     /// </summary>
     public static async Task Download(HttpClient http, string url, string destination,
         IProgress<InstallProgress>? progress = null, CancellationToken cancel = default,
-        string expectedSha256 = ContentPackage.OfficialSha256, TimeSpan? stallTimeout = null)
+        string expectedSha256 = ContentPackage.OfficialSha256, TimeSpan? stallTimeout = null, string? title = null)
     {
         HttpResponseMessage response;
         try
@@ -63,14 +63,24 @@ public static class ContentInstaller
                 throw new ContentPackageException($"The download failed: {(int)response.StatusCode} {response.ReasonPhrase}");
             await using var body = await response.Content.ReadAsStreamAsync(cancel).ConfigureAwait(false);
             await Install(body, response.Content.Headers.ContentLength, destination, "The downloaded file",
-                progress, cancel, expectedSha256, stallTimeout ?? DefaultStallTimeout).ConfigureAwait(false);
+                progress, cancel, expectedSha256, stallTimeout ?? DefaultStallTimeout, title).ConfigureAwait(false);
         }
     }
+
+    /// <summary>Downloads one of the official packages into <paramref name="destination"/>, checked against its pinned SHA-256.</summary>
+    public static Task Download(HttpClient http, OfficialPackage package, string destination,
+        IProgress<InstallProgress>? progress = null, CancellationToken cancel = default, TimeSpan? stallTimeout = null) =>
+        Download(http, package.DownloadUrl, destination, progress, cancel, package.Sha256, stallTimeout, package.Title);
+
+    /// <summary>Copies one of the official packages the player already has into <paramref name="destination"/>, after the same check.</summary>
+    public static Task CopyFrom(string source, OfficialPackage package, string destination,
+        IProgress<InstallProgress>? progress = null, CancellationToken cancel = default) =>
+        CopyFrom(source, destination, progress, cancel, package.Sha256, package.Title);
 
     /// <summary>Copies a package the player already has into <paramref name="destination"/>, after the same check.</summary>
     public static async Task CopyFrom(string source, string destination,
         IProgress<InstallProgress>? progress = null, CancellationToken cancel = default,
-        string expectedSha256 = ContentPackage.OfficialSha256)
+        string expectedSha256 = ContentPackage.OfficialSha256, string? title = null)
     {
         if (!File.Exists(source))
             throw new ContentPackageException($"{source} doesn't exist");
@@ -80,15 +90,15 @@ public static class ContentInstaller
             using var stream = File.OpenRead(source);
             string actual = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancel).ConfigureAwait(false)).ToLowerInvariant();
             if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
-                throw NotOfficial(source, actual, expectedSha256, deleted: false);
+                throw NotOfficial(source, actual, expectedSha256, deleted: false, title);
             return;
         }
         await using var input = File.OpenRead(source);
-        await Install(input, input.Length, destination, source, progress, cancel, expectedSha256, Timeout.InfiniteTimeSpan).ConfigureAwait(false);
+        await Install(input, input.Length, destination, source, progress, cancel, expectedSha256, Timeout.InfiniteTimeSpan, title).ConfigureAwait(false);
     }
 
     private static async Task Install(Stream source, long? length, string destination, string what,
-        IProgress<InstallProgress>? progress, CancellationToken cancel, string expectedSha256, TimeSpan stall)
+        IProgress<InstallProgress>? progress, CancellationToken cancel, string expectedSha256, TimeSpan stall, string? title)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destination))!);
         string partial = destination + PartialSuffix;
@@ -138,7 +148,7 @@ public static class ContentInstaller
         if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
         {
             TryDelete(partial);
-            throw NotOfficial(what, actual, expectedSha256, deleted: true);
+            throw NotOfficial(what, actual, expectedSha256, deleted: true, title);
         }
         try
         {
@@ -151,8 +161,8 @@ public static class ContentInstaller
         }
     }
 
-    private static ContentPackageException NotOfficial(string what, string actual, string expected, bool deleted) =>
-        new($"{what} isn't the official UQM 0.8.0 content (SHA-256 {actual}, expected {expected})"
+    private static ContentPackageException NotOfficial(string what, string actual, string expected, bool deleted, string? title) =>
+        new($"{what} isn't the official UQM 0.8.0 {title ?? "content"} (SHA-256 {actual}, expected {expected})"
             + (deleted ? "; it was not kept." : "."));
 
     private static void TryDelete(string path)

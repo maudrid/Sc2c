@@ -29,7 +29,7 @@ namespace Crateris.Game;
 /// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],
 /// --guests-in-orbit (host: guests joining for the first time start in
 /// orbit where the host is), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
-/// (save the last frame on quit; needs a display, not --headless).
+/// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open).
 /// With no options the game starts as a solo host.
 /// </summary>
 public sealed class Options
@@ -47,6 +47,9 @@ public sealed class Options
 
     /// <summary>--content PATH: the UQM content package (or its folder) to use.</summary>
     public string? ContentPath { get; private set; }
+
+    /// <summary>--show-about: the about screen is open from the start (testing, screenshots).</summary>
+    public bool ShowAbout { get; private set; }
 
     /// <summary>--first-run-use FILE: the first-run screen acts as if the player chose this file (testing).</summary>
     public string? FirstRunUse { get; private set; }
@@ -100,6 +103,7 @@ public sealed class Options
                 case "--quit-after": o.QuitAfterFrames = long.Parse(Next()); break;
                 case "--content": o.ContentPath = Next(); break;
                 case "--first-run-use": o.FirstRunUse = Next(); break;
+                case "--show-about": o.ShowAbout = true; break;
                 case "--quit-after-join": o.QuitAfterJoinFrames = long.Parse(Next()); break;
                 case "--no-upnp": o.UseUpnp = false; break;
                 case "--guests-in-orbit": o.GuestsInOrbit = true; break;

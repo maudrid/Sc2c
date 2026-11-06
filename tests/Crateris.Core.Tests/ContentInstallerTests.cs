@@ -128,6 +128,60 @@ public sealed class ContentInstallerTests : IDisposable
 
     private string Destination => ContentLocation.StoredPackage(_dir);
 
+    // An add-on as the installer sees one: served at /package, with its own title.
+    private OfficialPackage TestAddon(string path = "redirect") =>
+        new("3DO test pack", "uqm-0.8.0-test.uqm", _package.Length, _hash, _base + path);
+
+    [Fact]
+    public void TheAddonsAreTheProjectsOfficialFiles()
+    {
+        Assert.Equal(new[] { OfficialPackages.Voice, OfficialPackages.Music }, OfficialPackages.Addons);
+        foreach (var p in OfficialPackages.Addons.Append(OfficialPackages.Content))
+        {
+            Assert.Matches("^[0-9a-f]{64}$", p.Sha256);
+            Assert.Equal($"https://sourceforge.net/projects/sc2/files/UQM/0.8/{p.FileName}/download", p.DownloadUrl);
+        }
+        Assert.Equal(("uqm-0.8.0-voice.uqm", 115_164_704L), (OfficialPackages.Voice.FileName, OfficialPackages.Voice.Size));
+        Assert.Equal(("uqm-0.8.0-3domusic.uqm", 18_980_671L), (OfficialPackages.Music.FileName, OfficialPackages.Music.Size));
+        Assert.Equal("115.2 MB", OfficialPackages.Voice.SizeText);
+        Assert.Equal(ContentPackage.OfficialSha256, OfficialPackages.Content.Sha256);
+    }
+
+    [Fact]
+    public async Task AnAddonIsDownloadedBesideTheContentAndCountsAsHereAtItsSize()
+    {
+        var addon = TestAddon();
+        string where = OfficialPackages.StoredPath(_dir, addon);
+        Assert.Equal(Path.Combine(_dir, ContentLocation.UserSubfolder, "uqm-0.8.0-test.uqm"), where);
+        Assert.False(OfficialPackages.IsInstalled(_dir, addon));
+        using var http = new HttpClient();
+        await ContentInstaller.Download(http, addon, where);
+        Assert.Equal(_package, File.ReadAllBytes(where));
+        Assert.True(OfficialPackages.IsInstalled(_dir, addon));
+        // Cut short, it isn't counted.
+        File.WriteAllBytes(where, _package[..1000]);
+        Assert.False(OfficialPackages.IsInstalled(_dir, addon));
+    }
+
+    [Fact]
+    public async Task AWrongAddonIsRefusedByItsOwnName()
+    {
+        var addon = TestAddon("wrong");
+        string where = OfficialPackages.StoredPath(_dir, addon);
+        using var http = new HttpClient();
+        var e = await Assert.ThrowsAsync<ContentPackageException>(() => ContentInstaller.Download(http, addon, where));
+        Assert.Contains("isn't the official UQM 0.8.0 3DO test pack", e.Message);
+        Assert.False(File.Exists(where));
+        // A file the player has: checked the same way.
+        string mine = Path.Combine(_dir, "mine.uqm");
+        File.WriteAllBytes(mine, new byte[10]);
+        e = await Assert.ThrowsAsync<ContentPackageException>(() => ContentInstaller.CopyFrom(mine, addon, where));
+        Assert.Contains("3DO test pack", e.Message);
+        File.WriteAllBytes(mine, _package);
+        await ContentInstaller.CopyFrom(mine, addon, where);
+        Assert.Equal(_package, File.ReadAllBytes(where));
+    }
+
     [Fact]
     public async Task ADownloadFollowsRedirectsAndIsKeptUnchanged()
     {

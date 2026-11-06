@@ -131,7 +131,7 @@ All seven recommendations were accepted on 2026-11-01: everything listed in this
 1. **How much of the art in this stage.**
    - **Everything listed above (recommended):** names, words, surfaces, the rotating planet, sprites, contact by shape and the star-entry animation, in that order, so the first five items can be tried before the large ones. It finishes what stage 2 left as placeholders, and rows 23 to 25 already say "replaced in the content stage".
    - **Names and words only (items 1 to 5),** leaving surfaces, sprites and contact for a later art stage. Quicker to stage 2b, but the orbit screen stays a plain circle until then.
-2. **Voiceovers and 3DO music.** The design's notice has tick boxes for them.
+2. **Voiceovers and 3DO music.** The design's notice has tick boxes for them. (Changed on 2026-11-06 at the owner's request: they're offered now, on the first-run screen and the about screen, and kept for the stage that adds sound; `docs/how-to-try/content-stage.md`.)
    - **Leave them out until sound exists (recommended):** nothing plays them yet, and they're 134 MB. The notice gets its tick boxes in the stage that adds audio; `docs/design.md` is updated to say so.
    - Offer them now, downloaded and kept for later.
 3. **"Use a file I already have."**

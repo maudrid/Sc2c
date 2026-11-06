@@ -50,11 +50,23 @@ The engine opens the official UQM 0.8.0 content package (`uqm-0.8.0-content.uqm`
 
 To see the first-run screen again, move the game's copy away first: it's `content/uqm-0.8.0-content.uqm` in Godot's user folder (`~/.local/share/godot/app_userdata/Attack on Crateris/` on Linux).
 
-1. Start the game (`godot --path game`). The content screen shows the notice, **Download (11.5 MB)**, **Use a file I already have...** and **Quit**. No "I agree": the license doesn't ask for one.
+1. Start the game (`godot --path game`). The content screen shows the notice, tick boxes for the optional 3DO voiceovers and music (below), **Download (11.5 MB)**, **Use a file I already have...** and **Quit**. No "I agree": the license doesn't ask for one.
 2. **Download** fetches the package from the UQM project's SourceForge page, with a progress bar, checks it and starts the game. Start again and it goes straight in.
 3. Or **Use a file I already have...** and pick a `uqm-0.8.0-content.uqm` you have (from an installed UQM 0.8.0, say). It's checked and copied in; your own file is left alone.
 4. A file that isn't the official package is refused with a message saying so, and nothing is kept. If the download fails (no connection, no answer, or nothing arriving for 30 seconds), it says why and you can try again. **Cancel** stops a download or copy part way.
 5. In the game, **F1** shows the about screen with the content notice; F1 or Esc closes it.
+
+### The 3DO voiceovers and music (optional)
+
+The UQM project also publishes the 3DO version's voiceovers (`uqm-0.8.0-voice.uqm`, 115.2 MB) and music (`uqm-0.8.0-3domusic.uqm`, 19.0 MB), by Toys for Bob, under the same license as the content. Nothing plays sound yet: the game downloads and keeps them, unchanged, for the stage that adds it.
+
+1. On the first-run screen, tick **3DO voiceovers** or **3DO music** (unticked to start with) before **Download**: the content comes first, then each ticked add-on, each checked against its pinned SHA-256. If an add-on fails or is cancelled, the screen says so and offers **Continue** (the game doesn't need it) or **Download** to try again.
+2. Later, the about screen (**F1**) lists both under "The 3DO voiceovers and music (optional)": each is "here" or has **Download** and **Use a file I already have...** (a copy from an installed UQM's `content/addons` folder, say). The page scrolls.
+3. They're kept beside the content in Godot's user folder (`content/uqm-0.8.0-voice.uqm` and `content/uqm-0.8.0-3domusic.uqm`). The game's log says at start whether each is here.
+
+![The about screen's add-ons: the voiceovers not here yet, the music here](../screenshots/content-about-addons.png)
+
+Checked by `ContentInstallerTests` (each add-on's file name, size, SHA-256 and download address; downloading one beside the content and counting it as here only at its size; refusing a wrong one by its own name, downloaded or copied). The screens were checked by screenshots under a virtual display (`--show-about` opens the about screen at start, for that).
 
 A headless host or guest (servers, tests) needs the package given: `--content PATH` (the file or its folder) or `CRATERIS_CONTENT`. Without one it stops at once and says so.
 
