@@ -59,7 +59,7 @@ public sealed record ColorTransform(int Map, int Time) : TalkEvent;
 /// <summary>The alien's colour map or ambient animations changed (CommData's AlienColorMap and AnimFlags).</summary>
 public sealed record ScreenChanged(int ColorMap, IReadOnlyList<CommAnimationFlags> Ambient) : TalkEvent;
 
-/// <summary>The music the talk plays (HailAlien: the alternate song if asked for, else the song).</summary>
+/// <summary>The music the talk plays (HailAlien: the alternate song if asked for and it loads, else the song).</summary>
 public sealed record SongChosen(string Resource) : TalkEvent;
 
 /// <summary>A story field written (SET_GAME_STATE), with the value as given.</summary>

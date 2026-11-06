@@ -76,9 +76,11 @@ public sealed class Talk
     /// <param name="ownFields">The fields that aren't shared, as they stand for this talk (0 if not given); changed as the talk writes them.</param>
     /// <param name="ship">The starter's ship.</param>
     /// <param name="seed">The scripts' random seed for this talk.</param>
+    /// <param name="musicLoads">Whether a music resource loads (the content has it): the alternate song is played only if it does.</param>
     public Talk(CommScript script, CommDescription description, Conversation phrases, int colorMapCount,
-        StoryState story, Dictionary<string, int> ownFields, ITalkShip ship, uint seed)
+        StoryState story, Dictionary<string, int> ownFields, ITalkShip ship, uint seed, Func<string, bool> musicLoads)
     {
+        _musicLoads = musicLoads;
         _script = script;
         Description = description;
         _phrases = phrases.Entries.Select(e => e.Raw.Length == 0 ? Array.Empty<byte>() : UntilNul(e.Raw)).ToArray();
@@ -97,6 +99,7 @@ public sealed class Talk
     }
 
     private readonly string?[] _clips;
+    private readonly Func<string, bool> _musicLoads;
 
     private static byte[] UntilNul(ReadOnlySpan<byte> raw)
     {
@@ -169,7 +172,7 @@ public sealed class Talk
         _screenLoaded = true;
         ColorMap = 0;
         Check();
-        _events.Add(new SongChosen(UseAltSong && AltSong != "" ? AltSong : Description.Song));
+        _events.Add(new SongChosen(UseAltSong && AltSong != "" && _musicLoads(AltSong) ? AltSong : Description.Song));
         _script.Intro();
         Check();
         EndIfSilent();
@@ -226,7 +229,9 @@ public sealed class Talk
                 Set("BATTLE_SEGUE", 1);
                 break;
             case Segue.Defeat:
-                // UQM also sets the crew to (COUNT)~0 and CHECK_RESTART: the game ends.
+                // UQM also sets the crew to (COUNT)~0 and CHECK_RESTART, so the
+                // game ends; the crew is left alone here, as the world ends the
+                // game its own way (no ported script loses the game yet).
                 Set("BATTLE_SEGUE", 0);
                 _defeated = true;
                 break;
@@ -238,9 +243,11 @@ public sealed class Talk
     /// <summary>A phrase's number by its id (the script's enum).</summary>
     public int Phrase(string id) => _script.Phrases.PhraseNumber(id);
 
-    private byte[] Entry(int index) => _phrases[((index - 1) % _phrases.Length + _phrases.Length) % _phrases.Length];
+    // SetAbsStringTableIndex (CommData.ConversationPhrases, index - 1): the
+    // index is a COUNT (16 bits), and wraps at the table's size.
+    private byte[] Entry(int index) => _phrases[EntryNumber(index) - 1];
 
-    private int EntryNumber(int index) => ((index - 1) % _phrases.Length + _phrases.Length) % _phrases.Length + 1;
+    private int EntryNumber(int index) => (ushort)(index - 1) % _phrases.Length + 1;
 
     /// <summary>PHRASE_ENABLED: the phrase's text isn't blank.</summary>
     public bool PhraseEnabled(string id) => Entry(Phrase(id)).Length > 0;
@@ -299,8 +306,10 @@ public sealed class Talk
     /// <summary>NPCNumber without number speech: the number's text spliced in.</summary>
     public void NPCNumber(int number, string? format = null)
     {
+        // UQM speaks a number (NPCNumberPhrase) whenever the race has number
+        // speech, voices or not; no ported script's race has.
         if (Description.NumberSpeech)
-            throw new NotSupportedException("number speech comes with voices");
+            throw new NotSupportedException("number speech isn't ported yet (stage 3b, the Melnorme)");
         Splice(null, Encoding.ASCII.GetBytes(Printf(format ?? "%d", number)), 0);
     }
 

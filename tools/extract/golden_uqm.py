@@ -2023,9 +2023,11 @@ def commander_starts():
     come, a visit before, the radioactives brought, the base destroyed),
     radioactives in the hold, no lander (with the Chmmr's bomb not yet
     started, and one lost before), fuel under 2 units (given before or
-    not), the base promised or asked about before, a full crew or not, a
-    ship without fuel tanks (the gift capped at the reserve), and the
-    names spliced into the replies."""
+    not), the base promised or asked about before, or taken before the
+    radioactives are brought, a full crew or not (the new lander's 4 crew
+    capped by the crew pod), a ship without fuel tanks, and the names
+    spliced into the replies. (The fuel gift can't reach the tanks' limit:
+    it's offered only under 2 units.)"""
     starts = []
     needs = [("lander", {}, {}),
              ("no-lander", {}, {"landers": 0}),
@@ -2049,6 +2051,14 @@ def commander_starts():
                     add(f"{visit}-{'radios' if radios else 'no-radios'}-{nname}-{fname}",
                         {**vstate, **nstate, **fstate},
                         {**nship, **fship, "elements": elements})
+    # The Lunar base taken before the radioactives are brought (nothing in
+    # gensol.c waits for them): RevealSelf then offers BaseDestroyed.
+    radios = [0] * 8
+    radios[RADIOACTIVE] = 5
+    for visit, vstate in (("first", {}), ("again", {"STARBASE_VISITED": 1})):
+        add(f"{visit}-radios-base-destroyed", {**vstate, "MOONBASE_DESTROYED": 1, "MOONBASE_ON_SHIP": 1},
+            {"elements": radios})
+        add(f"{visit}-no-radios-base-destroyed", {**vstate, "MOONBASE_DESTROYED": 1}, {})
     base = {"STARBASE_VISITED": 1, "RADIOACTIVES_PROVIDED": 1}
     for promised in (0, 1):
         for asked in (0, 1):
@@ -2083,7 +2093,7 @@ def build_comm(uqm, script, init, out):
           defines=[f'SCRIPT_FILE="{path}"', f"SCRIPT_INIT={init}"])
 
 
-def walk_talk(exe, files, start, fields, state_bytes, functions):
+def walk_talk(exe, files, music, start, fields, state_bytes, functions):
     """Every path through a talk from one start: runs the script with each
     reply offered in turn, depth first, and stops a path at a talk state
     already walked (the story state, the ship, the phrases used up, the
@@ -2102,7 +2112,7 @@ def walk_talk(exe, files, start, fields, state_bytes, functions):
         " ".join(map(str, [ship["crew"], ship["fuel"], ship["landers"], ship["ru"],
                            *ship["elements"], *(MODULES[m] for m in ship["modules"])])),
         ship["captain"].encode().hex(), ship["ship"].encode().hex(),
-        str(start.get("seed", TALK_SEED))])
+        str(start.get("seed", TALK_SEED)), " ".join(music)])
     by_bit = {f["start_bit"]: name for name, f in fields.items()}
 
     def run(replies):
@@ -2160,6 +2170,10 @@ def record_talks(uqm, strings_exe, package):
         with open(index_file, "wb") as f:
             f.write(z.read("uqm.rmp"))
         index = read_resource_index(strings_exe, index_file)
+        names = set(z.namelist())
+        # The music that loads: in the index, with its file in the package.
+        music = sorted(k for k, (kind, path) in index.items()
+                       if kind == "MUSICRES" and path in names)
         for script, starts in COMM_SCRIPTS.items():
             desc = scripts[script]["description"]
             files = []
@@ -2174,7 +2188,7 @@ def record_talks(uqm, strings_exe, package):
             functions = {int(a, 16): n for a, kind, n in
                          (line.split() for line in symbols if len(line.split()) == 3)
                          if kind in "tT"}
-            talks[script] = [{**start, "steps": walk_talk(exe, files, start, fields, state_bytes, functions)}
+            talks[script] = [{**start, "steps": walk_talk(exe, files, music, start, fields, state_bytes, functions)}
                              for start in starts()]
     data = header(uqm, ["tools/extract/golden/comm.c", "src/uqm/commglue.c", "src/uqm/sis.c",
                         "src/libs/math/random.c", "src/libs/strings/getstr.c"]

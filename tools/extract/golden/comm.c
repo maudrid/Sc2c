@@ -28,6 +28,8 @@
  *     the 16 module slots;
  *   the captain's and the ship's names, in hex;
  *   the seed of the scripts' random numbers (TFB_SeedRandom);
+ *   the music resources that load, space-separated (HailAlien plays the
+ *     alternate song only if it loads);
  *   the replies: their count, then each one's place in the replies offered.
  *
  * Output: one JSON event a line, as the talk goes (HailAlien's order:
@@ -124,7 +126,7 @@ print_text (const char *key, const UNICODE *s)
 
 static int last_map = -1;
 static unsigned last_flags[MAX_ANIMATIONS];
-static COUNT last_ship[4 + NUM_ELEMENT_CATEGORIES];
+static DWORD last_ship[4 + NUM_ELEMENT_CATEGORIES];
 static int ship_known;
 
 static int
@@ -137,7 +139,7 @@ map_index (COLORMAP map)
 static void
 check_changes (void)
 {
-	COUNT ship[4 + NUM_ELEMENT_CATEGORIES];
+	DWORD ship[4 + NUM_ELEMENT_CATEGORIES];
 	int i, changed = map_index (CommData.AlienColorMap) != last_map;
 	for (i = 0; i < CommData.NumAnimations; ++i)
 		changed |= CommData.AlienAmbientArray[i].AnimFlags != last_flags[i];
@@ -153,9 +155,9 @@ check_changes (void)
 		printf ("]}\n");
 	}
 	ship[0] = GLOBAL_SIS (CrewEnlisted);
-	ship[1] = (COUNT) GLOBAL_SIS (FuelOnBoard);
+	ship[1] = GLOBAL_SIS (FuelOnBoard);
 	ship[2] = GLOBAL_SIS (NumLanders);
-	ship[3] = (COUNT) GLOBAL_SIS (ResUnits);
+	ship[3] = GLOBAL_SIS (ResUnits);
 	for (i = 0; i < NUM_ELEMENT_CATEGORIES; ++i)
 		ship[4 + i] = GLOBAL_SIS (ElementAmounts[i]);
 	if (!ship_known || memcmp (ship, last_ship, sizeof ship))
@@ -385,7 +387,20 @@ load_color_maps (const char *path)
 	return t;
 }
 
-/* The phrase table's state: which entries have been blanked. */
+/* Whether a resource is one of the space-separated list. */
+static int
+loads (const char *list, const char *res)
+{
+	size_t n = strlen (res);
+	const char *p;
+	for (p = list; (p = strstr (p, res)); p += n)
+		if ((p == list || p[-1] == ' ') && (p[n] == ' ' || p[n] == '\0'))
+			return 1;
+	return 0;
+}
+
+/* The talk's whole state, for the walk: the story, the ship, the phrases
+ * blanked, the screen, the replies offered and the random seed. */
 static void
 print_key (void)
 {
@@ -403,6 +418,11 @@ print_key (void)
 	for (i = 0; i < phrases->size; ++i)
 		if (phrases->strings[i].data && phrases->strings[i].data[0] == '\0')
 			printf ("%u,", i + 1);
+	{
+		DWORD seed = TFB_SeedRandom (1);
+		TFB_SeedRandom (seed);
+		printf ("|%lu", (unsigned long) seed);
+	}
 	printf ("|%d", map_index (CommData.AlienColorMap));
 	for (i = 0; i < CommData.NumAnimations; ++i)
 		printf (",%u", (unsigned) CommData.AlienAmbientArray[i].AnimFlags);
@@ -418,7 +438,7 @@ print_key (void)
 int
 main (void)
 {
-	char line[4096], conv[1024], cmap[1024];
+	char line[4096], conv[1024], cmap[1024], music[4096];
 	RESOURCE_DATA res;
 	LOCDATA *d;
 	int i, replies, step;
@@ -454,6 +474,7 @@ main (void)
 	read_hex (line, GLOBAL_SIS (ShipName), SIS_NAME_SIZE - 1);
 	read_line (line, sizeof line);
 	TFB_SeedRandom (strtoul (line, NULL, 10));
+	read_line (music, sizeof music);
 	read_line (line, sizeof line);
 	p = line;
 	sscanf (p, "%d%n", &replies, &i);
@@ -474,6 +495,7 @@ main (void)
 	check_changes ();
 	printf ("{\"song\": \"%s\"}\n",
 			(CommData.AlienSongFlags & LDASF_USE_ALTERNATE) && CommData.AlienAltSongRes
+			&& loads (music, CommData.AlienAltSongRes)
 			? CommData.AlienAltSongRes : CommData.AlienSongRes);
 
 	num_offered = 0;

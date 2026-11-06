@@ -82,7 +82,8 @@ public class TalkTests
         }
         uint seed = start.TryGetProperty("seed", out var sd) ? sd.GetUInt32() : 12345;
         var talk = new Talk(Ported[script](s), s.Description, Conversation.Load(package, s.Description.Phrases),
-            BinaryTable.Load(package, s.Description.ColorMap).Count, story, own, TestShip.From(start.GetProperty("ship")), seed);
+            BinaryTable.Load(package, s.Description.ColorMap).Count, story, own, TestShip.From(start.GetProperty("ship")), seed,
+            id => package.Resources.TryGetValue(id, out var r) && r.Type == "MUSICRES" && package.HasFile(r.Value));
         talk.Start();
         return talk;
     }
@@ -189,7 +190,8 @@ public class TalkTests
             "#(HELLO) h.ogg\nHello\n#(BYE) b.ogg\nBye\n#(ask)\nWhat?\n#(name_1)\nThe One\n#(name_2)\nThe Two\n#(name_3)\nThe Three\n#(name_4)\nThe Empire of \n#(name_end)\n!\n"u8);
         var script = new ProbeScript(phrases, intro);
         var talk = new Talk(script, Plain, lines, 2, StoryState.NewGame(Rules, new GameClock(2155, 2, 17)),
-            own ?? new Dictionary<string, int>(), ship ?? new TestShip { Crew = 10, CrewCapacity = 50, Fuel = 100, FuelCapacity = 6000, Landers = 1 }, seed);
+            own ?? new Dictionary<string, int>(), ship ?? new TestShip { Crew = 10, CrewCapacity = 50, Fuel = 100, FuelCapacity = 6000, Landers = 1 }, seed,
+            _ => true);
         return (talk, script);
     }
 
@@ -344,5 +346,56 @@ public class TalkTests
         talk.Start();
         Assert.Equal(1, talk.ColorMap);
         Assert.Equal(new ColorTransform(0, 420), talk.Events.OfType<ColorTransform>().Single());
+    }
+
+    [Fact]
+    public void ASplicedLineJoinsThePageBefore()
+    {
+        var (talk, _) = Probe(s =>
+        {
+            s.Talk.NPCPhrase("HELLO");
+            s.Talk.NPCPhraseSplice("ask");
+            s.Talk.NPCPhraseSplice("BYE");
+        });
+        talk.Start();
+        Assert.Equal(new[] { "track 1 Hello", "append 3 What?" }, talk.Events.OfType<LineQueued>()
+            .Select(l => $"{(l.Clip is null ? "append" : "track")} {l.Phrase} {l.Text}"));
+        // With a voice clip, NPCPhrase_splice joins the clip (SpliceMultiTrack).
+        Assert.Equal("Bye", System.Text.Encoding.UTF8.GetString(Assert.Single(talk.Events.OfType<MultiTrackQueued>()).TextBytes));
+    }
+
+    [Fact]
+    public void PhraseNumbersWrapAsUqmsSixteenBitIndexDoes()
+    {
+        var (talk, _) = Probe(s =>
+        {
+            s.Talk.NPCPhrase(9);      // entry 8 % 8: the first
+            s.Talk.NPCPhrase(16);     // the eighth
+        });
+        talk.Start();
+        Assert.Equal(new[] { (1, "Hello"), (8, "!") }, talk.Events.OfType<LineQueued>().Select(l => (l.Phrase, l.Text)));
+    }
+
+    [Fact]
+    public void TheAlternateSongPlaysOnlyIfItLoads()
+    {
+        foreach (bool loads in new[] { true, false })
+        {
+            var phrases = Scripts["comandr"];
+            var talk = new Talk(new CommanderScript(phrases), phrases.Description,
+                Conversation.Parse("#(ARE_YOU_SUPPLY_SHIP) a.ogg\nHi\n"u8), 2,
+                StoryState.NewGame(Rules, new GameClock(2155, 2, 17)), new(), new TestShip { CrewCapacity = 50, FuelCapacity = 1000 }, 1,
+                id => loads);
+            try
+            {
+                talk.Start();
+            }
+            catch (KeyNotFoundException)
+            {
+                // The one-line conversation hasn't the replies' phrases; the song is chosen before them.
+            }
+            Assert.Equal(loads ? "comm.commander.lowpower.music" : phrases.Description.Song,
+                talk.Events.OfType<SongChosen>().Single().Resource);
+        }
     }
 }
