@@ -171,9 +171,9 @@ public partial class FirstRunScreen : PanelContainer
         Fetch(steps, "Downloading from the Ur-Quan Masters project...");
     }
 
-    // The ticked add-ons not yet here.
+    // The ticked add-ons not yet here (the boxes are locked while busy, so not their Disabled).
     private IEnumerable<DownloadStep> TickedAddons() =>
-        _addons.Where(a => a.Box.ButtonPressed && !a.Box.Disabled)
+        _addons.Where(a => a.Box.ButtonPressed && _userFolder != "" && !OfficialPackages.IsInstalled(_userFolder, a.Package))
             .Select(a => new DownloadStep(a.Package, OfficialPackages.StoredPath(_userFolder, a.Package)));
 
     private async void Fetch(List<DownloadStep> steps, string busy)
@@ -222,6 +222,16 @@ public partial class FirstRunScreen : PanelContainer
                 ShowFailure(string.Join(" ", result.Problems) + " The game doesn't need them: Continue to play, or Download to try again.");
                 _continue.Visible = true;
                 break;
+        }
+    }
+
+    /// <summary>Ticks an add-on, by its file name (testing).</summary>
+    public void Tick(string fileName)
+    {
+        foreach (var (package, tick) in _addons)
+        {
+            if (package.FileName == fileName && !tick.Disabled)
+                tick.ButtonPressed = true;
         }
     }
 

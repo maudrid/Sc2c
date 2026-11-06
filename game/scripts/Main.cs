@@ -200,6 +200,8 @@ public partial class Main : Node2D
                 StartGame();
         };
         _screens.AddChild(_firstRun);
+        foreach (string addon in _options.FirstRunTick)
+            _firstRun.Tick(addon);
         if (_options.FirstRunUse is { } file)
             _firstRun.Choose(file);
     }
