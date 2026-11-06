@@ -36,8 +36,9 @@ public static class HostSave
     /// save has a new game's story state, its events counted from the
     /// save's own day, so those already past aren't queued, as UQM's
     /// AddEvent queues none in the past. 7 added the ship's and captain's
-    /// names (PlayerState.ShipName, CaptainName: none for a default); an
-    /// escort from an older save is named from the settings.
+    /// names (PlayerState.ShipName, CaptainName: none for the flagship's
+    /// UQM names and a guest's join name); an escort from an older save is
+    /// named from the settings, and an older save with names is refused.
     /// </summary>
     public const int Version = 7;
     public const int OldestReadableVersion = 1;
@@ -119,6 +120,12 @@ public static class HostSave
         if (save.Version < OldestReadableVersion || save.Version > Version)
             throw new InvalidDataException(
                 $"Save version {save.Version} is not supported (expected {OldestReadableVersion} to {Version}).");
+        if (save.Version < 7 && (save.Players ?? new()).Any(p => p.ShipName is not null || p.CaptainName is not null))
+            throw new InvalidDataException($"A version {save.Version} save can't have ship or captain names.");
+        // A setting a save leaves out, or gives as null, is the default.
+        var settings = save.Settings ?? throw new InvalidDataException("The save has no settings.");
+        if (settings.EscortShipName is null)
+            settings = settings with { EscortShipName = new GameSettings().EscortShipName };
 
         var clock = new GameClock(save.Clock.Year, save.Clock.Month, save.Clock.Day)
         {
@@ -127,7 +134,7 @@ public static class HostSave
         GameWorld world;
         try
         {
-            world = new GameWorld(save.Settings, clock, save.Frame, systems, shapes, loading: true);
+            world = new GameWorld(settings, clock, save.Frame, systems, shapes, loading: true);
         }
         catch (ArgumentOutOfRangeException e)
         {
@@ -191,9 +198,9 @@ public static class HostSave
                 throw new InvalidDataException($"Player {ps.Id}: system flight without a system.");
             if (ps.ShipName is { } shipName && ShipNames.Fit(shipName) != shipName
                     || ps.CaptainName is { } captain && ShipNames.Fit(captain) != captain)
-                throw new InvalidDataException($"Player {ps.Id}: a name is longer than UQM's {ShipNames.MaxBytes} bytes.");
+                throw new InvalidDataException($"Player {ps.Id}: a name isn't one UQM could hold (at most {ShipNames.MaxBytes} bytes, printable).");
             // An escort from before names were kept gets the settings' name.
-            ship.Name = ps.ShipName ?? (ps.Kind == ShipKind.Escort ? ShipNames.Fit(save.Settings.EscortShipName) : null);
+            ship.Name = ps.ShipName ?? (ps.Kind == ShipKind.Escort ? ShipNames.Fit(settings.EscortShipName) : null);
             world.AddPlayer(new Player(ps.Id, ps.Name, ps.IsHost, ship)
             {
                 Present = false,

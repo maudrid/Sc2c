@@ -42,7 +42,8 @@ public static class Protocol
     /// cargo overboard.
     /// 7: snapshots carry the story state (the game-state bits that changed,
     /// the prices, the races' standing).
-    /// 8: each ship carries its ship's and captain's names, where they aren't the defaults.
+    /// 8: each ship carries its stored ship's and captain's names (none for
+    /// the flagship's UQM names and a guest's join name as captain).
     /// </summary>
     public const int Version = 8;
     public const int DefaultPort = 24642;

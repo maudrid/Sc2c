@@ -249,7 +249,7 @@ public static partial class SnapshotCodec
                 shipName = Name(r.String());
                 captainName = Name(r.String());
             }
-            ships[i] = FromNumbers(v, id, name, entry, hold) with { ShipName = shipName, CaptainName = captainName };
+            ships[i] = FromNumbers(v, id, name, entry, hold, shipName, captainName);
         }
         for (int i = 1; i < count; ++i)
         {
@@ -293,7 +293,8 @@ public static partial class SnapshotCodec
         v[ViewY] = s.ViewY;
     }
 
-    private static ShipSnapshot FromNumbers(ReadOnlySpan<long> v, string id, string name, StarEntryState? entry, HoldSnapshot? hold)
+    private static ShipSnapshot FromNumbers(ReadOnlySpan<long> v, string id, string name, StarEntryState? entry, HoldSnapshot? hold,
+        string? shipName = null, string? captainName = null)
     {
         long flags = v[Flags];
         if (flags < 0 || flags >= 1 << 8)
@@ -309,7 +310,7 @@ public static partial class SnapshotCodec
             activity, ToOptional(v[SystemStar]), ToOptional(v[InnerPlanet]),
             ToInt(v[IpX]), ToInt(v[IpY]), ToInt(v[ScreenX]), ToInt(v[ScreenY]), ToInt(v[IpFacing]), ToInt(v[ZoomRadius]),
             ToOptional(v[OrbitPlanet]), ToOptional(v[OrbitMoon]), ToInt(v[IpVelocityX]), ToInt(v[IpVelocityY]),
-            ToShort(v[ViewX]), ToShort(v[ViewY]), entry, hold);
+            ToShort(v[ViewX]), ToShort(v[ViewY]), entry, hold, shipName, captainName);
     }
 
     private static void WriteEntry(WireWriter w, StarEntryState? e)
@@ -440,10 +441,10 @@ public static partial class SnapshotCodec
         return sum;
     }
 
-    // A ship's or captain's name: at most UQM's 15 bytes, or none (the default).
+    // A ship's or captain's name: none (the default), or one UQM could hold (ShipNames.Fit).
     private static string? Name(string? name) =>
-        name is null || System.Text.Encoding.UTF8.GetByteCount(name) <= World.ShipNames.MaxBytes
-            ? name : throw new InvalidDataException("A ship's or captain's name is longer than UQM's.");
+        name is null || World.ShipNames.Fit(name) == name
+            ? name : throw new InvalidDataException("A ship's or captain's name isn't one UQM could hold.");
 
     private static long Frame(ulong v) => v <= long.MaxValue ? (long)v : throw new InvalidDataException("Bad frame.");
 

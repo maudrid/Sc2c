@@ -19,11 +19,11 @@ namespace Crateris.Core.World;
 /// decision 10), which UQM's talks speak (CommanderName, ShipName).
 ///
 /// The flagship's are UQM's until renamed: the content's game strings
-/// (NAMING_STRING_BASE + 2 and + 3, as InitGameStructures sets them). An
+/// (NAMING_STRING_BASE + 2 and + 3, as InitGameStructures sets them), and
+/// those aren't stored, so the world needs no content to hold them. An
 /// escort's ship is named from the host's setting when the escort is made
-/// (<see cref="GameSettings.EscortShipName"/>); a guest's captain is the
-/// name they join with. Only a name that isn't one of these is stored,
-/// so the world needs no content to hold them.
+/// (<see cref="GameSettings.EscortShipName"/>) and stored like a rename; a
+/// guest's captain is the name they join with, unless renamed.
 /// </summary>
 public static class ShipNames
 {
@@ -31,26 +31,37 @@ public static class ShipNames
     public const int MaxBytes = 15;
 
     /// <summary>
-    /// A name as UQM keeps it (utf8StringCopy into SIS_NAME_SIZE): cut to
-    /// <see cref="MaxBytes"/> UTF-8 bytes, never in the middle of a
-    /// character. An empty name is a name, as UQM's text entry allows.
+    /// A name as UQM's text entry would take it typed (DoTextEntry,
+    /// getchar.c): each character in turn, if it's printable
+    /// (UniChar_isPrint) and still fits in <see cref="MaxBytes"/> UTF-8
+    /// bytes; one that doesn't is left out and the rest still tried. Text
+    /// that isn't valid UTF-16 is left out too. An empty name is a name, as
+    /// UQM's text entry allows. (UQM cuts its default names with
+    /// utf8StringCopy, which can split a character; the shipped defaults,
+    /// "Vindicator" and "Zelnick", fit whole.)
     /// </summary>
     public static string Fit(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        if (Encoding.UTF8.GetByteCount(name) <= MaxBytes)
-            return name;
-        var fitted = new StringBuilder();
+        var fitted = new StringBuilder(name.Length);
         int bytes = 0;
-        foreach (var rune in name.EnumerateRunes())
+        var rest = name.AsSpan();
+        while (!rest.IsEmpty)
         {
-            if (bytes + rune.Utf8SequenceLength > MaxBytes)
-                break;
+            var status = Rune.DecodeFromUtf16(rest, out var rune, out int used);
+            rest = rest[used..];
+            if (status != System.Buffers.OperationStatus.Done || !IsPrint(rune.Value)
+                    || bytes + rune.Utf8SequenceLength > MaxBytes)
+                continue;
             bytes += rune.Utf8SequenceLength;
             fitted.Append(rune.ToString());
         }
         return fitted.ToString();
     }
+
+    /// <summary>UniChar_isPrint and UniChar_isGraph (unicode.c): a space, ASCII's graphic characters, and everything past Latin-1's controls but the private use area.</summary>
+    private static bool IsPrint(int ch) =>
+        ch == 0x20 || (ch > 0x20 && ch < 0x7F) || (ch > 0xA0 && (ch < 0xE000 || ch > 0xF8FF));
 
     /// <summary>The flagship's ship name before it's renamed (GAME_STRING (NAMING_STRING_BASE + 2)).</summary>
     public static string FlagshipDefault(GameStrings strings) => Fit(strings[GameStrings.NamingBase + 2]);
@@ -65,4 +76,16 @@ public static class ShipNames
     /// <summary>A captain's name: their own, or the flagship's UQM's, or a guest's the name they joined with.</summary>
     public static string Captain(ShipKind kind, string? name, string playerName, GameStrings strings) =>
         name ?? (kind == ShipKind.Flagship ? CommanderDefault(strings) : Fit(playerName));
+
+    /// <summary>A ship's name as a snapshot gives it.</summary>
+    public static string Ship(ShipSnapshot ship, GameStrings strings) => Ship(ship.Kind, ship.ShipName, strings);
+
+    /// <summary>A captain's name as a snapshot gives it.</summary>
+    public static string Captain(ShipSnapshot ship, GameStrings strings) => Captain(ship.Kind, ship.CaptainName, ship.Name, strings);
+
+    /// <summary>A player's ship's name.</summary>
+    public static string Ship(Player player, GameStrings strings) => Ship(player.Ship.Kind, player.Ship.Name, strings);
+
+    /// <summary>A player's captain's name.</summary>
+    public static string Captain(Player player, GameStrings strings) => Captain(player.Ship.Kind, player.CaptainName, player.Name, strings);
 }
