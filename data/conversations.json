@@ -9,8 +9,12 @@
       "src/uqm/commglue.h",
       "src/uqm/commanim.h",
       "src/uqm/globdata.h",
+      "src/uqm/globdata.c",
       "src/uqm/comm.c",
+      "src/uqm/comm.h",
       "src/uqm/units.h",
+      "src/uqm/build.c",
+      "src/uqm/races.h",
       "src/uqm/comm/arilou/arilouc.c",
       "src/uqm/comm/arilou/strings.h",
       "src/uqm/comm/blackur/blackurc.c",
@@ -68,7 +72,7 @@
     ]
   },
   "_notes": [
-    "Each conversation script (src/uqm/comm/*/): its init function, its race description (LOCDATA) as its init function leaves it at the start of a new game (every story bit 0; the screen 320 by 240, which the subtitles' place and width are worked out from), and its phrase ids in strings.h's order: the phrase the script calls n is entry n - 1 of its CONVERSATION resource (NULL_PHRASE, 0, isn't listed). Where an init function reads the story (the commander's low-power colour cycle and music, the Spathi's and the Utwig's music), its other branches are code, ported with the script.",
+    "Each conversation script (src/uqm/comm/*/): its init function, its race description (LOCDATA) as its init function leaves it at the start of a new game (the story bits it reads 0; the screen 320 by 240, which the subtitles' place and width are worked out from), and its phrase ids in strings.h's order: the phrase the script calls n is entry n - 1 of its CONVERSATION resource (NULL_PHRASE, 0, isn't listed). Where an init function reads the story (the commander's low-power colour cycle and music, the Spathi's and the Utwig's music), its other branches are code, ported with the script.",
     "description: the resource ids of its frames, font, colour map, songs and phrases; text colours [r, g, b, a]; text_baseline, text_width; text_align (0 ALIGN_LEFT, 1 ALIGN_CENTER, 2 ALIGN_RIGHT) and text_valign (0 VALIGN_TOP, 1 VALIGN_MIDDLE, 2 VALIGN_BOTTOM); song_flags (1 LDASF_USE_ALTERNATE); number_speech, whether it has spoken numbers (voices only); each animation (ambient, transition, talk) as [StartIndex, NumFrames, AnimFlags, BaseFrameRate, RandomFrameRate, BaseRestartRate, RandomRestartRate, BlockMask], rates in UQM's time units (ONE_SECOND is 840, constants.json); AnimFlags: 1 RANDOM_ANIM, 2 CIRCULAR_ANIM, 4 YOYO_ANIM, 8 WAIT_TALKING, 16 PAUSE_TALKING (COLORXFORM_ANIM), 32 TALK_INTRO (ONE_SHOT_ANIM), 64 TALK_DONE, 128 ANIM_DISABLED.",
     "conversations: each CONVERSATION id (commglue.h) and the scripts init_race may run for it: two where it chooses by the story (COMMANDER_CONVERSATION: comandr before STARBASE_AVAILABLE, starbas after; SPATHI_CONVERSATION: spathi away from home, spahome at it, by GLOBAL_FLAGS_AND_DATA bit 7). URQUAN_DRONE_CONVERSATION has no case of its own, but InitCommunication (comm.c) runs it as URQUAN_CONVERSATION (as), so it's the Ur-Quan's script; default marks an id init_race would send to its default case, the Chmmr's."
   ],

@@ -989,7 +989,9 @@ def extract_events(uqm):
 
 # What a script's init function needs to run outside UQM: the screen's
 # size (SCREEN_WIDTH is a variable, ScreenWidth), a game state of all
-# zeros (a new game's: no story bit set), UQM's getGameState,
+# zeros (what the init functions read of it that changes the description,
+# RADIOACTIVES_PROVIDED, FOUND_PLUTO_SPATHI and UTWIG_HAVE_ULTRON, is 0 at a
+# new game; the rest, the activity among it, only picks the segue), UQM's getGameState,
 # getGameState32 and setGameState (globdata.c), a new game's CheckAlliance,
 # and setSegue (commglue.c, which only writes BATTLE_SEGUE).
 LOCDATA_ENV = r"""
@@ -1058,10 +1060,10 @@ LOCDATA_PRINT = r"""
 
 
 def extract_conversations(uqm):
-    """Each conversation script's race description (LOCDATA) as compiled,
-    before its set-up changes it; its phrase ids (strings.h, as the
+    """Each conversation script's race description (LOCDATA) as its init
+    function leaves it at a new game; its phrase ids (strings.h, as the
     compiler sees them); and which script each conversation id runs
-    (init_race)."""
+    (init_race, and InitCommunication's drone)."""
     comm = os.path.join(uqm.uqm, "comm")
     scripts = []
     for d in sorted(os.listdir(comm)):
@@ -1080,7 +1082,8 @@ def extract_conversations(uqm):
 
     out = []
     sources = ["src/uqm/commglue.c", "src/uqm/commglue.h", "src/uqm/commanim.h", "src/uqm/globdata.h",
-               "src/uqm/comm.c", "src/uqm/units.h"]
+               "src/uqm/globdata.c", "src/uqm/comm.c", "src/uqm/comm.h", "src/uqm/units.h",
+               "src/uqm/build.c", "src/uqm/races.h"]
     env = os.path.join(uqm.build, "locdata_env.h")
     with open(env, "w") as fh:
         fh.write(LOCDATA_ENV)
@@ -1129,7 +1132,7 @@ def extract_conversations(uqm):
     return wrap(uqm, sources, {"scripts": out, "conversations": conversations}, [
         "Each conversation script (src/uqm/comm/*/): its init function, its "
         "race description (LOCDATA) as its init function leaves it at the "
-        "start of a new game (every story bit 0; the screen 320 by 240, "
+        "start of a new game (the story bits it reads 0; the screen 320 by 240, "
         "which the subtitles' place and width are worked out from), and its "
         "phrase ids in strings.h's order: the phrase the script calls n is "
         "entry n - 1 of its CONVERSATION resource (NULL_PHRASE, 0, isn't "

@@ -40,9 +40,11 @@ public enum CommAnimationFlags
 
 /// <summary>
 /// A race's description for its conversations (LOCDATA, globdata.h), as
-/// the compiler builds it, before the script's set-up changes it: its
-/// content's resource ids, where and how its text goes, and its
-/// animations.
+/// its script's init function leaves it at a new game: its content's
+/// resource ids, where and how its text goes, and its animations. The
+/// init functions' branches for a later story are ported with each script.
+/// An alternate song is played if it loads, else the song (HailAlien); the
+/// Zoq-Fot-Pik's text place is set per speaker as they talk.
 /// </summary>
 public sealed record CommDescription(
     string Frames, string Font, string ColorMap, string Song, string AltSong, bool UseAltSong, string Phrases,
