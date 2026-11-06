@@ -161,6 +161,7 @@ public class HoldTests
         var world = NewWorld();
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["version"] = 4;
+        node.AsObject().Remove("story");   // older saves have none
         foreach (var p in node["players"]!.AsArray())
         {
             p!.AsObject().Remove("hold");

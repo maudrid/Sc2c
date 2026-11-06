@@ -33,8 +33,9 @@ public static class HostSave
     /// crew, one lander and one storage bay, and nothing in its hold. 6
     /// added the story state (Story: the game-state fields that aren't 0,
     /// the prices, the races' standing and the clock's events); an older
-    /// save has a new game's story state, its events counted from the new
-    /// game's date.
+    /// save has a new game's story state, its events counted from the
+    /// save's own day, so those already past aren't queued, as UQM's
+    /// AddEvent queues none in the past.
     /// </summary>
     public const int Version = 6;
     public const int OldestReadableVersion = 1;
@@ -190,12 +191,15 @@ public static class HostSave
                 UndockPending = ps.UndockPending,
             });
         }
+        if (save.Version < 6 && save.Story is not null)
+            throw new InvalidDataException($"A version {save.Version} save can't have a story state.");
         if (systems?.StoryRules is { } rules)
         {
-            var (y, m, d) = rules.StartDate;
+            if (save.Version >= 6 && save.Story is null)
+                throw new InvalidDataException("The save has no story state.");
             world.Story = save.Story is { } story
                 ? StoryState.Restore(rules, story)
-                : StoryState.NewGame(rules, new GameClock(y, m, d));
+                : StoryState.NewGame(rules, clock);
             // The systems are made from the story state (Procyon's starbase, Spathiwa's
             // shield). Nothing in stage 3a changes what they read; the save must agree.
             if (world.Story.SystemStory != systems.Generator.Story)

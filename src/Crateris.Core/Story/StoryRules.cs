@@ -53,9 +53,6 @@ public sealed class StoryRules
 
     public int CrewExpenseThreshold { get; }
 
-    /// <summary>A new game's date (new-game.json start_date), from which its first events are counted.</summary>
-    public (int Year, int Month, int Day) StartDate { get; init; } = (2155, 2, 17);
-
     public StoryRules(GameStateTable table, int crewCost, int fuelCost, int moduleCostScale,
         IReadOnlyDictionary<string, int> moduleCost, IReadOnlyList<string> modules, IReadOnlyList<int> elementWorth,
         IReadOnlyList<string> races, IReadOnlyDictionary<string, int> eventIds, IReadOnlyList<InitialEvent> initialEvents,
@@ -119,12 +116,7 @@ public sealed class StoryRules
             events.RootElement.GetProperty("events").EnumerateArray()
                 .ToDictionary(e => e.GetProperty("event").GetString()!, e => e.GetProperty("id").GetInt32()),
             initial,
-            constants.RootElement.GetProperty("constants").GetProperty("CREW_EXPENSE_THRESHOLD").GetProperty("value").GetInt32())
-        {
-            StartDate = (newGame.RootElement.GetProperty("start_date").GetProperty("year").GetInt32(),
-                newGame.RootElement.GetProperty("start_date").GetProperty("month").GetInt32(),
-                newGame.RootElement.GetProperty("start_date").GetProperty("day").GetInt32()),
-        };
+            constants.RootElement.GetProperty("constants").GetProperty("CREW_EXPENSE_THRESHOLD").GetProperty("value").GetInt32());
     }
 
     private static List<string> ModuleNames(JsonElement root)

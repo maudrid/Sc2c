@@ -237,6 +237,7 @@ public class ActivityTests
     {
         var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
         node["version"] = 3;
+        node.AsObject().Remove("story");   // older saves have none
         foreach (var p in node["players"]!.AsArray())
         {
             p!.AsObject().Remove("system_star");

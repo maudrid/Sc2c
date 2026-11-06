@@ -24,7 +24,7 @@ public enum Allied
     /// <summary>GOOD_GUY: allied with the player.</summary>
     Good = 1,
 
-    /// <summary>BAD_GUY: not allied with the player (every race at the start).</summary>
+    /// <summary>BAD_GUY: not allied with the player (every race at the start but the humans).</summary>
     Bad = 2,
 }
 
@@ -61,6 +61,9 @@ public sealed class StoryState
         ["LANDER_SHIELDS"] = "the lander's shields: each ship's own (ShipHold.Upgrades, stage 2b)",
         ["MELNORME_CREDIT0"] = "Melnorme credits: each player's own (docs/differences.md row 19)",
         ["MELNORME_CREDIT1"] = "Melnorme credits: each player's own (docs/differences.md row 19)",
+        ["ARILOU_SPACE_SIDE"] = "whether a ship is in hyperspace or QuasiSpace: each ship's own",
+        ["PLANETARY_LANDING"] = "whether a lander is down: each ship's own (PlayerShip.Lander, stage 2b)",
+        ["PLANETARY_CHANGE"] = "whether a visit changed its world (for UQM's star info file): taken nodes are saved at once (PlanetWorldState)",
     };
 
     private readonly byte[] _bits;
@@ -83,6 +86,8 @@ public sealed class StoryState
         _bits = new byte[rules.Table.Bytes];
         _moduleCost = new Dictionary<string, int>(rules.ModuleCost);
         _alliances = Enumerable.Repeat(Allied.Bad, rules.Races.Count).ToArray();
+        // InitGameStructures: SetRaceAllied (HUMAN_SHIP, TRUE).
+        _alliances[rules.RaceIndex("HUMAN_SHIP")] = Allied.Good;
         CrewCost = rules.CrewCost;
         FuelCost = rules.FuelCost;
         Events = new EventQueue(rules, () => ++Version);
@@ -91,7 +96,7 @@ public sealed class StoryState
     /// <summary>
     /// A new game's story state, as InitGameStructures and
     /// AddInitialGameEvents leave it on <paramref name="clock"/>'s date:
-    /// every field 0, every race not allied, UQM's prices, and the first
+    /// every field 0, every race but the humans not allied, UQM's prices, and the first
     /// events, of which the one due at once (SLYLANDRO_RAMP_UP) has run.
     /// </summary>
     public static StoryState NewGame(StoryRules rules, GameClock clock)
@@ -221,7 +226,10 @@ public sealed class StoryState
     /// <summary>Every race's standing, in data/races.json's order.</summary>
     public IReadOnlyList<Allied> Alliances => _alliances;
 
-    /// <summary>Sets a race's standing.</summary>
+    /// <summary>
+    /// Sets a race's standing, whatever it was (SetRaceAllied, which leaves a
+    /// dead race dead, is the scripts' call and comes with them).
+    /// </summary>
     public void SetAlliance(string race, Allied state)
     {
         int i = Rules.RaceIndex(race);
@@ -255,10 +263,10 @@ public sealed class StoryState
         else if (crewDelta > 0)
         {
             if (bought >= threshold && bought - crewDelta < threshold)
-                SetCrewCost(CrewCost + 2);
+                SetCrewCost((byte)(CrewCost + 2));   // CrewCost is a BYTE
         }
         else if (bought < threshold && bought - crewDelta >= threshold)
-            SetCrewCost(CrewCost - 2);
+            SetCrewCost((byte)(CrewCost - 2));
         if (Alliance("SHOFIXTI_SHIP") != Allied.Good)
         {
             Set("CREW_PURCHASED0", bought & 0xFF);
@@ -266,7 +274,7 @@ public sealed class StoryState
         }
     }
 
-    /// <summary>Sets the crew price (the Druuge's script does too).</summary>
+    /// <summary>Sets the crew price (gameev.c's SHOFIXTI_RETURN_EVENT lowers it too).</summary>
     public void SetCrewCost(int cost)
     {
         if (cost < 0 || cost > byte.MaxValue)

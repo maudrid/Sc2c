@@ -89,6 +89,7 @@ public sealed class GameWorld
     private readonly Dictionary<Lander, LanderInput> _landerInput = new();
     private StorySnapshot? _storySnapshot;
     private long _storyVersion;
+    private StoryState? _storyOf;
 
     public GameSettings Settings { get; }
     public GameClock Clock { get; }
@@ -561,10 +562,12 @@ public sealed class GameWorld
                 s.Surface.Elements.Where(e => e.Kind != SurfaceElementKind.Mineral).Select(SurfaceElementSnapshot.Of).ToList(),
                 s.Surface.Taken.Where(t => t.Scan == ScanType.Mineral).Select(t => t.Node).Distinct().ToList()))
             .ToList();
-        if (Story is { } story && (_storySnapshot is null || _storyVersion != story.Version))
+        // Made again when the story changed, or is another story state altogether.
+        if (Story is { } story && (_storySnapshot is null || _storyVersion != story.Version || !ReferenceEquals(_storyOf, story)))
         {
             _storySnapshot = StorySnapshot.Of(story);
             _storyVersion = story.Version;
+            _storyOf = story;
         }
         return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces,
             Story is null ? null : _storySnapshot);

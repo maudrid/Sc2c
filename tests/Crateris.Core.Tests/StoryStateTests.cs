@@ -109,6 +109,9 @@ public class StoryStateTests
         Assert.Contains("each player's own", e.Message);
         Assert.Throws<InvalidOperationException>(() => story.Get("LANDER_SHIELDS"));
         Assert.Throws<InvalidOperationException>(() => story.Get("MELNORME_CREDIT0"));
+        Assert.Throws<InvalidOperationException>(() => story.Get("ARILOU_SPACE_SIDE"));
+        Assert.Throws<InvalidOperationException>(() => story.Set("PLANETARY_LANDING", 1));
+        Assert.Equal(0, story.Get("PORTAL_COUNTER"));   // the portal is the group's
         Assert.Throws<KeyNotFoundException>(() => story.Get("NO_SUCH_STATE"));
     }
 
@@ -121,10 +124,10 @@ public class StoryStateTests
         Assert.Equal(v, story.Version);
         story.Set("STARBASE_AVAILABLE", 1);
         Assert.Equal(v + 1, story.Version);
-        story.SetAlliance("HUMAN_SHIP", Allied.Bad);
+        story.SetAlliance("HUMAN_SHIP", Allied.Good);
         story.SetCrewCost(story.CrewCost);
         Assert.Equal(v + 1, story.Version);
-        story.SetAlliance("HUMAN_SHIP", Allied.Good);
+        story.SetAlliance("HUMAN_SHIP", Allied.Bad);
         Assert.Equal(v + 2, story.Version);
     }
 
@@ -156,7 +159,9 @@ public class StoryStateTests
         Assert.Equal(50, Rules.ModuleCostScale);
         Assert.Equal(new[] { 1, 2, 3, 4, 5, 6, 8, 25 }, story.ElementWorth);
         Assert.Equal(24, story.Alliances.Count);
-        Assert.All(story.Alliances, a => Assert.Equal(Allied.Bad, a));
+        // Every race not allied but the humans (SetRaceAllied (HUMAN_SHIP, TRUE)).
+        for (int i = 0; i < Rules.Races.Count; ++i)
+            Assert.Equal(Rules.Races[i] == "HUMAN_SHIP" ? Allied.Good : Allied.Bad, story.Alliances[i]);
         // The day after the start, the Arilou's date, 182 days on (the
         // Slylandro, added when it ran) and four years on, in date order.
         Assert.Equal(new[]
@@ -195,10 +200,11 @@ public class StoryStateTests
     {
         var story = NewStory();
         var clock = StartClock();
-        while (story.Events.Count < EventQueue.MaxEvents)
+        while (story.Events.Count < story.Events.MaxEvents)
             Assert.True(story.Events.Add(true, 0, 5, 0, "ARILOU_EXIT_EVENT", clock));
         Assert.False(story.Events.Add(true, 0, 5, 0, "ARILOU_EXIT_EVENT", clock));
-        Assert.Equal(18, EventQueue.MaxEvents);
+        Assert.Equal(18, story.Events.MaxEvents);    // NUM_EVENTS
+        Assert.Throws<ArgumentOutOfRangeException>(() => story.Events.Add(true, -1, 0, 0, "ARILOU_EXIT_EVENT", clock));
     }
 
     [Fact]
@@ -236,6 +242,15 @@ public class StoryStateTests
         Assert.Equal(3, story.CrewCost);
         Assert.Equal(999, story.CrewPurchased);
         story.CrewTransaction(-5000);           // never below none
+        Assert.Equal(0, story.CrewPurchased);
+        // CrewCost is a byte: its rise wraps, as UQM's does.
+        story.SetCrewCost(254);
+        story.CrewTransaction(1000);
+        Assert.Equal(0, story.CrewCost);
+        story.CrewTransaction(-1);
+        Assert.Equal(254, story.CrewCost);
+        story.SetCrewCost(3);
+        story.CrewTransaction(-999);
         Assert.Equal(0, story.CrewPurchased);
         // With the Shofixti allied the count stands still (the price still moves).
         story.SetAlliance("SHOFIXTI_SHIP", Allied.Good);
@@ -326,17 +341,34 @@ public class StoryStateTests
         Assert.NotNull(world.Story);
         world.Story!.Set("STARBASE_AVAILABLE", 1);
         world.Story.SetAlliance("HUMAN_SHIP", Allied.Good);
+        // The clock passes events' days in 3a (none runs until 3c): they stay queued.
+        world.Clock.Month = 4;
         string json = HostSave.ToJson(world);
         var loaded = HostSave.FromJson(json, systems, TestContent.Shapes);
         SameStory(world.Story, loaded.Story!);
+        Assert.Equal("HYPERSPACE_ENCOUNTER_EVENT", loaded.Story!.Events[0].Event);
 
-        // A save from before stage 3a: a new game's story, its events from the new game's date.
+        // A save from before stage 3a: a new game's story, its events counted from the
+        // save's day, so the Arilou's date, already past, isn't queued.
         var node = JsonNode.Parse(json)!;
         node["version"] = 5;
         node.AsObject().Remove("story");
         node["clock"]!["year"] = 2157;
+        node["clock"]!["month"] = 2;
         var old = HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes);
-        SameStory(NewStory(), old.Story!);
+        Assert.Equal(new[]
+        {
+            new StoryEvent("HYPERSPACE_ENCOUNTER_EVENT", 2157, 2, 18),
+            new StoryEvent("SLYLANDRO_RAMP_UP", 2157, 8, 18),
+            new StoryEvent("KOHR_AH_VICTORIOUS_EVENT", 2161, 2, 17),
+        }, old.Story!.Events);
+        Assert.Equal(Allied.Good, old.Story.Alliance("HUMAN_SHIP"));
+        // An older save can't have a story, and a newer one must.
+        node["story"] = JsonNode.Parse(json)!["story"]!.DeepClone();
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes));
+        node = JsonNode.Parse(json)!;
+        node.AsObject().Remove("story");
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes));
 
         // A story that makes other systems than the ones loaded is refused.
         node = JsonNode.Parse(json)!;
@@ -360,6 +392,12 @@ public class StoryStateTests
         Assert.Equal(1, b.Get(Rules.Table, "STARBASE_AVAILABLE"));
         Assert.Equal(1, b.Get(Rules.Table, "SLYLANDRO_MULTIPLIER"));
         Assert.Null(new GameWorld(new GameSettings(), StartClock()).Snapshot().Story);
+        // Another story state at the same version isn't mistaken for the last.
+        var other = NewStory();
+        other.Set("MOONBASE_ON_SHIP", 1);
+        Assert.Equal(world.Story!.Version, other.Version);
+        world.Story = other;
+        Assert.Equal(1, world.Snapshot().Story!.Get(Rules.Table, "MOONBASE_ON_SHIP"));
     }
 
     private static WorldSnapshot At(long frame, StoryState? story) =>
@@ -404,6 +442,15 @@ public class StoryStateTests
         Assert.True(changedSize <= sameSize + 6, $"{changedSize} bytes for one field, {sameSize} for none");
         Assert.True(fullSize > changedSize);
 
+        // Only the prices, or only the standing, changed: no bits.
+        story.CrewTransaction(1000);
+        var pricier = RoundTrip(At(15, story), changed, out int priceSize);
+        SameSnapshot(At(15, story).Story, pricier.Story);
+        Assert.True(priceSize < fullSize);
+        var before = At(16, story);
+        story.SetAlliance("SPATHI_SHIP", Allied.Good);
+        SameSnapshot(At(17, story).Story, RoundTrip(At(17, story), RoundTrip(before, null, out _), out _).Story);
+
         // No story (a world without one) after one, and back.
         var none = RoundTrip(At(13, null), got, out _);
         Assert.Null(none.Story);
@@ -440,12 +487,13 @@ public class StoryStateTests
     {
         var w = new WireWriter();
         var s = At(5, NewStory());
+        SnapshotCodec.Encode(w, s with { Story = null });
+        // Without a story the message ends with the ship count; with one, the story
+        // part comes just before it, so its kind byte is where that count was.
+        int at = w.Written.Length - 1;
         SnapshotCodec.Encode(w, s);
         byte[] good = w.Written.ToArray();
-        // The story part follows the parts byte, the date and the (empty) orbited worlds:
-        // find its kind byte (from zeros, with the prices and the standing) and spoil it.
-        int at = Array.IndexOf(good, (byte)0x16, 3);
-        Assert.True(at > 0);
+        Assert.Equal(0x16, good[at]);   // present, with the prices and the standing, from zeros
         var spoilt = (byte[])good.Clone();
         spoilt[at] = 0x36;                                 // no such kind
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(spoilt));

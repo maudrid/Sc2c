@@ -20,12 +20,15 @@ public sealed record StoryEvent(string Event, int Year, int Month, int Day);
 /// The clock's events in date order, as clock.c keeps them: a new event
 /// goes after every event on its day or before it, so events on one day
 /// run in the order they were added. Running them as their days come is
-/// stage 3c's; until then they are kept and saved.
+/// stage 3c's; until then they are kept and saved, and the clock passes
+/// their days. UQM's clock runs only the first event and only on its day
+/// (processClockDayEvents), so stage 3c has to run those already due when
+/// it starts, or one in the past would hold up the rest.
 /// </summary>
 public sealed class EventQueue : IEnumerable<StoryEvent>
 {
-    /// <summary>The queue holds NUM_EVENTS events (InitGameClock, clock.c); AllocEvent gives no more.</summary>
-    public const int MaxEvents = 18;
+    /// <summary>The queue holds NUM_EVENTS events, one of each kind (InitGameClock, clock.c); AllocEvent gives no more.</summary>
+    public int MaxEvents => _rules.EventIds.Count;
 
     private readonly List<StoryEvent> _events = new();
     private readonly StoryRules _rules;
@@ -50,6 +53,8 @@ public sealed class EventQueue : IEnumerable<StoryEvent>
     {
         if (!_rules.EventIds.ContainsKey(evt))
             throw new KeyNotFoundException($"no event {evt}");
+        if (months < 0 || days < 0 || years < 0)
+            throw new ArgumentOutOfRangeException(nameof(months), "an event's date is counted in unsigned numbers (COUNT)");
         int month = months, day = days, year = years;
         if (relative)
         {
