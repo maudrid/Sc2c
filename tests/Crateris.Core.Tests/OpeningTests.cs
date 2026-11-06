@@ -6,6 +6,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Comm;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Planetside;
@@ -132,5 +133,176 @@ public class OpeningTests
         Run(world, 100);
         Assert.Null(world.Host.Ship.Lander);
         Assert.Equal(LanderPhase.Ground, guest.Phase);
+    }
+
+    // ------------------------------------------------------------ the visit
+
+    private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);
+    private static readonly Lazy<TalkLibrary> Library = new(() => TestContent.With(p => TalkLibrary.Load(p, Scripts)));
+
+    private static GameWorld WithTalks(bool guest = false)
+    {
+        var world = NewWorld(guest);
+        world.TalkLibrary = Library.Value;
+        world.PutInOrbit("host", Sol, Earth, Luna);
+        world.Host.Ship.Ip!.ReturnFromOrbit();   // in Earth's inner system, by the starbase
+        return world;
+    }
+
+    // The starter's reply by its phrase id.
+    private static void Say(GameWorld world, string script, string phrase)
+    {
+        var talk = world.Visit!.Talk!;
+        int n = Scripts[script].PhraseNumber(phrase);
+        int i = talk.Replies.Select(r => r.Phrase).ToList().IndexOf(n);
+        Assert.True(i >= 0, $"{phrase} isn't offered: {string.Join(", ", talk.Replies.Select(r => r.Phrase))}");
+        Assert.True(world.ChooseReply(world.Visit.Starter.Id, i));
+    }
+
+    [ContentFact]
+    public void TheFirstVisitIsTheCommandersTalkAndTheGroupHasMetHim()
+    {
+        var world = WithTalks();
+        world.VisitStarbase(world.Host);
+        var visit = world.Visit!;
+        Assert.Equal((VisitStep.Commander, Activity.Talk), (visit.Step, world.Host.Ship.Activity));
+        Assert.False(world.CommanderMet);
+        Say(world, "comandr", "yes_this_is_supply_ship");
+        Say(world, "comandr", "i_lied");
+        Say(world, "comandr", "ok_i_will_get_radios");
+        Assert.Null(world.Visit);
+        Assert.Null(world.Host.Ship.Visit);
+        Assert.True(world.CommanderMet);   // the first visit's STARBASE_VISITED, the group's
+        Assert.Equal(Activity.InnerSystem, world.Host.Ship.Activity);
+        Assert.Equal(0, world.Story!.Get("RADIOACTIVES_PROVIDED"));
+        // The next visit is "again": no first meeting.
+        world.VisitStarbase(world.Host);
+        Assert.Contains(world.Visit!.Talk!.Events.OfType<StateSet>(), e => e.Field == "BATTLE_SEGUE");
+        Assert.DoesNotContain(world.Visit.Talk.Events.OfType<StateSet>(), e => e.Field == "STARBASE_VISITED");
+    }
+
+    [ContentFact]
+    public void TheOpeningRunsFromTheBaseReportedToTheStarbaseReady()
+    {
+        var world = WithTalks(guest: true);
+        var story = world.Story!;
+        story.Set("RADIOACTIVES_PROVIDED", 1);
+        story.Set("MOONBASE_DESTROYED", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.CommanderMet = true;
+        var date = (world.Clock.Year, world.Clock.Month, world.Clock.Day);
+        world.VisitStarbase(world.Host);
+        var visit = world.Visit!;
+
+        Say(world, "comandr", "base_was_abandoned");
+        Assert.Equal(VisitStep.Ilwrath, visit.Step);       // HERE_COMES_ILWRATH
+        Say(world, "ilwrath", "surrender");
+        Assert.Equal(Segue.Hostile, visit.Talks[1].Segue);  // its battle counts as won (decision 3)
+        Assert.Equal(VisitStep.Alliance, visit.Step);
+        Say(world, "comandr", "cook_their_butts");
+        Say(world, "comandr", "name_2");
+        Assert.Equal((1, 1, 0), (story.Get("STARBASE_AVAILABLE"), story.Get("NEW_ALLIANCE_NAME"), story.Get("PROBE_ILWRATH_ENCOUNTER")));
+
+        // Two weeks pass, as the screen fades over two seconds.
+        Assert.Equal(VisitStep.TimePassing, visit.Step);
+        Run(world, StarbaseVisit.TimePassingFrames - 1);
+        Assert.Equal(VisitStep.TimePassing, visit.Step);
+        Run(world, 1);
+        Assert.Equal(VisitStep.StarbaseReady, visit.Step);
+        var now = new DateTime(date.Year, date.Month, date.Day).AddDays(StarbaseVisit.LostDays);
+        Assert.Equal((now.Year, now.Month, now.Day), (world.Clock.Year, world.Clock.Month, world.Clock.Day));
+        Assert.Equal((now.Month, now.Day), (story.Get("STARBASE_MONTH"), story.Get("STARBASE_DAY")));
+
+        Say(world, "starbas", "goodbye_commander");
+        Assert.Null(world.Visit);
+        Assert.Equal(0, story.Get("MOONBASE_ON_SHIP"));     // post_starbase_enc
+        // The 2,500 resource units, split between the two players (decision 5).
+        Assert.Equal((1250u, 1250u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
+        // The allied starbase's menu is item 8's: the next visit has nothing to tell.
+        world.VisitStarbase(world.Host);
+        Assert.Null(world.Visit);
+    }
+
+    [ContentFact]
+    public void ASaveDuringAVisitIsOfTheGameBeforeItAndLeavingUndoesIt()
+    {
+        var world = WithTalks();
+        var story = world.Story!;
+        world.Host.Ship.Flight.Fuel = 150;
+        world.VisitStarbase(world.Host);
+        Say(world, "comandr", "yes_this_is_supply_ship");
+        Say(world, "comandr", "i_lied");
+        Say(world, "comandr", "need_fuel_mercury");      // 5 units given, GIVEN_FUEL_BEFORE set
+        Assert.Equal(650u, world.Host.Ship.Flight.Fuel);
+        Assert.Equal(1, story.Get("GIVEN_FUEL_BEFORE"));
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(150u, loaded.Host.Ship.Flight.Fuel);
+        Assert.Equal(0, loaded.Story!.Get("GIVEN_FUEL_BEFORE"));
+        Assert.False(loaded.CommanderMet);
+        Assert.Null(loaded.Visit);
+
+        world.Leave("host");
+        Assert.Null(world.Visit);
+        Assert.Equal(150u, world.Host.Ship.Flight.Fuel);
+        Assert.Equal(0, world.Story!.Get("GIVEN_FUEL_BEFORE"));
+        Assert.False(world.CommanderMet);
+    }
+
+    [ContentFact]
+    public void OneStoryVisitAtATimeAndNoneWithoutTheTalks()
+    {
+        var world = WithTalks(guest: true);
+        world.PutInOrbit("guest", Sol, Earth, Luna);
+        world.Find("guest")!.Ship.Ip!.ReturnFromOrbit();
+        world.VisitStarbase(world.Host);
+        world.VisitStarbase(world.Find("guest")!);
+        Assert.Equal(world.Host, world.Visit!.Starter);
+        Assert.Null(world.Find("guest")!.Ship.Visit);
+        Assert.False(world.ChooseReply("guest", 0));
+        Assert.False(world.ChooseReply("host", 9));
+
+        var bare = NewWorld();
+        bare.PutInOrbit("host", Sol, Earth, Luna);
+        bare.VisitStarbase(bare.Host);
+        Assert.Null(bare.Visit);
+    }
+
+    [ContentFact]
+    public void TheCommandersGiftsGoToTheStartersShipWithinWhatItHolds()
+    {
+        var world = WithTalks();
+        var hold = world.Host.Ship.Hold;
+        // A new flagship's one crew pod holds 50; an escort's kit 10.
+        Assert.Equal(50, hold.CrewCapacity);
+        Assert.Equal(10, new GameSettings().EscortLoadout.CrewCapacity);
+        hold.LanderLeaves();
+        hold.LanderReturns(0, new int[8], 0);   // the lander lost, and its crew
+        Assert.Equal(0, hold.Landers);
+        world.VisitStarbase(world.Host);
+        Say(world, "comandr", "yes_this_is_supply_ship");
+        Say(world, "comandr", "i_lied");
+        Say(world, "comandr", "i_lost_my_lander");
+        Assert.Equal((1, 42), (hold.Landers, hold.Crew));   // 38 + 4
+    }
+
+    [ContentFact]
+    public void FlyingIntoEarthsStarbaseStartsTheVisit()
+    {
+        var world = WithTalks();
+        var ship = world.Host.Ship;
+        // Off Luna, steer at the starbase (Earth's first moon) and thrust.
+        for (int i = 0; i < 24 * 60 && ship.Visit is null; ++i)
+        {
+            var ip = ship.Ip!;
+            var target = ip.MoonScreen[0];
+            int want = Uqm.UqmMath.AngleToFacing(Uqm.UqmMath.ArcTan((short)(target.X - ip.Screen.X), (short)(target.Y - ip.Screen.Y)));
+            int turn = (want - ip.Facing) & (Uqm.UqmMath.Facings - 1);
+            var keys = turn == 0 ? ShipInput.Thrust : turn > Uqm.UqmMath.Facings / 2 ? ShipInput.Left : ShipInput.Right;
+            world.SubmitInput("host", world.Frame + 1, keys);
+            world.Step();
+        }
+        Assert.Equal(VisitStep.Commander, ship.Visit?.Step);
+        Assert.Equal(Activity.Talk, ship.Activity);
+        Assert.Null(ship.Ip!.Orbit);   // in flight by the starbase
     }
 }

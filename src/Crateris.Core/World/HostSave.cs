@@ -38,9 +38,16 @@ public static class HostSave
     /// AddEvent queues none in the past. 7 added the ship's and captain's
     /// names (PlayerState.ShipName, CaptainName: none for the flagship's
     /// UQM names and a guest's join name); an escort from an older save is
-    /// named from the settings, and an older save with names is refused.
+    /// named from the settings, and an older save with names is refused. 8
+    /// added each ship's resource units (HoldState.ResourceUnits), the crew
+    /// its loadout holds (ShipLoadout.CrewCapacity: an older save's flagship
+    /// holds its crew pod's 50, an escort the kit's 10) and whether the
+    /// group has met the starbase's commander (CommanderMet); an older save
+    /// with either is refused. A save made during a visit to the starbase
+    /// is of the game before the visit: its story, and the starter's hold
+    /// and fuel, as the visit started (UQM can't save during one).
     /// </summary>
-    public const int Version = 7;
+    public const int Version = 8;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -52,7 +59,7 @@ public static class HostSave
 
     public sealed record SaveFile(
         int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players,
-        List<WorldState>? Worlds = null, StoryState.Saved? Story = null);
+        List<WorldState>? Worlds = null, StoryState.Saved? Story = null, bool CommanderMet = false);
 
     /// <summary>
     /// One planet or moon with stored state: moon null for the planet itself;
@@ -75,19 +82,23 @@ public static class HostSave
 
     public static string ToJson(GameWorld world)
     {
+        // A visit going on is saved as not begun.
+        var visit = world.Visit;
         var players = world.Players.Select(p =>
         {
             var f = p.Ship.Flight;
+            bool starter = visit?.Starter == p;
             var v = f.Velocity;
             return new PlayerState(p.Id, p.Name, p.IsHost, p.Ship.Kind, p.Ship.Loadout, p.UndockPending,
-                new FlightState(f.LogX, f.LogY, f.Facing, f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
+                new FlightState(f.LogX, f.LogY, f.Facing, starter ? visit!.FuelBefore : f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
                     f.ViewX, f.ViewY, f.FuelDistX, f.FuelDistY, f.FuelDistExtra, f.FuelTicks,
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
                     f.StarJustLeft),
                 p.Ship.SystemStar, p.Ship.Ip?.Save(),
                 // A lander on a surface is saved as back aboard with its crew and cargo.
-                p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save(),
+                starter ? visit!.HoldBefore
+                : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save(),
                 p.Ship.Name, p.CaptainName);
         }).ToList();
         var c = world.Clock;
@@ -97,7 +108,8 @@ public static class HostSave
                 w.Value[ScanType.Mineral], w.Value[ScanType.Energy], w.Value[ScanType.Biological]))
             .ToList();
         var save = new SaveFile(Version, world.Settings, new ClockState(c.Year, c.Month, c.Day, c.FramesIntoDay),
-            world.Frame, players, worlds, world.Story?.Save());
+            world.Frame, players, worlds, visit?.StoryBefore ?? world.Story?.Save(),
+            visit?.MetBefore ?? world.CommanderMet);
         return JsonSerializer.Serialize(save, Options);
     }
 
@@ -122,10 +134,14 @@ public static class HostSave
                 $"Save version {save.Version} is not supported (expected {OldestReadableVersion} to {Version}).");
         if (save.Version < 7 && (save.Players ?? new()).Any(p => p.ShipName is not null || p.CaptainName is not null))
             throw new InvalidDataException($"A version {save.Version} save can't have ship or captain names.");
+        if (save.Version < 8 && (save.CommanderMet || (save.Players ?? new()).Any(p => p.Hold?.ResourceUnits > 0)))
+            throw new InvalidDataException($"A version {save.Version} save can't have resource units or have met the commander.");
         // A setting a save leaves out, or gives as null, is the default.
         var settings = save.Settings ?? throw new InvalidDataException("The save has no settings.");
         if (settings.EscortShipName is null)
             settings = settings with { EscortShipName = new GameSettings().EscortShipName };
+        if (save.Version < 8 && settings.EscortLoadout is { } kit)
+            settings = settings with { EscortLoadout = kit with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity } };
 
         var clock = new GameClock(save.Clock.Year, save.Clock.Month, save.Clock.Day)
         {
@@ -145,7 +161,12 @@ public static class HostSave
             PlayerShip ship;
             try
             {
-                ship = new PlayerShip(ps.Kind, ps.Loadout);
+                // Before version 8 the crew a ship holds wasn't saved: an
+                // escort's kit holds 10, a flagship its crew pod's 50.
+                var loadout = save.Version < 8 && ps.Kind == ShipKind.Escort
+                    ? ps.Loadout with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity }
+                    : ps.Loadout;
+                ship = new PlayerShip(ps.Kind, loadout);
                 if (ps.Hold is { } h)
                     ship.Hold.Restore(h);
             }
@@ -240,6 +261,7 @@ public static class HostSave
                 throw new InvalidDataException($"Bad world in save: {e.Message}", e);
             }
         }
+        world.CommanderMet = save.CommanderMet;
         return world;
     }
 }

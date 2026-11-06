@@ -35,10 +35,10 @@ public sealed record GameSettings
     /// A new guest's escort. Placeholder until the escort module set is
     /// decided: the flagship's starting drives, one fuel tank, 10 fuel,
     /// 10 crew, and for landing one lander and one storage bay (stage 2b,
-    /// decision 6).
+    /// decision 6); it holds 10 crew at most (stage 3, decision 10).
     /// </summary>
     public ShipLoadout EscortLoadout { get; init; } = new(Thrusters: 2, Jets: 2, FuelTanks: 1,
-        HighEfficiencyTanks: 0, Crew: 10, Fuel: 1000, Landers: 1, StorageBays: 1);
+        HighEfficiencyTanks: 0, Crew: 10, Fuel: 1000, Landers: 1, StorageBays: 1, CrewCapacity: 10);
 
     /// <summary>
     /// A new guest's escort's name, until they rename it (stage 3, decision

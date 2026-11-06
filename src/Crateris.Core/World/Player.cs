@@ -31,6 +31,11 @@ public enum Activity
     Orbit,
     /// <summary>In orbit, with its lander on the world's surface, 35 frames a second.</summary>
     Planetside,
+    /// <summary>
+    /// In a talk (or between the talks of a visit, as time passes): the
+    /// ship waits in its system where it touched the world.
+    /// </summary>
+    Talk,
 }
 
 /// <summary>A player's ship. The host flies the flagship; guests captain escorts.</summary>
@@ -84,7 +89,10 @@ public sealed class PlayerShip
     /// <summary>The ship's lander on the orbited world's surface, while it's there (not saved: a save keeps it in orbit).</summary>
     public Planetside.Lander? Lander { get; internal set; }
 
-    public Activity Activity => Ip switch
+    /// <summary>The visit to Earth's starbase this ship is on, while it's on one (not saved).</summary>
+    public StarbaseVisit? Visit { get; internal set; }
+
+    public Activity Activity => Visit is not null ? Activity.Talk : Ip switch
     {
         null => Activity.Hyperspace,
         { Orbit: not null } when Lander is not null => Activity.Planetside,

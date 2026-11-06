@@ -106,6 +106,26 @@ public sealed class GameWorld
     /// </summary>
     public StoryState? Story { get; internal set; }
 
+    /// <summary>
+    /// The talks' content (the content package's lines for the ported
+    /// scripts): without it, touching a world that starts a talk leaves the
+    /// ship in flight as if the talk had ended at once (docs/differences.md
+    /// row 27), as in tests without the content.
+    /// </summary>
+    public Comm.TalkLibrary? TalkLibrary { get; set; }
+
+    /// <summary>
+    /// Whether the group has met the starbase's commander
+    /// (STARBASE_VISITED before the alliance: comandr.c reads it as "met
+    /// before", and nothing clears it until the alliance). The story's,
+    /// so the group's. At the allied starbase the field is each player's
+    /// own (decision 11).
+    /// </summary>
+    public bool CommanderMet { get; internal set; }
+
+    /// <summary>The visit to Earth's starbase going on, if any: a story visit, one at a time.</summary>
+    public StarbaseVisit? Visit { get; private set; }
+
     /// <summary>The star map and its systems, when the world has them (always in the game; optional in tests).</summary>
     public SystemCatalog? Systems { get; }
 
@@ -233,6 +253,13 @@ public sealed class GameWorld
         if (player == null)
             return;
         Withdraw(player);   // decision 5: its lander takes off at once, with its crew and cargo
+        // A visit is undone when its starter leaves (until stage 3a's item 6
+        // hands the replies on).
+        if (player.Ship.Visit is { } visit)
+        {
+            visit.Undo();
+            EndVisitIfDone();
+        }
         player.Present = false;
         _inputs[id].Clear();
         _actionHeld.Remove(id);
@@ -300,6 +327,11 @@ public sealed class GameWorld
                 case Activity.Planetside:
                     // The surfaces step after everyone's input is in.
                     _landerInput[p.Ship.Lander!] = ToLanderInput(input);
+                    break;
+                case Activity.Talk:
+                    // Replies come as their own messages (ChooseReply).
+                    p.Ship.Visit!.Frame();
+                    EndVisitIfDone();
                     break;
                 default:
                     // While the entry into the star plays, the ship can't be
@@ -411,13 +443,66 @@ public sealed class GameWorld
         {
             case IpEvent.EnteredOrbit:
                 if (!ip.OrbitData!.Entered)
-                    ip.ReturnFromOrbit();   // UQM starts a conversation here; none exist yet (stage 3)
+                {
+                    // UQM starts a talk here instead of an orbit. The ship
+                    // stays by the world, in flight, while it goes on.
+                    var touched = ip.Orbit;
+                    ip.ReturnFromOrbit();
+                    if (IsEarthsStarbase(ship.SystemStar!.Value, touched))
+                        VisitStarbase(_players.First(p => p.Ship == ship));
+                }
                 break;
             case IpEvent.LeftSystem:
                 SystemTransition.Leave(ship.Flight, Systems!.Map.Stars[ship.SystemStar!.Value], ip.Facing);
                 ship.Ip = null;
                 ship.SystemStar = null;
                 break;
+        }
+    }
+
+    // Earth's first moon is the starbase (GenerateSol_generateMoons).
+    private bool IsEarthsStarbase(int star, (int Planet, int? Moon)? world) =>
+        Systems!.Map.Stars[star].Special == "SOL_DEFINED" && world == (2, 0);
+
+    /// <summary>
+    /// A player touches Earth's starbase (VisitStarBase): before the
+    /// alliance, the commander's talk and what follows it; with the Lunar
+    /// base aboard, the starbase's opening. One story visit goes on at a
+    /// time: while another does, or without the talks' content, the ship
+    /// stays in flight (docs/differences.md row 27). The allied starbase's
+    /// menu is item 8's: until then a visit with nothing to tell does
+    /// nothing.
+    /// </summary>
+    internal void VisitStarbase(Player player)
+    {
+        if (TalkLibrary is null || Story is null || Visit is not null)
+            return;
+        if (Story.Get("STARBASE_AVAILABLE") != 0 && Story.Get("MOONBASE_ON_SHIP") == 0
+                && Story.Get("CHMMR_BOMB_STATE") != 2)
+            return;
+        var visit = new StarbaseVisit(this, player);
+        if (visit.Done)
+            return;
+        Visit = visit;
+        player.Ship.Visit = visit;
+    }
+
+    /// <summary>The player in a talk chooses a reply. False, changing nothing, if they're in none or it's no reply offered.</summary>
+    public bool ChooseReply(string id, int index)
+    {
+        if (Find(id) is not { Present: true, Ship.Visit: { } visit } player || visit.Starter != player)
+            return false;
+        bool chosen = visit.Choose(index);
+        EndVisitIfDone();
+        return chosen;
+    }
+
+    private void EndVisitIfDone()
+    {
+        if (Visit is { Done: true } v)
+        {
+            v.Starter.Ship.Visit = null;
+            Visit = null;
         }
     }
 

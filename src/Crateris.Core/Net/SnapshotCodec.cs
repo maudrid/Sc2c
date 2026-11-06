@@ -355,6 +355,7 @@ public static partial class SnapshotCodec
         w.Int(h.StorageCapacity);
         w.Int(h.BioData);
         w.Int((long)h.Upgrades);
+        w.UInt(h.ResourceUnits);
     }
 
     private static HoldSnapshot? ReadHold(ref WireReader r)
@@ -366,7 +367,7 @@ public static partial class SnapshotCodec
         for (int i = 0; i < minerals.Length; ++i)
             minerals[i] = ToInt(r.Int());
         var hold = new HoldSnapshot(ToInt(r.Int()), ToInt(r.Int()), ToInt(r.Int()), minerals, ToInt(r.Int()),
-            (LanderUpgrades)ToInt(r.Int()));
+            (LanderUpgrades)ToInt(r.Int()), ToUInt(r.UInt()));
         if ((hold.Upgrades & ~LanderUpgrades.All) != 0)
             throw new InvalidDataException("Bad lander upgrades.");
         return hold;

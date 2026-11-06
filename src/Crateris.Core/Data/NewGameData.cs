@@ -15,10 +15,16 @@ namespace Crateris.Core.Data;
 /// its starting crew and fuel, its starting landers and its storage bays
 /// (STORAGE_BAY modules, 500 units of minerals each). Landers and storage
 /// bays default to 1 each, what both a new flagship and an escort get, so
-/// saves from before stage 2b load with them.
+/// saves from before stage 2b load with them. CrewCapacity is the crew it
+/// can hold (GetCrewPodCapacity: 50 a crew pod; an escort's kit holds 10,
+/// stage 3, decision 10); 50, a new flagship's one pod, if not given.
 /// </summary>
 public sealed record ShipLoadout(int Thrusters, int Jets, int FuelTanks, int HighEfficiencyTanks, int Crew, uint Fuel,
-    int Landers = 1, int StorageBays = 1);
+    int Landers = 1, int StorageBays = 1, int CrewCapacity = ShipLoadout.CrewPodCapacity)
+{
+    /// <summary>CREW_POD_CAPACITY (sis.h).</summary>
+    public const int CrewPodCapacity = 50;
+}
 
 /// <summary>Starting values for a new game, from data/new-game.json.</summary>
 public sealed record NewGameData(
@@ -51,7 +57,8 @@ public sealed record NewGameData(
             Crew: ship.GetProperty("crew").GetInt32(),
             Fuel: ship.GetProperty("fuel").GetUInt32(),
             Landers: ship.GetProperty("landers").GetInt32(),
-            StorageBays: Count(slots, "module", "STORAGE_BAY"));
+            StorageBays: Count(slots, "module", "STORAGE_BAY"),
+            CrewCapacity: Count(slots, "module", "CREW_POD") * ShipLoadout.CrewPodCapacity);
 
         short sx = (short)ship.GetProperty("start_universe_x").GetInt32();
         short sy = (short)ship.GetProperty("start_universe_y").GetInt32();

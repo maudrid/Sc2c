@@ -38,24 +38,26 @@ public enum LanderUpgrades
 /// A ship's hold as it's saved: crew aboard, landers aboard, minerals by
 /// element category, bio data and lander upgrades. A lander that is out is
 /// saved as back aboard with its crew (stage 2b, decision 5: the lander
-/// takes off when its player leaves).
+/// takes off when its player leaves). Resource units are the player's
+/// wallet (ResUnits), 0 in saves from before stage 3a.
 /// </summary>
 public sealed record HoldState(int Crew, int Landers, int[]? Minerals, int BioData,
-    LanderUpgrades Upgrades = LanderUpgrades.None);
+    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0);
 
 /// <summary>
 /// What a ship carries (<see cref="ShipHold"/>), as snapshots send it:
-/// crew, landers, storage capacity, minerals by element category, bio data
-/// and lander upgrades. Equal by value, so snapshots compare by value.
+/// crew, landers, storage capacity, minerals by element category, bio data,
+/// lander upgrades and resource units. Equal by value, so snapshots compare
+/// by value.
 /// </summary>
 public sealed record HoldSnapshot(int Crew, int Landers, int StorageCapacity, IReadOnlyList<int> Minerals, int BioData,
-    LanderUpgrades Upgrades = LanderUpgrades.None)
+    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0)
 {
     public int MineralMass => Minerals.Sum();
 
     public bool Equals(HoldSnapshot? other) =>
-        other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades)
-            == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades)
+        other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades, ResourceUnits)
+            == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades, other.ResourceUnits)
         && Minerals.SequenceEqual(other.Minerals);
 
     public override int GetHashCode() => HashCode.Combine(Crew, Landers, StorageCapacity, BioData, Upgrades, MineralMass);
@@ -92,6 +94,7 @@ public sealed class ShipHold
         Crew = loadout.Crew;
         Landers = loadout.Landers;
         StorageCapacity = loadout.StorageBays * StorageBayCapacity;
+        CrewCapacity = loadout.CrewCapacity;
     }
 
     /// <summary>A loadout a hold can start from: 0 to 10 landers, no negative crew or storage bays (ArgumentException).</summary>
@@ -103,6 +106,8 @@ public sealed class ShipHold
             throw new ArgumentOutOfRangeException(nameof(loadout), $"{loadout.StorageBays} storage bays");
         if (loadout.Crew < 0)
             throw new ArgumentOutOfRangeException(nameof(loadout), $"{loadout.Crew} crew");
+        if (loadout.CrewCapacity < 0)
+            throw new ArgumentOutOfRangeException(nameof(loadout), $"room for {loadout.CrewCapacity} crew");
     }
 
     /// <summary>Crew aboard (not counting a lander's that is out).</summary>
@@ -125,6 +130,40 @@ public sealed class ShipHold
 
     /// <summary>The minerals the storage bays hold (GetStorageBayCapacity).</summary>
     public int StorageCapacity { get; }
+
+    /// <summary>The crew the ship holds (GetCrewPodCapacity).</summary>
+    public int CrewCapacity { get; }
+
+    /// <summary>The player's resource units (ResUnits): their wallet.</summary>
+    public uint ResourceUnits
+    {
+        get => _resourceUnits;
+        internal set
+        {
+            _resourceUnits = value;
+            _snapshot = null;
+        }
+    }
+
+    private uint _resourceUnits;
+
+    /// <summary>A talk changes the crew aboard (the commander's lander with its crew).</summary>
+    internal void SetCrew(int crew)
+    {
+        if (crew < 0)
+            throw new ArgumentOutOfRangeException(nameof(crew), $"{crew} crew");
+        Crew = crew;
+        _snapshot = null;
+    }
+
+    /// <summary>A talk changes the landers aboard (the commander's new lander), up to <see cref="MaxLanders"/>.</summary>
+    internal void SetLanders(int landers)
+    {
+        if (landers < 0 || landers > MaxLanders)
+            throw new ArgumentOutOfRangeException(nameof(landers), $"{landers} landers (0 to {MaxLanders})");
+        Landers = landers;
+        _snapshot = null;
+    }
 
     /// <summary>Minerals held, by element category (ElementAmounts).</summary>
     public IReadOnlyList<int> Minerals => _minerals;
@@ -224,10 +263,10 @@ public sealed class ShipHold
 
     /// <summary>The hold for snapshots, made again only when it changes.</summary>
     public HoldSnapshot Snapshot() =>
-        _snapshot ??= new HoldSnapshot(Crew, Landers, StorageCapacity, _minerals.ToArray(), BioData, _upgrades);
+        _snapshot ??= new HoldSnapshot(Crew, Landers, StorageCapacity, _minerals.ToArray(), BioData, _upgrades, _resourceUnits);
 
     /// <summary>The hold for the save; a lander that is out is saved as back aboard with its crew.</summary>
-    public HoldState Save() => new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades);
+    public HoldState Save() => new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades, _resourceUnits);
 
     /// <summary>
     /// The hold for the save while its lander is on a surface (decision 5:
@@ -240,8 +279,9 @@ public sealed class ShipHold
         if (LanderOut is null)
             return Save();
         if (crew == 0)
-            return new(Crew, Landers - 1, _minerals.ToArray(), BioData, _upgrades);
-        return new(Crew + crew, Landers, _minerals.Zip(minerals, (a, b) => a + b).ToArray(), BioData + bioData, _upgrades);
+            return new(Crew, Landers - 1, _minerals.ToArray(), BioData, _upgrades, _resourceUnits);
+        return new(Crew + crew, Landers, _minerals.Zip(minerals, (a, b) => a + b).ToArray(), BioData + bioData, _upgrades,
+            _resourceUnits);
     }
 
     /// <summary>Puts a saved hold back (the loadout gives the storage). A bad one is an <see cref="InvalidDataException"/>.</summary>
@@ -263,6 +303,7 @@ public sealed class ShipHold
         minerals.CopyTo(_minerals, 0);
         BioData = state.BioData;
         _upgrades = state.Upgrades;
+        _resourceUnits = state.ResourceUnits;
         LanderOut = null;
         _snapshot = null;
     }
