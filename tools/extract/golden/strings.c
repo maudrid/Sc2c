@@ -12,7 +12,7 @@
  * Built by tools/extract/golden_uqm.py and linked with UQM's real
  * libs/strings/getstr.c (_GetStringData), strings.c (AllocStringTable)
  * and libs/memory/w_memlib.c. Only UQM's stream calls are replaced by
- * the C library's (uio_fgets reads as fgets does).
+ * the C library's (uio_files.c: uio_fgets reads as fgets does).
  *
  *   strings bases          the string bases and counts of gamestr.h, and
  *                          the orbit screen's menu numbers (menustat.h),
@@ -43,70 +43,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-/* UQM's warnings (a key without a value, say) aren't needed here. */
-void
-log_add (log_Level level, const char *fmt, ...)
-{
-	(void) level;
-	(void) fmt;
-}
-
-char *
-uio_fgets (char *buf, int size, uio_Stream *stream)
-{
-	return fgets (buf, size, (FILE *) stream);
-}
-
-long
-uio_ftell (uio_Stream *stream)
-{
-	return ftell ((FILE *) stream);
-}
-
-/* _GetConversationData opens its file by path in contentDir. */
-uio_DirHandle *contentDir;
-
-uio_Stream *
-res_OpenResFile (uio_DirHandle *dir, const char *filename, const char *mode)
-{
-	(void) dir;
-	return (uio_Stream *) fopen (filename, mode);
-}
-
-BOOLEAN
-res_CloseResFile (uio_Stream *fp)
-{
-	if (fp)
-		fclose ((FILE *) fp);
-	return TRUE;
-}
-
-size_t
-LengthResFile (uio_Stream *fp)
-{
-	long here = ftell ((FILE *) fp), length;
-	fseek ((FILE *) fp, 0, SEEK_END);
-	length = ftell ((FILE *) fp);
-	fseek ((FILE *) fp, here, SEEK_SET);
-	return (size_t) length;
-}
-
-/* No timestamp files: the base content has none. */
-uio_Stream *
-uio_fopen (uio_DirHandle *dir, const char *path, const char *mode)
-{
-	(void) dir;
-	(void) path;
-	(void) mode;
-	return NULL;
-}
-
-int
-uio_fclose (uio_Stream *stream)
-{
-	return stream ? fclose ((FILE *) stream) : 0;
-}
 
 static void
 print_hex (const char *data, int length)
@@ -154,13 +90,6 @@ print_conversations (int argc, char *argv[])
 	}
 	printf ("]\n");
 	return 0;
-}
-
-/* GetResourceData (libs/resource/loadres.c) reads with ReadResFile. */
-size_t
-ReadResFile (void *lpBuf, size_t size, size_t count, uio_Stream *fp)
-{
-	return fread (lpBuf, size, count, (FILE *) fp);
 }
 
 static void

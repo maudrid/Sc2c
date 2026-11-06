@@ -109,6 +109,10 @@ STRINGS_LINK = ["libs/strings/getstr.c", "libs/strings/strings.c",
                 "libs/memory/w_memlib.c", "libs/resource/propfile.c",
                 "libs/resource/loadres.c", "libs/strings/stringhashtable.c"]
 
+# UQM's file calls as the C library's, for the programs that read content
+# with UQM's loaders.
+UIO_FILES = os.path.join(HERE, "golden", "uio_files.c")
+
 # The resource types UQM 0.8.0 registers (every InstallResTypeVectors
 # call); any other type is UNKNOWNRES, as newResourceDesc in resinit.c has
 # it (and ResourceIndex in ContentPackage.cs).
@@ -158,8 +162,8 @@ def systems_link(uqm):
 SYSTEMS_STUBS = os.path.join(HERE, "golden", "stubs.c")
 
 
-def build(uqm, main_c, link, out, extra=(), libs=(), includes=()):
-    cflags = ["-w", "-no-pie", *(f"-I{d}" for d in includes),
+def build(uqm, main_c, link, out, extra=(), libs=(), includes=(), defines=()):
+    cflags = ["-w", "-no-pie", *(f"-I{d}" for d in includes), *(f"-D{d}" for d in defines),
               "-I", uqm.build, "-I", uqm.src, "-I", uqm.uqm,
               "-I", os.path.join(uqm.uqm, "ships", "sis_ship"),
               "-I", os.path.join(uqm.uqm, "planets")]
@@ -1985,6 +1989,217 @@ def record_landing(uqm, systems_exe):
     return data
 
 
+# ------------------------------------------------------------ conversations
+
+# The conversation recording program (golden/comm.c) is built once per
+# script, with the script's own file included and these of UQM's linked.
+COMM_LINK = STRINGS_LINK + ["uqm/commglue.c", "uqm/sis.c", "libs/math/random.c"]
+COMM_PROGRAM = os.path.join(HERE, "golden", "comm.c")
+
+# sis.h's module numbers, for the ship's module slots (EMPTY_SLOT + 2 is
+# an empty module slot).
+MODULES = {"PLANET_LANDER": 0, "FUSION_THRUSTER": 1, "TURNING_JETS": 2,
+           "CREW_POD": 3, "STORAGE_BAY": 4, "FUEL_TANK": 5,
+           "HIGHEFF_FUELSYS": 6, "DYNAMO_UNIT": 7, "SHIVA_FURNACE": 8,
+           "GUN_WEAPON": 9, "EMPTY": 22}
+# A new game's module slots (InitGameStructures, data/new-game.json).
+NEW_GAME_MODULES = ["EMPTY", "FUEL_TANK", "CREW_POD"] + ["EMPTY"] * 5 + \
+    ["STORAGE_BAY"] + ["EMPTY"] * 6 + ["GUN_WEAPON"]
+RADIOACTIVE = 6   # elemdata.h's category
+
+
+def talk_ship(crew=50, fuel=1000, landers=1, ru=0, elements=None,
+              modules=None, captain="Zelnick", ship="Vindicator"):
+    """A flagship for a talk: a new game's unless told otherwise."""
+    return {"crew": crew, "fuel": fuel, "landers": landers, "ru": ru,
+            "elements": elements or [0] * 8,
+            "modules": modules or NEW_GAME_MODULES,
+            "captain": captain, "ship": ship}
+
+
+def commander_starts():
+    """Starting states for the commander's talk (comandr.c), chosen to
+    reach every condition it reads: which visit it is (Intro: the Ilwrath
+    come, a visit before, the radioactives brought, the base destroyed),
+    radioactives in the hold, no lander (with the Chmmr's bomb not yet
+    started, and one lost before), fuel under 2 units (given before or
+    not), the base promised or asked about before, a full crew or not, a
+    ship without fuel tanks (the gift capped at the reserve), and the
+    names spliced into the replies."""
+    starts = []
+    needs = [("lander", {}, {}),
+             ("no-lander", {}, {"landers": 0}),
+             ("no-lander-lost-before", {"LANDERS_LOST": 1}, {"landers": 0}),
+             ("no-lander-bomb", {"CHMMR_BOMB_STATE": 2}, {"landers": 0}),
+             ("no-lander-crew-short", {}, {"landers": 0, "crew": 10})]
+    fuels = [("fuel", {}, {}),
+             ("low-fuel", {}, {"fuel": 150}),
+             ("low-fuel-given-before", {"GIVEN_FUEL_BEFORE": 1}, {"fuel": 150}),
+             ("low-fuel-no-tanks", {}, {"fuel": 150, "modules": ["CREW_POD"] + ["EMPTY"] * 15})]
+
+    def add(name, state, ship):
+        starts.append({"name": name, "state": state, "ship": talk_ship(**ship)})
+
+    for visit, vstate in (("first", {}), ("again", {"STARBASE_VISITED": 1})):
+        for radios in (0, 5):
+            for nname, nstate, nship in needs:
+                for fname, fstate, fship in fuels:
+                    elements = [0] * 8
+                    elements[RADIOACTIVE] = radios
+                    add(f"{visit}-{'radios' if radios else 'no-radios'}-{nname}-{fname}",
+                        {**vstate, **nstate, **fstate},
+                        {**nship, **fship, "elements": elements})
+    base = {"STARBASE_VISITED": 1, "RADIOACTIVES_PROVIDED": 1}
+    for promised in (0, 1):
+        for asked in (0, 1):
+            for nname, nstate, nship in needs:
+                for fname, fstate, fship in fuels:
+                    add(f"moon-base{'-promised' if promised else ''}{'-asked' if asked else ''}-{nname}-{fname}",
+                        {**base, "WILL_DESTROY_BASE": promised, "STARBASE_YACK_STACK1": asked, **nstate, **fstate},
+                        {**nship, **fship})
+    add("base-destroyed", {**base, "MOONBASE_DESTROYED": 1, "MOONBASE_ON_SHIP": 1}, {})
+    add("base-destroyed-no-lander-low-fuel", {**base, "MOONBASE_DESTROYED": 1}, {"landers": 0, "fuel": 150})
+    for cname, captain, ship in (("", "Zelnick", "Vindicator"),
+                                 ("-long-names", "Captain Fifteen", "Fifteen bytes!!"),
+                                 ("-accented-names", "Zoë", "Ñandú"),
+                                 ("-empty-names", "", "")):
+        add(f"ilwrath-came{cname}", {**base, "MOONBASE_DESTROYED": 1, "PROBE_ILWRATH_ENCOUNTER": 1},
+            {"captain": captain, "ship": ship})
+        add(f"first-names{cname}", {}, {"captain": captain, "ship": ship})
+    return starts
+
+
+COMM_SCRIPTS = {"comandr": commander_starts}
+# The scripts' random seed where a start doesn't give one.
+TALK_SEED = 12345
+
+
+def build_comm(uqm, script, init, out):
+    path = os.path.join(uqm.uqm, "comm", script, script + ".c")
+    build(uqm, COMM_PROGRAM, COMM_LINK, out, extra=[UIO_FILES],
+          libs=["-lm", "-Wl,--wrap=DeltaSISGauges", "-Wl,--wrap=DrawLanders",
+                "-Wl,--wrap=TFB_Random"],
+          includes=[os.path.join(HERE, "golden")],
+          defines=[f'SCRIPT_FILE="{path}"', f"SCRIPT_INIT={init}"])
+
+
+def walk_talk(exe, files, start, fields, state_bytes, functions):
+    """Every path through a talk from one start: runs the script with each
+    reply offered in turn, depth first, and stops a path at a talk state
+    already walked (the story state, the ship, the phrases used up, the
+    screen and the replies offered all the same), which also ends loops
+    (asking the commander about the base again and again)."""
+    state = bytearray(state_bytes)
+    for name, value in start["state"].items():
+        f = fields[name]
+        bit = f["start_bit"]
+        for i in range(f["bits"]):
+            if value >> i & 1:
+                state[(bit + i) >> 3] |= 1 << ((bit + i) & 7)
+    ship = start["ship"]
+    head = "\n".join([
+        *files, state.hex(),
+        " ".join(map(str, [ship["crew"], ship["fuel"], ship["landers"], ship["ru"],
+                           *ship["elements"], *(MODULES[m] for m in ship["modules"])])),
+        ship["captain"].encode().hex(), ship["ship"].encode().hex(),
+        str(start.get("seed", TALK_SEED))])
+    by_bit = {f["start_bit"]: name for name, f in fields.items()}
+
+    def run(replies):
+        out = subprocess.run([exe], input=head + f"\n{len(replies)} {' '.join(map(str, replies))}\n",
+                             capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"{start['name']} {replies}: {out.stdout[-500:]}{out.stderr}")
+        events = [json.loads(line) for line in out.stdout.splitlines()]
+        for e in events:
+            if "error" in e:
+                raise RuntimeError(f"{start['name']} {replies}: {e['error']}")
+            if "set" in e:
+                e["set"] = by_bit[e["set"]]
+            if "offer" in e:
+                e["offer"] = [[ref, functions[int(f, 16)], text] for ref, f, text in e["offer"]]
+        return events
+
+    steps, seen, todo = [], set(), [[]]
+    while todo:
+        replies = todo.pop()
+        events = run(replies)
+        # The events since the last reply (all of them for the first step).
+        if replies:
+            events = events[max(i for i, e in enumerate(events) if "reply" in e):]
+        last = events[-1]
+        if "offer" in last:
+            key = last.pop("key")
+            if key in seen:
+                last["seen"] = True
+            else:
+                seen.add(key)
+                todo.extend(replies + [i] for i in reversed(range(len(last["offer"]))))
+        steps.append({"replies": replies, "events": events})
+    return steps
+
+
+def record_talks(uqm, strings_exe, package):
+    """Every path through the ported conversation scripts, as UQM's own
+    scripts run them (golden/comm.c), from starting states chosen to reach
+    every condition each reads."""
+    import hashlib
+    import zipfile
+    with open(package, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
+            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    with open(os.path.join(REPO, "data", "game-state.json")) as f:
+        game_state = json.load(f)
+    fields = {s["name"]: s for s in game_state["states"]}
+    state_bytes = (game_state["total_bits"] + 7) >> 3
+    with open(os.path.join(REPO, "data", "conversations.json")) as f:
+        scripts = {s["script"]: s for s in json.load(f)["scripts"]}
+    talks = {}
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        for script, starts in COMM_SCRIPTS.items():
+            desc = scripts[script]["description"]
+            files = []
+            for key in (desc["phrases"], desc["color_map"]):
+                files.append(os.path.join(tmp, key))
+                with open(files[-1], "wb") as f:
+                    f.write(z.read(index[key][1]))
+            exe = os.path.join(uqm.build, "comm_" + script)
+            build_comm(uqm, script, scripts[script]["init"], exe)
+            symbols = subprocess.run(["nm", exe], capture_output=True, text=True,
+                                     check=True).stdout.split("\n")
+            functions = {int(a, 16): n for a, kind, n in
+                         (line.split() for line in symbols if len(line.split()) == 3)
+                         if kind in "tT"}
+            talks[script] = [{**start, "steps": walk_talk(exe, files, start, fields, state_bytes, functions)}
+                             for start in starts()]
+    data = header(uqm, ["tools/extract/golden/comm.c", "src/uqm/commglue.c", "src/uqm/sis.c",
+                        "src/libs/math/random.c", "src/libs/strings/getstr.c"]
+                  + [f"src/uqm/comm/{s}/{s}.c" for s in COMM_SCRIPTS], [
+        "Every path through each ported conversation script, recorded by "
+        "running UQM's own script with UQM's commglue.c, sis.c and string "
+        "tables, and the rest of the talk engine stubbed "
+        "(tools/extract/golden/comm.c says what each event is). Each start "
+        "is a story state (fields not given are 0), a flagship (crew, fuel "
+        "in 1/100 units, landers, resource units, element amounts, module "
+        "slots, captain's and ship's names), the seed of the scripts' random "
+        "numbers (TFB_SeedRandom; 12345 where not given) and its steps: the replies "
+        "chosen from the start, each the place in the replies offered, and "
+        "the events after the last of them up to the next replies offered "
+        "or the talk's end. An offer marked seen reaches a talk state "
+        "already walked from this start, so the walk goes no further.",
+        "Texts are content (CC BY-NC-SA 2.5), so only the first 16 hex "
+        "digits of each line's SHA-256 are here; set names the field "
+        "written (data/game-state.json); offer gives each reply's phrase "
+        "number, the script's function it calls and its text's hash.",
+    ])
+    data["talks"] = talks
+    return data
+
+
 def record_binary_tables(uqm, exe, package):
     """Every BINTAB resource in the official content package, as UQM's own
     _GetBinaryTableData reads it. Content, so only lengths and hashes."""
@@ -2065,7 +2280,7 @@ def main():
                   includes=[SDL_INCLUDE])
         strings = os.path.join(build_dir, "strings")
         build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
-              strings, libs=["-lm"])   # the name index's hash table: ceil, floor
+              strings, extra=[UIO_FILES], libs=["-lm"])   # the name index's hash table: ceil, floor
         os.makedirs(args.out, exist_ok=True)
         for name, data in (("hyperspace-flight", record_flight(uqm, flight)),
                            ("uqm-math", record_math(uqm, math)),
@@ -2089,6 +2304,7 @@ def main():
                               ("conversations", record_conversations(uqm, strings, args.content)),
                               ("comm-graphics", record_comm_graphics(uqm, strings, images, args.content)),
                               ("binary-tables", record_binary_tables(uqm, strings, args.content)),
+                              ("talks", record_talks(uqm, strings, args.content)),
                               *record_contact(uqm, systems, strings, images, args.content).items(),
                               ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content)),
                               ("lander-creatures", record_lander_creatures(uqm, lander, strings, images, args.content)),

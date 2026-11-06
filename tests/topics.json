@@ -49,6 +49,9 @@
     },
     "story": {
       "weight": 2
+    },
+    "talk": {
+      "weight": 4
     }
   }
 }
