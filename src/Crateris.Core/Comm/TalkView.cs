@@ -20,11 +20,13 @@ namespace Crateris.Core.Comm;
 /// this is (<see cref="Round"/>, which a reply is sent with, so one meant
 /// for a set already answered can't answer the next). Once the visit is
 /// over, its closing lines with no replies (<see cref="VisitStep.Done"/>).
+/// <see cref="Replier"/> is the player who answers it: everyone is shown a
+/// story talk, and only they reply (decision 7).
 /// Sent to them by the host when it changes, as a reliable message; an
 /// empty message means no talk.
 /// </summary>
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
-    int Round = 0)
+    int Round = 0, string Replier = "")
 {
     /// <summary>The view of a visit as it stands (its closing lines once it's over), or null without one.</summary>
     public static TalkView? Of(StarbaseVisit? visit)
@@ -65,7 +67,8 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         }
         var talk = visit.Talk;
         string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
-        return new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round);
+        return new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round,
+            visit.Replier.Id);
     }
 
     public byte[] Encode()
@@ -74,6 +77,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         w.UInt((ulong)Step + 1);
         w.String(Script);
         w.UInt((ulong)Round);
+        w.String(Replier);
         w.UInt((ulong)Lines.Count);
         foreach (var l in Lines)
             w.String(l);
@@ -96,6 +100,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         ulong round = r.UInt();
         if (round > int.MaxValue)
             throw new InvalidDataException("Bad talk round.");
+        string replier = r.String() ?? "";
         var lines = new List<string>();
         for (ulong n = Count(r.UInt(), 1000); n > 0; --n)
             lines.Add(r.String() ?? "");
@@ -104,13 +109,13 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             replies.Add(r.String() ?? "");
         if (!r.AtEnd)
             throw new InvalidDataException("A talk has bytes after its end.");
-        return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round);
+        return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier);
     }
 
     private static ulong Count(ulong n, int most) =>
         n <= (ulong)most ? n : throw new InvalidDataException($"A talk has {n} of what it has at most {most} of.");
 
     public bool Same(TalkView? other) =>
-        other is not null && Step == other.Step && Script == other.Script && Round == other.Round
+        other is not null && Step == other.Step && Script == other.Script && Round == other.Round && Replier == other.Replier
         && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies);
 }

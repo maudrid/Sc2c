@@ -258,7 +258,7 @@ public sealed class PlayerSession
                 PressMenu(key);
         }
         else
-            input = Me?.Activity is Activity.Orbit or Activity.Talk ? ShipInput.None : keys;   // on the surface, the lander's keys
+            input = Me?.Activity is Activity.Orbit or Activity.Talk || StoryPaused ? ShipInput.None : keys;   // on the surface, the lander's keys
         if (Entering)
             return ShipInput.None;
         if (_leaveFrames > 0)
@@ -274,6 +274,12 @@ public sealed class PlayerSession
     /// communication screen, item 11, in words); null if none.
     /// </summary>
     public TalkView? Talk { get; private set; }
+
+    /// <summary>Whether the game is paused for a story talk (the host's last snapshot says so).</summary>
+    public bool StoryPaused => Snapshot?.StoryPause is not null;
+
+    /// <summary>Whether this player answers the talk shown (the starter, or who the replies passed to).</summary>
+    public bool Replying => Talk is { } t && t.Replier == PlayerId;
 
     /// <summary>The reply the cursor is on.</summary>
     public int ReplyCursor { get; private set; }
@@ -363,10 +369,11 @@ public sealed class PlayerSession
     /// <summary>A key for the orbit screen's menus (in a talk, for its replies).</summary>
     public void PressMenu(MenuKey key)
     {
-        if (Me?.Activity == Activity.Talk)
+        if (Me?.Activity == Activity.Talk || StoryPaused)
         {
-            PressTalk(key);
-            return;
+            if (Replying)
+                PressTalk(key);
+            return;   // a watcher's keys do nothing while the story waits
         }
         if (OrbitMenu == null || Me?.Activity == Activity.Planetside || _landingAsked)
             return;   // the keys drive the lander then (or will soon); the menu waits for its return
@@ -425,6 +432,7 @@ public sealed class PlayerSession
         DispatchRefusal.NoCrew => "No crew to send down.",
         DispatchRefusal.NotInOrbit => "The ship isn't in orbit.",
         DispatchRefusal.LanderOut => "The lander is already down.",
+        DispatchRefusal.StoryPause => "The game waits while the story's talk goes on.",
         DispatchRefusal.OffTheMap => "That site is off the map.",
         _ => "",
     };
@@ -453,8 +461,8 @@ public sealed class PlayerSession
     public void Advance(double seconds, HeldKeys held = HeldKeys.None)
     {
         _time += seconds;
-        if (OrbitMenu == null)
-            return;
+        if (OrbitMenu == null || StoryPaused)
+            return;   // the scans wait for the story too
         OrbitMenu.Advance(seconds, held);
         NoteScanEnd();
     }
@@ -583,19 +591,25 @@ public sealed class PlayerSession
             var host = Snapshot?.Ships.FirstOrDefault(s => s.IsHost);
             lines.Add($"Undocking from {host?.Name ?? "the"}'s flagship...");
         }
-        if (Me?.Activity == Activity.Talk)
+        if (Talk is { } talk && (Me?.Activity == Activity.Talk || StoryPaused))
         {
-            if (Talk is { } talk)
+            if (!Replying)
             {
-                if (talk.Step == VisitStep.TimePassing)
-                    lines.Add("Time passes...");
-                foreach (var l in talk.Lines)
-                    lines.Add(OneLine(l));
-                for (int i = 0; i < talk.Replies.Count; ++i)
-                    lines.Add($"{(i == ReplyCursor ? ">" : " ")} {talk.Replies[i]}");
-                if (talk.Replies.Count > 0)
-                    lines.Add("Up, down: choose a reply; Enter: say it");
+                string who = Snapshot?.Ships.FirstOrDefault(s => s.Id == talk.Replier)?.Name ?? talk.Replier;
+                lines.Add($"The story's talk: {who} replies; the game waits.");
             }
+            if (talk.Step == VisitStep.TimePassing)
+                lines.Add("Time passes...");
+            foreach (var l in talk.Lines)
+                lines.Add(OneLine(l));
+            for (int i = 0; i < talk.Replies.Count; ++i)
+                lines.Add($"{(Replying && i == ReplyCursor ? ">" : " ")} {talk.Replies[i]}");
+            if (Replying && talk.Replies.Count > 0)
+                lines.Add("Up, down: choose a reply; Enter: say it");
+        }
+        else if (Me?.Activity == Activity.Talk)
+        {
+            // In a talk whose view hasn't come yet: no keys to show.
         }
         else if (Me?.Activity == Activity.Planetside)
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");

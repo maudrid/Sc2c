@@ -61,12 +61,13 @@ public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint 
 /// <summary>
 /// The game at a frame: the date, the ships of the players present, the
 /// worlds being orbited (with their taken nodes) and the surfaces with
-/// landers on them, and the story state (made again only when it changes).
-/// A guest is sent only its own lander's surface.
+/// landers on them, and the story state (made again only when it changes);
+/// while the game is paused for a story talk, who replies in it
+/// (<see cref="StoryPause"/>). A guest is sent only its own lander's surface.
 /// </summary>
 public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IReadOnlyList<ShipSnapshot> Ships,
     IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null, IReadOnlyList<SurfaceSnapshot>? Surfaces = null,
-    Story.StorySnapshot? Story = null);
+    Story.StorySnapshot? Story = null, string? StoryPause = null);
 
 /// <summary>
 /// The host's authoritative game: world state (clock, planets) and every
@@ -125,6 +126,14 @@ public sealed class GameWorld
 
     /// <summary>The visit to Earth's starbase going on, if any: a story visit, one at a time.</summary>
     public StarbaseVisit? Visit { get; private set; }
+
+    /// <summary>
+    /// Whether the game is paused for a story talk (stage 3, decisions 6
+    /// and 7): the clock, every ship, the landers on their surfaces and
+    /// the orbit menus stop, and everyone is shown the talk, which only
+    /// its replier answers.
+    /// </summary>
+    public bool StoryPaused => Visit is { Story: true };
 
     /// <summary>The star map and its systems, when the world has them (always in the game; optional in tests).</summary>
     public SystemCatalog? Systems { get; }
@@ -253,12 +262,20 @@ public sealed class GameWorld
         if (player == null)
             return;
         Withdraw(player);   // decision 5: its lander takes off at once, with its crew and cargo
-        // A visit is undone when its starter leaves (until stage 3a's item 6
-        // hands the replies on).
-        if (player.Ship.Visit is { } visit)
+        // The replier of a story talk leaving hands the replies on to the
+        // next player in join order, the host first, so the story isn't
+        // left half told (decision 7); with no one to take them, or for a
+        // visit that isn't story, it's undone.
+        if (Visit is { } visit && visit.Replier == player)
         {
-            visit.Undo();
-            EndVisitIfDone();
+            var next = visit.Story ? _players.FirstOrDefault(p => p.Present && p != player) : null;
+            if (next is not null)
+                visit.Replier = next;
+            else
+            {
+                visit.Undo();
+                EndVisitIfDone();
+            }
         }
         _ended.Remove(id);
         player.Present = false;
@@ -302,6 +319,19 @@ public sealed class GameWorld
     public void Step()
     {
         Frame++;
+        if (StoryPaused)
+        {
+            // Everything waits for the story (decision 7): input read now
+            // is dropped, and only the visit goes on (time passing's fade).
+            foreach (var p in _players.Where(p => p.Present))
+            {
+                _inputs[p.Id].Take(Frame);
+                _actionHeld.Remove(p.Id);
+            }
+            Visit!.Frame();
+            EndVisitIfDone();
+            return;
+        }
         int systemFrames = SystemFramesIn(Frame);
         foreach (var p in _players)
         {
@@ -331,8 +361,11 @@ public sealed class GameWorld
                     break;
                 case Activity.Talk:
                     // Replies come as their own messages (ChooseReply).
-                    p.Ship.Visit!.Frame();
-                    EndVisitIfDone();
+                    if (p.Ship.Visit == Visit)
+                    {
+                        Visit!.Frame();
+                        EndVisitIfDone();
+                    }
                     break;
                 default:
                     // While the entry into the star plays, the ship can't be
@@ -482,7 +515,7 @@ public sealed class GameWorld
                 && Story.Get("CHMMR_BOMB_STATE") != 2)
             return;
         var visit = new StarbaseVisit(this, player);
-        _ended.Remove(player.Id);
+        _ended.Clear();
         if (visit.Done)
         {
             _ended[player.Id] = visit;
@@ -500,7 +533,7 @@ public sealed class GameWorld
     /// </summary>
     public bool ChooseReply(string id, int index, int? round = null)
     {
-        if (Find(id) is not { Present: true, Ship.Visit: { } visit } player || visit.Starter != player
+        if (Visit is not { } visit || Find(id) is not { Present: true } player || visit.Replier != player
                 || round is int r && r != visit.Round)
             return false;
         bool chosen = visit.Choose(index);
@@ -514,15 +547,23 @@ public sealed class GameWorld
         {
             v.Starter.Ship.Visit = null;
             Visit = null;
-            _ended[v.Starter.Id] = v;
+            // Its closing lines go on showing to whoever saw it.
+            foreach (var p in _players.Where(p => p.Present || p == v.Starter))
+                _ended[p.Id] = v;
         }
     }
 
     private readonly Dictionary<string, StarbaseVisit> _ended = new();
 
-    /// <summary>The player's visit going on, or their last one, over, whose closing lines they're still shown; null if neither.</summary>
+    /// <summary>
+    /// The visit a player is shown: a story visit, to everyone; their own;
+    /// or their last one, over, whose closing lines they're still shown
+    /// (a story visit's to everyone who saw it). Null if none.
+    /// </summary>
     public StarbaseVisit? VisitOf(string id) =>
-        Find(id)?.Ship.Visit is { } v && v.Starter.Id == id ? v : _ended.GetValueOrDefault(id);
+        Visit is { Story: true } story ? story
+        : Find(id)?.Ship.Visit is { } v && v.Starter.Id == id ? v
+        : _ended.GetValueOrDefault(id);
 
     private void EnterSystem(PlayerShip ship, Star star)
     {
@@ -586,6 +627,8 @@ public sealed class GameWorld
         if (siteX < 0 || siteX >= PlanetsideMap.Width || siteY < 0 || siteY >= PlanetsideMap.Height)
             throw new ArgumentOutOfRangeException(nameof(siteX), $"the landing site ({siteX}, {siteY}) is off the map");
         PlayerShip ship = player.Ship;
+        if (StoryPaused)
+            return DispatchRefusal.StoryPause;
         if (!player.Present || ship.Orbit is not { Entered: true } orbit || ship.Entry is not null)
             return DispatchRefusal.NotInOrbit;
         if (ship.Lander is not null || ship.Hold.LanderOut is not null)
@@ -670,7 +713,7 @@ public sealed class GameWorld
     /// or no such category.
     /// </summary>
     public bool DiscardCargo(string id, int category) =>
-        Find(id) is { Present: true, Ship.Visit: null } player && player.Ship.Hold.Discard(category);
+        !StoryPaused && Find(id) is { Present: true, Ship.Visit: null } player && player.Ship.Hold.Discard(category);
 
     /// <summary>
     /// Renames a player's ship or captain, or both (UQM's NameCaptainOrShip,
@@ -731,6 +774,6 @@ public sealed class GameWorld
             _storyOf = story;
         }
         return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces,
-            Story is null ? null : _storySnapshot);
+            Story is null ? null : _storySnapshot, StoryPaused ? Visit!.Replier.Id : null);
     }
 }

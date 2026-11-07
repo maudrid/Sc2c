@@ -12,6 +12,7 @@ using Crateris.Core.Hyperspace;
 using Crateris.Core.Planetside;
 using Crateris.Core.Story;
 using Crateris.Core.Systems;
+using Crateris.Core.Session;
 using Crateris.Core.World;
 
 namespace Crateris.Core.Tests;
@@ -156,7 +157,7 @@ public class OpeningTests
         int n = Scripts[script].PhraseNumber(phrase);
         int i = talk.Replies.Select(r => r.Phrase).ToList().IndexOf(n);
         Assert.True(i >= 0, $"{phrase} isn't offered: {string.Join(", ", talk.Replies.Select(r => r.Phrase))}");
-        Assert.True(world.ChooseReply(world.Visit.Starter.Id, i));
+        Assert.True(world.ChooseReply(world.Visit.Replier.Id, i));
     }
 
     [ContentFact]
@@ -327,7 +328,7 @@ public class OpeningTests
         Assert.Single(view.Lines);                 // ARE_YOU_SUPPLY_SHIP
         Assert.Contains("Wayfarer", view.Replies[0]); // the escort's name, spliced in
         Assert.Empty(host.TalkUpdates());          // sent once
-        Assert.Null(host.TalkFor("host"));
+        Assert.Equal("guest", host.TalkFor("host")!.Replier);   // a story talk: the host watches it
 
         Assert.Equal(1, view.Round);
         host.GuestChooseReply(1, view.Round, 1);   // yes_this_is_supply_ship
@@ -374,23 +375,99 @@ public class OpeningTests
     }
 
     [ContentFact]
-    public void AnotherPlayerTakingTheLunarBaseDuringAVisitStaysTaken()
+    public void AStoryTalkPausesEverythingAndEveryoneWatches()
     {
-        // The host talks to the commander while a guest takes the base on
-        // Luna: undoing the host's visit, or saving during it, puts back
-        // only what its talks wrote.
+        // A guest's lander is down on Luna and a third player flies when
+        // the host starts the commander's talk: everything waits for it.
         var world = WithTalks(guest: true);
+        Assert.Equal(JoinResult.Joined, world.Join("third", "Third"));
+        world.UndockShown("third");
         world.PutInOrbit("guest", Sol, Earth, Luna);
+        Assert.Equal(DispatchRefusal.None, world.Dispatch("guest", 40, 40));
+        Run(world, 60);
+        var lander = world.Find("guest")!.Ship.Lander!;
+        var third = world.Find("third")!.Ship.Ip!;   // undocked by the host, in Earth's inner system
+        var date = (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay);
         world.VisitStarbase(world.Host);
-        Assert.Equal(DispatchRefusal.None, world.Dispatch("guest", BaseX, BaseY));
-        DriveToTheBase(world, "guest");
-        Assert.Equal(1, world.Story!.Get("MOONBASE_DESTROYED"));
-        var loaded = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
-        Assert.Equal((1, 1), (loaded.Story!.Get("MOONBASE_DESTROYED"), loaded.Story.Get("MOONBASE_ON_SHIP")));
+        Assert.True(world.StoryPaused);
+        Assert.Equal("host", world.Snapshot().StoryPause);
+        var before = (lander.X, lander.Y, lander.Phase, third.Location.X, third.Location.Y);
+        for (int i = 0; i < 100; ++i)
+        {
+            world.SubmitInput("guest", world.Frame + 1, ShipInput.Thrust | ShipInput.Fire);
+            world.SubmitInput("third", world.Frame + 1, ShipInput.Thrust);
+            world.Step();
+        }
+        Assert.Equal(before, (lander.X, lander.Y, lander.Phase, third.Location.X, third.Location.Y));
+        Assert.Equal(date, (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay));
+        Assert.Equal(DispatchRefusal.StoryPause, world.Dispatch("third", 10, 10));
+        Assert.False(world.DiscardCargo("guest", 0));
+        // Only the starter replies; everyone is shown the talk.
+        Assert.False(world.ChooseReply("guest", 0));
+        Assert.Same(world.Visit, world.VisitOf("guest"));
+        Assert.Same(world.Visit, world.VisitOf("third"));
+        Say(world, "comandr", "yes_this_is_supply_ship");
+        Say(world, "comandr", "i_lied");
+        Say(world, "comandr", "ok_i_will_get_radios");
+        Assert.False(world.StoryPaused);
+        Assert.Null(world.Snapshot().StoryPause);
+        // And the game goes on: the third player's ship flies again.
+        for (int i = 0; i < 24; ++i)
+        {
+            world.SubmitInput("third", world.Frame + 1, ShipInput.Thrust);
+            world.Step();
+        }
+        Assert.NotEqual((before.Item4, before.Item5), (third.Location.X, third.Location.Y));
+        // Its closing lines go to everyone who watched.
+        Assert.Equal(VisitStep.Done, world.VisitOf("third")!.Step);
+    }
+
+    [ContentFact]
+    public void TheRepliesPassToTheNextPlayerWhenTheirReplierLeaves()
+    {
+        var world = WithTalks(guest: true);
+        Assert.Equal(JoinResult.Joined, world.Join("third", "Third"));
+        world.UndockShown("third");
+        var guest = world.Find("guest")!;
+        world.PutInOrbit("guest", Sol, Earth, Luna);
+        guest.Ship.Ip!.ReturnFromOrbit();
+        world.VisitStarbase(guest);
+        Assert.Equal(guest, world.Visit!.Replier);
+        Say(world, "comandr", "yes_this_is_supply_ship");
+        // The guest goes: the host, first in join order, replies now; the
+        // talk is still the guest's (their ship, their names).
+        world.Leave("guest");
+        Assert.Equal(world.Host, world.Visit!.Replier);
+        Assert.Equal(guest, world.Visit.Starter);
+        Assert.False(world.ChooseReply("third", 0));
+        Say(world, "comandr", "i_lied");
         world.Leave("host");
-        Assert.Equal((1, 1), (world.Story.Get("MOONBASE_DESTROYED"), world.Story.Get("MOONBASE_ON_SHIP")));
-        // The guest saw the report; the host, back later, would have been told only if landed there.
-        Assert.Contains(world.TakeReports(), r => r.PlayerId == "guest" && r.Report.FoundBy is null);
+        Assert.Equal("third", world.Visit!.Replier.Id);
+        Say(world, "comandr", "ok_i_will_get_radios");
+        Assert.Null(world.Visit);
+        Assert.True(world.CommanderMet);
+        // A player who joins during a story talk watches it.
+        Assert.Equal(JoinResult.Rejoined, world.Join("guest", "Guest"));
+        world.VisitStarbase(world.Find("third")!);
+        Assert.Equal(JoinResult.Rejoined, world.Join("host", "Host"));
+        Assert.Same(world.Visit, world.VisitOf("host"));
+        // With no one left to reply, the talk is undone.
+        world.Leave("host");
+        world.Leave("guest");
+        world.Leave("third");
+        Assert.Null(world.Visit);
+    }
+
+    [ContentFact]
+    public void TimePassingIsShownToEveryone()
+    {
+        var world = WithTalks(guest: true);
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        world.Story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(world.Host);
+        var view = TalkView.Of(world.VisitOf("guest"))!;
+        Assert.Equal((VisitStep.TimePassing, "host"), (view.Step, view.Replier));
+        Assert.True(world.StoryPaused);
     }
 
     [ContentFact]
@@ -408,7 +485,7 @@ public class OpeningTests
         Assert.Equal(VisitStep.TimePassing, world.Visit!.Step);
         world.Clock.FramesIntoDay = 50;
         Run(world, StarbaseVisit.TimePassingFrames);
-        Assert.Equal(1, world.Clock.FramesIntoDay);   // MoveGameClockDays: the day starts afresh (then this frame's tick)
+        Assert.Equal(0, world.Clock.FramesIntoDay);   // MoveGameClockDays: the day starts afresh (and the clock waits for the story)
         Say(world, "starbas", "goodbye_commander");
         // 2,500 between three: 833 each, the starter keeping the one left.
         Assert.Equal((834u, 833u, 833u, 0u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits,
@@ -474,5 +551,42 @@ public class OpeningTests
         var loaded = HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes);
         Assert.Equal((50, 10), (loaded.Host.Ship.Hold.CrewCapacity, loaded.Find("guest")!.Ship.Hold.CrewCapacity));
         Assert.Equal(10, loaded.Settings.EscortLoadout.CrewCapacity);
+    }
+
+    [ContentFact]
+    public void AWatchersKeysDoNothingAndTheRepliersChoose()
+    {
+        var host = Session.HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Zelnick",
+            Systems, TestContent.Shapes);
+        host.World.TalkLibrary = Library.Value;
+        host.Hello(1, "guest", "Guest", Net.Protocol.Version);
+        host.World.UndockShown("guest");
+        host.World.PutInOrbit("host", Sol, Earth, Luna);
+        host.World.Host.Ship.Ip!.ReturnFromOrbit();
+        host.World.PutInOrbit("guest", Sol, Earth, Luna);   // in orbit: its menu waits too
+        host.World.VisitStarbase(host.World.Host);
+        var me = new Session.PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        var watcher = new Session.PlayerSession(Systems, null, "guest", TestContent.Shapes.HyperFlagship.Count);
+        var snap = host.Step(ShipInput.None);
+        me.Observe(snap);
+        watcher.Observe(snap);
+        me.ShowTalk(host.TalkFor("host"));
+        watcher.ShowTalk(TalkView.Decode(host.TalkUpdates().Single().Data));
+        Assert.True(me.StoryPaused && watcher.StoryPaused);
+        Assert.True(me.Replying);
+        Assert.False(watcher.Replying);
+        Assert.Contains(watcher.StatusLines(), l => l.Contains("Zelnick replies"));
+        Assert.Equal(ShipInput.None, watcher.NextInput(ShipInput.Thrust));
+        watcher.PressMenu(MenuKey.Select);
+        Assert.Null(watcher.TakeReply());
+        var menu = watcher.OrbitMenu!;
+        var scan = menu.Selected;
+        watcher.PressMenu(MenuKey.Down);
+        Assert.Equal(scan, menu.Selected);   // the orbit menu waits for the story
+        me.PressMenu(MenuKey.Down);
+        me.PressMenu(MenuKey.Select);
+        Assert.Equal((1, 1), me.TakeReply());
+        me.PressMenu(MenuKey.Select);        // one reply a set
+        Assert.Null(me.TakeReply());
     }
 }

@@ -336,6 +336,8 @@ public partial class Main : Node2D
                 Log(host.StartAt(at.X, at.Y));
             if (_options.StartOrbit is { } o)
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
+            if (_options.StartVisit)
+                Log(host.StartVisit());
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
         }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
@@ -713,6 +715,8 @@ public partial class Main : Node2D
                 welcome = _welcome?.Result.ToString(),
                 status = _status,
                 notice = _player?.Notice ?? "",
+                talk = _player?.Talk,
+                story_pause = _player?.Snapshot?.StoryPause,
                 log = _log,
                 snapshot = _player?.Snapshot,
                 snapshots = new

@@ -35,6 +35,8 @@ public enum DispatchRefusal
     LanderOut,
     /// <summary>The site asked for is off the map (a bad request).</summary>
     OffTheMap,
+    /// <summary>The game is paused for a story talk (stage 3a, item 6).</summary>
+    StoryPause,
 }
 
 /// <summary>

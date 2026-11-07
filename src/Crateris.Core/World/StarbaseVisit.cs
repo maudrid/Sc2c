@@ -76,6 +76,7 @@ public sealed class StarbaseVisit
     {
         _world = world;
         Starter = starter;
+        Replier = starter;
         var story = world.Story!;
         StoryBefore = story.Save();
         HoldBefore = starter.Ship.Hold.Save();
@@ -88,6 +89,22 @@ public sealed class StarbaseVisit
     }
 
     public Player Starter { get; }
+
+    /// <summary>
+    /// Who replies: the starter, or, once they've left, the next player in
+    /// join order, the host first (decision 7). The talk is still the
+    /// starter's: their ship and names.
+    /// </summary>
+    public Player Replier { get; internal set; }
+
+    /// <summary>
+    /// Whether the visit is story now (decision 6, <see cref="Comm.TalkRules"/>):
+    /// its talk is, or time is passing. A story visit pauses the game for
+    /// everyone, and everyone is shown it.
+    /// </summary>
+    public bool Story => Step == VisitStep.TimePassing || (Talk is not null && _talkIsStory);
+
+    private bool _talkIsStory;
 
     public VisitStep Step { get; private set; }
 
@@ -156,6 +173,7 @@ public sealed class StarbaseVisit
         uint seed = unchecked((uint)_world.Frame * 2_654_435_761u + (uint)++_talks * 40_503u);
         foreach (char c in Starter.Id)
             seed = unchecked(seed * 31 + c);
+        _talkIsStory = Comm.TalkRules.IsStory(script, _world.Story!);
         Talk = _world.TalkLibrary!.Create(script, _world.Story!, own,
             new PlayerTalkShip(Starter, _world.TalkLibrary.Strings), _world.Clock, seed);
         Talks.Add(Talk);

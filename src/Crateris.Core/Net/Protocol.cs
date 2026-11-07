@@ -48,8 +48,11 @@ public static class Protocol
     /// (Activity.Talk); the talk a player is in is sent to them as a
     /// reliable message when it changes (TalkView), and their reply comes
     /// back as one.
+    /// 10: snapshots say when the game is paused for a story talk, and who
+    /// replies in it; everyone is sent a story talk, a reply carries the
+    /// round of replies it's for, and lander reports are sent.
     /// </summary>
-    public const int Version = 9;
+    public const int Version = 10;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()

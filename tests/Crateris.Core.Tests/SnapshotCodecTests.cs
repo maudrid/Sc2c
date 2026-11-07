@@ -69,11 +69,12 @@ public class SnapshotCodecTests
             (uint)r.NextInt64(0, uint.MaxValue + 1L)))
         with { ShipName = AnyName(r), CaptainName = AnyName(r) };
 
-    private static WorldSnapshot AnySnapshot(Random r, long frame) => new(frame, AnyInt(r), AnyInt(r), AnyInt(r),
+    private static WorldSnapshot AnySnapshot(Random r, long frame) => new WorldSnapshot(frame, AnyInt(r), AnyInt(r), AnyInt(r),
         Enumerable.Range(0, r.Next(5)).Select(i => AnyShip(r, "p" + r.Next(6))).DistinctBy(s => s.Id).ToArray(),
         r.Next(3) == 0 ? null : Enumerable.Range(0, r.Next(4)).Select(_ => new OrbitedWorldSnapshot(AnyInt(r), AnyInt(r),
             AnyOptional(r), (uint)r.NextInt64(0, uint.MaxValue + 1L), (uint)r.NextInt64(0, uint.MaxValue + 1L),
-            (uint)r.NextInt64(0, uint.MaxValue + 1L))).ToArray());
+            (uint)r.NextInt64(0, uint.MaxValue + 1L))).ToArray())
+        with { StoryPause = r.Next(3) == 0 ? AnyText(r) : null };
 
     // A snapshot a little on from another: most ships move a little, some
     // change something else, ships come and go now and then.
@@ -92,13 +93,15 @@ public class SnapshotCodecTests
         if (r.Next(10) == 0 && ships.All(sh => sh.Id != "new" + frame))
             ships.Insert(r.Next(ships.Count + 1), AnyShip(r, "new" + frame));
         return new WorldSnapshot(frame, s.Year, r.Next(20) == 0 ? s.Month + 1 : s.Month, s.Day, ships,
-            r.Next(10) == 0 ? AnySnapshot(r, 0).OrbitedWorlds : s.OrbitedWorlds);
+            r.Next(10) == 0 ? AnySnapshot(r, 0).OrbitedWorlds : s.OrbitedWorlds,
+            StoryPause: r.Next(8) switch { 0 => null, 1 => "p" + r.Next(6), _ => s.StoryPause });
     }
 
     private static void AssertSame(WorldSnapshot want, WorldSnapshot got)
     {
         Assert.Equal((want.Frame, want.Year, want.Month, want.Day), (got.Frame, got.Year, got.Month, got.Day));
         Assert.Equal(want.Ships, got.Ships);
+        Assert.Equal(want.StoryPause, got.StoryPause);
         if (want.OrbitedWorlds is null)
             Assert.Null(got.OrbitedWorlds);
         else

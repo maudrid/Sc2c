@@ -86,6 +86,22 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-visit (testing): the host's ship by Earth's starbase, in the
+    /// visit's first talk, as if it had just flown into it. Needs the talks'
+    /// content (InvalidOperationException).
+    /// </summary>
+    public string StartVisit()
+    {
+        if (World.TalkLibrary is null || World.Systems is null)
+            throw new InvalidOperationException("the talks need the content");
+        int sol = World.Systems.Map.Stars.Single(s => s.Special == "SOL_DEFINED").Number;
+        World.PutInOrbit(HostId, sol, 2, 1);
+        World.Host.Ship.Ip!.ReturnFromOrbit();   // in Earth's inner system, by the starbase
+        World.VisitStarbase(World.Host);
+        return World.Visit is { } v ? $"Starting in the {v.Step} talk at Earth's starbase" : "Nothing to tell at Earth's starbase";
+    }
+
+    /// <summary>
     /// --guests-in-orbit (testing): each guest joining for the first time is
     /// put in orbit where the host is as it joins (its undocking scene still
     /// shows), rather than in the inner system beside it.

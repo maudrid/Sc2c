@@ -400,6 +400,31 @@ def main():
     n = rf["snapshots"]
     check(n["bad"] == 0 and n["deltas"] > 10 * n["full"], f"F got deltas with its surface ({n['full']} full, {n['deltas']} deltas)")
 
+    # Stage 3a, item 6: the host starts in the commander's talk at Earth's
+    # starbase, a story talk; guest G joins and watches it while the game
+    # waits. The host replies once (Enter); G sees the next set of
+    # replies, and that the host is the one replying.
+    host7 = start(out, "host7", "--host", "--no-upnp", "--port", PORT,
+                  "--name", "Host", "--id", "host", "--save", os.path.join(out, "save7.json"),
+                  "--start-visit", "--script", "none:150,select:1,none:400", "--quit-after", "420")
+    time.sleep(1)
+    g = start(out, "g", "--join", f"127.0.0.1:{PORT}", "--name", "G",
+              "--id", "guest-g", "--quit-after", "330")
+    for p in (g, host7):
+        p.wait(timeout=90)
+    h7, rg = report(out, "host7"), report(out, "g")
+    hl7 = [line.split("] ", 1)[1] for line in h7["log"]]
+    check(rg["welcome"] == "Joined", "G joined the host in its talk with the commander")
+    check(any(l.startswith("Starting in the Commander talk") for l in hl7), "the host started in the commander's talk")
+    check("host: reply 0" in hl7, "the host replied")
+    talk = rg.get("talk")
+    check(rg.get("story_pause") == "host", "G's last snapshot says the game waits for the host's talk")
+    check(talk is not None and talk["Replier"] == "host" and talk["Script"] == "comandr"
+          and talk["Round"] >= 2 and len(talk["Replies"]) > 0 and len(talk["Lines"]) > 0,
+          "G watched the talk: the commander's lines and the replies after the host's, which the host answers")
+    g_host = ship(rg["snapshot"], "host")
+    check(g_host is not None and g_host["Activity"] == 5, "G saw the host's ship in its talk")
+
     print(f"\nlogs and reports in {out}")
     if failures:
         print(f"{len(failures)} check(s) failed")
