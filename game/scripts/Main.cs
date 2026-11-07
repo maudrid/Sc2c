@@ -18,6 +18,7 @@ using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
 using Crateris.Core.Session;
+using Crateris.Core.Starbase;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
 using Crateris.Presentation;
@@ -308,6 +309,11 @@ public partial class Main : Node2D
             Log("New game");
         }
         _host.Logged += Log;
+        _host.SaveRequested += () =>
+        {
+            SaveGame();
+            _player?.Notify("Game saved.");
+        };
         _host.World.TalkLibrary = _talks;
         _host.World.DialogueLocks = DialogueLocks.Load(_dataDir);
         ApplyStartOptions(_host);
@@ -422,6 +428,25 @@ public partial class Main : Node2D
         }
     }
 
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void StarbaseKey(int key) => _host?.GuestStarbaseKey(Multiplayer.GetRemoteSenderId(), key);
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RenameShip(string ship, string captain) => _host?.GuestRename(Multiplayer.GetRemoteSenderId(), ship, captain);
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowStarbase(byte[] view)
+    {
+        try
+        {
+            _player?.ShowStarbase(StarbaseView.Decode(view));
+        }
+        catch (InvalidDataException e)
+        {
+            Log($"Bad starbase screen from the host: {e.Message}");
+        }
+    }
+
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowReport(string resource, string foundBy) =>
         _player?.ShowReport(new Crateris.Core.Planetside.LanderReport(resource, foundBy == "" ? null : foundBy));
@@ -528,9 +553,17 @@ public partial class Main : Node2D
                     _player.LandingRefused(refusal);
                 if (inGame && _player.TakeReply() is var (round, reply))
                     _host.ChooseReply(_host.HostId, round, reply);
+                if (inGame)
+                {
+                    foreach (var key in _player.TakeStarbaseKeys())
+                        _host.StarbaseKey(_host.HostId, key);
+                    if (_player.TakeRename() is var (ship, captain))
+                        _host.Rename(_host.HostId, ship, captain);
+                }
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
                 _player.ShowTalk(_host.TalkFor(_host.HostId));
+                _player.ShowStarbase(_host.StarbaseFor(_host.HostId));
                 // Each guest gets its own: a delta from what it has, or in full.
                 if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
                 {
@@ -538,6 +571,8 @@ public partial class Main : Node2D
                         RpcId(peer, MethodName.ReceiveSnapshot, _host.SnapshotFor(peer));
                     foreach (var (peer, talk) in _host.TalkUpdates())
                         RpcId(peer, MethodName.ShowTalk, talk);
+                    foreach (var (peer, view) in _host.StarbaseUpdates())
+                        RpcId(peer, MethodName.ShowStarbase, view);
                 }
                 var (ownReports, guestReports) = _host.TakeReports();
                 foreach (var report in ownReports)
@@ -556,6 +591,10 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.DiscardCargo, category);
                 if (_player.TakeReply() is var (round, reply))
                     RpcId(1, MethodName.ChooseReply, round, reply);
+                foreach (var key in _player.TakeStarbaseKeys())
+                    RpcId(1, MethodName.StarbaseKey, (int)key);
+                if (_player.TakeRename() is var (ship, captain))
+                    RpcId(1, MethodName.RenameShip, ship ?? "", captain ?? "");
                 RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input, snap.Frame);
                 if (_player.UndockTick())
                     RpcId(1, MethodName.UndockShown);
@@ -627,8 +666,15 @@ public partial class Main : Node2D
             GetViewport().SetInputAsHandled();
             return;
         }
-        if (_about.Visible || _player == null || _player.Scripted)
+        if (_about.Visible || _player == null || _player.Scripted || _naming is not null)
             return;
+        // Docked, outfitting: F2 and F3 rename the ship and the captain.
+        if (k.Keycode is Key.F2 or Key.F3 && _player.Starbase is { Screen: StarbaseScreen.Outfit })
+        {
+            StartNaming(k.Keycode == Key.F2);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         MenuKey? key = k.Keycode switch
         {
             Key.Up => MenuKey.Up,
@@ -637,6 +683,8 @@ public partial class Main : Node2D
             Key.Right => MenuKey.Right,
             Key.Enter or Key.KpEnter or Key.Space => MenuKey.Select,
             Key.Escape or Key.Backspace => MenuKey.Cancel,
+            Key.Pageup => MenuKey.PageUp,
+            Key.Pagedown => MenuKey.PageDown,
             _ => null,
         };
         // A held Enter mustn't say one reply after another.
@@ -644,6 +692,42 @@ public partial class Main : Node2D
             return;
         if (key is MenuKey mk)
             _player.PressMenu(mk);
+    }
+
+    private LineEdit? _naming;
+
+    // UQM's naming (NameCaptainOrShip): a line to type the name in, Enter
+    // to keep it, Esc to leave it as it was.
+    private void StartNaming(bool ship)
+    {
+        var me = _player.Me;
+        _naming = new LineEdit
+        {
+            Position = new Vector2(12, 320),
+            Size = new Vector2(320, 32),
+            MaxLength = ShipNames.MaxBytes,
+            PlaceholderText = ship ? "The ship's name" : "The captain's name",
+            Text = ship ? me?.ShipName ?? "" : me?.CaptainName ?? "",
+        };
+        _naming.TextSubmitted += text =>
+        {
+            if (text.Trim() != "")
+                _player.Rename(ship ? text.Trim() : null, ship ? null : text.Trim());
+            EndNaming();
+        };
+        _naming.GuiInput += e =>
+        {
+            if (e is InputEventKey { Pressed: true, Keycode: Key.Escape })
+                EndNaming();
+        };
+        _screens.AddChild(_naming);
+        _naming.GrabFocus();
+    }
+
+    private void EndNaming()
+    {
+        _naming?.QueueFree();
+        _naming = null;
     }
 
     /// <summary>The arrow keys held, which move the landing site while it's picked.</summary>

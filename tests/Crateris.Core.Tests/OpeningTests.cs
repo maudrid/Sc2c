@@ -220,9 +220,11 @@ public class OpeningTests
         Assert.Equal(0, story.Get("MOONBASE_ON_SHIP"));     // post_starbase_enc
         // The 2,500 resource units, split between the two players (decision 5).
         Assert.Equal((1250u, 1250u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
-        // The allied starbase's menu is item 8's: the next visit has nothing to tell.
-        world.VisitStarbase(world.Host);
-        Assert.Null(world.Visit);
+        // Then the starter is docked at the starbase's menu (item 8), and
+        // the guest is shown the story's closing lines, as they were.
+        Assert.Equal((Activity.Starbase, VisitStep.Menu), (world.Host.Ship.Activity, world.Host.Ship.Visit!.Step));
+        Assert.Equal(VisitStep.Done, world.TalkFor("guest")!.Step);
+        Assert.False(world.StoryPaused);
     }
 
     [ContentFact]

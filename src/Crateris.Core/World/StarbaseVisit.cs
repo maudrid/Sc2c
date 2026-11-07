@@ -33,26 +33,36 @@ public enum VisitStep
     /// <summary>The allied commander: the starbase is ready (starbas.c).</summary>
     StarbaseReady,
 
-    /// <summary>Over.</summary>
+    /// <summary>Docked at the allied starbase, at its menu (DoStarBase): talk, outfit, the shipyard, or leave.</summary>
+    Menu,
+
+    /// <summary>Talking to the allied commander from the menu: an ordinary talk, under the dialogue lock.</summary>
+    MenuTalk,
+
+    /// <summary>Over: the ship has left the starbase (or never docked: before the alliance).</summary>
     Done,
 }
 
 /// <summary>
 /// One player's visit to Earth's starbase, as VisitStarBase runs it
-/// (stage 3a, item 5). Before the alliance, the commander talks; if he
-/// warns of the Ilwrath, their ship talks next and its battle counts as
-/// won (decision 3, until stage 4), and the commander talks again and
+/// (stage 3a, items 5 and 8). Before the alliance, the commander talks;
+/// if he warns of the Ilwrath, their ship talks next and its battle counts
+/// as won (decision 3, until stage 4), and the commander talks again and
 /// makes the alliance. With the Lunar base aboard, two weeks pass and the
 /// allied commander says the starbase is ready, with 2,500 resource
 /// units, which are split between the players in the game (decision 5).
-/// The starbase's menu comes with item 8; until then the visit ends there,
-/// and the ship is back in flight by the starbase.
+/// Then, once allied, the ship is docked at the starbase's menu
+/// (<see cref="VisitStep.Menu"/>, DoStarBase) until it leaves: from there
+/// its player talks to the commander (an ordinary talk, under the dialogue
+/// lock), outfits the ship and hires crew. Touching the starbase later,
+/// with nothing for the opening to tell, docks at once.
 /// <para>
-/// What the visit changed can be taken back: the story fields its talks
-/// wrote (only those: another player's lander may take the Lunar base
-/// meanwhile), the starter's ship and the two weeks. A save made during it
-/// is of the game without it, as UQM can't save in the middle of one; and
-/// if the starter leaves, the visit is undone.
+/// The opening (the steps before the menu) can be taken back: the story
+/// fields its talks wrote (only those: another player's lander may take
+/// the Lunar base meanwhile), the starter's ship and the two weeks. A save
+/// made during it is of the game without it, as UQM can't save in the
+/// middle of one; and if the starter leaves, it's undone. Once docked,
+/// nothing is taken back: leaving ends the visit, as departing does.
 /// </para>
 /// </summary>
 public sealed class StarbaseVisit
@@ -72,8 +82,13 @@ public sealed class StarbaseVisit
     private int _talks;
     private bool _skipped;
 
-    internal StarbaseVisit(GameWorld world, Player starter)
+    // STARBASE_VISITED while docked: whether the allied commander has
+    // greeted this player on this visit (decision 11), as his talks leave it.
+    private int _greeted;
+
+    internal StarbaseVisit(GameWorld world, Player starter, int firstRound = 0)
     {
+        FirstRound = firstRound;
         _world = world;
         Starter = starter;
         Replier = starter;
@@ -96,6 +111,12 @@ public sealed class StarbaseVisit
     /// starter's: their ship and names.
     /// </summary>
     public Player Replier { get; internal set; }
+
+    /// <summary>Whether the visit is still in the opening (before the menu): one at a time, taken back if its starter leaves.</summary>
+    public bool Opening => Step < VisitStep.Menu;
+
+    /// <summary>Docked at the menu, not talking: the ship may be outfitted, crew hired, a talk started, or the starbase left.</summary>
+    public bool AtMenu => Step == VisitStep.Menu;
 
     /// <summary>
     /// Whether the visit is story now (decision 6, <see cref="Comm.TalkRules"/>):
@@ -140,7 +161,7 @@ public sealed class StarbaseVisit
     /// whole game, and a client that has answered one can't mistake the
     /// next visit's for it.
     /// </summary>
-    public int FirstRound { get; internal init; }
+    public int FirstRound { get; }
 
     /// <summary>Whether any of its talks was story, or time passed: everyone was shown it (decision 6).</summary>
     public bool WasStory { get; private set; }
@@ -216,18 +237,26 @@ public sealed class StarbaseVisit
                 break;
             case VisitStep.Alliance:
                 _world.CommanderMet = talk.OwnFields.GetValueOrDefault("STARBASE_VISITED") != 0;
+                // UQM's one STARBASE_VISITED goes on into the menu's talks
+                // as the commander's alliance left it.
+                _greeted = talk.OwnFields.GetValueOrDefault("STARBASE_VISITED");
                 AfterAlliance();
                 break;
             case VisitStep.StarbaseReady:
                 ShareTheGift();
-                Finish();
+                _greeted = talk.OwnFields.GetValueOrDefault("STARBASE_VISITED");
+                Dock();
+                break;
+            case VisitStep.MenuTalk:
+                _greeted = talk.OwnFields.GetValueOrDefault("STARBASE_VISITED");
+                Dock();
                 break;
         }
     }
 
     // With the Lunar base aboard (or the Chmmr's bomb just installed, in
     // 3c), time passes and the allied commander talks; else the starbase's
-    // menu, item 8's.
+    // menu.
     private void AfterAlliance()
     {
         var story = _world.Story!;
@@ -239,7 +268,55 @@ public sealed class StarbaseVisit
             _fadeLeft = TimePassingFrames;
         }
         else
-            Finish();
+            Dock();
+    }
+
+    // DoStarBase: the menu, with the commander's talk over.
+    private void Dock()
+    {
+        Step = VisitStep.Menu;
+        Talk = null;
+        Menu ??= new Starbase.StarbaseMenu();
+        Menu.Screen = Starbase.StarbaseScreen.Menu;
+    }
+
+    /// <summary>The docked player's screens (the menu, outfitting, the shipyard), once docked.</summary>
+    public Starbase.StarbaseMenu? Menu { get; private set; }
+
+    /// <summary>
+    /// The menu's Talk (TALK_COMMANDER): the allied commander, at the
+    /// starbase (GLOBAL_FLAGS_AND_DATA ~0), greeting this player if he
+    /// hasn't this visit. The world takes the dialogue lock first. False if
+    /// not at the menu.
+    /// </summary>
+    internal bool TalkToCommander()
+    {
+        if (!AtMenu)
+            return false;
+        StartTalk(VisitStep.MenuTalk, "starbas", new() { ["GLOBAL_FLAGS_AND_DATA"] = 0xFF, ["STARBASE_VISITED"] = _greeted });
+        return true;
+    }
+
+    /// <summary>
+    /// The menu's Leave (DEPART_BASE): the ship is back in flight by the
+    /// starbase, and the commander will greet this player again next time
+    /// (STARBASE_VISITED 0). False if not at the menu.
+    /// </summary>
+    internal bool Depart()
+    {
+        if (!AtMenu)
+            return false;
+        _greeted = 0;
+        Finish();
+        return true;
+    }
+
+    /// <summary>The starter leaves the game while docked: the visit ends, its talk with it, nothing taken back.</summary>
+    internal void Abandon()
+    {
+        if (Opening)
+            throw new InvalidOperationException("an opening is undone, not abandoned");
+        Finish();
     }
 
     // The starbase's resource units are the group's: split equally between
@@ -290,9 +367,11 @@ public sealed class StarbaseVisit
         return (d.Year, d.Month, d.Day);
     }
 
-    /// <summary>The visit is undone: what its talks wrote, the starter's ship and the two weeks put back.</summary>
+    /// <summary>The opening is undone: what its talks wrote, the starter's ship and the two weeks put back.</summary>
     internal void Undo()
     {
+        if (!Opening)
+            throw new InvalidOperationException("only the opening is taken back");
         foreach (var (field, value) in WrittenBefore())
             _world.Story!.Set(field, value);
         Starter.Ship.Hold.Restore(HoldBefore);

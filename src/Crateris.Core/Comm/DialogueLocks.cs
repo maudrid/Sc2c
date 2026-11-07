@@ -23,7 +23,8 @@ namespace Crateris.Core.Comm;
 /// player is in one talk at a time, so taking a lock twice is still one.
 /// Story talks don't take it: they pause the game for everyone (row 2),
 /// and one won't start while another player holds that race's lock (the
-/// talks that take locks come with item 8 and 3b, which check it). Not
+/// starbase menu's talk takes the commander's, item 8; ships in space take
+/// theirs in 3b). Not
 /// saved: talks aren't.
 /// </summary>
 public sealed class DialogueLocks

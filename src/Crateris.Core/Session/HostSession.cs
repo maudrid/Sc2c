@@ -217,6 +217,62 @@ public sealed class HostSession
 
     private readonly Dictionary<string, TalkView?> _talkSent = new();
 
+    /// <summary>A guest's key on its starbase screen (anything wrong is ignored).</summary>
+    public void GuestStarbaseKey(long peer, int key)
+    {
+        if (_peers.TryGetValue(peer, out var id) && Enum.IsDefined((Systems.MenuKey)key))
+            StarbaseKey(id, (Systems.MenuKey)key);
+    }
+
+    /// <summary>
+    /// A docked player's key on their starbase screen (the host's own
+    /// through here too): the host choosing Save game saves
+    /// (<see cref="SaveRequested"/>).
+    /// </summary>
+    public Starbase.OutfitOutcome StarbaseKey(string id, Systems.MenuKey key)
+    {
+        var outcome = World.StarbaseKey(id, key, out bool save);
+        if (save)
+            SaveRequested?.Invoke();
+        if (outcome is Starbase.OutfitOutcome.Acted or Starbase.OutfitOutcome.Refused)
+            Logged?.Invoke($"{id}: starbase {key}: {outcome}");
+        return outcome;
+    }
+
+    /// <summary>The host chose Save game at the starbase.</summary>
+    public event Action? SaveRequested;
+
+    /// <summary>A guest renames its ship or captain (empty: unchanged), docked at the starbase.</summary>
+    public void GuestRename(long peer, string ship, string captain)
+    {
+        if (_peers.TryGetValue(peer, out var id))
+            Rename(id, ship == "" ? null : ship, captain == "" ? null : captain);
+    }
+
+    /// <summary>Renames a docked player's ship or captain (outfitting's naming); false if not docked.</summary>
+    public bool Rename(string id, string? ship, string? captain) =>
+        World.Find(id)?.Ship.Activity == Activity.Starbase && World.Rename(id, ship, captain);
+
+    /// <summary>What a docked player's starbase screen is now: null if not docked.</summary>
+    public Starbase.StarbaseView? StarbaseFor(string id) => World.StarbaseFor(id);
+
+    private readonly Dictionary<string, Starbase.StarbaseView?> _starbaseSent = new();
+
+    /// <summary>The starbase screens to send the guests: each whose screen has changed since it was last sent (empty for none).</summary>
+    public List<(long Peer, byte[] Data)> StarbaseUpdates()
+    {
+        var updates = new List<(long, byte[])>();
+        foreach (var (peer, id) in _peers)
+        {
+            var view = StarbaseFor(id);
+            if (Equals(view, _starbaseSent.GetValueOrDefault(id)) && _starbaseSent.ContainsKey(id))
+                continue;
+            _starbaseSent[id] = view;
+            updates.Add((peer, view?.Encode() ?? Array.Empty<byte>()));
+        }
+        return updates;
+    }
+
     /// <summary>The lander reports to show (World.TakeReports): the host's own, and each guest's by its peer.</summary>
     public (List<LanderReport> Host, List<(long Peer, LanderReport Report)> Guests) TakeReports()
     {
@@ -233,7 +289,7 @@ public sealed class HostSession
     }
 
     /// <summary>What a player in a talk is shown now: null if they're in none.</summary>
-    public TalkView? TalkFor(string id) => TalkView.Of(World.VisitOf(id));
+    public TalkView? TalkFor(string id) => World.TalkFor(id);
 
     /// <summary>
     /// The talks to send the guests: each guest whose talk view has changed
@@ -261,6 +317,7 @@ public sealed class HostSession
         if (_peers.Remove(peer, out var id))
         {
             _talkSent.Remove(id);
+            _starbaseSent.Remove(id);
             World.Leave(id);
             Logged?.Invoke($"{id} left");
         }

@@ -14,6 +14,8 @@ using Crateris.Core.Story;
 using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
 
+using Crateris.Core.Comm;
+
 namespace Crateris.Core.World;
 
 public enum JoinResult
@@ -53,7 +55,7 @@ public sealed record ShipSnapshot(
     int? OrbitPlanet = null, int? OrbitMoon = null, int IpVelocityX = 0, int IpVelocityY = 0,
     short ViewX = Crateris.Core.Hyperspace.HyperFlight.CenterX, short ViewY = Crateris.Core.Hyperspace.HyperFlight.CenterY,
     StarEntryState? Entry = null, HoldSnapshot? Hold = null,
-    string? ShipName = null, string? CaptainName = null);
+    string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null);
 
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
@@ -126,14 +128,18 @@ public sealed class GameWorld
 
     /// <summary>
     /// The dialogue locks (stage 3a, item 7): who is in an ordinary talk
-    /// with which race. Ordinary talks come with the allied starbase's menu
-    /// (item 8) and with ships in space (3b), which take and let go of
-    /// them; a player leaving lets go of theirs here. Null when not set
+    /// with which race. The allied starbase's menu takes the commander's
+    /// (item 8), and ships in space will take theirs (3b); a talk ending
+    /// lets go of its lock, and a player leaving of all theirs. Null when not set
     /// (the game sets it from data/races.json; some tests don't).
     /// </summary>
     public Comm.DialogueLocks? DialogueLocks { get; set; }
 
-    /// <summary>The visit to Earth's starbase going on, if any: a story visit, one at a time.</summary>
+    /// <summary>
+    /// The visit to Earth's starbase in its opening, if any (before the
+    /// starbase's menu): a story visit, one at a time. Docked players'
+    /// visits are their ships' own (<see cref="PlayerShip.Visit"/>).
+    /// </summary>
     public StarbaseVisit? Visit { get; private set; }
 
     /// <summary>
@@ -284,8 +290,15 @@ public sealed class GameWorld
             else
             {
                 visit.Undo();
-                EndVisitIfDone();
+                AfterVisit(visit);
             }
+        }
+        // Docked: the visit ends as leaving the starbase does, its talk
+        // with it; the ship waits in flight by the starbase.
+        if (player.Ship.Visit is { Opening: false } docked)
+        {
+            docked.Abandon();
+            AfterVisit(docked);
         }
         _ended.Remove(id);
         player.Present = false;
@@ -347,7 +360,7 @@ public sealed class GameWorld
                 _actionHeld.Remove(p.Id);
             }
             Visit!.Frame();
-            EndVisitIfDone();
+            AfterVisit(Visit);
             return;
         }
         int systemFrames = SystemFramesIn(Frame);
@@ -382,8 +395,12 @@ public sealed class GameWorld
                     if (p.Ship.Visit == Visit)
                     {
                         Visit!.Frame();
-                        EndVisitIfDone();
+                        AfterVisit(Visit!);
                     }
+                    break;
+                case Activity.Starbase:
+                    // The starbase's menu is the player's own screen: what
+                    // they choose comes as its own messages.
                     break;
                 default:
                     // While the entry into the star plays, the ship can't be
@@ -519,66 +536,224 @@ public sealed class GameWorld
     /// <summary>
     /// A player touches Earth's starbase (VisitStarBase): before the
     /// alliance, the commander's talk and what follows it; with the Lunar
-    /// base aboard, the starbase's opening. One story visit goes on at a
-    /// time: while another does, or without the talks' content, the ship
-    /// stays in flight (docs/differences.md row 27). The allied starbase's
-    /// menu is item 8's: until then a visit with nothing to tell does
-    /// nothing.
+    /// base aboard, the starbase's opening; and once allied, the starbase's
+    /// menu (docked). One opening goes on at a time: while another does, or
+    /// without the talks' content, the ship stays in flight (docs/differences.md
+    /// row 27); and it waits while another player talks to the commander
+    /// from the menu (row 17).
     /// </summary>
     internal void VisitStarbase(Player player)
     {
-        if (TalkLibrary is null || Story is null || Visit is not null)
+        if (TalkLibrary is null || Story is null || player.Ship.Visit is not null)
             return;
-        // Another player talking to the commander (an ordinary talk, from
-        // the starbase's menu): the story waits for them (row 17).
-        if (DialogueLocks?.Holder("COMMANDER_CONVERSATION") is { } holder && holder != player.Id)
-            return;
-        if (Story.Get("STARBASE_AVAILABLE") != 0 && Story.Get("MOONBASE_ON_SHIP") == 0
-                && Story.Get("CHMMR_BOMB_STATE") != 2)
-            return;
-        var visit = new StarbaseVisit(this, player) { FirstRound = _rounds };
-        _ended.Clear();
+        bool opening = Story.Get("STARBASE_AVAILABLE") == 0 || Story.Get("MOONBASE_ON_SHIP") != 0
+            || Story.Get("CHMMR_BOMB_STATE") == 2;
+        if (opening)
+        {
+            if (Visit is not null)
+                return;
+            if (DialogueLocks?.Holder("COMMANDER_CONVERSATION") is { } holder && holder != player.Id)
+                return;
+        }
+        var visit = new StarbaseVisit(this, player, NextRound());
+        if (opening)
+            _ended.Clear();
+        else
+            _ended.Remove(player.Id);
         if (visit.Done)
         {
-            _ended[player.Id] = visit;
+            _ended[player.Id] = (visit, null);
             return;
         }
-        Visit = visit;
         player.Ship.Visit = visit;
+        if (visit.Opening)
+            Visit = visit;
     }
+
+    // Rounds count on through every visit (StarbaseVisit.FirstRound).
+    private int NextRound() =>
+        Math.Max(_rounds, _players.Select(p => p.Ship.Visit?.Round ?? 0).DefaultIfEmpty(0).Max());
 
     /// <summary>
     /// The player in a talk chooses a reply from the set offered in
     /// <paramref name="round"/> (<see cref="StarbaseVisit.Round"/>; null for
-    /// whatever is offered now). False, changing nothing, if they're in
-    /// none, it's no reply offered, or it was for a set already answered.
+    /// whatever is offered now): the replier of the story talk, or a docked
+    /// player in their talk with the commander. False, changing nothing, if
+    /// they're in none, it's no reply offered, or it was for a set already
+    /// answered.
     /// </summary>
     public bool ChooseReply(string id, int index, int? round = null)
     {
-        if (Visit is not { } visit || Find(id) is not { Present: true } player || visit.Replier != player
-                || round is int r && r != visit.Round)
+        if (Find(id) is not { Present: true } player)
+            return false;
+        var visit = Visit is { } story && story.Replier == player ? story
+            : !StoryPaused && player.Ship.Visit is { Step: VisitStep.MenuTalk } own ? own
+            : null;
+        if (visit is null || round is int r && r != visit.Round)
             return false;
         bool chosen = visit.Choose(index);
-        EndVisitIfDone();
+        AfterVisit(visit);
         return chosen;
     }
 
-    private void EndVisitIfDone()
+    /// <summary>What a docked player's request to talk to the commander came to.</summary>
+    public enum CommanderTalk
     {
-        if (Visit is { Done: true } v)
+        /// <summary>The talk started.</summary>
+        Started,
+
+        /// <summary>Another player is talking to him (decision 8): <see cref="TalkToCommander"/> says who.</summary>
+        Busy,
+
+        /// <summary>Not docked at the starbase's menu (or the game is paused for a story).</summary>
+        NotAtMenu,
+    }
+
+    /// <summary>
+    /// The starbase menu's Talk: a docked player talks to the allied
+    /// commander, an ordinary talk, theirs alone, under the dialogue lock
+    /// (item 7): while another player talks to him, they're told who
+    /// (<paramref name="holder"/>, decision 8).
+    /// </summary>
+    public CommanderTalk TalkToCommander(string id, out string? holder)
+    {
+        holder = null;
+        if (StoryPaused || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true } visit })
+            return CommanderTalk.NotAtMenu;
+        if (DialogueLocks is { } locks && !locks.TryTake("COMMANDER_CONVERSATION", id, out holder))
+            return CommanderTalk.Busy;
+        visit.TalkToCommander();
+        AfterVisit(visit);
+        return CommanderTalk.Started;
+    }
+
+    /// <summary>The starbase menu's Leave: the ship is back in flight by the starbase. False if not docked at the menu.</summary>
+    public bool Depart(string id)
+    {
+        if (StoryPaused || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true } visit } || !visit.Depart())
+            return false;
+        AfterVisit(visit);
+        return true;
+    }
+
+    /// <summary>
+    /// Outfitting or the shipyard's crew, for a player docked at the
+    /// starbase's menu, by UQM's rules (<see cref="Starbase.Outfitting"/>):
+    /// false, changing nothing, if refused or not docked.
+    /// </summary>
+    public bool Outfit(string id, Starbase.OutfitAction action)
+    {
+        if (StoryPaused || Story is null || Find(id) is not { Present: true, Ship.Visit.AtMenu: true } player)
+            return false;
+        if (!new Starbase.Outfitting(new OutfitShip(player.Ship), Story).Apply(action))
+            return false;
+        player.Ship.Refit();
+        return true;
+    }
+
+    /// <summary>
+    /// A docked player's key on their starbase screen (DoStarBase, DoOutfit,
+    /// DoShipyard), run here as their client sends it. <paramref name="save"/>
+    /// is set when the host chose Save/Load (a guest is refused it: only
+    /// the host saves). What the key did; None if not docked or paused.
+    /// </summary>
+    public Starbase.OutfitOutcome StarbaseKey(string id, Crateris.Core.Systems.MenuKey key, out bool save)
+    {
+        save = false;
+        if (StoryPaused || Story is null || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true, Menu: { } m } visit } player)
+            return Starbase.OutfitOutcome.None;
+        var outcome = Starbase.OutfitOutcome.None;
+        switch (m.Screen)
+        {
+            case Starbase.StarbaseScreen.Menu:
+                m.Busy = null;
+                if (key is Crateris.Core.Systems.MenuKey.Left or Crateris.Core.Systems.MenuKey.Up)
+                    m.State = (byte)(m.State == Starbase.StarbaseMenu.TalkCommander ? Starbase.StarbaseMenu.DepartBase : m.State - 1);
+                else if (key is Crateris.Core.Systems.MenuKey.Right or Crateris.Core.Systems.MenuKey.Down)
+                    m.State = (byte)(m.State == Starbase.StarbaseMenu.DepartBase ? Starbase.StarbaseMenu.TalkCommander : m.State + 1);
+                else if (key == Crateris.Core.Systems.MenuKey.Select)
+                {
+                    switch (m.State)
+                    {
+                        case Starbase.StarbaseMenu.TalkCommander:
+                            if (TalkToCommander(id, out var holder) == CommanderTalk.Busy)
+                                m.Busy = holder is null ? "" : Find(holder)?.Name ?? holder;
+                            else if (visit.Step == VisitStep.MenuTalk)
+                                m.Screen = Starbase.StarbaseScreen.Talk;
+                            break;
+                        case Starbase.StarbaseMenu.OutfitStarship:
+                            m.Outfit = new Starbase.OutfitMenu(new Starbase.Outfitting(new OutfitShip(player.Ship), Story),
+                                a => Outfit(id, a));
+                            m.Screen = Starbase.StarbaseScreen.Outfit;
+                            m.Outfit.Open();
+                            break;
+                        case Starbase.StarbaseMenu.Shipyard:
+                            m.Yard = new Starbase.ShipyardMenu(a => Outfit(id, a));
+                            m.Screen = Starbase.StarbaseScreen.Shipyard;
+                            break;
+                        default:
+                            Depart(id);
+                            return Starbase.OutfitOutcome.Left;
+                    }
+                }
+                return outcome;
+            case Starbase.StarbaseScreen.Outfit:
+                outcome = m.Outfit!.Key(key);
+                break;
+            case Starbase.StarbaseScreen.Shipyard:
+                outcome = m.Yard!.Key(key);
+                break;
+            default:
+                return outcome;   // the talk's replies come as their own messages
+        }
+        if (outcome == Starbase.OutfitOutcome.SaveLoad)
+        {
+            // GameOptions: the host saves; a guest has no save of their own.
+            if (player.IsHost)
+                save = true;
+            else
+                outcome = Starbase.OutfitOutcome.Refused;
+        }
+        if (outcome == Starbase.OutfitOutcome.Refused)
+            m.Refusals++;
+        else if (outcome == Starbase.OutfitOutcome.Left)
+        {
+            (m.Outfit, m.Yard, m.Screen) = (null, null, Starbase.StarbaseScreen.Menu);
+        }
+        return outcome;
+    }
+
+    /// <summary>A docked player's starbase screen, as their client is shown it; null if not docked.</summary>
+    public Starbase.StarbaseView? StarbaseFor(string id) =>
+        Find(id)?.Ship.Visit is { Step: VisitStep.Menu or VisitStep.MenuTalk, Menu: { } m } ? m.View() : null;
+
+    // What becomes of a visit after it changed: an opening that has docked
+    // is no longer the story visit (its closing lines go on showing to
+    // those who watched it), a talk with the commander that's over lets go
+    // of his lock, and a visit that's over leaves its ship.
+    private void AfterVisit(StarbaseVisit v)
+    {
+        _rounds = Math.Max(_rounds, v.Round);
+        if (v.Step != VisitStep.MenuTalk)
+            DialogueLocks?.Release("COMMANDER_CONVERSATION", v.Starter.Id);
+        if (v == Visit && !v.Opening)
+        {
+            Visit = null;
+            // Those who watched the story see its closing lines, as they
+            // were: not the starter's own talks after it.
+            if (!v.Undone && v.WasStory && TalkView.Of(v) is { } closing)
+                foreach (var p in _players.Where(p => p.Present && p != v.Starter))
+                    _ended[p.Id] = (v, closing with { Step = VisitStep.Done });
+        }
+        if (v.Done)
         {
             v.Starter.Ship.Visit = null;
-            Visit = null;
-            _rounds = v.Round;
-            // Its closing lines go on showing to whoever saw it: everyone,
-            // for a story visit; an undone one has none to show.
             if (!v.Undone)
-                foreach (var p in _players.Where(p => p == v.Starter || (v.WasStory && p.Present)))
-                    _ended[p.Id] = v;
+                _ended[v.Starter.Id] = (v, null);
         }
     }
 
-    private readonly Dictionary<string, StarbaseVisit> _ended = new();
+    private readonly Dictionary<string, (StarbaseVisit Visit, TalkView? Frozen)> _ended = new();
     private int _rounds;
     private bool _wasPaused;
 
@@ -590,7 +765,13 @@ public sealed class GameWorld
     public StarbaseVisit? VisitOf(string id) =>
         Visit is { Story: true } story ? story
         : Find(id)?.Ship.Visit is { } v && v.Starter.Id == id ? v
-        : _ended.GetValueOrDefault(id);
+        : _ended.TryGetValue(id, out var e) ? e.Visit : null;
+
+    /// <summary>The talk a player is shown (<see cref="VisitOf"/>): the closing lines of one they watched as they were when it ended.</summary>
+    public TalkView? TalkFor(string id) =>
+        Visit is { Story: true } || Find(id)?.Ship.Visit is not null || !_ended.TryGetValue(id, out var e)
+            ? TalkView.Of(VisitOf(id))
+            : e.Frozen ?? TalkView.Of(e.Visit);
 
     private void EnterSystem(PlayerShip ship, Star star)
     {
@@ -742,6 +923,44 @@ public sealed class GameWorld
     public bool DiscardCargo(string id, int category) =>
         !StoryPaused && Find(id) is { Present: true, Ship.Visit: null } player && player.Ship.Hold.Discard(category);
 
+    // A player's ship as outfitting sees it.
+    private sealed class OutfitShip : Starbase.IOutfitShip
+    {
+        private readonly PlayerShip _ship;
+
+        public OutfitShip(PlayerShip ship) => _ship = ship;
+
+        public ShipKind Kind => _ship.Kind;
+
+        public ShipModules Modules => _ship.Modules;
+
+        public int Crew
+        {
+            get => _ship.Hold.Crew;
+            set => _ship.Hold.SetCrew(value);
+        }
+
+        public uint Fuel
+        {
+            get => _ship.Flight.Fuel;
+            set => _ship.Flight.Fuel = value;
+        }
+
+        public int Landers
+        {
+            get => _ship.Hold.Landers;
+            set => _ship.Hold.SetLanders(value);
+        }
+
+        public uint ResourceUnits
+        {
+            get => _ship.Hold.ResourceUnits;
+            set => _ship.Hold.ResourceUnits = value;
+        }
+
+        public int MineralMass => _ship.Hold.MineralMass;
+    }
+
     /// <summary>
     /// Renames a player's ship or captain, or both (UQM's NameCaptainOrShip,
     /// from the starbase's outfitting): each cut to UQM's 15 bytes; null
@@ -774,7 +993,7 @@ public sealed class GameWorld
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
                 ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy, f.ViewX, f.ViewY,
                 p.Ship.Entry is { } e && e.PlayingAt(Frame) ? e : null, p.Ship.Hold.Snapshot(),
-                p.Ship.Name, p.CaptainName);
+                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save());
         }).ToList();
 
         // Worlds being orbited, with what has been taken from them, so an

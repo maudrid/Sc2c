@@ -140,7 +140,7 @@ public partial class SystemView : Control
             return;
         _lastFrame = snapshot.Frame;
         _clock.Observe(snapshot.Frame);
-        foreach (var s in snapshot.Ships.Where(s => s.Activity is Activity.OuterSystem or Activity.InnerSystem or Activity.Talk))
+        foreach (var s in snapshot.Ships.Where(s => s.Activity is Activity.OuterSystem or Activity.InnerSystem or Activity.Talk or Activity.Starbase))
         {
             if (!_motion.TryGetValue(s.Id, out var m))
                 _motion[s.Id] = m = new SmoothedMotion();
@@ -165,7 +165,7 @@ public partial class SystemView : Control
     {
         DrawRect(new Rect2(Vector2.Zero, Size), Colors.Black);
         var me = _snapshot?.Ships.FirstOrDefault(s => s.Id == _me);
-        if (Sprites == null || me?.SystemStar is not int star || me.Activity is not (Activity.OuterSystem or Activity.InnerSystem or Activity.Talk))
+        if (Sprites == null || me?.SystemStar is not int star || me.Activity is not (Activity.OuterSystem or Activity.InnerSystem or Activity.Talk or Activity.Starbase))
             return;
         SolarSystem system = _systems[star];
         var font = ThemeDB.FallbackFont;

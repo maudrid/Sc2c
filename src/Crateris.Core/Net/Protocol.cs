@@ -52,8 +52,13 @@ public static class Protocol
     /// replies in it; everyone is sent a story talk, with its replier and
     /// the reply chosen. (The reply's round and the lander reports came in
     /// 9's stage, item 5, after it was numbered.)
+    /// 11: the allied starbase (stage 3a, item 8): a ship can be docked at
+    /// its menu (Activity.Starbase); ships carry their slots; a docked
+    /// player asks to talk to the commander (refused, saying who's talking
+    /// to him), outfits, hires crew, renames and leaves, each a reliable
+    /// message.
     /// </summary>
-    public const int Version = 10;
+    public const int Version = 11;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()

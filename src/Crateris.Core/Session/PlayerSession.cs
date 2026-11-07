@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using Crateris.Core.Comm;
+using Crateris.Core.Starbase;
 using Crateris.Core.Content;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
@@ -258,7 +259,7 @@ public sealed class PlayerSession
                 PressMenu(key);
         }
         else
-            input = Me?.Activity is Activity.Orbit or Activity.Talk || StoryPaused ? ShipInput.None : keys;   // on the surface, the lander's keys
+            input = Me?.Activity is Activity.Orbit or Activity.Talk or Activity.Starbase || StoryPaused ? ShipInput.None : keys;   // on the surface, the lander's keys
         if (Entering)
             return ShipInput.None;
         // A Navigate chosen just before a story pause leaves orbit after it.
@@ -299,6 +300,10 @@ public sealed class PlayerSession
     {
         if (view is null ? _lastView is null : view.Same(_lastView))
             return;
+        // A talk with the commander from the starbase's menu over: its
+        // closing lines show as a notice over the menu.
+        if (view is { Step: VisitStep.Menu, Lines.Count: > 0 } && _lastView?.Step == VisitStep.MenuTalk)
+            Notify(string.Join("\n", view.Lines.Select(OneLine)));
         _lastView = view;
         if (view is null || view.Step == VisitStep.Done)
             _answered = -1;   // the next talk's rounds are new
@@ -371,9 +376,58 @@ public sealed class PlayerSession
         }
     }
 
-    /// <summary>A key for the orbit screen's menus (in a talk, for its replies).</summary>
+    /// <summary>
+    /// The docked player's starbase screen, as the host last sent it (the
+    /// host runs it: the keys go there); null when not docked.
+    /// </summary>
+    public StarbaseView? Starbase { get; private set; }
+
+    private readonly Queue<MenuKey> _starbaseKeys = new();
+    private (string? Ship, string? Captain)? _rename;
+
+    /// <summary>The host sent this player's starbase screen (null: not docked). A refusal and a busy commander show as notices.</summary>
+    public void ShowStarbase(StarbaseView? view)
+    {
+        if (view is not null && view.Refusals > (Starbase?.Refusals ?? int.MaxValue))
+            Notify(view.Screen == StarbaseScreen.Shipyard ? "The shipyard can't do that." : "That can't be done.");
+        if (view is { Busy.Length: > 0 } && view.Busy != Starbase?.Busy)
+            Notify($"The commander is talking with {view.Busy}.");
+        if (view is null && Starbase is not null)
+            _starbaseKeys.Clear();
+        Starbase = view;
+    }
+
+    /// <summary>The keys pressed on the starbase screen since the last call, to send to the host.</summary>
+    public IReadOnlyList<MenuKey> TakeStarbaseKeys()
+    {
+        var keys = _starbaseKeys.ToList();
+        _starbaseKeys.Clear();
+        return keys;
+    }
+
+    /// <summary>Renames this player's ship or captain (null leaves it), at the starbase: sent to the host once.</summary>
+    public void Rename(string? ship, string? captain)
+    {
+        if (Me?.Activity == Activity.Starbase)
+            _rename = (ship, captain);
+    }
+
+    /// <summary>The renaming to send, once; null if none.</summary>
+    public (string? Ship, string? Captain)? TakeRename()
+    {
+        var r = _rename;
+        _rename = null;
+        return r;
+    }
+
+    /// <summary>A key for the orbit screen's menus (in a talk, for its replies; docked, for the starbase's screens).</summary>
     public void PressMenu(MenuKey key)
     {
+        if (Me?.Activity == Activity.Starbase && !StoryPaused)
+        {
+            _starbaseKeys.Enqueue(key);
+            return;
+        }
         if (Me?.Activity == Activity.Talk || StoryPaused)
         {
             if (Replying)
@@ -618,6 +672,8 @@ public sealed class PlayerSession
         {
             // In a talk whose view hasn't come yet: no keys to show.
         }
+        else if (Me?.Activity == Activity.Starbase && Starbase is { } sb)
+            lines.AddRange(StarbaseLines(sb));
         else if (Me?.Activity == Activity.Planetside)
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
         else if (Me?.Activity != Activity.Orbit && !Entering)
@@ -625,6 +681,99 @@ public sealed class PlayerSession
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();
     }
+
+    private static readonly string[] StarbaseItems = { "Talk to the commander", "Outfit the ship", "The shipyard", "Leave" };
+    private static readonly string[] OutfitItems = { "Fuel", "Modules", "Save game", "Exit" };
+    private static readonly string[] YardItems = { "Crew", "Save game", "Exit" };
+
+    /// <summary>A module's name, in words (until item 11 draws them).</summary>
+    public static string ModuleName(byte piece) => piece switch
+    {
+        ShipModules.PlanetLander => "planet lander",
+        ShipModules.FusionThruster => "fusion thruster",
+        ShipModules.TurningJets => "turning jets",
+        ShipModules.CrewPod => "crew pod",
+        ShipModules.StorageBay => "storage bay",
+        ShipModules.FuelTank => "fuel tank",
+        ShipModules.HighEfficiencyFuelSystem => "high-efficiency fuel system",
+        ShipModules.DynamoUnit => "dynamo unit",
+        ShipModules.ShivaFurnace => "shiva furnace",
+        ShipModules.GunWeapon => "ion-bolt gun",
+        ShipModules.BlasterWeapon => "fusion blaster",
+        ShipModules.CannonWeapon => "hellbore cannon",
+        ShipModules.TrackingSystem => "tracking system",
+        ShipModules.AntimissileDefense => "point defense",
+        < ShipModules.EmptySlot => "the bomb",
+        _ => "empty",
+    };
+
+    private static string Menu(IReadOnlyList<string> items, int at) =>
+        string.Join("  ", items.Select((x, i) => i == at ? $"[{x}]" : x));
+
+    // The starbase's screens in words, until item 11 draws them.
+    private IEnumerable<string> StarbaseLines(StarbaseView sb)
+    {
+        var me = Me!;
+        switch (sb.Screen)
+        {
+            case StarbaseScreen.Menu:
+                yield return "The allied starbase:";
+                yield return Menu(StarbaseItems, sb.State);
+                yield return "Arrows: choose; Enter: go";
+                break;
+            case StarbaseScreen.Outfit when !sb.Installing:
+                yield return "Outfitting:";
+                yield return sb.OutfitState == OutfitMenu.DoFuel
+                    ? "Fuel: up, down a unit; PgUp, PgDn a bar; Enter: done"
+                    : Menu(OutfitItems, sb.OutfitState);
+                if (sb.OutfitState != OutfitMenu.DoFuel)
+                    yield return "Arrows: choose; Enter: go; F2, F3: rename the ship, the captain";
+                break;
+            case StarbaseScreen.Outfit when me.Modules is { } m:
+                byte state = sb.OutfitState;
+                var row = state switch
+                {
+                    ShipModules.PlanetLander or ShipModules.EmptyLander => SlotKind.Lander,
+                    ShipModules.FusionThruster or ShipModules.EmptyDrive => SlotKind.Drive,
+                    ShipModules.TurningJets or ShipModules.EmptyJet => SlotKind.Jet,
+                    _ => SlotKind.Module,
+                };
+                string Slots(SlotKind kind)
+                {
+                    var pieces = kind switch
+                    {
+                        SlotKind.Lander => Enumerable.Range(0, ShipHold.MaxLanders)
+                            .Select(i => i < (me.Hold?.Landers ?? 0) ? ShipModules.PlanetLander : ShipModules.EmptyLander).ToArray(),
+                        SlotKind.Drive => m.Drives!,
+                        SlotKind.Jet => m.Jets!,
+                        _ => m.Modules!,
+                    };
+                    return string.Join(" ", pieces.Select((p, i) =>
+                        (kind == row && i == sb.OutfitItem ? ">" : "") + (p < ShipModules.EmptySlot ? ModuleName(p).Split(' ')[0] : ".")));
+                }
+                yield return $"Drives:  {Slots(SlotKind.Drive)}";
+                yield return $"Jets:    {Slots(SlotKind.Jet)}";
+                yield return $"Modules: {Slots(SlotKind.Module)}";
+                yield return $"Landers: {Slots(SlotKind.Lander)}";
+                if (state < ShipModules.EmptySlot)
+                {
+                    int cost = Snapshot?.Story?.ModuleCost[state] ?? 0;
+                    yield return $"Buy: {ModuleName(state)}, {cost * 50} RU (left, right: choose; Enter: buy; Esc: back)";
+                }
+                else
+                    yield return "Up, down: the row; left, right: the slot; Enter: buy into an empty one, or sell; Esc: back";
+                break;
+            case StarbaseScreen.Shipyard:
+                yield return "The shipyard:";
+                yield return sb.CrewMode
+                    ? $"Crew {me.Hold?.Crew} of {CrewRoom(me)}, {Snapshot?.Story?.CrewCost} RU each: up hires, down sends away; Enter: done"
+                    : Menu(YardItems, sb.YardState);
+                break;
+        }
+    }
+
+    private static int CrewRoom(ShipSnapshot me) =>
+        me.Modules is { } m ? ShipModules.Restore(m).CrewCapacity : 0;
 
     /// <summary>Where a ship is, in words (entering a star while its entry plays, as the screen shows it).</summary>
     public string Where(ShipSnapshot s)
@@ -639,6 +788,7 @@ public sealed class PlayerSession
         {
             Activity.InnerSystem when s.InnerPlanet is int p => $"the {cluster} system, near {_names?.PlanetName(at, p) ?? $"planet {p}"}",
             Activity.Talk when s.InnerPlanet is int p => $"talking at the starbase by {_names?.PlanetName(at, p) ?? $"planet {p}"}, {cluster}",
+            Activity.Starbase when s.InnerPlanet is int p => $"docked at the starbase by {_names?.PlanetName(at, p) ?? $"planet {p}"}, {cluster}",
             Activity.Planetside when s.OrbitPlanet is int p =>
                 $"landed on {_names?.PlanetOrMoon(at, p, s.OrbitMoon) ?? $"planet {p}" + (s.OrbitMoon is int m ? $" moon {m}" : "")}, {cluster}",
             Activity.Orbit when s.OrbitPlanet is int p =>

@@ -163,6 +163,7 @@ public sealed class ShipModules
             throw new ArgumentException($"a drive slot can't hold {piece}");
         _drives[slot] = piece;
         ++Version;
+        _saved = null;
     }
 
     /// <summary>Sets a jet slot (turning jets or <see cref="EmptyJet"/>).</summary>
@@ -172,6 +173,7 @@ public sealed class ShipModules
             throw new ArgumentException($"a jet slot can't hold {piece}");
         _jets[slot] = piece;
         ++Version;
+        _saved = null;
     }
 
     /// <summary>Sets a module slot (CREW_POD and after, or <see cref="EmptyModule"/>).</summary>
@@ -181,10 +183,13 @@ public sealed class ShipModules
             throw new ArgumentException($"a module slot can't hold {piece}");
         _modules[slot] = piece;
         ++Version;
+        _saved = null;
     }
 
-    /// <summary>The slots as saved and sent.</summary>
-    public ModulesState Save() => new(_drives.ToArray(), _jets.ToArray(), _modules.ToArray(), KitCrew);
+    /// <summary>The slots as saved and sent (made again only when they change).</summary>
+    public ModulesState Save() => _saved ??= new(_drives.ToArray(), _jets.ToArray(), _modules.ToArray(), KitCrew);
+
+    private ModulesState? _saved;
 
     /// <summary>Saved slots; a bad one is an <see cref="InvalidDataException"/>.</summary>
     public static ShipModules Restore(ModulesState s)

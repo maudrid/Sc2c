@@ -36,6 +36,8 @@ public enum Activity
     /// ship waits in its system where it touched the world.
     /// </summary>
     Talk,
+    /// <summary>Docked at the allied starbase, at its menu (outfitting and the shipyard are the player's own screens there).</summary>
+    Starbase,
 }
 
 /// <summary>A player's ship. The host flies the flagship; guests captain escorts.</summary>
@@ -92,7 +94,7 @@ public sealed class PlayerShip
     /// <summary>The visit to Earth's starbase this ship is on, while it's on one (not saved).</summary>
     public StarbaseVisit? Visit { get; internal set; }
 
-    public Activity Activity => Visit is not null ? Activity.Talk : Ip switch
+    public Activity Activity => Visit is { AtMenu: true } ? Activity.Starbase : Visit is not null ? Activity.Talk : Ip switch
     {
         null => Activity.Hyperspace,
         { Orbit: not null } when Lander is not null => Activity.Planetside,

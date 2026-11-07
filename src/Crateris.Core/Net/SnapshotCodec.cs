@@ -42,8 +42,8 @@ public static partial class SnapshotCodec
 
     // The fields written whole.
     private const int BitId = Numbers, BitName = Numbers + 1, BitEntry = Numbers + 2, BitHold = Numbers + 3,
-        BitNames = Numbers + 4;
-    private const ulong AllFields = (1UL << (Numbers + 5)) - 1;
+        BitNames = Numbers + 4, BitModules = Numbers + 5;
+    private const ulong AllFields = (1UL << (Numbers + 6)) - 1;
 
     /// <summary>
     /// Writes <paramref name="snapshot"/> into <paramref name="writer"/>
@@ -121,6 +121,8 @@ public static partial class SnapshotCodec
                     mask |= 1UL << BitHold;
                 if (ship.ShipName != old.ShipName || ship.CaptainName != old.CaptainName)
                     mask |= 1UL << BitNames;
+                if (!Equals(ship.Modules, old.Modules))
+                    mask |= 1UL << BitModules;
             }
             writer.UInt(mask);
             for (int f = 0; f < Numbers; ++f)
@@ -141,7 +143,58 @@ public static partial class SnapshotCodec
                 writer.String(ship.ShipName);
                 writer.String(ship.CaptainName);
             }
+            if ((mask & (1UL << BitModules)) != 0)
+                WriteModules(writer, ship.Modules);
         }
+    }
+
+    // A ship's slots: none, or its drive, jet and module slots and its kit's crew.
+    private static void WriteModules(WireWriter w, ModulesState? m)
+    {
+        if (m is null)
+        {
+            w.UInt(0);
+            return;
+        }
+        w.UInt(1);
+        foreach (byte b in m.Drives!)
+            w.UInt(b);
+        foreach (byte b in m.Jets!)
+            w.UInt(b);
+        foreach (byte b in m.Modules!)
+            w.UInt(b);
+        w.UInt((ulong)m.KitCrew);
+    }
+
+    private static ModulesState? ReadModules(ref WireReader r)
+    {
+        ulong present = r.UInt();
+        if (present == 0)
+            return null;
+        if (present != 1)
+            throw new InvalidDataException("Bad ship slots.");
+        // Each slot holds what its kind may (ShipModules' rules), or is empty.
+        static byte[] Slots(ref WireReader r, int n, byte low, byte high, byte empty)
+        {
+            var b = new byte[n];
+            for (int i = 0; i < n; ++i)
+            {
+                ulong v = r.UInt();
+                if (v != empty && (v < low || v > high))
+                    throw new InvalidDataException("Bad ship slot.");
+                b[i] = (byte)v;
+            }
+            return b;
+        }
+        var drives = Slots(ref r, ShipModules.DriveSlotCount, ShipModules.FusionThruster, ShipModules.FusionThruster,
+            ShipModules.EmptyDrive);
+        var jets = Slots(ref r, ShipModules.JetSlotCount, ShipModules.TurningJets, ShipModules.TurningJets, ShipModules.EmptyJet);
+        var modules = Slots(ref r, ShipModules.ModuleSlotCount, ShipModules.CrewPod, ShipModules.Modules - 1,
+            ShipModules.EmptyModule);
+        ulong kit = r.UInt();
+        if (kit > 1000)
+            throw new InvalidDataException("Bad kit crew.");
+        return new ModulesState(drives, jets, modules, (int)kit);
     }
 
     /// <summary>The frame a message is for, and the frame of its base (null for a full snapshot), without decoding it.</summary>
@@ -253,7 +306,8 @@ public static partial class SnapshotCodec
                 shipName = Name(r.String());
                 captainName = Name(r.String());
             }
-            ships[i] = FromNumbers(v, id, name, entry, hold, shipName, captainName);
+            var modules = (mask & (1UL << BitModules)) != 0 ? ReadModules(ref r) : old?.Modules;
+            ships[i] = FromNumbers(v, id, name, entry, hold, shipName, captainName, modules);
         }
         for (int i = 1; i < count; ++i)
         {
@@ -298,7 +352,7 @@ public static partial class SnapshotCodec
     }
 
     private static ShipSnapshot FromNumbers(ReadOnlySpan<long> v, string id, string name, StarEntryState? entry, HoldSnapshot? hold,
-        string? shipName = null, string? captainName = null)
+        string? shipName = null, string? captainName = null, ModulesState? modules = null)
     {
         long flags = v[Flags];
         if (flags < 0 || flags >= 1 << 8)
@@ -314,7 +368,7 @@ public static partial class SnapshotCodec
             activity, ToOptional(v[SystemStar]), ToOptional(v[InnerPlanet]),
             ToInt(v[IpX]), ToInt(v[IpY]), ToInt(v[ScreenX]), ToInt(v[ScreenY]), ToInt(v[IpFacing]), ToInt(v[ZoomRadius]),
             ToOptional(v[OrbitPlanet]), ToOptional(v[OrbitMoon]), ToInt(v[IpVelocityX]), ToInt(v[IpVelocityY]),
-            ToShort(v[ViewX]), ToShort(v[ViewY]), entry, hold, shipName, captainName);
+            ToShort(v[ViewX]), ToShort(v[ViewY]), entry, hold, shipName, captainName, modules);
     }
 
     private static void WriteEntry(WireWriter w, StarEntryState? e)
