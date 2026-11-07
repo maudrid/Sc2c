@@ -1,0 +1,96 @@
+// Attack on Crateris
+// Copyright (C) 2026 Attack on Crateris contributors.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+
+using System.Text.Json;
+
+namespace Crateris.Core.Comm;
+
+/// <summary>
+/// The dialogue lock (docs/differences.md row 17): an ordinary
+/// conversation is one player's at a time per alien race, so two players
+/// can't change one race's state at once. A conversation's race is the one
+/// whose ships use it (RACE_COMMUNICATION, data/races.json), with the
+/// conversations no ship uses given to their race: the Yehat rebels' to
+/// the Yehat, the Ur-Quan drone's to the Ur-Quan, the Slylandro homeworld's
+/// to the Slylandro, the starbase commander's to the humans; the Syreen's
+/// and the Talking Pet's are their own. A lock is let go when its talk
+/// ends or its player leaves. Story talks don't take it: they pause the
+/// game for everyone (row 2). Not saved: talks aren't.
+/// </summary>
+public sealed class DialogueLocks
+{
+    // The conversations whose race isn't the one using them (or no race uses).
+    private static readonly Dictionary<string, string> Aliases = new()
+    {
+        ["YEHAT_REBEL_CONVERSATION"] = "YEHAT_SHIP",
+        ["URQUAN_DRONE_CONVERSATION"] = "URQUAN_SHIP",
+        ["SLYLANDRO_HOME_CONVERSATION"] = "SLYLANDRO_SHIP",
+        ["COMMANDER_CONVERSATION"] = "HUMAN_SHIP",
+        ["SYREEN_CONVERSATION"] = "SYREEN_SHIP",
+        ["TALKING_PET_CONVERSATION"] = "TALKING_PET",
+    };
+
+    private readonly IReadOnlyDictionary<string, string> _raceOf;
+    private readonly Dictionary<string, string> _held = new();   // race -> player
+
+    public DialogueLocks(IReadOnlyDictionary<string, string> raceOf) => _raceOf = raceOf;
+
+    /// <summary>Each conversation id's race, from data/races.json and the aliases above.</summary>
+    public static DialogueLocks Load(string dataDirectory)
+    {
+        using var races = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataDirectory, "races.json")));
+        var raceOf = new Dictionary<string, string>(Aliases);
+        foreach (var r in races.RootElement.GetProperty("races").EnumerateArray())
+        {
+            string conversation = r.GetProperty("conversation").GetString()!;
+            if (conversation != "INVALID_CONVERSATION" && !Aliases.ContainsKey(conversation))
+                raceOf.TryAdd(conversation, r.GetProperty("race").GetString()!);
+        }
+        return new DialogueLocks(raceOf);
+    }
+
+    /// <summary>The race a conversation is locked by.</summary>
+    public string RaceOf(string conversation) =>
+        _raceOf.TryGetValue(conversation, out var race) ? race : throw new KeyNotFoundException($"no race for {conversation}");
+
+    /// <summary>The player talking to a conversation's race now, or null.</summary>
+    public string? Holder(string conversation) => _held.GetValueOrDefault(RaceOf(conversation));
+
+    /// <summary>
+    /// A player starts an ordinary conversation: theirs if no one else is
+    /// talking to that race (or they already are). False, with who is, if
+    /// someone else is (decision 8: they're told).
+    /// </summary>
+    public bool TryTake(string conversation, string playerId, out string? holder)
+    {
+        string race = RaceOf(conversation);
+        if (_held.TryGetValue(race, out holder) && holder != playerId)
+            return false;
+        _held[race] = playerId;
+        holder = playerId;
+        return true;
+    }
+
+    /// <summary>The player's talk with a conversation's race ended.</summary>
+    public void Release(string conversation, string playerId)
+    {
+        string race = RaceOf(conversation);
+        if (_held.GetValueOrDefault(race) == playerId)
+            _held.Remove(race);
+    }
+
+    /// <summary>The player left: every lock of theirs is let go.</summary>
+    public void ReleaseAll(string playerId)
+    {
+        foreach (var race in _held.Where(h => h.Value == playerId).Select(h => h.Key).ToList())
+            _held.Remove(race);
+    }
+
+    /// <summary>The races being talked to, and by whom.</summary>
+    public IReadOnlyDictionary<string, string> Held => _held;
+}

@@ -124,6 +124,15 @@ public sealed class GameWorld
     /// </summary>
     public bool CommanderMet { get; internal set; }
 
+    /// <summary>
+    /// The dialogue locks (stage 3a, item 7): who is in an ordinary talk
+    /// with which race. Ordinary talks come with the allied starbase's menu
+    /// (item 8) and with ships in space (3b), which take and let go of
+    /// them; a player leaving lets go of theirs here. Null without the
+    /// talks' data.
+    /// </summary>
+    public Comm.DialogueLocks? DialogueLocks { get; set; }
+
     /// <summary>The visit to Earth's starbase going on, if any: a story visit, one at a time.</summary>
     public StarbaseVisit? Visit { get; private set; }
 
@@ -262,6 +271,7 @@ public sealed class GameWorld
         if (player == null)
             return;
         Withdraw(player);   // decision 5: its lander takes off at once, with its crew and cargo
+        DialogueLocks?.ReleaseAll(id);
         // The replier of a story talk leaving hands the replies on to the
         // next player in join order, the host first, so the story isn't
         // left half told (decision 7); with no one to take them, or for a

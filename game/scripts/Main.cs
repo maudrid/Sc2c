@@ -309,6 +309,7 @@ public partial class Main : Node2D
         }
         _host.Logged += Log;
         _host.World.TalkLibrary = _talks;
+        _host.World.DialogueLocks = DialogueLocks.Load(_dataDir);
         ApplyStartOptions(_host);
         _inputDelay = _host.World.Settings.InputDelayFrames;
 
