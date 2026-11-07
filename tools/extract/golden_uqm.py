@@ -23,6 +23,7 @@ Needs gcc. See docs/uqm-data.md.
 """
 
 import argparse
+import datetime
 import json
 import os
 import shutil
@@ -2001,19 +2002,37 @@ COMM_PROGRAM = os.path.join(HERE, "golden", "comm.c")
 MODULES = {"PLANET_LANDER": 0, "FUSION_THRUSTER": 1, "TURNING_JETS": 2,
            "CREW_POD": 3, "STORAGE_BAY": 4, "FUEL_TANK": 5,
            "HIGHEFF_FUELSYS": 6, "DYNAMO_UNIT": 7, "SHIVA_FURNACE": 8,
-           "GUN_WEAPON": 9, "EMPTY": 22}
-# A new game's module slots (InitGameStructures, data/new-game.json).
+           "GUN_WEAPON": 9, "BLASTER_WEAPON": 10, "CANNON_WEAPON": 11,
+           "TRACKING_SYSTEM": 12, "ANTIMISSILE_DEFENSE": 13,
+           "BOMB_MODULE_0": 14, "EMPTY": 22}
+# Empty drive and jet slots (EMPTY_SLOT + 0 and + 1).
+EMPTY_DRIVE, EMPTY_JET = 20, 21
+# A new game's slots (InitGameStructures, data/new-game.json).
 NEW_GAME_MODULES = ["EMPTY", "FUEL_TANK", "CREW_POD"] + ["EMPTY"] * 5 + \
     ["STORAGE_BAY"] + ["EMPTY"] * 6 + ["GUN_WEAPON"]
+NEW_GAME_DRIVES = [5, 6]    # the slots with a fusion thruster
+NEW_GAME_JETS = [0, 6]      # and with turning jets
+# races.h's order (data/races.json), and a new game's standings (all
+# BAD_GUY but the humans, GOOD_GUY).
+RACES = ["ARILOU_SHIP", "CHMMR_SHIP", "HUMAN_SHIP", "ORZ_SHIP", "PKUNK_SHIP",
+         "SHOFIXTI_SHIP", "SPATHI_SHIP", "SUPOX_SHIP", "THRADDASH_SHIP",
+         "UTWIG_SHIP", "VUX_SHIP", "YEHAT_SHIP", "MELNORME_SHIP", "DRUUGE_SHIP",
+         "ILWRATH_SHIP", "MYCON_SHIP", "SLYLANDRO_SHIP", "UMGAH_SHIP",
+         "URQUAN_SHIP", "ZOQFOTPIK_SHIP", "SYREEN_SHIP", "BLACK_URQUAN_SHIP",
+         "YEHAT_REBEL_SHIP", "URQUAN_DRONE_SHIP"]
+ALLIED = {"dead": 0, "good": 1, "bad": 2}
 RADIOACTIVE = 6   # elemdata.h's category
 
 
 def talk_ship(crew=50, fuel=1000, landers=1, ru=0, elements=None,
-              modules=None, captain="Zelnick", ship="Vindicator"):
-    """A flagship for a talk: a new game's unless told otherwise."""
+              modules=None, drives=None, jets=None, captain="Zelnick", ship="Vindicator"):
+    """A flagship for a talk: a new game's unless told otherwise. drives
+    and jets are the slots that have a thruster or turning jets."""
     return {"crew": crew, "fuel": fuel, "landers": landers, "ru": ru,
             "elements": elements or [0] * 8,
             "modules": modules or NEW_GAME_MODULES,
+            "drives": NEW_GAME_DRIVES if drives is None else drives,
+            "jets": NEW_GAME_JETS if jets is None else jets,
             "captain": captain, "ship": ship}
 
 
@@ -2089,24 +2108,262 @@ def ilwrath_starts():
              "ship": talk_ship()}]
 
 
+def field32(name, value):
+    """A 32-bit story value as UQM keeps it: four 8-bit fields, low byte first."""
+    return {f"{name}{i}": value >> (8 * i) & 0xFF for i in range(4)}
+
+
 def starbase_starts():
-    """The allied starbase's talk (starbas.c) as the opening reaches it:
-    the starbase ready, with the Lunar base aboard (MOONBASE_ON_SHIP), on
-    a few dates, with and without minerals aboard, and a few random seeds
-    for the goodbye's lines. Only the goodbye is followed from the opening
-    (the other replies come with stage 3a's item 8, which walks them)."""
+    """The allied starbase commander's talk (starbas.c), from states chosen
+    to reach every condition it reads.
+
+    - The starbase ready (MOONBASE_ON_SHIP), as the opening reaches it, on
+      a few dates and seeds, with and without minerals aboard, and with the
+      Chmmr's bomb just installed.
+    - Every reply, walked in full from one visit (the information the
+      commander gives: the starbase, the history, the mission).
+    - His greetings: the first of a visit on several seeds, and once
+      greeted before (RETURN_HELLO).
+    - Each bulletin's condition (CheckBulletins): the races allied, the
+      story fields, the dates CheckTiming compares (a month's end, a
+      year's), the crew sold and bought, the Arilou's gift with room in
+      the fleet or not; several at once, already given, and repeated.
+    - Each device (DiscussDevices), alone, discussed before, and several
+      at once with the Vux beast's report.
+    - Selling minerals: light, medium and heavy loads (by their worth, at
+      the edges), each with every count of sales before.
+    - The mission's advice (AnalyzeCondition): ships short of the minimum
+      in each way, the minimum and the maximum, the module kinds' counts,
+      resource units, allies, the escort fleet's worth and the Chmmr's
+      bomb's state and the Samatra.
+
+    A start with follow walks only the replies calling those functions,
+    and one with prefix starts its walk after those replies: the rest of
+    the talk is walked in full from the information starts."""
     starts = []
+    allied = {"STARBASE_AVAILABLE": 1, "MOONBASE_DESTROYED": 1, "RADIOACTIVES_PROVIDED": 1,
+              "GLOBAL_FLAGS_AND_DATA": 255, "STARBASE_MONTH": 3, "STARBASE_DAY": 3}
+    every = field32("STARBASE_BULLETS", 0xFFFFFFFF)
+    after = (2155, 3, 4)
+
+    def add(name, state, ship=None, follow=None, date=after, **extra):
+        start = {"name": name, "state": {**allied, **state}, "ship": ship or talk_ship(),
+                 "date": list(date), **extra}
+        if follow is not None:
+            start["follow"] = follow
+        starts.append(start)
+
+    bye = ["NormalStarbase", "ByeBye"]
+
+    # The starbase ready.
     for seed, date in ((1, (2155, 2, 17)), (2, (2155, 3, 31)), (3, (2156, 12, 1)),
                        (40, (2155, 3, 3)), (500, (2155, 3, 4)), (6000, (2155, 3, 5)),
                        (70000, (2155, 3, 6)), (800000, (2155, 3, 7))):
         for minerals in (0, 12):
             elements = [0] * 8
             elements[RADIOACTIVE] = minerals
-            starts.append({"name": f"ready-{date[0]}-{date[1]}-{date[2]}{'-minerals' if minerals else ''}",
-                           "state": {"STARBASE_AVAILABLE": 1, "MOONBASE_DESTROYED": 1, "MOONBASE_ON_SHIP": 1,
-                                     "RADIOACTIVES_PROVIDED": 1, "GLOBAL_FLAGS_AND_DATA": 255},
-                           "ship": talk_ship(elements=elements), "date": list(date), "seed": seed,
-                           "follow": ["ByeBye"]})
+            add(f"ready-{date[0]}-{date[1]}-{date[2]}{'-minerals' if minerals else ''}",
+                {"MOONBASE_ON_SHIP": 1, "STARBASE_MONTH": 0, "STARBASE_DAY": 0},
+                talk_ship(elements=elements), ["ByeBye", "SellMinerals"], date, seed=seed)
+    add("ready-bomb", {"MOONBASE_ON_SHIP": 1, "CHMMR_BOMB_STATE": 2}, follow=["ByeBye"])
+    add("bomb-installed", {"CHMMR_BOMB_STATE": 2, "STARBASE_VISITED": 1, **every}, follow=["ByeBye"])
+    add("bomb-later", {"CHMMR_BOMB_STATE": 3, "STARBASE_VISITED": 1, **every}, follow=["ByeBye"])
+
+    # Every reply: the race lists (each a reply a race, taken away once
+    # asked, so 2^7 orders) are walked from their own starts, the walk
+    # going straight to them (prefix: need_info, history, alien_races, and
+    # the alliance or the Hierarchy).
+    add("information", {"STARBASE_VISITED": 1, **every},
+        follow=["NormalStarbase", "ByeBye", "NeedInfo", "TellStarBase", "TellHistory", "AlienRaces",
+                "WarInfo", "AncientHistory", "TellMission", "DefeatUrquan", "SellMinerals"])
+    add("information-alliance", {"STARBASE_VISITED": 1, **every}, follow=["AllianceInfo", "AlienRaces"],
+        prefix=[0, 1, 0, 0])
+    add("information-hierarchy", {"STARBASE_VISITED": 1, **every}, follow=["HierarchyInfo", "AlienRaces"],
+        prefix=[0, 1, 0, 1])
+
+    # The greetings.
+    for seed in range(1, 17):
+        add(f"hello-{seed}", every, follow=["ByeBye"], seed=seed)
+    add("hello-names", every, talk_ship(captain="Captain Fifteen", ship="Fifteen bytes!!"),
+        ["ByeBye", "NeedInfo", "TellStarBase"], seed=3)
+    add("hello-empty-names", every, talk_ship(captain="", ship=""),
+        ["ByeBye", "NeedInfo", "TellStarBase"], seed=4)
+    add("return-hello", {"STARBASE_VISITED": 1, **every}, follow=bye)
+
+    # The bulletins, each alone (the others already given).
+    def bulletin(n, name, state=None, date=after, **extra):
+        add(f"bulletin-{n}-{name}", {"STARBASE_VISITED": 1, **field32("STARBASE_BULLETS", 0xFFFFFFFF & ~(1 << n)),
+                                     **(state or {})}, follow=bye, date=date, **extra)
+
+    for n, race in ((0, "SPATHI_SHIP"), (1, "ZOQFOTPIK_SHIP"), (2, "SUPOX_SHIP"), (3, "UTWIG_SHIP"),
+                    (4, "ORZ_SHIP"), (12, "CHMMR_SHIP"), (13, "SHOFIXTI_SHIP")):
+        bulletin(n, race.lower(), alliances={race: "good"})
+        bulletin(n, race.lower() + "-not", alliances={race: "dead"})
+    bulletin(5, "arilou-gift", {"PORTAL_SPAWNER": 1}, escorts=[0, 12])
+    bulletin(5, "arilou-gift-room-for-2", {"PORTAL_SPAWNER": 1}, escorts=[0, 2])
+    bulletin(5, "arilou-gift-no-room", {"PORTAL_SPAWNER": 1}, escorts=[0, 0])
+    bulletin(5, "arilou-gift-manner", {"PORTAL_SPAWNER": 1, "ARILOU_MANNER": 2}, escorts=[0, 12])
+    bulletin(5, "no-spawner", {}, escorts=[0, 12])
+    bulletin(6, "zoqfot-distress", {"ZOQFOT_DISTRESS": 1})
+    bulletin(21, "zoqfot-dead", {"ZOQFOT_DISTRESS": 2})
+    bulletin(10, "spathi-shielded", {"SPATHI_SHIELDED_SELVES": 1})
+    bulletin(14, "pkunk-mission", {"PKUNK_MISSION": 1})
+    bulletin(17, "yehat-absorbed-pkunk", {"YEHAT_ABSORBED_PKUNK": 1})
+    bulletin(18, "bomb", {"CHMMR_BOMB_STATE": 2})
+    for n, months, days in ((7, 3, 0), (8, 6, 0), (9, 0, 7), (11, 0, 42), (15, 7, 0)):
+        # STARBASE 3/3: due after this date.
+        d = datetime.date(2155, 3, 3)
+        due = d.replace(month=d.month + months) + datetime.timedelta(days=days) if months \
+            else d + datetime.timedelta(days=days)
+        for when, date in (("on", due), ("after", due + datetime.timedelta(days=1))):
+            bulletin(n, f"timing-{when}", date=(date.year, date.month, date.day))
+    late = (2160, 1, 1)
+    bulletin(7, "timing-met-melnorme", {"MET_MELNORME": 1}, late)
+    bulletin(8, "timing-met-melnorme", {"MET_MELNORME": 1}, late)
+    bulletin(9, "timing-found-spathi", {"FOUND_PLUTO_SPATHI": 1}, late)
+    bulletin(11, "timing-zoqfot-visited", {"ZOQFOT_HOME_VISITS": 1}, late)
+    bulletin(11, "timing-zoqfot-groups", field32("ZOQFOT_GRPOFFS", 0x100), late)
+    bulletin(15, "timing-destruct-code", {"DESTRUCT_CODE_ON_SHIP": 1}, late)
+    # CheckTiming across a year's end, and from a month's last day.
+    for n in (7, 11, 15):
+        for date in ((2155, 12, 31), (2156, 1, 7), (2156, 1, 8), (2156, 6, 26), (2156, 6, 27)):
+            bulletin(n, f"timing-from-11-25-{date[0]}-{date[1]}-{date[2]}",
+                     {"STARBASE_MONTH": 11, "STARBASE_DAY": 25}, date)
+    for date in ((2155, 4, 30), (2155, 5, 1), (2155, 5, 2)):
+        bulletin(7, f"timing-from-1-31-{date[1]}-{date[2]}", {"STARBASE_MONTH": 1, "STARBASE_DAY": 31}, date)
+    for sold in (1, 100, 101, 250, 251, 1000):
+        crew = {"CREW_SOLD_TO_DRUUGE0": sold & 0xFF, "CREW_SOLD_TO_DRUUGE1": sold >> 8}
+        for n in (26, 27, 29):
+            bulletin(n, f"crew-sold-{sold}", crew)
+    for bought in (999, 1000):
+        bulletin(28, f"crew-bought-{bought}", {"CREW_PURCHASED0": bought & 0xFF, "CREW_PURCHASED1": bought >> 8})
+    # Several at once, on several seeds (BEFORE_WE_GO_ON's lines).
+    many = {"ZOQFOT_DISTRESS": 1, "SPATHI_SHIELDED_SELVES": 1, "PKUNK_MISSION": 1,
+            "CHMMR_BOMB_STATE": 2, "CREW_SOLD_TO_DRUUGE0": 150, "PORTAL_SPAWNER": 1}
+    friends = {r: "good" for r in ("SPATHI_SHIP", "ZOQFOTPIK_SHIP", "SUPOX_SHIP", "UTWIG_SHIP",
+                                   "ORZ_SHIP", "CHMMR_SHIP", "SHOFIXTI_SHIP")}
+    for seed in range(1, 15):
+        add(f"bulletins-many-{seed}", {"STARBASE_VISITED": 1, **many}, follow=bye, date=late,
+            alliances=friends, escorts=[0, 12], seed=seed)
+    add("bulletins-hello", {**many}, follow=bye, date=late, alliances=friends, escorts=[0, 12], seed=5)
+    add("bulletins-given", {"STARBASE_VISITED": 1, **many, **field32("STARBASE_BULLETS", 0x0000FFFF)},
+        follow=bye, date=late, alliances=friends, escorts=[0, 12])
+    add("bulletins-none-due", {"STARBASE_VISITED": 1, "MET_MELNORME": 1, "FOUND_PLUTO_SPATHI": 1,
+                               "ZOQFOT_HOME_VISITS": 1, "DESTRUCT_CODE_ON_SHIP": 1}, follow=bye, date=late)
+
+    # The devices, each alone, then discussed before, then several at once.
+    devices = [("ROSY_SPHERE_ON_SHIP", "DISCUSSED_ROSY_SPHERE"), ("ARTIFACT_2_ON_SHIP", "DISCUSSED_ARTIFACT_2"),
+               ("ARTIFACT_3_ON_SHIP", "DISCUSSED_ARTIFACT_3"), ("SUN_DEVICE_ON_SHIP", "DISCUSSED_SUN_EFFICIENCY"),
+               ("UTWIG_BOMB_ON_SHIP", "DISCUSSED_UTWIG_BOMB"), ("MAIDENS_ON_SHIP", "DISCUSSED_MAIDENS"),
+               ("TALKING_PET_ON_SHIP", "DISCUSSED_TALKING_PET"), ("AQUA_HELIX_ON_SHIP", "DISCUSSED_AQUA_HELIX"),
+               ("CLEAR_SPINDLE_ON_SHIP", "DISCUSSED_CLEAR_SPINDLE"),
+               ("UMGAH_BROADCASTERS_ON_SHIP", "DISCUSSED_UMGAH_HYPERWAVE"),
+               ("TAALO_PROTECTOR_ON_SHIP", "DISCUSSED_TAALO_PROTECTOR"), ("EGG_CASE0_ON_SHIP", "DISCUSSED_EGG_CASING0"),
+               ("EGG_CASE1_ON_SHIP", "DISCUSSED_EGG_CASING1"), ("EGG_CASE2_ON_SHIP", "DISCUSSED_EGG_CASING2"),
+               ("SYREEN_SHUTTLE_ON_SHIP", "DISCUSSED_SYREEN_SHUTTLE"), ("VUX_BEAST_ON_SHIP", "DISCUSSED_VUX_BEAST"),
+               ("DESTRUCT_CODE_ON_SHIP", "DISCUSSED_DESTRUCT_CODE"),
+               ("PORTAL_SPAWNER_ON_SHIP", "DISCUSSED_PORTAL_SPAWNER"), ("PORTAL_KEY_ON_SHIP", "DISCUSSED_URQUAN_WARP"),
+               ("BURV_BROADCASTERS_ON_SHIP", "DISCUSSED_BURVIX_HYPERWAVE")]
+    quiet = {"STARBASE_VISITED": 1, **every}
+    for on, discussed in devices:
+        add(f"device-{on.lower()}", {**quiet, on: 1}, follow=bye)
+        add(f"device-{on.lower()}-discussed", {**quiet, on: 1, discussed: 1}, follow=bye)
+    for cond in range(1, 5):
+        add(f"device-ultron-{cond}", {**quiet, "ULTRON_CONDITION": cond}, follow=bye)
+        add(f"device-ultron-{cond}-discussed", {**quiet, "ULTRON_CONDITION": cond, "DISCUSSED_ULTRON": 1},
+            follow=bye)
+    add("devices-eggs", {**quiet, "EGG_CASE0_ON_SHIP": 1, "EGG_CASE2_ON_SHIP": 1}, follow=bye)
+    add("devices-several", {**quiet, "ROSY_SPHERE_ON_SHIP": 1, "SUN_DEVICE_ON_SHIP": 1, "ULTRON_CONDITION": 2,
+                            "MAIDENS_ON_SHIP": 1}, follow=bye)
+    add("devices-vux-first", {**quiet, "VUX_BEAST_ON_SHIP": 1, "DESTRUCT_CODE_ON_SHIP": 1}, follow=bye)
+    add("devices-vux-later", {**quiet, "ROSY_SPHERE_ON_SHIP": 1, "TALKING_PET_ON_SHIP": 1,
+                              "VUX_BEAST_ON_SHIP": 1, "BURV_BROADCASTERS_ON_SHIP": 1}, follow=bye)
+
+    # Selling minerals: loads by worth, with every count of sales before.
+    sell = ["SellMinerals", "ByeBye"]
+
+    def load(**amounts):
+        cats = ["COMMON", "CORROSIVE", "BASE_METAL", "NOBLE", "RARE_EARTH", "PRECIOUS", "RADIOACTIVE", "EXOTIC"]
+        return [amounts.get(c.lower(), 0) for c in cats]
+
+    loads = {"LIGHT_MINERAL_LOAD": load(common=40, radioactive=12),
+             "MEDIUM_MINERAL_LOAD": load(base_metal=100, exotic=50),
+             "HEAVY_MINERAL_LOAD": load(exotic=200)}
+    for counter, elements in loads.items():
+        for before in range(7):   # 6 at most: the sixth load's lines repeat
+            add(f"sell-{counter.lower()}-{before}", {**quiet, counter: before},
+                talk_ship(elements=elements, ru=300), sell)
+    for total, elements in ((999, load(common=999)), (1000, load(common=1000)),
+                            (2499, load(exotic=99, common=24)), (2500, load(exotic=100)),
+                            (1, load(common=1)), (5000, load(exotic=200))):
+        add(f"sell-worth-{total}", quiet, talk_ship(elements=elements), sell)
+    add("sell-every-kind", quiet, talk_ship(elements=[1, 2, 3, 4, 5, 6, 7, 8]), sell)
+    add("sell-hello", every, talk_ship(elements=load(noble=20)), sell, seed=9)
+
+    # The mission's advice (what_do_now), by the ship and the story.
+    # The walk goes straight to the advice (need_info, our_mission,
+    # what_do_now) and stops there: the rest is the information start's.
+    # (A device aboard is discussed already, so its reply isn't offered.)
+    mission = []
+
+    def ship(modules=(), drives=7, jets=5, crew=50, fuel=5000, landers=1, ru=0):
+        mods = list(modules) + ["EMPTY"] * (16 - len(modules))
+        return talk_ship(crew=crew, fuel=fuel, landers=landers, ru=ru, modules=mods,
+                         drives=list(range(drives)), jets=list(range(jets)))
+
+    minimum = ["STORAGE_BAY", "DYNAMO_UNIT", "GUN_WEAPON", "GUN_WEAPON"]
+    maximum = ["SHIVA_FURNACE", "SHIVA_FURNACE", "CANNON_WEAPON", "CANNON_WEAPON", "TRACKING_SYSTEM",
+               "ANTIMISSILE_DEFENSE", "ANTIMISSILE_DEFENSE"]
+    best = dict(drives=11, jets=8, crew=150, fuel=15000, landers=3)
+    allies = {"SPATHI_SHIP": "good", "ORZ_SHIP": "good"}
+
+    def advise(name, ship_, state=None, **extra):
+        add(f"mission-{name}", {**quiet, **(state or {})}, ship_, mission, prefix=[0, 2, 2], **extra)
+
+    advise("new-ship", talk_ship())
+    advise("new-ship-rich", talk_ship(ru=3000))
+    advise("new-ship-2999", talk_ship(ru=2999))
+    advise("minimum", ship(minimum))
+    for short, s_ in (("thrusters", ship(minimum, drives=6)), ("jets", ship(minimum, jets=4)),
+                      ("one-gun", ship(minimum[:3])), ("crew", ship(minimum, crew=49)),
+                      ("fuel", ship(minimum, fuel=4999)), ("bays", ship(minimum[1:])),
+                      ("landers", ship(minimum, landers=0)), ("dynamos", ship(["STORAGE_BAY"] + minimum[2:])),
+                      ("everything", ship([], drives=0, jets=0, crew=0, fuel=0, landers=0))):
+        advise(f"short-{short}", s_)
+    advise("one-gun-tracking", ship(minimum[:3] + ["TRACKING_SYSTEM"]))
+    advise("one-blaster", ship(["STORAGE_BAY", "DYNAMO_UNIT", "BLASTER_WEAPON"]))
+    advise("shiva", ship(["STORAGE_BAY", "SHIVA_FURNACE", "GUN_WEAPON", "GUN_WEAPON"]))
+    advise("minimum-one-ally", ship(minimum), alliances={"SPATHI_SHIP": "good"})
+    advise("minimum-allies", ship(minimum), alliances=allies)
+    advise("minimum-allies-rich", ship(minimum, ru=3000), alliances=allies)
+    advise("minimum-allies-fleet", ship(minimum), alliances=allies, escorts=[6000, 0])
+    advise("minimum-allies-fleet-5999", ship(minimum), alliances=allies, escorts=[5999, 0])
+    full = ship(["STORAGE_BAY"] + maximum, **best)
+    advise("maximum-allies-fleet", full, alliances=allies, escorts=[6000, 0])
+    advise("maximum-samatra", full, {"AWARE_OF_SAMATRA": 1}, alliances=allies, escorts=[6000, 0])
+    advise("maximum-utwig-bomb", full, {"AWARE_OF_SAMATRA": 1, "UTWIG_BOMB": 1}, alliances=allies,
+           escorts=[6000, 0])
+    advise("maximum-utwig-bomb-aboard", full, {"AWARE_OF_SAMATRA": 1, "UTWIG_BOMB": 1, "UTWIG_BOMB_ON_SHIP": 1,
+                                                  "DISCUSSED_UTWIG_BOMB": 1},
+           alliances=allies, escorts=[6000, 0])
+    advise("maximum-no-allies", full)
+    for short, s_ in (("thrusters", ship(maximum, **{**best, "drives": 10})),
+                      ("jets", ship(maximum, **{**best, "jets": 7})),
+                      ("guns", ship(maximum[:2] + ["CANNON_WEAPON", "BLASTER_WEAPON", "TRACKING_SYSTEM"]
+                                    + maximum[5:], **best)),
+                      ("crew", ship(maximum, **{**best, "crew": 149})),
+                      ("fuel", ship(maximum, **{**best, "fuel": 14999})),
+                      ("landers", ship(maximum, **{**best, "landers": 2})),
+                      ("dynamos", ship(["SHIVA_FURNACE", "DYNAMO_UNIT"] + maximum[2:], **best)),
+                      ("defense", ship(maximum[:6], **best))):
+        advise(f"nearly-maximum-{short}", s_, alliances=allies, escorts=[6000, 0])
+    for bomb in (2, 3):
+        advise(f"bomb-{bomb}-new-ship", talk_ship(), {"CHMMR_BOMB_STATE": bomb})
+        advise(f"bomb-{bomb}-fleet", full, {"CHMMR_BOMB_STATE": bomb}, escorts=[20000, 0])
+        advise(f"bomb-{bomb}-fleet-19999", full, {"CHMMR_BOMB_STATE": bomb}, escorts=[19999, 0])
+        advise(f"bomb-{bomb}-fleet-pet", full, {"CHMMR_BOMB_STATE": bomb, "TALKING_PET_ON_SHIP": 1,
+                                                       "DISCUSSED_TALKING_PET": 1},
+               escorts=[20000, 0])
     return starts
 
 
@@ -2123,12 +2380,12 @@ def build_comm(uqm, script, init, out):
     path = os.path.join(uqm.uqm, "comm", script, COMM_FILES.get(script, script + ".c"))
     build(uqm, COMM_PROGRAM, COMM_LINK, out, extra=[UIO_FILES],
           libs=["-lm", "-Wl,--wrap=DeltaSISGauges", "-Wl,--wrap=DrawLanders",
-                "-Wl,--wrap=TFB_Random"],
+                "-Wl,--wrap=TFB_Random", "-Wl,--wrap=ClearSISRect"],
           includes=[os.path.join(HERE, "golden")],
-          defines=[f'SCRIPT_FILE="{path}"', f"SCRIPT_INIT={init}"])
+          defines=[f'SCRIPT_FILE="{path}"', f"SCRIPT_INIT={init}", f"SCRIPT_{script}"])
 
 
-def walk_talk(exe, files, music, start, fields, state_bytes, functions):
+def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_worth):
     """Every path through a talk from one start: runs the script with each
     reply offered in turn, depth first, and stops a path at a talk state
     already walked (the story state, the ship, the phrases used up, the
@@ -2142,13 +2399,25 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions):
             if value >> i & 1:
                 state[(bit + i) >> 3] |= 1 << ((bit + i) & 7)
     ship = start["ship"]
+    alliances = {r: "bad" for r in RACES}
+    alliances["HUMAN_SHIP"] = "good"
+    alliances.update(start.get("alliances", {}))
+    escorts = start.get("escorts", [0, 0])
     head = "\n".join([
         *files, state.hex(),
         " ".join(map(str, [ship["crew"], ship["fuel"], ship["landers"], ship["ru"],
-                           *ship["elements"], *(MODULES[m] for m in ship["modules"])])),
+                           *ship["elements"], *(MODULES[m] for m in ship["modules"]),
+                           *(MODULES["FUSION_THRUSTER"] if i in ship["drives"] else EMPTY_DRIVE
+                             for i in range(11)),
+                           *(MODULES["TURNING_JETS"] if i in ship["jets"] else EMPTY_JET
+                             for i in range(8))])),
         ship["captain"].encode().hex(), ship["ship"].encode().hex(),
         " ".join(map(str, start.get("date", TALK_DATE))),
-        str(start.get("seed", TALK_SEED)), " ".join(music)])
+        str(start.get("seed", TALK_SEED)),
+        " ".join(map(str, element_worth)),
+        " ".join(str(ALLIED[alliances[r]]) for r in RACES),
+        f"{escorts[0]} {escorts[1]}",
+        " ".join(music)])
     by_bit = {f["start_bit"]: name for name, f in fields.items()}
 
     def run(replies):
@@ -2166,7 +2435,8 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions):
                 e["offer"] = [[ref, functions[int(f, 16)], text] for ref, f, text in e["offer"]]
         return events
 
-    steps, seen, todo = [], set(), [[]]
+    prefix = start.get("prefix", [])
+    steps, seen, todo = [], set(), [prefix]
     while todo:
         replies = todo.pop()
         events = run(replies)
@@ -2202,6 +2472,13 @@ def record_talks(uqm, strings_exe, package):
     state_bytes = (game_state["total_bits"] + 7) >> 3
     with open(os.path.join(REPO, "data", "conversations.json")) as f:
         scripts = {s["script"]: s for s in json.load(f)["scripts"]}
+    with open(os.path.join(REPO, "data", "new-game.json")) as f:
+        worth = json.load(f)["prices"]["element_worth"]
+    element_worth = [worth[c] for c in ("COMMON", "CORROSIVE", "BASE_METAL", "NOBLE",
+                                        "RARE_EARTH", "PRECIOUS", "RADIOACTIVE", "EXOTIC")]
+    with open(os.path.join(REPO, "data", "races.json")) as f:
+        if [r["race"] for r in json.load(f)["races"]] != RACES:
+            raise RuntimeError("data/races.json's races aren't races.h's")
     talks = {}
     with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
         index_file = os.path.join(tmp, "uqm.rmp")
@@ -2226,7 +2503,8 @@ def record_talks(uqm, strings_exe, package):
             functions = {int(a, 16): n for a, kind, n in
                          (line.split() for line in symbols if len(line.split()) == 3)
                          if kind in "tT"}
-            talks[script] = [{**start, "steps": walk_talk(exe, files, music, start, fields, state_bytes, functions)}
+            talks[script] = [{**start, "steps": walk_talk(exe, files, music, start, fields, state_bytes, functions,
+                                                                  element_worth)}
                              for start in starts()]
     data = header(uqm, ["tools/extract/golden/comm.c", "src/uqm/commglue.c", "src/uqm/sis.c",
                         "src/libs/math/random.c", "src/libs/strings/getstr.c"]
@@ -2237,16 +2515,20 @@ def record_talks(uqm, strings_exe, package):
         "(tools/extract/golden/comm.c says what each event is). Each start "
         "is a story state (fields not given are 0), a flagship (crew, fuel "
         "in 1/100 units, landers, resource units, element amounts, module "
-        "slots, captain's and ship's names), the date (a new game's where not "
-        "given), the seed of the scripts' random numbers (TFB_SeedRandom; "
-        "12345 where not given) and its steps: the replies "
+        "slots, the drive and jet slots with a thruster or jets, captain's "
+        "and ship's names), the date (a new game's where not given), the "
+        "seed of the scripts' random numbers (TFB_SeedRandom; 12345 where "
+        "not given), the races' standings where not a new game's "
+        "(alliances: good, bad or dead), the escort fleet's worth and room "
+        "for more ships (escorts; none where not given), and its steps: the replies "
         "chosen from the start, each the place in the replies offered, and "
         "the events after the last of them up to the next replies offered "
         "or the talk's end. An offer marked seen reaches a talk state "
         "already walked from this start, so the walk goes no further; a "
-        "start with follow walks only the replies calling those functions "
-        "(the rest of the script isn't ported yet). Voices are off "
-        "(usingSpeech false).",
+        "start with follow walks only the replies calling those functions, "
+        "and one with prefix starts its walk after those replies (the rest "
+        "is walked from other starts). Voices are off (usingSpeech false); "
+        "selling minerals runs as if a button were pressed at once.",
         "Texts are content (CC BY-NC-SA 2.5), so only the first 16 hex "
         "digits of each line's SHA-256 are here; set names the field "
         "written (data/game-state.json); offer gives each reply's phrase "

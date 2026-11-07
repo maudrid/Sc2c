@@ -61,7 +61,7 @@ public sealed class Talk
     private readonly Dictionary<string, int> _own;
     private readonly TfbRandom _random;
     private readonly List<TalkEvent> _events = new();
-    private readonly List<(int Ref, Action<int> Func, bool Shared)> _offered = new();
+    private readonly List<(int Ref, Action<int> Func, object? Buffer)> _offered = new();
     private byte[] _shared = Array.Empty<byte>();
     private bool _screenLoaded, _instantVictory, _defeated;
     private int _lastMap = -1;
@@ -157,6 +157,13 @@ public sealed class Talk
     {
         Check();
         _events.Add(new ColorTransform(index % _colorMapCount, time));
+    }
+
+    /// <summary>EnableTalkingAnim: the alien's mouth moves with its lines, or not (the Vux beast's report).</summary>
+    public void EnableTalkingAnim(bool enable)
+    {
+        Check();
+        _events.Add(new TalkingAnimation(enable));
     }
 
     /// <summary>AlienTalkSegue: the lines play up to this track before the script goes on.</summary>
@@ -348,7 +355,13 @@ public sealed class Talk
     /// construct_response into shared_phrase_buf: phrase, name, phrase,
     /// name, ... ending after a phrase (the name after it NULL).
     /// </summary>
-    public void ConstructResponse(string first, params object[] rest)
+    public void ConstructResponse(string first, params object[] rest) => _shared = Construct(first, rest);
+
+    /// <summary>construct_response into a buffer of the script's own (starbas.c's buf0).</summary>
+    public void ConstructResponse(PhraseBuffer buffer, string first, params object[] rest) =>
+        buffer.Text = Construct(first, rest);
+
+    private byte[] Construct(string first, object[] rest)
     {
         var buf = new List<byte>(Entry(Phrase(first)));
         for (int i = 0; i < rest.Length; i += 2)
@@ -358,32 +371,40 @@ public sealed class Talk
                 break;
             buf.AddRange(Entry(Phrase((string)rest[i + 1])));
         }
-        _shared = buf.ToArray();
+        return buf.ToArray();
     }
 
     /// <summary>Response: offers a reply with its own text.</summary>
-    public void Response(string id, Action<int> func) => DoResponsePhrase(Phrase(id), func, shared: false);
+    public void Response(string id, Action<int> func) => DoResponsePhrase(Phrase(id), func, null);
 
-    /// <summary>DoResponsePhrase with shared_phrase_buf (<see cref="SharedPhraseBuffer"/>) as its text.</summary>
-    public void DoResponsePhrase(string id, Action<int> func, object sharedPhraseBuffer)
+    /// <summary>
+    /// DoResponsePhrase with a constructed text: shared_phrase_buf
+    /// (<see cref="SharedPhraseBuffer"/>) or a <see cref="PhraseBuffer"/> of the script's own.
+    /// </summary>
+    public void DoResponsePhrase(string id, Action<int> func, object buffer)
     {
-        if (!ReferenceEquals(sharedPhraseBuffer, SharedPhraseBuffer))
-            throw new ArgumentException("a constructed reply's text is shared_phrase_buf", nameof(sharedPhraseBuffer));
-        DoResponsePhrase(Phrase(id), func, shared: true);
+        if (!ReferenceEquals(buffer, SharedPhraseBuffer) && buffer is not PhraseBuffer)
+            throw new ArgumentException("a constructed reply's text is shared_phrase_buf or a PhraseBuffer", nameof(buffer));
+        DoResponsePhrase(Phrase(id), func, buffer);
     }
 
-    private void DoResponsePhrase(int r, Action<int> func, bool shared)
+    private void DoResponsePhrase(int r, Action<int> func, object? buffer)
     {
         Check();
         if (_offered.Count >= MaxReplies)
             throw new InvalidOperationException($"more than {MaxReplies} replies");
         // A reply's text is read when it's shown: a phrase blanked after it's
-        // offered shows blank, and shared_phrase_buf as it is then.
-        _offered.Add((r, func, shared));
+        // offered shows blank, and a constructed buffer as it is then.
+        _offered.Add((r, func, buffer));
     }
 
-    private TalkReply Reply((int Ref, Action<int> Func, bool Shared) o) =>
-        new(o.Ref, o.Func.Method.Name, o.Shared ? _shared : Entry(o.Ref));
+    private TalkReply Reply((int Ref, Action<int> Func, object? Buffer) o) =>
+        new(o.Ref, o.Func.Method.Name, o.Buffer switch
+        {
+            null => Entry(o.Ref),
+            PhraseBuffer b => b.Text,
+            _ => _shared,
+        });
 
     // ------------------------------------------------------------ the story
 
@@ -480,6 +501,24 @@ public sealed class Talk
         }
     }
 
+    /// <summary>
+    /// AddEscortShips: ships of a race (races.h's number) join the starter's
+    /// escort fleet, as many as it has room for; then DeltaSISGauges
+    /// redraws everything. Returns how many joined.
+    /// </summary>
+    public int AddEscortShips(int race, int count)
+    {
+        Check();
+        int added = Ship.AddEscorts(race, count);
+        _events.Add(new EscortsAdded(race, count, added));
+        Check();
+        DeltaSISGauges(UndefinedDelta, UndefinedDelta, UndefinedDelta);
+        return added;
+    }
+
+    /// <summary>CheckAlliance: a race's standing, by races.h's number.</summary>
+    public Story.Allied CheckAlliance(int race) => _story.Alliances[race];
+
     // ------------------------------------------------------------ changes
 
     // What the recording program's check_changes does at each engine call
@@ -501,4 +540,10 @@ public sealed class Talk
             _events.Add(new ShipChanged(ship.Item1, ship.Item2, ship.Item3, ship.Item4, ship.Item5));
         _lastShip = ship;
     }
+}
+
+/// <summary>A reply's text a script builds with construct_response into a buffer of its own.</summary>
+public sealed class PhraseBuffer
+{
+    public byte[] Text { get; internal set; } = Array.Empty<byte>();
 }

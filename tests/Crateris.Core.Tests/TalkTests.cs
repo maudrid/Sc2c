@@ -44,12 +44,34 @@ public class TalkTests
         public int Landers { get; set; }
         public uint ResourceUnits { get; set; }
         public IList<int> Minerals { get; init; } = new int[8];
+        public int Thrusters { get; init; } = 2;
+        public int Jets { get; init; } = 2;
+        public IReadOnlyList<string?> ModuleSlots { get; init; } = new string?[16];
+        public int EscortsWorth { get; set; }
+        public int EscortRoom { get; set; }
 
-        public static TestShip From(JsonElement s)
+        public int AddEscorts(int race, int count)
+        {
+            int added = Math.Min(count, EscortRoom);
+            EscortRoom -= added;
+            EscortsWorth += added * RaceCosts[race];
+            return added;
+        }
+
+        private static readonly int[] RaceCosts = JsonDocument.Parse(File.ReadAllText(Path.Combine(DataDir, "races.json")))
+            .RootElement.GetProperty("races").EnumerateArray().Select(r => r.TryGetProperty("ship_cost", out var c) ? c.GetInt32() : 0).ToArray();   // the drone has none
+
+        public static TestShip From(JsonElement s, JsonElement start)
         {
             var modules = s.GetProperty("modules").EnumerateArray().Select(m => m.GetString()).ToList();
+            var escorts = start.TryGetProperty("escorts", out var e) ? e.Ints() : new[] { 0, 0 };
             return new TestShip
             {
+                Thrusters = s.GetProperty("drives").GetArrayLength(),
+                Jets = s.GetProperty("jets").GetArrayLength(),
+                ModuleSlots = modules.Select(m => m == "EMPTY" ? null : m).ToList(),
+                EscortsWorth = escorts[0],
+                EscortRoom = escorts[1],
                 CaptainName = s.GetProperty("captain").GetString()!,
                 ShipName = s.GetProperty("ship").GetString()!,
                 Crew = s.GetProperty("crew").GetInt32(),
@@ -84,9 +106,18 @@ public class TalkTests
             else
                 story.Set(f.Name, f.Value.GetInt32());
         }
+        if (start.TryGetProperty("alliances", out var alliances))
+            foreach (var a in alliances.EnumerateObject())
+                story.SetAlliance(a.Name, a.Value.GetString() switch
+                {
+                    "good" => Allied.Good,
+                    "bad" => Allied.Bad,
+                    "dead" => Allied.Dead,
+                    var x => throw new InvalidDataException($"alliance {x}"),
+                });
         uint seed = start.TryGetProperty("seed", out var sd) ? sd.GetUInt32() : 12345;
         var talk = new Talk(Ported[script](s), s.Description, Conversation.Load(package, s.Description.Phrases),
-            BinaryTable.Load(package, s.Description.ColorMap).Count, story, own, TestShip.From(start.GetProperty("ship")), clock, seed,
+            BinaryTable.Load(package, s.Description.ColorMap).Count, story, own, TestShip.From(start.GetProperty("ship"), start), clock, seed,
             id => package.Resources.TryGetValue(id, out var r) && r.Type == "MUSICRES" && package.HasFile(r.Value));
         talk.Start();
         return talk;
@@ -112,6 +143,8 @@ public class TalkTests
         },
         GaugesChanged g => new() { ["gauges"] = new JsonArray(g.Crew, g.Fuel, g.ResourceUnits) },
         RandomDrawn r => new() { ["random"] = r.Value },
+        TalkingAnimation t => new() { ["talking"] = t.Enabled ? 1 : 0 },
+        EscortsAdded a => new() { ["escorts"] = new JsonArray(a.Race, a.Count, a.Added) },
         ReplyChosen r => new() { ["reply"] = r.Index },
         RepliesOffered o => new()
         {
@@ -139,21 +172,10 @@ public class TalkTests
                     var replies = step.GetProperty("replies").Ints();
                     var talk = Start(package, script, start);
                     int from = 0;
-                    bool partial = start.TryGetProperty("follow", out _);
-                    var steps = start.GetProperty("steps").EnumerateArray().ToList();
                     for (int k = 0; k < replies.Length; ++k)
                     {
                         from = talk.Events.Count;
-                        // A script ported in part offers fewer replies: the
-                        // reply is found by its function.
-                        int r = replies[k];
-                        if (partial)
-                        {
-                            var before = steps.Single(x => x.GetProperty("replies").Ints().SequenceEqual(replies[..k]));
-                            string func = before.GetProperty("events").EnumerateArray().Last().GetProperty("offer")[r][1].GetString()!;
-                            r = talk.Replies.Select(x => x.Function).ToList().IndexOf(func);
-                        }
-                        talk.Choose(r);
+                        talk.Choose(replies[k]);
                     }
                     var want = step.GetProperty("events").EnumerateArray().Select(e =>
                     {
@@ -162,17 +184,6 @@ public class TalkTests
                         return o.ToJsonString();
                     }).ToList();
                     var got = talk.Events.Skip(from).Select(e => Json(e).ToJsonString()).ToList();
-                    if (partial && replies.Length > 0)
-                        got[0] = want[0];   // the reply's place, found by its function above
-                    if (start.TryGetProperty("follow", out var follow) && JsonNode.Parse(want[^1])!["offer"] is JsonArray all)
-                    {
-                        // A script ported in part (the starbase's, until item 8):
-                        // it offers those of UQM's replies the walk follows, in order.
-                        var followed = follow.EnumerateArray().Select(f => f.GetString()).ToHashSet();
-                        var offer = all.Where(o => followed.Contains(o![1]!.GetValue<string>())).Select(o => o!.DeepClone()).ToArray();
-                        Assert.NotEmpty(offer);
-                        want[^1] = new JsonObject { ["offer"] = new JsonArray(offer) }.ToJsonString();
-                    }
                     Assert.True(want.SequenceEqual(got),
                         $"{script} {name} after [{string.Join(", ", replies)}]:\n  UQM: {string.Join("\n       ", want)}\n  port: {string.Join("\n       ", got)}");
                 }

@@ -74,6 +74,12 @@ public sealed record GaugesChanged(int Crew, int Fuel, int ResourceUnits) : Talk
 /// <summary>A random number drawn (TFB_Random).</summary>
 public sealed record RandomDrawn(uint Value) : TalkEvent;
 
+/// <summary>The alien's mouth moves with its lines, or stops (EnableTalkingAnim).</summary>
+public sealed record TalkingAnimation(bool Enabled) : TalkEvent;
+
+/// <summary>Ships of a race (races.h's number) asked to join the escort fleet, and those that did (AddEscortShips).</summary>
+public sealed record EscortsAdded(int Race, int Count, int Added) : TalkEvent;
+
 /// <summary>The player chose the reply at <see cref="Index"/> of those offered.</summary>
 public sealed record ReplyChosen(int Index) : TalkEvent;
 

@@ -165,6 +165,17 @@ public sealed class ShipHold
         _snapshot = null;
     }
 
+    /// <summary>A talk sells minerals: a category's amount goes down (to 0, as the allied commander buys them all).</summary>
+    internal void SetMineral(int category, int amount)
+    {
+        if (category < 0 || category >= Categories)
+            throw new ArgumentOutOfRangeException(nameof(category), $"element category {category}");
+        if (amount < 0 || amount > _minerals[category])
+            throw new ArgumentOutOfRangeException(nameof(amount), $"{amount} of category {category} (0 to the {_minerals[category]} held)");
+        _minerals[category] = amount;
+        _snapshot = null;
+    }
+
     /// <summary>Minerals held, by element category (ElementAmounts).</summary>
     public IReadOnlyList<int> Minerals => _minerals;
 

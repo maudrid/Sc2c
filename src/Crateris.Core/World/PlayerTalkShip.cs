@@ -13,7 +13,11 @@ namespace Crateris.Core.World;
 
 /// <summary>
 /// A player's ship as a talk sees it (stage 3, decision 4): their names,
-/// their crew, fuel, landers, resource units and minerals.
+/// their crew, fuel, landers, resource units and minerals (which the
+/// allied commander buys), its modules, and its escort fleet. Ships have
+/// no escort fleets of UQM's kind until combat (stage 4) brings ships to
+/// buy and win: until then a fleet is worth nothing and has no room, so
+/// the Arilou's gift of ships waits (docs/differences.md).
 /// </summary>
 internal sealed class PlayerTalkShip : ITalkShip
 {
@@ -25,8 +29,7 @@ internal sealed class PlayerTalkShip : ITalkShip
         _player = player;
         CaptainName = ShipNames.Captain(player, strings);
         ShipName = ShipNames.Ship(player, strings);
-        // The hold's minerals, read only until a script sells them (item 8).
-        _minerals = new System.Collections.ObjectModel.ReadOnlyCollection<int>((IList<int>)player.Ship.Hold.Minerals);
+        _minerals = new HoldMinerals(player.Ship.Hold);
     }
 
     public string CaptainName { get; }
@@ -64,4 +67,54 @@ internal sealed class PlayerTalkShip : ITalkShip
     }
 
     public IList<int> Minerals => _minerals;
+
+    public int Thrusters => _player.Ship.Loadout.Thrusters;
+
+    public int Jets => _player.Ship.Loadout.Jets;
+
+    public IReadOnlyList<string?> ModuleSlots => _player.Ship.ModuleSlots;
+
+    public int EscortsWorth => 0;
+
+    public int EscortRoom => 0;
+
+    public int AddEscorts(int race, int count) => 0;
+
+    // The hold's minerals, which a talk may sell (set to 0) but not add to.
+    private sealed class HoldMinerals : IList<int>
+    {
+        private readonly ShipHold _hold;
+
+        public HoldMinerals(ShipHold hold) => _hold = hold;
+
+        public int this[int index]
+        {
+            get => _hold.Minerals[index];
+            set => _hold.SetMineral(index, value);
+        }
+
+        public int Count => _hold.Minerals.Count;
+
+        public bool IsReadOnly => false;
+
+        public IEnumerator<int> GetEnumerator() => _hold.Minerals.GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public int IndexOf(int item) => _hold.Minerals.ToList().IndexOf(item);
+
+        public bool Contains(int item) => _hold.Minerals.Contains(item);
+
+        public void CopyTo(int[] array, int arrayIndex) => _hold.Minerals.ToArray().CopyTo(array, arrayIndex);
+
+        public void Add(int item) => throw new NotSupportedException();
+
+        public void Clear() => throw new NotSupportedException();
+
+        public void Insert(int index, int item) => throw new NotSupportedException();
+
+        public bool Remove(int item) => throw new NotSupportedException();
+
+        public void RemoveAt(int index) => throw new NotSupportedException();
+    }
 }

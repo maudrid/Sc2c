@@ -40,6 +40,24 @@ public interface ITalkShip
     /// <summary>Resource units (ResUnits).</summary>
     uint ResourceUnits { get; set; }
 
-    /// <summary>The minerals in the hold by element category (ElementAmounts); a script may change them.</summary>
+    /// <summary>The minerals in the hold by element category (ElementAmounts); a script may change them (selling them).</summary>
     IList<int> Minerals { get; }
+
+    /// <summary>Drive slots with a thruster (DriveSlots below EMPTY_SLOT).</summary>
+    int Thrusters { get; }
+
+    /// <summary>Jet slots with turning jets (JetSlots below EMPTY_SLOT).</summary>
+    int Jets { get; }
+
+    /// <summary>The module slots (ModuleSlots), each its module's name as sis.h has it (CREW_POD and so on), null if empty.</summary>
+    IReadOnlyList<string?> ModuleSlots { get; }
+
+    /// <summary>What the escort fleet's ships are worth (CalculateEscortsWorth).</summary>
+    int EscortsWorth { get; }
+
+    /// <summary>How many more ships the escort fleet has room for (EscortFeasibilityStudy).</summary>
+    int EscortRoom { get; }
+
+    /// <summary>Ships of a race (races.h's number) join the escort fleet, as many as it has room for; returns how many did (AddEscortShips).</summary>
+    int AddEscorts(int race, int count);
 }

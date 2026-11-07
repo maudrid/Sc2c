@@ -101,6 +101,44 @@ public sealed class PlayerShip
         _ => Activity.OuterSystem,
     };
 
+    /// <summary>
+    /// The module slots (ModuleSlots, 16 of them), each the module's name
+    /// as sis.h has it, null if empty. A flagship's are a new game's
+    /// (data/new-game.json) less what its loadout changes; an escort's
+    /// its kit's.
+    /// </summary>
+    public IReadOnlyList<string?> ModuleSlots => _moduleSlots ??= Modules(Kind, Loadout);
+
+    private IReadOnlyList<string?>? _moduleSlots;
+
+    /// <summary>NUM_MODULE_SLOTS (sis.h).</summary>
+    public const int ModuleSlotCount = 16;
+
+    // The modules the loadout says the ship has, in the slots a new game's
+    // flagship has them in (InitGameStructures: a fuel tank in slot 1,
+    // a crew pod in 2, a storage bay in 8 and the gun in 15), more of a
+    // kind in the empty slots after.
+    private static string?[] Modules(ShipKind kind, ShipLoadout loadout)
+    {
+        var slots = new string?[ModuleSlotCount];
+        void Put(string module, int count, int first)
+        {
+            for (int i = first; count > 0 && i < ModuleSlotCount + first; ++i)
+                if (slots[i % ModuleSlotCount] is null)
+                {
+                    slots[i % ModuleSlotCount] = module;
+                    --count;
+                }
+        }
+        if (kind == ShipKind.Flagship)
+            Put("GUN_WEAPON", 1, 15);
+        Put("FUEL_TANK", loadout.FuelTanks, 1);
+        Put("HIGHEFF_FUELSYS", loadout.HighEfficiencyTanks, 1);
+        Put("CREW_POD", loadout.CrewCapacity / ShipLoadout.CrewPodCapacity, 2);
+        Put("STORAGE_BAY", loadout.StorageBays, 8);
+        return slots;
+    }
+
     public PlayerShip(ShipKind kind, ShipLoadout loadout)
     {
         Kind = kind;

@@ -24,14 +24,23 @@
  * Input (stdin), one item per line:
  *   the conversation file; the colour table file;
  *   the game state, in hex (UQM's GameState bytes);
- *   crew, fuel, landers, resource units, then the 8 element amounts and
- *     the 16 module slots;
+ *   crew, fuel, landers, resource units, then the 8 element amounts, the
+ *     16 module slots, the 11 drive slots and the 8 jet slots;
  *   the captain's and the ship's names, in hex;
  *   the date: year, month and day (GameClock);
  *   the seed of the scripts' random numbers (TFB_SeedRandom);
+ *   each element category's worth (ElementWorth);
+ *   each race's standing, in races.h's order (CheckAlliance: 0 extinct,
+ *     1 allied, 2 not);
+ *   the escort fleet: what its ships are worth (CalculateEscortsWorth)
+ *     and how many more it has room for (EscortFeasibilityStudy);
  *   the music resources that load, space-separated (HailAlien plays the
  *     alternate song only if it loads);
  *   the replies: their count, then each one's place in the replies offered.
+ *
+ * Selling minerals (starbas.c's SellMinerals) runs as if a button were
+ * pressed at once (AnyButtonPress gives TRUE): each category is sold in
+ * one go, rather than counted down a unit at a time on the screen.
  *
  * Output: one JSON event a line, as the talk goes (HailAlien's order:
  * the init function, init_encounter_func, then a reply's function for each
@@ -54,6 +63,10 @@
  *                                             when the ship changes
  *   {"gauges": [crew, fuel, ru]}              DeltaSISGauges
  *   {"random": n}                             TFB_Random's number drawn
+ *   {"talking": b}                            EnableTalkingAnim (b 1 or 0)
+ *   {"escorts": [race, n, added]}             AddEscortShips: n asked for,
+ *                                             added those the fleet had
+ *                                             room for
  *   {"reply": i}                              the reply chosen
  *   {"offer": [[ref, func, text]...], "key": k}
  *                                             the replies offered, waiting
@@ -66,6 +79,7 @@
  */
 
 #include SCRIPT_FILE
+#include "uqm/races.h"
 #include "libs/strings/strintrn.h"
 #include "libs/log.h"
 #include "sha256.h"
@@ -336,6 +350,14 @@ __wrap_DrawLanders (void)
 {
 }
 
+/* sis.c's ClearSISRect only draws (--wrap=ClearSISRect): the status
+ * panel's redrawing, which changes nothing. */
+void
+__wrap_ClearSISRect (BYTE ClearFlags)
+{
+	(void) ClearFlags;
+}
+
 /* The drawing sis.c's gauges and DrawLanders do: nothing here. */
 CONTEXT SetContext (CONTEXT c) { (void) c; return 0; }
 void BatchGraphics (void) {}
@@ -362,6 +384,63 @@ int optWhichMenu;
 FONT TinyFont;
 FRAME FlagStatFrame;
 int optWhichFonts;
+
+/* What starbas.c asks of build.c's fleet (the escorts and the races'
+ * alliances), from the input. */
+static COUNT alliances[NUM_AVAILABLE_RACES];
+static COUNT escorts_worth, escort_room;
+
+COUNT
+CheckAlliance (COUNT race)
+{
+	return race < NUM_AVAILABLE_RACES ? alliances[race] : 0;
+}
+
+COUNT
+CalculateEscortsWorth (void)
+{
+	return escorts_worth;
+}
+
+COUNT
+EscortFeasibilityStudy (COUNT race)
+{
+	(void) race;
+	return escort_room;
+}
+
+COUNT
+AddEscortShips (COUNT race, SIZE count)
+{
+	COUNT ShipCost[] = { RACE_SHIP_COST };
+	COUNT added = (COUNT) count < escort_room ? (COUNT) count : escort_room;
+	check_changes ();
+	printf ("{\"escorts\": [%u, %d, %u]}\n", (unsigned) race, (int) count, (unsigned) added);
+	escort_room -= added;
+	escorts_worth += added * ShipCost[race];
+	/* DeltaSISGauges (UNDEFINED_DELTA, UNDEFINED_DELTA, UNDEFINED_DELTA):
+	 * recorded, but not run, as it only redraws the whole status panel. */
+	printf ("{\"gauges\": [%d, %d, %d]}\n", UNDEFINED_DELTA, UNDEFINED_DELTA, UNDEFINED_DELTA);
+	return added;
+}
+
+/* comm.c's: the commander's mouth stops while the Vux beast's report plays. */
+void
+EnableTalkingAnim (BOOLEAN enable)
+{
+	check_changes ();
+	printf ("{\"talking\": %d}\n", enable ? 1 : 0);
+}
+
+/* Selling minerals' drawing and waits (cargo.c, the threads and the
+ * clock), and a button pressed at once. */
+void DrawCargoStrings (BYTE OldElement, BYTE NewElement) { (void) OldElement; (void) NewElement; }
+void ShowRemainingCapacity (void) {}
+void SleepThread (TimePeriod t) { (void) t; }
+void SleepThreadUntil (TimeCount t) { (void) t; }
+void TaskSwitch (void) {}
+TimeCount GetTimeCounter (void) { return 0; }
+BOOLEAN AnyButtonPress (BOOLEAN CheckSpecial) { (void) CheckSpecial; return TRUE; }
 
 /* ------------------------------------------------------------- the talk */
 
@@ -440,6 +519,12 @@ print_key (void)
 		TFB_SeedRandom (seed);
 		printf ("|%lu", (unsigned long) seed);
 	}
+	printf ("|%u,%u", (unsigned) escorts_worth, (unsigned) escort_room);
+#ifdef SCRIPT_starbas
+	/* The script's own state that the replies offered don't show. */
+	printf ("|%u,%u,%u,%u,%lx", stack0, stack1, stack2, stack3,
+			(unsigned long) CurBulletinMask);
+#endif
 	printf ("|%d", map_index (CommData.AlienColorMap));
 	for (i = 0; i < CommData.NumAnimations; ++i)
 		printf (",%u", (unsigned) CommData.AlienAmbientArray[i].AnimFlags);
@@ -486,6 +571,16 @@ main (void)
 		sscanf (p, "%u%n", &v, &i);
 		GLOBAL_SIS (ModuleSlots[step]) = v;
 	}
+	for (step = 0; step < NUM_DRIVE_SLOTS; ++step, p += i)
+	{
+		sscanf (p, "%u%n", &v, &i);
+		GLOBAL_SIS (DriveSlots[step]) = v;
+	}
+	for (step = 0; step < NUM_JET_SLOTS; ++step, p += i)
+	{
+		sscanf (p, "%u%n", &v, &i);
+		GLOBAL_SIS (JetSlots[step]) = v;
+	}
 	read_line (line, sizeof line);
 	read_hex (line, GLOBAL_SIS (CommanderName), SIS_NAME_SIZE - 1);
 	read_line (line, sizeof line);
@@ -500,6 +595,25 @@ main (void)
 	}
 	read_line (line, sizeof line);
 	TFB_SeedRandom (strtoul (line, NULL, 10));
+	read_line (line, sizeof line);
+	for (step = 0, p = line; step < NUM_ELEMENT_CATEGORIES; ++step, p += i)
+	{
+		sscanf (p, "%u%n", &v, &i);
+		GLOBAL (ElementWorth[step]) = v;
+	}
+	read_line (line, sizeof line);
+	for (step = 0, p = line; step < NUM_AVAILABLE_RACES; ++step, p += i)
+	{
+		sscanf (p, "%u%n", &v, &i);
+		alliances[step] = v;
+	}
+	read_line (line, sizeof line);
+	{
+		unsigned w, r;
+		sscanf (line, "%u %u", &w, &r);
+		escorts_worth = w;
+		escort_room = r;
+	}
 	read_line (music, sizeof music);
 	read_line (line, sizeof line);
 	p = line;
