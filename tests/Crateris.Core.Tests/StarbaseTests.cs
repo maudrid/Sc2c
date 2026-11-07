@@ -8,6 +8,7 @@
 
 using Crateris.Core.Comm;
 using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
 using Crateris.Core.Session;
 using Crateris.Core.Starbase;
@@ -381,5 +382,119 @@ public class StarbaseTests
         Assert.Contains("can't", me.Notice);
         me.Rename("Rocinante", null);
         Assert.Equal(("Rocinante", (string?)null), me.TakeRename());
+    }
+
+    [ContentFact]
+    public void TheStarterSeesTheClosingLinesAsTheOpeningDocksAndNotAgainOnLeaving()
+    {
+        var world = Allied();
+        world.Story!.Set("MOONBASE_ON_SHIP", 1);
+        var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        world.VisitStarbase(world.Host);
+        for (int i = 0; i < StarbaseVisit.TimePassingFrames; ++i)
+        {
+            world.SubmitInput("host", world.Frame + 1, ShipInput.None);
+            world.Step();
+        }
+        me.Observe(world.Snapshot());
+        me.ShowTalk(world.TalkFor("host"));
+        world.ChooseReply("host", Reply(world, "host", "goodbye_commander"));
+        me.Observe(world.Snapshot());
+        me.ShowTalk(world.TalkFor("host"));
+        string goodbye = me.Notice;
+        Assert.NotEqual("", goodbye);                     // shown as the opening docks
+        Keys(world, "host", MenuKey.Up, MenuKey.Select);   // Leave
+        me.Notify("");
+        me.ShowTalk(world.TalkFor("host"));
+        Assert.Equal("", me.Notice);                      // not again
+        Assert.Null(me.Talk);
+    }
+
+    [ContentFact]
+    public void ATalkCutOffKeepsItsBulletinsAsGiven()
+    {
+        var world = Allied(guest: true);
+        world.Story!.Set32("STARBASE_BULLETS0", 0xFFFFFFFF & ~(1u << 6));
+        world.Story.Set("ZOQFOT_DISTRESS", 1);    // bulletin 6
+        Docked(world, "guest");
+        Keys(world, "guest", MenuKey.Select);
+        Assert.Equal(1u << 6, ((Comm.Scripts.StarbaseScript)world.Find("guest")!.Ship.Visit!.Talk!.Script).GivenBulletins);
+        // A save in the middle of it keeps it given...
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(0xFFFFFFFFu, loaded.Story!.Get32("STARBASE_BULLETS0"));
+        Assert.Equal(0xFFFFFFFFu & ~(1u << 6), world.Story.Get32("STARBASE_BULLETS0"));
+        // ...and so does leaving.
+        world.Leave("guest");
+        Assert.Equal(0xFFFFFFFFu, world.Story.Get32("STARBASE_BULLETS0"));
+    }
+
+    [ContentFact]
+    public void TheCommandersAdviceGradesTheFlagshipWhoeverAsks()
+    {
+        var world = Allied(guest: true);
+        Docked(world, "guest");
+        Keys(world, "guest", MenuKey.Select);
+        var talk = world.Find("guest")!.Ship.Visit!.Talk!;
+        Assert.Equal(world.Host.Ship.Modules.ModuleNames, talk.Ship.ModuleSlots);
+        Assert.Equal((2, 2), (talk.Ship.Thrusters, talk.Ship.Jets));
+        world.Host.Ship.Modules.SetDrive(0, ShipModules.FusionThruster);
+        Assert.Equal(3, talk.Ship.Thrusters);
+        Assert.Equal(world.Find("guest")!.Ship.Hold.Crew, talk.Ship.Crew);   // the talker's own crew
+    }
+
+    [ContentFact]
+    public void WithoutTheStarbasesDateTheTimedBulletinsArentDue()
+    {
+        var world = Allied();
+        world.Story!.Set("STARBASE_MONTH", 0);
+        world.Story.Set("STARBASE_DAY", 0);
+        world.Story.Set32("STARBASE_BULLETS0", 0);
+        Docked(world);
+        Keys(world, "host", MenuKey.Select);
+        Assert.Equal(VisitStep.MenuTalk, world.Host.Ship.Visit!.Step);
+    }
+
+    [ContentFact]
+    public void AStarterAwayAsTheirOpeningDocksComesBackInFlight()
+    {
+        var world = Allied(guest: true);
+        world.Story!.Set("MOONBASE_ON_SHIP", 1);
+        var guest = world.Find("guest")!;
+        world.VisitStarbase(guest);
+        world.Leave("guest");                      // the replies pass to the host
+        Assert.Equal("host", world.Visit!.Replier.Id);
+        for (int i = 0; i < StarbaseVisit.TimePassingFrames; ++i)
+        {
+            world.SubmitInput("host", world.Frame + 1, ShipInput.None);
+            world.Step();
+        }
+        world.ChooseReply("host", world.Visit!.Talk!.Replies.Select(r => r.Function).ToList().IndexOf("ByeBye"));
+        Assert.Null(world.Visit);
+        Assert.Null(guest.Ship.Visit);
+        Assert.Equal(JoinResult.Rejoined, world.Join("guest", "Guest"));
+        Assert.Equal(Activity.InnerSystem, guest.Ship.Activity);
+    }
+
+    [Fact]
+    public void TheShipyardsMenuGoesRoundAndItsCrewModeHiresAndSendsAway()
+    {
+        var acts = new List<OutfitAction>();
+        var yard = new ShipyardMenu(a => { acts.Add(a); return a is HireCrew; });
+        yard.Key(MenuKey.Up);
+        Assert.Equal(ShipyardMenu.Exit, yard.State);
+        yard.Key(MenuKey.Right);
+        Assert.Equal(ShipyardMenu.Crew, yard.State);
+        Assert.Equal(OutfitOutcome.None, yard.Key(MenuKey.Select));
+        Assert.True(yard.CrewMode);
+        Assert.Equal(OutfitOutcome.Acted, yard.Key(MenuKey.Up));
+        Assert.Equal(OutfitOutcome.Refused, yard.Key(MenuKey.Down));
+        Assert.Equal(OutfitOutcome.None, yard.Key(MenuKey.Cancel));
+        Assert.False(yard.CrewMode);
+        yard.Key(MenuKey.Down);
+        Assert.Equal(OutfitOutcome.SaveLoad, yard.Key(MenuKey.Select));
+        yard.Key(MenuKey.Down);
+        Assert.Equal(OutfitOutcome.Left, yard.Key(MenuKey.Select));
+        Assert.Equal(OutfitOutcome.Left, new ShipyardMenu(_ => true).Key(MenuKey.Cancel));
+        Assert.Equal(new OutfitAction[] { new HireCrew(), new DismissCrew() }, acts);
     }
 }

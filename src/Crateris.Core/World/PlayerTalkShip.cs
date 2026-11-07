@@ -14,7 +14,9 @@ namespace Crateris.Core.World;
 /// <summary>
 /// A player's ship as a talk sees it (stage 3, decision 4): their names,
 /// their crew, fuel, landers, resource units and minerals (which the
-/// allied commander buys), its modules, and its escort fleet. Ships have
+/// allied commander buys), and its escort fleet; but the flagship's
+/// modules, as the allied commander grades them (decision 4: the
+/// flagship carries the mission and its upgrades). Ships have
 /// no escort fleets of UQM's kind until combat (stage 4) brings ships to
 /// buy and win: until then a fleet is worth nothing and has no room, so
 /// the Arilou's gift of ships waits (docs/differences.md).
@@ -22,11 +24,14 @@ namespace Crateris.Core.World;
 internal sealed class PlayerTalkShip : ITalkShip
 {
     private readonly Player _player;
+    private readonly PlayerShip _flagship;
     private readonly IList<int> _minerals;
 
-    public PlayerTalkShip(Player player, GameStrings strings)
+    /// <param name="flagship">The flagship, whose modules the talk reads.</param>
+    public PlayerTalkShip(Player player, GameStrings strings, PlayerShip flagship)
     {
         _player = player;
+        _flagship = flagship;
         CaptainName = ShipNames.Captain(player, strings);
         ShipName = ShipNames.Ship(player, strings);
         _minerals = new HoldMinerals(player.Ship.Hold);
@@ -68,11 +73,11 @@ internal sealed class PlayerTalkShip : ITalkShip
 
     public IList<int> Minerals => _minerals;
 
-    public int Thrusters => _player.Ship.Modules.Thrusters;
+    public int Thrusters => _flagship.Modules.Thrusters;
 
-    public int Jets => _player.Ship.Modules.Jets;
+    public int Jets => _flagship.Modules.Jets;
 
-    public IReadOnlyList<string?> ModuleSlots => _player.Ship.Modules.ModuleNames;
+    public IReadOnlyList<string?> ModuleSlots => _flagship.Modules.ModuleNames;
 
     public int EscortsWorth => 0;
 

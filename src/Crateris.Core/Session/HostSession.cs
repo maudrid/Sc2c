@@ -251,7 +251,7 @@ public sealed class HostSession
 
     /// <summary>Renames a docked player's ship or captain (outfitting's naming); false if not docked.</summary>
     public bool Rename(string id, string? ship, string? captain) =>
-        World.Find(id)?.Ship.Activity == Activity.Starbase && World.Rename(id, ship, captain);
+        !World.StoryPaused && World.Find(id)?.Ship.Activity == Activity.Starbase && World.Rename(id, ship, captain);
 
     /// <summary>What a docked player's starbase screen is now: null if not docked.</summary>
     public Starbase.StarbaseView? StarbaseFor(string id) => World.StarbaseFor(id);

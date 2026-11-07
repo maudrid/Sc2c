@@ -103,6 +103,18 @@ public sealed class StarbaseScript : CommScript
     {
     }
 
+    /// <summary>
+    /// The bulletins given in this talk, which ByeBye records as given
+    /// (STARBASE_BULLETS0). A talk cut off before its goodbye (its player
+    /// leaving, or a save in the middle of it: neither can happen in UQM)
+    /// keeps them so (<see cref="KeepBulletins"/>), so they aren't given
+    /// again, nor the Arilou's gift with them.
+    /// </summary>
+    public uint GivenBulletins => _curBulletinMask;
+
+    /// <summary>Records this talk's bulletins as given, as ByeBye does (a talk cut off before it).</summary>
+    internal void KeepBulletins() => T.Set32("STARBASE_BULLETS0", _curBulletinMask | T.Get32("STARBASE_BULLETS0"));
+
     private void ByeBye(int r)
     {
         _curBulletinMask |= T.Get32("STARBASE_BULLETS0");
@@ -620,8 +632,11 @@ public sealed class StarbaseScript : CommScript
     {
         int[] daysInMonth = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
         int mi = GetGameState("STARBASE_MONTH");
+        // The bulletins come after the starbase is ready, which notes its
+        // month; without one (a story put together otherwise) UQM reads out
+        // of its table: here they aren't due.
         if (mi < 1 || mi > 12)
-            throw new InvalidOperationException($"STARBASE_MONTH is {mi}: the bulletins come after the starbase is ready");
+            return false;
         int yearIndex = StartYear;
 
         dayIndex += GetGameState("STARBASE_DAY");

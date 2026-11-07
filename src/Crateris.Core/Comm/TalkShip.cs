@@ -43,13 +43,13 @@ public interface ITalkShip
     /// <summary>The minerals in the hold by element category (ElementAmounts); a script may change them (selling them).</summary>
     IList<int> Minerals { get; }
 
-    /// <summary>Drive slots with a thruster (DriveSlots below EMPTY_SLOT).</summary>
+    /// <summary>Drive slots with a thruster (DriveSlots below EMPTY_SLOT); the flagship's, in the game (decision 4).</summary>
     int Thrusters { get; }
 
-    /// <summary>Jet slots with turning jets (JetSlots below EMPTY_SLOT).</summary>
+    /// <summary>Jet slots with turning jets (JetSlots below EMPTY_SLOT); the flagship's, in the game.</summary>
     int Jets { get; }
 
-    /// <summary>The module slots (ModuleSlots), each its module's name as sis.h has it (CREW_POD and so on), null if empty.</summary>
+    /// <summary>The module slots (ModuleSlots), each its module's name as sis.h has it (CREW_POD and so on), null if empty; the flagship's, in the game.</summary>
     IReadOnlyList<string?> ModuleSlots { get; }
 
     /// <summary>What the escort fleet's ships are worth (CalculateEscortsWorth).</summary>

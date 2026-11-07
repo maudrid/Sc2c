@@ -25,7 +25,7 @@ public enum OutfitOutcome
     /// <summary>UQM refuses this here (MENU_SOUND_FAILURE): too dear, no room, needed, or not an escort's.</summary>
     Refused,
 
-    /// <summary>An action went to the host (and was applied here).</summary>
+    /// <summary>An action was applied (bought or sold).</summary>
     Acted,
 
     /// <summary>Save and load: the host's own (only the host has them).</summary>
@@ -46,10 +46,10 @@ public enum OutfitOutcome
 /// to choose, only those for sale, weapons only at the front and back),
 /// and select buys one; on a full one, select sells it.
 /// <para>
-/// This is the player's own screen: each purchase or sale is an
-/// <see cref="OutfitAction"/> given to <see cref="Act"/>, which the client
-/// sends to the host and the host checks by the same rules
-/// (<see cref="Outfitting"/>).
+/// It runs on the host, from the keys the player's client sends (each
+/// docked player has their own: <see cref="StarbaseMenu"/>); each purchase
+/// or sale is an <see cref="OutfitAction"/> given to the rules
+/// (<see cref="Outfitting"/>), which may refuse it.
 /// </para>
 /// </summary>
 public sealed class OutfitMenu

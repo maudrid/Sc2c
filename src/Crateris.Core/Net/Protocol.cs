@@ -54,9 +54,10 @@ public static class Protocol
     /// 9's stage, item 5, after it was numbered.)
     /// 11: the allied starbase (stage 3a, item 8): a ship can be docked at
     /// its menu (Activity.Starbase); ships carry their slots; a docked
-    /// player asks to talk to the commander (refused, saying who's talking
-    /// to him), outfits, hires crew, renames and leaves, each a reliable
-    /// message.
+    /// player's keys on the starbase's screens go to the host, which runs
+    /// them, and a rename, each a reliable message; the host sends the
+    /// player their screen (StarbaseView, saying who's talking to the
+    /// commander when Talk was refused) as one when it changes.
     /// </summary>
     public const int Version = 11;
     public const int DefaultPort = 24642;

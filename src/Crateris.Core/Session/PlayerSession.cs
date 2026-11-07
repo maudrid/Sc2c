@@ -302,7 +302,7 @@ public sealed class PlayerSession
             return;
         // A talk with the commander from the starbase's menu over: its
         // closing lines show as a notice over the menu.
-        if (view is { Step: VisitStep.Menu, Lines.Count: > 0 } && _lastView?.Step == VisitStep.MenuTalk)
+        if (view is { Step: VisitStep.Menu, Lines.Count: > 0 } && _lastView is { Step: not (VisitStep.Menu or VisitStep.Done) })
             Notify(string.Join("\n", view.Lines.Select(OneLine)));
         _lastView = view;
         if (view is null || view.Step == VisitStep.Done)
@@ -758,7 +758,7 @@ public sealed class PlayerSession
                 if (state < ShipModules.EmptySlot)
                 {
                     int cost = Snapshot?.Story?.ModuleCost[state] ?? 0;
-                    yield return $"Buy: {ModuleName(state)}, {cost * 50} RU (left, right: choose; Enter: buy; Esc: back)";
+                    yield return $"Buy: {ModuleName(state)}, {cost * ModuleCostScale} RU (left, right: choose; Enter: buy; Esc: back)";
                 }
                 else
                     yield return "Up, down: the row; left, right: the slot; Enter: buy into an empty one, or sell; Esc: back";
@@ -771,6 +771,9 @@ public sealed class PlayerSession
                 break;
         }
     }
+
+    /// <summary>MODULE_COST_SCALE (data/modules.json): resource units a unit of a module's cost.</summary>
+    public int ModuleCostScale { get; set; } = 50;
 
     private static int CrewRoom(ShipSnapshot me) =>
         me.Modules is { } m ? ShipModules.Restore(m).CrewCapacity : 0;

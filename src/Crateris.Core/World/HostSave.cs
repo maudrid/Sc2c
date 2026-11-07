@@ -114,7 +114,7 @@ public static class HostSave
             .ToList();
         var (year, month, day) = visit?.DateWithout() ?? (c.Year, c.Month, c.Day);
         var save = new SaveFile(Version, world.Settings, new ClockState(year, month, day, c.FramesIntoDay),
-            world.Frame, players, worlds, visit is null ? world.Story?.Save() : visit.StoryWithout(),
+            world.Frame, players, worlds, visit is null ? (world.Story is null ? null : world.StoryForSave()) : visit.StoryWithout(),
             visit?.MetBefore ?? world.CommanderMet);
         return JsonSerializer.Serialize(save, Options);
     }

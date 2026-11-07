@@ -745,12 +745,38 @@ public sealed class GameWorld
                 foreach (var p in _players.Where(p => p.Present && p != v.Starter))
                     _ended[p.Id] = (v, closing with { Step = VisitStep.Done });
         }
+        // An opening whose starter went away (the replies passed on) ends
+        // as it docks: they come back in flight by the starbase.
+        if (v.AtMenu && !v.Starter.Present)
+            v.Abandon();
         if (v.Done)
         {
             v.Starter.Ship.Visit = null;
+            // Once docked, the starter was shown its talks' closing lines on
+            // the menu: leaving shows none again.
             if (!v.Undone)
-                _ended[v.Starter.Id] = (v, null);
+                _ended[v.Starter.Id] = (v, v.Menu is null ? null
+                    : TalkView.Of(v) is { } last ? last with { Step = VisitStep.Done, Lines = Array.Empty<string>() } : null);
         }
+    }
+
+    /// <summary>
+    /// The story to save: as it is, with the bulletins given in a docked
+    /// player's talk with the commander kept as given (ByeBye would; a
+    /// loaded game has no talk to finish).
+    /// </summary>
+    internal StoryState.Saved StoryForSave()
+    {
+        var story = Story!;
+        var open = _players.Select(p => p.Ship.Visit)
+            .Where(v => v is { Step: VisitStep.MenuTalk, Talk: { Ended: false, Script: Comm.Scripts.StarbaseScript } })
+            .Select(v => ((Comm.Scripts.StarbaseScript)v!.Talk!.Script).GivenBulletins)
+            .Aggregate(0u, (a, b) => a | b);
+        if (open == 0)
+            return story.Save();
+        var copy = StoryState.Restore(story.Rules, story.Save());
+        copy.Set32("STARBASE_BULLETS0", copy.Get32("STARBASE_BULLETS0") | open);
+        return copy.Save();
     }
 
     private readonly Dictionary<string, (StarbaseVisit Visit, TalkView? Frozen)> _ended = new();

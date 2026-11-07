@@ -262,6 +262,7 @@ public partial class Main : Node2D
         _player = new PlayerSession(_systems, _names, _playerId, _shapes.HyperFlagship.Count, _options.Script)
         {
             StringTables = id => _reportTexts.GetValueOrDefault(id) ?? Array.Empty<string>(),
+            ModuleCostScale = _systems.StoryRules?.ModuleCostScale ?? 50,
         };
         _player.Logged += Log;
         if (_options.Join)

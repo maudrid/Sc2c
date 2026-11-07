@@ -211,7 +211,7 @@ public sealed class StarbaseVisit
         _talkIsStory = Comm.TalkRules.IsStory(script, _world.Story!);
         WasStory |= _talkIsStory;
         Talk = _world.TalkLibrary!.Create(script, _world.Story!, own,
-            new PlayerTalkShip(Starter, _world.TalkLibrary.Strings), _world.Clock, seed);
+            new PlayerTalkShip(Starter, _world.TalkLibrary.Strings, _world.Host.Ship), _world.Clock, seed);
         Talks.Add(Talk);
         Talk.Start();
         if (Talk.Ended)
@@ -311,11 +311,17 @@ public sealed class StarbaseVisit
         return true;
     }
 
-    /// <summary>The starter leaves the game while docked: the visit ends, its talk with it, nothing taken back.</summary>
+    /// <summary>
+    /// The starter leaves the game while docked (or is away as their
+    /// opening docks): the visit ends, its talk with it, nothing taken
+    /// back; the bulletins the talk gave stay given.
+    /// </summary>
     internal void Abandon()
     {
         if (Opening)
             throw new InvalidOperationException("an opening is undone, not abandoned");
+        if (Talk is { Ended: false, Script: Comm.Scripts.StarbaseScript script })
+            script.KeepBulletins();
         Finish();
     }
 
