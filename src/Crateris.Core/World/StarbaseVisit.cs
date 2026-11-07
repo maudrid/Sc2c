@@ -132,7 +132,21 @@ public sealed class StarbaseVisit
     public bool Done => Step == VisitStep.Done;
 
     /// <summary>How many sets of replies the visit's talks have offered: the set offered now is this one.</summary>
-    public int Round => Talks.Sum(t => t.Events.Count(e => e is RepliesOffered));
+    public int Round => FirstRound + Talks.Sum(t => t.Events.Count(e => e is RepliesOffered));
+
+    /// <summary>
+    /// The sets of replies offered in the game's earlier visits: rounds
+    /// count on from them, so a round names one set of replies in the
+    /// whole game, and a client that has answered one can't mistake the
+    /// next visit's for it.
+    /// </summary>
+    public int FirstRound { get; internal init; }
+
+    /// <summary>Whether any of its talks was story, or time passed: everyone was shown it (decision 6).</summary>
+    public bool WasStory { get; private set; }
+
+    /// <summary>Whether it was undone (its replier left with no one to take the replies).</summary>
+    public bool Undone { get; private set; }
 
     /// <summary>The starter chooses a reply in the talk going on. False if none is offered.</summary>
     internal bool Choose(int index)
@@ -174,6 +188,7 @@ public sealed class StarbaseVisit
         foreach (char c in Starter.Id)
             seed = unchecked(seed * 31 + c);
         _talkIsStory = Comm.TalkRules.IsStory(script, _world.Story!);
+        WasStory |= _talkIsStory;
         Talk = _world.TalkLibrary!.Create(script, _world.Story!, own,
             new PlayerTalkShip(Starter, _world.TalkLibrary.Strings), _world.Clock, seed);
         Talks.Add(Talk);
@@ -219,6 +234,7 @@ public sealed class StarbaseVisit
         if (story.Get("MOONBASE_ON_SHIP") != 0 || story.Get("CHMMR_BOMB_STATE") == 2)
         {
             Step = VisitStep.TimePassing;
+            WasStory = true;
             Talk = null;
             _fadeLeft = TimePassingFrames;
         }
@@ -285,6 +301,7 @@ public sealed class StarbaseVisit
         var (y, m, d) = DateWithout();
         (_world.Clock.Year, _world.Clock.Month, _world.Clock.Day) = (y, m, d);
         _skipped = false;
+        Undone = true;
         Finish();
     }
 }

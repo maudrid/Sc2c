@@ -261,6 +261,9 @@ public sealed class PlayerSession
             input = Me?.Activity is Activity.Orbit or Activity.Talk || StoryPaused ? ShipInput.None : keys;   // on the surface, the lander's keys
         if (Entering)
             return ShipInput.None;
+        // A Navigate chosen just before a story pause leaves orbit after it.
+        if (StoryPaused)
+            return ShipInput.None;
         if (_leaveFrames > 0)
         {
             _leaveFrames--;
@@ -297,6 +300,8 @@ public sealed class PlayerSession
         if (view is null ? _lastView is null : view.Same(_lastView))
             return;
         _lastView = view;
+        if (view is null || view.Step == VisitStep.Done)
+            _answered = -1;   // the next talk's rounds are new
         if (view?.Step == VisitStep.Done)
         {
             if (view.Lines.Count > 0)
@@ -598,6 +603,8 @@ public sealed class PlayerSession
                 string who = Snapshot?.Ships.FirstOrDefault(s => s.Id == talk.Replier)?.Name ?? talk.Replier;
                 lines.Add($"The story's talk: {who} replies; the game waits.");
             }
+            if (talk.Said != "")
+                lines.Add($"(Said: {OneLine(talk.Said)})");
             if (talk.Step == VisitStep.TimePassing)
                 lines.Add("Time passes...");
             foreach (var l in talk.Lines)

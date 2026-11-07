@@ -231,7 +231,7 @@ Bugs found in play go back to the code session with the error text, a screenshot
 - [x] Decide whether cargo can be traded between players: yes, within the same solar system
 - [ ] Decide who can use group devices (portal spawner, Sun device and others) and whether the group must be present (deferred)
 - [ ] List the escort module set
-- [ ] Mark which conversations and events count as story (pause for all)
+- [x] Mark which conversations and events count as story (pause for all): each conversation's rule is in `src/Crateris.Core/Comm/TalkRules.cs` (stage 3, decision 6); 3b and 3c add theirs, and the events' with them
 - [ ] Draft the server data model and message protocol
 - [ ] Contact the UQM community before going public
 - [ ] Consult a lawyer before public release

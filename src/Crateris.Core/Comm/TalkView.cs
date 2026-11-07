@@ -21,12 +21,13 @@ namespace Crateris.Core.Comm;
 /// for a set already answered can't answer the next). Once the visit is
 /// over, its closing lines with no replies (<see cref="VisitStep.Done"/>).
 /// <see cref="Replier"/> is the player who answers it: everyone is shown a
-/// story talk, and only they reply (decision 7).
+/// story talk, and only they reply (decision 7); <see cref="Said"/> is the
+/// reply they last chose, which the lines answer ("" before any).
 /// Sent to them by the host when it changes, as a reliable message; an
 /// empty message means no talk.
 /// </summary>
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
-    int Round = 0, string Replier = "")
+    int Round = 0, string Replier = "", string Said = "")
 {
     /// <summary>The view of a visit as it stands (its closing lines once it's over), or null without one.</summary>
     public static TalkView? Of(StarbaseVisit? visit)
@@ -34,16 +35,24 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         if (visit is null)
             return null;
         // From the player's last reply, through the talks after it.
-        int talkFrom = 0, eventFrom = 0, round = 0;
+        int talkFrom = 0, eventFrom = 0, round = visit.FirstRound;
+        string said = "";
+        RepliesOffered? offered = null;
         for (int t = 0; t < visit.Talks.Count; ++t)
         {
             var events = visit.Talks[t].Events;
             for (int i = 0; i < events.Count; ++i)
             {
-                if (events[i] is ReplyChosen)
+                if (events[i] is ReplyChosen chosen)
+                {
                     (talkFrom, eventFrom) = (t, i + 1);
-                else if (events[i] is RepliesOffered)
+                    said = offered?.Replies[chosen.Index].Text ?? "";
+                }
+                else if (events[i] is RepliesOffered o)
+                {
+                    offered = o;
                     round++;
+                }
             }
         }
         var lines = new List<string>();
@@ -68,7 +77,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var talk = visit.Talk;
         string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
         return new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round,
-            visit.Replier.Id);
+            visit.Replier.Id, said);
     }
 
     public byte[] Encode()
@@ -78,6 +87,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         w.String(Script);
         w.UInt((ulong)Round);
         w.String(Replier);
+        w.String(Said);
         w.UInt((ulong)Lines.Count);
         foreach (var l in Lines)
             w.String(l);
@@ -101,6 +111,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         if (round > int.MaxValue)
             throw new InvalidDataException("Bad talk round.");
         string replier = r.String() ?? "";
+        string said = r.String() ?? "";
         var lines = new List<string>();
         for (ulong n = Count(r.UInt(), 1000); n > 0; --n)
             lines.Add(r.String() ?? "");
@@ -109,13 +120,13 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             replies.Add(r.String() ?? "");
         if (!r.AtEnd)
             throw new InvalidDataException("A talk has bytes after its end.");
-        return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier);
+        return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier, said);
     }
 
     private static ulong Count(ulong n, int most) =>
         n <= (ulong)most ? n : throw new InvalidDataException($"A talk has {n} of what it has at most {most} of.");
 
     public bool Same(TalkView? other) =>
-        other is not null && Step == other.Step && Script == other.Script && Round == other.Round && Replier == other.Replier
+        other is not null && Step == other.Step && Script == other.Script && Round == other.Round && Replier == other.Replier && Said == other.Said
         && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies);
 }

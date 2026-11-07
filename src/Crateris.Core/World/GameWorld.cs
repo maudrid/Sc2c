@@ -319,6 +319,14 @@ public sealed class GameWorld
     public void Step()
     {
         Frame++;
+        if (_wasPaused && !StoryPaused)
+        {
+            // Input stamped for the pause's frames that arrives late is
+            // dropped too, not taken now.
+            foreach (var p in _players)
+                _inputs[p.Id].DropThrough(Frame - 1);
+        }
+        _wasPaused = StoryPaused;
         if (StoryPaused)
         {
             // Everything waits for the story (decision 7): input read now
@@ -514,7 +522,7 @@ public sealed class GameWorld
         if (Story.Get("STARBASE_AVAILABLE") != 0 && Story.Get("MOONBASE_ON_SHIP") == 0
                 && Story.Get("CHMMR_BOMB_STATE") != 2)
             return;
-        var visit = new StarbaseVisit(this, player);
+        var visit = new StarbaseVisit(this, player) { FirstRound = _rounds };
         _ended.Clear();
         if (visit.Done)
         {
@@ -547,13 +555,18 @@ public sealed class GameWorld
         {
             v.Starter.Ship.Visit = null;
             Visit = null;
-            // Its closing lines go on showing to whoever saw it.
-            foreach (var p in _players.Where(p => p.Present || p == v.Starter))
-                _ended[p.Id] = v;
+            _rounds = v.Round;
+            // Its closing lines go on showing to whoever saw it: everyone,
+            // for a story visit; an undone one has none to show.
+            if (!v.Undone)
+                foreach (var p in _players.Where(p => p == v.Starter || (v.WasStory && p.Present)))
+                    _ended[p.Id] = v;
         }
     }
 
     private readonly Dictionary<string, StarbaseVisit> _ended = new();
+    private int _rounds;
+    private bool _wasPaused;
 
     /// <summary>
     /// The visit a player is shown: a story visit, to everyone; their own;

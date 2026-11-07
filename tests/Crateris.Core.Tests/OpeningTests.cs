@@ -27,6 +27,7 @@ public class OpeningTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
     private static readonly SystemCatalog Systems = SystemCatalog.Load(DataDir);
+    private static readonly StoryRules Rules = StoryRules.Load(DataDir);
     private const int Sol = 82, Earth = 2, Luna = 1;
     private static readonly WorldId Moon = new(Sol, Earth, Luna);
 
@@ -588,5 +589,128 @@ public class OpeningTests
         Assert.Equal((1, 1), me.TakeReply());
         me.PressMenu(MenuKey.Select);        // one reply a set
         Assert.Null(me.TakeReply());
+    }
+
+    // The host's player session, answering through the host as Main does.
+    private static void Answer(HostSession host, PlayerSession me, params string[] phrases)
+    {
+        foreach (string phrase in phrases)
+        {
+            me.Observe(host.Step(ShipInput.None));
+            me.ShowTalk(host.TalkFor(me.PlayerId));
+            int i = IndexOf(host, me.PlayerId, phrase);
+            Assert.True(i >= 0, $"{phrase} isn't offered");
+            while (me.ReplyCursor != i)
+                me.PressMenu(MenuKey.Down);
+            me.PressMenu(MenuKey.Select);
+            var (round, index) = me.TakeReply()!.Value;
+            Assert.True(host.ChooseReply(me.PlayerId, round, index), $"{phrase} wasn't taken");
+            me.Observe(host.Step(ShipInput.None));
+        }
+        me.ShowTalk(host.TalkFor(me.PlayerId));
+    }
+
+    private static HostSession HostWithTalks()
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Zelnick",
+            Systems, TestContent.Shapes);
+        host.World.TalkLibrary = Library.Value;
+        host.StartVisit();
+        return host;
+    }
+
+    [ContentFact]
+    public void ARepliersSecondVisitTakesItsReplies()
+    {
+        // Rounds count on through the game, so what was answered in one
+        // visit doesn't stop the next one's being answered.
+        var host = HostWithTalks();
+        var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        me.Observe(host.Step(ShipInput.None));
+        Answer(host, me, "yes_this_is_supply_ship", "i_lied", "ok_i_will_get_radios");
+        Assert.Null(host.World.Visit);
+        var story = host.World.Story!;
+        story.Set("RADIOACTIVES_PROVIDED", 1);
+        story.Set("MOONBASE_DESTROYED", 1);
+        host.World.VisitStarbase(host.World.Host);
+        Assert.Equal(4, host.World.Visit!.Round);
+        Answer(host, me, "base_was_abandoned");
+        Assert.Equal(VisitStep.Ilwrath, host.World.Visit!.Step);
+    }
+
+    [ContentFact]
+    public void TheRepliesPassingOnIsSentToEveryoneAndTheStarterBackWatches()
+    {
+        var host = HostWithTalks();
+        host.World.Leave("host");   // a guest starts it instead, below
+        host.World.Join("host", "Zelnick");
+        Assert.Null(host.World.Visit);
+        host.Hello(1, "guest", "Guest", Net.Protocol.Version);
+        host.Hello(2, "third", "Third", Net.Protocol.Version);
+        host.World.UndockShown("guest");
+        host.World.UndockShown("third");
+        var guest = host.World.Find("guest")!;
+        host.World.VisitStarbase(guest);
+        Assert.Equal(2, host.TalkUpdates().Count);
+        Assert.True(host.ChooseReply("guest", host.World.Visit!.Round, IndexOf(host, "guest", "yes_this_is_supply_ship")));
+        var said = TalkView.Decode(host.TalkUpdates().Single(u => u.Peer == 2).Data)!;
+        Assert.Contains("supply", said.Said, StringComparison.OrdinalIgnoreCase);   // watchers see the reply chosen
+        var save = HostSave.FromJson(host.SaveJson(), Systems, TestContent.Shapes);
+        host.GuestLeft(1);
+        var view = TalkView.Decode(Assert.Single(host.TalkUpdates()).Data)!;   // the third player's
+        Assert.Equal("host", view.Replier);
+        Assert.Equal("host", host.TalkFor("host")!.Replier);
+        // A save while the replies are the host's is still of the game without the visit.
+        var saved = HostSave.FromJson(host.SaveJson(), Systems, TestContent.Shapes);
+        Assert.False(saved.CommanderMet);
+        Assert.Equal(save.Story!.Get("STARBASE_AVAILABLE"), saved.Story!.Get("STARBASE_AVAILABLE"));
+        // The starter comes back: they watch, and can't reply.
+        host.Hello(3, "guest", "Guest", Net.Protocol.Version);
+        Assert.Equal("host", host.TalkFor("guest")!.Replier);
+        Assert.False(host.ChooseReply("guest", host.World.Visit!.Round, 0));
+    }
+
+    [ContentFact]
+    public void AnUndoneVisitPutsBackOnlyWhatItsTalksWrote()
+    {
+        var world = WithTalks();
+        world.Host.Ship.Flight.Fuel = 150;
+        world.VisitStarbase(world.Host);
+        Say(world, "comandr", "yes_this_is_supply_ship");
+        Say(world, "comandr", "i_lied");
+        Say(world, "comandr", "need_fuel_mercury");
+        world.Story!.Set("SPATHI_VISITS", 2);   // something else changed the story meanwhile
+        world.Leave("host");                     // no one to take the replies: undone
+        Assert.Null(world.Visit);
+        Assert.Equal((0, 2), (world.Story.Get("GIVEN_FUEL_BEFORE"), world.Story.Get("SPATHI_VISITS")));
+        Assert.Equal(150u, world.Host.Ship.Flight.Fuel);
+        Assert.False(world.CommanderMet);
+        Assert.Null(world.VisitOf("host"));      // nothing to show of it
+    }
+
+    [Fact]
+    public void EveryPortedScriptHasARuleAndTheStarbasesDependsOnTheVisit()
+    {
+        Assert.All(TalkLibrary.Ported, s => Assert.Contains(s, TalkRules.Scripts));
+        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        Assert.True(TalkRules.IsStory("comandr", story));
+        Assert.False(TalkRules.IsStory("ilwrath", story));   // met in space (3b): ordinary
+        Assert.False(TalkRules.IsStory("starbas", story));   // from the starbase's menu
+        story.Set("MOONBASE_ON_SHIP", 1);
+        Assert.True(TalkRules.IsStory("starbas", story));
+        Assert.Throws<KeyNotFoundException>(() => TalkRules.IsStory("arilou", story));
+    }
+
+    [ContentFact]
+    public void ALeaveOrbitChosenAsAPauseStartsWaitsForIt()
+    {
+        var host = HostWithTalks();
+        host.Hello(1, "guest", "Guest", Net.Protocol.Version);
+        host.World.UndockShown("guest");
+        host.World.PutInOrbit("guest", Sol, Earth, Luna);
+        var watcher = new PlayerSession(Systems, null, "guest", TestContent.Shapes.HyperFlagship.Count);
+        watcher.Observe(host.World.Snapshot());
+        Assert.Equal(ShipInput.None, watcher.NextInput(ShipInput.None));
+        Assert.True(watcher.StoryPaused);
     }
 }

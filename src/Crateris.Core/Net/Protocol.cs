@@ -49,8 +49,9 @@ public static class Protocol
     /// reliable message when it changes (TalkView), and their reply comes
     /// back as one.
     /// 10: snapshots say when the game is paused for a story talk, and who
-    /// replies in it; everyone is sent a story talk, a reply carries the
-    /// round of replies it's for, and lander reports are sent.
+    /// replies in it; everyone is sent a story talk, with its replier and
+    /// the reply chosen. (The reply's round and the lander reports came in
+    /// 9's stage, item 5, after it was numbered.)
     /// </summary>
     public const int Version = 10;
     public const int DefaultPort = 24642;
