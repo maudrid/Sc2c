@@ -237,6 +237,8 @@ public class ActivityTests
     {
         var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
         node["version"] = 3;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         node.AsObject().Remove("story");   // older saves have none
         foreach (var p in node["players"]!.AsArray())
         {

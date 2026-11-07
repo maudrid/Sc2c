@@ -2538,6 +2538,225 @@ def record_talks(uqm, strings_exe, package):
     return data
 
 
+# ------------------------------------------------------------ outfitting
+
+# The outfitting recording program (golden/outfit.c): UQM's outfit.c and
+# shipyard.c included, sis.c and menu.c linked, the rest stubbed.
+OUTFIT_PROGRAM = os.path.join(HERE, "golden", "outfit.c")
+OUTFIT_LINK = ["uqm/sis.c", "uqm/menu.c"]
+OUTFIT_STUBS = os.path.join(HERE, "golden", "outfit_stubs.c")
+# A new game's prices (data/new-game.json), by module number.
+MODULE_NAMES = ["PLANET_LANDER", "FUSION_THRUSTER", "TURNING_JETS", "CREW_POD", "STORAGE_BAY", "FUEL_TANK",
+                "HIGHEFF_FUELSYS", "DYNAMO_UNIT", "SHIVA_FURNACE", "GUN_WEAPON", "BLASTER_WEAPON",
+                "CANNON_WEAPON", "TRACKING_SYSTEM", "ANTIMISSILE_DEFENSE", "BOMB_MODULE_0", "BOMB_MODULE_1",
+                "BOMB_MODULE_2", "BOMB_MODULE_3", "BOMB_MODULE_4", "BOMB_MODULE_5"]
+# Every module for sale, as after the Melnorme's and the Chmmr's tech.
+ALL_FOR_SALE = {"HIGHEFF_FUELSYS": 50, "SHIVA_FURNACE": 80, "BLASTER_WEAPON": 60, "CANNON_WEAPON": 90,
+                "TRACKING_SYSTEM": 30, "ANTIMISSILE_DEFENSE": 45}
+
+
+def outfit_scenarios():
+    """Starts and key sequences for outfitting and the shipyard's crew:
+    each rule DoInstallModule, ChangeFuelQuantity and DMS_ModifyCrew have,
+    on purpose, then long seeded random walks over the menus."""
+    import random
+    base = talk_ship(ru=20000)
+    out = []
+
+    def add(name, steps, ship=None, state=None, costs=None, fuel_cost=20, crew_cost=3, shofixti=False):
+        out.append({"name": name, "ship": ship or base, "state": state or {}, "costs": costs or {},
+                    "fuel_cost": fuel_cost, "crew_cost": crew_cost, "shofixti": shofixti,
+                    "steps": steps.split()})
+
+    def ship(**kw):
+        return talk_ship(**{"ru": 20000, **kw})
+
+    # The menu and the fuel.
+    add("menu", "outfit d d d d d u u u s d d s")
+    add("menu-cancel", "outfit c")
+    add("fuel", "outfit s u u u pu pu d pd pd pd s u c c", ship(fuel=1050))
+    add("fuel-rounding-down", "outfit s u c c", ship(fuel=1049))
+    add("fuel-drain", "outfit s " + "pd " * 3 + "d " * 4 + "pu u s c", ship(fuel=650))
+    add("fuel-full", "outfit s u pu pd u c c", ship(fuel=5950))
+    add("fuel-poor", "outfit s u u u pu d pu c c", ship(ru=50, fuel=1000))
+    add("fuel-dear", "outfit s pu pu c c", ship(ru=1000, fuel=1000), fuel_cost=37)
+    add("fuel-other-keys", "outfit s l r s c", ship(fuel=1000))
+    add("fuel-two-tanks", "outfit s " + "pu " * 12 + "c c",
+        ship(modules=["FUEL_TANK", "FUEL_TANK", "CREW_POD"] + ["EMPTY"] * 5 + ["STORAGE_BAY"] + ["EMPTY"] * 6
+             + ["GUN_WEAPON"]))
+    # The modules: buying each, choosing among them, the weapons' slots.
+    add("modules-cycle", "outfit d s s " + "r " * 16 + "l " * 16 + "c c c", costs=ALL_FOR_SALE)
+    add("modules-cycle-front", "outfit d s l s " + "r " * 16 + "c c c", costs=ALL_FOR_SALE)
+    add("modules-buy", "outfit d s s s r s r r s r r r s r r r r s c c", costs=ALL_FOR_SALE)
+    for i, m in enumerate(MODULE_NAMES[3:14]):
+        k = MODULE_NAMES.index(m) - 3
+        add(f"buy-{m.lower()}", f"outfit d s l s {'r ' * k}s c c", costs=ALL_FOR_SALE)
+        add(f"buy-{m.lower()}-middle", f"outfit d s r r r s {'r ' * k}s c c", costs=ALL_FOR_SALE)
+    # The weapons' slots' edges: the modules offered on each slot of an
+    # empty ship.
+    for slot in range(16):
+        add(f"choose-slot-{slot}", f"outfit d s {'r ' * slot}s {'r ' * 14}{'l ' * 14}c c c",
+            ship(modules=["EMPTY"] * 16), costs=ALL_FOR_SALE)
+    add("buy-too-dear", "outfit d s s s r s c c c", ship(ru=1999))
+    add("buy-exactly", "outfit d s s s c c", ship(ru=2000))
+    add("sell-gun", "outfit d s l s c c")
+    add("sell-and-buy-back", "outfit d s l s s l l s c c", ship(ru=0))
+    # Selling what's needed.
+    add("sell-crew-pod-needed", "outfit d s r r s c c")
+    add("sell-crew-pod-room", "outfit d s r r s c c", ship(crew=50, modules=["CREW_POD", "FUEL_TANK", "CREW_POD"]
+                                                           + ["EMPTY"] * 13))
+    add("sell-crew-pod-51", "outfit d s r r s c c", ship(crew=51, modules=["CREW_POD", "FUEL_TANK", "CREW_POD"]
+                                                         + ["EMPTY"] * 13))
+    add("sell-crew-pod-empty", "outfit d s r r s c c", ship(crew=0))
+    add("sell-fuel-tank", "outfit d s r s c c", ship(fuel=1000))
+    add("sell-fuel-tank-needed", "outfit d s r s c c", ship(fuel=1100))
+    add("sell-fuel-tank-second", "outfit d s r s c c", ship(fuel=6000, modules=["FUEL_TANK", "FUEL_TANK"]
+                                                            + ["EMPTY"] * 14))
+    add("sell-fuel-tank-second-needed", "outfit d s r s c c", ship(fuel=6100, modules=["FUEL_TANK", "FUEL_TANK"]
+                                                                   + ["EMPTY"] * 14))
+    add("sell-heff-tank", "outfit d s r s c c", ship(fuel=6000, modules=["FUEL_TANK", "HIGHEFF_FUELSYS"]
+                                                     + ["EMPTY"] * 14), costs=ALL_FOR_SALE)
+    add("sell-heff-tank-needed", "outfit d s r s c c", ship(fuel=6100, modules=["FUEL_TANK", "HIGHEFF_FUELSYS"]
+                                                            + ["EMPTY"] * 14), costs=ALL_FOR_SALE)
+    elements = [0] * 8
+    elements[0] = 500
+    add("sell-storage-bay", "outfit d s " + "r " * 8 + "s c c", ship(elements=elements))
+    add("sell-storage-bay-empty", "outfit d s " + "r " * 8 + "s c c")
+    add("sell-storage-bay-second", "outfit d s " + "r " * 8 + "s c c",
+        ship(elements=elements, modules=["EMPTY"] * 8 + ["STORAGE_BAY", "STORAGE_BAY"] + ["EMPTY"] * 6))
+    elements = [0] * 8
+    elements[7] = 501
+    add("sell-storage-bay-second-needed", "outfit d s " + "r " * 8 + "s c c",
+        ship(elements=elements, modules=["EMPTY"] * 8 + ["STORAGE_BAY", "STORAGE_BAY"] + ["EMPTY"] * 6))
+    # The drives, the jets and the landers.
+    add("drives", "outfit d s u u s s r s r s l l l s s c c c")
+    add("drives-all", "outfit d s u u " + "s s r " * 11 + "c c", ship(ru=100000))
+    add("jets", "outfit d s u s s s r s c c")
+    add("jets-wrap", "outfit d s u " + "l " * 9 + "r " * 9 + "c c")
+    add("rows", "outfit d s u u u u u d d d d d d c c")
+    add("landers", "outfit d s d s s s r s r s c c c")
+    add("landers-buy-all", "outfit d s d " + "r s s " * 10 + "c c", ship(ru=100000))
+    add("landers-poor", "outfit d s d r s s c c c", ship(ru=499))
+    add("landers-none", "outfit d s d s s s c c", ship(landers=0))
+    add("landers-ten", "outfit d s d " + "l " * 3 + "s s c c", ship(landers=10))
+    # The Chmmr's bomb in: its slots and no landers.
+    bomb = ["BOMB_MODULE_0", "BOMB_MODULE_1", "BOMB_MODULE_2", "BOMB_MODULE_3", "BOMB_MODULE_4",
+            "BOMB_MODULE_5", "BOMB_MODULE_0", "BOMB_MODULE_1", "BOMB_MODULE_2", "BOMB_MODULE_3",
+            "EMPTY", "CREW_POD", "FUEL_TANK", "STORAGE_BAY", "EMPTY", "GUN_WEAPON"]
+    add("bomb", "outfit d s l l l l l l l r r r r r r r d d d u u u u s s s c c c", ship(modules=bomb),
+        {"CHMMR_BOMB_STATE": 3})
+    add("bomb-not-yet", "outfit d s d d u u c c", ship(modules=bomb), {"CHMMR_BOMB_STATE": 2})
+    # The shipyard's crew: room, the wallet, the price's threshold, the Shofixti.
+    add("crew-hire", "hire " * 6 + "dismiss", ship(crew=45))
+    add("crew-poor", "hire hire hire", ship(crew=10, ru=5))
+    add("crew-dismiss", "dismiss " * 4 + "hire", ship(crew=2, ru=0))
+    add("crew-threshold", "hire hire hire dismiss dismiss dismiss dismiss", ship(crew=10),
+        {"CREW_PURCHASED0": 998 & 0xFF, "CREW_PURCHASED1": 998 >> 8})
+    add("crew-threshold-shofixti", "hire hire hire dismiss dismiss", ship(crew=10),
+        {"CREW_PURCHASED0": 998 & 0xFF, "CREW_PURCHASED1": 998 >> 8}, shofixti=True)
+    add("crew-no-pods", "hire dismiss", ship(crew=0, modules=["EMPTY"] * 16))
+    add("crew-bought-none", "dismiss dismiss", ship(crew=5))
+    add("crew-then-outfit", "hire hire outfit d s r r s c c dismiss", ship(crew=48))
+
+    # Seeded random walks over the menus, on ships of every kind; a walk
+    # that leaves outfitting opens it again (the recorder puts "outfit" in).
+    keys = ["u", "d", "l", "r", "s", "c", "pu", "pd", "s", "r", "d"]
+    ships = [ship(), ship(ru=3000, fuel=1234), ship(ru=500, crew=0, landers=0),
+             ship(ru=100000, modules=["CREW_POD"] * 4 + ["STORAGE_BAY"] * 4 + ["FUEL_TANK"] * 4 + ["EMPTY"] * 4),
+             ship(ru=100000, elements=[100] * 8, drives=list(range(11)), jets=list(range(8)))]
+    for seed in range(40):
+        rnd = random.Random(seed)
+        steps = ["outfit"] + [rnd.choice(keys) for _ in range(250)]
+        if seed % 4 == 3:
+            steps[100:100] = ["hire", "hire", "dismiss"]
+        add(f"walk-{seed}", " ".join(steps), ships[seed % len(ships)],
+            {"CHMMR_BOMB_STATE": 3} if seed % 10 == 9 else {},
+            ALL_FOR_SALE if seed % 2 else {}, fuel_cost=20 + seed % 3, crew_cost=3 + seed % 2)
+    return out
+
+
+def run_outfit(exe, scenario, fields, state_bytes, prices):
+    """Runs one scenario; a key after outfitting was left gets
+    "outfit" put before it. Returns the scenario's steps as run and their
+    lines."""
+    state = bytearray(state_bytes)
+    for name, value in scenario["state"].items():
+        f = fields[name]
+        for i in range(f["bits"]):
+            if value >> i & 1:
+                state[(f["start_bit"] + i) >> 3] |= 1 << ((f["start_bit"] + i) & 7)
+    costs = {**prices["module_cost"], **scenario["costs"]}
+    ship = scenario["ship"]
+    head = "\n".join([
+        state.hex(),
+        " ".join(str(costs.get(m, 0)) for m in MODULE_NAMES) + f" {scenario['fuel_cost']} {scenario['crew_cost']}",
+        " ".join(map(str, [ship["crew"], ship["fuel"], ship["landers"], ship["ru"], *ship["elements"],
+                           *(MODULES[m] if m in MODULES else 14 + int(m[-1]) for m in ship["modules"]),
+                           *(MODULES["FUSION_THRUSTER"] if i in ship["drives"] else EMPTY_DRIVE
+                             for i in range(11)),
+                           *(MODULES["TURNING_JETS"] if i in ship["jets"] else EMPTY_JET for i in range(8))])),
+        "1" if scenario["shofixti"] else "2"])
+    steps = list(scenario["steps"])
+    while True:
+        out = subprocess.run([exe], input=head + "\n" + " ".join(steps) + "\n", capture_output=True, text=True)
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        open_ = False
+        for x in lines[:-1]:
+            open_ = (open_ or x["step"] == "outfit") and not x["left"]
+        if out.returncode == 1 and lines and "error" in lines[-1] and not open_:
+            steps.insert(len(lines) - 1, "outfit")
+            continue
+        if out.returncode or any("error" in x for x in lines):
+            raise RuntimeError(f"outfit {scenario['name']}: {out.stdout[-300:]}{out.stderr}")
+        return steps, lines
+
+
+def record_outfit(uqm, exe):
+    """Outfitting and the shipyard's crew, as UQM's own outfit.c and
+    shipyard.c run them (golden/outfit.c), key by key."""
+    with open(os.path.join(REPO, "data", "game-state.json")) as f:
+        game_state = json.load(f)
+    fields = {s["name"]: s for s in game_state["states"]}
+    state_bytes = (game_state["total_bits"] + 7) >> 3
+    with open(os.path.join(REPO, "data", "new-game.json")) as f:
+        prices = json.load(f)["prices"]
+    scenarios = []
+    for scenario in outfit_scenarios():
+        steps, lines = run_outfit(exe, scenario, fields, state_bytes, prices)
+        # The slots only where they change (and on the first step).
+        last = {}
+        for x in lines:
+            for k in ("modules", "drives", "jets"):
+                if last.get(k) == x[k]:
+                    del x[k]
+                else:
+                    last[k] = x[k]
+            del x["step"]
+        scenarios.append({**scenario, "steps": steps, "results": lines})
+    data = header(uqm, ["tools/extract/golden/outfit.c", "src/uqm/outfit.c", "src/uqm/shipyard.c",
+                        "src/uqm/sis.c", "src/uqm/menu.c"], [
+        "Outfitting and the shipyard's crew, recorded by running UQM 0.8.0's "
+        "own DoOutfit, DoInstallModule and ChangeFuelQuantity (outfit.c) and "
+        "DMS_ModifyCrew and CrewTransaction (shipyard.c) with sis.c and "
+        "menu.c, the drawing stubbed (tools/extract/golden/outfit.c). Code "
+        "only, no content.",
+        "Each scenario: a story state (fields not given are 0), the module "
+        "costs where not a new game's (before MODULE_COST_SCALE), FuelCost, "
+        "CrewCost, whether the Shofixti are allied, a flagship as in "
+        "talks.json, and its steps: outfit opens outfitting; u, d, l, r, s, "
+        "c, pu and pd are keys (up, down, left, right, select, cancel, page "
+        "up and down); hire and dismiss the shipyard's up and down on the "
+        "flagship's crew. results: after each step, whether it was refused "
+        "(MENU_SOUND_FAILURE), whether outfitting was left, the cursor "
+        "(CurState and delta_item: UQM's numbers), the ship (crew, fuel in "
+        "1/100 units, landers, resource units), its module, drive and jet "
+        "slots (sis.h's numbers; each only where it changed, and after the "
+        "first step), and the crew price and crew bought.",
+    ])
+    data["scenarios"] = scenarios
+    return data
+
+
 def record_binary_tables(uqm, exe, package):
     """Every BINTAB resource in the official content package, as UQM's own
     _GetBinaryTableData reads it. Content, so only lengths and hashes."""
@@ -2616,6 +2835,8 @@ def main():
             build(uqm, os.path.join(HERE, "golden", "fonts.c"), FONTS_LINK,
                   fonts, extra=[SDL_STANDIN], libs=["-lpng"],
                   includes=[SDL_INCLUDE])
+        outfit = os.path.join(build_dir, "outfit")
+        build(uqm, OUTFIT_PROGRAM, OUTFIT_LINK, outfit, extra=[OUTFIT_STUBS], libs=["-lm"])
         strings = os.path.join(build_dir, "strings")
         build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
               strings, extra=[UIO_FILES], libs=["-lm"])   # the name index's hash table: ceil, floor
@@ -2631,6 +2852,7 @@ def main():
                            *record_planet_surfaces(uqm, systems, strings, images, args.content).items(),
                            *record_planetside(uqm, systems, strings, images, args.content).items(),
                            ("landing", record_landing(uqm, systems)),
+                           ("outfit", record_outfit(uqm, outfit)),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("conversation-cases", record_conversation_cases(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),

@@ -55,6 +55,9 @@
     },
     "opening": {
       "weight": 4
+    },
+    "starbase": {
+      "weight": 3
     }
   }
 }

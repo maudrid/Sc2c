@@ -274,6 +274,18 @@ public sealed class StoryState
         }
     }
 
+    /// <summary>Sets the fuel price (FuelCost; UQM never changes it after the start).</summary>
+    public void SetFuelCost(int cost)
+    {
+        if (cost < 1 || cost > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(cost), "the fuel cost is a COUNT, and not 0 (ChangeFuelQuantity divides by it)");
+        if (FuelCost != cost)
+        {
+            FuelCost = cost;
+            ++Version;
+        }
+    }
+
     /// <summary>Sets the crew price (gameev.c's SHOFIXTI_RETURN_EVENT lowers it too).</summary>
     public void SetCrewCost(int cost)
     {

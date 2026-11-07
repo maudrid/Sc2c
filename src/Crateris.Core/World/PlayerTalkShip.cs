@@ -68,11 +68,11 @@ internal sealed class PlayerTalkShip : ITalkShip
 
     public IList<int> Minerals => _minerals;
 
-    public int Thrusters => _player.Ship.Loadout.Thrusters;
+    public int Thrusters => _player.Ship.Modules.Thrusters;
 
-    public int Jets => _player.Ship.Loadout.Jets;
+    public int Jets => _player.Ship.Modules.Jets;
 
-    public IReadOnlyList<string?> ModuleSlots => _player.Ship.ModuleSlots;
+    public IReadOnlyList<string?> ModuleSlots => _player.Ship.Modules.ModuleNames;
 
     public int EscortsWorth => 0;
 

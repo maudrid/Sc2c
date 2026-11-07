@@ -88,14 +88,22 @@ public sealed class ShipHold
     private HoldSnapshot? _snapshot;
     private LanderUpgrades _upgrades;
 
-    public ShipHold(ShipLoadout loadout)
+    /// <param name="modules">The ship's slots, which give the capacities as they change; else the loadout's.</param>
+    public ShipHold(ShipLoadout loadout, ShipModules? modules = null)
     {
         Check(loadout);
         Crew = loadout.Crew;
         Landers = loadout.Landers;
-        StorageCapacity = loadout.StorageBays * StorageBayCapacity;
-        CrewCapacity = loadout.CrewCapacity;
+        _modules = modules;
+        _storageCapacity = loadout.StorageBays * StorageBayCapacity;
+        _crewCapacity = loadout.CrewCapacity;
     }
+
+    private readonly ShipModules? _modules;
+    private readonly int _storageCapacity, _crewCapacity;
+
+    /// <summary>The ship's slots changed: the snapshot is made again.</summary>
+    internal void Refitted() => _snapshot = null;
 
     /// <summary>A loadout a hold can start from: 0 to 10 landers, no negative crew or storage bays (ArgumentException).</summary>
     public static void Check(ShipLoadout loadout)
@@ -129,10 +137,10 @@ public sealed class ShipHold
     }
 
     /// <summary>The minerals the storage bays hold (GetStorageBayCapacity).</summary>
-    public int StorageCapacity { get; }
+    public int StorageCapacity => _modules?.StorageCapacity ?? _storageCapacity;
 
     /// <summary>The crew the ship holds (GetCrewPodCapacity).</summary>
-    public int CrewCapacity { get; }
+    public int CrewCapacity => _modules?.CrewCapacity ?? _crewCapacity;
 
     /// <summary>The player's resource units (ResUnits): their wallet.</summary>
     public uint ResourceUnits

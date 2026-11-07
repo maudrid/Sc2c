@@ -533,6 +533,8 @@ public class OpeningTests
         Assert.Equal(50, loaded.Host.Ship.Hold.CrewCapacity);
         var old = System.Text.Json.Nodes.JsonNode.Parse(json)!;
         old["version"] = 7;
+        foreach (var slots in old["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes));
         old["commander_met"] = false;
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes));
@@ -546,6 +548,8 @@ public class OpeningTests
         var world = WithTalks(guest: true);
         var old = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
         old["version"] = 7;
+        foreach (var slots in old["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         foreach (var p in old["players"]!.AsArray())
             p!["loadout"]!.AsObject().Remove("crew_capacity");
         old["settings"]!["escort_loadout"]!.AsObject().Remove("crew_capacity");

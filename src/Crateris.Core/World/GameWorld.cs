@@ -248,7 +248,7 @@ public sealed class GameWorld
         if (hostShip.Ip is { } hostIp)
         {
             ship.SystemStar = hostShip.SystemStar;
-            ship.Ip = hostIp.JoinAt(ship.Loadout.Thrusters, ship.Loadout.Jets);
+            ship.Ip = hostIp.JoinAt(ship.Modules.Thrusters, ship.Modules.Jets);
             // While the flagship's entry into the star plays, the escort
             // goes in with it: it waits, following the flagship's entry
             // (only the flagship's is drawn), and both arrive when it ends.
@@ -601,7 +601,7 @@ public sealed class GameWorld
         ship.Flight.Stop();
         ship.SystemStar = star.Number;
         ship.Ip = new IpFlight(Systems![star.Number], SystemTransition.Arrive(star),
-            ship.Loadout.Thrusters, ship.Loadout.Jets, Shapes!);
+            ship.Modules.Thrusters, ship.Modules.Jets, Shapes!);
     }
 
     private static void LeaveOrbit(PlayerShip ship) => ship.Ip!.ReturnFromOrbit();

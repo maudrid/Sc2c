@@ -46,9 +46,13 @@ public static class HostSave
     /// with either is refused. A save made during a visit to the starbase
     /// is of the game without the visit: the story fields its talks wrote,
     /// the starter's hold and fuel and the date as before it (UQM can't
-    /// save during one); what other players did meanwhile is kept.
+    /// save during one); what other players did meanwhile is kept. 9 added
+    /// each ship's slots (PlayerState.Modules: the drive, jet and module
+    /// slots outfitting changes, and the crew its kit holds); a ship from
+    /// an older save has its loadout's (ShipModules.FromLoadout), and an
+    /// older save with slots is refused.
     /// </summary>
-    public const int Version = 8;
+    public const int Version = 9;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -79,7 +83,7 @@ public static class HostSave
     public sealed record PlayerState(
         string Id, string Name, bool IsHost, ShipKind Kind, ShipLoadout Loadout, bool UndockPending,
         FlightState Flight, int? SystemStar = null, IpFlightState? System = null, HoldState? Hold = null,
-        string? ShipName = null, string? CaptainName = null);
+        string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null);
 
     public static string ToJson(GameWorld world)
     {
@@ -100,7 +104,7 @@ public static class HostSave
                 // A lander on a surface is saved as back aboard with its crew and cargo.
                 starter ? visit!.HoldBefore
                 : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save(),
-                p.Ship.Name, p.CaptainName);
+                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save());
         }).ToList();
         var c = world.Clock;
         var worlds = world.Planets.Worlds
@@ -138,6 +142,8 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have ship or captain names.");
         if (save.Version < 8 && (save.CommanderMet || (save.Players ?? new()).Any(p => p.Hold?.ResourceUnits > 0)))
             throw new InvalidDataException($"A version {save.Version} save can't have resource units or have met the commander.");
+        if (save.Version < 9 && (save.Players ?? new()).Any(p => p.Modules is not null))
+            throw new InvalidDataException($"A version {save.Version} save can't have ship slots.");
         // A setting a save leaves out, or gives as null, is the default.
         var settings = save.Settings ?? throw new InvalidDataException("The save has no settings.");
         if (settings.EscortShipName is null)
@@ -168,7 +174,7 @@ public static class HostSave
                 var loadout = save.Version < 8 && ps.Kind == ShipKind.Escort
                     ? ps.Loadout with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity }
                     : ps.Loadout;
-                ship = new PlayerShip(ps.Kind, loadout);
+                ship = new PlayerShip(ps.Kind, loadout, ps.Modules is { } m ? ShipModules.Restore(m) : null);
                 if (ps.Hold is { } h)
                     ship.Hold.Restore(h);
             }
@@ -212,7 +218,7 @@ public static class HostSave
                 if (systemStar < 0 || systemStar >= StarMap.SolarSystemCount || ps.System is null)
                     throw new InvalidDataException($"Player {ps.Id}: bad system {systemStar}.");
                 ship.SystemStar = systemStar;
-                ship.Ip = IpFlight.Restore(systems[systemStar], ps.System, ps.Loadout.Thrusters, ps.Loadout.Jets, shapes!);
+                ship.Ip = IpFlight.Restore(systems[systemStar], ps.System, ship.Modules.Thrusters, ship.Modules.Jets, shapes!);
                 ship.Ip.Stop();
                 if (ship.Ip.OrbitData is { Entered: false })
                     throw new InvalidDataException($"Player {ps.Id}: in orbit around a world that can't be orbited.");

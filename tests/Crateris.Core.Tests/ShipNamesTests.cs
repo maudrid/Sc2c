@@ -177,6 +177,8 @@ public class ShipNamesTests
 
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["version"] = 6;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         foreach (var p in node["players"]!.AsArray())
         {
             p!.AsObject().Remove("ship_name");
@@ -195,6 +197,8 @@ public class ShipNamesTests
         // An older save can't have names.
         node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["version"] = 6;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString()));
     }
 
@@ -206,6 +210,8 @@ public class ShipNamesTests
         // An older save with no name for its escort, and the setting null.
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["version"] = 6;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         foreach (var p in node["players"]!.AsArray())
         {
             p!.AsObject().Remove("ship_name");

@@ -93,8 +93,15 @@ public sealed class IpFlight
 
     public byte TurnCounter { get; private set; }
     public byte ThrustCounter { get; private set; }
-    public byte MaxSpeed { get; }
-    public byte TurnWait { get; }
+    public byte MaxSpeed { get; private set; }
+    public byte TurnWait { get; private set; }
+
+    /// <summary>The ship's thrusters and jets changed (outfitting): its top speed and turning.</summary>
+    public void Refit(int thrusters, int jets)
+    {
+        MaxSpeed = (byte)((thrusters + 5) * ThrustIncrement);
+        TurnWait = (byte)(TurnWaitBase - TurnDecrement * jets);
+    }
 
     /// <summary>After <see cref="IpEvent.EnteredOrbit"/>: the world orbited (moon null for the planet itself).</summary>
     public (int Planet, int? Moon)? Orbit

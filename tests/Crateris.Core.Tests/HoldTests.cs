@@ -161,6 +161,8 @@ public class HoldTests
         var world = NewWorld();
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["version"] = 4;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         node.AsObject().Remove("story");   // older saves have none
         foreach (var p in node["players"]!.AsArray())
         {

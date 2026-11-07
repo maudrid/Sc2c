@@ -352,6 +352,8 @@ public class StoryStateTests
         // save's day, so the Arilou's date, already past, isn't queued.
         var node = JsonNode.Parse(json)!;
         node["version"] = 5;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         node.AsObject().Remove("story");
         node["clock"]!["year"] = 2157;
         node["clock"]!["month"] = 2;

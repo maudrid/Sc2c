@@ -115,6 +115,8 @@ public class PlanetWorldStateTests
         var world = NewWorld();
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["version"] = 2;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         node.AsObject().Remove("story");   // older saves have none
         node.AsObject().Remove("worlds");
         var loaded = HostSave.FromJson(node.ToJsonString());
@@ -140,6 +142,8 @@ public class PlanetWorldStateTests
         world.Planets.SetRetrieved(Luna, ScanType.Mineral, 1);
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["version"] = 3;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         node.AsObject().Remove("story");   // older saves have none
         foreach (var w in node["worlds"]!.AsArray())
             w!["scanned"] = 5;

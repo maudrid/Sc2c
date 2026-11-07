@@ -27,7 +27,7 @@ public enum OrbitMenuItem
 }
 
 /// <summary>The menu keys (UQM's KEY_MENU_*).</summary>
-public enum MenuKey { Up, Down, Left, Right, Select, Cancel }
+public enum MenuKey { Up, Down, Left, Right, Select, Cancel, PageUp, PageDown }
 
 /// <summary>What a key did.</summary>
 public enum MenuOutcome

@@ -77,6 +77,8 @@ public class GameWorldTests
         var node = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
         Assert.Equal(HostSave.Version, (int)node["version"]!);
         node["version"] = 1;
+        foreach (var slots in node["players"]!.AsArray())
+            slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         node.AsObject().Remove("story");   // older saves have none
         foreach (var p in node["players"]!.AsArray())
             p!["flight"]!.AsObject().Remove("star_just_left");
