@@ -13,26 +13,25 @@ namespace Crateris.Core.Comm;
 /// <summary>
 /// The dialogue lock (docs/differences.md row 17): an ordinary
 /// conversation is one player's at a time per alien race, so two players
-/// can't change one race's state at once. A conversation's race is the one
-/// whose ships use it (RACE_COMMUNICATION, data/races.json), with the
-/// conversations no ship uses given to their race: the Yehat rebels' to
-/// the Yehat, the Ur-Quan drone's to the Ur-Quan, the Slylandro homeworld's
-/// to the Slylandro, the starbase commander's to the humans; the Syreen's
-/// and the Talking Pet's are their own. A lock is let go when its talk
-/// ends or its player leaves. Story talks don't take it: they pause the
-/// game for everyone (row 2). Not saved: talks aren't.
+/// can't change one race's state at once. A conversation's race is UQM's
+/// own (RACE_SHIP_FOR_COMM, data/races.json's conversation_races): so the
+/// Yehat rebels lock with the Yehat, the Slylandro homeworld with the
+/// Slylandro, the Talking Pet with the Umgah, the starbase commander as
+/// the humans. One change: the Ur-Quan drone locks with the Ur-Quan, as
+/// InitCommunication runs the drone's talk with the Ur-Quan's script and
+/// story. A lock is let go when its talk ends or its player leaves; a
+/// player is in one talk at a time, so taking a lock twice is still one.
+/// Story talks don't take it: they pause the game for everyone (row 2),
+/// and one won't start while another player holds that race's lock (the
+/// talks that take locks come with item 8 and 3b, which check it). Not
+/// saved: talks aren't.
 /// </summary>
 public sealed class DialogueLocks
 {
-    // The conversations whose race isn't the one using them (or no race uses).
-    private static readonly Dictionary<string, string> Aliases = new()
+    /// <summary>The one deliberate change to UQM's races: the drone talks as the Ur-Quan.</summary>
+    private static readonly Dictionary<string, string> Changes = new()
     {
-        ["YEHAT_REBEL_CONVERSATION"] = "YEHAT_SHIP",
         ["URQUAN_DRONE_CONVERSATION"] = "URQUAN_SHIP",
-        ["SLYLANDRO_HOME_CONVERSATION"] = "SLYLANDRO_SHIP",
-        ["COMMANDER_CONVERSATION"] = "HUMAN_SHIP",
-        ["SYREEN_CONVERSATION"] = "SYREEN_SHIP",
-        ["TALKING_PET_CONVERSATION"] = "TALKING_PET",
     };
 
     private readonly IReadOnlyDictionary<string, string> _raceOf;
@@ -40,21 +39,21 @@ public sealed class DialogueLocks
 
     public DialogueLocks(IReadOnlyDictionary<string, string> raceOf) => _raceOf = raceOf;
 
-    /// <summary>Each conversation id's race, from data/races.json and the aliases above.</summary>
+    /// <summary>Each conversation id's race, from data/races.json (INVALID_CONVERSATION isn't one).</summary>
     public static DialogueLocks Load(string dataDirectory)
     {
         using var races = JsonDocument.Parse(File.ReadAllText(Path.Combine(dataDirectory, "races.json")));
-        var raceOf = new Dictionary<string, string>(Aliases);
-        foreach (var r in races.RootElement.GetProperty("races").EnumerateArray())
+        var raceOf = new Dictionary<string, string>();
+        foreach (var c in races.RootElement.GetProperty("conversation_races").EnumerateArray())
         {
-            string conversation = r.GetProperty("conversation").GetString()!;
-            if (conversation != "INVALID_CONVERSATION" && !Aliases.ContainsKey(conversation))
-                raceOf.TryAdd(conversation, r.GetProperty("race").GetString()!);
+            string conversation = c.GetProperty("conversation").GetString()!;
+            if (conversation != "INVALID_CONVERSATION")
+                raceOf[conversation] = Changes.GetValueOrDefault(conversation) ?? c.GetProperty("race").GetString()!;
         }
         return new DialogueLocks(raceOf);
     }
 
-    /// <summary>The race a conversation is locked by.</summary>
+    /// <summary>The race a conversation is locked by (KeyNotFoundException for an id that isn't a conversation).</summary>
     public string RaceOf(string conversation) =>
         _raceOf.TryGetValue(conversation, out var race) ? race : throw new KeyNotFoundException($"no race for {conversation}");
 

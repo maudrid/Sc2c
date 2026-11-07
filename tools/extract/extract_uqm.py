@@ -645,7 +645,20 @@ def extract_races(uqm):
         if i < len(comm):
             entry["conversation"] = comm[i]
         out.append(entry)
-    return wrap(uqm, ["src/uqm/races.h"], {"races": out}, [
+    # RACE_SHIP_FOR_COMM: each CONVERSATION id's race, in commglue.h's
+    # enum order (InitCommunication's commToShip).
+    glue = uqm.read("src/uqm/commglue.h")
+    conversations = enum_names(glue, "ARILOU_CONVERSATION", skip_aliases=False)
+    ship_for_comm = macro_list(races_h, "RACE_SHIP_FOR_COMM")
+    if len(ship_for_comm) != len(conversations):
+        raise RuntimeError(f"RACE_SHIP_FOR_COMM has {len(ship_for_comm)} entries for "
+                           f"{len(conversations)} conversations")
+    unknown = [r for r in ship_for_comm if r not in race_names]
+    if unknown:
+        raise RuntimeError(f"RACE_SHIP_FOR_COMM names races that aren't: {unknown}")
+    by_conversation = [{"conversation": c, "race": r} for c, r in zip(conversations, ship_for_comm)]
+    return wrap(uqm, ["src/uqm/races.h", "src/uqm/commglue.h"],
+                {"races": out, "conversation_races": by_conversation}, [
         "Order is the *_SHIP enum, which is the order of avail_race_q "
         "(FLEET_INFO, one per race in the game).",
         "ship_cost (RACE_SHIP_COST) is used for battle salvage: cost / 8 "
@@ -655,6 +668,9 @@ def extract_races(uqm):
         "solar systems (ipdisp.c).",
         "conversation (RACE_COMMUNICATION) is the CONVERSATION id used "
         "when meeting this race.",
+        "conversation_races (RACE_SHIP_FOR_COMM) gives each CONVERSATION id "
+        "(commglue.h's enum, INVALID_CONVERSATION last) the race it's "
+        "with, as InitCommunication reads it.",
     ])
 
 

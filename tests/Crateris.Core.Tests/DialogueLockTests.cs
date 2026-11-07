@@ -32,6 +32,9 @@ public class DialogueLockTests
         Assert.Equal(locks.RaceOf("URQUAN_CONVERSATION"), locks.RaceOf("URQUAN_DRONE_CONVERSATION"));
         Assert.Equal(locks.RaceOf("SLYLANDRO_CONVERSATION"), locks.RaceOf("SLYLANDRO_HOME_CONVERSATION"));
         Assert.Equal("HUMAN_SHIP", locks.RaceOf("COMMANDER_CONVERSATION"));
+        Assert.Equal("UMGAH_SHIP", locks.RaceOf("TALKING_PET_CONVERSATION"));   // the Dnyarri's talk is the Umgah's story
+        Assert.Equal("SYREEN_SHIP", locks.RaceOf("SYREEN_CONVERSATION"));
+        Assert.Throws<KeyNotFoundException>(() => locks.TryTake("NO_SUCH_CONVERSATION", "a", out _));
         Assert.NotEqual(locks.RaceOf("URQUAN_CONVERSATION"), locks.RaceOf("BLACKURQ_CONVERSATION"));   // the Kohr-Ah are their own
         Assert.Throws<KeyNotFoundException>(() => locks.RaceOf("INVALID_CONVERSATION"));
         // The Spathi's one id runs both its scripts (init_race): one lock.
@@ -70,5 +73,24 @@ public class DialogueLockTests
         world.Leave("guest");
         Assert.Null(world.DialogueLocks.Holder("COMMANDER_CONVERSATION"));
         Assert.Equal("host", world.DialogueLocks.Holder("ORZ_CONVERSATION"));
+    }
+
+    [ContentFact]
+    public void AStoryVisitWaitsWhileAnotherPlayerTalksToTheCommander()
+    {
+        var systems = Systems.SystemCatalog.Load(DataDir);
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host",
+            systems, TestContent.Shapes);
+        world.TalkLibrary = TestContent.With(p => TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
+        world.DialogueLocks = DialogueLocks.Load(DataDir);
+        Assert.Equal(JoinResult.Joined, world.Join("guest", "Guest"));
+        world.PutInOrbit("host", 82, 2, 1);
+        world.Host.Ship.Ip!.ReturnFromOrbit();
+        Assert.True(world.DialogueLocks.TryTake("COMMANDER_CONVERSATION", "guest", out _));
+        world.VisitStarbase(world.Host);
+        Assert.Null(world.Visit);
+        world.DialogueLocks.Release("COMMANDER_CONVERSATION", "guest");
+        world.VisitStarbase(world.Host);
+        Assert.NotNull(world.Visit);
     }
 }

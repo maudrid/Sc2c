@@ -158,7 +158,7 @@ Includes the flagship (`sis_ship`; its real stats come from installed modules), 
 
 ### `races.json`: per-race tables
 
-From `races.h`: the `*_SHIP` enum (the order of `avail_race_q`, one `FLEET_INFO` per race), `RACE_SHIP_COST` (battle salvage is cost / 8 per enemy ship destroyed), `RACE_IP_SPEED` (speed in solar systems) and `RACE_COMMUNICATION` (which conversation a race uses). 23 races have a cost; the last entry (drone/Sa-Matra) has only a speed and a conversation. The extractor checks the table lengths against the race list.
+From `races.h`: the `*_SHIP` enum (the order of `avail_race_q`, one `FLEET_INFO` per race), `RACE_SHIP_COST` (battle salvage is cost / 8 per enemy ship destroyed), `RACE_IP_SPEED` (speed in solar systems) and `RACE_COMMUNICATION` (which conversation a race uses). 23 races have a cost; the last entry (drone/Sa-Matra) has only a speed and a conversation. The extractor checks the table lengths against the race list. `conversation_races` (`RACE_SHIP_FOR_COMM`) gives each `CONVERSATION` id (commglue.h's enum) the race it's with, as `InitCommunication` reads it; the dialogue lock uses it.
 
 ### `game-state.json`: story flags
 

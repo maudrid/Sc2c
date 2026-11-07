@@ -5,14 +5,16 @@
     "branch": "v0.8.0",
     "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
     "files": [
-      "src/uqm/races.h"
+      "src/uqm/races.h",
+      "src/uqm/commglue.h"
     ]
   },
   "_notes": [
     "Order is the *_SHIP enum, which is the order of avail_race_q (FLEET_INFO, one per race in the game).",
     "ship_cost (RACE_SHIP_COST) is used for battle salvage: cost / 8 resource units per enemy ship destroyed (UninitEncounter, encount.c).",
     "ip_speed (RACE_IP_SPEED) is the speed of the race's ships in solar systems (ipdisp.c).",
-    "conversation (RACE_COMMUNICATION) is the CONVERSATION id used when meeting this race."
+    "conversation (RACE_COMMUNICATION) is the CONVERSATION id used when meeting this race.",
+    "conversation_races (RACE_SHIP_FOR_COMM) gives each CONVERSATION id (commglue.h's enum, INVALID_CONVERSATION last) the race it's with, as InitCommunication reads it."
   ],
   "races": [
     {
@@ -157,6 +159,116 @@
       "race": "URQUAN_DRONE_SHIP",
       "ip_speed": 180,
       "conversation": "URQUAN_DRONE_CONVERSATION"
+    }
+  ],
+  "conversation_races": [
+    {
+      "conversation": "ARILOU_CONVERSATION",
+      "race": "ARILOU_SHIP"
+    },
+    {
+      "conversation": "CHMMR_CONVERSATION",
+      "race": "CHMMR_SHIP"
+    },
+    {
+      "conversation": "COMMANDER_CONVERSATION",
+      "race": "HUMAN_SHIP"
+    },
+    {
+      "conversation": "ORZ_CONVERSATION",
+      "race": "ORZ_SHIP"
+    },
+    {
+      "conversation": "PKUNK_CONVERSATION",
+      "race": "PKUNK_SHIP"
+    },
+    {
+      "conversation": "SHOFIXTI_CONVERSATION",
+      "race": "SHOFIXTI_SHIP"
+    },
+    {
+      "conversation": "SPATHI_CONVERSATION",
+      "race": "SPATHI_SHIP"
+    },
+    {
+      "conversation": "SUPOX_CONVERSATION",
+      "race": "SUPOX_SHIP"
+    },
+    {
+      "conversation": "THRADD_CONVERSATION",
+      "race": "THRADDASH_SHIP"
+    },
+    {
+      "conversation": "UTWIG_CONVERSATION",
+      "race": "UTWIG_SHIP"
+    },
+    {
+      "conversation": "VUX_CONVERSATION",
+      "race": "VUX_SHIP"
+    },
+    {
+      "conversation": "YEHAT_CONVERSATION",
+      "race": "YEHAT_SHIP"
+    },
+    {
+      "conversation": "MELNORME_CONVERSATION",
+      "race": "MELNORME_SHIP"
+    },
+    {
+      "conversation": "DRUUGE_CONVERSATION",
+      "race": "DRUUGE_SHIP"
+    },
+    {
+      "conversation": "ILWRATH_CONVERSATION",
+      "race": "ILWRATH_SHIP"
+    },
+    {
+      "conversation": "MYCON_CONVERSATION",
+      "race": "MYCON_SHIP"
+    },
+    {
+      "conversation": "SLYLANDRO_CONVERSATION",
+      "race": "SLYLANDRO_SHIP"
+    },
+    {
+      "conversation": "UMGAH_CONVERSATION",
+      "race": "UMGAH_SHIP"
+    },
+    {
+      "conversation": "URQUAN_CONVERSATION",
+      "race": "URQUAN_SHIP"
+    },
+    {
+      "conversation": "ZOQFOTPIK_CONVERSATION",
+      "race": "ZOQFOTPIK_SHIP"
+    },
+    {
+      "conversation": "SYREEN_CONVERSATION",
+      "race": "SYREEN_SHIP"
+    },
+    {
+      "conversation": "BLACKURQ_CONVERSATION",
+      "race": "BLACK_URQUAN_SHIP"
+    },
+    {
+      "conversation": "TALKING_PET_CONVERSATION",
+      "race": "UMGAH_SHIP"
+    },
+    {
+      "conversation": "SLYLANDRO_HOME_CONVERSATION",
+      "race": "SLYLANDRO_SHIP"
+    },
+    {
+      "conversation": "URQUAN_DRONE_CONVERSATION",
+      "race": "URQUAN_DRONE_SHIP"
+    },
+    {
+      "conversation": "YEHAT_REBEL_CONVERSATION",
+      "race": "YEHAT_SHIP"
+    },
+    {
+      "conversation": "INVALID_CONVERSATION",
+      "race": "HUMAN_SHIP"
     }
   ]
 }

@@ -128,8 +128,8 @@ public sealed class GameWorld
     /// The dialogue locks (stage 3a, item 7): who is in an ordinary talk
     /// with which race. Ordinary talks come with the allied starbase's menu
     /// (item 8) and with ships in space (3b), which take and let go of
-    /// them; a player leaving lets go of theirs here. Null without the
-    /// talks' data.
+    /// them; a player leaving lets go of theirs here. Null when not set
+    /// (the game sets it from data/races.json; some tests don't).
     /// </summary>
     public Comm.DialogueLocks? DialogueLocks { get; set; }
 
@@ -528,6 +528,10 @@ public sealed class GameWorld
     internal void VisitStarbase(Player player)
     {
         if (TalkLibrary is null || Story is null || Visit is not null)
+            return;
+        // Another player talking to the commander (an ordinary talk, from
+        // the starbase's menu): the story waits for them (row 17).
+        if (DialogueLocks?.Holder("COMMANDER_CONVERSATION") is { } holder && holder != player.Id)
             return;
         if (Story.Get("STARBASE_AVAILABLE") != 0 && Story.Get("MOONBASE_ON_SHIP") == 0
                 && Story.Get("CHMMR_BOMB_STATE") != 2)
