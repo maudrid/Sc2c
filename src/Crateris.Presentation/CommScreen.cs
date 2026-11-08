@@ -285,14 +285,18 @@ public sealed class CommScreen
         return _top;
     }
 
-    /// <summary>The bytes a text drawing call draws (its source's from its offset, its count of characters; -1 all).</summary>
-    public static byte[] TextOf(CommTextDraw d, IReadOnlyList<byte[]> texts, byte[] feedbackString)
+    /// <summary>
+    /// The bytes a text drawing call draws (its source's from its offset,
+    /// its count of characters; -1 all). The game strings are
+    /// FEEDBACK_STRING_BASE's: "(In response to your statement)" and MORE.
+    /// </summary>
+    public static byte[] TextOf(CommTextDraw d, IReadOnlyList<byte[]> texts, string feedback = "", string more = "")
     {
         byte[] source = d.Source switch
         {
             -1 => Encoding.UTF8.GetBytes(CommText.Bullet),
-            -2 => Encoding.UTF8.GetBytes(CommText.MiddleDot + "MORE" + CommText.MiddleDot),
-            -3 => feedbackString,
+            -2 => Encoding.UTF8.GetBytes(CommText.MiddleDot + more + CommText.MiddleDot),
+            -3 => Encoding.UTF8.GetBytes(feedback),
             var s => texts[s],
         };
         if (d.Source < 0)

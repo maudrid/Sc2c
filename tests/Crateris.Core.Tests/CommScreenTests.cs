@@ -96,7 +96,7 @@ public class CommScreenTests
             var drawn = screen.Draw(0);
             Assert.All(drawn.Over, o => Assert.Equal(CommTextKind.Traced, o.Kind));
             // The page's lines, one after another, are the page.
-            var text = drawn.Over.SelectMany(o => CommScreen.TextOf(o, drawn.OverTexts, Array.Empty<byte>())).ToArray();
+            var text = drawn.Over.SelectMany(o => CommScreen.TextOf(o, drawn.OverTexts)).ToArray();
             Assert.Equal(Encoding.UTF8.GetString(page).Replace("\n", "").Replace(" ", ""),
                 Encoding.UTF8.GetString(text).Replace(" ", ""));
             // While the lines play, the replies wait: the feedback window, empty.
@@ -111,7 +111,7 @@ public class CommScreenTests
         Assert.Empty(replies.Over);
         var lit = replies.Below.Where(b => b.Kind == CommTextKind.Text && b.Source == 1).ToList();
         Assert.All(lit, b => Assert.Equal(CommText.PlayerHighlight, b.Color));
-        Assert.Equal("Goodbye.", Encoding.UTF8.GetString(CommScreen.TextOf(lit[0], replies.BelowTexts, Array.Empty<byte>())));
+        Assert.Equal("Goodbye.", Encoding.UTF8.GetString(CommScreen.TextOf(lit[0], replies.BelowTexts)));
         // A watcher: none lit.
         Assert.DoesNotContain(screen.Draw(-1).Below, b => b.Color == CommText.PlayerHighlight);
         // The talking stops (through the animation's own steps).

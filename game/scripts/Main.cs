@@ -64,6 +64,7 @@ public partial class Main : Node2D
     private SystemView _systemView = null!;
     private OrbitView _orbitView = null!;
     private PlanetsideView _planetsideView = null!;
+    private CommView _commView = null!;
     private Label _hud = null!;
     private SystemCatalog _systems = null!;
 
@@ -107,6 +108,8 @@ public partial class Main : Node2D
         AddChild(_orbitView);
         _planetsideView = new PlanetsideView(_systems) { Position = systemScreenAt, Visible = false };
         AddChild(_planetsideView);
+        _commView = new CommView { Position = systemScreenAt, Visible = false };
+        AddChild(_commView);
         var layer = new CanvasLayer();
         AddChild(layer);
         // Left of the system screen; long lines wrap.
@@ -226,7 +229,8 @@ public partial class Main : Node2D
             var sheets = new AnimationSheets(content);   // decoded once, for the shapes and the sprites
             _names = Names.Load(content);
             _shapes = ContactShapes.Load(sheets);
-            _talks = TalkLibrary.Load(content, ConversationScripts.Load(_dataDir));
+            var scripts = ConversationScripts.Load(_dataDir);
+            _talks = TalkLibrary.Load(content, scripts);
             foreach (string report in Crateris.Core.Story.StoryWorlds.Reports)
             {
                 var table = StringTable.Load(content, report);
@@ -238,6 +242,7 @@ public partial class Main : Node2D
                 _orbitView.Text = _planetsideView.Text = OrbitScreenText.Load(content);
                 _orbitView.Surfaces = _planetsideView.Surfaces = new PlanetSurfaces(content);
                 _orbitView.Sprites = _planetsideView.Sprites = new PlanetsideSprites(content, sheets);
+                _commView.UseContent(content, sheets, scripts, _names);
             }
         }
         catch (ContentPackageException e)
@@ -738,6 +743,13 @@ public partial class Main : Node2D
         // A held Enter mustn't say one reply after another.
         if (key == MenuKey.Select && k.Echo && _player.Talk is not null)
             return;
+        // The communication screen takes UQM's keys first (skipping the
+        // lines, playing them again, the summary); the replies' are the session's.
+        if (key is MenuKey ck && _player.Screen == PlayerScreen.Comm && _commView.Press(ck) != CommKeyResult.Replies)
+        {
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         if (key is MenuKey mk)
             _player.PressMenu(mk);
     }
@@ -794,6 +806,11 @@ public partial class Main : Node2D
         _systemView.Visible = screen == PlayerScreen.System;
         _orbitView.Visible = screen == PlayerScreen.Orbit;
         _planetsideView.Visible = screen == PlayerScreen.Planetside;
+        _commView.Visible = screen == PlayerScreen.Comm;
+        if (_commView.Visible)
+            _commView.Show(player);
+        else
+            _commView.Close();
         if (_planetsideView.Visible)
             _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)

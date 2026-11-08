@@ -18,7 +18,16 @@ using Crateris.Core.World;
 namespace Crateris.Core.Session;
 
 /// <summary>Which screen the local player sees.</summary>
-public enum PlayerScreen { Hyperspace, System, Orbit, Planetside }
+public enum PlayerScreen
+{
+    Hyperspace,
+    System,
+    Orbit,
+    Planetside,
+
+    /// <summary>The communication screen: a talk this player is in, or watches in a story pause (<see cref="PlayerSession.TalkShown"/>).</summary>
+    Comm,
+}
 
 /// <summary>
 /// The local player's side of a game, the same for the host and a guest,
@@ -293,6 +302,14 @@ public sealed class PlayerSession
 
     /// <summary>Whether the game is paused for a story talk (the host's last snapshot says so).</summary>
     public bool StoryPaused => Snapshot?.StoryPause is not null;
+
+    /// <summary>
+    /// Whether the communication screen shows a talk: this player's own
+    /// (talking, or the commander's from the starbase's menu), or the
+    /// story's that everyone watches while the game waits.
+    /// </summary>
+    public bool TalkShown =>
+        Talk is { Step: not (VisitStep.Menu or VisitStep.Done) } && (Me?.Activity is Activity.Talk or Activity.Starbase || StoryPaused);
 
     /// <summary>Whether this player answers the talk shown (the starter, or who the replies passed to).</summary>
     public bool Replying => Talk is { } t && t.Replier == PlayerId;
@@ -696,6 +713,8 @@ public sealed class PlayerSession
     {
         get
         {
+            if (TalkShown)
+                return PlayerScreen.Comm;
             var me = Me;
             if (me == null || me.Activity == Activity.Hyperspace || Entering)
                 return PlayerScreen.Hyperspace;
@@ -750,16 +769,12 @@ public sealed class PlayerSession
                 string who = Snapshot?.Ships.FirstOrDefault(s => s.Id == talk.Replier)?.Name ?? talk.Replier;
                 lines.Add($"The story's talk: {who} replies; the game waits.");
             }
-            if (talk.Said != "")
-                lines.Add($"(Said: {OneLine(talk.Said)})");
+            // The communication screen shows the talk itself.
             if (talk.Step == VisitStep.TimePassing)
                 lines.Add("Time passes...");
-            foreach (var l in talk.Lines)
-                lines.Add(OneLine(l));
-            for (int i = 0; i < talk.Replies.Count; ++i)
-                lines.Add($"{(Replying && i == ReplyCursor ? ">" : " ")} {talk.Replies[i]}");
-            if (Replying && talk.Replies.Count > 0)
-                lines.Add("Up, down: choose a reply; Enter: say it");
+            lines.Add(Replying && talk.Replies.Count > 0
+                ? "Esc: skip the lines, then the summary; Left: hear them again; Up, down: choose a reply; Enter: say it"
+                : "Esc: skip the lines, then the summary; Left: hear them again");
         }
         else if (Me?.Activity == Activity.Talk)
         {
