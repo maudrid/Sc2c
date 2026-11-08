@@ -59,6 +59,9 @@ public sealed class ColorMaps
         return true;
     }
 
+    /// <summary>One map's colours replaced (a fade's step).</summary>
+    public void Replace(int index, Rgb[] colors) => _maps[index] = colors;
+
     public ColorMaps Clone()
     {
         var c = new ColorMaps();

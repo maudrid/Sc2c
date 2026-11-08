@@ -88,7 +88,7 @@ public class CommTextTests
             {
                 int phrase = line.GetProperty("phrase").GetInt32();
                 var pages = CommText.SplitPages(lines[phrase - 1]);
-                var want = line.GetProperty("pages").EnumerateArray().Select(p => (p[0].GetString(), p[1].GetInt32())).ToList();
+                var want = line.GetProperty("pages").EnumerateArray().Select(p => (p[0].GetString()!, p[1].GetInt32())).ToList();
                 Assert.Equal(want, pages.Select(p => (Convert.ToHexString(SHA256.HashData(p.Page)).ToLowerInvariant()[..16], p.Millis)).ToList());
                 var drawn = line.GetProperty("drawn").EnumerateArray().ToList();
                 for (int i = 0; i < pages.Count; ++i)

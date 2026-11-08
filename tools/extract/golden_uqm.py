@@ -2916,6 +2916,57 @@ def record_commanim(uqm, exe):
     return data
 
 
+CMAP_PROGRAM = os.path.join(HERE, "golden", "cmap.c")
+
+# Colour fade scenarios: commands for golden/cmap.c ("set F L SEED",
+# "xform F L SEED TICKS", "step NOW").
+CMAP_SCENARIOS = [
+    ("one fade", ["set 0 0 1", "xform 0 0 2 84", "step 0", "step 21", "step 42", "step 63", "step 84", "step 105"]),
+    ("steps off the frame", ["set 0 0 3", "xform 0 0 4 100", "step 7", "step 33", "step 50", "step 99", "step 100", "step 101"]),
+    ("no time", ["set 3 3 5", "xform 3 3 6 0", "step 0", "step 1"]),
+    ("less than no time", ["set 3 3 5", "xform 3 3 6 -5", "step 0", "step 1"]),
+    ("a fade again on a map fading", ["set 2 2 7", "xform 2 2 8 200", "step 50", "xform 2 2 9 100", "step 75",
+                                       "step 120", "step 150", "step 160"]),
+    ("fades on several maps", ["set 0 4 10", "xform 1 1 11 60", "step 10", "xform 3 3 12 30", "xform 0 0 13 90",
+                               "step 20", "step 40", "step 70", "step 100", "step 120"]),
+    ("an entry of two maps fades the first and sets both", ["set 5 6 14", "xform 5 6 15 40", "step 10", "step 30",
+                                                            "step 40", "step 41"]),
+    ("a slot freed and taken again", ["set 0 2 16", "xform 0 0 17 10", "xform 1 1 18 100", "step 10", "xform 2 2 19 50",
+                                      "step 30", "step 60", "step 100", "step 110"]),
+    ("more fades than slots", ["set 0 19 20"] + [f"xform {m} {m} {21 + m} {200 + m}" for m in range(18)]
+     + ["step 50", "step 150", "step 210", "step 220"]),
+    ("the clock past the end at once", ["set 0 0 30", "xform 0 0 31 50", "step 500", "step 501"]),
+]
+
+
+def record_cmap(uqm, exe):
+    """Colour map fades as UQM's own cmap.c runs them (golden/cmap.c), on a
+    clock of the program's own. Code only, no content."""
+    scenarios = []
+    for name, commands in CMAP_SCENARIOS:
+        out = subprocess.run([exe], input="\n".join(commands) + "\n", capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"cmap {name}: exit {out.returncode}")
+        steps = []
+        for line in out.stdout.splitlines():
+            parts = line.split()
+            steps.append([int(parts[0]), [[int(m), h] for m, h in (p.split(":") for p in parts[1:])]])
+        if len(steps) != sum(c.startswith("step") for c in commands):
+            raise RuntimeError(f"cmap {name}: {len(steps)} steps")
+        scenarios.append({"name": name, "commands": commands, "steps": steps})
+    data = header(uqm, ["tools/extract/golden/cmap.c", "src/libs/graphics/cmap.c"], [
+        "Colour map fades, recorded by running UQM 0.8.0's own cmap.c "
+        "(SetColorMap, XFormColorMap, XFormColorMap_step) on a clock of the "
+        "recording program's own (tools/extract/golden/cmap.c). Code only, no "
+        "content: the colour entries are made from a seed, as the program says.",
+        "Each scenario: its commands (set F L SEED, xform F L SEED TICKS, step "
+        "NOW) and, for each step, [changed, [[map, FNV-1a hash of its 768 "
+        "colour bytes]...]] for every map set.",
+    ])
+    data["scenarios"] = scenarios
+    return data
+
+
 # ------------------------------------------------------------ the talk's text
 
 COMMTEXT_PROGRAM = os.path.join(HERE, "golden", "commtext.c")
@@ -3130,6 +3181,8 @@ def main():
         if args.content:
             build(uqm, COMMTEXT_PROGRAM, FONTS_LINK, commtext, extra=[SDL_STANDIN], libs=["-lpng"],
                   includes=[SDL_INCLUDE, os.path.join(HERE, "golden")])
+        cmap = os.path.join(build_dir, "cmap")
+        build(uqm, CMAP_PROGRAM, [], cmap)
         commanim = os.path.join(build_dir, "commanim")
         build(uqm, COMMANIM_PROGRAM, COMMANIM_LINK, commanim)
         devices = os.path.join(build_dir, "devices")
@@ -3154,6 +3207,7 @@ def main():
                            ("outfit", record_outfit(uqm, outfit)),
                            ("devices", record_devices(uqm, devices)),
                            ("commanim", record_commanim(uqm, commanim)),
+                           ("cmap", record_cmap(uqm, cmap)),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("conversation-cases", record_conversation_cases(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),

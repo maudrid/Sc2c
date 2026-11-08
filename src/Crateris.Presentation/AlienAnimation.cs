@@ -314,10 +314,11 @@ public sealed class AlienAnimation
     /// <summary>
     /// A frame of the screen, <paramref name="ticks"/> on (ProcessCommAnimations):
     /// the frames to stamp in order (<see cref="MainFrame"/> for the main
-    /// one; the first step redraws the whole picture) and the colour fades
-    /// to start.
+    /// one; the first step redraws the whole picture, as does one with
+    /// <paramref name="fullRedraw"/>, when the colours changed or the
+    /// subtitles were cleared) and the colour fades to start.
     /// </summary>
-    public (List<int> Frames, List<AlienColorFade> Fades) Step(int ticks)
+    public (List<int> Frames, List<AlienColorFade> Fades) Step(int ticks, bool fullRedraw = false)
     {
         uint elapsed = (uint)ticks;
         bool canTalk = true;
@@ -399,7 +400,7 @@ public sealed class AlienAnimation
             s.Change = false;
         }
         var frames = new List<int>();
-        bool full = _first;
+        bool full = _first || fullRedraw;
         _first = false;
         if (full)
         {
