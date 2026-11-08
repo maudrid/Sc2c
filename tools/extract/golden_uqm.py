@@ -3008,7 +3008,7 @@ def screens_scenarios():
                                                and sc["name"] not in ("choose-slot-0", "choose-slot-7", "choose-slot-15")):
             continue
         out.append(sc)
-    out.append({**out[4], "name": "names-long", "ship": talk_ship(ship="The Very Long Ship Name", captain="Captain Q"),
+    out.append({**out[4], "name": "names-long", "ship": talk_ship(ship="The Long Voyage", captain="Captain Quinlan"),
                 "steps": ["outfit", "d", "s", "c", "c"]})
     return out
 

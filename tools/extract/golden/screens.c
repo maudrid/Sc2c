@@ -358,7 +358,15 @@ void StopMusic (void) {}
 MUSIC_REF LoadMusicInstance (RESOURCE r) { (void) r; return 0; }
 BOOLEAN DestroyMusic (MUSIC_REF m) { (void) m; return TRUE; }
 BOOLEAN GameOptions (void) { return TRUE; }
-UNICODE *strupr (UNICODE *s) { return s; }
+UNICODE *
+strupr (UNICODE *s)
+{
+	UNICODE *p;
+	for (p = s; *p; ++p)
+		if (*p >= 'a' && *p <= 'z')
+			*p -= 'a' - 'A';
+	return s;
+}
 
 /* ------------------------------------------------------------ main */
 
