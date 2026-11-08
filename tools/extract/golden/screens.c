@@ -28,6 +28,7 @@
  *     module slots, the 11 drive slots and the 8 jet slots;
  *   the ship's name, a "|", the captain's name;
  *   the frame counts: "RESOURCE COUNT ..." pairs;
+ *   the frames' rectangles: "RESOURCE:INDEX:HOTX:HOTY:WIDTH:HEIGHT ...";
  *   the fonts' leading: StarCon, Tiny, Micro;
  *   the steps, space-separated: "base:S" opens the starbase's menu on
  *     state S (DoStarBase, freshly); "outfit" opens outfitting (DoOutfit,
@@ -43,8 +44,9 @@
  *   ["p", x, y, r, g, b]                    DrawPoint
  *   ["c", x, y, width, height, r, g, b]     ClearDrawable (the clip
  *                                           rectangle, the background)
- *   ["t", font, x, y, align, count, text, r, g, b]   font_DrawText
- * (count -1 all; the text as JSON).
+ *   ["t", font, x, y, align, count, text, r, g, b, effect]   font_DrawText
+ * (count -1 all; the text as JSON; effect the font effect's frame of
+ * graphics.fontgradient, the text drawn in its colours, or -1).
  */
 
 #include "uqm/outfit.c"
@@ -118,6 +120,7 @@ struct context_desc
 	RECT clip;
 	Color fg, bg;
 	FONT font;
+	FRAME effect;
 };
 static struct context_desc screen_ctx = { "Screen" }, status_ctx = { "Status" }, space_ctx = { "Space" },
 		offscreen_ctx = { "OffScreen" };
@@ -130,7 +133,7 @@ Color SetContextForeGroundColor (Color c) { Color old = cur->fg; cur->fg = c; re
 Color SetContextBackGroundColor (Color c) { Color old = cur->bg; cur->bg = c; return old; }
 Color GetContextForeGroundColor (void) { return cur->fg; }
 FONT SetContextFont (FONT f) { FONT old = cur->font; cur->font = f; return old; }
-FRAME SetContextFontEffect (FRAME f) { (void) f; return 0; }
+FRAME SetContextFontEffect (FRAME f) { FRAME old = cur->effect; cur->effect = f; return old; }
 FRAME SetContextFGFrame (FRAME f) { return f; }
 void BatchGraphics (void) {}
 void UnbatchGraphics (void) {}
@@ -217,7 +220,27 @@ res_of (FRAME f)
 	return "?";
 }
 
-BOOLEAN GetFrameRect (FRAME f, RECT *r) { (void) f; memset (r, 0, sizeof *r); return TRUE; }
+/* Each frame's hot spot and size, from the content: GetFrameRect. */
+static struct { char name[64]; int index, hx, hy, w, h; } rects[1024];
+static int rect_n;
+
+BOOLEAN
+GetFrameRect (FRAME f, RECT *r)
+{
+	int i;
+	memset (r, 0, sizeof *r);
+	for (i = 0; i < rect_n; ++i)
+		if (!strcmp (rects[i].name, res_of (f)) && rects[i].index == GetFrameIndex (f))
+		{
+			r->corner.x = -rects[i].hx;
+			r->corner.y = -rects[i].hy;
+			r->extent.width = rects[i].w;
+			r->extent.height = rects[i].h;
+			return TRUE;
+		}
+	fprintf (stderr, "screens: no rectangle for %s %d\n", res_of (f), GetFrameIndex (f));
+	exit (3);
+}
 BOOLEAN DestroyDrawable (DRAWABLE d) { (void) d; return TRUE; }
 
 static void
@@ -300,7 +323,7 @@ font_DrawText (TEXT *t)
 		else
 			b[n++] = ch;
 	}
-	snprintf (b + n, sizeof b - n, "\", %s]", c);
+	snprintf (b + n, sizeof b - n, "\", %s, %d]", c, cur->effect ? GetFrameIndex (cur->effect) : -1);
 	emit (b);
 }
 
@@ -423,6 +446,17 @@ main (void)
 		counts[count_n++].count = tok ? atoi (tok) : 0;
 	}
 	read_line (line, sizeof line);
+	for (tok = strtok (line, " "); tok && rect_n < 1024; tok = strtok (NULL, " "), ++rect_n)
+	{
+		char *colon = strchr (tok, ':');
+		if (!colon)
+			return 2;
+		*colon = '\0';
+		strncpy (rects[rect_n].name, tok, sizeof rects[rect_n].name - 1);
+		sscanf (colon + 1, "%d:%d:%d:%d:%d", &rects[rect_n].index, &rects[rect_n].hx, &rects[rect_n].hy,
+				&rects[rect_n].w, &rects[rect_n].h);
+	}
+	read_line (line, sizeof line);
 	sscanf (line, "%d %d %d", &starcon.leading, &tiny.leading, &micro.leading);
 	read_line (line, sizeof line);
 
@@ -438,6 +472,8 @@ main (void)
 	space_ctx.clip.extent.width = SIS_SCREEN_WIDTH;
 	space_ctx.clip.extent.height = SIS_SCREEN_HEIGHT;
 	PlayFrame = CaptureDrawable (LoadGraphic (PLAYMENU_ANIM));
+	FontGradFrame = CaptureDrawable (LoadGraphic (FONTGRAD_PMAP_ANIM));
+	FlagStatFrame = CaptureDrawable (LoadGraphic (FLAGSTAT_MASK_PMAP_ANIM));
 	/* The starbase's status line shows the resource units (DoStarBase). */
 	SetStatusMessageMode (SMM_RES_UNITS);
 

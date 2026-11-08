@@ -2977,7 +2977,8 @@ SCREENS_PROGRAM = os.path.join(HERE, "golden", "screens.c")
 SCREENS_LINK = ["uqm/sis.c", "uqm/menu.c", "uqm/border.c", "uqm/util.c", "libs/graphics/pixmap.c"]
 SCREENS_STUBS = os.path.join(HERE, "golden", "screens_stubs.c")
 SCREENS_FRAMES = ["graphics.starbase", "graphics.modulesmenu", "graphics.outfit", "graphics.playmenu",
-                  "graphics.shipyard", "graphics.outfitmodules"]
+                  "graphics.shipyard", "graphics.outfitmodules", "graphics.fontgradient",
+                  "graphics.flagshipstatus"]
 # The fonts' leading, as UQM's loader gives it (UqmFont, checked against
 # it by fonts.json): StarCon, Tiny, Micro.
 SCREENS_LEADING = "11 10 15"
@@ -3028,10 +3029,15 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
         with open(index_file, "wb") as f:
             f.write(z.read("uqm.rmp"))
         index = read_resource_index(strings_exe, index_file)
-        counts = []
+        counts, rects = [], []
         for res in SCREENS_FRAMES:
-            ani = z.read(index[res][1]).decode("latin-1")
-            counts += [res, str(len([l for l in ani.splitlines() if l.strip()]))]
+            ani_path = index[res][1]
+            lines = [l.split() for l in z.read(ani_path).decode("latin-1").splitlines() if l.strip()]
+            counts += [res, str(len(lines))]
+            for i, l in enumerate(lines):
+                png = z.read(os.path.dirname(ani_path) + "/" + l[0])
+                w, h = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")
+                rects.append(f"{res}:{i}:{l[3]}:{l[4]}:{w}:{h}")
     scenarios = []
     for sc in screens_scenarios():
         steps = sc["steps"]
@@ -3042,7 +3048,7 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
                                   prices)
         ship = sc["ship"]
         head = outfit_head(sc, fields, state_bytes, prices) + [
-            f"{ship['ship']}|{ship['captain']}", " ".join(counts), SCREENS_LEADING]
+            f"{ship['ship']}|{ship['captain']}", " ".join(counts), " ".join(rects), SCREENS_LEADING]
         out = subprocess.run([exe], input="\n".join(head + [" ".join(steps)]) + "\n", capture_output=True, text=True)
         if out.returncode:
             raise RuntimeError(f"screens {sc['name']}: {out.stdout[-300:]}{out.stderr}")
@@ -3067,8 +3073,9 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
         "a stamp, [\"f\", resource, frame, x, y, r, g, b] a filled stamp, "
         "[\"r\"/\"o\"/\"c\", x, y, width, height, r, g, b] a filled "
         "rectangle, an outline, the clip rectangle cleared, [\"p\", x, y, r, "
-        "g, b] a point, [\"t\", font, x, y, align, count, text, r, g, b] text "
-        "({gs:N} is GAME_STRING (N)).",
+        "g, b] a point, [\"t\", font, x, y, align, count, text, r, g, b, "
+        "effect] text ({gs:N} is GAME_STRING (N); effect the font effect's "
+        "frame of graphics.fontgradient, or -1).",
     ])
     data["frames"] = dict(zip(counts[::2], map(int, counts[1::2])))
     data["scenarios"] = scenarios
