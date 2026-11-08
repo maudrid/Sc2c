@@ -2757,6 +2757,82 @@ def record_outfit(uqm, exe):
     return data
 
 
+# ------------------------------------------------------------ devices
+
+DEVICES_PROGRAM = os.path.join(HERE, "golden", "devices.c")
+DEVICES_LINK = ["libs/strings/unicode.c"]
+
+
+def devices_scenarios():
+    """Story states for the Manifest's Devices list, and keys for its
+    cursor: each device alone (the Ultron at each repair), those never
+    listed, none, several and all of them, with walks over the pages."""
+    with open(os.path.join(REPO, "data", "devices.json")) as f:
+        devices = json.load(f)["devices"]
+    on = sorted({d["field"] for d in devices if "field" in d and "value" not in d})
+    out = [{"name": "none", "state": {}, "keys": ""}]
+    for field in on:
+        out.append({"name": field.lower(), "state": {field: 1}, "keys": "d u c"})
+    for v in range(1, 6):
+        out.append({"name": f"ultron-{v}", "state": {"ULTRON_CONDITION": v}, "keys": "d c"})
+    out.append({"name": "never-listed", "state": {"DESTRUCT_CODE_ON_SHIP": 1, "DATA_PLATE_1_ON_SHIP": 1}, "keys": ""}
+               if "DATA_PLATE_1_ON_SHIP" in on else
+               {"name": "never-listed", "state": {"DESTRUCT_CODE_ON_SHIP": 1}, "keys": ""})
+    several = {"ROSY_SPHERE_ON_SHIP": 1, "TALKING_PET_ON_SHIP": 1, "SUN_DEVICE_ON_SHIP": 1, "MOONBASE_ON_SHIP": 1,
+               "VUX_BEAST_ON_SHIP": 1, "DESTRUCT_CODE_ON_SHIP": 1, "EGG_CASE1_ON_SHIP": 1, "ULTRON_CONDITION": 3}
+    out.append({"name": "several", "state": several, "keys": "d d d d d u pd pu r l pd pd pu pu u u c"})
+    every = {f: 1 for f in on}
+    every["ULTRON_CONDITION"] = 2
+    out.append({"name": "every", "state": every, "keys": "pd " * 6 + "pu " * 6 + "d " * 30 + "u " * 30 + "c"})
+    import random
+    for seed in range(12):
+        rnd = random.Random(seed)
+        state = {f: 1 for f in on if rnd.random() < 0.4}
+        if rnd.random() < 0.5:
+            state["ULTRON_CONDITION"] = rnd.randint(1, 4)
+        keys = " ".join(rnd.choice(["u", "d", "l", "r", "pu", "pd"]) for _ in range(60)) + " c"
+        out.append({"name": f"walk-{seed}", "state": state, "keys": keys})
+    return out
+
+
+def record_devices(uqm, exe):
+    """The Manifest's Devices list as UQM's own planets/devices.c makes
+    it (InventoryDevices) and moves its cursor (DoManipulateDevices),
+    golden/devices.c. Code only."""
+    with open(os.path.join(REPO, "data", "game-state.json")) as f:
+        game_state = json.load(f)
+    fields = {s["name"]: s for s in game_state["states"]}
+    scenarios = []
+    for sc in devices_scenarios():
+        state = bytearray((game_state["total_bits"] + 7) >> 3)
+        for name, value in sc["state"].items():
+            f = fields[name]
+            for i in range(f["bits"]):
+                if value >> i & 1:
+                    state[(f["start_bit"] + i) >> 3] |= 1 << ((f["start_bit"] + i) & 7)
+        out = subprocess.run([exe], input=state.hex() + "\n" + sc["keys"] + "\n", capture_output=True,
+                             text=True)
+        if out.returncode:
+            raise RuntimeError(f"devices {sc['name']}: {out.stdout[-300:]}{out.stderr}")
+        lines = [json.loads(x) for x in out.stdout.splitlines()]
+        scenarios.append({**sc, "list": lines[0]["list"], "steps": lines[1:]})
+    data = header(uqm, ["tools/extract/golden/devices.c", "src/uqm/planets/devices.c"], [
+        "The Manifest's Devices list, recorded by running UQM 0.8.0's own "
+        "InventoryDevices and DoManipulateDevices (planets/devices.c) with "
+        "the drawing stubbed (tools/extract/golden/devices.c). Code only.",
+        "Each scenario: the story fields set (the rest 0), the keys (u, d, "
+        "l, r, pu, pd, c), the list (device numbers, globdata.h's), and the "
+        "steps: open (DevicesMenu's first drawing; none when the list is "
+        "empty), then each key: the cursor (CurState), the top row shown "
+        "(topIndex), whether the list was left, and what was drawn: the "
+        "title and each name by its game string's index (DEVICE_STRING_BASE "
+        "+ 1 + device), its row and whether lit, and each icon by "
+        "MiscDataFrame's frame.",
+    ])
+    data["scenarios"] = scenarios
+    return data
+
+
 def record_binary_tables(uqm, exe, package):
     """Every BINTAB resource in the official content package, as UQM's own
     _GetBinaryTableData reads it. Content, so only lengths and hashes."""
@@ -2835,6 +2911,8 @@ def main():
             build(uqm, os.path.join(HERE, "golden", "fonts.c"), FONTS_LINK,
                   fonts, extra=[SDL_STANDIN], libs=["-lpng"],
                   includes=[SDL_INCLUDE])
+        devices = os.path.join(build_dir, "devices")
+        build(uqm, DEVICES_PROGRAM, DEVICES_LINK, devices)
         outfit = os.path.join(build_dir, "outfit")
         build(uqm, OUTFIT_PROGRAM, OUTFIT_LINK, outfit, extra=[OUTFIT_STUBS], libs=["-lm"])
         strings = os.path.join(build_dir, "strings")
@@ -2853,6 +2931,7 @@ def main():
                            *record_planetside(uqm, systems, strings, images, args.content).items(),
                            ("landing", record_landing(uqm, systems)),
                            ("outfit", record_outfit(uqm, outfit)),
+                           ("devices", record_devices(uqm, devices)),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("conversation-cases", record_conversation_cases(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),

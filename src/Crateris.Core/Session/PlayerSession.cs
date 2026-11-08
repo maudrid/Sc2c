@@ -514,6 +514,7 @@ public sealed class PlayerSession
         MenuOutcome outcome = OrbitMenu.Press(key, Taken, Kit);
         OrbitMessage = outcome switch
         {
+            MenuOutcome.NotYet when OrbitMenu.DeviceList is not null => "Using devices comes in a later stage (3c).",
             MenuOutcome.NotYet => $"{MenuLabel(item)} comes in a later stage.",
             MenuOutcome.Refused when item == OrbitMenuItem.DispatchLander => RefusalMessage(OrbitMenu.LastRefusal),
             MenuOutcome.Refused => "The world is shielded.",
@@ -701,6 +702,16 @@ public sealed class PlayerSession
         }
     }
 
+    /// <summary>The devices the group carries (InventoryDevices), by the story the host last sent; none before it has.</summary>
+    public IReadOnlyList<int> Devices() =>
+        _systems.StoryRules is { } rules && Snapshot?.Story is { } story
+            ? rules.Devices.Inventory(f => story.Get(rules.Table, f))
+            : Array.Empty<int>();
+
+    /// <summary>A device's name (its game string, two words on two lines in UQM; one line here).</summary>
+    public string DeviceName(int device) =>
+        _names?.GameString(Story.DeviceTable.NameString(device)).Replace('\n', ' ') ?? _systems.StoryRules?.Devices.All[device].Name ?? $"device {device}";
+
     /// <summary>The status panel's lines.</summary>
     public IReadOnlyList<string> StatusLines()
     {
@@ -754,6 +765,13 @@ public sealed class PlayerSession
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
         else if (Me?.Activity != Activity.Orbit && !Entering)
             lines.Add("Arrows: turn and thrust");
+        if (OrbitMenu?.DeviceList is { } devices)
+        {
+            lines.Add("Devices (the group's):");
+            for (int i = OrbitMenu.DeviceTop; i < Math.Min(devices.Count, OrbitMenu.DeviceTop + Story.DeviceTable.VisibleRows); ++i)
+                lines.Add($"{(i == OrbitMenu.DeviceCursor ? ">" : " ")} {DeviceName(devices[i])}");
+            lines.Add("Up, down (PgUp, PgDn by a page): choose; Esc: back");
+        }
         if (Trade is { } t)
             lines.AddRange(t.Lines(Snapshot, PlayerId));
         else if (Snapshot?.Ships.Count > 1)
@@ -894,7 +912,7 @@ public sealed class PlayerSession
             if (OrbitMenu?.World != world)
             {
                 // A new visit: the menu starts afresh, nothing found yet.
-                OrbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon));
+                OrbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon)) { Inventory = Devices };
                 OrbitMessage = "";
                 _wasSweeping = false;
             }

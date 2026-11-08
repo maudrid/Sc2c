@@ -1,0 +1,186 @@
+{
+  "_notice": "Derived from The Ur-Quan Masters 0.8.0 source code, Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors. Licensed under the GNU General Public License, version 2 or (at your option) any later version. Extracted for Attack on Crateris by tools/extract/extract_uqm.py; do not edit by hand.",
+  "_source": {
+    "repository": "https://git.code.sf.net/p/sc2/uqm",
+    "branch": "v0.8.0",
+    "commit": "199e3748cc41b688a65601e3b7b2a74bdb2c917c",
+    "files": [
+      "src/uqm/globdata.h",
+      "src/uqm/planets/devices.c"
+    ]
+  },
+  "_notes": [
+    "The group inventory (stage 3a, item 10): the things the group carries, in the order the Manifest's Devices list shows them (InventoryDevices). field is the story field that says the device is aboard: aboard when it isn't 0, or, with value, when it is that value (the Ultron's repairs). listed false: devices.c never lists it (the data plates, and the destruct code, compiled out under NEVER).",
+    "A device's name is the game strings' DEVICE_STRING_BASE + 1 + id (two words, one a line); its icon MiscDataFrame's 77 + id."
+  ],
+  "devices": [
+    {
+      "device": "PORTAL_SPAWNER_DEVICE",
+      "id": 0,
+      "field": "PORTAL_SPAWNER_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "TALKING_PET_DEVICE",
+      "id": 1,
+      "field": "TALKING_PET_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "UTWIG_BOMB_DEVICE",
+      "id": 2,
+      "field": "UTWIG_BOMB_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "SUN_EFFICIENCY_DEVICE",
+      "id": 3,
+      "field": "SUN_DEVICE_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "ROSY_SPHERE_DEVICE",
+      "id": 4,
+      "field": "ROSY_SPHERE_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "AQUA_HELIX_DEVICE",
+      "id": 5,
+      "field": "AQUA_HELIX_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "CLEAR_SPINDLE_DEVICE",
+      "id": 6,
+      "field": "CLEAR_SPINDLE_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "ULTRON_0_DEVICE",
+      "id": 7,
+      "field": "ULTRON_CONDITION",
+      "value": 1,
+      "listed": true
+    },
+    {
+      "device": "ULTRON_1_DEVICE",
+      "id": 8,
+      "field": "ULTRON_CONDITION",
+      "value": 2,
+      "listed": true
+    },
+    {
+      "device": "ULTRON_2_DEVICE",
+      "id": 9,
+      "field": "ULTRON_CONDITION",
+      "value": 3,
+      "listed": true
+    },
+    {
+      "device": "ULTRON_3_DEVICE",
+      "id": 10,
+      "field": "ULTRON_CONDITION",
+      "value": 4,
+      "listed": true
+    },
+    {
+      "device": "MAIDENS_DEVICE",
+      "id": 11,
+      "field": "MAIDENS_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "UMGAH_HYPERWAVE_DEVICE",
+      "id": 12,
+      "field": "UMGAH_BROADCASTERS_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "BURVIX_HYPERWAVE_DEVICE",
+      "id": 13,
+      "field": "BURV_BROADCASTERS_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "DATA_PLATE_1_DEVICE",
+      "id": 14,
+      "listed": false
+    },
+    {
+      "device": "DATA_PLATE_2_DEVICE",
+      "id": 15,
+      "listed": false
+    },
+    {
+      "device": "DATA_PLATE_3_DEVICE",
+      "id": 16,
+      "listed": false
+    },
+    {
+      "device": "TAALO_PROTECTOR_DEVICE",
+      "id": 17,
+      "field": "TAALO_PROTECTOR_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "EGG_CASING0_DEVICE",
+      "id": 18,
+      "field": "EGG_CASE0_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "EGG_CASING1_DEVICE",
+      "id": 19,
+      "field": "EGG_CASE1_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "EGG_CASING2_DEVICE",
+      "id": 20,
+      "field": "EGG_CASE2_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "SYREEN_SHUTTLE_DEVICE",
+      "id": 21,
+      "field": "SYREEN_SHUTTLE_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "VUX_BEAST_DEVICE",
+      "id": 22,
+      "field": "VUX_BEAST_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "DESTRUCT_CODE_DEVICE",
+      "id": 23,
+      "listed": false
+    },
+    {
+      "device": "URQUAN_WARP_DEVICE",
+      "id": 24,
+      "field": "PORTAL_KEY_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "ARTIFACT_2_DEVICE",
+      "id": 25,
+      "field": "ARTIFACT_2_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "ARTIFACT_3_DEVICE",
+      "id": 26,
+      "field": "ARTIFACT_3_ON_SHIP",
+      "listed": true
+    },
+    {
+      "device": "LUNAR_BASE_DEVICE",
+      "id": 27,
+      "field": "MOONBASE_ON_SHIP",
+      "listed": true
+    }
+  ]
+}

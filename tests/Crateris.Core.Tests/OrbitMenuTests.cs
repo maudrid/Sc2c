@@ -92,12 +92,14 @@ public class OrbitMenuTests
         Assert.True(menu.CargoOpen);
         menu.Press(MenuKey.Cancel, NothingTaken);
         menu.Press(MenuKey.Down, NothingTaken);
-        foreach (var _ in Enumerable.Range(0, 2))
-        {
-            Assert.False(OrbitMenu.Available(menu.Selected));
-            Assert.Equal(MenuOutcome.NotYet, menu.Press(MenuKey.Select, NothingTaken));
-            menu.Press(MenuKey.Down, NothingTaken);
-        }
+        // Devices works since stage 3a's item 10: with nothing aboard, nothing opens.
+        Assert.True(OrbitMenu.Available(menu.Selected));
+        Assert.Equal(MenuOutcome.None, menu.Press(MenuKey.Select, NothingTaken));
+        Assert.Null(menu.DeviceList);
+        menu.Press(MenuKey.Down, NothingTaken);
+        Assert.False(OrbitMenu.Available(menu.Selected));                              // Roster
+        Assert.Equal(MenuOutcome.NotYet, menu.Press(MenuKey.Select, NothingTaken));
+        menu.Press(MenuKey.Down, NothingTaken);
         menu.Press(MenuKey.Select, NothingTaken);                                     // Exit
         Assert.Equal(OrbitMenuItem.Manifest, menu.Selected);
         menu.Press(MenuKey.Select, NothingTaken);

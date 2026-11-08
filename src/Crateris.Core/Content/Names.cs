@@ -177,4 +177,7 @@ public sealed class Names
     }
 
     private static string Text(byte[] b) => Encoding.UTF8.GetString(b);
+
+    /// <summary>A game string by its index (GAME_STRING), as text: a device's name, say.</summary>
+    public string GameString(int index) => _strings[index];
 }

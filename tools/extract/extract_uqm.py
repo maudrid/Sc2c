@@ -1179,6 +1179,43 @@ def extract_conversations(uqm):
 
 
 # ------------------------------------------------------------------ main
+# ------------------------------------------------------------ devices
+
+def extract_devices(uqm):
+    """The devices the Manifest's Devices list shows (globdata.h's device
+    enum, in its order) and what says each is aboard, from
+    planets/devices.c's InventoryDevices: a story field, or
+    ULTRON_CONDITION at a value; a device with no case there, or whose
+    case is compiled out (#ifdef NEVER), is never listed."""
+    glob = uqm.read("src/uqm/globdata.h")
+    names = enum_names(glob, "PORTAL_SPAWNER_DEVICE")
+    names = [n for n in names if n != "NUM_DEVICES"]
+    vals = named_values(uqm, names + ["NUM_DEVICES"], ["uqm/globdata.h"])
+    body = c_function_body(uqm.read("src/uqm/planets/devices.c"), "InventoryDevices (BYTE *pDeviceMap, COUNT Size)")
+    # Drop the code compiled out.
+    body = re.sub(r"#ifdef NEVER.*?#endif[^\n]*", "", body, flags=re.S)
+    cases = {}
+    for case, code in re.findall(r"case (\w+):(.*?)(?=case \w+:|\Z)", body, flags=re.S):
+        m = re.search(r"DeviceState = \(?GET_GAME_STATE \((\w+)\)(?: == (\d+)\))?;", code)
+        if m:
+            cases[case] = {"field": m.group(1), **({"value": int(m.group(2))} if m.group(2) else {})}
+    unknown = set(cases) - set(names)
+    if unknown:
+        raise RuntimeError(f"devices.c has cases for unknown devices {sorted(unknown)}")
+    devices = [{"device": n, "id": vals[n], **cases.get(n, {}), "listed": n in cases} for n in names]
+    if [d["id"] for d in devices] != list(range(vals["NUM_DEVICES"])):
+        raise RuntimeError("the device enum isn't 0 to NUM_DEVICES - 1")
+    return wrap(uqm, ["src/uqm/globdata.h", "src/uqm/planets/devices.c"], {
+        "devices": devices,
+    }, ["The group inventory (stage 3a, item 10): the things the group carries, "
+        "in the order the Manifest's Devices list shows them (InventoryDevices). "
+        "field is the story field that says the device is aboard: aboard when "
+        "it isn't 0, or, with value, when it is that value (the Ultron's "
+        "repairs). listed false: devices.c never lists it (the data plates, "
+        "and the destruct code, compiled out under NEVER).",
+        "A device's name is the game strings' DEVICE_STRING_BASE + 1 + id "
+        "(two words, one a line); its icon MiscDataFrame's 77 + id."])
+
 
 DATASETS = {
     "starmap": extract_starmap,
@@ -1193,6 +1230,7 @@ DATASETS = {
     "constants": extract_constants,
     "events": extract_events,
     "conversations": extract_conversations,
+    "devices": extract_devices,
 }
 
 

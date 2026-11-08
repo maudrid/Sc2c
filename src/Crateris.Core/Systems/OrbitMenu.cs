@@ -142,7 +142,34 @@ public sealed class OrbitMenu
     /// shown but say they come later (<see cref="MenuOutcome.NotYet"/>).
     /// </summary>
     public static bool Available(OrbitMenuItem item) => item is not
-        (OrbitMenuItem.Starmap or OrbitMenuItem.GameMenu or OrbitMenuItem.Devices or OrbitMenuItem.Roster);
+        (OrbitMenuItem.Starmap or OrbitMenuItem.GameMenu or OrbitMenuItem.Roster);
+
+    /// <summary>
+    /// The devices the group carries now (InventoryDevices, by the story
+    /// as the host last sent it), for the Manifest's Devices list; none if
+    /// not given.
+    /// </summary>
+    public Func<IReadOnlyList<int>>? Inventory { get; set; }
+
+    /// <summary>The Manifest's Devices list, while it's open (DevicesMenu); null when closed.</summary>
+    public DevicesMenu? Devices { get; private set; }
+
+    /// <summary>The devices listed, while the list is open.</summary>
+    public IReadOnlyList<int>? DeviceList => Devices?.List;
+
+    /// <summary>The device lit, while the list is open.</summary>
+    public int DeviceCursor => Devices?.Cursor ?? 0;
+
+    /// <summary>The first row shown, while the list is open.</summary>
+    public int DeviceTop => Devices?.Top ?? 0;
+
+    private MenuOutcome PressDevices(MenuKey key)
+    {
+        var outcome = Devices!.Press(key);
+        if (outcome == MenuOutcome.Moved && Devices.Left)
+            Devices = null;
+        return outcome;
+    }
 
     /// <summary>
     /// Whether the Manifest's cargo display is open (CargoMenu): the
@@ -175,6 +202,8 @@ public sealed class OrbitMenu
             }
             return MenuOutcome.None;
         }
+        if (Devices is not null)
+            return PressDevices(key);
         if (CargoOpen)
         {
             // DoDiscardCargo: the categories wrap round; bio data can't be chosen.
@@ -273,6 +302,15 @@ public sealed class OrbitMenu
                 CargoOpen = true;
                 CargoSelected = 0;
                 return MenuOutcome.Moved;
+            case OrbitMenuItem.Devices:
+            {
+                // DevicesMenu: with nothing aboard, nothing opens.
+                var list = Inventory?.Invoke() ?? Array.Empty<int>();
+                if (list.Count == 0)
+                    return MenuOutcome.None;
+                Devices = new DevicesMenu(list);
+                return MenuOutcome.Moved;
+            }
             case OrbitMenuItem.ExitManifest:
                 Open(MenuPage.Orbit, OrbitMenuItem.Manifest);
                 return MenuOutcome.Moved;
@@ -560,4 +598,59 @@ public sealed class OrbitScan
     /// </summary>
     public static int FinalFrame(ScanType scan, SurfaceNode info) =>
         scan == ScanType.Mineral ? (info.Density & 0xFF) + 1 : DotTransitions - 1;
+}
+
+/// <summary>
+/// The Manifest's Devices list (devices.c's DevicesMenu and
+/// DoManipulateDevices): the devices the group carries, the one lit
+/// (CurState) and the first of the five rows shown (topIndex). Up and
+/// left go back one, down and right on one, page up and down by a screen,
+/// within the list; the rows shown follow the cursor a page at a time.
+/// Select would use the device (stage 3c); cancel closes it.
+/// </summary>
+public sealed class DevicesMenu
+{
+    public DevicesMenu(IReadOnlyList<int> list)
+    {
+        if (list.Count == 0)
+            throw new ArgumentException("DevicesMenu opens only with a device aboard", nameof(list));
+        List = list;
+    }
+
+    public IReadOnlyList<int> List { get; }
+
+    public int Cursor { get; private set; }
+
+    public int Top { get; private set; }
+
+    /// <summary>Whether cancel closed it.</summary>
+    public bool Left { get; private set; }
+
+    public MenuOutcome Press(MenuKey key)
+    {
+        switch (key)
+        {
+            case MenuKey.Cancel:
+                Left = true;
+                return MenuOutcome.Moved;
+            case MenuKey.Select:
+                return MenuOutcome.NotYet;
+        }
+        int state = Cursor + key switch
+        {
+            MenuKey.Up or MenuKey.Left => -1,
+            MenuKey.Down or MenuKey.Right => 1,
+            MenuKey.PageDown => Story.DeviceTable.VisibleRows,
+            MenuKey.PageUp => -Story.DeviceTable.VisibleRows,
+            _ => 0,
+        };
+        state = Math.Clamp(state, 0, List.Count - 1);
+        int top = Top;
+        if (state < top || state >= top + Story.DeviceTable.VisibleRows)
+            top = state - state % Story.DeviceTable.VisibleRows;
+        if (state == Cursor)
+            return MenuOutcome.None;
+        (Cursor, Top) = (state, top);
+        return MenuOutcome.Moved;
+    }
 }

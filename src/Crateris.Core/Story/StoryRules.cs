@@ -21,7 +21,7 @@ public sealed record InitialEvent(string Event, bool Relative, int Months, int D
 /// fields (game-state.json), a new game's prices and events
 /// (new-game.json), the races in avail_race_q's order (races.json), the
 /// event ids (events.json), the modules (modules.json) and
-/// CREW_EXPENSE_THRESHOLD (constants.json).
+/// CREW_EXPENSE_THRESHOLD (constants.json), and the devices (devices.json).
 /// </summary>
 public sealed class StoryRules
 {
@@ -52,6 +52,9 @@ public sealed class StoryRules
     public IReadOnlyList<InitialEvent> InitialEvents { get; }
 
     public int CrewExpenseThreshold { get; }
+
+    /// <summary>The devices the group may carry (data/devices.json; none if the rules are made otherwise).</summary>
+    public DeviceTable Devices { get; init; } = new(Array.Empty<Device>());
 
     public StoryRules(GameStateTable table, int crewCost, int fuelCost, int moduleCostScale,
         IReadOnlyDictionary<string, int> moduleCost, IReadOnlyList<string> modules, IReadOnlyList<int> elementWorth,
@@ -116,7 +119,10 @@ public sealed class StoryRules
             events.RootElement.GetProperty("events").EnumerateArray()
                 .ToDictionary(e => e.GetProperty("event").GetString()!, e => e.GetProperty("id").GetInt32()),
             initial,
-            constants.RootElement.GetProperty("constants").GetProperty("CREW_EXPENSE_THRESHOLD").GetProperty("value").GetInt32());
+            constants.RootElement.GetProperty("constants").GetProperty("CREW_EXPENSE_THRESHOLD").GetProperty("value").GetInt32())
+        {
+            Devices = DeviceTable.Load(dataDirectory),
+        };
     }
 
     private static List<string> ModuleNames(JsonElement root)
