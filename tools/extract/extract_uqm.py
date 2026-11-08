@@ -1178,7 +1178,6 @@ def extract_conversations(uqm):
     ])
 
 
-# ------------------------------------------------------------------ main
 # ------------------------------------------------------------ devices
 
 def extract_devices(uqm):
@@ -1195,10 +1194,21 @@ def extract_devices(uqm):
     # Drop the code compiled out.
     body = re.sub(r"#ifdef NEVER.*?#endif[^\n]*", "", body, flags=re.S)
     cases = {}
+    labels = []   # case labels falling through to the same code
     for case, code in re.findall(r"case (\w+):(.*?)(?=case \w+:|\Z)", body, flags=re.S):
-        m = re.search(r"DeviceState = \(?GET_GAME_STATE \((\w+)\)(?: == (\d+)\))?;", code)
-        if m:
-            cases[case] = {"field": m.group(1), **({"value": int(m.group(2))} if m.group(2) else {})}
+        labels.append(case)
+        code = code.strip()
+        if code == "":
+            continue
+        # The switch's last case runs on to the code after it: only up to its break.
+        code = code.split("break;")[0].strip()
+        m = re.fullmatch(r"DeviceState = \(?GET_GAME_STATE \((\w+)\)(?: == (\d+)\))?;", code)
+        if code and not m:
+            raise RuntimeError(f"devices.c's case {case}: can't read {code!r}")
+        for label in labels:
+            if m:
+                cases[label] = {"field": m.group(1), **({"value": int(m.group(2))} if m.group(2) else {})}
+        labels = []
     unknown = set(cases) - set(names)
     if unknown:
         raise RuntimeError(f"devices.c has cases for unknown devices {sorted(unknown)}")
@@ -1216,6 +1226,8 @@ def extract_devices(uqm):
         "A device's name is the game strings' DEVICE_STRING_BASE + 1 + id "
         "(two words, one a line); its icon MiscDataFrame's 77 + id."])
 
+
+# ------------------------------------------------------------------ main
 
 DATASETS = {
     "starmap": extract_starmap,

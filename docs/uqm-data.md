@@ -26,7 +26,7 @@ python3 -m unittest discover -s tools/extract -v
 UQM_SC2=../uqm-0.8.0/sc2 python3 -m unittest discover -s tools/extract -v
 ```
 
-The first runs 21 checks on the committed files (counts, known values, notices). The second also re-runs the extractor and confirms the committed files match the source exactly.
+The first runs 22 checks on the committed files (counts, known values, notices). The second also re-runs the extractor and confirms the committed files match the source exactly.
 
 ## Reference traces from UQM's own code
 

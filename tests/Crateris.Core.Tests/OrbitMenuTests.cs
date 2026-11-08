@@ -264,4 +264,34 @@ public class OrbitMenuTests
         int starbase = Array.FindIndex(sol.Moons(2), m => !WorldTypes.HasPlanetData(m.DataIndex));
         Assert.Throws<ArgumentException>(() => Orbit(Sol, 2, starbase));
     }
+
+    [Fact]
+    public void TheManifestsDevicesListOpensWithTheGroupsDevicesAndFollowsThem()
+    {
+        var menu = Luna();
+        IReadOnlyList<int> aboard = new[] { 1, 3, 4, 9, 19, 22, 27 };
+        menu.Inventory = () => aboard;
+        menu.Press(MenuKey.Down, NothingTaken);
+        menu.Press(MenuKey.Down, NothingTaken);
+        menu.Press(MenuKey.Select, NothingTaken);    // Manifest
+        menu.Press(MenuKey.Down, NothingTaken);
+        Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Select, NothingTaken));
+        Assert.Equal(aboard, menu.DeviceList);
+        menu.Press(MenuKey.PageDown, NothingTaken);
+        Assert.Equal((5, 5), (menu.DeviceCursor, menu.DeviceTop));
+        Assert.Equal(MenuOutcome.NotYet, menu.Press(MenuKey.Select, NothingTaken));   // using them: 3c
+        // Another player's talk takes device 3 away: the cursor stays on its device (22).
+        menu.RefreshDevices(new[] { 1, 4, 9, 19, 22, 27 });
+        Assert.Equal((4, 0), (menu.DeviceCursor, menu.DeviceTop));
+        // Its device gone too: where it was, within the list.
+        menu.RefreshDevices(new[] { 1, 4 });
+        Assert.Equal((1, 0), (menu.DeviceCursor, menu.DeviceTop));
+        menu.RefreshDevices(Array.Empty<int>());
+        Assert.Null(menu.DeviceList);                 // none left: closed
+        Assert.Equal(OrbitMenuItem.Devices, menu.Selected);
+        menu.Press(MenuKey.Select, NothingTaken);
+        menu.Press(MenuKey.Cancel, NothingTaken);
+        Assert.Null(menu.DeviceList);
+        Assert.Equal(OrbitMenuItem.Devices, menu.Selected);
+    }
 }

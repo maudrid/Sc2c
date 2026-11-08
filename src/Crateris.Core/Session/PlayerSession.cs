@@ -173,6 +173,10 @@ public sealed class PlayerSession
         }
         Entries.Observe(snapshot);
         UpdateOrbitMenu();
+        // The Devices list follows the story the host sends while it's
+        // open (another player's talk or lander can change what the group
+        // carries; in UQM only using a device could, which leaves the list).
+        OrbitMenu?.RefreshDevices(Devices());
         NoteLander();
     }
 
@@ -452,6 +456,8 @@ public sealed class PlayerSession
             Notify(Gift.Why(TradeRefusal.Paused));
         else if (OrbitMenu?.CargoOpen == true)
             Notify("Close the cargo display first.");
+        else if (OrbitMenu?.DeviceList is not null)
+            Notify("Close the Devices list first.");
         else if (Snapshot is null || Snapshot.Ships.Count < 2)
             Notify(Gift.Why(TradeRefusal.NoOne));
         else
@@ -708,9 +714,9 @@ public sealed class PlayerSession
             ? rules.Devices.Inventory(f => story.Get(rules.Table, f))
             : Array.Empty<int>();
 
-    /// <summary>A device's name (its game string, two words on two lines in UQM; one line here).</summary>
+    /// <summary>A device's name (its game string, which UQM draws a word a line; one line here).</summary>
     public string DeviceName(int device) =>
-        _names?.GameString(Story.DeviceTable.NameString(device)).Replace('\n', ' ') ?? _systems.StoryRules?.Devices.All[device].Name ?? $"device {device}";
+        _names?.GameString(Story.DeviceTable.NameString(device)) ?? _systems.StoryRules?.Devices.All[device].Name ?? $"device {device}";
 
     /// <summary>The status panel's lines.</summary>
     public IReadOnlyList<string> StatusLines()
@@ -765,7 +771,7 @@ public sealed class PlayerSession
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
         else if (Me?.Activity != Activity.Orbit && !Entering)
             lines.Add("Arrows: turn and thrust");
-        if (OrbitMenu?.DeviceList is { } devices)
+        if (OrbitMenu?.DeviceList is { } devices && !StoryPaused)
         {
             lines.Add("Devices (the group's):");
             for (int i = OrbitMenu.DeviceTop; i < Math.Min(devices.Count, OrbitMenu.DeviceTop + Story.DeviceTable.VisibleRows); ++i)

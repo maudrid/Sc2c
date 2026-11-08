@@ -2775,9 +2775,11 @@ def devices_scenarios():
         out.append({"name": field.lower(), "state": {field: 1}, "keys": "d u c"})
     for v in range(1, 6):
         out.append({"name": f"ultron-{v}", "state": {"ULTRON_CONDITION": v}, "keys": "d c"})
-    out.append({"name": "never-listed", "state": {"DESTRUCT_CODE_ON_SHIP": 1, "DATA_PLATE_1_ON_SHIP": 1}, "keys": ""}
-               if "DATA_PLATE_1_ON_SHIP" in on else
-               {"name": "never-listed", "state": {"DESTRUCT_CODE_ON_SHIP": 1}, "keys": ""})
+    out.append({"name": "never-listed", "state": {"DESTRUCT_CODE_ON_SHIP": 1}, "keys": ""})
+    # Lists of whole pages: 10 and 15 devices.
+    for n in (10, 15):
+        out.append({"name": f"pages-{n}", "state": {f: 1 for f in on[:n]},
+                    "keys": "pd pd pd d u pu pu d d d d d d c"})
     several = {"ROSY_SPHERE_ON_SHIP": 1, "TALKING_PET_ON_SHIP": 1, "SUN_DEVICE_ON_SHIP": 1, "MOONBASE_ON_SHIP": 1,
                "VUX_BEAST_ON_SHIP": 1, "DESTRUCT_CODE_ON_SHIP": 1, "EGG_CASE1_ON_SHIP": 1, "ULTRON_CONDITION": 3}
     out.append({"name": "several", "state": several, "keys": "d d d d d u pd pu r l pd pd pu pu u u c"})

@@ -34,7 +34,7 @@ REPO = os.path.dirname(os.path.dirname(HERE))
 DATA = os.path.join(REPO, "data")
 FILES = ["starmap", "planet-types", "elements", "lifeforms", "ships",
          "races", "game-state", "new-game", "modules", "constants",
-         "events", "conversations"]
+         "events", "conversations", "devices"]
 
 
 def load(name):
@@ -259,6 +259,20 @@ class Conversations(unittest.TestCase):
             self.assertTrue(s["phrases"], s["script"])
             self.assertEqual(len(set(s["phrases"])), len(s["phrases"]), s["script"])
             self.assertTrue(s["description"]["phrases"].endswith(".dialogue"), s["script"])
+
+    def test_devices(self):
+        d = load("devices")["devices"]
+        self.assertEqual(28, len(d))
+        self.assertEqual(list(range(28)), [x["id"] for x in d])
+        unlisted = [x["device"] for x in d if not x["listed"]]
+        self.assertEqual(["DATA_PLATE_1_DEVICE", "DATA_PLATE_2_DEVICE", "DATA_PLATE_3_DEVICE",
+                          "DESTRUCT_CODE_DEVICE"], unlisted)
+        ultron = [x.get("value") for x in d if x.get("field") == "ULTRON_CONDITION"]
+        self.assertEqual([1, 2, 3, 4], ultron)
+        fields = {s["name"] for s in load("game-state")["states"]}
+        for x in d:
+            if x["listed"]:
+                self.assertIn(x["field"], fields)
 
     def test_the_commanders_description(self):
         c = next(s for s in load("conversations")["scripts"] if s["script"] == "comandr")["description"]

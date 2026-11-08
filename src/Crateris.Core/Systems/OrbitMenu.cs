@@ -163,6 +163,18 @@ public sealed class OrbitMenu
     /// <summary>The first row shown, while the list is open.</summary>
     public int DeviceTop => Devices?.Top ?? 0;
 
+    /// <summary>
+    /// The devices the group carries now, while the list is open: the list
+    /// follows them, the cursor staying on its device if it's still there
+    /// (else where it was, within the list), and closes if none are left.
+    /// </summary>
+    public void RefreshDevices(IReadOnlyList<int> list)
+    {
+        if (Devices is null || Devices.List.SequenceEqual(list))
+            return;
+        Devices = list.Count == 0 ? null : Devices.With(list);
+    }
+
     private MenuOutcome PressDevices(MenuKey key)
     {
         var outcome = Devices!.Press(key);
@@ -622,6 +634,14 @@ public sealed class DevicesMenu
     public int Cursor { get; private set; }
 
     public int Top { get; private set; }
+
+    /// <summary>The list with other devices: the cursor on the same device if it's there, else where it was, within the list; its page shown.</summary>
+    public DevicesMenu With(IReadOnlyList<int> list)
+    {
+        int at = list.ToList().IndexOf(List[Cursor]);
+        int cursor = at >= 0 ? at : Math.Min(Cursor, list.Count - 1);
+        return new DevicesMenu(list) { Cursor = cursor, Top = cursor - cursor % Story.DeviceTable.VisibleRows };
+    }
 
     /// <summary>Whether cancel closed it.</summary>
     public bool Left { get; private set; }
