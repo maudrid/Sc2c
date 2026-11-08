@@ -2675,10 +2675,9 @@ def outfit_scenarios():
     return out
 
 
-def run_outfit(exe, scenario, fields, state_bytes, prices):
-    """Runs one scenario; a key after outfitting was left gets
-    "outfit" put before it. Returns the scenario's steps as run and their
-    lines."""
+def outfit_head(scenario, fields, state_bytes, prices):
+    """golden/outfit.c's and golden/screens.c's first lines: the game
+    state, the prices, the ship."""
     state = bytearray(state_bytes)
     for name, value in scenario["state"].items():
         f = fields[name]
@@ -2687,7 +2686,7 @@ def run_outfit(exe, scenario, fields, state_bytes, prices):
                 state[(f["start_bit"] + i) >> 3] |= 1 << ((f["start_bit"] + i) & 7)
     costs = {**prices["module_cost"], **scenario["costs"]}
     ship = scenario["ship"]
-    head = "\n".join([
+    return [
         state.hex(),
         " ".join(str(costs.get(m, 0)) for m in MODULE_NAMES) + f" {scenario['fuel_cost']} {scenario['crew_cost']}",
         " ".join(map(str, [ship["crew"], ship["fuel"], ship["landers"], ship["ru"], *ship["elements"],
@@ -2695,7 +2694,14 @@ def run_outfit(exe, scenario, fields, state_bytes, prices):
                            *(MODULES["FUSION_THRUSTER"] if i in ship["drives"] else EMPTY_DRIVE
                              for i in range(11)),
                            *(MODULES["TURNING_JETS"] if i in ship["jets"] else EMPTY_JET for i in range(8))])),
-        "1" if scenario["shofixti"] else "2"])
+    ]
+
+
+def run_outfit(exe, scenario, fields, state_bytes, prices):
+    """Runs one scenario; a key after outfitting was left gets
+    "outfit" put before it. Returns the scenario's steps as run and their
+    lines."""
+    head = "\n".join(outfit_head(scenario, fields, state_bytes, prices) + ["1" if scenario["shofixti"] else "2"])
     steps = list(scenario["steps"])
     while True:
         out = subprocess.run([exe], input=head + "\n" + " ".join(steps) + "\n", capture_output=True, text=True)
@@ -2967,6 +2973,108 @@ def record_cmap(uqm, exe):
     return data
 
 
+SCREENS_PROGRAM = os.path.join(HERE, "golden", "screens.c")
+SCREENS_LINK = ["uqm/sis.c", "uqm/menu.c", "uqm/border.c", "uqm/util.c", "libs/graphics/pixmap.c"]
+SCREENS_STUBS = os.path.join(HERE, "golden", "screens_stubs.c")
+SCREENS_FRAMES = ["graphics.starbase", "graphics.modulesmenu", "graphics.outfit", "graphics.playmenu",
+                  "graphics.shipyard", "graphics.outfitmodules"]
+# The fonts' leading, as UQM's loader gives it (UqmFont, checked against
+# it by fonts.json): StarCon, Tiny, Micro.
+SCREENS_LEADING = "11 10 15"
+
+
+def screens_scenarios():
+    """The starbase's menu on each entry, moving round with the clock
+    running, and outfitting: the outfit recording's scenarios that keep
+    to the outfitting screen (not its long random walks nor the
+    shipyard's crew), a few with other names."""
+    out = []
+    for state in range(4):
+        steps = [f"base:{state}"]
+        t = 0
+        for k, key in enumerate("d d d d u u l r r r".split()):
+            for _ in range(3):
+                t += 13 + 7 * (k % 3)
+                steps.append(f"t:{t}")
+            steps.append(key)
+        out.append({"name": f"base-{state}", "ship": talk_ship(), "state": {}, "costs": {}, "fuel_cost": 20,
+                    "crew_cost": 3, "steps": steps})
+    for sc in outfit_scenarios():
+        if "walk" in sc["name"] or any(s in ("hire", "dismiss") for s in sc["steps"]):
+            continue
+        # Every slot's edges are outfit.json's; the drawing needs a few.
+        if sc["name"].endswith("-middle") or (sc["name"].startswith("choose-slot-")
+                                               and sc["name"] not in ("choose-slot-0", "choose-slot-7", "choose-slot-15")):
+            continue
+        out.append(sc)
+    out.append({**out[4], "name": "names-long", "ship": talk_ship(ship="The Very Long Ship Name", captain="Captain Q"),
+                "steps": ["outfit", "d", "s", "c", "c"]})
+    return out
+
+
+def record_screens(uqm, exe, outfit_exe, strings_exe, package):
+    """What UQM draws on the starbase's screens (golden/screens.c): the
+    menu and outfitting, step by step. The frame counts are read from the
+    content; the pictures aren't recorded."""
+    import zipfile
+    with open(os.path.join(REPO, "data", "game-state.json")) as f:
+        game_state = json.load(f)
+    fields = {s["name"]: s for s in game_state["states"]}
+    state_bytes = (game_state["total_bits"] + 7) >> 3
+    with open(os.path.join(REPO, "data", "new-game.json")) as f:
+        prices = json.load(f)["prices"]
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        counts = []
+        for res in SCREENS_FRAMES:
+            ani = z.read(index[res][1]).decode("latin-1")
+            counts += [res, str(len([l for l in ani.splitlines() if l.strip()]))]
+    scenarios = []
+    for sc in screens_scenarios():
+        steps = sc["steps"]
+        if steps[0] != "outfit" and not steps[0].startswith("base:"):
+            raise RuntimeError(f"screens {sc['name']}: starts with {steps[0]}")
+        if not steps[0].startswith("base:"):
+            steps, _ = run_outfit(outfit_exe, {**sc, "shofixti": sc.get("shofixti", False)}, fields, state_bytes,
+                                  prices)
+        ship = sc["ship"]
+        head = outfit_head(sc, fields, state_bytes, prices) + [
+            f"{ship['ship']}|{ship['captain']}", " ".join(counts), SCREENS_LEADING]
+        out = subprocess.run([exe], input="\n".join(head + [" ".join(steps)]) + "\n", capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"screens {sc['name']}: {out.stdout[-300:]}{out.stderr}")
+        lines = [json.loads(x) for x in out.stdout.splitlines()]
+        if len(lines) != len(steps):
+            raise RuntimeError(f"screens {sc['name']}: {len(lines)} of {len(steps)} steps")
+        scenarios.append({k: v for k, v in sc.items() if k not in ("steps",)} | {
+            "steps": steps, "drawn": [x["draw"] for x in lines]})
+    data = header(uqm, ["tools/extract/golden/screens.c", "tools/extract/golden/screens_stubs.c",
+                        "src/uqm/starbase.c", "src/uqm/outfit.c", "src/uqm/sis.c", "src/uqm/menu.c",
+                        "src/uqm/border.c", "src/uqm/util.c"], [
+        "What UQM 0.8.0's own starbase screens draw, recorded by running its "
+        "DoStarBase and DoOutfit (with sis.c, menu.c, border.c and util.c's "
+        "drawing) with each drawing call recorded in the screen's "
+        "coordinates (tools/extract/golden/screens.c), on a clock of the "
+        "program's own; the frames counted from the official content "
+        f"package (SHA-256 {CONTENT_SHA256}), the fonts by their leading.",
+        "Each scenario: as outfit.json's (the story state, prices, ship), "
+        "and the steps (base:S opens the menu on entry S, outfit opens "
+        "outfitting, t:N runs the screen at the clock's N with no key, the "
+        "rest keys), with what each drew: [\"s\", resource, frame, x, y] "
+        "a stamp, [\"f\", resource, frame, x, y, r, g, b] a filled stamp, "
+        "[\"r\"/\"o\"/\"c\", x, y, width, height, r, g, b] a filled "
+        "rectangle, an outline, the clip rectangle cleared, [\"p\", x, y, r, "
+        "g, b] a point, [\"t\", font, x, y, align, count, text, r, g, b] text "
+        "({gs:N} is GAME_STRING (N)).",
+    ])
+    data["frames"] = dict(zip(counts[::2], map(int, counts[1::2])))
+    data["scenarios"] = scenarios
+    return data
+
+
 # ------------------------------------------------------------ the talk's text
 
 COMMTEXT_PROGRAM = os.path.join(HERE, "golden", "commtext.c")
@@ -3190,6 +3298,9 @@ def main():
         if args.content:
             build(uqm, COMMTEXT_PROGRAM, FONTS_LINK, commtext, extra=[SDL_STANDIN], libs=["-lpng"],
                   includes=[SDL_INCLUDE, os.path.join(HERE, "golden")])
+        screens = os.path.join(build_dir, "screens")
+        if args.content:
+            build(uqm, SCREENS_PROGRAM, SCREENS_LINK, screens, extra=[SCREENS_STUBS], libs=["-lm"])
         cmap = os.path.join(build_dir, "cmap")
         build(uqm, CMAP_PROGRAM, [], cmap)
         commanim = os.path.join(build_dir, "commanim")
@@ -3230,6 +3341,7 @@ def main():
                               ("binary-tables", record_binary_tables(uqm, strings, args.content)),
                               ("talks", record_talks(uqm, strings, args.content)),
                               ("commtext", record_commtext(uqm, commtext, strings, args.content)),
+                              ("screens", record_screens(uqm, screens, outfit, strings, args.content)),
                               *record_contact(uqm, systems, strings, images, args.content).items(),
                               ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content)),
                               ("lander-creatures", record_lander_creatures(uqm, lander, strings, images, args.content)),
