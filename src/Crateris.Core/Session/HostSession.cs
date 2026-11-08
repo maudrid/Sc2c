@@ -314,7 +314,7 @@ public sealed class HostSession
             if (Equals(view, _starbaseSent.GetValueOrDefault(id)) && _starbaseSent.ContainsKey(id))
                 continue;
             _starbaseSent[id] = view;
-            updates.Add((peer, view?.Encode() ?? Array.Empty<byte>()));
+            updates.Add((peer, view?.Encode() ?? Protocol.NoView));
         }
         return updates;
     }
@@ -351,7 +351,7 @@ public sealed class HostSession
             if (view is null ? sent is null : view.Same(sent))
                 continue;
             _talkSent[id] = view;
-            updates.Add((peer, view?.Encode() ?? Array.Empty<byte>()));
+            updates.Add((peer, view?.Encode() ?? Protocol.NoView));
         }
         return updates;
     }

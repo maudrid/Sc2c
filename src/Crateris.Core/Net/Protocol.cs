@@ -62,8 +62,18 @@ public static class Protocol
     /// (stage 3a, item 9): the gift goes to the host as a reliable message,
     /// refused with a reason, and its giver and receiver are told of it.
     /// </summary>
-    public const int Version = 12;
+    public const int Version = 13;
     public const int DefaultPort = 24642;
+
+    /// <summary>
+    /// "None" for a view sent by RPC (no talk, not docked): one zero byte,
+    /// as Godot's RPC doesn't deliver an empty byte array (the call fails
+    /// on arrival, "Method not found"). No view's encoding starts with 0.
+    /// </summary>
+    public static byte[] NoView => new byte[] { 0 };
+
+    /// <summary>Whether an RPC's view is <see cref="NoView"/> (or empty).</summary>
+    public static bool IsNoView(ReadOnlySpan<byte> data) => data.Length == 0 || data is [0];
 
     private static readonly JsonSerializerOptions Options = new()
     {

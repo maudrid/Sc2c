@@ -795,7 +795,7 @@ public sealed class PlayerSession
         }
         if (Trade is { } t)
             lines.AddRange(t.Lines(Snapshot, PlayerId));
-        else if (Snapshot?.Ships.Count > 1)
+        else if (Snapshot?.Ships.Count > 1 && !StoryPaused)   // giving waits while the story's talk goes on
             lines.Add("T: give another player something");
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();

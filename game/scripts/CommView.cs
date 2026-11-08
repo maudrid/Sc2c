@@ -44,7 +44,7 @@ public partial class CommView : Node2D
     private string _script = "";
     private ImageTexture? _window;
     private int _cursor = -1;
-    private bool _timePassing;
+    private long _timePassingSince = -1;   // DoTimePassage: when the fade to black began
     private uint _seed = (uint)System.Environment.TickCount;
 
     public CommView() => TextureFilter = TextureFilterEnum.Nearest;
@@ -83,7 +83,10 @@ public partial class CommView : Node2D
     {
         if (_content is null || _scripts is null || session.Talk is not { } talk)
             return;
-        _timePassing = talk.Step == VisitStep.TimePassing;
+        if (talk.Step != VisitStep.TimePassing)
+            _timePassingSince = -1;
+        else if (_timePassingSince < 0)
+            _timePassingSince = Now;
         if (talk.Script != _script)
         {
             _script = talk.Script;
@@ -180,8 +183,8 @@ public partial class CommView : Node2D
     public override void _Draw()
     {
         DrawRect(new Rect2(Vector2.Zero, new Vector2(CommText.Width, CommText.Height) * Px), Colors.Black);
-        if (_timePassing || _screen is null)
-            return;   // DoTimePassage: the screen gone to black
+        if (_screen is null)
+            return;
         if (_window != null)
             DrawTextureRect(_window, new Rect2(Vector2.Zero, new Vector2(AlienWindow.Width, _screen.Window.Height) * Px), false);
         var drawn = _screen.Draw(_cursor);
@@ -190,5 +193,9 @@ public partial class CommView : Node2D
         Stamp(_bar!, 0, CommText.SliderY);
         Stamp(_button!, _screen.SliderOffset, CommText.SliderY - (_button!.Height - _bar!.Height) / 2);
         DrawTexts(drawn.Below, drawn.BelowTexts, drawn.BelowFont);
+        // DoTimePassage: the screen fades to black over two seconds (FadeAllToBlack).
+        if (_timePassingSince >= 0)
+            DrawRect(new Rect2(Vector2.Zero, new Vector2(CommText.Width, CommText.Height) * Px),
+                new Color(0, 0, 0, Math.Clamp((Now - _timePassingSince) / (2f * 840), 0f, 1f)));
     }
 }

@@ -23,8 +23,8 @@ namespace Crateris.Core.Comm;
 /// <see cref="Replier"/> is the player who answers it: everyone is shown a
 /// story talk, and only they reply (decision 7); <see cref="Said"/> is the
 /// reply they last chose, which the lines answer ("" before any).
-/// Sent to them by the host when it changes, as a reliable message; an
-/// empty message means no talk.
+/// Sent to them by the host when it changes, as a reliable message;
+/// <see cref="Protocol.NoView"/> means no talk.
 /// </summary>
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
     int Round = 0, string Replier = "", string Said = "")
@@ -100,7 +100,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
     /// <summary>A view from the host; null for none (empty). A bad one is an <see cref="InvalidDataException"/>.</summary>
     public static TalkView? Decode(ReadOnlySpan<byte> data)
     {
-        if (data.Length == 0)
+        if (Protocol.IsNoView(data))
             return null;
         var r = new WireReader(data);
         ulong step = r.UInt();

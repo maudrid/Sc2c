@@ -146,7 +146,7 @@ public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte Outfit
     /// <summary>A view from the host; null for none (empty: not docked). A bad one is an <see cref="InvalidDataException"/>.</summary>
     public static StarbaseView? Decode(ReadOnlySpan<byte> data)
     {
-        if (data.Length == 0)
+        if (Net.Protocol.IsNoView(data))
             return null;
         var r = new WireReader(data);
         ulong screen = r.UInt();

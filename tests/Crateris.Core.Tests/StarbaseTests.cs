@@ -347,7 +347,7 @@ public class StarbaseTests
         host.GuestStarbaseKey(1, (int)MenuKey.Down);
         host.GuestStarbaseKey(1, (int)MenuKey.Down);
         host.GuestStarbaseKey(1, (int)MenuKey.Select);
-        Assert.Empty(host.StarbaseUpdates().Single(u => u.Peer == 1).Data);
+        Assert.Equal(Net.Protocol.NoView, host.StarbaseUpdates().Single(u => u.Peer == 1).Data);
     }
 
     [Fact]

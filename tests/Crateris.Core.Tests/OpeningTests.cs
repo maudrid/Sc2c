@@ -349,6 +349,12 @@ public class OpeningTests
         Assert.Equal((VisitStep.Done, 1, 0), (view.Step, view.Lines.Count, view.Replies.Count));
         Assert.Null(host.World.Visit);
         Assert.Null(TalkView.Decode(Array.Empty<byte>()));
+        // "None" goes as one zero byte (Godot's RPC drops an empty byte
+        // array's call): the guest's starbase screen, never docked.
+        var (_, none) = Assert.Single(host.StarbaseUpdates());
+        Assert.Equal(Net.Protocol.NoView, none);
+        Assert.Null(Starbase.StarbaseView.Decode(none));
+        Assert.Null(TalkView.Decode(Net.Protocol.NoView));
     }
 
     private static int IndexOf(Session.HostSession host, string id, string phrase)
