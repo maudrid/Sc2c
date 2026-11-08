@@ -2835,6 +2835,87 @@ def record_devices(uqm, exe):
     return data
 
 
+# ------------------------------------------------------------ the alien's animations
+
+COMMANIM_PROGRAM = os.path.join(HERE, "golden", "commanim.c")
+COMMANIM_LINK = ["libs/math/random.c"]
+
+
+def commanim_steps(seed, script):
+    """A talk's timeline for one race: ONE_SECOND/40 frames (COMM_ANIM_RATE)
+    and some of other lengths, the alien talking and falling silent, the
+    script pausing the talking, and an ambient animation switched off and
+    on again, as scripts do."""
+    import random
+    rnd = random.Random(seed)
+    steps = []
+    talking = False
+    for i in range(1400):
+        ticks = 21 if rnd.random() < 0.85 else rnd.randint(1, 90)
+        event = ""
+        if i % 150 == 40:
+            event = "talk"
+            talking = True
+        elif i % 150 == 120 and talking:
+            event = "stop"
+            talking = False
+        elif i == 700:
+            event = "pause"
+        elif i == 760:
+            event = "unpause"
+        steps.append(f"{ticks}:{event}" if event else str(ticks))
+    n = len(script["ambient"])
+    if n:
+        a = rnd.randrange(n)
+        flags = script["ambient"][a][2]
+        steps.insert(900, f"21:flags={a}={flags | 128}")
+        steps.insert(1000, f"21:flags={a}={flags}")
+    return steps
+
+
+def record_commanim(uqm, exe):
+    """Every race's alien animations as UQM's own commanim.c runs them
+    (golden/commanim.c), on a clock of the program's own. Code and the
+    descriptions (data/conversations.json); no content."""
+    with open(os.path.join(REPO, "data", "conversations.json")) as f:
+        scripts = json.load(f)["scripts"]
+    races = []
+    for i, sc in enumerate(scripts):
+        d = sc["description"]
+        seed = 1000 + i
+        steps = commanim_steps(seed, d)
+        head = "\n".join([str(seed), str(len(d["ambient"]))] + [" ".join(map(str, a)) for a in d["ambient"]]
+                         + [" ".join(map(str, d["talk"])), " ".join(map(str, d["transition"]))])
+        out = subprocess.run([exe], input=head + "\n" + " ".join(steps) + "\n", capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"commanim {sc['script']}: {out.stderr}")
+        lines = [json.loads(x) for x in out.stdout.splitlines()]
+        if len(lines) != len(steps):
+            raise RuntimeError(f"commanim {sc['script']}: {len(lines)} of {len(steps)} steps")
+        # Only the steps where something happened, by their place.
+        happened, last = [], None
+        for k, x in enumerate(lines):
+            flags = (x["talk"], x["transit"])
+            if x["draw"] or x["xform"] or flags != last:
+                happened.append([k, x["draw"], x["xform"], x["talk"], x["transit"]])
+            last = flags
+        races.append({"script": sc["script"], "seed": seed, "steps": steps, "happened": happened})
+    data = header(uqm, ["tools/extract/golden/commanim.c", "src/uqm/commanim.c", "src/libs/math/random.c"], [
+        "Every conversation's alien animations, recorded by running UQM 0.8.0's "
+        "own commanim.c (ProcessCommAnimations, with its own TFB_Random seeded) "
+        "on a clock of the recording program's own "
+        "(tools/extract/golden/commanim.c), from each script's description in "
+        "data/conversations.json. Code only, no content.",
+        "Each race: its seed and steps (each \"ticks\" or \"ticks:event\": talk, "
+        "stop, pause, unpause, flags=I=F), and the steps where something "
+        "happened: [step, frames stamped (-1 the main frame, else the frame's "
+        "index in the alien's graphics), colour fades started ([map, time]), "
+        "the talking and the transition descriptors' flags after it].",
+    ])
+    data["races"] = races
+    return data
+
+
 def record_binary_tables(uqm, exe, package):
     """Every BINTAB resource in the official content package, as UQM's own
     _GetBinaryTableData reads it. Content, so only lengths and hashes."""
@@ -2913,6 +2994,8 @@ def main():
             build(uqm, os.path.join(HERE, "golden", "fonts.c"), FONTS_LINK,
                   fonts, extra=[SDL_STANDIN], libs=["-lpng"],
                   includes=[SDL_INCLUDE])
+        commanim = os.path.join(build_dir, "commanim")
+        build(uqm, COMMANIM_PROGRAM, COMMANIM_LINK, commanim)
         devices = os.path.join(build_dir, "devices")
         build(uqm, DEVICES_PROGRAM, DEVICES_LINK, devices)
         outfit = os.path.join(build_dir, "outfit")
@@ -2934,6 +3017,7 @@ def main():
                            ("landing", record_landing(uqm, systems)),
                            ("outfit", record_outfit(uqm, outfit)),
                            ("devices", record_devices(uqm, devices)),
+                           ("commanim", record_commanim(uqm, commanim)),
                            ("string-numbering", record_string_numbering(uqm, strings)),
                            ("conversation-cases", record_conversation_cases(uqm, strings)),
                            ("string-table-cases", record_string_table_cases(uqm, strings)),
