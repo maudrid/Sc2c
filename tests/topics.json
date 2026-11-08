@@ -58,6 +58,9 @@
     },
     "starbase": {
       "weight": 3
+    },
+    "trading": {
+      "weight": 1
     }
   }
 }

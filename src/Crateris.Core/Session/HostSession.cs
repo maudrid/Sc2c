@@ -217,6 +217,52 @@ public sealed class HostSession
 
     private readonly Dictionary<string, TalkView?> _talkSent = new();
 
+    /// <summary>A guest gives another player something (item 9): refused with a reason, or None. Its sender is the guest, whatever the message says.</summary>
+    public TradeRefusal GuestGive(long peer, byte[] data)
+    {
+        if (!_peers.TryGetValue(peer, out var id))
+            return TradeRefusal.NoOne;
+        Gift gift;
+        try
+        {
+            gift = Gift.Decode(data);
+        }
+        catch (InvalidDataException)
+        {
+            return TradeRefusal.Nothing;
+        }
+        return Give(gift with { From = id });
+    }
+
+    /// <summary>A player gives another something (the host's own through here too).</summary>
+    public TradeRefusal Give(Gift gift)
+    {
+        var refusal = World.Give(gift);
+        Logged?.Invoke(refusal == TradeRefusal.None ? $"{gift.From} gave {gift.To} {gift.Describe()}"
+            : $"{gift.From}'s gift to {gift.To} refused: {refusal}");
+        return refusal;
+    }
+
+    /// <summary>
+    /// The gifts given since the last call, to tell their giver and their
+    /// receiver: the host's own (the host is either), and each guest's by
+    /// its peer.
+    /// </summary>
+    public (List<Gift> Host, List<(long Peer, Gift Gift)> Guests) TakeGifts()
+    {
+        var host = new List<Gift>();
+        var guests = new List<(long, Gift)>();
+        foreach (var gift in World.TakeGifts())
+        {
+            if (gift.From == HostId || gift.To == HostId)
+                host.Add(gift);
+            foreach (var (peer, id) in _peers)
+                if (id == gift.From || id == gift.To)
+                    guests.Add((peer, gift));
+        }
+        return (host, guests);
+    }
+
     /// <summary>A guest's key on its starbase screen (anything wrong is ignored).</summary>
     public void GuestStarbaseKey(long peer, int key)
     {

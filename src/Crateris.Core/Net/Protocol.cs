@@ -58,8 +58,11 @@ public static class Protocol
     /// them, and a rename, each a reliable message; the host sends the
     /// player their screen (StarbaseView, saying who's talking to the
     /// commander when Talk was refused) as one when it changes.
+    /// 12: a player gives another resource units, minerals or bio data
+    /// (stage 3a, item 9): the gift goes to the host as a reliable message,
+    /// refused with a reason, and its giver and receiver are told of it.
     /// </summary>
-    public const int Version = 11;
+    public const int Version = 12;
     public const int DefaultPort = 24642;
 
     private static readonly JsonSerializerOptions Options = new()

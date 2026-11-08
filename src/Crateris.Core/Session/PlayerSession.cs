@@ -259,7 +259,8 @@ public sealed class PlayerSession
                 PressMenu(key);
         }
         else
-            input = Me?.Activity is Activity.Orbit or Activity.Talk or Activity.Starbase || StoryPaused ? ShipInput.None : keys;   // on the surface, the lander's keys
+            input = Me?.Activity is Activity.Orbit or Activity.Talk or Activity.Starbase || StoryPaused || Trade is not null
+                ? ShipInput.None : keys;   // on the surface, the lander's keys
         if (Entering)
             return ShipInput.None;
         // A Navigate chosen just before a story pause leaves orbit after it.
@@ -420,9 +421,47 @@ public sealed class PlayerSession
         return r;
     }
 
-    /// <summary>A key for the orbit screen's menus (in a talk, for its replies; docked, for the starbase's screens).</summary>
+    /// <summary>The screen for giving another player something, while it's open (item 9); the ship waits meanwhile.</summary>
+    public TradeScreen? Trade { get; private set; }
+
+    private readonly Queue<Gift> _gifts = new();
+
+    /// <summary>Opens or closes the giving screen.</summary>
+    public void ToggleTrade() => Trade = Trade is null ? new TradeScreen() : null;
+
+    /// <summary>The gifts to send the host, once each.</summary>
+    public IReadOnlyList<Gift> TakeGifts()
+    {
+        var all = _gifts.ToList();
+        _gifts.Clear();
+        return all;
+    }
+
+    /// <summary>The host refused this player's gift: why, as a notice.</summary>
+    public void TradeRefused(TradeRefusal refusal) => Notify(Gift.Why(refusal));
+
+    /// <summary>A gift given: to its giver, that it went; to its receiver, what came and from whom.</summary>
+    public void ShowGift(Gift gift)
+    {
+        string Name(string id) => Snapshot?.Ships.FirstOrDefault(s => s.Id == id)?.Name ?? id;
+        if (gift.To == PlayerId)
+            Notify($"{Name(gift.From)} gave you {gift.Describe()}.");
+        else if (gift.From == PlayerId)
+            Notify($"You gave {Name(gift.To)} {gift.Describe()}.");
+        Log($"Gift from {gift.From} to {gift.To}: {gift.Describe()}");
+    }
+
+    /// <summary>A key for the orbit screen's menus (in a talk, for its replies; docked, for the starbase's screens; on the giving screen, for it).</summary>
     public void PressMenu(MenuKey key)
     {
+        if (Trade is { } trade)
+        {
+            if (key == MenuKey.Cancel)
+                Trade = null;
+            else if (trade.Press(key, Snapshot, PlayerId) is { } gift)
+                _gifts.Enqueue(gift);
+            return;
+        }
         if (Me?.Activity == Activity.Starbase && !StoryPaused)
         {
             _starbaseKeys.Enqueue(key);
@@ -678,6 +717,10 @@ public sealed class PlayerSession
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
         else if (Me?.Activity != Activity.Orbit && !Entering)
             lines.Add("Arrows: turn and thrust");
+        if (Trade is { } t)
+            lines.AddRange(t.Lines(Snapshot, PlayerId));
+        else if (Snapshot?.Ships.Count > 1)
+            lines.Add("T: give another player something");
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();
     }

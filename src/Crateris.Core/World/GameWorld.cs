@@ -930,6 +930,51 @@ public sealed class GameWorld
     private readonly List<(string PlayerId, LanderReport Report)> _reports = new();
 
     /// <summary>
+    /// A player gives another resource units, anywhere, and minerals and
+    /// bio data within a solar system, the minerals up to the receiver's
+    /// room (stage 3a, item 9). Both must be in the game; not while the
+    /// game waits for a story talk. Given, the gift goes on the list the
+    /// receivers are told of (<see cref="TakeGifts"/>).
+    /// </summary>
+    public TradeRefusal Give(Gift gift)
+    {
+        if (StoryPaused)
+            return TradeRefusal.Paused;
+        if (gift.From == gift.To || Find(gift.From) is not { Present: true } giver || Find(gift.To) is not { Present: true } taker)
+            return TradeRefusal.NoOne;
+        if (gift.Minerals.Count != ShipHold.Categories || gift.Minerals.Any(m => m < 0) || gift.BioData < 0
+                || (gift.ResourceUnits == 0 && !gift.Cargo))
+            return TradeRefusal.Nothing;
+        var from = giver.Ship.Hold;
+        var to = taker.Ship.Hold;
+        if (from.ResourceUnits < gift.ResourceUnits || from.BioData < gift.BioData
+                || gift.Minerals.Where((m, i) => from.Minerals[i] < m).Any())
+            return TradeRefusal.NotEnough;
+        if (gift.Cargo && (giver.Ship.SystemStar is not int star || taker.Ship.SystemStar != star))
+            return TradeRefusal.NotHere;
+        if (gift.Minerals.Sum() > to.RoomForCargo)
+            return TradeRefusal.NoRoom;
+        if ((ulong)to.ResourceUnits + gift.ResourceUnits > uint.MaxValue)
+            return TradeRefusal.TooMuch;
+        from.ResourceUnits -= gift.ResourceUnits;
+        to.ResourceUnits += gift.ResourceUnits;
+        from.MoveCargo(gift.Minerals, gift.BioData, -1);
+        to.MoveCargo(gift.Minerals, gift.BioData, +1);
+        _gifts.Add(gift);
+        return TradeRefusal.None;
+    }
+
+    private readonly List<Gift> _gifts = new();
+
+    /// <summary>The gifts given since the last call, to tell their receivers.</summary>
+    public List<Gift> TakeGifts()
+    {
+        var all = _gifts.ToList();
+        _gifts.Clear();
+        return all;
+    }
+
+    /// <summary>
     /// The lander reports to show since the last call, each to its player
     /// (DoDiscoveryReport): the finder's, and the word other landers there
     /// got (decision 9).

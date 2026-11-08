@@ -192,6 +192,27 @@ public sealed class ShipHold
 
     public int FreeStorage => StorageCapacity - MineralMass;
 
+    /// <summary>
+    /// The minerals another player may give this ship (stage 3a, item 9):
+    /// its free storage, less what its lander that is out may still bring
+    /// up (that room was its when it left).
+    /// </summary>
+    public int RoomForCargo => Math.Max(0, FreeStorage - (LanderOut?.MineralCapacity ?? 0));
+
+    /// <summary>Cargo goes to or comes from another player's ship (a trade): each amount added (or, negative, taken).</summary>
+    internal void MoveCargo(IReadOnlyList<int> minerals, int bioData, int sign)
+    {
+        for (int i = 0; i < Categories; ++i)
+            if (_minerals[i] + sign * minerals[i] < 0)
+                throw new InvalidOperationException($"not {minerals[i]} of category {i} aboard");
+        if (BioData + sign * bioData < 0)
+            throw new InvalidOperationException($"not {bioData} bio data aboard");
+        for (int i = 0; i < Categories; ++i)
+            _minerals[i] += sign * minerals[i];
+        BioData += sign * bioData;
+        _snapshot = null;
+    }
+
     /// <summary>TotalBioMass.</summary>
     public int BioData { get; private set; }
 

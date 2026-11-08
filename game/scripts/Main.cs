@@ -430,6 +430,33 @@ public partial class Main : Node2D
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void GiveGift(byte[] gift)
+    {
+        if (_host == null)
+            return;
+        long peer = Multiplayer.GetRemoteSenderId();
+        var refusal = _host.GuestGive(peer, gift);
+        if (refusal != TradeRefusal.None && _host.InGame(peer))
+            RpcId(peer, MethodName.GiftRefused, (int)refusal);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void GiftRefused(int refusal) => _player?.TradeRefused((TradeRefusal)refusal);
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowGift(byte[] gift)
+    {
+        try
+        {
+            _player?.ShowGift(Gift.Decode(gift));
+        }
+        catch (InvalidDataException e)
+        {
+            Log($"Bad gift from the host: {e.Message}");
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void StarbaseKey(int key) => _host?.GuestStarbaseKey(Multiplayer.GetRemoteSenderId(), key);
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -556,6 +583,9 @@ public partial class Main : Node2D
                     _host.ChooseReply(_host.HostId, round, reply);
                 if (inGame)
                 {
+                    foreach (var gift in _player.TakeGifts())
+                        if (_host.Give(gift) is var why && why != TradeRefusal.None)
+                            _player.TradeRefused(why);
                     foreach (var key in _player.TakeStarbaseKeys())
                         _host.StarbaseKey(_host.HostId, key);
                     if (_player.TakeRename() is var (ship, captain))
@@ -574,6 +604,14 @@ public partial class Main : Node2D
                         RpcId(peer, MethodName.ShowTalk, talk);
                     foreach (var (peer, view) in _host.StarbaseUpdates())
                         RpcId(peer, MethodName.ShowStarbase, view);
+                }
+                var (ownGifts, guestGifts) = _host.TakeGifts();
+                foreach (var gift in ownGifts)
+                    _player.ShowGift(gift);
+                if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
+                {
+                    foreach (var (peer, gift) in guestGifts)
+                        RpcId(peer, MethodName.ShowGift, gift.Encode());
                 }
                 var (ownReports, guestReports) = _host.TakeReports();
                 foreach (var report in ownReports)
@@ -594,6 +632,8 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.ChooseReply, round, reply);
                 foreach (var key in _player.TakeStarbaseKeys())
                     RpcId(1, MethodName.StarbaseKey, (int)key);
+                foreach (var gift in _player.TakeGifts())
+                    RpcId(1, MethodName.GiveGift, gift.Encode());
                 if (_player.TakeRename() is var (ship, captain))
                     RpcId(1, MethodName.RenameShip, ship ?? "", captain ?? "");
                 RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input, snap.Frame);
@@ -669,6 +709,13 @@ public partial class Main : Node2D
         }
         if (_about.Visible || _player == null || _player.Scripted || _naming is not null)
             return;
+        // T opens and closes the giving screen (item 9).
+        if (k.Keycode == Key.T && !k.Echo && (_host != null || _connected))
+        {
+            _player.ToggleTrade();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         // Docked, outfitting: F2 and F3 rename the ship and the captain.
         if (k.Keycode is Key.F2 or Key.F3 && _player.Starbase is { Screen: StarbaseScreen.Outfit })
         {
