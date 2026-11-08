@@ -259,8 +259,15 @@ public sealed class PlayerSession
                 PressMenu(key);
         }
         else
+        {
+            // After the giving screen closes, the ship waits for the keys to
+            // be let go: the Esc that closed it mustn't take the lander off.
+            if (_waitForRelease && keys == ShipInput.None)
+                _waitForRelease = false;
             input = Me?.Activity is Activity.Orbit or Activity.Talk or Activity.Starbase || StoryPaused || Trade is not null
+                    || _waitForRelease
                 ? ShipInput.None : keys;   // on the surface, the lander's keys
+        }
         if (Entering)
             return ShipInput.None;
         // A Navigate chosen just before a story pause leaves orbit after it.
@@ -426,8 +433,36 @@ public sealed class PlayerSession
 
     private readonly Queue<Gift> _gifts = new();
 
-    /// <summary>Opens or closes the giving screen.</summary>
-    public void ToggleTrade() => Trade = Trade is null ? new TradeScreen() : null;
+    private bool _waitForRelease;
+
+    /// <summary>
+    /// Opens or closes the giving screen. It doesn't open while the game
+    /// waits for a story talk (nothing can be given then, and the replier's
+    /// keys are the talk's), over the cargo display, or with no one else in
+    /// the game.
+    /// </summary>
+    public void ToggleTrade()
+    {
+        if (Trade is not null)
+        {
+            CloseTrade();
+            return;
+        }
+        if (StoryPaused)
+            Notify(Gift.Why(TradeRefusal.Paused));
+        else if (OrbitMenu?.CargoOpen == true)
+            Notify("Close the cargo display first.");
+        else if (Snapshot is null || Snapshot.Ships.Count < 2)
+            Notify(Gift.Why(TradeRefusal.NoOne));
+        else
+            Trade = new TradeScreen();
+    }
+
+    private void CloseTrade()
+    {
+        Trade = null;
+        _waitForRelease = true;
+    }
 
     /// <summary>The gifts to send the host, once each.</summary>
     public IReadOnlyList<Gift> TakeGifts()
@@ -457,7 +492,7 @@ public sealed class PlayerSession
         if (Trade is { } trade)
         {
             if (key == MenuKey.Cancel)
-                Trade = null;
+                CloseTrade();
             else if (trade.Press(key, Snapshot, PlayerId) is { } gift)
                 _gifts.Enqueue(gift);
             return;
@@ -559,6 +594,8 @@ public sealed class PlayerSession
     public void Advance(double seconds, HeldKeys held = HeldKeys.None)
     {
         _time += seconds;
+        if (Trade is not null)
+            held = HeldKeys.None;   // the arrows are the giving screen's then, not the landing site's
         if (OrbitMenu == null || StoryPaused)
             return;   // the scans wait for the story too
         OrbitMenu.Advance(seconds, held);

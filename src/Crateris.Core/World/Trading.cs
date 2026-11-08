@@ -72,6 +72,8 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
     {
         var r = new WireReader(data);
         string from = r.String() ?? "", to = r.String() ?? "";
+        if (from.Length > MaxId || to.Length > MaxId)
+            throw new InvalidDataException("A gift's player id is too long.");
         ulong units = r.UInt();
         var minerals = new int[ShipHold.Categories];
         for (int i = 0; i < minerals.Length; ++i)
@@ -83,6 +85,9 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
             throw new InvalidDataException("A gift has bytes after its end.");
         return new Gift(from, to, (uint)units, minerals, bio);
     }
+
+    /// <summary>The longest player id a gift may name (ids are short; a longer one is refused).</summary>
+    public const int MaxId = 64;
 
     private static int Small(ulong n) => n <= 1_000_000 ? (int)n : throw new InvalidDataException("Bad gift amount.");
 

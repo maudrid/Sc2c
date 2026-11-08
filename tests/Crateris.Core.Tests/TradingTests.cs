@@ -192,4 +192,75 @@ public class TradingTests
         me.TradeRefused(TradeRefusal.NoRoom);
         Assert.Equal(Gift.Why(TradeRefusal.NoRoom), me.Notice);
     }
+
+    [ContentFact]
+    public void NoGiftWhileTheStoryWaitsNorToOrFromTheOpeningsStarter()
+    {
+        var world = TwoPlayers(sameSystem: true);
+        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, Data.ConversationScripts.Load(DataDir)));
+        world.Host.Ship.Hold.ResourceUnits = 100;
+        world.Find("guest")!.Ship.Hold.ResourceUnits = 100;
+        world.PutInOrbit("host", Sol, Earth, Luna);
+        world.Host.Ship.Ip!.ReturnFromOrbit();
+        world.VisitStarbase(world.Host);
+        Assert.True(world.StoryPaused);
+        Assert.Equal(TradeRefusal.Paused, world.Give(new Gift("guest", "host", 50, NoMinerals, 0)));
+        Assert.Equal(TradeRefusal.Paused, world.Give(new Gift("host", "guest", 50, NoMinerals, 0)));
+        world.Leave("host");     // the replies pass to the guest; the opening may yet be undone
+        Assert.Equal((100u, 100u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
+        Assert.Empty(world.TakeGifts());
+    }
+
+    [ContentFact]
+    public void AGiftToAShipWhoseLanderIsOutLeavesTheLandersRoomAndSurvivesASave()
+    {
+        var world = TwoPlayers(sameSystem: true);
+        Load(world.Host, Minerals(0, 50), 0);
+        var guest = world.Find("guest")!;
+        guest.Ship.Hold.Restore(guest.Ship.Hold.Save() with { Minerals = Minerals(7, guest.Ship.Hold.StorageCapacity - 60) });
+        guest.Ship.Hold.LanderLeaves();      // it may bring up 50
+        Assert.Equal(TradeRefusal.NoRoom, world.Give(new Gift("host", "guest", 0, Minerals(0, 11), 0)));
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("host", "guest", 0, Minerals(0, 10), 0)));
+        guest.Ship.Hold.LanderReturns(guest.Ship.Hold.LanderOut!.Value.Crew, Minerals(1, 50), 0);
+        Assert.Equal(0, guest.Ship.Hold.FreeStorage);
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(0, loaded.Find("guest")!.Ship.Hold.FreeStorage);
+    }
+
+    [ContentFact]
+    public void AGiftBetweenTwoGuestsIsToldToBothAndNotTheHost()
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems, TestContent.Shapes);
+        host.Hello(1, "a", "A", Protocol.Version);
+        host.Hello(2, "b", "B", Protocol.Version);
+        host.World.Find("a")!.Ship.Hold.ResourceUnits = 10;
+        Assert.Equal(TradeRefusal.None, host.GuestGive(1, new Gift("a", "b", 10, NoMinerals, 0).Encode()));
+        var (mine, theirs) = host.TakeGifts();
+        Assert.Empty(mine);
+        Assert.Equal(new long[] { 1, 2 }, theirs.Select(t => t.Peer).OrderBy(p => p));
+        Assert.Throws<InvalidDataException>(() => Gift.Decode(new Gift(new string('x', Gift.MaxId + 1), "b", 1, NoMinerals, 0).Encode()));
+    }
+
+    [ContentFact]
+    public void TheGivingScreenKeepsItsKeysFromTheShipAndTheMenusAndWaitsForTheirRelease()
+    {
+        var world = TwoPlayers(sameSystem: true);
+        var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        me.Observe(world.Snapshot());
+        me.NextInput(Hyperspace.ShipInput.None);
+        Assert.NotNull(me.OrbitMenu);
+        me.ToggleTrade();
+        Assert.NotNull(me.Trade);
+        me.PressMenu(MenuKey.Cancel);       // Esc closes it...
+        Assert.Null(me.Trade);
+        // ...and the still-held Esc (the lander's take-off) waits for its release.
+        Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.TakeOff));
+        Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.None));
+        // Alone, it doesn't open.
+        var alone = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        world.Leave("guest");
+        alone.Observe(world.Snapshot());
+        alone.ToggleTrade();
+        Assert.Null(alone.Trade);
+    }
 }

@@ -938,7 +938,9 @@ public sealed class GameWorld
     /// </summary>
     public TradeRefusal Give(Gift gift)
     {
-        if (StoryPaused)
+        // The opening's starter's hold can be taken back (StarbaseVisit.Undo,
+        // and a save is of it as before): no gifts to or from them meanwhile.
+        if (StoryPaused || (Visit is { Opening: true } opening && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To)))
             return TradeRefusal.Paused;
         if (gift.From == gift.To || Find(gift.From) is not { Present: true } giver || Find(gift.To) is not { Present: true } taker)
             return TradeRefusal.NoOne;

@@ -90,7 +90,7 @@ public sealed class TradeScreen
         var mine = snapshot?.Ships.FirstOrDefault(s => s.Id == me)?.Hold;
         string who = snapshot?.Ships.FirstOrDefault(s => s.Id == To)?.Name ?? (To is null ? "(no one else here)" : To);
         string Mark(int row) => row == Row ? ">" : " ";
-        yield return "Give to another player (T or Esc: close):";
+        yield return "Give to another player (T, Esc or Backspace: close):";
         yield return $"{Mark(PlayerRow)} To: {who}";
         yield return $"{Mark(UnitsRow)} Resource units: {Amounts[UnitsRow]} of {Have(mine, UnitsRow)}";
         for (int i = 0; i < ShipHold.Categories; ++i)
