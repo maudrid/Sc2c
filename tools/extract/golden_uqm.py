@@ -3042,6 +3042,12 @@ def record_commtext(uqm, exe, strings_exe, package):
                 reply = {"phrases": [p for p, _ in pick], "top": top, "cur": cur, "drawn": None}
                 race["replies"].append(reply)
                 cmd(f"replies player {top} {cur} " + " ".join(t.hex() for _, t in pick), ("replies", reply))
+            # Feedback: a few of its lines as the reply chosen.
+            race["feedback"] = []
+            for p, t in (texts[0], texts[len(texts) // 2], max(texts, key=lambda x: len(x[1]))):
+                fb = {"phrase": p, "drawn": None}
+                race["feedback"].append(fb)
+                cmd("feedback player " + t.hex(), ("replies", fb))
             race["summary_phrases"] = [p for p, _ in texts[:30]]
             cmd("summary tiny " + " ".join(t.hex() for _, t in texts[:30]), ("summary", race))
         # Run once to split the pages, then lay each page out.
@@ -3090,10 +3096,13 @@ def record_commtext(uqm, exe, strings_exe, package):
         "in the player's font, font.player), the first shown and the lit "
         "one; summary: the race's first 30 entries as the subtitles of "
         "DoConvSummary (the tiny font, font.tiny), each page's drawing.",
+        "feedback: some entries as the reply the player chose "
+        "(FeedbackPlayerPhrase, the player's font).",
         "Drawing calls as commtext.c says: a line names its text by its "
         "place (the page; the reply in the set; the subtitle in the "
-        "summary's list) and its byte offset; the bullet and MORE are "
-        "themselves, in hex.",
+        "summary's list; the reply chosen) and its byte offset; the bullet, "
+        "MORE and FEEDBACK (the game string \"(In response to your "
+        "statement)\") are themselves, in hex.",
     ])
     data["races"] = races
     return data

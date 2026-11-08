@@ -38,6 +38,8 @@
  *                                       CUR the one lit
  *   summary FONT HEX...    DoConvSummary's pages over these subtitles
  *                          (its tiny font), until it's done
+ *   feedback FONT HEX      FeedbackPlayerPhrase: the reply chosen (in
+ *                          the player's font, SpaceContext's)
  * Output: a JSON line each command: {"draw": [...]}, the summary's
  * {"pages": [[...]...]}, the subtitle pages' {"split": [[hex, time]...]}.
  */
@@ -48,8 +50,10 @@
 
 #include "uqm/gamestr.h"
 #undef GAME_STRING
-static UNICODE more_text[] = "MORE";
-#define GAME_STRING(i) more_text
+/* The game strings comm.c's text uses, as placeholders: MORE (the
+ * summary's), FEEDBACK ("(In response to your statement)"). */
+static UNICODE more_text[] = "MORE", feedback_text[] = "FEEDBACK";
+#define GAME_STRING(i) ((i) == FEEDBACK_STRING_BASE ? feedback_text : more_text)
 
 static char out[1 << 20];
 
@@ -311,6 +315,16 @@ main (void)
 			for (texts_count = 0; texts_count < n; ++texts_count)
 				texts_in[texts_count] = texts[texts_count];
 			RefreshResponses (&es);
+			printf ("{\"draw\": [%s]}\n", out);
+		}
+		else if (sscanf (line, "feedback %255s %4095s", name, arg) == 2)
+		{
+			static char text[2048];
+			unhex (arg, text, sizeof text);
+			texts_in[0] = text;
+			texts_count = 1;
+			SetContextFont (find_font (name));
+			FeedbackPlayerPhrase (text);
 			printf ("{\"draw\": [%s]}\n", out);
 		}
 		else if (!strncmp (line, "summary ", 8))

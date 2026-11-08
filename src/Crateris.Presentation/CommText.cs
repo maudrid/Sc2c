@@ -35,7 +35,8 @@ public enum CommTextKind
 /// <summary>
 /// One of the communication screen's text drawing calls, in UQM's pixels
 /// of the screen's window: a line from <see cref="Source"/> (the text's
-/// place among those given; -1 the bullet; -2 MORE, in its dots) from byte
+/// place among those given; -1 the bullet; -2 MORE, in its dots; -3
+/// "(In response to your statement)") from byte
 /// <see cref="Offset"/>, <see cref="Count"/> characters (-1 all).
 /// </summary>
 public readonly record struct CommTextDraw(CommTextKind Kind, int X, int Y, TextAlign Align, int Count, int Source, int Offset,
@@ -241,6 +242,72 @@ public static class CommText
         else if (y > Height)
             draws.Add(new CommTextDraw(CommTextKind.Stamp, Width - 1, Height - 2, TextAlign.Left, 7, -1, 0, default));
         return draws;
+    }
+
+    /// <summary>COMM_RESPONSE_INTRO_TEXT_COLOR ("(In response to your statement)") and COMM_FEEDBACK_TEXT_COLOR (the reply chosen).</summary>
+    public static readonly Rgb ResponseIntro = new(0x52, 0x63, 0xFF), Feedback = new(0x94, 0xA5, 0x7B);
+
+    /// <summary>
+    /// FeedbackPlayerPhrase: the replies' window cleared, and with a reply
+    /// chosen, "(In response to your statement)" (the game string,
+    /// <see cref="CommTextDraw.Source"/> -3) over the reply, centred and
+    /// wrapped to the window (add_text (-4, ...)).
+    /// </summary>
+    public static List<CommTextDraw> FeedbackPhrase(UqmFont font, ReadOnlySpan<byte> said)
+    {
+        var draws = new List<CommTextDraw>
+        {
+            new(CommTextKind.Rectangle, 0, SliderY + SliderHeight, TextAlign.Left, Width, -1, Height - (SliderY + SliderHeight), PlayerBackground),
+        };
+        if (said.Length == 0)
+            return draws;
+        int x = Width >> 1, y = SliderY + SliderHeight + 13;
+        draws.Add(new CommTextDraw(CommTextKind.Text, x, y, TextAlign.Center, -1, -3, 0, ResponseIntro));
+        y += 16;
+        int textWidth = Width - 8 - (TextXOffs << 2);
+        int start = 0, charCount = 0xFFFF, maxChars = 0xFFFF;
+        bool end;
+        do
+        {
+            y += font.Leading;
+            end = LineWithinWidth(font, said, start, ref charCount, out int next, textWidth, maxChars);
+            maxChars = (ushort)(maxChars - charCount);
+            if (maxChars != 0)
+                --maxChars;
+            if (y < Height)
+                draws.Add(new CommTextDraw(CommTextKind.Text, x, y, TextAlign.Center, Count(charCount), 0, start, Feedback));
+            start = next;
+        } while (!end && maxChars != 0);
+        return draws;
+    }
+
+    /// <summary>
+    /// Where reply <paramref name="r"/>'s last line falls (add_text's
+    /// return) with the replies drawn from <paramref name="top"/>: past
+    /// the window's foot, PlayerResponseInput scrolls it to the top.
+    /// </summary>
+    public static int ReplyEnd(UqmFont font, IReadOnlyList<byte[]> replies, int top, int r)
+    {
+        int leading = font.Leading;
+        int textWidth = Width - 8 - (TextXOffs << 2);
+        int y = SliderY + SliderHeight + 1;
+        for (int i = top; i <= r && i < replies.Count; ++i)
+        {
+            int by = y;
+            int start = 0, charCount = 0xFFFF, maxChars = 0xFFFF;
+            bool end;
+            do
+            {
+                by += leading;
+                end = LineWithinWidth(font, replies[i], start, ref charCount, out int next, textWidth, maxChars);
+                maxChars = (ushort)(maxChars - charCount);
+                if (maxChars != 0)
+                    --maxChars;
+                start = next;
+            } while (!end && maxChars != 0);
+            y = by;
+        }
+        return y;
     }
 
     /// <summary>DELTA_Y_SUMMARY and MAX_SUMM_ROWS: the summary's rows.</summary>

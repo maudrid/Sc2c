@@ -20,7 +20,7 @@ namespace Crateris.Core.Tests;
 /// The talk's text on the communication screen (docs/plans/stage-3.md,
 /// item 11) against UQM's own comm.c and trackplayer.c with its fonts
 /// (tests/golden/commtext.json): each race's subtitles paged and laid out,
-/// replies and the summary.
+/// replies, the reply chosen and the summary.
 /// </summary>
 [Trait("Topic", "drawing")]
 public class CommTextTests
@@ -51,6 +51,7 @@ public class CommTextTests
                 {
                     -1 => Hex(CommText.Bullet),
                     -2 => Hex(CommText.MiddleDot + "MORE" + CommText.MiddleDot),
+                    -3 => Hex("FEEDBACK"),   // commtext.c's placeholder for the game string
                     var s => s,
                 },
                 d.Offset, d.Color.R, d.Color.G, d.Color.B,
@@ -108,6 +109,13 @@ public class CommTextTests
                 var want = Want(reply.GetProperty("drawn"));
                 Assert.True(want.SequenceEqual(got), $"{script} replies:\n UQM {string.Join(" ", want)}\n port {string.Join(" ", got)}");
             }
+            foreach (var fb in race.GetProperty("feedback").EnumerateArray())
+            {
+                var got = CommText.FeedbackPhrase(player, lines[fb.GetProperty("phrase").GetInt32() - 1]).Select(Json).ToList();
+                var want = Want(fb.GetProperty("drawn"));
+                Assert.True(want.SequenceEqual(got), $"{script} feedback:\n UQM {string.Join(" ", want)}\n port {string.Join(" ", got)}");
+            }
+            Assert.Single(CommText.FeedbackPhrase(player, Array.Empty<byte>()));
             var subs = race.GetProperty("summary_phrases").Ints().Select(p => lines[p - 1]).ToList();
             var summary = CommText.Summary(tiny, subs);
             var wantPages = race.GetProperty("summary").EnumerateArray().ToList();
