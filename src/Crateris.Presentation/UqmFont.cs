@@ -261,6 +261,55 @@ public sealed class UqmFont
         return new TextLayout(true, x, top, width, height, charCount, placed);
     }
 
+    /// <summary>
+    /// TextRect for the first <paramref name="charCount"/> characters of
+    /// the text (up to a NUL), without a delta array: the count cut to
+    /// MAX_DELTAS and to the text's end, as TextRect leaves TEXT.CharCount,
+    /// and the width (0 if nothing would be drawn).
+    /// </summary>
+    public (int Width, int CharCount) TextRect(ReadOnlySpan<byte> utf8, int charCount)
+    {
+        if (charCount == 0)
+            return (0, 0);
+        int numChars = Math.Min(charCount, MaxDeltas);
+        charCount = numChars;
+        int topY = 0, botY = 0, width = 0, lastDelta = 0;
+        int pos = 0, next = 0;
+        if (numChars > 0)
+        {
+            next = NextChar(utf8, ref pos);
+            if (next == 0)
+                numChars = 0;
+        }
+        while (numChars-- > 0)
+        {
+            int lastWidth = width, ch = next;
+            if (numChars > 0)
+            {
+                next = NextChar(utf8, ref pos);
+                if (next == 0)
+                {
+                    charCount -= numChars;
+                    numChars = 0;
+                }
+            }
+            if (Glyph(ch) is { DispWidth: > 0 } g)
+            {
+                int y = -g.HotSpotY;
+                if (y < topY)
+                    topY = y;
+                y += g.DispHeight;
+                if (y > botY)
+                    botY = y;
+                width += g.DispWidth;
+            }
+            lastDelta = (byte)(width - lastWidth);
+        }
+        if (width <= 0 || botY - topY <= 0)
+            return (0, charCount);
+        return (lastDelta > 0 ? width - 1 : width, charCount);
+    }
+
     /// <summary>The width TextRect gives the text (0 for nothing drawn).</summary>
     public int Width(string text) => Layout(text, 0, 0).Width;
 
@@ -285,7 +334,8 @@ public sealed class UqmFont
 
     // getCharFromString: one character of UTF-8, or 0 at the end or for a bad
     // sequence (which then ends the text, since 0 is the end to its callers).
-    private static int NextChar(ReadOnlySpan<byte> s, ref int pos)
+    /// <summary>getCharFromString: the character at a byte position (0 at the end), the position moved past it.</summary>
+    public static int NextChar(ReadOnlySpan<byte> s, ref int pos)
     {
         byte b = At(s, pos);
         if (b < 0x80)

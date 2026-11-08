@@ -2916,6 +2916,138 @@ def record_commanim(uqm, exe):
     return data
 
 
+# ------------------------------------------------------------ the talk's text
+
+COMMTEXT_PROGRAM = os.path.join(HERE, "golden", "commtext.c")
+
+
+def record_commtext(uqm, exe, strings_exe, package):
+    """How UQM's comm.c lays out a talk's text (golden/commtext.c): each
+    race's lines paged by trackplayer.c's SplitSubPages and drawn as its
+    subtitles (add_text) in its font, sets of its lines as the player's
+    replies (RefreshResponses, the player's font) and a summary of its
+    lines (DoConvSummary, the tiny font). The lines and fonts are content:
+    the recording names the lines by their place in the conversation and
+    keeps only what is drawn where, and the pages' hashes and times."""
+    import hashlib
+    import zipfile
+    with open(package, "rb") as f:
+        if hashlib.sha256(f.read()).hexdigest() != CONTENT_SHA256:
+            sys.exit(f"{package} isn't the official UQM 0.8.0 content package")
+    with open(os.path.join(REPO, "data", "conversations.json")) as f:
+        scripts = json.load(f)["scripts"]
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        names = z.namelist()
+
+        def font_dir(key):
+            path = index[key][1]
+            for n in names:
+                if n.startswith(path + "/") and not n.endswith("/"):
+                    local = os.path.join(tmp, n)
+                    os.makedirs(os.path.dirname(local), exist_ok=True)
+                    with open(local, "wb") as f:
+                        f.write(z.read(n))
+            return os.path.join(tmp, path)
+
+        commands, meta = [], []
+
+        def cmd(line, what):
+            commands.append(line)
+            meta.append(what)
+
+        cmd(f"font player {font_dir('font.player')}", None)
+        cmd(f"font tiny {font_dir('font.tiny')}", None)
+        races = []
+        for sc in scripts:
+            d = sc["description"]
+            if d["font"] not in index:
+                continue
+            fname = sc["script"]
+            cmd(f"font {fname} {font_dir(d['font'])}", None)
+            fore, back = d["text_fore"][:3], d["text_back"][:3]
+            cmd(f"alien {fname} {d['text_width'] or 238} {d['text_baseline'][0]} {d['text_baseline'][1]} "
+                f"{d['text_align']} {d['text_valign']} {' '.join(map(str, fore + back))}", None)
+            conv = os.path.join(tmp, f"{fname}.txt")
+            with open(conv, "wb") as f:
+                f.write(z.read(index[d["phrases"]][1].split(":")[0]))
+            entries = read_conversations(strings_exe, [conv])[0]
+            texts = [(i + 1, bytes.fromhex(t)[:-1]) for i, (n, length, t, c) in enumerate(entries) if length > 1]
+            chosen = texts[::max(1, len(texts) // 20)][:20]
+            chosen += sorted(texts, key=lambda x: -len(x[1]))[:4]
+            race = {"script": fname, "lines": [], "replies": [], "summary": None}
+            races.append(race)
+            for number, text in chosen:
+                line = {"phrase": number, "pages": None, "drawn": []}
+                race["lines"].append(line)
+                cmd("pages " + text.hex(), ("pages", line))
+            # Replies: sets of its lines, the lit one and the first shown.
+            rtexts = [t for _, t in texts]
+            for k, (n, top, cur) in enumerate(((3, 0, 1), (5, 0, 4), (8, 0, 0), (8, 2, 3), (8, 1, 7))):
+                pick = [texts[(k * 7 + j * 3) % len(texts)] for j in range(n)]
+                reply = {"phrases": [p for p, _ in pick], "top": top, "cur": cur, "drawn": None}
+                race["replies"].append(reply)
+                cmd(f"replies player {top} {cur} " + " ".join(t.hex() for _, t in pick), ("replies", reply))
+            race["summary_phrases"] = [p for p, _ in texts[:30]]
+            cmd("summary tiny " + " ".join(t.hex() for _, t in texts[:30]), ("summary", race))
+        # Run once to split the pages, then lay each page out.
+        out = subprocess.run([exe], input="\n".join(commands) + "\n", capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"commtext: {out.stderr[-500:]}")
+        results = [json.loads(x) for x in out.stdout.splitlines()]
+        if len(results) != len(commands):
+            raise RuntimeError(f"commtext: {len(results)} results for {len(commands)} commands")
+        subs, sub_meta = [], []
+        for c, what, r in zip(commands, meta, results):
+            if what is None:
+                if c.startswith("font") or c.startswith("alien"):
+                    subs.append(c)
+                    sub_meta.append(None)
+                continue
+            kind, obj = what
+            if kind == "pages":
+                obj["pages"] = [[hashlib.sha256(bytes.fromhex(p)).hexdigest()[:16], t] for p, t in r["split"]]
+                for p, _ in r["split"]:
+                    subs.append("sub " + p)
+                    sub_meta.append(obj)
+            elif kind == "replies":
+                obj["drawn"] = r["draw"]
+            else:
+                obj["summary"] = r["pages"]
+        out = subprocess.run([exe], input="\n".join(subs) + "\n", capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"commtext subtitles: {out.stderr[-500:]}")
+        for what, line in zip(sub_meta, out.stdout.splitlines()):
+            if what is not None:
+                what["drawn"].append(json.loads(line)["draw"])
+    data = header(uqm, ["tools/extract/golden/commtext.c", "src/uqm/comm.c", "src/libs/sound/trackplayer.c",
+                        "src/libs/graphics/font.c"], [
+        "How UQM 0.8.0's own comm.c lays out a talk's text, with its own "
+        "font loading and TextRect (tools/extract/golden/commtext.c), for "
+        "each race in data/conversations.json with its font, text width, "
+        "baseline, alignments and colours from its description, from the "
+        f"official content package (SHA-256 {CONTENT_SHA256}).",
+        "lines: some of the race's conversation entries (phrase: the "
+        "entry's number from 1), each paged by SplitSubPages (pages: the "
+        "page's text's SHA-256, first 16 hex digits, and its time in "
+        "milliseconds) and each page drawn as a subtitle by add_text (1, "
+        "...): drawn, a list a page.",
+        "replies: sets of entries as the player's replies (RefreshResponses "
+        "in the player's font, font.player), the first shown and the lit "
+        "one; summary: the race's first 30 entries as the subtitles of "
+        "DoConvSummary (the tiny font, font.tiny), each page's drawing.",
+        "Drawing calls as commtext.c says: a line names its text by its "
+        "place (the page; the reply in the set; the subtitle in the "
+        "summary's list) and its byte offset; the bullet and MORE are "
+        "themselves, in hex.",
+    ])
+    data["races"] = races
+    return data
+
+
 def record_binary_tables(uqm, exe, package):
     """Every BINTAB resource in the official content package, as UQM's own
     _GetBinaryTableData reads it. Content, so only lengths and hashes."""
@@ -2994,6 +3126,10 @@ def main():
             build(uqm, os.path.join(HERE, "golden", "fonts.c"), FONTS_LINK,
                   fonts, extra=[SDL_STANDIN], libs=["-lpng"],
                   includes=[SDL_INCLUDE])
+        commtext = os.path.join(build_dir, "commtext")
+        if args.content:
+            build(uqm, COMMTEXT_PROGRAM, FONTS_LINK, commtext, extra=[SDL_STANDIN], libs=["-lpng"],
+                  includes=[SDL_INCLUDE, os.path.join(HERE, "golden")])
         commanim = os.path.join(build_dir, "commanim")
         build(uqm, COMMANIM_PROGRAM, COMMANIM_LINK, commanim)
         devices = os.path.join(build_dir, "devices")
@@ -3030,6 +3166,7 @@ def main():
                               ("comm-graphics", record_comm_graphics(uqm, strings, images, args.content)),
                               ("binary-tables", record_binary_tables(uqm, strings, args.content)),
                               ("talks", record_talks(uqm, strings, args.content)),
+                              ("commtext", record_commtext(uqm, commtext, strings, args.content)),
                               *record_contact(uqm, systems, strings, images, args.content).items(),
                               ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content)),
                               ("lander-creatures", record_lander_creatures(uqm, lander, strings, images, args.content)),
