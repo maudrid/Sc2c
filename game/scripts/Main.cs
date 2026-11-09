@@ -64,6 +64,7 @@ public partial class Main : Node2D
     private SystemView _systemView = null!;
     private OrbitView _orbitView = null!;
     private PlanetsideView _planetsideView = null!;
+    private ReportView _reportView = null!;
     private CommView _commView = null!;
     private StarbaseScreenView _starbaseView = null!;
     private Label _hud = null!;
@@ -109,6 +110,14 @@ public partial class Main : Node2D
         AddChild(_orbitView);
         _planetsideView = new PlanetsideView(_systems) { Position = systemScreenAt, Visible = false };
         AddChild(_planetsideView);
+        // The lander report, typed into the scan map's area of the planet-side and orbit views.
+        _reportView = new ReportView
+        {
+            Position = systemScreenAt + new Vector2(0, (IpGeometry.ScreenHeight - SurfaceMap.Height) * SisScreen.Scale),
+            Visible = false,
+        };
+        _reportView.Failed += text => _player?.Notify(text, PlayerSession.ReportSeconds);
+        AddChild(_reportView);
         _commView = new CommView { Position = systemScreenAt, Visible = false };
         _commView.Paged += (round, lines, page) =>
         {
@@ -253,7 +262,10 @@ public partial class Main : Node2D
             _shapes = ContactShapes.Load(sheets);
             var scripts = ConversationScripts.Load(_dataDir);
             _talks = TalkLibrary.Load(content, scripts);
-            foreach (string report in Crateris.Core.Story.StoryWorlds.Reports)
+            var reports = Crateris.Core.Story.StoryWorlds.Reports.ToList();
+            if (_options.ShowReport is { } shown && !reports.Contains(shown))
+                reports.Add(shown);
+            foreach (string report in reports)
             {
                 var table = StringTable.Load(content, report);
                 _reportTexts[report] = Enumerable.Range(0, table.Count).Select(i => table[i]).ToList();
@@ -266,6 +278,7 @@ public partial class Main : Node2D
                 _orbitView.Sprites = _planetsideView.Sprites = new PlanetsideSprites(content, sheets);
                 _commView.UseContent(content, sheets, scripts, _names);
                 _starbaseView.UseContent(content, sheets);
+                _reportView.UseContent(content, sheets);
             }
         }
         catch (ContentPackageException e)
@@ -293,6 +306,8 @@ public partial class Main : Node2D
             ModuleCostScale = _systems.StoryRules?.ModuleCostScale ?? 50,
         };
         _player.Logged += Log;
+        if (_options.ShowReport is { } report)
+            _player.ShowReport(new Crateris.Core.Planetside.LanderReport(report));
         if (_options.Join)
             StartClient();
         else
@@ -618,7 +633,8 @@ public partial class Main : Node2D
             // doesn't use up its first steps (the network test depends on it).
             bool inGame = _host != null || (_connected && _player.Snapshot != null);
             // No ship keys while the about screen is up (its Esc mustn't take off).
-            var keys = _about.Visible ? ShipInput.None : ReadKeys(_player.Screen == PlayerScreen.Planetside);
+            // Nor while the lander report has them (UQM waits for its keys).
+            var keys = _about.Visible || ReportHasKeys ? ShipInput.None : ReadKeys(_player.Screen == PlayerScreen.Planetside);
             var input = inGame ? _player.NextInput(keys) : ShipInput.None;
             var landing = inGame ? _player.TakeLandingRequest() : null;
             var discards = inGame ? _player.TakeDiscards() : Array.Empty<int>();
@@ -709,7 +725,7 @@ public partial class Main : Node2D
     {
         if (!_running)
             return;
-        _player?.Advance(delta, _player.Scripted || _about.Visible ? HeldKeys.None : HeldArrows());
+        _player?.Advance(delta, _player.Scripted || _about.Visible || ReportHasKeys ? HeldKeys.None : HeldArrows());
         _orbitView.Advance(delta);
         if (_player != null)
             _orbitView.Show(_player.OrbitMenu, _player.Taken, _player.Snapshot, _player.PlayerId, _player.OrbitMessage);
@@ -750,9 +766,26 @@ public partial class Main : Node2D
         return input;
     }
 
+    /// <summary>Whether the lander report is up and has the player's keys (shown, and not over: <see cref="ReportView.Active"/>).</summary>
+    private bool ReportHasKeys => _reportView.Visible && _reportView.Active;
+
     public override void _UnhandledInput(InputEvent e)
     {
-        if (!_running || e is not InputEventKey { Pressed: true } k)
+        if (!_running)
+            return;
+        // The lander report takes every key while it's up, going down and
+        // coming up (UQM waits for any key), but the about screen's.
+        if (e is InputEventKey rk && !rk.Echo && ReportHasKeys && !_about.Visible && rk.Keycode != Key.F1
+                && _player is { Scripted: false })
+        {
+            if (rk.Pressed)
+                _reportView.KeyDown();
+            else
+                _reportView.KeyUp();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+        if (e is not InputEventKey { Pressed: true } k)
             return;
         // F1 opens and closes the about screen; Esc closes it too.
         if (k.Keycode == Key.F1 || (_about.Visible && k.Keycode == Key.Escape))
@@ -855,6 +888,12 @@ public partial class Main : Node2D
         _systemView.Visible = screen == PlayerScreen.System;
         _orbitView.Visible = screen == PlayerScreen.Orbit;
         _planetsideView.Visible = screen == PlayerScreen.Planetside;
+        // The player's own lander report, over the scan map's area of the planet-side and orbit views.
+        _reportView.Visible = screen is PlayerScreen.Planetside or PlayerScreen.Orbit;
+        if (Headless)
+            player.TakeOwnReport();   // nothing to show it on (the session has logged it)
+        else if (_reportView.Ready && player.TakeOwnReport() is { } reportText)
+            _reportView.Show(reportText);
         _commView.Visible = screen == PlayerScreen.Comm;
         if (_commView.Visible)
             _commView.Show(player);

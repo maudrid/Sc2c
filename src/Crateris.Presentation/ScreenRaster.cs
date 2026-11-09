@@ -25,8 +25,8 @@ namespace Crateris.Presentation;
 /// alpha; a filled stamp in the colour, in the picture's shape; text
 /// through its font's characters (font_DrawText's TextRect and
 /// _text_blt), each character's alpha laid over the colour or over the
-/// font effect's frame of graphics.fontgradient (the context's font
-/// backing, its corner at each character's).
+/// font effect's frame (of graphics.fontgradient, or the call's effect
+/// sheet: the context's font backing, its corner at each character's).
 /// <para>
 /// UQM draws a screen a change at a time over what is there, and so does
 /// the port (<see cref="StarbaseScreens"/>): each step's calls are painted
@@ -145,7 +145,7 @@ public sealed class ScreenRaster
         var backing = new byte[bw * bh * 3];
         if (d.Effect >= 0)
         {
-            var e = _frame(StarbaseScreens.FontGradientSheet, d.Effect);
+            var e = _frame(d.EffectSheet is "" ? StarbaseScreens.FontGradientSheet : d.EffectSheet, d.Effect);
             for (int y = 0; y < e.Height; ++y)
                 for (int x = 0; x < e.Width; ++x)
                 {

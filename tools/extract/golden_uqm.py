@@ -3172,6 +3172,182 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
     return data
 
 
+# ------------------------------------------------------------ the lander report
+
+REPORT_PROGRAM = os.path.join(HERE, "golden", "report.c")
+REPORT_LINK = ["uqm/util.c", "libs/strings/unicode.c", "libs/graphics/pixmap.c"]
+REPORT_SHEET = "graphics.orbitbackground"   # SpaceJunkFrame
+
+
+def report_texts():
+    """The reports recorded: lander reports from the content (the table
+    and its entry) of every length, and texts of our own for what the
+    content's don't have (words of 39 and 40 letters, a page filled
+    exactly, blank lines, punctuation of every kind, a trailing newline,
+    UTF-8 beyond ASCII, nothing)."""
+    content = [("text.moonbase", 0), ("text.ruins", 0), ("text.aquahelix", 0), ("text.androsynthruins", 1),
+               ("text.umgahcaster", 1), ("text.urquanwreck", 0), ("text.syreenvault", 2), ("text.fwiffo", 0),
+               ("text.sundevice", 0)]
+    exact = " ".join(["x" * 39] * 12)   # twelve rows of 39 letters: the last row fits
+    ours = {
+        "long-words": "Short " + "a" * 40 + " then " + "b" * 39 + " c " + "d" * 38 + ", " + "e" * 39 + ".",
+        "exact-page": exact,
+        "page-and-a-word": exact + " more",
+        "newlines": "First line.\nSecond line\n\nAfter a blank line, more text.\n\n\nAnd the end",
+        "many-lines": "\n".join(f"Line {n}, of many." for n in range(1, 31)),
+        "punctuation": "Wait, what? Yes! No. Maybe... ok,fine;done. A.B,C!D?E. Commas,,, and stops... End?!",
+        "trailing-newline": "Some text, then a newline.\n",
+        "utf8": "Caf\u00e9 au lait, na\u00efve r\u00e9sum\u00e9. \u00c0 bient\u00f4t!",
+        "nothing": "",
+    }
+    return content, ours
+
+
+def record_report(uqm, exe, strings_exe, package):
+    """UQM's lander report (golden/report.c): DoDiscoveryReport typing a
+    report into the scan map's area, its pages and the keys that hurry it
+    on, on the program's clock. The reports from the content are named by
+    their table and entry, not written out; the frames' rectangles are
+    read from the content."""
+    import zipfile
+    content, ours = report_texts()
+    tables = read_string_tables(strings_exe, package, lambda key: key in {t for t, _ in content} | {"text.starcon"})
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        ani_path = index[REPORT_SHEET][1]
+        lines = [l.split() for l in z.read(ani_path).decode("latin-1").splitlines() if l.strip()]
+        rects = {}
+        for i in (18, 21):
+            png = z.read(os.path.dirname(ani_path) + "/" + lines[i][0])
+            w, h = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")
+            rects[i] = (int(lines[i][3]), int(lines[i][4]), w, h)
+    frames = len(lines)
+    head = f"{frames} " + " ".join(f"{i}:{hx}:{hy}:{w}:{h}" for i, (hx, hy, w, h) in rects.items())
+
+    def entry(table, i):
+        data = bytes.fromhex(tables[table][1][i][1])
+        return data[:-1] if data.endswith(b"\0") else data
+
+    def run(text, keys, stop=None):
+        events = " ".join(keys + ([f"stop:{stop}"] if stop else [])) or "-"
+        inp = "\n".join([head, end_hex, text.hex(), events]) + "\n"
+        out = subprocess.run([exe], input=inp, capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"report: exit {out.returncode}: {out.stderr}")
+        return json.loads(out.stdout)
+
+    # The end-of-page string: the program says which game string it is.
+    end_hex = b"?".hex()
+    end_index = run(b"", [])["end_string"]
+    end_hex = entry("text.starcon", end_index).hex()
+
+    def after_pages(text, keys, hold=50):
+        """keys, then a key after each page as it waits, until the report
+        closes: a while after the page's last letter, at times that fall
+        on and between the waits' looks."""
+        keys = list(keys)
+        for n in range(64):
+            last = max([int(k.split(":")[1]) for k in keys] + [0])
+            got = run(text, keys, last + 30000)
+            if got["restored"] >= 0:
+                return keys, got
+            at = max(got["calls"][-1][0], last) + 500 + (n * 17) % 41
+            keys += [f"d:{at}", f"u:{at + hold}"]
+        raise RuntimeError(f"report: never closes: {keys[:20]} {got['calls'][-3:]}")
+
+    def taps(start, n, step, hold=1):
+        return [k for t in range(start, start + n * step, step) for k in (f"d:{t}", f"u:{t + hold}")]
+
+    def at_end_string(text):
+        """A key as the first page's end-of-page string is typed."""
+        first = next(t for t, c in run(text, [], 40000)["calls"] if c[0] == "t" and c[6].startswith("{end:"))
+        return [f"d:{first + 5}", f"u:{first + 25}"]
+
+    # The key patterns: name, the keys before the pages' ones, or what
+    # makes them from the text (None: no keys at all).
+    patterns = {
+        "pages": [],
+        "mid-typing": ["d:1000", "u:1030"],
+        "quick-taps": taps(500, 6, 9) + taps(700, 3, 21),
+        "held-across-page-end": ["d:800", "u:30000"],
+        "held-from-start": ["d:0", "u:400"],
+        "at-once-twice": ["d:300", "d:310", "u:320", "u:330"],
+        "at-end-string": at_end_string,
+        "mashing": taps(200, 40, 50, 10),
+        "none": None,
+    }
+    scenarios = []
+
+    def add(name, text, ref, pattern):
+        keys = patterns[pattern]
+        if keys is None:
+            got, keys = run(text, [], 40000), ["stop:40000"]
+        else:
+            keys, got = after_pages(text, keys(text) if callable(keys) else keys)
+        scenarios.append({"name": f"{name}/{pattern}", "text": ref, "keys": keys, "calls": got["calls"],
+                          "restored": got["restored"], "released": got["released"]})
+
+    for table, i in content:
+        if table == "text.moonbase":
+            chosen = list(patterns)
+        elif table in ("text.ruins", "text.aquahelix"):
+            chosen = ["pages", "mid-typing"]
+        else:
+            chosen = ["pages"]
+        for pattern in chosen:
+            add(f"{table}:{i}", entry(table, i), {"table": table, "index": i}, pattern)
+    for name, text in ours.items():
+        if name in ("exact-page", "page-and-a-word", "many-lines"):
+            chosen = ["pages", "mid-typing", "held-across-page-end"]
+        elif name == "nothing":
+            chosen = ["pages"]
+        else:
+            chosen = ["pages", "mid-typing"]
+        for pattern in chosen:
+            add(name, text.encode(), {"literal": text}, pattern)
+
+    data = header(uqm, ["tools/extract/golden/report.c", "src/uqm/planets/report.c", "src/uqm/util.c",
+                        "src/uqm/gameinp.c", "src/libs/input/sdl/vcontrol.c"], [
+        "UQM 0.8.0's own lander report, recorded by running its report.c "
+        "(DoDiscoveryReport, MakeReport, ClearReportArea) with util.c's waits "
+        "(tools/extract/golden/report.c): each drawing call in the screen's "
+        "coordinates, at the time on the program's clock (UQM's ticks, 840 a "
+        "second; the waits' SleepThread moves it on, nothing else takes "
+        "time), with keys going down and up at scripted times, seen as UQM's "
+        "input sees them (a key held, or one gone down since the last look). "
+        "The fonts are UQM's default, OPT_PC, as screens.json's: the report "
+        "area's stamps are frame 21 of graphics.orbitbackground and the text "
+        "takes its colours from graphics.landerfonteffect. The frames are "
+        f"read from the official content package (SHA-256 {CONTENT_SHA256}).",
+        "Each scenario: its text (a lander report of the content, the table "
+        "and the entry, the first being 0, as UQM's _GetStringData reads it, "
+        "or a literal of ours), the keys (\"d:T\" down at T, \"u:T\" up at "
+        "T; \"stop:T\" the recording stopped once the clock passed T, the "
+        "report waiting for a key), the calls as [time, call], when "
+        "DoDiscoveryReport put the screen back (restored) and when its "
+        "WaitForNoInput saw every key up (released), -1 if not.",
+        "A call: [\"s\", resource, frame, x, y] DrawStamp, [\"c\", x, y, width, "
+        "height, r, g, b] ClearDrawable (the clip rectangle in the background "
+        "colour), [\"t\", font, x, y, align, count, text, r, g, b, effect "
+        "resource, effect frame] font_DrawText; each with the context's clip "
+        "rectangle as x, y, width, height. The text is where its pointer is: "
+        "\"{report:N}\" the report from byte N of its UTF-8, \"{end:N}\" "
+        "MakeReport's end_page_buf (GAME_STRING (end_string) and a newline) "
+        "from byte N; count characters of it are drawn.",
+        "frames: graphics.orbitbackground's number of frames; rects: its "
+        "frames 18 and 21's GetFrameRect, [x, y, width, height] (the corner "
+        "less the hot spot, and the size).",
+    ])
+    data["end_string"] = end_index
+    data["frames"] = frames
+    data["rects"] = {str(i): [-hx, -hy, w, h] for i, (hx, hy, w, h) in rects.items()}
+    data["scenarios"] = scenarios
+    return data
+
+
 # ------------------------------------------------------------ the talk's text
 
 COMMTEXT_PROGRAM = os.path.join(HERE, "golden", "commtext.c")
@@ -3364,6 +3540,9 @@ def main():
     ap.add_argument("--content", help="the official uqm-0.8.0-content.uqm; "
                     "with it, also record what UQM reads from the content "
                     "(as hashes)")
+    ap.add_argument("--only", help="record only these, comma-separated: "
+                    "a file's name without .json (planet-surfaces, "
+                    "planetside and contact for the files those write)")
     args = ap.parse_args()
     if shutil.which("gcc") is None:
         sys.exit("gcc is required")
@@ -3398,6 +3577,9 @@ def main():
         screens = os.path.join(build_dir, "screens")
         if args.content:
             build(uqm, SCREENS_PROGRAM, SCREENS_LINK, screens, extra=[SCREENS_STUBS], libs=["-lm"])
+        report = os.path.join(build_dir, "report")
+        if args.content:
+            build(uqm, REPORT_PROGRAM, REPORT_LINK, report)
         cmap = os.path.join(build_dir, "cmap")
         build(uqm, CMAP_PROGRAM, [], cmap)
         commanim = os.path.join(build_dir, "commanim")
@@ -3410,46 +3592,58 @@ def main():
         build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
               strings, extra=[UIO_FILES], libs=["-lm"])   # the name index's hash table: ceil, floor
         os.makedirs(args.out, exist_ok=True)
-        for name, data in (("hyperspace-flight", record_flight(uqm, flight)),
-                           ("uqm-math", record_math(uqm, math)),
-                           ("lander", record_lander(uqm, lander)),
-                           ("star-systems", record_systems(uqm, systems)),
-                           ("world-surfaces", record_surfaces(uqm, systems)),
-                           ("ip-geometry", record_ip(uqm, systems)),
-                           ("system-layout", record_layout(uqm, systems)),
-                           ("system-sprites", record_sprites(uqm, systems)),
-                           *record_planet_surfaces(uqm, systems, strings, images, args.content).items(),
-                           *record_planetside(uqm, systems, strings, images, args.content).items(),
-                           ("landing", record_landing(uqm, systems)),
-                           ("outfit", record_outfit(uqm, outfit)),
-                           ("devices", record_devices(uqm, devices)),
-                           ("commanim", record_commanim(uqm, commanim)),
-                           ("cmap", record_cmap(uqm, cmap)),
-                           ("string-numbering", record_string_numbering(uqm, strings)),
-                           ("conversation-cases", record_conversation_cases(uqm, strings)),
-                           ("string-table-cases", record_string_table_cases(uqm, strings)),
-                           ("resource-index-cases", record_resource_index_cases(uqm, strings)),
-                           *([("string-tables", record_string_tables(uqm, strings, args.content)),
-                              ("names", record_names(uqm, systems, strings, args.content)),
-                              ("fonts", record_fonts(uqm, fonts, strings, args.content)),
-                              ("images", record_images(uqm, images, args.content)),
-                              ("conversations", record_conversations(uqm, strings, args.content)),
-                              ("comm-graphics", record_comm_graphics(uqm, strings, images, args.content)),
-                              ("binary-tables", record_binary_tables(uqm, strings, args.content)),
-                              ("talks", record_talks(uqm, strings, args.content)),
-                              ("commtext", record_commtext(uqm, commtext, strings, args.content)),
-                              ("screens", record_screens(uqm, screens, outfit, strings, args.content)),
-                              *record_contact(uqm, systems, strings, images, args.content).items(),
-                              ("lander-pickups", record_lander_pickups(uqm, lander, strings, images, args.content)),
-                              ("lander-creatures", record_lander_creatures(uqm, lander, strings, images, args.content)),
-                              ("lander-hazards", record_lander_hazards(uqm, lander, strings, images, args.content)),
-                              ("lander-drawing", record_lander_drawing(uqm, lander, strings, images, args.content))]
-                             if args.content else [])):
-            path = os.path.join(args.out, name + ".json")
-            with open(path, "w") as f:
-                json.dump(data, f, separators=(",", ":"))
-                f.write("\n")
-            print(f"wrote {path}")
+        # Each job: the file it writes (or, for those that write several,
+        # a name for them all) and how to record it.
+        jobs = [("hyperspace-flight", lambda: record_flight(uqm, flight)),
+                ("uqm-math", lambda: record_math(uqm, math)),
+                ("lander", lambda: record_lander(uqm, lander)),
+                ("star-systems", lambda: record_systems(uqm, systems)),
+                ("world-surfaces", lambda: record_surfaces(uqm, systems)),
+                ("ip-geometry", lambda: record_ip(uqm, systems)),
+                ("system-layout", lambda: record_layout(uqm, systems)),
+                ("system-sprites", lambda: record_sprites(uqm, systems)),
+                ("planet-surfaces", lambda: record_planet_surfaces(uqm, systems, strings, images, args.content)),
+                ("planetside", lambda: record_planetside(uqm, systems, strings, images, args.content)),
+                ("landing", lambda: record_landing(uqm, systems)),
+                ("outfit", lambda: record_outfit(uqm, outfit)),
+                ("devices", lambda: record_devices(uqm, devices)),
+                ("commanim", lambda: record_commanim(uqm, commanim)),
+                ("cmap", lambda: record_cmap(uqm, cmap)),
+                ("string-numbering", lambda: record_string_numbering(uqm, strings)),
+                ("conversation-cases", lambda: record_conversation_cases(uqm, strings)),
+                ("string-table-cases", lambda: record_string_table_cases(uqm, strings)),
+                ("resource-index-cases", lambda: record_resource_index_cases(uqm, strings))]
+        if args.content:
+            jobs += [("string-tables", lambda: record_string_tables(uqm, strings, args.content)),
+                     ("names", lambda: record_names(uqm, systems, strings, args.content)),
+                     ("fonts", lambda: record_fonts(uqm, fonts, strings, args.content)),
+                     ("images", lambda: record_images(uqm, images, args.content)),
+                     ("conversations", lambda: record_conversations(uqm, strings, args.content)),
+                     ("comm-graphics", lambda: record_comm_graphics(uqm, strings, images, args.content)),
+                     ("binary-tables", lambda: record_binary_tables(uqm, strings, args.content)),
+                     ("talks", lambda: record_talks(uqm, strings, args.content)),
+                     ("commtext", lambda: record_commtext(uqm, commtext, strings, args.content)),
+                     ("screens", lambda: record_screens(uqm, screens, outfit, strings, args.content)),
+                     ("report", lambda: record_report(uqm, report, strings, args.content)),
+                     ("contact", lambda: record_contact(uqm, systems, strings, images, args.content)),
+                     ("lander-pickups", lambda: record_lander_pickups(uqm, lander, strings, images, args.content)),
+                     ("lander-creatures", lambda: record_lander_creatures(uqm, lander, strings, images, args.content)),
+                     ("lander-hazards", lambda: record_lander_hazards(uqm, lander, strings, images, args.content)),
+                     ("lander-drawing", lambda: record_lander_drawing(uqm, lander, strings, images, args.content))]
+        only = set(args.only.split(",")) if args.only else None
+        if only and only - {name for name, _ in jobs}:
+            sys.exit(f"no such recording: {', '.join(sorted(only - {name for name, _ in jobs}))}")
+        for job, record in jobs:
+            if only and job not in only:
+                continue
+            data = record()
+            # A job that writes several files gives {file: data}.
+            for name, data in (data.items() if "_notice" not in data else [(job, data)]):
+                path = os.path.join(args.out, name + ".json")
+                with open(path, "w") as f:
+                    json.dump(data, f, separators=(",", ":"))
+                    f.write("\n")
+                print(f"wrote {path}")
     finally:
         shutil.rmtree(build_dir, ignore_errors=True)
 

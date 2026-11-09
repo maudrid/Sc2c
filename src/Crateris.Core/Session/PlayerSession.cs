@@ -356,24 +356,36 @@ public sealed class PlayerSession
     public Func<string, IReadOnlyList<string>>? StringTables { get; set; }
 
     /// <summary>
-    /// The lander report the host sent (DoDiscoveryReport): until the
-    /// screen draws it as UQM does (item 11), shown as a notice, with who
-    /// found it when it was another player.
+    /// The lander report the host sent (DoDiscoveryReport). This player's
+    /// own lander's goes to the screen, which types it into the scan map's
+    /// area as UQM does (<see cref="TakeOwnReport"/>); another player's,
+    /// found while this player's lander was on the same world, is a notice
+    /// in the status panel saying who found it (stage 3, decision 9: the
+    /// others stay and are told, their keys still their own).
     /// </summary>
     public void ShowReport(LanderReport report)
     {
-        var texts = StringTables?.Invoke(report.Resource) ?? Array.Empty<string>();
-        string text = string.Join("\n", texts.Select(t => t.Trim('\n', '\r')));
+        string text = ReportText(report.Resource);
+        Log($"Lander report {report.Resource}" + (report.FoundBy is { } f ? $" (found by {f})" : ""));
         if (report.FoundBy is { } id)
         {
             string who = Snapshot?.Ships.FirstOrDefault(s => s.Id == id)?.Name ?? id;
-            text = $"{who}'s lander found it:\n{text}";
+            Notify($"{who}'s lander found it:\n{text}", ReportSeconds);
         }
-        Log($"Lander report {report.Resource}" + (report.FoundBy is { } f ? $" (found by {f})" : ""));
-        Notify(text, ReportSeconds);
+        else
+            _ownReports.Enqueue(text);
     }
 
-    /// <summary>How long a lander report stays up.</summary>
+    // The report's text: its table's first entry, which DiscoveryString is when the world loads it.
+    private string ReportText(string resource) =>
+        StringTables?.Invoke(resource) is { Count: > 0 } texts ? texts[0] : "";
+
+    private readonly Queue<string> _ownReports = new();
+
+    /// <summary>The next of this player's own lander reports to show (their texts, oldest first); null if none waits.</summary>
+    public string? TakeOwnReport() => _ownReports.Count > 0 ? _ownReports.Dequeue() : null;
+
+    /// <summary>How long another player's lander report stays up as a notice.</summary>
     public const double ReportSeconds = 20;
 
     /// <summary>The reply chosen (its round and place), to send to the host once; null if none is waiting.</summary>

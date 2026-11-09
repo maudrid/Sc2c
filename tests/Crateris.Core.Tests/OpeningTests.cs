@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using Crateris.Core.Comm;
+using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Planetside;
@@ -135,6 +136,24 @@ public class OpeningTests
         Run(world, 100);
         Assert.Null(world.Host.Ship.Lander);
         Assert.Equal(LanderPhase.Ground, guest.Phase);
+    }
+
+    [ContentFact]
+    public void TheFindersScreenTypesTheReportAndTheOthersAreToldWhoFoundIt()
+    {
+        var table = TestContent.With(p => StringTable.Load(p, StoryWorlds.MoonbaseReport));
+        IReadOnlyList<string> Tables(string id) => id == StoryWorlds.MoonbaseReport ? new[] { table[0] } : Array.Empty<string>();
+        var finder = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count) { StringTables = Tables };
+        finder.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport));
+        // The finder's own goes to the screen (DoDiscoveryReport, item 11), not the status panel.
+        Assert.Equal(table[0], finder.TakeOwnReport());
+        Assert.Null(finder.TakeOwnReport());
+        Assert.DoesNotContain("found it", string.Join("\n", finder.StatusLines()));
+        // Another player on Luna is told who found it, as a notice; nothing goes to their screen.
+        var other = new PlayerSession(Systems, null, "guest", TestContent.Shapes.HyperFlagship.Count) { StringTables = Tables };
+        other.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport, "host"));
+        Assert.Null(other.TakeOwnReport());
+        Assert.Contains("host's lander found it:\n" + table[0], string.Join("\n", other.StatusLines()));
     }
 
     // ------------------------------------------------------------ the visit

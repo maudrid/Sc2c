@@ -47,12 +47,14 @@ public enum UqmDrawKind
 /// the sheet (a GFXRES resource); text names its font (starcon, tiny,
 /// micro), its alignment, how many characters (-1 all) and its effect
 /// (a frame of graphics.fontgradient the characters take their colours
-/// from, or -1). <see cref="Clip"/> is the context's clip rectangle, in
-/// the screen's pixels: UQM draws only inside it.
+/// from, or -1; <see cref="EffectSheet"/> the sheet that frame is of when
+/// it isn't graphics.fontgradient: the lander's font effect for the lander
+/// report). <see cref="Clip"/> is the context's clip rectangle, in the
+/// screen's pixels: UQM draws only inside it.
 /// </summary>
 public readonly record struct UqmDraw(UqmDrawKind Kind, int X, int Y, int Width = 0, int Height = 0, Rgb Color = default,
     string Sheet = "", int Frame = 0, string Font = "", TextAlign Align = TextAlign.Left, int Count = -1, string Text = "",
-    int Effect = -1, URect Clip = default);
+    int Effect = -1, URect Clip = default, string EffectSheet = "");
 
 /// <summary>UQM's RECT.</summary>
 public struct URect : IEquatable<URect>
@@ -95,6 +97,7 @@ public sealed class UqmCanvas
         public Rgb Fg, Bg;
         public string Font = "";
         public int Effect = -1;
+        public string EffectSheet = "";
     }
 
     public readonly Context Screen = new(), Status = new(), Space = new(), OffScreen = new();
@@ -152,6 +155,16 @@ public sealed class UqmCanvas
     {
         int old = _cur.Effect;
         _cur.Effect = frame;
+        _cur.EffectSheet = "";
+        return old;
+    }
+
+    /// <summary>SetContextFontEffect with a frame of another sheet (<paramref name="sheet"/>; "" graphics.fontgradient).</summary>
+    public (int Frame, string Sheet) SetFontEffect(int frame, string sheet)
+    {
+        var old = (_cur.Effect, _cur.EffectSheet);
+        _cur.Effect = frame;
+        _cur.EffectSheet = sheet;
         return old;
     }
 
@@ -195,7 +208,7 @@ public sealed class UqmCanvas
 
     public void Text(int x, int y, TextAlign align, string text, int count = -1) =>
         Drawn.Add(new UqmDraw(UqmDrawKind.Text, Ox + x, Oy + y, Color: _cur.Fg, Font: _cur.Font, Align: align, Count: count,
-            Text: text, Effect: _cur.Effect, Clip: ClipRect));
+            Text: text, Effect: _cur.Effect, Clip: ClipRect, EffectSheet: _cur.Effect >= 0 ? _cur.EffectSheet : ""));
 
     /// <summary>DrawStarConBox (util.c).</summary>
     public void StarConBox(URect r, int border, Rgb topLeft, Rgb bottomRight, bool fill, Rgb interior)
