@@ -176,6 +176,7 @@ public sealed class CommScreen
         if (paged is { } p)
         {
             Page(p);
+            _applied++;   // the host keeps it after those already followed (sent in order)
             return CommKeyResult.Used;
         }
         return _summary is null && !_talking && key is MenuKey.Up or MenuKey.Down or MenuKey.Select
@@ -238,29 +239,24 @@ public sealed class CommScreen
     }
 
     private string _followKey = "";
-    private int _followed;
-    private bool _wasWatching;
+    private int _applied;
 
     /// <summary>
     /// The replier's paging of the lines shown (<paramref name="linesKey"/>,
     /// the talk's <see cref="TalkView.LinesKey"/>; call after
-    /// <see cref="Show"/>): a player <paramref name="watching"/> a story
-    /// talk follows what they haven't yet (decision 7); the replier's own
-    /// is already on their screen. A watcher who has just become the
-    /// replier follows what came before it first, as does a screen first
-    /// following these lines (opened mid-talk: the replier's own paging
-    /// is on no screen yet).
+    /// <see cref="Show"/>), as the host keeps it: everyone's screen follows
+    /// what it hasn't applied yet (decision 7). The replier's own pages
+    /// (<see cref="Press(MenuKey, out TalkPage?)"/>) count as applied, so
+    /// the host's echo of them does nothing; a screen opened afresh (a
+    /// player joining, the replier's screen reopened) or a watcher who has
+    /// just become the replier follows all that came before.
     /// </summary>
-    public void Follow(string linesKey, IReadOnlyList<TalkPage> paging, bool watching)
+    public void Follow(string linesKey, IReadOnlyList<TalkPage> paging)
     {
-        bool fresh = linesKey != _followKey;
-        if (fresh)
-            (_followKey, _followed) = (linesKey, 0);
-        bool apply = watching || _wasWatching || fresh;
-        _wasWatching = watching;
-        for (; _followed < paging.Count; ++_followed)
-            if (apply)
-                Page(paging[_followed]);
+        if (linesKey != _followKey)
+            (_followKey, _applied) = (linesKey, 0);
+        for (; _applied < paging.Count; ++_applied)
+            Page(paging[_applied]);
     }
 
     /// <summary>GetTrackPosition (sliderSpace): how far the button is along the slider.</summary>

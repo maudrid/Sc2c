@@ -117,7 +117,7 @@ public partial class CommView : Node2D
         _watching = !session.Replying;
         if (!ReferenceEquals(talk, _talk))
             (_talk, _round, _lines, _linesKey) = (talk, talk.Round, talk.LinesHash, talk.LinesKey);
-        _screen?.Follow(_linesKey, talk.PagingSoFar, _watching);
+        _screen?.Follow(_linesKey, talk.PagingSoFar);
     }
 
     /// <summary>The screen is gone (no talk): the next starts afresh.</summary>

@@ -47,6 +47,11 @@ public sealed class StarbasePicture
     /// <summary>How long after asking it's asked again (UQM's ticks: a second, for the host's answer to come).</summary>
     public const long AskEvery = 840;
 
+    /// <summary>How long a picture stands before a later loss of it is asked for afresh (UQM's ticks: five seconds).</summary>
+    public const long Settled = 5 * 840;
+
+    private long? _drawnSince;
+
     /// <param name="canvas">The canvas the screens draw on (its calls are taken as they're drawn).</param>
     /// <param name="gameString">The game's strings (GAME_STRING).</param>
     /// <param name="starbaseFrames">How many frames graphics.starbase has.</param>
@@ -83,16 +88,24 @@ public sealed class StarbasePicture
     /// <paramref name="now"/> (UQM's ticks): when there's no picture for
     /// it, once every <see cref="AskEvery"/> (the answer takes a round
     /// trip) and at most <see cref="MostAsks"/> times while the host's
-    /// screen stays the same and no picture comes, so a drawing that can't
-    /// be painted isn't asked for again and again; a picture drawn starts
-    /// the count afresh. The commander's talk has no picture (the
-    /// communication screen shows).
+    /// screen stays the same, so a drawing that can't be painted isn't
+    /// asked for again and again; once a picture has stood
+    /// <see cref="Settled"/>, a later loss is asked for afresh. The
+    /// commander's talk has no picture (the communication screen shows).
     /// </summary>
     public bool Ask(StarbaseScreen? screen, long now)
     {
-        if (screen != _seen || Drawn)
+        if (screen != _seen)
             (_seen, _asks, _asked) = (screen, 0, null);
-        if (screen is null or StarbaseScreen.Talk || Drawn || _asks >= MostAsks || now - _asked < AskEvery)
+        if (Drawn)
+        {
+            _drawnSince ??= now;
+            if (now - _drawnSince >= Settled)
+                _asks = 0;   // it stood: losing it later is a new loss, not this one again
+            return false;
+        }
+        _drawnSince = null;
+        if (screen is null or StarbaseScreen.Talk || _asks >= MostAsks || now - _asked < AskEvery)
             return false;
         (_asks, _asked) = (_asks + 1, now);
         return true;

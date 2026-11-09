@@ -229,38 +229,44 @@ public class CommScreenTests
         var joiner = Starbase(out _);
         joiner.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 50_000);
         paging.AddRange(new[] { TalkPage.Skip, TalkPage.Replay });
-        joiner.Follow("a", paging, watching: true);
+        joiner.Follow("a", paging);
         joiner.Update(50_010);
         Assert.True(joiner.Talking);
         // Followed once: the same paging again does nothing more.
-        joiner.Follow("a", paging, watching: true);
+        joiner.Follow("a", paging);
         joiner.Update(50_020);
         Assert.True(joiner.Talking);
         paging.Add(TalkPage.Skip);
-        joiner.Follow("a", paging, watching: true);
+        joiner.Follow("a", paging);
         Assert.False(joiner.Talking);
-        // The replier's own paging is on their screen already.
+        // The replier's own paging is on their screen already: the host's echo of it, a moment behind, does nothing.
         var replier = Starbase(out _);
         replier.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
-        replier.Follow("a", Array.Empty<TalkPage>(), watching: false);
+        replier.Follow("a", Array.Empty<TalkPage>());
         replier.Update(10);
-        replier.Follow("a", new[] { TalkPage.Skip }, watching: false);
-        Assert.True(replier.Talking);
-        // Unless their screen is opened afresh mid-talk: what they paged before is on no screen, so it's followed.
+        replier.Press(MenuKey.Left, out _);     // played again
+        replier.Press(MenuKey.Cancel, out _);   // skipped
+        replier.Follow("a", new[] { TalkPage.Replay });
+        Assert.False(replier.Talking);
+        replier.Follow("a", new[] { TalkPage.Replay, TalkPage.Skip });
+        Assert.False(replier.Talking);
+        // The replier's screen opened afresh, even before the echo of their page came: followed when it does.
         var reopened = Starbase(out _);
         reopened.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
-        reopened.Follow("a", new[] { TalkPage.Skip }, watching: false);
+        reopened.Follow("a", Array.Empty<TalkPage>());
+        reopened.Update(10);
+        reopened.Follow("a", new[] { TalkPage.Skip });
         Assert.False(reopened.Talking);
         // A watcher made the replier by a view that also brings the last replier's skip: followed first.
         var heir = Starbase(out _);
         heir.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
-        heir.Follow("a", Array.Empty<TalkPage>(), watching: true);
+        heir.Follow("a", Array.Empty<TalkPage>());
         heir.Update(10);
-        heir.Follow("a", new[] { TalkPage.Skip }, watching: false);
+        heir.Follow("a", new[] { TalkPage.Skip });
         Assert.False(heir.Talking);
         // New lines: followed from their first page.
         heir.Show(new[] { Second }, "Hello.", new[] { "Bye." }, 2, 100);
-        heir.Follow("b", new[] { TalkPage.Skip }, watching: true);
+        heir.Follow("b", new[] { TalkPage.Skip });
         Assert.False(heir.Talking);
     }
 }

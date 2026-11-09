@@ -58,7 +58,8 @@ public partial class StarbaseScreenView : Node2D
     /// <summary>
     /// There's no picture for the screen the host says is up (a drawing
     /// that couldn't be painted, or the content came after the drawing):
-    /// the host is to draw it afresh. Asked a few times at most while the screen stays the same.
+    /// the host is to draw it afresh. Asked a few times at most while the screen stays the same
+    /// (again once a picture of it has stood a while: <see cref="StarbasePicture.Ask"/>).
     /// </summary>
     public event Action? Lost;
 
@@ -173,7 +174,8 @@ public partial class StarbaseScreenView : Node2D
     /// <summary>
     /// The screen the host last sent (null: not docked): where the
     /// highlight flashes; with no picture for it, the host is asked to draw
-    /// it afresh (<see cref="Lost"/>, once a second, a few times at most for a screen).
+    /// it afresh (<see cref="Lost"/>, once a second, a few times at most
+    /// for a screen, again only once a picture of it has stood a while).
     /// </summary>
     public void Show(StarbaseView? view)
     {

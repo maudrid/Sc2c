@@ -439,10 +439,21 @@ public class StarbaseScreensTests
         picture.Reset();
         Assert.False(picture.Drawn);
         Assert.Empty(picture.Tick(10_000));                 // no picture: no clock drawing
-        // Lost again on the same screen after a picture came: asked again, as many times.
+        // The menu's asks spent, its picture comes and is lost at once (it can't be painted): not asked for again.
         for (int i = 0; i < StarbasePicture.MostAsks; ++i)
             Assert.True(picture.Ask(StarbaseScreen.Menu, (300 + i) * T));
-        Assert.False(picture.Ask(StarbaseScreen.Menu, 400 * T));
+        picture.Draw(new[] { new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 0) }) }, 0);
+        Assert.False(picture.Ask(StarbaseScreen.Menu, 310 * T));
+        picture.Reset();
+        Assert.False(picture.Ask(StarbaseScreen.Menu, 320 * T));
+        // A picture that stood a while, lost later on the same screen: asked for again, as many times.
+        picture.Draw(new[] { new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 0) }) }, 0);
+        Assert.False(picture.Ask(StarbaseScreen.Menu, 330 * T));
+        Assert.False(picture.Ask(StarbaseScreen.Menu, 330 * T + StarbasePicture.Settled));
+        picture.Reset();
+        for (int i = 0; i < StarbasePicture.MostAsks; ++i)
+            Assert.True(picture.Ask(StarbaseScreen.Menu, (400 + i) * T));
+        Assert.False(picture.Ask(StarbaseScreen.Menu, 500 * T));
         // A drawing that fails part way: what it drew isn't painted over the picture drawn afresh.
         picture.Draw(new[] { new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 0) }) }, 0);
         Assert.Throws<NullReferenceException>(() => picture.Draw(new[] { new StarbaseDrawing(null,
