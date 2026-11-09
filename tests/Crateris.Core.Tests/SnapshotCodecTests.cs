@@ -66,7 +66,7 @@ public class SnapshotCodecTests
             AnyInt(r), AnyInt(r), AnyInt(r), r.Next(2) == 0 ? null : AnyText(r)),
         r.Next(3) == 0 ? null : new HoldSnapshot(AnyInt(r), AnyInt(r), AnyInt(r),
             Enumerable.Range(0, r.Next(9)).Select(_ => AnyInt(r)).ToArray(), AnyInt(r), (LanderUpgrades)r.Next(128),
-            (uint)r.NextInt64(0, uint.MaxValue + 1L)))
+            (uint)r.NextInt64(0, uint.MaxValue + 1L), AnyInt(r)))
         with { ShipName = AnyName(r), CaptainName = AnyName(r) };
 
     private static WorldSnapshot AnySnapshot(Random r, long frame) => new WorldSnapshot(frame, AnyInt(r), AnyInt(r), AnyInt(r),

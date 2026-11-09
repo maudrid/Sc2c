@@ -74,7 +74,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
-| 2026-11-10 | 11, 22 | Stage 3a item 11: the giving screen drawn in the status area, laid out after the Manifest's cargo display; it doesn't open in a talk and closes when one shows |
+| 2026-11-10 | 11 | Stage 3a item 11: the giving screen drawn in the status area, laid out after the Manifest's cargo display; it doesn't open in a talk and closes when one shows |
 | 2026-11-09 | 45 | Stage 3a item 11: the minerals counted down on the seller's screen as UQM's `SellMinerals` does (row 45 done) |
 | 2026-11-09 | 38 | Stage 3a item 11: the lander report typed on the finder's screen as UQM's `DoDiscoveryReport` does (row 38) |
 | 2026-11-09 | 42 | Stage 3a item 11: the communication screen in the game, and watchers following the replier's paging (row 42) |

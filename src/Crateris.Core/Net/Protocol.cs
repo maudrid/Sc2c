@@ -80,8 +80,11 @@ public static class Protocol
     /// (MineralSale: the hold before the sale, the worths, the bio data,
     /// the storage, the resource units and the bomb's state), which the
     /// replier's client counts down before the commander's reply.
+    /// 19: a ship's hold says the room its lander that is out keeps
+    /// (HoldSnapshot.LanderRoom), so the giving screen shows the room the
+    /// host would take for a gift of minerals.
     /// </summary>
-    public const int Version = 18;
+    public const int Version = 19;
     public const int DefaultPort = 24642;
 
     /// <summary>

@@ -39,7 +39,7 @@ public partial class GivingView : Node2D
     private string _to = "", _notice = "";
 
     /// <summary>The keys, below the box.</summary>
-    public const string Keys = "Up, down: the row. Left, right: who, how much (PgUp, PgDn: more). Enter: give. T, Esc: close";
+    public const string Keys = "Up, down: the row. Left, right: who, how much (PgUp, PgDn: more). Enter: give. T, Esc, Backspace: close";
 
     public GivingView() => TextureFilter = TextureFilterEnum.Nearest;
 
@@ -62,6 +62,9 @@ public partial class GivingView : Node2D
             _frames[index] = image = _icons.Render(index, _maps!);
         return image;
     }
+
+    /// <summary>Whether the screen couldn't be drawn: it's closed whenever it opens, with a notice.</summary>
+    public bool Broken { get; private set; }
 
     /// <summary>
     /// Shows the player's giving screen as it stands, or nothing if it's
@@ -111,7 +114,8 @@ public partial class GivingView : Node2D
         catch (Exception e)
         {
             GD.PrintErr($"The giving screen couldn't be drawn: {e.Message}");
-            _sheets = null;   // not tried again; the status panel's text stays
+            _sheets = null;   // not tried again: the game closes it (Broken)
+            Broken = true;
             _drawn = null;
             QueueRedraw();
             return false;
@@ -125,40 +129,58 @@ public partial class GivingView : Node2D
         var area = GivingScreen.Area;
         var source = new Rect2(area.X, area.Y, area.W, area.H);
         DrawTextureRectRegion(_texture, new Rect2(Vector2.Zero, source.Size * SisScreen.Scale), source);
-        // Below the box, as the cargo display's description is below the orbit menu.
+        // Below the box, as the cargo display's description is below the orbit menu: who it gives to, or the
+        // notice while there is one (a gift given or refused), then the keys, in the lines there are.
         var font = ThemeDB.FallbackFont;
-        // Two lines for who it gives to, or the notice while there is one (a gift given or refused), and three
-        // for the keys: they fit above the orbit menu.
+        var keys = Wrap(font, Keys, KeyLines);
+        var top = Wrap(font, _notice != "" ? _notice : _to, Math.Max(1, MostLines - keys.Count));
         float y = area.H * SisScreen.Scale + 12;
-        y = _notice != "" ? Lines(font, y, _notice, 2, Colors.Khaki) : Lines(font, y, _to, 2, Colors.White);
-        Lines(font, y, Keys, 3, Colors.Gray);
+        foreach (var line in top)
+        {
+            DrawString(font, new Vector2(0, y), line, HorizontalAlignment.Left, Width, FontSize, _notice != "" ? Colors.Khaki : Colors.White);
+            y += LineHeight;
+        }
+        foreach (var line in keys)
+        {
+            DrawString(font, new Vector2(0, y), line, HorizontalAlignment.Left, Width, FontSize, Colors.Gray);
+            y += LineHeight;
+        }
     }
 
     /// <summary>How wide the text below the box may be (to the space screen's left, less a margin).</summary>
     public float Width { get; set; } = 260;
 
-    private const int FontSize = 13, LineHeight = 15;
+    /// <summary>How many lines of text fit below the box: five above the orbit menu or the lander's gauges, more elsewhere.</summary>
+    public int MostLines { get; set; } = 5;
 
-    // Text wrapped at words to the width, at most some lines, from a baseline; the next text's baseline.
-    private float Lines(Font font, float y, string text, int most, Color color)
+    private const int FontSize = 13, LineHeight = 15, KeyLines = 3;
+
+    // Text wrapped at words to the width, in at most some lines: one cut short ends in an ellipsis.
+    private List<string> Wrap(Font font, string text, int most)
     {
+        bool Fits(string s) => font.GetStringSize(s, HorizontalAlignment.Left, -1, FontSize).X <= Width;
+        var lines = new List<string>();
         var line = "";
-        int lines = 0;
         foreach (var word in text.Replace('\n', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries))
         {
             string longer = line == "" ? word : line + " " + word;
-            if (line != "" && font.GetStringSize(longer, HorizontalAlignment.Left, -1, FontSize).X > Width)
+            if (line != "" && !Fits(longer))
             {
-                DrawString(font, new Vector2(0, y + lines++ * LineHeight), line, HorizontalAlignment.Left, Width, FontSize, color);
+                lines.Add(line);
                 line = word;
-                if (lines == most)
-                    return y + lines * LineHeight;
             }
             else
                 line = longer;
         }
         if (line != "")
-            DrawString(font, new Vector2(0, y + lines++ * LineHeight), line, HorizontalAlignment.Left, Width, FontSize, color);
-        return y + lines * LineHeight;
+            lines.Add(line);
+        if (lines.Count <= most)
+            return lines;
+        lines.RemoveRange(most, lines.Count - most);
+        string last = lines[^1];
+        while (last.Contains(' ') && !Fits(last + "…"))
+            last = last[..last.LastIndexOf(' ')];
+        lines[^1] = last + "…";
+        return lines;
     }
 }

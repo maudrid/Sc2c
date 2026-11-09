@@ -272,6 +272,7 @@ public class TradingTests
         var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
         me.Observe(world.Snapshot());
         me.ToggleTrade();
+        Assert.Equal("guest", me.Trade!.To);   // from the start
         // Before any key: the first other player, in this system, with their room; what the host has.
         var shown = me.Trade!.Follow(me.Snapshot, "host");
         Assert.Equal(("guest", "Guest", true, TradeScreen.UnitsRow), (shown.To, shown.ToName, shown.Here, shown.Row));
@@ -322,6 +323,11 @@ public class TradingTests
                 Assert.Equal(TradeRefusal.None, world.Give(new Gift("host", "guest", 0, Minerals(0, 5), 0)));
                 Assert.Equal(guest.Ship.Hold.RoomForCargo, TradeScreen.RoomFor(world.Snapshot().Ships.Single(s => s.Id == "guest")));
             }
+            // Minerals they give away while their lander is down free room the lander didn't keep.
+            Assert.Equal(TradeRefusal.None, world.Give(new Gift("guest", "host", 0, Minerals(7, 20), 0)));
+            Assert.Equal(guest.Ship.Hold.RoomForCargo, TradeScreen.RoomFor(world.Snapshot().Ships.Single(s => s.Id == "guest")));
+            if (free == 30)
+                Assert.Equal(20, TradeScreen.RoomFor(world.Snapshot().Ships.Single(s => s.Id == "guest")));   // 50 free, the lander keeping 30
             Assert.Null(TradeScreen.RoomFor(ship with { Hold = null }));
         }
     }

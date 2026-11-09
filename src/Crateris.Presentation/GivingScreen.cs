@@ -32,7 +32,8 @@ namespace Crateris.Presentation;
 /// receiver has for minerals (the cargo display's Free row), and, below
 /// the line, the bio data; each of the giver's rows has what they have
 /// (the cargo display's worth column) and the amount to give (its amount
-/// column), under the column heads "Have" and "Give". The row the cursor
+/// column), under the column heads "Have" and "Give" (a number too long
+/// for its row's room is left out, the amount to give kept). The row the cursor
 /// is on is lit as DrawElementAmount lights one. Cargo goes only to a
 /// player in the same solar system: when the receiver is elsewhere the
 /// cargo rows are dimmed, their icons drawn as shapes in the dim colour.
@@ -115,15 +116,17 @@ public static class GivingScreen
         canvas.Text(HaveCol, UnitsOrgY - 1, TextAlign.Right, HaveHead);
         canvas.Text(GiveCol, UnitsOrgY - 1, TextAlign.Right, GiveHead);
 
-        // The resource units: no icon (UQM has none), so lit across the box, labelled if there's room.
-        Amount(TradeScreen.UnitsRow, dimmed: false);
-
-        // Each element's icon and amounts, then the receiver's room and the bio data's, as DrawCargoDisplay draws them.
+        // The icons' size, as DrawCargoDisplay takes it: the first category's.
         bool dim = !shown.Here;
         int frame = canvas.Frame(MineralSelling.IconSheet, FirstIcon);
         var bounds = canvas.FrameRect(MineralSelling.IconSheet, frame);
         var icon = new URect(Col0, 0, bounds.W, bounds.H);
         int sx = icon.X + (icon.W >> 1);
+
+        // The resource units: no icon (UQM has none), so lit across the box, labelled if there's room.
+        Amount(TradeScreen.UnitsRow, dimmed: false);
+
+        // Each element's icon and amounts, then the receiver's room and the bio data's, as DrawCargoDisplay draws them.
         for (int i = 0; i < Categories; ++i)
         {
             Icon(RowY(2 + i), frame);
@@ -170,11 +173,14 @@ public static class GivingScreen
             string have = N(shown.Have[row]), give = N(shown.Give[row]);
             // The units' numbers may be long: what they have moves left of a wide amount to give, and the label
             // gives way to them.
+            // A number too long for the room left of it (past the box's edge, or over the icon) is left out.
             int haveAt = wide ? Math.Min(HaveCol, GiveCol - tinyWidth(give) - Gap) : HaveCol;
+            int left = wide ? WideX + 1 : icon.X + icon.W + 1;
             canvas.SetForeground(dimmed ? Dim : selected ? CargoDisplay.SelectedWorth : CargoDisplay.Worth);
             if (wide && WideX + 1 + tinyWidth(UnitsLabel) + Gap <= haveAt - tinyWidth(have))
                 canvas.Text(WideX + 1, y, TextAlign.Left, UnitsLabel);
-            canvas.Text(haveAt, y, TextAlign.Right, have);
+            if (haveAt - tinyWidth(have) >= left)
+                canvas.Text(haveAt, y, TextAlign.Right, have);
             canvas.SetForeground(dimmed ? Dim : selected ? CargoDisplay.SelectedAmount : CargoDisplay.Amount);
             canvas.Text(GiveCol, y, TextAlign.Right, give);
         }
@@ -184,20 +190,22 @@ public static class GivingScreen
 
     /// <summary>
     /// <paramref name="name"/> cut to its longest start no wider than
-    /// <paramref name="room"/> pixels (by characters, as UQM's text is
-    /// counted), the whole of it if it fits.
+    /// <paramref name="room"/> pixels, a whole character at a time (a
+    /// letter with its accents, never half of one), the whole of it if it
+    /// fits.
     /// </summary>
     public static string Cut(string name, int room, Func<string, int> width)
     {
         if (width(name) <= room)
             return name;
         var cut = new StringBuilder();
-        foreach (var rune in name.EnumerateRunes())
+        var letters = StringInfo.GetTextElementEnumerator(name);
+        while (letters.MoveNext())
         {
-            string next = cut + rune.ToString();
-            if (width(next) > room)
+            string letter = letters.GetTextElement();
+            if (width(cut + letter) > room)
                 break;
-            cut.Append(rune.ToString());
+            cut.Append(letter);
         }
         return cut.ToString();
     }

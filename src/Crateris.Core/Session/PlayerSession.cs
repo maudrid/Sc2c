@@ -376,6 +376,8 @@ public sealed class PlayerSession
                 ToggleTrade();
             if (press is MenuKey key)
                 PressMenu(key);
+            if (Trade is not null)
+                input = ShipInput.None;   // the ship waits while the giving screen is open, as with keys
         }
         else
         {
@@ -631,7 +633,10 @@ public sealed class PlayerSession
         else if (Snapshot is null || Snapshot.Ships.Count < 2)
             Notify(Gift.Why(TradeRefusal.NoOne));
         else
+        {
             Trade = new TradeScreen();
+            Trade.Follow(Snapshot, PlayerId);   // the receiver, from the start
+        }
     }
 
     private void CloseTrade()

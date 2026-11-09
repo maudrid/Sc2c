@@ -133,20 +133,9 @@ public sealed class TradeScreen
 
     /// <summary>
     /// The minerals another player may give this ship, as the host takes it
-    /// (<see cref="ShipHold.RoomForCargo"/>), from what a snapshot shows: its
-    /// free storage, less what its lander may still bring up while it's on
-    /// a surface (the lander's room was the ship's when it left; gifts since
-    /// can only have lessened the free storage, so this is the host's own
-    /// sum); null without its hold.
+    /// (<see cref="ShipHold.RoomForCargo"/>: its free storage, less what its
+    /// lander that is out may still bring up), from what a snapshot shows;
+    /// null without its hold.
     /// </summary>
-    public static int? RoomFor(ShipSnapshot ship)
-    {
-        if (ship.Hold is not { } hold)
-            return null;
-        int free = hold.StorageCapacity - hold.MineralMass;
-        if (ship.Activity != Activity.Planetside)
-            return Math.Max(0, free);
-        int lander = hold.Upgrades.HasFlag(LanderUpgrades.Cargo) ? ShipHold.MaxScrounged << 1 : ShipHold.MaxScrounged;
-        return Math.Max(0, free - lander);
-    }
+    public static int? RoomFor(ShipSnapshot ship) => ship.Hold?.RoomForCargo;
 }

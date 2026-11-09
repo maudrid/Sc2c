@@ -47,17 +47,21 @@ public sealed record HoldState(int Crew, int Landers, int[]? Minerals, int BioDa
 /// <summary>
 /// What a ship carries (<see cref="ShipHold"/>), as snapshots send it:
 /// crew, landers, storage capacity, minerals by element category, bio data,
-/// lander upgrades and resource units. Equal by value, so snapshots compare
-/// by value.
+/// lander upgrades, resource units, and the room in the storage bays the
+/// lander that is out keeps for what it brings up (its MineralCapacity, 0
+/// when none is out). Equal by value, so snapshots compare by value.
 /// </summary>
 public sealed record HoldSnapshot(int Crew, int Landers, int StorageCapacity, IReadOnlyList<int> Minerals, int BioData,
-    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0)
+    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0, int LanderRoom = 0)
 {
     public int MineralMass => Minerals.Sum();
 
+    /// <summary>The minerals another player may give the ship: <see cref="ShipHold.RoomForCargo"/>, as the host takes it.</summary>
+    public int RoomForCargo => Math.Max(0, StorageCapacity - MineralMass - LanderRoom);
+
     public bool Equals(HoldSnapshot? other) =>
-        other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades, ResourceUnits)
-            == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades, other.ResourceUnits)
+        other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades, ResourceUnits, LanderRoom)
+            == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades, other.ResourceUnits, other.LanderRoom)
         && Minerals.SequenceEqual(other.Minerals);
 
     public override int GetHashCode() => HashCode.Combine(Crew, Landers, StorageCapacity, BioData, Upgrades, MineralMass);
@@ -303,7 +307,8 @@ public sealed class ShipHold
 
     /// <summary>The hold for snapshots, made again only when it changes.</summary>
     public HoldSnapshot Snapshot() =>
-        _snapshot ??= new HoldSnapshot(Crew, Landers, StorageCapacity, _minerals.ToArray(), BioData, _upgrades, _resourceUnits);
+        _snapshot ??= new HoldSnapshot(Crew, Landers, StorageCapacity, _minerals.ToArray(), BioData, _upgrades, _resourceUnits,
+            LanderOut?.MineralCapacity ?? 0);
 
     /// <summary>The hold for the save; a lander that is out is saved as back aboard with its crew.</summary>
     public HoldState Save() => new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades, _resourceUnits);

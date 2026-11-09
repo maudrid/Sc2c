@@ -152,8 +152,12 @@ public class GivingScreenTests
         Assert.True(Width(cut) <= GivingScreen.NameRoom);
         Assert.True(Width(cut + "x") > GivingScreen.NameRoom);
         Assert.Equal(53, GivingScreen.NameRoom);
-        // By characters, not bytes: a name of accented letters is cut whole letters at a time.
-        Assert.Equal(new string('é', 10), GivingScreen.Cut(new string('é', 20), GivingScreen.NameRoom, Width));
+        // A whole character at a time: never half of one written in two code units, nor a letter without its accent
+        // (this test's widths count code units, so 44 pixels hold 9 of them, which would split the ninth character).
+        Assert.Equal(new string('é', 9), GivingScreen.Cut(new string('é', 20), 44, Width));
+        Assert.Equal(string.Concat(Enumerable.Repeat("😀", 4)), GivingScreen.Cut(string.Concat(Enumerable.Repeat("😀", 10)), 44, Width));
+        Assert.Equal(string.Concat(Enumerable.Repeat("e\u0301", 4)),
+            GivingScreen.Cut(string.Concat(Enumerable.Repeat("e\u0301", 10)), 44, Width));
         Assert.Equal("", GivingScreen.Cut("x", 0, Width));
         // No one to give to: a dash.
         Assert.Equal("-", Name(Shown() with { To = null, ToName = "" }));
@@ -179,14 +183,21 @@ public class GivingScreenTests
     }
 
     [Theory]
-    [InlineData(2500, 300, true, 36)]       // the label, then the wallet in its column
-    [InlineData(12345, 100, false, 36)]     // five digits: the label gives way
-    [InlineData(123456, 12345, false, 31)]  // a wide amount to give: the wallet moves left of it
+    [InlineData(2500, 300, true, 36)]         // the label, then the wallet in its column
+    [InlineData(12345, 100, false, 36)]       // five digits: the label gives way
+    [InlineData(123456, 1234, false, 36)]     // six digits still fit
+    [InlineData(54321, 12345, false, 31)]     // a wide amount to give: the wallet moves left of it
+    [InlineData(123456, 12345, false, -1)]    // with no room left for it, the wallet is left out
+    [InlineData(4000000000, 2000000000, false, -1)]
     public void TheUnitsRowMakesRoomForLongNumbers(long units, int give, bool label, int haveAt)
     {
         var texts = Texts(Draw(Shown(units: units, give: give))).Where(t => t.Y == GivingScreen.RowY(TradeScreen.UnitsRow) + 6).ToList();
         Assert.Equal(label, texts.Any(t => t.Text == GivingScreen.UnitsLabel));
-        Assert.Equal(S + haveAt, texts.Single(t => t.Text == units.ToString()).X);
+        if (haveAt < 0)
+            Assert.DoesNotContain(texts, t => t.Text == units.ToString());
+        else
+            Assert.Equal(S + haveAt, texts.Single(t => t.Text == units.ToString()).X);
+        Assert.Contains(texts, t => t.Text == give.ToString() && t.X == S + 58);   // the amount to give always shows
         // Nothing overlaps: each text ends before the next starts.
         var spans = texts.Select(t => t.Align == TextAlign.Right ? (t.X - Width(t.Text), t.X) : (t.X, t.X + Width(t.Text)))
             .OrderBy(s => s.Item1).ToList();
@@ -195,14 +206,19 @@ public class GivingScreenTests
     }
 
     [Theory]
-    [InlineData(true, TradeScreen.PlayerRow)]
-    [InlineData(false, TradeScreen.BioRow)]
-    public void EverythingIsDrawnInsideItsArea(bool here, int row)
+    [InlineData(true, TradeScreen.PlayerRow, 999999, 99999, 9999)]
+    [InlineData(false, TradeScreen.BioRow, 999999, 1234, 99999)]
+    [InlineData(true, TradeScreen.UnitsRow, 4000000000, 2000000000, 1000000)]
+    public void EverythingIsDrawnInsideItsArea(bool here, int row, long units, int give, int lots)
     {
         var area = GivingScreen.Area;
         Assert.Equal((S + 2, 20), (area.X, area.Y));
         Assert.True(area.X + area.W <= S + 64 && area.Y + area.H <= 173, "the box stays above the orbit menu, in the status area");
-        foreach (var d in Draw(Shown(row, "Captain Guestington of the Vindicator", here, units: 999999, give: 99999)))
+        var shown = Shown(row, "Captain Guestington of the Vindicator", here, units: units, give: give);
+        shown = shown with { Have = shown.Have.Select((h, i) => i > TradeScreen.UnitsRow ? lots : h).ToArray() };
+        var drawn = Draw(shown);
+        // Inside the box's border (the box itself aside), and no number over an icon.
+        foreach (var d in drawn.Skip(5))
         {
             Assert.Equal(new URect(S, 0, 64, 240), d.Clip);   // drawn in the status area's context
             var (x0, y0, x1, y1) = d.Kind switch
@@ -216,8 +232,10 @@ public class GivingScreenTests
                 UqmDrawKind.Stamp or UqmDrawKind.FilledStamp => (d.X - 3, d.Y - 3, d.X - 3 + IconW, d.Y - 3 + IconH),
                 _ => (d.X, d.Y, d.X + d.Width, d.Y + d.Height),
             };
-            Assert.True(x0 >= area.X && y0 >= area.Y && x1 <= area.X + area.W && y1 <= area.Y + area.H,
-                $"{d.Kind} {d.Text} ({x0}, {y0})-({x1}, {y1}) outside {area}");
+            Assert.True(x0 >= area.X + 1 && y0 >= area.Y + 1 && x1 <= area.X + area.W - 1 && y1 <= area.Y + area.H - 1,
+                $"{d.Kind} {d.Text} ({x0}, {y0})-({x1}, {y1}) outside {area}'s border");
+            if (d.Kind == UqmDrawKind.Text && d.Y > GivingScreen.RowY(TradeScreen.UnitsRow) + 6 && d.Align == TextAlign.Right)
+                Assert.True(x0 > S + 7 + IconW, $"{d.Text} runs over the icons");
         }
     }
 

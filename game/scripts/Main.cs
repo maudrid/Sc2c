@@ -1028,8 +1028,15 @@ public partial class Main : Node2D
             _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)
             _systemView.Show(player.Snapshot, player.PlayerId);
-        // The giving screen, while it's open, over whichever screen it was opened on.
+        // The giving screen, while it's open, over whichever screen it was opened on: below it five lines fit
+        // above the orbit menu or the lander's gauges, more elsewhere. One that can't be drawn is closed.
+        _givingView.MostLines = screen is PlayerScreen.Orbit or PlayerScreen.Planetside ? 5 : 12;
         _givingView.Visible = !Headless && _givingView.Show(player);
+        if (_givingView.Broken && player.Trade is not null)
+        {
+            player.ToggleTrade();
+            player.Notify("The giving screen couldn't be drawn.");
+        }
     }
 
     private void UpdateHud()
