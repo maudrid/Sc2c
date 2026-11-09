@@ -139,7 +139,7 @@ public sealed class PlayerSession
         var pages = NoticePages(message);
         _notice = new();
         if (pages.Count == 1)
-            _notice.Add((pages[0], _time + seconds));   // the message, or it with its blank lines squeezed to fit
+            _notice.Add((pages[0], _time + seconds));   // the message, or it squeezed to fit (its blank lines and runs of spaces)
         else
         {
             double until = _time;

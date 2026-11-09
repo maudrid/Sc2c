@@ -882,9 +882,11 @@ public partial class Main : Node2D
         };
         _naming.GuiInput += e =>
         {
-            if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
+            if (e is InputEventKey { Pressed: true, Keycode: Key.Escape } esc)
             {
-                _naming?.AcceptEvent();   // not the menu's Esc too
+                _naming?.AcceptEvent();   // not the menu's Esc too, nor, repeating, the line's own (it stops editing)
+                if (esc.Echo)
+                    return;
                 if (_about.Visible)
                 {
                     _about.Visible = false;   // the about screen's, over the name line
