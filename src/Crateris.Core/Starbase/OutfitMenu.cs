@@ -88,7 +88,7 @@ public sealed class OutfitMenu
         if (_installing)
         {
             ops.Add(new(ScreenOpKind.ClearRadar));
-            ops.Add(new(ScreenOpKind.ModuleStrings, Choosing ? State : _rules.Piece(Row, Item)));
+            ops.Add(new(ScreenOpKind.ModuleStrings, Shown));
         }
         else if (State is not (Fuel or DoFuel))
             ops.Add(new(ScreenOpKind.MenuStrings, ScreenOp.PmFuel, State));
@@ -141,6 +141,9 @@ public sealed class OutfitMenu
         SlotKind.Jet => ShipModules.JetSlotCount,
         _ => ShipModules.ModuleSlotCount,
     };
+
+    /// <summary>In Modules, the piece the radar shows (DrawModuleStrings): the module being chosen, or the slot's piece.</summary>
+    public byte Shown => Choosing ? State : _rules.Piece(Row, Item);
 
     /// <summary>Choosing a module to buy (CurState below EMPTY_SLOT in Modules).</summary>
     public bool Choosing => _installing && State < ShipModules.EmptySlot;

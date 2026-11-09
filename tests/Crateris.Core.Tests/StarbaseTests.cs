@@ -752,4 +752,57 @@ public class StarbaseTests
         Assert.True(outfit.Choosing);
         Assert.Equal(new ScreenOp(ScreenOpKind.ModuleStrings, outfit.State), outfit.Redraw().Last());
     }
+
+    [ContentFact]
+    public void WhatOthersChangeWhileOneIsDockedIsDrawnOnTheirScreen()
+    {
+        var world = Allied(guest: true);
+        var host = Docked(world);
+        var guest = world.Find("guest")!;
+        guest.Ship.Hold.ResourceUnits = 1000;
+        var minerals = new int[8];
+        minerals[3] = 20;
+        guest.Ship.Hold.LanderLeaves();
+        guest.Ship.Hold.LanderReturns(guest.Ship.Hold.LanderOut!.Value.Crew, minerals, 0);
+        var none = new int[8];
+        // On the menu nothing shows the ship: a gift draws nothing.
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("guest", "host", 10, none, 0)));
+        Assert.DoesNotContain(Drawn(world).SelectMany(d => d.Ops), o => o.Kind == ScreenOpKind.Gauges);
+        // Outfitting: units given draw the units' message, with the ship that has them.
+        Keys(world, "host", MenuKey.Down, MenuKey.Select);
+        Drawn(world);
+        uint ru = host.Ship.Hold.ResourceUnits;
+        world.Give(new Gift("guest", "host", 25, none, 0));
+        var d = Drawn(world).Single();
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.Gauges, 0, 0, ScreenOp.Undefined) }, d.Ops);
+        Assert.Equal(ru + 25, d.Ship!.ResourceUnits);
+        Assert.Empty(Drawn(world));   // drawn once
+        // Given before a key in the same frame: drawn first, the key's drawing over it.
+        world.Give(new Gift("guest", "host", 5, none, 0));
+        Keys(world, "host", MenuKey.Down);
+        Assert.Equal(new[] { ScreenOpKind.Gauges, ScreenOpKind.MenuStrings }, Drawn(world).Select(x => x.Ops[0].Kind));
+        // Minerals: the status area, which shows the storage bays.
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("guest", "host", 0, new[] { 0, 0, 0, 5, 0, 0, 0, 0 }, 0)));
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.SisDisplay) }, Drawn(world).Single().Ops);
+        // In Modules, choosing: a module's price set by someone's talk redraws it.
+        Keys(world, "host", MenuKey.Select, MenuKey.Select);   // Modules, on the first module slot (empty): choosing
+        var outfit = host.Ship.Visit!.Menu!.Outfit!;
+        Assert.True(outfit.Choosing);
+        Drawn(world);
+        var name = ShipModules.Names[outfit.State];
+        world.Story!.SetModuleCost(name, world.Story.ModuleCost(name) + 1);
+        d = Drawn(world).Single();
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.ModuleStrings, outfit.State) }, d.Ops);
+        Assert.Equal(world.Story.ModuleCost(name), d.Ship!.ModuleCosts[outfit.State]);
+        // The shipyard: the crew price moved by another's purchases redraws its menu; minerals redraw the
+        // shipyard, whose blueprint shows them too.
+        Keys(world, "host", MenuKey.Cancel, MenuKey.Cancel, MenuKey.Cancel, MenuKey.Cancel, MenuKey.Down, MenuKey.Select);
+        Assert.Equal(StarbaseScreen.Shipyard, world.StarbaseFor("host")!.Screen);
+        Keys(world, "host", MenuKey.Down);
+        Drawn(world);
+        world.Story.SetCrewCost(world.Story.CrewCost + 2);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.SaveLoad) }, Drawn(world).Single().Ops);
+        world.Give(new Gift("guest", "host", 0, new[] { 0, 0, 0, 5, 0, 0, 0, 0 }, 0));
+        Assert.Equal(host.Ship.Visit!.Menu!.Yard!.Redraw(), Drawn(world).Single().Ops);
+    }
 }

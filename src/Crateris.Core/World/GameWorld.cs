@@ -663,6 +663,7 @@ public sealed class GameWorld
         if (StoryPaused || Story is null || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true, Menu: { } m } visit } player)
             return Starbase.OutfitOutcome.None;
         var outcome = Starbase.OutfitOutcome.None;
+        m.Noticed(StarbaseShipOf(player));   // what others changed, drawn before the key's own drawing
         switch (m.Screen)
         {
             case Starbase.StarbaseScreen.Menu:
@@ -731,9 +732,13 @@ public sealed class GameWorld
     /// take, in order, each with the ship as its key left it, to send to
     /// their client (empty: nothing, or not docked).
     /// </summary>
-    public List<Starbase.StarbaseDrawing> TakeStarbaseDrawing(string id) =>
-        Find(id) is { Ship.Visit.Menu: { } m } player && Story is not null
-            ? m.TakeDrawing(() => StarbaseShipOf(player)) : new();
+    public List<Starbase.StarbaseDrawing> TakeStarbaseDrawing(string id)
+    {
+        if (Find(id) is not { Ship.Visit.Menu: { } m } player || Story is null)
+            return new();
+        m.Noticed(StarbaseShipOf(player));   // what others changed since
+        return m.TakeDrawing(() => StarbaseShipOf(player));
+    }
 
     /// <summary>A docked player's client has no picture of its starbase screen: the next drawing taken draws it afresh.</summary>
     public void RedrawStarbase(string id)
@@ -1087,6 +1092,7 @@ public sealed class GameWorld
             player.CaptainName = ShipNames.Fit(captainName);
         if (player.Ship.Visit is { Menu: { Outfit: { } outfit } menu })
         {
+            menu.Noticed(StarbaseShipOf(player));
             outfit.Renamed(shipName is not null, captainName is not null);
             menu.Drew(StarbaseShipOf(player), outfit.TakeOps());
         }

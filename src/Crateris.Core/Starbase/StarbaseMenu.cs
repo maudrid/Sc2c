@@ -268,10 +268,13 @@ public sealed class StarbaseMenu
 
     private readonly List<StarbaseDrawing> _drawn = new();
     private bool _lost;
+    private StarbaseShip? _shown;
 
     /// <summary>A key's drawing (none: nothing kept), with the ship as the key left it (null: the drawing doesn't read it).</summary>
     internal void Drew(StarbaseShip? ship, List<ScreenOp> ops)
     {
+        if (ship is not null)
+            _shown = ship;
         if (ops.Count == 0 || _lost)
             return;
         if (_drawn.Count >= MostKept)
@@ -281,6 +284,43 @@ public sealed class StarbaseMenu
             return;
         }
         _drawn.Add(new StarbaseDrawing(ship, ops));
+    }
+
+    /// <summary>
+    /// The ship and the prices as they stand (<paramref name="now"/>),
+    /// changed since last drawn by someone else (UQM has no such case:
+    /// another player's gift, the crew price their purchases move, a
+    /// module's price their talk sets): what the screen shows of it drawn
+    /// again. Outfitting and the shipyard: the resource units' message, or
+    /// with the minerals the status area, which shows the storage bays
+    /// (the shipyard drawn afresh, its blueprint showing them too); the
+    /// shipyard's menu with the crew price; in Modules, the price of the
+    /// module the radar shows. Called before the player's own keys, so a
+    /// key's drawing goes over what others changed first.
+    /// </summary>
+    internal void Noticed(StarbaseShip now)
+    {
+        var was = _shown;
+        _shown = now;
+        if (was is null || Screen is not (StarbaseScreen.Outfit or StarbaseScreen.Shipyard))
+            return;
+        var ops = new List<ScreenOp>();
+        bool minerals = now.MineralMass != was.MineralMass;
+        if (minerals && Yard is not null)
+            ops.AddRange(Yard.Redraw());
+        else
+        {
+            if (minerals)
+                ops.Add(new(ScreenOpKind.SisDisplay));
+            else if (now.ResourceUnits != was.ResourceUnits)
+                ops.Add(new(ScreenOpKind.Gauges, 0, 0, ScreenOp.Undefined));
+            if (Yard is not null && now.CrewCost != was.CrewCost)
+                ops.Add(new(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Yard.State));
+            if (Outfit is { Installing: true, Shown: var piece } && piece < World.ShipModules.EmptySlot
+                    && now.ModuleCosts[piece] != was.ModuleCosts[piece])
+                ops.Add(new(ScreenOpKind.ModuleStrings, piece));
+        }
+        Drew(now, ops);
     }
 
     /// <summary>The player's client lost its picture: the next drawing taken is the screen drawn afresh.</summary>
