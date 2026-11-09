@@ -28,10 +28,11 @@ namespace Crateris.Presentation;
 /// font effect's frame of graphics.fontgradient (the context's font
 /// backing, its corner at each character's).
 /// <para>
-/// UQM draws a screen a change at a time over what is there; the port
-/// draws a whole screen at once. Painting what UQM drew, call over call,
-/// and what the port draws gives two pictures that must be the same
-/// (<c>StarbaseScreensTests</c>); the client can paint the port's.
+/// UQM draws a screen a change at a time over what is there, and so does
+/// the port (<see cref="StarbaseScreens"/>): each step's calls are painted
+/// over the picture the last ones left. The client paints the port's
+/// calls with it; the tests paint UQM's and the port's on the real
+/// content, which checks that it paints them all.
 /// </para>
 /// </summary>
 public sealed class ScreenRaster
@@ -136,27 +137,41 @@ public sealed class ScreenRaster
         var layout = font.Layout(text, d.X, d.Y, d.Align);
         if (!layout.Drawn)
             return;
-        SpriteImage? backing = d.Effect >= 0 ? _frame(StarbaseScreens.FontGradientSheet, d.Effect) : null;
+        // The context's font backing (FixContextFontEffect): an image the font's widest character by its leading,
+        // filled with the colour, or with the effect's frame drawn at minus its hot spot over black. Each
+        // character's alpha takes the backing's from its corner (TFB_DrawCanvas_FontChar); a character bigger than
+        // the backing isn't drawn.
+        int bw = font.LeadingWidth, bh = font.Leading;
+        var backing = new byte[bw * bh * 3];
+        if (d.Effect >= 0)
+        {
+            var e = _frame(StarbaseScreens.FontGradientSheet, d.Effect);
+            for (int y = 0; y < e.Height; ++y)
+                for (int x = 0; x < e.Width; ++x)
+                {
+                    int bx = x - e.HotSpotX, by = y - e.HotSpotY;
+                    if (bx < 0 || by < 0 || bx >= bw || by >= bh)
+                        continue;
+                    int o = (y * e.Width + x) * 4, t = (by * bw + bx) * 3;
+                    (backing[t], backing[t + 1], backing[t + 2]) = (e.Rgba[o], e.Rgba[o + 1], e.Rgba[o + 2]);
+                }
+        }
+        else
+            for (int t = 0; t < backing.Length; t += 3)
+                (backing[t], backing[t + 1], backing[t + 2]) = (d.Color.R, d.Color.G, d.Color.B);
         foreach (var p in layout.Glyphs)
         {
             var g = p.Glyph;
+            if (g.Width > bw || g.Height > bh)
+                continue;
             for (int y = 0; y < g.Height; ++y)
                 for (int x = 0; x < g.Width; ++x)
                 {
                     byte a = g.Alpha[y * g.Width + x];
                     if (a == 0)
                         continue;
-                    byte r = d.Color.R, gr = d.Color.G, b = d.Color.B;
-                    if (backing != null)
-                    {
-                        // The backing is the effect's frame from its corner; past it, nothing (transparent).
-                        if (x >= backing.Width || y >= backing.Height)
-                            continue;
-                        int o = (y * backing.Width + x) * 4;
-                        (r, gr, b) = (backing.Rgba[o], backing.Rgba[o + 1], backing.Rgba[o + 2]);
-                        a = (byte)(a * backing.Rgba[o + 3] / 255);
-                    }
-                    Blend(clip, p.Left + x, p.Top + y, r, gr, b, a);
+                    int t = (y * bw + x) * 3;
+                    Blend(clip, p.Left + x, p.Top + y, backing[t], backing[t + 1], backing[t + 2], a);
                 }
         }
     }

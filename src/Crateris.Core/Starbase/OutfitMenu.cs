@@ -75,6 +75,15 @@ public sealed class OutfitMenu
 
     private void Draw(ScreenOpKind kind, int a = 0, int b = 0, int c = 0) => _ops.Add(new ScreenOp(kind, a, b, c));
 
+    /// <summary>The ship or the captain renamed while outfitting: onNamingDone's DrawFlagshipName, and the captain's name.</summary>
+    public void Renamed(bool ship, bool captain)
+    {
+        if (ship)
+            Draw(ScreenOpKind.FlagshipName);
+        if (captain)
+            Draw(ScreenOpKind.CaptainsName);
+    }
+
     /// <param name="rules">The player's ship and the prices, as this side sees them.</param>
     /// <param name="act">Does an action (sends it, and applies it here); false if refused.</param>
     public OutfitMenu(Outfitting rules, Func<OutfitAction, bool> act)
@@ -126,8 +135,12 @@ public sealed class OutfitMenu
         _act(new OpenOutfit());
     }
 
-    /// <summary>A key, as DoOutfit (or, in Modules, DoInstallModule) takes it.</summary>
-    public OutfitOutcome Key(MenuKey key)
+    /// <summary>
+    /// A key, as DoOutfit (or, in Modules, DoInstallModule) takes it.
+    /// Save/Load is refused, drawing nothing, where
+    /// <paramref name="canSave"/> is false (a guest: only the host saves).
+    /// </summary>
+    public OutfitOutcome Key(MenuKey key, bool canSave = true)
     {
         if (_installing)
             return InstallModule(key);
@@ -158,6 +171,8 @@ public sealed class OutfitMenu
                     _installing = true;
                     return InstallModule(null);
                 case SaveLoad:
+                    if (!canSave)
+                        return OutfitOutcome.Refused;
                     // GameOptions, then the menu drawn again.
                     Draw(ScreenOpKind.MenuStrings, ScreenOp.PmFuel, SaveLoad);
                     return OutfitOutcome.SaveLoad;

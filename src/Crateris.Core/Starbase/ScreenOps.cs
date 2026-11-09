@@ -58,12 +58,16 @@ public enum ScreenOpKind : byte
     /// <summary>
     /// A crew member's point in the blueprint: drawn (<see cref="ScreenOp.A"/>
     /// 1, the one just hired, DMS_HireFlagShipCrew) or erased (0, where
-    /// the one just sent away was, DMS_DismissFlagShipCrew).
+    /// the one just sent away was, DMS_DismissFlagShipCrew), at seat
+    /// <see cref="ScreenOp.B"/> (GetCPodCapacity's crew count then).
     /// </summary>
     CrewPoint,
 
-    /// <summary>DrawFlagshipName (FALSE): the ship's name over the space window (renamed).</summary>
+    /// <summary>DrawFlagshipName (FALSE): the ship's name over the space window (onNamingDone, renamed).</summary>
     FlagshipName,
+
+    /// <summary>DrawCaptainsName: the captain's name in the status area (renamed).</summary>
+    CaptainsName,
 }
 
 /// <summary>
@@ -72,7 +76,10 @@ public enum ScreenOpKind : byte
 /// menus (<see cref="OutfitMenu"/>, <see cref="ShipyardMenu"/>) list them,
 /// and the screen draws each, in order, with the ship as it stands after
 /// the key, over what it drew before, as UQM draws a change over its
-/// screen (docs/plans/stage-3.md, item 11).
+/// screen (docs/plans/stage-3.md, item 11). Each key's drawing is drawn
+/// with the ship as that key left it (the pieces, the fuel's bars and the
+/// gauges read it), so a key's drawing goes with its own ship, not a
+/// later key's.
 /// </summary>
 public readonly record struct ScreenOp(ScreenOpKind Kind, int A = 0, int B = 0, int C = 0)
 {

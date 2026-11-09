@@ -227,7 +227,7 @@ public sealed class StarbaseScreens
                 // GetCPodCapacity's point for the crew member: the one just hired, or where the one sent away was.
                 _c.SetContext(_c.Space);
                 int x = 0, y = 0;
-                CPodPoint(op.A == 1 ? _s.Crew - 1 : _s.Crew, ref x, ref y);
+                CPodPoint(op.B, ref x, ref y);
                 if (op.A != 1)
                     _c.SetForeground(Black);
                 _c.Point(x, y);
@@ -235,6 +235,9 @@ public sealed class StarbaseScreens
             }
             case ScreenOpKind.FlagshipName:
                 FlagshipName(false);
+                break;
+            case ScreenOpKind.CaptainsName:
+                CaptainsName();
                 break;
         }
     }

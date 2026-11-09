@@ -686,10 +686,12 @@ public sealed class GameWorld
                                 a => Outfit(id, a));
                             m.Screen = Starbase.StarbaseScreen.Outfit;
                             m.Outfit.Open();
+                            m.Outfit.TakeOps();   // not sent yet (item 11)
                             break;
                         case Starbase.StarbaseMenu.Shipyard:
                             m.Yard = new Starbase.ShipyardMenu(new Starbase.Outfitting(new OutfitShip(player.Ship), Story),
                                 a => Outfit(id, a));
+                            m.Yard.TakeOps();   // not sent yet (item 11)
                             m.Screen = Starbase.StarbaseScreen.Shipyard;
                             break;
                         default:
@@ -699,22 +701,19 @@ public sealed class GameWorld
                 }
                 return outcome;
             case Starbase.StarbaseScreen.Outfit:
-                outcome = m.Outfit!.Key(key);
+                // GameOptions: the host saves; a guest has no save of their own.
+                outcome = m.Outfit!.Key(key, canSave: player.IsHost);
+                // What the screen draws isn't sent yet (item 11 shows the starbase's screens): not kept.
+                m.Outfit.TakeOps();
                 break;
             case Starbase.StarbaseScreen.Shipyard:
-                outcome = m.Yard!.Key(key);
+                outcome = m.Yard!.Key(key, canSave: player.IsHost);
+                m.Yard.TakeOps();
                 break;
             default:
                 return outcome;   // the talk's replies come as their own messages
         }
-        if (outcome == Starbase.OutfitOutcome.SaveLoad)
-        {
-            // GameOptions: the host saves; a guest has no save of their own.
-            if (player.IsHost)
-                save = true;
-            else
-                outcome = Starbase.OutfitOutcome.Refused;
-        }
+        save = outcome == Starbase.OutfitOutcome.SaveLoad;
         if (outcome == Starbase.OutfitOutcome.Refused)
             m.Refusals++;
         else if (outcome == Starbase.OutfitOutcome.Left)
@@ -1048,6 +1047,11 @@ public sealed class GameWorld
             player.Ship.Name = ShipNames.Fit(shipName);
         if (captainName is not null)
             player.CaptainName = ShipNames.Fit(captainName);
+        if (player.Ship.Visit is { Menu.Outfit: { } outfit })
+        {
+            outfit.Renamed(shipName is not null, captainName is not null);
+            outfit.TakeOps();   // not sent yet (item 11), as for the keys
+        }
         return true;
     }
 

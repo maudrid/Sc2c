@@ -111,8 +111,12 @@ public sealed class ShipyardMenu
     /// <summary>Changing the crew (DoModifyShips' crew mode on the flagship).</summary>
     public bool CrewMode => Mode == YardMode.Crew;
 
-    /// <summary>A key, as DoShipyard or DoModifyShips takes it.</summary>
-    public OutfitOutcome Key(MenuKey key)
+    /// <summary>
+    /// A key, as DoShipyard or DoModifyShips takes it. Save/Load is
+    /// refused, drawing nothing, where <paramref name="canSave"/> is false
+    /// (a guest: only the host saves).
+    /// </summary>
+    public OutfitOutcome Key(MenuKey key, bool canSave = true)
     {
         switch (Mode)
         {
@@ -159,6 +163,8 @@ public sealed class ShipyardMenu
         {
             if (State == SaveLoad)
             {
+                if (!canSave)
+                    return OutfitOutcome.Refused;
                 // GameOptions, then the menu drawn again.
                 Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, SaveLoad);
                 return OutfitOutcome.SaveLoad;
@@ -187,10 +193,10 @@ public sealed class ShipyardMenu
             return OutfitOutcome.Refused;
         int ruDelta = (int)(ship.ResourceUnits - (long)ru);
         if (hire)
-            Draw(ScreenOpKind.CrewPoint, 1);
+            Draw(ScreenOpKind.CrewPoint, 1, crew);   // the seat of the one hired
         Draw(ScreenOpKind.Gauges, ship.Crew - crew, 0, ruDelta);
         if (!hire)
-            Draw(ScreenOpKind.CrewPoint, 0);
+            Draw(ScreenOpKind.CrewPoint, 0, ship.Crew);   // the seat of the one sent away
         if (_rules.Story.CrewCost != cost)
             Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
         return OutfitOutcome.Acted;

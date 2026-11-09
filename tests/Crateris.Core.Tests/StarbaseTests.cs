@@ -503,6 +503,31 @@ public class StarbaseTests
     }
 
     [Fact]
+    public void ARefusedSaveDrawsNothingAndARenameRedrawsTheNames()
+    {
+        // A guest's Save/Load is refused, and draws nothing, as any refusal; the host's draws the menu again.
+        var yard = new ShipyardMenu(YardRules(), _ => true);
+        yard.TakeOps();
+        yard.Key(MenuKey.Down);
+        yard.TakeOps();
+        Assert.Equal(OutfitOutcome.Refused, yard.Key(MenuKey.Select, canSave: false));
+        Assert.Empty(yard.TakeOps());
+        Assert.Equal(OutfitOutcome.SaveLoad, yard.Key(MenuKey.Select));
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.SaveLoad) }, yard.TakeOps());
+        var rules = YardRules();
+        var outfit = new OutfitMenu(rules, rules.Apply);
+        outfit.Open();
+        outfit.Key(MenuKey.Down);
+        outfit.Key(MenuKey.Down);
+        outfit.TakeOps();
+        Assert.Equal(OutfitOutcome.Refused, outfit.Key(MenuKey.Select, canSave: false));
+        Assert.Empty(outfit.TakeOps());
+        // Renamed while outfitting: onNamingDone's flagship name, and the captain's.
+        outfit.Renamed(ship: true, captain: true);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.FlagshipName), new ScreenOp(ScreenOpKind.CaptainsName) }, outfit.TakeOps());
+    }
+
+    [Fact]
     public void TheShipyardsMenuGoesRoundItsCursorRoundTheHangarAndItsCrewModeHiresAndSendsAway()
     {
         var acts = new List<OutfitAction>();

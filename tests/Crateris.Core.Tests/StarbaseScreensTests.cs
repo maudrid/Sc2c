@@ -27,8 +27,9 @@ namespace Crateris.Core.Tests;
 /// starbase's turning and the power lines on the clock) as UQM's moved,
 /// and every step draws what UQM's drew, call for call, with the flashing
 /// highlight in the same place and the power lines in the same colour
-/// map; painted (<see cref="ScreenRaster"/>), the pictures are the same
-/// at every step.
+/// map. Both are painted from the content too (<see cref="ScreenRaster"/>),
+/// which paints every call the screens make (the same calls give the same
+/// picture: it checks the painter takes them all, not UQM's pixels).
 /// </summary>
 [Trait("Topic", "drawing")]
 public class StarbaseScreensTests
@@ -367,6 +368,7 @@ public class StarbaseScreensTests
     // A picture to look at when a step differs (CRATERIS_DUMP_SCREENS names a folder).
     private static void Dump(string path, ScreenRaster r)
     {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var f = File.Create(path);
         f.Write(System.Text.Encoding.ASCII.GetBytes($"P6 {ScreenRaster.Width} {ScreenRaster.Height} 255\n"));
         for (int i = 0; i < r.Rgba.Length; i += 4)
