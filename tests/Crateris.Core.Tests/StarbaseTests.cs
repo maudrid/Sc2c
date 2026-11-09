@@ -884,4 +884,25 @@ public class StarbaseTests
         Assert.NotEqual(price, world.Story.CrewCost);
         Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.Crew) }, Drawn(world).Single().Ops);
     }
+
+    [ContentFact]
+    public void AGiftUndoingTheKeysSpendingInTheSameFrameIsStillDrawn()
+    {
+        var world = Allied(guest: true);
+        var host = Docked(world);
+        host.Ship.Hold.ResourceUnits = 5000;
+        world.Find("guest")!.Ship.Hold.ResourceUnits = 1000;
+        Keys(world, "host", MenuKey.Down, MenuKey.Select, MenuKey.Select);   // outfitting's fuel gauge
+        Drawn(world);
+        // A unit of fuel bought, then the units it cost given back before the drawing is taken: the units are
+        // as they were at the last take, but the screen shows the key's.
+        Keys(world, "host", MenuKey.Up);
+        uint spent = 5000 - host.Ship.Hold.ResourceUnits;
+        Assert.True(spent > 0);
+        world.Give(new Gift("guest", "host", spent, new int[8], 0));
+        var drawn = Drawn(world);
+        Assert.Equal(new[] { ScreenOpKind.Gauges, ScreenOpKind.Gauges }, drawn.Select(d => d.Ops[0].Kind));
+        Assert.Equal(5000u, drawn[^1].Ship!.ResourceUnits);
+        Assert.Empty(Drawn(world));
+    }
 }

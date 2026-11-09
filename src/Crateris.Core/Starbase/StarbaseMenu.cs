@@ -270,14 +270,18 @@ public sealed class StarbaseMenu
     private bool _lost;
     private StarbaseShip? _shown;
 
-    /// <summary>The story's version and the hold's units and minerals when the host last looked for others' changes.</summary>
+    /// <summary>
+    /// The story's version and the hold's units and minerals when the host
+    /// last looked for others' changes (null after the player's own key
+    /// drew the ship: a change since can bring them back to what they were).
+    /// </summary>
     internal (long Story, uint ResourceUnits, int MineralMass)? NoticedAt { get; set; }
 
     /// <summary>A key's drawing (none: nothing kept), with the ship as the key left it (null: the drawing doesn't read it).</summary>
     internal void Drew(StarbaseShip? ship, List<ScreenOp> ops)
     {
         if (ship is not null)
-            _shown = ship;
+            (_shown, NoticedAt) = (ship, null);   // shown as the key left it: look again at the next take
         if (ops.Count == 0 || _lost)
             return;
         if (_drawn.Count >= MostKept)

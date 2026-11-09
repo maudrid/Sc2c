@@ -82,7 +82,8 @@ public enum ScreenOpKind : byte
 
     /// <summary>
     /// DrawBluePrint: the shipyard's blueprint of the ship drawn afresh over
-    /// itself (its outline filled first), with the crew, the minerals and
+    /// itself (the storage bays' rows black first, which the outline doesn't
+    /// cover; then the outline filled), with the crew, the minerals and
     /// the fuel as they stand. UQM draws it only as the shipyard opens;
     /// here, for minerals another player gave while it's open.
     /// </summary>

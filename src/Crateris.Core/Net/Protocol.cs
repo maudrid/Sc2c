@@ -71,8 +71,10 @@ public static class Protocol
     /// reliable message before their StarbaseView), each key's with the
     /// ship as that key left it; a client without a picture asks for the
     /// screen drawn afresh.
+    /// 16: a drawing can redraw the shipyard's blueprint (ScreenOpKind.Blueprint,
+    /// for minerals another player gives while it's open).
     /// </summary>
-    public const int Version = 15;
+    public const int Version = 16;
     public const int DefaultPort = 24642;
 
     /// <summary>
