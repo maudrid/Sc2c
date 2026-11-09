@@ -987,11 +987,14 @@ public partial class Main : Node2D
                 _sellingView.Follow(talk.LinesKey);
                 if (talk.Sale is { } sale && talk.Replier == player.PlayerId && !Headless)
                 {
-                    // A key held as it starts is the count-down's (F1 never is, nor any under the about
-                    // screen, as none pressed there is), and the game's again only once it's come up.
+                    // A key held as it starts is the count-down's, as a key pressed then would be: not F1,
+                    // nor one under the about screen or taken by another screen and held since, nor any
+                    // for a scripted player. Each is the game's again only once it's come up.
                     bool started = _sellingView.Active;
                     var held = _down.Where(d => d.Value != Key.F1).ToList();
-                    _sellingView.Count(sale, talk.LinesKey, _about.Visible ? Enumerable.Empty<Key>() : held.Select(d => d.Key));
+                    var counted = _about.Visible || player.Scripted ? Enumerable.Empty<Key>()
+                        : held.Where(d => _taken.Free((long)d.Value)).Select(d => d.Key);
+                    _sellingView.Count(sale, talk.LinesKey, counted);
                     if (!started && _sellingView.Active)
                         foreach (var (_, key) in held)
                             _taken.Take((long)key);
