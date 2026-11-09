@@ -778,19 +778,19 @@ public partial class Main : Node2D
         // A key coming up goes to a running report wherever it went down, so it's never left
         // held (the report would wait for it for ever); a key held down repeating goes nowhere.
         if (e is InputEventKey { Pressed: false } up && _reportView.Active)
-            _reportView.KeyUp(up.Keycode);
+            _reportView.KeyUp(up.PhysicalKeycode);   // the key itself, whatever the layout
         if (e is InputEventKey rk && ReportHasKeys && !_about.Visible && rk.Keycode != Key.F1
                 && _player is { Scripted: false })
         {
             if (rk.Pressed && !rk.Echo)
-                _reportView.KeyDown(rk.Keycode);
+                _reportView.KeyDown(rk.PhysicalKeycode);
             GetViewport().SetInputAsHandled();
             return;
         }
         if (e is not InputEventKey { Pressed: true } k)
             return;
         // F1 opens and closes the about screen; Esc closes it too.
-        if (k.Keycode == Key.F1 || (_about.Visible && k.Keycode == Key.Escape))
+        if ((k.Keycode == Key.F1 && !k.Echo) || (_about.Visible && k.Keycode == Key.Escape))
         {
             _about.Visible = k.Keycode == Key.F1 && !_about.Visible;
             GetViewport().SetInputAsHandled();
@@ -894,6 +894,8 @@ public partial class Main : Node2D
         _reportView.Visible = screen is PlayerScreen.Planetside or PlayerScreen.Orbit;
         if (Headless)
             player.TakeOwnReport();   // nothing to show it on (the session has logged it)
+        else if (!_reportView.Visible && screen != PlayerScreen.Comm)
+            player.NoticeOwnReports();   // not to be shown later at another world
         else if (_reportView.Visible && _reportView.Ready && player.TakeOwnReport() is { } reportText)   // kept till then
             _reportView.Show(reportText);
         _commView.Visible = screen == PlayerScreen.Comm;
@@ -924,6 +926,8 @@ public partial class Main : Node2D
     {
         if (what == NotificationWMCloseRequest)
             SaveGame();
+        else if (what == NotificationApplicationFocusOut)
+            _reportView?.LetGo();   // the keys held come up elsewhere
     }
 
     private void Log(string message)

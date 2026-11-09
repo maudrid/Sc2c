@@ -106,6 +106,9 @@ public partial class ReportView : Node2D
     /// <summary>A key came up (sent whenever a report is running, wherever the key went down, so none is left held).</summary>
     public void KeyUp(Key key) => _report?.KeyUp(Now, (int)key);
 
+    /// <summary>The window lost the keyboard: every key let go (no key comes up there).</summary>
+    public void LetGo() => _report?.LetGo(Now);
+
     private void Fail(Exception e)
     {
         GD.PrintErr($"The lander report couldn't be drawn: {e.Message}");

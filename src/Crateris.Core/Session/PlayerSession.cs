@@ -385,6 +385,17 @@ public sealed class PlayerSession
     /// <summary>The next of this player's own lander reports to show (their texts, oldest first); null if none waits.</summary>
     public string? TakeOwnReport() => _ownReports.Count > 0 ? _ownReports.Dequeue() : null;
 
+    /// <summary>
+    /// The player is somewhere their own reports can't be shown (not at the
+    /// planet-side or orbit screen, nor in a talk they'll come back from):
+    /// each waiting one is a notice instead, so none shows later at another world.
+    /// </summary>
+    public void NoticeOwnReports()
+    {
+        while (_ownReports.TryDequeue(out var text))
+            Notify(text, ReportSeconds);
+    }
+
     /// <summary>How long another player's lander report stays up as a notice.</summary>
     public const double ReportSeconds = 20;
 

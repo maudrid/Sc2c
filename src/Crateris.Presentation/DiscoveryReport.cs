@@ -78,8 +78,9 @@ public sealed class DiscoveryReport
     private readonly Queue<(long At, int Key, bool Down)> _keys = new();
     private long _clock, _wake;
     private bool _finished;
-    // How many times each key is held (VControl counts each control's own: a key forgotten by
-    // FlushInput coming up lowers nothing, not another key's count).
+    // How many times each key is held, each key on its own (VControl counts per control, so keys
+    // bound to one share a count; per key, a key forgotten by FlushInput coming up lowers nothing
+    // else's, and nothing here depends on the bindings).
     private readonly Dictionary<int, int> _held = new();
     private bool _started;   // VCONTROL_STARTBIT: gone down since the last look
     private bool _result;    // the last wait's
@@ -129,6 +130,11 @@ public sealed class DiscoveryReport
     /// <summary>Key <paramref name="key"/> came up at <paramref name="at"/>: one not held (forgotten, or held before the report) changes nothing.</summary>
     public void KeyUp(long at, int key = 0) => _keys.Enqueue((at, key, false));
 
+    /// <summary>Every key let go at <paramref name="at"/> (the window lost the keyboard: no key comes up there, as SDL's does).</summary>
+    public void LetGo(long at) => _keys.Enqueue((at, AllKeys, false));
+
+    private const int AllKeys = int.MinValue;
+
     /// <summary>Runs the report up to <paramref name="now"/>: what it drew meanwhile, each call at its time.</summary>
     public List<(long At, UqmDraw Call)> Run(long now)
     {
@@ -175,7 +181,9 @@ public sealed class DiscoveryReport
         while (_keys.Count > 0 && _keys.Peek().At <= _clock)
         {
             var (_, key, down) = _keys.Dequeue();
-            if (down)
+            if (key == AllKeys)
+                _held.Clear();
+            else if (down)
             {
                 _held[key] = _held.GetValueOrDefault(key) + 1;
                 _started = true;

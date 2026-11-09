@@ -219,6 +219,22 @@ public class DiscoveryReportTests
     }
 
     [Fact]
+    public void KeysLetGoWithTheWindowsFocusDontKeepItWaiting()
+    {
+        var report = new DiscoveryReport(Canvas(), "Short.", "END", 0);
+        report.Run(4000);
+        report.KeyDown(4500, 7);                // Alt, its coming up seen by another window
+        report.KeyDown(5000, 2);
+        report.KeyUp(5100, 2);
+        report.Run(5200);
+        Assert.True(report.Restored);
+        Assert.False(report.Done);
+        report.LetGo(5300);
+        report.Run(5400);
+        Assert.True(report.Done);
+    }
+
+    [Fact]
     public void TheEndOfPageStringIsTheOneRecorded() =>
         Assert.Equal(Root.GetProperty("end_string").GetInt32(), DiscoveryReport.EndPageString);
 

@@ -33,7 +33,7 @@ namespace Crateris.Game;
 /// orbit where the host is), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
 /// --first-run-tick FILE[,FILE] (the first-run screen ticks these add-ons, by file name, before --first-run-use),
-/// --show-report RESOURCE (shows that lander report once the player is at a planet-side or orbit screen, as if the player's lander had found it).
+/// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
 /// With no options the game starts as a solo host.
 /// </summary>
 public sealed class Options
@@ -80,7 +80,7 @@ public sealed class Options
     /// <summary>--guests-in-orbit: guests joining for the first time are put in orbit where the host is (testing).</summary>
     public bool GuestsInOrbit { get; private set; }
 
-    /// <summary>--show-report RESOURCE: the lander report (a string table, text.moonbase) shown as the finder's once at a planet-side or orbit screen (testing).</summary>
+    /// <summary>--show-report RESOURCE: the lander report (a string table, text.moonbase) shown as the finder's at start: on the screen in orbit (--start-orbit), else a notice (testing).</summary>
     public string? ShowReport { get; private set; }
 
     /// <summary>--start-at X:Y: the host starts in hyperspace at these universe coordinates (testing and debugging).</summary>
