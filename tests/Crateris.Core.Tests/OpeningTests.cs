@@ -475,6 +475,29 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void APageForTheLinesAReplyEndingTheTalkReplacedIsRefused()
+    {
+        var world = WithTalks(guest: true);
+        var story = world.Story!;
+        story.Set("RADIOACTIVES_PROVIDED", 1);
+        story.Set("MOONBASE_DESTROYED", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.CommanderMet = true;
+        world.VisitStarbase(world.Host);
+        var visit = world.Visit!;
+        Say(world, "comandr", "base_was_abandoned");
+        Say(world, "ilwrath", "surrender");
+        Say(world, "comandr", "cook_their_butts");
+        int round = visit.Round, lines = TalkView.Of(visit)!.LinesHash;
+        Say(world, "comandr", "name_2");   // the talk ends: new lines, no new replies, the round the same
+        Assert.Equal(round, visit.Round);
+        int now = TalkView.Of(visit)!.LinesHash;
+        Assert.NotEqual(lines, now);
+        Assert.False(world.PageTalk("host", round, lines, TalkPage.Skip));
+        Assert.True(world.PageTalk("host", round, now, TalkPage.Skip));
+    }
+
+    [ContentFact]
     public void TimePassingIsShownToEveryone()
     {
         var world = WithTalks(guest: true);

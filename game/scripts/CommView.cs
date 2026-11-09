@@ -45,8 +45,11 @@ public partial class CommView : Node2D
     private ImageTexture? _window;
     private int _cursor = -1;
     private long _timePassingSince = -1;   // DoTimePassage: when the fade to black began
-    private bool _watching, _story;
+    private bool _watching;
     private int _round, _lines;
+    // The talk last shown, and its lines' key (worked out once a talk, not every frame).
+    private TalkView? _talk;
+    private string _linesKey = "";
 
     /// <summary>
     /// The replier of a story talk paged the lines on this screen (the
@@ -112,9 +115,9 @@ public partial class CommView : Node2D
         _cursor = session.Replying ? session.ReplyCursor : -1;
         // A story talk's watchers follow the replier's paging of these lines (decision 7).
         _watching = !session.Replying;
-        _story = session.StoryPaused;
-        (_round, _lines) = (talk.Round, talk.LinesHash);
-        _screen?.Follow(talk.LinesKey, talk.PagingSoFar, _watching);
+        if (!ReferenceEquals(talk, _talk))
+            (_talk, _round, _lines, _linesKey) = (talk, talk.Round, talk.LinesHash, talk.LinesKey);
+        _screen?.Follow(_linesKey, talk.PagingSoFar, _watching);
     }
 
     /// <summary>The screen is gone (no talk): the next starts afresh.</summary>
@@ -137,7 +140,9 @@ public partial class CommView : Node2D
         if (_watching)
             return CommKeyResult.Used;
         var result = _screen.Press(key, out var paged);
-        if (paged is { } p && _story)   // no one watches an ordinary talk
+        // Sent in any talk: the host keeps it only in a story talk (whether this is one comes with
+        // the snapshot, which can be a moment behind the talk).
+        if (paged is { } p)
             Paged?.Invoke(_round, _lines, p);
         return result;
     }

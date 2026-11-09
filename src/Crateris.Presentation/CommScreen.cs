@@ -247,13 +247,16 @@ public sealed class CommScreen
     /// <see cref="Show"/>): a player <paramref name="watching"/> a story
     /// talk follows what they haven't yet (decision 7); the replier's own
     /// is already on their screen. A watcher who has just become the
-    /// replier follows what came before it first.
+    /// replier follows what came before it first, as does a screen first
+    /// following these lines (opened mid-talk: the replier's own paging
+    /// is on no screen yet).
     /// </summary>
     public void Follow(string linesKey, IReadOnlyList<TalkPage> paging, bool watching)
     {
-        if (linesKey != _followKey)
+        bool fresh = linesKey != _followKey;
+        if (fresh)
             (_followKey, _followed) = (linesKey, 0);
-        bool apply = watching || _wasWatching;
+        bool apply = watching || _wasWatching || fresh;
         _wasWatching = watching;
         for (; _followed < paging.Count; ++_followed)
             if (apply)

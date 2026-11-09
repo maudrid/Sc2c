@@ -242,9 +242,15 @@ public class CommScreenTests
         // The replier's own paging is on their screen already.
         var replier = Starbase(out _);
         replier.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
+        replier.Follow("a", Array.Empty<TalkPage>(), watching: false);
         replier.Update(10);
         replier.Follow("a", new[] { TalkPage.Skip }, watching: false);
         Assert.True(replier.Talking);
+        // Unless their screen is opened afresh mid-talk: what they paged before is on no screen, so it's followed.
+        var reopened = Starbase(out _);
+        reopened.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
+        reopened.Follow("a", new[] { TalkPage.Skip }, watching: false);
+        Assert.False(reopened.Talking);
         // A watcher made the replier by a view that also brings the last replier's skip: followed first.
         var heir = Starbase(out _);
         heir.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
