@@ -113,7 +113,8 @@ public partial class CommView : Node2D
         }
         _screen?.Show(talk.Lines, talk.Said, talk.Replies, talk.Round, Now);
         _cursor = session.Replying ? session.ReplyCursor : -1;
-        // A story talk's watchers follow the replier's paging of these lines (decision 7).
+        // Every screen follows the replier's paging of these lines that it hasn't applied (decision 7);
+        // a watcher's own paging keys do nothing.
         _watching = !session.Replying;
         if (!ReferenceEquals(talk, _talk))
             (_talk, _round, _lines, _linesKey) = (talk, talk.Round, talk.LinesHash, talk.LinesKey);

@@ -176,7 +176,7 @@ public sealed class CommScreen
         if (paged is { } p)
         {
             Page(p);
-            _applied++;   // the host keeps it after those already followed (sent in order)
+            _applied++;   // the host keeps it after those already followed (sent in order); counted even if refused (an ordinary talk, past the cap), where nothing more comes to follow
             return CommKeyResult.Used;
         }
         return _summary is null && !_talking && key is MenuKey.Up or MenuKey.Down or MenuKey.Select
