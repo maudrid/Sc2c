@@ -6,7 +6,7 @@ Before reporting any piece of work as complete (a plan item, a fix, a review's f
 
 1. Commit the work, then start a subagent to review that commit's diff for correctness bugs, gaps against the plan or the request, missing tests, and docs that no longer match the code.
 2. Fix what it finds that holds up, or say why a finding doesn't, and run the tests again.
-3. The fixes are work too: commit them and have a fresh subagent review that commit the same way. Repeat until a review finds nothing that holds up (if rounds keep finding things after three, stop and tell the user rather than looping on).
+3. The fixes are work too: commit them and have a fresh subagent review that commit the same way. Repeat until a review finds nothing that holds up (if rounds keep finding things after five, stop and tell the user rather than looping on).
 4. Only then report the work complete, saying what each round found and what was done about it.
 
 ## Project rules
