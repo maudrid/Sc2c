@@ -25,7 +25,9 @@ namespace Crateris.Core.Comm;
 /// reply they last chose, which the lines answer ("" before any).
 /// <see cref="Sale"/> is the replier's minerals, if that reply sold them
 /// (SellMinerals): the replier's client counts the hold down before the
-/// lines play; everyone else's shows nothing of it.
+/// lines play; everyone else's shows nothing of it. A talk sells its
+/// starter's hold, so once a story talk's replies pass to another player
+/// the sale is nobody's to count.
 /// Sent to them by the host when it changes, as a reliable message;
 /// <see cref="Protocol.NoView"/> means no talk.
 /// </summary>
@@ -113,7 +115,10 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var talk = visit.Talk;
         string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
         var view = new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round,
-            visit.Replier.Id, said, Sale: sale);
+            visit.Replier.Id, said,
+            // The talk sells its starter's hold: counted down on their screen while they reply (a story
+            // talk's replies passed on to another player, nobody's).
+            Sale: visit.Replier == visit.Starter ? sale : null);
         return visit.Paging is { } paging && paging.Key == view.LinesKey ? view with { Paging = paging.Pages.ToList() } : view;
     }
 

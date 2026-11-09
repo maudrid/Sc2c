@@ -103,14 +103,28 @@ public partial class SellingView : Node2D
         }
         catch (Exception e)
         {
+            // Dropped, once for those lines: the reply plays at once.
             GD.PrintErr($"The minerals' count-down couldn't be drawn: {e.Message}");
-            Stop();
+            _selling = null;
+            _raster = null;
         }
+    }
+
+    /// <summary>
+    /// The talk shows <paramref name="linesKey"/>'s lines: a count-down for
+    /// other lines (the talk moved on) is put away, keys and all.
+    /// </summary>
+    public void Follow(string linesKey)
+    {
+        if (Active && linesKey != _counted)
+            Stop();
     }
 
     /// <summary>The talk is gone: the count-down with it (the next talk's sale counts afresh).</summary>
     public void Stop()
     {
+        if (_selling is null && _counted == "")
+            return;
         _selling = null;
         _raster = null;
         _counted = "";

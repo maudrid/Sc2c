@@ -184,6 +184,31 @@ public class StarbaseTests
     }
 
     [ContentFact]
+    public void AStoryTalksSaleIsCountedOnlyByItsSellerWhileTheyReply()
+    {
+        var world = Allied(guest: true);
+        world.Story!.Set("MOONBASE_ON_SHIP", 1);   // the commander's talk is a story talk: everyone watches
+        var guest = world.Find("guest")!;
+        guest.Ship.Hold.LanderLeaves();
+        guest.Ship.Hold.LanderReturns(guest.Ship.Hold.LanderOut!.Value.Crew, new[] { 3, 0, 0, 0, 0, 0, 0, 0 }, 0);
+        world.VisitStarbase(guest);
+        for (int i = 0; i < StarbaseVisit.TimePassingFrames; ++i)
+        {
+            world.SubmitInput("host", world.Frame + 1, ShipInput.None);
+            world.Step();
+        }
+        world.ChooseReply("guest", Reply(world, "guest", "have_minerals"));
+        // Everyone is sent it (the watchers' clients see the replier isn't them)...
+        var watched = world.TalkFor("host")!;
+        Assert.Equal(("guest", 3), (watched.Replier, watched.Sale!.Mass));
+        Assert.Equal(watched.Sale, world.TalkFor("guest")!.Sale);
+        // ...and once the seller leaves, their replies passing to the host, it's nobody's to count.
+        world.Leave("guest");
+        Assert.Equal("host", world.TalkFor("host")!.Replier);
+        Assert.Null(world.TalkFor("host")!.Sale);
+    }
+
+    [ContentFact]
     public void OutfittingThroughTheMenuBuysFromTheWalletAndRefitsTheShip()
     {
         var world = Allied();
@@ -728,6 +753,14 @@ public class StarbaseTests
         Assert.Contains("docked", session.StartDocked());
         Assert.Equal(StarbaseScreen.Menu, session.StarbaseFor("host")!.Screen);
         Assert.Equal(ScreenOpKind.MenuOpened, session.HostStarbaseDrawing().Single().Ops.Single().Kind);
+        // --start-minerals: the hold filled, to sell; not more than it holds, nor other than 8 amounts.
+        var hold = session.World.Host.Ship.Hold;
+        Assert.Contains("118", session.StartWithMinerals(new[] { 30, 0, 45, 12, 0, 20, 8, 3 }));
+        Assert.Equal(new[] { 30, 0, 45, 12, 0, 20, 8, 3 }, hold.Minerals);
+        Assert.Throws<ArgumentException>(() => session.StartWithMinerals(new[] { hold.FreeStorage + 1, 0, 0, 0, 0, 0, 0, 0 }));
+        Assert.Throws<ArgumentException>(() => session.StartWithMinerals(new[] { 1, 2 }));
+        Assert.Throws<ArgumentException>(() => session.StartWithMinerals(new[] { -1, 0, 0, 0, 0, 0, 0, 0 }));
+        Assert.Equal(118, hold.MineralMass);
     }
 
     [Fact]

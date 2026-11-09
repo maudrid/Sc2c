@@ -984,6 +984,7 @@ public partial class Main : Node2D
             long linesFrom = 0;
             if (player.Talk is { } talk)
             {
+                _sellingView.Follow(talk.LinesKey);
                 if (talk.Sale is { } sale && talk.Replier == player.PlayerId && !Headless)
                     _sellingView.Count(sale, talk.LinesKey, _down);
                 linesFrom = _sellingView.LinesFrom(talk.LinesKey);
