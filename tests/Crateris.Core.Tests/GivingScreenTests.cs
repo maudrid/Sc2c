@@ -169,6 +169,8 @@ public class GivingScreenTests
         bool Fits(string s) => s.Length <= 12;
         Assert.Equal(new[] { "one two", "three four" }, GivingScreen.Wrap("one two\nthree four", 3, Fits));
         Assert.Equal(new[] { "one two", "three four…" }, GivingScreen.Wrap("one two three four five", 2, Fits));
+        // Whole words are dropped from the last line to make room for the ellipsis.
+        Assert.Equal(new[] { "abcde…" }, GivingScreen.Wrap("abcde fghijk lmn", 1, Fits));
         // A word too long for the last line is cut, a whole character at a time.
         Assert.Equal(new[] { "abcdefghijk…" }, GivingScreen.Wrap("abcdefghijklmnop qr", 1, Fits));
         Assert.Equal(new[] { "😀😀😀😀😀…" }, GivingScreen.Wrap(string.Concat(Enumerable.Repeat("😀", 9)) + " x", 1, Fits));

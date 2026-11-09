@@ -52,6 +52,7 @@ public partial class GivingView : Node2D
         _strings = GameStrings.Load(content);
         _icons = null;   // drawn afresh from this content
         _frames.Clear();
+        _drawn = null;
         Broken = false;
         foreach (var f in new[] { "starcon", "tiny" })
             _fonts[f] = UqmFont.Load(content, "font." + f);
