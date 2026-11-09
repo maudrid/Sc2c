@@ -795,7 +795,7 @@ public class StarbaseTests
         Assert.Equal(new[] { new ScreenOp(ScreenOpKind.ModuleStrings, outfit.State) }, d.Ops);
         Assert.Equal(world.Story.ModuleCost(name), d.Ship!.ModuleCosts[outfit.State]);
         // The shipyard: the crew price moved by another's purchases redraws its menu; minerals redraw the
-        // shipyard, whose blueprint shows them too.
+        // status area and the blueprint, which shows them too.
         Keys(world, "host", MenuKey.Cancel, MenuKey.Cancel, MenuKey.Cancel, MenuKey.Cancel, MenuKey.Down, MenuKey.Select);
         Assert.Equal(StarbaseScreen.Shipyard, world.StarbaseFor("host")!.Screen);
         Keys(world, "host", MenuKey.Down);
@@ -803,7 +803,7 @@ public class StarbaseTests
         world.Story.SetCrewCost(world.Story.CrewCost + 2);
         Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.SaveLoad) }, Drawn(world).Single().Ops);
         world.Give(new Gift("guest", "host", 0, new[] { 0, 0, 0, 5, 0, 0, 0, 0 }, 0));
-        Assert.Equal(host.Ship.Visit!.Menu!.Yard!.Redraw(), Drawn(world).Single().Ops);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.SisDisplay), new ScreenOp(ScreenOpKind.Blueprint) }, Drawn(world).Single().Ops);
     }
 
     [ContentFact]

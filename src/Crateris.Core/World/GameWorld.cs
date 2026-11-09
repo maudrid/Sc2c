@@ -736,7 +736,15 @@ public sealed class GameWorld
     {
         if (Find(id) is not { Ship.Visit.Menu: { } m } player || Story is null)
             return new();
-        m.Noticed(StarbaseShipOf(player));   // what others changed since
+        // What others changed since: only the story (the prices, the bomb) and the hold (the units, the
+        // minerals) change what Noticed draws, so the ship is looked at again only when one has.
+        var hold = player.Ship.Hold;
+        var stamp = (Story.Version, hold.ResourceUnits, hold.MineralMass);
+        if (m.NoticedAt != stamp)
+        {
+            m.NoticedAt = stamp;
+            m.Noticed(StarbaseShipOf(player));
+        }
         return m.TakeDrawing(() => StarbaseShipOf(player));
     }
 

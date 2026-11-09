@@ -179,7 +179,7 @@ public sealed record StarbaseDrawing(StarbaseShip? Ship, IReadOnlyList<ScreenOp>
         ScreenOpKind.CrewPoint => op.A is 0 or 1 && op.B >= 0,
         ScreenOpKind.YardOpened or ScreenOpKind.ClearRadar or ScreenOpKind.SisDisplay or ScreenOpKind.RedistributeFuel
             or ScreenOpKind.DisplayLanders or ScreenOpKind.FlagshipStats or ScreenOpKind.Gauges
-            or ScreenOpKind.FlagshipName or ScreenOpKind.CaptainsName => true,
+            or ScreenOpKind.FlagshipName or ScreenOpKind.CaptainsName or ScreenOpKind.Blueprint => true,
         _ => false,
     };
 }

@@ -354,6 +354,68 @@ public class StarbaseScreensTests
         }
     }
 
+    // A ship for the screens: a crew pod, a storage bay and a fuel tank, two thrusters, two jets.
+    private static StarbaseShip TestStarbaseShip()
+    {
+        var modules = Enumerable.Repeat(ShipModules.EmptyModule, ShipModules.ModuleSlotCount).ToArray();
+        (modules[1], modules[2], modules[3]) = (ShipModules.FuelTank, ShipModules.CrewPod, ShipModules.StorageBay);
+        var drives = Enumerable.Repeat(ShipModules.EmptyDrive, ShipModules.DriveSlotCount).ToArray();
+        (drives[5], drives[6]) = (ShipModules.FusionThruster, ShipModules.FusionThruster);
+        var jets = Enumerable.Repeat(ShipModules.EmptyJet, ShipModules.JetSlotCount).ToArray();
+        (jets[0], jets[6]) = (ShipModules.TurningJets, ShipModules.TurningJets);
+        return new StarbaseShip(modules, drives, jets, 30, 2350, 1, 500, 350, "Ship", "Captain", 0, 0, 20, 3,
+            Enumerable.Range(1, ShipModules.Modules).ToArray(), 50);
+    }
+
+    // The client's picture, painted from the content, of these drawings drawn one over another.
+    private static ScreenRaster Painted(params StarbaseDrawing[] drawings)
+    {
+        var pics = Pics.Value;
+        var picture = new StarbasePicture(Canvas(), Placeholder, FrameCount(StarbaseScreens.StarbaseSheet), pics.HangarMaps,
+            s => SisState.Of(s, "", ""));
+        var raster = pics.Raster(-1);
+        foreach (var d in drawings)
+            pics.Paint(raster, picture.Draw(new[] { d }, 0), picture.ColorMap);
+        return raster;
+    }
+
+    private static StarbaseDrawing D(StarbaseShip ship, params ScreenOp[] ops) => new(ship, ops);
+
+    private static ScreenOp Op(ScreenOpKind kind, int a = 0, int b = 0, int c = 0) => new(kind, a, b, c);
+
+    public static IEnumerable<object[]> OthersChanges() => new[] { "units", "more minerals", "fewer minerals",
+        "yard more minerals", "yard fewer minerals", "yard units", "crew price", "module price" }.Select(c => new object[] { c });
+
+    [ContentTheory]
+    [MemberData(nameof(OthersChanges))]
+    public void WhatOthersChangeDrawnOverTheScreenLooksAsTheScreenDrawnAfresh(string change)
+    {
+        var was = TestStarbaseShip();
+        const int U = ScreenOp.Undefined;
+        var outfit = new[] { Op(ScreenOpKind.OutfitOpened, (int)was.Fuel), Op(ScreenOpKind.SisDisplay) };
+        var yard = new[] { Op(ScreenOpKind.YardOpened), Op(ScreenOpKind.SisDisplay) };
+        var choosing = outfit.Append(Op(ScreenOpKind.ClearRadar)).Append(Op(ScreenOpKind.ModuleStrings, ShipModules.CrewPod)).ToArray();
+        var costs = was.ModuleCosts.ToArray();
+        costs[ShipModules.CrewPod] += 7;
+        // The screen before, the change as StarbaseMenu.Noticed draws it, and the ship after.
+        var (screen, now, drawn) = change switch
+        {
+            "units" => (outfit, was with { ResourceUnits = 1234 }, new[] { Op(ScreenOpKind.Gauges, 0, 0, U) }),
+            "more minerals" => (outfit, was with { MineralMass = 480 }, new[] { Op(ScreenOpKind.SisDisplay) }),
+            "fewer minerals" => (outfit, was with { MineralMass = 20 }, new[] { Op(ScreenOpKind.SisDisplay) }),
+            "yard more minerals" => (yard, was with { MineralMass = 480 }, new[] { Op(ScreenOpKind.SisDisplay), Op(ScreenOpKind.Blueprint) }),
+            "yard fewer minerals" => (yard, was with { MineralMass = 20 }, new[] { Op(ScreenOpKind.SisDisplay), Op(ScreenOpKind.Blueprint) }),
+            "yard units" => (yard, was with { ResourceUnits = 7 }, new[] { Op(ScreenOpKind.Gauges, 0, 0, U) }),
+            "crew price" => (yard, was with { CrewCost = 5 }, new[] { Op(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.Crew) }),
+            _ => (choosing, was with { ModuleCosts = costs }, new[] { Op(ScreenOpKind.ModuleStrings, ShipModules.CrewPod) }),
+        };
+        var over = Painted(D(was, screen), D(now, drawn));
+        var fresh = Painted(D(now, screen));
+        var diff = fresh.Differences(over);
+        Assert.True(diff.Count == 0, $"{change}: differs at " + string.Join(", ", diff.Select(p => $"({p.X}, {p.Y}) fresh {Pixel(fresh, p)} over {Pixel(over, p)}")));
+        Assert.NotEmpty(Painted(D(was, screen)).Differences(fresh));   // the change shows
+    }
+
     [Fact]
     public void APictureAsksForItsScreenAFewTimesAndNeverForTheTalk()
     {

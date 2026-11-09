@@ -79,6 +79,14 @@ public enum ScreenOpKind : byte
 
     /// <summary>DoStarBase's cursor moved: DrawBaseStateStrings (<see cref="ScreenOp.A"/>, <see cref="ScreenOp.B"/>).</summary>
     MenuMoved,
+
+    /// <summary>
+    /// DrawBluePrint: the shipyard's blueprint of the ship drawn afresh over
+    /// itself (its outline filled first), with the crew, the minerals and
+    /// the fuel as they stand. UQM draws it only as the shipyard opens;
+    /// here, for minerals another player gave while it's open.
+    /// </summary>
+    Blueprint,
 }
 
 /// <summary>

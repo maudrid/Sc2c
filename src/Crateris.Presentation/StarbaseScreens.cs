@@ -256,6 +256,11 @@ public sealed class StarbaseScreens
             case ScreenOpKind.MenuMoved:
                 MoveMenu(op.A, op.B);
                 break;
+            case ScreenOpKind.Blueprint:
+                _c.SetContext(_c.Space);
+                ClearStorageBays();
+                BluePrint();
+                break;
         }
     }
 
@@ -413,6 +418,17 @@ public sealed class StarbaseScreens
         _c.SetContext(_c.Space);
         ColorMap = map;
         _c.Stamp(ShipyardSheet, PowerLinesFrame, 0, 0);
+    }
+
+    // The storage bays' rows in the blueprint black again, as before any mineral was drawn in them (the
+    // blueprint's outline doesn't cover them): fewer minerals than were drawn leave no rows lit.
+    private void ClearStorageBays()
+    {
+        _c.SetForeground(Black);
+        for (int slot = 0; slot < NumModuleSlots; ++slot)
+            if (_s.Modules[slot] == ShipModules.StorageBay)
+                for (int row = 0; row < StorageBayCapacity / SbayMassPerRow; ++row)
+                    _c.FillRect(new URect(19 + slot * ShipPieceOffset, 34 - row * 2, 9, 1));
     }
 
     // shipyard.c's DrawBluePrint, with DoStarBase's menu on SHIPYARD (the crew pods lit).

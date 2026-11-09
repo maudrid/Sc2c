@@ -270,6 +270,9 @@ public sealed class StarbaseMenu
     private bool _lost;
     private StarbaseShip? _shown;
 
+    /// <summary>The story's version and the hold's units and minerals when the host last looked for others' changes.</summary>
+    internal (long Story, uint ResourceUnits, int MineralMass)? NoticedAt { get; set; }
+
     /// <summary>A key's drawing (none: nothing kept), with the ship as the key left it (null: the drawing doesn't read it).</summary>
     internal void Drew(StarbaseShip? ship, List<ScreenOp> ops)
     {
@@ -294,7 +297,7 @@ public sealed class StarbaseMenu
     /// shows of it drawn again. The bomb's state: the screen drawn afresh.
     /// Outfitting and the shipyard: the resource units' message, or
     /// with the minerals the status area, which shows the storage bays
-    /// (the shipyard drawn afresh, its blueprint showing them too); the
+    /// (in the shipyard, its blueprint too, which shows them as well); the
     /// shipyard's menu with the crew price; in Modules, the price of the
     /// module the radar shows. Called before the player's own keys, so a
     /// key's drawing goes over what others changed first.
@@ -309,12 +312,14 @@ public sealed class StarbaseMenu
         bool minerals = now.MineralMass != was.MineralMass;
         if (now.BombState != was.BombState)
             ops.AddRange(Redraw());   // the bomb shows in the landers' place, hides the shields, changes the status message
-        else if (minerals && Yard is not null)
-            ops.AddRange(Yard.Redraw());
         else
         {
             if (minerals)
+            {
                 ops.Add(new(ScreenOpKind.SisDisplay));
+                if (Yard is not null)
+                    ops.Add(new(ScreenOpKind.Blueprint));   // its storage bays show the minerals too
+            }
             else if (now.ResourceUnits != was.ResourceUnits)
                 ops.Add(new(ScreenOpKind.Gauges, 0, 0, ScreenOp.Undefined));
             if (Yard is not null && now.CrewCost != was.CrewCost)
