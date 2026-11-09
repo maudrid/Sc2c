@@ -792,15 +792,15 @@ public partial class Main : Node2D
     /// <summary>Whether the minerals' count-down is up and has the player's keys (until it's put away).</summary>
     private bool SellingHasKeys => _sellingView.Visible && _sellingView.Active;
 
-    // The keys down (physical), for a count-down starting while one is held: UQM's input sees it held.
-    private readonly HashSet<Key> _down = new();
+    // The keys down (physical, with their key), for a count-down starting while one is held: UQM's input sees it held.
+    private readonly Dictionary<Key, Key> _down = new();
 
     public override void _Input(InputEvent e)
     {
         if (e is InputEventKey { Echo: false } k)
         {
             if (k.Pressed)
-                _down.Add(k.PhysicalKeycode);
+                _down[k.PhysicalKeycode] = k.Keycode;
             else
                 _down.Remove(k.PhysicalKeycode);
         }
@@ -986,7 +986,15 @@ public partial class Main : Node2D
             {
                 _sellingView.Follow(talk.LinesKey);
                 if (talk.Sale is { } sale && talk.Replier == player.PlayerId && !Headless)
-                    _sellingView.Count(sale, talk.LinesKey, _down);
+                {
+                    // A key held as it starts is the count-down's (F1 never is), and the game's again only once it's come up.
+                    bool started = _sellingView.Active;
+                    var held = _down.Where(d => d.Value != Key.F1).ToList();
+                    _sellingView.Count(sale, talk.LinesKey, held.Select(d => d.Key));
+                    if (!started && _sellingView.Active)
+                        foreach (var (_, key) in held)
+                            _taken.Take((long)key);
+                }
                 linesFrom = _sellingView.LinesFrom(talk.LinesKey);
             }
             _commView.Show(player, linesFrom);
