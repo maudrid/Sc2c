@@ -199,6 +199,22 @@ public class SessionTests
         Assert.Equal(new[] { "  a\n\n\nb " }, PlayerSession.NoticePages("  a\n\n\nb "));
         string blank = new(' ', 500);
         Assert.Equal(new[] { blank }, PlayerSession.NoticePages(blank));
+        // Blank space makes no page of its own.
+        var afterBlank = PlayerSession.NoticePages($"  \n{new string('z', 250)} end");
+        Assert.DoesNotContain(afterBlank, p => p.Trim() == "");
+        Assert.Equal($"{new string('z', 250)}end", string.Concat(afterBlank).Replace(" ", ""));
+    }
+
+    [ContentFact]
+    public void ANoticeThatFitsOnlySqueezedIsShownSqueezed()
+    {
+        // Too many lines as it is, one page with its blank lines squeezed: that page is shown.
+        var player = Player("guest");
+        string text = "Heading:\n\n\n\n\n\n\n\nbody one\nbody two\nbody three";
+        Assert.True(PlayerSession.NoticeLines(text) > PlayerSession.NoticePageLines);
+        player.Notify(text);
+        Assert.Equal("Heading:\n\nbody one\nbody two\nbody three", player.Notice);
+        Assert.Equal(PlayerSession.NoticePages(text), new[] { player.Notice });
     }
 
     [ContentFact]

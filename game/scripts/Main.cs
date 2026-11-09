@@ -802,11 +802,10 @@ public partial class Main : Node2D
         if (e is not InputEventKey { Pressed: true } k)
             return;
         // F1 opens and closes the about screen; Esc closes it too.
-        if ((k.Keycode == Key.F1 && !k.Echo) || (_about.Visible && k.Keycode == Key.Escape))
+        if ((k.Keycode == Key.F1 || (_about.Visible && k.Keycode == Key.Escape)) && !k.Echo)
         {
             _about.Visible = k.Keycode == Key.F1 && !_about.Visible;
-            if (!k.Echo)
-                _taken.Take((long)k.Keycode);
+            _taken.Take((long)k.Keycode);
             GetViewport().SetInputAsHandled();
             return;
         }
@@ -883,10 +882,16 @@ public partial class Main : Node2D
         };
         _naming.GuiInput += e =>
         {
-            if (e is InputEventKey { Pressed: true, Keycode: Key.Escape })
+            if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
             {
                 _naming?.AcceptEvent();   // not the menu's Esc too
-                EndNaming();
+                if (_about.Visible)
+                {
+                    _about.Visible = false;   // the about screen's, over the name line
+                    _taken.Take((long)Key.Escape);
+                }
+                else
+                    EndNaming();
             }
         };
         _screens.AddChild(_naming);

@@ -139,7 +139,7 @@ public sealed class PlayerSession
         var pages = NoticePages(message);
         _notice = new();
         if (pages.Count == 1)
-            _notice.Add((message, _time + seconds));
+            _notice.Add((pages[0], _time + seconds));   // the message, or it with its blank lines squeezed to fit
         else
         {
             double until = _time;
@@ -153,19 +153,25 @@ public sealed class PlayerSession
     }
 
     /// <summary>
-    /// The most lines of the status panel a page of a notice takes (its
-    /// number one more): with the panel's other lines for four players,
-    /// about all the window has room for.
+    /// The lines of the status panel a page of a notice is let take, as
+    /// <see cref="NoticeLines"/> reckons them (its number one more): with the
+    /// panel's other lines for four players, about all the window has room
+    /// for. Measured in the game, every page of the content's lander
+    /// reports leaves those lines on the screen, a line to spare.
     /// </summary>
     public const int NoticePageLines = 9;
 
-    /// <summary>The fewest characters a line of the status panel holds (capitals, wrapped between words).</summary>
+    /// <summary>The characters reckoned to a line of the status panel (about as many capitals as it holds, wrapped between words).</summary>
     public const int NoticeLineChars = 22;
 
     /// <summary>How fast a long notice's page is taken to be read, in characters a second.</summary>
     public const double ReadingPace = 20;
 
-    /// <summary>The lines of the status panel a notice's text takes at most (<see cref="NoticeLineChars"/> to a line).</summary>
+    /// <summary>
+    /// The lines of the status panel a notice's text is reckoned to take,
+    /// <see cref="NoticeLineChars"/> to a line: an estimate, not a bound
+    /// (long words of wide letters wrap to more).
+    /// </summary>
     public static int NoticeLines(string text) =>
         text.Split('\n').Sum(line => Math.Max(1, (line.Length + NoticeLineChars - 1) / NoticeLineChars));
 
@@ -186,7 +192,8 @@ public sealed class PlayerSession
     /// <summary>
     /// A notice's pages: the whole text if it fits on one; otherwise its
     /// paragraphs, together while they fit, one too long for a page split
-    /// between its lines, then its sentences, then its words.
+    /// between its lines, then its sentences, then its words, and a word
+    /// too long for a page cut into pieces; blank space alone makes no page.
     /// </summary>
     public static IReadOnlyList<string> NoticePages(string text)
     {
@@ -196,6 +203,8 @@ public sealed class PlayerSession
         var page = new StringBuilder();
         void Add(string piece, string joint)
         {
+            if (piece.Trim() == "")
+                return;   // no page of blank space
             if (page.Length > 0 && !FitsAPage($"{page}{joint}{piece}"))
             {
                 pages.Add(page.ToString());
@@ -506,7 +515,7 @@ public sealed class PlayerSession
             Notify(text, ReportSeconds);
     }
 
-    /// <summary>How long a lander report shown as a notice stays up, if it fits on a page (a longer one is up a page at a time, <see cref="Notify"/>).</summary>
+    /// <summary>How long a lander report shown as a notice stays up at least (a longer one a page at a time, each its share or as long as it takes to read, <see cref="Notify"/>).</summary>
     public const double ReportSeconds = 20;
 
     /// <summary>The reply chosen (its round and place), to send to the host once; null if none is waiting.</summary>
