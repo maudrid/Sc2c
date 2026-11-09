@@ -765,8 +765,8 @@ public sealed class GameWorld
         var stamp = (Story.Version, hold.ResourceUnits, hold.MineralMass);
         if (m.NoticedAt != stamp)
         {
-            m.NoticedAt = stamp;
             m.Noticed(StarbaseShipOf(player));
+            m.NoticedAt = stamp;   // after: drawing what changed clears it
         }
         return m.TakeDrawing(() => StarbaseShipOf(player));
     }

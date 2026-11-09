@@ -173,11 +173,11 @@ public partial class StarbaseScreenView : Node2D
     /// <summary>
     /// The screen the host last sent (null: not docked): where the
     /// highlight flashes; with no picture for it, the host is asked to draw
-    /// it afresh (<see cref="Lost"/>, a few times at most for a screen).
+    /// it afresh (<see cref="Lost"/>, once a second, a few times at most for a screen).
     /// </summary>
     public void Show(StarbaseView? view)
     {
-        if (_picture?.Ask(view?.Screen) == true)
+        if (_picture?.Ask(view?.Screen, Now) == true)
             Lost?.Invoke();
         _flash = view?.Screen switch
         {

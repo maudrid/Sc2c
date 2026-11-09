@@ -832,6 +832,9 @@ public class StarbaseTests
         // Units and minerals in one gift: the status area covers both.
         world.Give(new Gift("guest", "host", 10, some, 0));
         Assert.Equal(new[] { new ScreenOp(ScreenOpKind.SisDisplay) }, Drawn(world).Single().Ops);
+        // Nothing changed since: the ship isn't looked at again (the stamp kept).
+        Assert.NotNull(host.Ship.Visit!.Menu!.NoticedAt);
+        Assert.Empty(Drawn(world));
         // Given, then renamed: the gift drawn first.
         world.Give(new Gift("guest", "host", 10, none, 0));
         world.Rename("host", "Rocinante", null);

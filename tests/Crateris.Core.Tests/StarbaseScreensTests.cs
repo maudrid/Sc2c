@@ -384,7 +384,8 @@ public class StarbaseScreensTests
     private static ScreenOp Op(ScreenOpKind kind, int a = 0, int b = 0, int c = 0) => new(kind, a, b, c);
 
     public static IEnumerable<object[]> OthersChanges() => new[] { "units", "more minerals", "fewer minerals",
-        "yard more minerals", "yard fewer minerals", "yard units", "crew price", "module price" }.Select(c => new object[] { c });
+        "yard more minerals", "yard fewer minerals", "yard units", "crew price", "module price",
+        "radar minerals", "radar fewer minerals", "radar units" }.Select(c => new object[] { c });
 
     [ContentTheory]
     [MemberData(nameof(OthersChanges))]
@@ -405,6 +406,9 @@ public class StarbaseScreensTests
             "fewer minerals" => (outfit, was with { MineralMass = 20 }, new[] { Op(ScreenOpKind.SisDisplay) }),
             "yard more minerals" => (yard, was with { MineralMass = 480 }, new[] { Op(ScreenOpKind.SisDisplay), Op(ScreenOpKind.Blueprint) }),
             "yard fewer minerals" => (yard, was with { MineralMass = 20 }, new[] { Op(ScreenOpKind.SisDisplay), Op(ScreenOpKind.Blueprint) }),
+            "radar minerals" => (choosing, was with { MineralMass = 480 }, new[] { Op(ScreenOpKind.SisDisplay) }),
+            "radar fewer minerals" => (choosing, was with { MineralMass = 20 }, new[] { Op(ScreenOpKind.SisDisplay) }),
+            "radar units" => (choosing, was with { ResourceUnits = 1234 }, new[] { Op(ScreenOpKind.Gauges, 0, 0, U) }),
             "yard units" => (yard, was with { ResourceUnits = 7 }, new[] { Op(ScreenOpKind.Gauges, 0, 0, U) }),
             "crew price" => (yard, was with { CrewCost = 5 }, new[] { Op(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.Crew) }),
             _ => (choosing, was with { ModuleCosts = costs }, new[] { Op(ScreenOpKind.ModuleStrings, ShipModules.CrewPod) }),
@@ -420,19 +424,33 @@ public class StarbaseScreensTests
     public void APictureAsksForItsScreenAFewTimesAndNeverForTheTalk()
     {
         var picture = new StarbasePicture(Canvas(), Placeholder, FrameCount(StarbaseScreens.StarbaseSheet), 3, s => SisState.Of(s, "", ""));
-        Assert.False(picture.Ask(null));                    // not docked
-        Assert.False(picture.Ask(StarbaseScreen.Talk));     // the communication screen shows
-        for (int i = 0; i < StarbasePicture.MostAsks; ++i)
-            Assert.True(picture.Ask(StarbaseScreen.Menu));
-        Assert.False(picture.Ask(StarbaseScreen.Menu));     // a drawing that can't be painted isn't asked for forever
-        Assert.True(picture.Ask(StarbaseScreen.Outfit));    // another screen: asked again
+        const long T = StarbasePicture.AskEvery;
+        Assert.False(picture.Ask(null, 0));                    // not docked
+        Assert.False(picture.Ask(StarbaseScreen.Talk, 0));     // the communication screen shows
+        Assert.True(picture.Ask(StarbaseScreen.Menu, 0));
+        Assert.False(picture.Ask(StarbaseScreen.Menu, T - 1)); // the answer is on its way
+        for (int i = 1; i < StarbasePicture.MostAsks; ++i)
+            Assert.True(picture.Ask(StarbaseScreen.Menu, i * T));
+        Assert.False(picture.Ask(StarbaseScreen.Menu, 100 * T));   // a drawing that can't be painted isn't asked for forever
+        Assert.True(picture.Ask(StarbaseScreen.Outfit, 100 * T));  // another screen: asked again
         picture.Draw(new[] { new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 0) }) }, 0);
         Assert.True(picture.Drawn);
-        Assert.False(picture.Ask(StarbaseScreen.Menu));     // drawn: nothing to ask
+        Assert.False(picture.Ask(StarbaseScreen.Menu, 200 * T));   // drawn: nothing to ask
         picture.Reset();
         Assert.False(picture.Drawn);
-        Assert.True(picture.Ask(StarbaseScreen.Menu));
         Assert.Empty(picture.Tick(10_000));                 // no picture: no clock drawing
+        // Lost again on the same screen after a picture came: asked again, as many times.
+        for (int i = 0; i < StarbasePicture.MostAsks; ++i)
+            Assert.True(picture.Ask(StarbaseScreen.Menu, (300 + i) * T));
+        Assert.False(picture.Ask(StarbaseScreen.Menu, 400 * T));
+        // A drawing that fails part way: what it drew isn't painted over the picture drawn afresh.
+        picture.Draw(new[] { new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 0) }) }, 0);
+        Assert.Throws<NullReferenceException>(() => picture.Draw(new[] { new StarbaseDrawing(null,
+            new[] { new ScreenOp(ScreenOpKind.MenuMoved, 0, 1), new ScreenOp(ScreenOpKind.SisDisplay) }) }, 0));
+        picture.Reset();
+        var afresh = picture.Draw(new[] { new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 0) }) }, 0);
+        var only = picture.Draw(new[] { new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 0) }) }, 0);
+        Assert.Equal(only.Count, afresh.Count);
     }
 
     [ContentFact]

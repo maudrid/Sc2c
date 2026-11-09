@@ -39,9 +39,13 @@ public sealed class StarbasePicture
     private On _on;
     private StarbaseScreen? _seen;
     private int _asks;
+    private long? _asked;
 
-    /// <summary>How many times a picture is asked for while the host's screen stays the same.</summary>
+    /// <summary>How many times a picture is asked for while the host's screen stays the same and none comes.</summary>
     public const int MostAsks = 3;
+
+    /// <summary>How long after asking it's asked again (UQM's ticks: a second, for the host's answer to come).</summary>
+    public const long AskEvery = 840;
 
     /// <param name="canvas">The canvas the screens draw on (its calls are taken as they're drawn).</param>
     /// <param name="gameString">The game's strings (GAME_STRING).</param>
@@ -67,23 +71,30 @@ public sealed class StarbasePicture
     public bool Drawn => _on != On.Nothing;
 
     /// <summary>The picture is gone (it couldn't be painted): nothing is shown until a screen is drawn afresh.</summary>
-    public void Reset() => _on = On.Nothing;
+    public void Reset()
+    {
+        _on = On.Nothing;
+        _canvas.Drawn.Clear();   // what a drawing that failed part way drew isn't painted over the next
+    }
 
     /// <summary>
     /// Whether to ask the host to draw the screen afresh, the host saying
-    /// <paramref name="screen"/> is up (null: not docked): when there's no
-    /// picture for it, at most <see cref="MostAsks"/> times while the
-    /// host's screen stays the same, so a drawing that can't be painted
-    /// isn't asked for again and again. The commander's talk has no
-    /// picture (the communication screen shows).
+    /// <paramref name="screen"/> is up (null: not docked) at
+    /// <paramref name="now"/> (UQM's ticks): when there's no picture for
+    /// it, once every <see cref="AskEvery"/> (the answer takes a round
+    /// trip) and at most <see cref="MostAsks"/> times while the host's
+    /// screen stays the same and no picture comes, so a drawing that can't
+    /// be painted isn't asked for again and again; a picture drawn starts
+    /// the count afresh. The commander's talk has no picture (the
+    /// communication screen shows).
     /// </summary>
-    public bool Ask(StarbaseScreen? screen)
+    public bool Ask(StarbaseScreen? screen, long now)
     {
-        if (screen != _seen)
-            (_seen, _asks) = (screen, 0);
-        if (screen is null or StarbaseScreen.Talk || Drawn || _asks >= MostAsks)
+        if (screen != _seen || Drawn)
+            (_seen, _asks, _asked) = (screen, 0, null);
+        if (screen is null or StarbaseScreen.Talk || Drawn || _asks >= MostAsks || now - _asked < AskEvery)
             return false;
-        _asks++;
+        (_asks, _asked) = (_asks + 1, now);
         return true;
     }
 
