@@ -385,6 +385,25 @@ public sealed class PlayerSession
     /// <summary>The next of this player's own lander reports to show (their texts, oldest first); null if none waits.</summary>
     public string? TakeOwnReport() => _ownReports.Count > 0 ? _ownReports.Dequeue() : null;
 
+    /// <summary>The screens a lander report is shown on (over the scan map): planet-side and orbit.</summary>
+    public static bool ShowsReports(PlayerScreen screen) => screen is PlayerScreen.Planetside or PlayerScreen.Orbit;
+
+    /// <summary>
+    /// The player's own report to show now on <paramref name="screen"/>
+    /// (null: none), the screen <paramref name="free"/> for one: on a screen
+    /// that shows them, the next waiting; in a talk, kept till the player is
+    /// back; anywhere else, each waiting one a notice instead
+    /// (<see cref="NoticeOwnReports"/>).
+    /// </summary>
+    public string? OwnReportFor(PlayerScreen screen, bool free)
+    {
+        if (ShowsReports(screen))
+            return free ? TakeOwnReport() : null;
+        if (screen != PlayerScreen.Comm)
+            NoticeOwnReports();
+        return null;
+    }
+
     /// <summary>
     /// The player is somewhere their own reports can't be shown (not at the
     /// planet-side or orbit screen, nor in a talk they'll come back from):

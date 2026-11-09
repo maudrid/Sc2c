@@ -154,10 +154,15 @@ public class OpeningTests
         other.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport, "host"));
         Assert.Null(other.TakeOwnReport());
         Assert.Contains("host's lander found it:\n" + table[0], string.Join("\n", other.StatusLines()));
-        // The finder somewhere it can't be shown: a notice instead, not kept for another world.
+        // Shown in orbit or planet-side once the screen is free; kept through a talk.
         finder.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport));
-        finder.NoticeOwnReports();
-        Assert.Null(finder.TakeOwnReport());
+        Assert.Null(finder.OwnReportFor(PlayerScreen.Orbit, free: false));
+        Assert.Null(finder.OwnReportFor(PlayerScreen.Comm, free: true));
+        Assert.Equal(table[0], finder.OwnReportFor(PlayerScreen.Planetside, free: true));
+        // Somewhere it can't be shown: a notice instead, not kept for another world.
+        finder.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport));
+        Assert.Null(finder.OwnReportFor(PlayerScreen.Hyperspace, free: true));
+        Assert.Null(finder.OwnReportFor(PlayerScreen.Orbit, free: true));
         Assert.Contains(table[0], string.Join("\n", finder.StatusLines()));
     }
 

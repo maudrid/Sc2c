@@ -185,7 +185,9 @@ public sealed class DiscoveryReport
                 _held.Clear();
             else if (down)
             {
-                _held[key] = _held.GetValueOrDefault(key) + 1;
+                // A key (not 0, the recordings' one control) can't go down twice: down again, its
+                // coming up was lost (the window's focus away a moment), so it's held once.
+                _held[key] = key != 0 && _held.ContainsKey(key) ? 1 : _held.GetValueOrDefault(key) + 1;
                 _started = true;
             }
             else if (_held.TryGetValue(key, out int n))

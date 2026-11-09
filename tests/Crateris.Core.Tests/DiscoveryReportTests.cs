@@ -235,6 +235,18 @@ public class DiscoveryReportTests
     }
 
     [Fact]
+    public void AKeyWhoseComingUpWasLostIsLetGoByPressingItAgain()
+    {
+        var report = new DiscoveryReport(Canvas(), "Short.", "END", 0);
+        report.Run(4000);
+        report.KeyDown(4500, 7);                // its coming up lost
+        report.KeyDown(5000, 7);
+        report.KeyUp(5100, 7);
+        report.Run(5200);
+        Assert.True(report.Done);
+    }
+
+    [Fact]
     public void TheEndOfPageStringIsTheOneRecorded() =>
         Assert.Equal(Root.GetProperty("end_string").GetInt32(), DiscoveryReport.EndPageString);
 

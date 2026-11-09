@@ -891,12 +891,10 @@ public partial class Main : Node2D
         _orbitView.Visible = screen == PlayerScreen.Orbit;
         _planetsideView.Visible = screen == PlayerScreen.Planetside;
         // The player's own lander report, over the scan map's area of the planet-side and orbit views.
-        _reportView.Visible = screen is PlayerScreen.Planetside or PlayerScreen.Orbit;
+        _reportView.Visible = PlayerSession.ShowsReports(screen);
         if (Headless)
             player.TakeOwnReport();   // nothing to show it on (the session has logged it)
-        else if (!_reportView.Visible && screen != PlayerScreen.Comm)
-            player.NoticeOwnReports();   // not to be shown later at another world
-        else if (_reportView.Visible && _reportView.Ready && player.TakeOwnReport() is { } reportText)   // kept till then
+        else if (player.OwnReportFor(screen, _reportView.Ready) is { } reportText)
             _reportView.Show(reportText);
         _commView.Visible = screen == PlayerScreen.Comm;
         if (_commView.Visible)
