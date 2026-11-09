@@ -77,12 +77,14 @@ public sealed class OutfitMenu
 
     /// <summary>
     /// Outfitting as it stands, drawn afresh (when drawing was lost): as
-    /// it opens with the fuel aboard now, then the menu on its entry, or in
-    /// Modules the radar cleared and what the cursor is on.
+    /// it opens with the fuel aboard now, the status area drawn afresh (the
+    /// opening doesn't draw its gauges, which the lost drawing may have
+    /// changed), then the menu on its entry, or in Modules the radar
+    /// cleared and what the cursor is on.
     /// </summary>
     public List<ScreenOp> Redraw()
     {
-        var ops = new List<ScreenOp> { new(ScreenOpKind.OutfitOpened, (int)_rules.Ship.Fuel) };
+        var ops = new List<ScreenOp> { new(ScreenOpKind.OutfitOpened, (int)_rules.Ship.Fuel), new(ScreenOpKind.SisDisplay) };
         if (_installing)
         {
             ops.Add(new(ScreenOpKind.ClearRadar));

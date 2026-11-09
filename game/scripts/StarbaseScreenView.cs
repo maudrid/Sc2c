@@ -55,12 +55,10 @@ public partial class StarbaseScreenView : Node2D
     private bool _changed;
     private URect? _flash;
 
-    private bool _asked;
-
     /// <summary>
     /// There's no picture for the screen the host says is up (a drawing
     /// that couldn't be painted, or the content came after the drawing):
-    /// the host is to draw it afresh. Asked once a picture.
+    /// the host is to draw it afresh. Asked a few times at most while the screen stays the same.
     /// </summary>
     public event Action? Lost;
 
@@ -108,7 +106,7 @@ public partial class StarbaseScreenView : Node2D
         return image;
     }
 
-    // A fresh picture, black, waiting for the host's first drawing.
+    // The picture and its painter, made once the content is here.
     private void Reset()
     {
         if (_content is null)
@@ -124,9 +122,27 @@ public partial class StarbaseScreenView : Node2D
         string flagship = ShipNames.FlagshipDefault(_strings!), commander = ShipNames.CommanderDefault(_strings!);
         _picture = new StarbasePicture(canvas, i => _strings![i], Sheet(StarbaseScreens.StarbaseSheet).Count, _hangar!.Count,
             s => SisState.Of(s, flagship, commander));
-        _raster = new ScreenRaster((s, i) => Frame(s, i, _picture.ColorMap), f => _fonts[f]);
+        Blank();
+    }
+
+    // A black picture, waiting for a screen drawn afresh.
+    private void Blank()
+    {
+        _raster = new ScreenRaster((s, i) => Frame(s, i, _picture!.ColorMap), f => _fonts[f]);
         _changed = true;
-        _asked = false;
+    }
+
+    /// <summary>
+    /// The picture is lost (a drawing from the host that couldn't be read
+    /// or painted): nothing shows until the screen is drawn afresh, which
+    /// the next <see cref="Show"/> asks the host for.
+    /// </summary>
+    public void Lose()
+    {
+        if (_picture is null)
+            return;
+        _picture.Reset();
+        Blank();
     }
 
     /// <summary>The host's drawings for this player, in order: drawn over the picture.</summary>
@@ -138,12 +154,11 @@ public partial class StarbaseScreenView : Node2D
         {
             Paint(_picture.Draw(drawings, Now));
         }
-        catch (Exception e) when (e is ArgumentException or IndexOutOfRangeException or KeyNotFoundException
-            or InvalidOperationException)
+        catch (Exception e)
         {
-            // A drawing this client can't paint: the picture starts afresh with the next screen drawn whole.
+            // A drawing this client can't paint: nothing shows until the screen is drawn whole again.
             GD.PrintErr($"The starbase's drawing couldn't be painted: {e.Message}");
-            Reset();
+            Lose();
         }
     }
 
@@ -155,15 +170,16 @@ public partial class StarbaseScreenView : Node2D
         _changed = true;
     }
 
-    /// <summary>The screen the host last sent: where the highlight flashes.</summary>
-    public void Show(StarbaseView view)
+    /// <summary>
+    /// The screen the host last sent (null: not docked): where the
+    /// highlight flashes; with no picture for it, the host is asked to draw
+    /// it afresh (<see cref="Lost"/>, a few times at most for a screen).
+    /// </summary>
+    public void Show(StarbaseView? view)
     {
-        if (view.Screen != StarbaseScreen.Talk && _picture is { Drawn: false } && !_asked)
-        {
-            _asked = true;
+        if (_picture?.Ask(view?.Screen) == true)
             Lost?.Invoke();
-        }
-        _flash = view.Screen switch
+        _flash = view?.Screen switch
         {
             StarbaseScreen.Outfit => StarbaseScreens.OutfitFlash(view.OutfitState, view.OutfitItem, view.Installing),
             StarbaseScreen.Shipyard => StarbaseScreens.YardFlash(view.YardMode, view.YardCursor),
@@ -179,11 +195,10 @@ public partial class StarbaseScreenView : Node2D
         {
             Paint(_picture.Tick(Now));
         }
-        catch (Exception e) when (e is ArgumentException or IndexOutOfRangeException or KeyNotFoundException
-            or InvalidOperationException)
+        catch (Exception e)
         {
             GD.PrintErr($"The starbase's drawing couldn't be painted: {e.Message}");
-            Reset();
+            Lose();
         }
         if (_changed && _raster is not null)
         {

@@ -283,7 +283,8 @@ public class StarbaseScreensTests
 
         public int HangarMaps { get; }
 
-        private SpriteImage Frame(string sheet, int i, int cmap) => _frames.GetOrAdd((sheet, i, cmap), _ =>
+        /// <summary>A frame painted with colortable.hangar's map <paramref name="cmap"/> set (-1 none).</summary>
+        public SpriteImage Frame(string sheet, int i, int cmap) => _frames.GetOrAdd((sheet, i, cmap), _ =>
         {
             var frames = _loaded.GetOrAdd(sheet, s => SpriteSheet.Load(_sheets, s));
             var maps = _main;
@@ -334,6 +335,42 @@ public class StarbaseScreensTests
                 Count: I(5), Text: a[6].GetString()!, Effect: I(10), Clip: Clip(11)),
             _ => throw new InvalidDataException($"no drawing call {kind}"),
         };
+    }
+
+    [ContentFact]
+    public void TheShipyardsFramesButThePowerLinesLookTheSameInEveryMap()
+    {
+        // The client paints a drawing's calls in the map it ends with: the shipyard's frames UQM draws before
+        // the power lines set theirs (the hangar, as it opens) mustn't depend on the map set before.
+        var pics = Pics.Value;
+        int frames = FrameCount(StarbaseScreens.ShipyardSheet);
+        for (int f = 0; f < frames; ++f)
+        {
+            if (f == StarbaseScreens.PowerLinesFrame)
+                continue;
+            var plain = pics.Frame(StarbaseScreens.ShipyardSheet, f, -1).Rgba;
+            for (int map = 0; map < pics.HangarMaps; ++map)
+                Assert.True(plain.SequenceEqual(pics.Frame(StarbaseScreens.ShipyardSheet, f, map).Rgba), $"frame {f} in map {map}");
+        }
+    }
+
+    [Fact]
+    public void APictureAsksForItsScreenAFewTimesAndNeverForTheTalk()
+    {
+        var picture = new StarbasePicture(Canvas(), Placeholder, FrameCount(StarbaseScreens.StarbaseSheet), 3, s => SisState.Of(s, "", ""));
+        Assert.False(picture.Ask(null));                    // not docked
+        Assert.False(picture.Ask(StarbaseScreen.Talk));     // the communication screen shows
+        for (int i = 0; i < StarbasePicture.MostAsks; ++i)
+            Assert.True(picture.Ask(StarbaseScreen.Menu));
+        Assert.False(picture.Ask(StarbaseScreen.Menu));     // a drawing that can't be painted isn't asked for forever
+        Assert.True(picture.Ask(StarbaseScreen.Outfit));    // another screen: asked again
+        picture.Draw(new[] { new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 0) }) }, 0);
+        Assert.True(picture.Drawn);
+        Assert.False(picture.Ask(StarbaseScreen.Menu));     // drawn: nothing to ask
+        picture.Reset();
+        Assert.False(picture.Drawn);
+        Assert.True(picture.Ask(StarbaseScreen.Menu));
+        Assert.Empty(picture.Tick(10_000));                 // no picture: no clock drawing
     }
 
     [ContentFact]

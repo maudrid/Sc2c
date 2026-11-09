@@ -25,8 +25,11 @@ public sealed record StarbaseShip(byte[] Modules, byte[] Drives, byte[] Jets, in
     uint ResourceUnits, int MineralMass, string? ShipName, string? Captain, int BombState, int LanderShields,
     int FuelCost, int CrewCost, int[] ModuleCosts, int ModuleCostScale)
 {
-    // Bounds a message from the host is held to (the screens loop over the crew, the minerals and the landers).
+    // Bounds a message from the host is held to (the screens loop over the crew, the minerals, the landers and the fuel).
     private const int MostCrew = 10_000, MostMass = 100_000, MostCost = byte.MaxValue, MostScale = 10_000;
+
+    /// <summary>The most fuel a ship's drawing is sent with, in hundredths (far past what sixteen tanks hold).</summary>
+    public const int MostFuel = 1_000_000;
 
     internal void Write(WireWriter w)
     {
@@ -64,7 +67,7 @@ public sealed record StarbaseShip(byte[] Modules, byte[] Drives, byte[] Jets, in
         var jets = Slots(ref r, ShipModules.JetSlotCount);
         int crew = Upto(r.UInt(), MostCrew);
         ulong fuel = r.UInt();
-        if (fuel > uint.MaxValue)
+        if (fuel > MostFuel)
             throw new InvalidDataException("Bad starbase ship.");
         int landers = Upto(r.UInt(), ShipHold.MaxLanders);
         ulong ru = r.UInt();
@@ -167,7 +170,7 @@ public sealed record StarbaseDrawing(StarbaseShip? Ship, IReadOnlyList<ScreenOp>
         ScreenOpKind.MenuOpened => op.A is >= StarbaseMenu.TalkCommander and <= StarbaseMenu.DepartBase,
         ScreenOpKind.MenuMoved => op.A is >= StarbaseMenu.TalkCommander and <= StarbaseMenu.DepartBase
             && op.B is >= StarbaseMenu.TalkCommander and <= StarbaseMenu.DepartBase,
-        ScreenOpKind.OutfitOpened => op.A >= 0,
+        ScreenOpKind.OutfitOpened => op.A is >= 0 and <= StarbaseShip.MostFuel,
         ScreenOpKind.MenuStrings => op.A == ScreenOp.PmFuel ? op.B is >= OutfitMenu.Fuel and <= OutfitMenu.Exit
             : op.A == ScreenOp.PmCrew && op.B is >= ShipyardMenu.Crew and <= ShipyardMenu.Exit,
         ScreenOpKind.ModuleStrings => op.A is >= 0 and <= ShipModules.EmptyLander,

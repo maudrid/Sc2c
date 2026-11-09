@@ -96,15 +96,13 @@ public sealed class ShipyardMenu
 
     /// <summary>
     /// The shipyard as it stands, drawn afresh (when drawing was lost): as
-    /// it opens, then the menu on its entry if that isn't Crew.
+    /// it opens, the status area drawn afresh (the opening doesn't draw its
+    /// gauges), then the menu on its entry.
     /// </summary>
-    public List<ScreenOp> Redraw()
+    public List<ScreenOp> Redraw() => new()
     {
-        var ops = new List<ScreenOp> { new(ScreenOpKind.YardOpened) };
-        if (State != Crew)
-            ops.Add(new(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, State));
-        return ops;
-    }
+        new(ScreenOpKind.YardOpened), new(ScreenOpKind.SisDisplay), new(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, State),
+    };
 
     /// <summary>The menu's cursor.</summary>
     public byte State { get; private set; } = Crew;

@@ -645,8 +645,9 @@ public class StarbaseTests
         // The client lost its picture: the screen drawn afresh, as it stands (outfitting, on Modules).
         host.GuestStarbaseRedraw(1);
         drawn = StarbaseDrawing.Decode(host.StarbaseDrawings().Single().Data);
-        Assert.Equal(new[] { ScreenOpKind.OutfitOpened, ScreenOpKind.MenuStrings }, drawn.Single().Ops.Select(o => o.Kind));
-        Assert.Equal(OutfitMenu.Modules, drawn.Single().Ops[1].B);
+        Assert.Equal(new[] { ScreenOpKind.OutfitOpened, ScreenOpKind.SisDisplay, ScreenOpKind.MenuStrings },
+            drawn.Single().Ops.Select(o => o.Kind));
+        Assert.Equal(OutfitMenu.Modules, drawn.Single().Ops[2].B);
         // Drawing no one takes is dropped past its bound, and drawn afresh when next taken.
         for (int i = 0; i < StarbaseMenu.MostKept + 10; ++i)
             world.StarbaseKey("guest", MenuKey.Down, out _);
@@ -689,8 +690,66 @@ public class StarbaseTests
         slots[3] = ShipModules.EmptyLander + 1;
         Bad(new StarbaseDrawing(ship with { Modules = slots }, ops));
         Bad(new StarbaseDrawing(ship with { Landers = ShipHold.MaxLanders + 1 }, ops));
+        Bad(new StarbaseDrawing(ship with { Fuel = StarbaseShip.MostFuel + 1 }, ops));   // the screens loop over the fuel
+        Bad(new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.OutfitOpened, StarbaseShip.MostFuel + 1) }));
         var bytes = StarbaseDrawing.Encode(drawings);
         Assert.Throws<InvalidDataException>(() => StarbaseDrawing.Decode(bytes.Append((byte)0).ToArray()));
         Assert.Throws<InvalidDataException>(() => StarbaseDrawing.Decode(bytes[..^1]));
+    }
+
+    [ContentFact]
+    public void BackFromTheCommanderTheMenuIsDrawnAfreshAndAStartDockedGameIsAtIt()
+    {
+        var world = Allied();
+        var host = Docked(world);
+        world.TakeStarbaseDrawing("host");
+        Keys(world, "host", MenuKey.Select);          // Talk: the communication screen, nothing drawn here
+        Assert.Empty(world.TakeStarbaseDrawing("host"));
+        world.ChooseReply("host", Reply(world, "host", "goodbye_commander"), host.Ship.Visit!.Round);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuOpened, StarbaseMenu.TalkCommander) },
+            world.TakeStarbaseDrawing("host").Single().Ops);
+        // --start-docked: a new game, the opening over, docked at the menu.
+        var session = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems, TestContent.Shapes);
+        session.World.TalkLibrary = Library.Value;
+        session.World.DialogueLocks = DialogueLocks.Load(DataDir);
+        Assert.Contains("docked", session.StartDocked());
+        Assert.Equal(StarbaseScreen.Menu, session.StarbaseFor("host")!.Screen);
+        Assert.Equal(ScreenOpKind.MenuOpened, session.HostStarbaseDrawing().Single().Ops.Single().Kind);
+    }
+
+    [Fact]
+    public void TheScreensDrawnAfreshAreAsTheyStand()
+    {
+        var gauges = new ScreenOp(ScreenOpKind.SisDisplay);
+        // The shipyard: as it opens, the status area, the menu on its entry.
+        var yard = new ShipyardMenu(YardRules(), _ => true);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.YardOpened), gauges, new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.Crew) },
+            yard.Redraw());
+        yard.Key(MenuKey.Down);
+        Assert.Equal(new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.SaveLoad), yard.Redraw().Last());
+        // Outfitting: as it opens with the fuel aboard now, the status area, then the menu or the radar.
+        var rules = YardRules();
+        var outfit = new OutfitMenu(rules, rules.Apply);
+        outfit.Open();
+        var opened = new ScreenOp(ScreenOpKind.OutfitOpened, (int)rules.Ship.Fuel);
+        Assert.Equal(new[] { opened, gauges }, outfit.Redraw());                       // on Fuel
+        outfit.Key(MenuKey.Select);
+        Assert.Equal(new[] { opened, gauges }, outfit.Redraw());                       // in the fuel gauge
+        outfit.Key(MenuKey.Select);
+        outfit.Key(MenuKey.Down);
+        outfit.Key(MenuKey.Down);
+        Assert.Equal(new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmFuel, OutfitMenu.SaveLoad), outfit.Redraw().Last());
+        outfit.Key(MenuKey.Up);
+        outfit.Key(MenuKey.Select);                                                  // Modules: the first module slot
+        var radar = outfit.Redraw();
+        Assert.Equal(new[] { ScreenOpKind.OutfitOpened, ScreenOpKind.SisDisplay, ScreenOpKind.ClearRadar, ScreenOpKind.ModuleStrings },
+            radar.Select(o => o.Kind));
+        Assert.Equal(rules.Piece(SlotKind.Module, outfit.Item), radar[3].A);
+        outfit.Key(MenuKey.Down);                                                    // the landers' row
+        while (rules.Piece(SlotKind.Lander, outfit.Item) != ShipModules.EmptyLander)
+            outfit.Key(MenuKey.Right);
+        outfit.Key(MenuKey.Select);                                                  // choosing what to buy
+        Assert.True(outfit.Choosing);
+        Assert.Equal(new ScreenOp(ScreenOpKind.ModuleStrings, outfit.State), outfit.Redraw().Last());
     }
 }

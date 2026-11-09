@@ -498,6 +498,7 @@ public partial class Main : Node2D
         catch (InvalidDataException e)
         {
             Log($"Bad starbase drawing from the host: {e.Message}");
+            _starbaseView.Lose();   // drawn afresh, asked for as the screen next shows
         }
     }
 
@@ -850,8 +851,7 @@ public partial class Main : Node2D
         else
             _commView.Close();
         _starbaseView.Visible = screen == PlayerScreen.Starbase;
-        if (player.Starbase is { } starbase)
-            _starbaseView.Show(starbase);
+        _starbaseView.Show(player.Starbase);
         if (_planetsideView.Visible)
             _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)

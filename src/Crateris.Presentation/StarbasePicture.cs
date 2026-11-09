@@ -37,6 +37,11 @@ public sealed class StarbasePicture
     private readonly PowerLines _lines;
     private readonly Func<StarbaseShip, SisState> _sis;
     private On _on;
+    private StarbaseScreen? _seen;
+    private int _asks;
+
+    /// <summary>How many times a picture is asked for while the host's screen stays the same.</summary>
+    public const int MostAsks = 3;
 
     /// <param name="canvas">The canvas the screens draw on (its calls are taken as they're drawn).</param>
     /// <param name="gameString">The game's strings (GAME_STRING).</param>
@@ -60,6 +65,27 @@ public sealed class StarbasePicture
 
     /// <summary>Whether a screen has been drawn afresh (until then there's nothing to show).</summary>
     public bool Drawn => _on != On.Nothing;
+
+    /// <summary>The picture is gone (it couldn't be painted): nothing is shown until a screen is drawn afresh.</summary>
+    public void Reset() => _on = On.Nothing;
+
+    /// <summary>
+    /// Whether to ask the host to draw the screen afresh, the host saying
+    /// <paramref name="screen"/> is up (null: not docked): when there's no
+    /// picture for it, at most <see cref="MostAsks"/> times while the
+    /// host's screen stays the same, so a drawing that can't be painted
+    /// isn't asked for again and again. The commander's talk has no
+    /// picture (the communication screen shows).
+    /// </summary>
+    public bool Ask(StarbaseScreen? screen)
+    {
+        if (screen != _seen)
+            (_seen, _asks) = (screen, 0);
+        if (screen is null or StarbaseScreen.Talk || Drawn || _asks >= MostAsks)
+            return false;
+        _asks++;
+        return true;
+    }
 
     /// <summary>The host's drawings, in order, drawn at <paramref name="now"/> (UQM's ticks); the calls drawn.</summary>
     public List<UqmDraw> Draw(IEnumerable<StarbaseDrawing> drawings, long now)
