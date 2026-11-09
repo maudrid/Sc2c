@@ -45,13 +45,15 @@ public partial class CommView : Node2D
     private ImageTexture? _window;
     private int _cursor = -1;
     private long _timePassingSince = -1;   // DoTimePassage: when the fade to black began
-    private bool _watching;
-    private int _round;
-    private string _pagedKey = "";
-    private int _paged;   // how much of the replier's paging of these lines this screen has followed
+    private bool _watching, _story;
+    private int _round, _lines;
 
-    /// <summary>The replier paged the lines on this screen (the round, what the key did): for the host, for watchers to follow.</summary>
-    public event Action<int, TalkPage>? Paged;
+    /// <summary>
+    /// The replier of a story talk paged the lines on this screen (the
+    /// round, the lines' <see cref="TalkView.LinesHash"/>, what the key
+    /// did): for the host, for watchers to follow.
+    /// </summary>
+    public event Action<int, int, TalkPage>? Paged;
     private uint _seed = (uint)System.Environment.TickCount;
 
     public CommView() => TextureFilter = TextureFilterEnum.Nearest;
@@ -108,16 +110,11 @@ public partial class CommView : Node2D
         }
         _screen?.Show(talk.Lines, talk.Said, talk.Replies, talk.Round, Now);
         _cursor = session.Replying ? session.ReplyCursor : -1;
-        // A story talk's watchers follow the replier's paging of these lines (decision 7); the replier's own is
-        // already on their screen. Once the visit is over, each pages its own closing lines.
-        _watching = !session.Replying && talk.Step != VisitStep.Done;
-        _round = talk.Round;
-        if (talk.LinesKey != _pagedKey)
-            (_pagedKey, _paged) = (talk.LinesKey, 0);
-        var paging = talk.PagingSoFar;
-        for (; _paged < paging.Count; ++_paged)
-            if (_watching)
-                _screen?.Page(paging[_paged]);
+        // A story talk's watchers follow the replier's paging of these lines (decision 7).
+        _watching = !session.Replying;
+        _story = session.StoryPaused;
+        (_round, _lines) = (talk.Round, talk.LinesHash);
+        _screen?.Follow(talk.LinesKey, talk.PagingSoFar, _watching);
     }
 
     /// <summary>The screen is gone (no talk): the next starts afresh.</summary>
@@ -140,8 +137,8 @@ public partial class CommView : Node2D
         if (_watching)
             return CommKeyResult.Used;
         var result = _screen.Press(key, out var paged);
-        if (paged is { } p)
-            Paged?.Invoke(_round, p);
+        if (paged is { } p && _story)   // no one watches an ordinary talk
+            Paged?.Invoke(_round, _lines, p);
         return result;
     }
 

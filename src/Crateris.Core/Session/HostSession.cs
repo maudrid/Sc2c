@@ -223,14 +223,14 @@ public sealed class HostSession
     }
 
     /// <summary>A guest pages the story talk it replies in, in that round (anything wrong is ignored).</summary>
-    public void GuestPageTalk(long peer, int round, int page)
+    public void GuestPageTalk(long peer, int round, int lines, int page)
     {
-        if (_peers.TryGetValue(peer, out var id) && Enum.IsDefined((TalkPage)page))
-            World.PageTalk(id, round, (TalkPage)page);
+        if (_peers.TryGetValue(peer, out var id) && page is >= 0 and <= (int)TalkPage.SummaryTurn)
+            World.PageTalk(id, round, lines, (TalkPage)page);
     }
 
     /// <summary>The host's own paging of the story talk it replies in (<see cref="GameWorld.PageTalk"/>).</summary>
-    public bool PageTalk(string id, int round, TalkPage page) => World.PageTalk(id, round, page);
+    public bool PageTalk(string id, int round, int lines, TalkPage page) => World.PageTalk(id, round, lines, page);
 
     /// <summary>A guest chooses a reply in its talk, from the set offered in that round (anything wrong is ignored).</summary>
     public void GuestChooseReply(long peer, int round, int index)

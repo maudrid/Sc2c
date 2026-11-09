@@ -220,4 +220,41 @@ public class CommScreenTests
         watcher.Page(TalkPage.Skip);
         Assert.False(watcher.Talking);
     }
+
+    [ContentFact]
+    public void AScreenFollowsThePagingItHasntYetAndAWatcherBecomingTheReplierCatchesUp()
+    {
+        var paging = new List<TalkPage>();
+        // Opened mid-talk (a player joining): the replier is hearing the lines again, from now.
+        var joiner = Starbase(out _);
+        joiner.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 50_000);
+        paging.AddRange(new[] { TalkPage.Skip, TalkPage.Replay });
+        joiner.Follow("a", paging, watching: true);
+        joiner.Update(50_010);
+        Assert.True(joiner.Talking);
+        // Followed once: the same paging again does nothing more.
+        joiner.Follow("a", paging, watching: true);
+        joiner.Update(50_020);
+        Assert.True(joiner.Talking);
+        paging.Add(TalkPage.Skip);
+        joiner.Follow("a", paging, watching: true);
+        Assert.False(joiner.Talking);
+        // The replier's own paging is on their screen already.
+        var replier = Starbase(out _);
+        replier.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
+        replier.Update(10);
+        replier.Follow("a", new[] { TalkPage.Skip }, watching: false);
+        Assert.True(replier.Talking);
+        // A watcher made the replier by a view that also brings the last replier's skip: followed first.
+        var heir = Starbase(out _);
+        heir.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
+        heir.Follow("a", Array.Empty<TalkPage>(), watching: true);
+        heir.Update(10);
+        heir.Follow("a", new[] { TalkPage.Skip }, watching: false);
+        Assert.False(heir.Talking);
+        // New lines: followed from their first page.
+        heir.Show(new[] { Second }, "Hello.", new[] { "Bye." }, 2, 100);
+        heir.Follow("b", new[] { TalkPage.Skip }, watching: true);
+        Assert.False(heir.Talking);
+    }
 }

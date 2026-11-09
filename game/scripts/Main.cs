@@ -110,12 +110,12 @@ public partial class Main : Node2D
         _planetsideView = new PlanetsideView(_systems) { Position = systemScreenAt, Visible = false };
         AddChild(_planetsideView);
         _commView = new CommView { Position = systemScreenAt, Visible = false };
-        _commView.Paged += (round, page) =>
+        _commView.Paged += (round, lines, page) =>
         {
             if (_host != null)
-                _host.PageTalk(_host.HostId, round, page);
+                _host.PageTalk(_host.HostId, round, lines, page);
             else if (_connected)
-                RpcId(1, MethodName.PageTalk, round, (int)page);
+                RpcId(1, MethodName.PageTalk, round, lines, (int)page);
         };
         AddChild(_commView);
         // UQM's whole screen, at the right as the system screen is.
@@ -447,7 +447,7 @@ public partial class Main : Node2D
     private void ChooseReply(int round, int index) => _host?.GuestChooseReply(Multiplayer.GetRemoteSenderId(), round, index);
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void PageTalk(int round, int page) => _host?.GuestPageTalk(Multiplayer.GetRemoteSenderId(), round, page);
+    private void PageTalk(int round, int lines, int page) => _host?.GuestPageTalk(Multiplayer.GetRemoteSenderId(), round, lines, page);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowTalk(byte[] talk)

@@ -98,6 +98,7 @@ public sealed class CommScreen
     /// </summary>
     public void Show(IReadOnlyList<string> lines, string said, IReadOnlyList<string> replies, int round, long now)
     {
+        _now = now;   // a page followed as it's shown (a replay) plays from now
         string repliesKey = $"{round}\u0001{string.Join("\u0002", replies)}";
         if (repliesKey != _repliesKey)
         {
@@ -234,6 +235,29 @@ public sealed class CommScreen
                 }
                 break;
         }
+    }
+
+    private string _followKey = "";
+    private int _followed;
+    private bool _wasWatching;
+
+    /// <summary>
+    /// The replier's paging of the lines shown (<paramref name="linesKey"/>,
+    /// the talk's <see cref="TalkView.LinesKey"/>; call after
+    /// <see cref="Show"/>): a player <paramref name="watching"/> a story
+    /// talk follows what they haven't yet (decision 7); the replier's own
+    /// is already on their screen. A watcher who has just become the
+    /// replier follows what came before it first.
+    /// </summary>
+    public void Follow(string linesKey, IReadOnlyList<TalkPage> paging, bool watching)
+    {
+        if (linesKey != _followKey)
+            (_followKey, _followed) = (linesKey, 0);
+        bool apply = watching || _wasWatching;
+        _wasWatching = watching;
+        for (; _followed < paging.Count; ++_followed)
+            if (apply)
+                Page(paging[_followed]);
     }
 
     /// <summary>GetTrackPosition (sliderSpace): how far the button is along the slider.</summary>

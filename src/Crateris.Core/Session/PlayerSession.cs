@@ -777,7 +777,7 @@ public sealed class PlayerSession
             // The communication screen shows the talk itself.
             if (talk.Step == VisitStep.TimePassing)
                 lines.Add("Time passes...");
-            if (Replying || talk.Step == VisitStep.Done)
+            if (Replying)
                 lines.Add(Replying && talk.Replies.Count > 0
                     ? "Esc: skip the lines, then the summary; Left: hear them again; Up, down: choose a reply; Enter: say it"
                     : "Esc: skip the lines, then the summary; Left: hear them again");

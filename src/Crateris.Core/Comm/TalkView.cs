@@ -42,6 +42,22 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
     /// <summary>What the lines are: a view with other lines (or another reply said, or another set of replies) is paged afresh.</summary>
     public string LinesKey => $"{Round}\u0001{Said}\u0001{string.Join("\u0002", Lines)}";
 
+    /// <summary>
+    /// <see cref="LinesKey"/> as a number the same on every machine
+    /// (FNV-1a over its UTF-8): a page is sent with the lines it was for,
+    /// so one meant for lines just replaced can't page the new ones.
+    /// </summary>
+    public int LinesHash
+    {
+        get
+        {
+            uint h = 2166136261;
+            foreach (byte b in System.Text.Encoding.UTF8.GetBytes(LinesKey))
+                h = (h ^ b) * 16777619;
+            return unchecked((int)h);
+        }
+    }
+
     /// <summary>The view of a visit as it stands (its closing lines once it's over), or null without one.</summary>
     public static TalkView? Of(StarbaseVisit? visit)
     {

@@ -117,6 +117,7 @@ public class StarbaseTests
             (visit.Step, host.Ship.Activity, world.StarbaseFor("host")!.Screen));
         Assert.False(world.StoryPaused);              // an ordinary talk: the game goes on
         Assert.Equal("host", world.DialogueLocks!.Holder("COMMANDER_CONVERSATION"));
+        Assert.False(world.PageTalk("host", visit.Round, TalkView.Of(visit)!.LinesHash, TalkPage.Skip));   // no one watches it
         // The first talk of a visit greets the player (NORMAL_HELLO).
         int hello = Scripts["starbas"].PhraseNumber("NORMAL_HELLO_A0");
         Assert.Contains(visit.Talk!.Events.OfType<LineQueued>(), l => l.Phrase >= hello && l.Phrase < hello + 16);

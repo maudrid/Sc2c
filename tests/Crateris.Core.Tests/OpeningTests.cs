@@ -741,28 +741,41 @@ public class OpeningTests
         host.World.UndockShown("guest");
         var world = host.World;
         int round = world.Visit!.Round;
+        int Lines() => host.TalkFor("host")!.LinesHash;
         Assert.Empty(host.TalkFor("guest")!.PagingSoFar);
-        // Only the replier pages it, and only the set of replies shown.
-        Assert.False(host.PageTalk("guest", round, TalkPage.Skip));
-        Assert.False(host.PageTalk("host", round - 1, TalkPage.Skip));
-        Assert.True(host.PageTalk("host", round, TalkPage.Skip));
-        host.GuestPageTalk(1, round, (int)TalkPage.Replay);   // a watcher's: ignored
-        host.GuestPageTalk(1, round, 99);
-        Assert.True(host.PageTalk("host", round, TalkPage.Summary));
+        Assert.Equal(Lines(), TalkView.Decode(host.TalkFor("guest")!.Encode())!.LinesHash);   // the same everywhere
+        // Only the replier pages it, and only the lines shown, in the set of replies shown.
+        Assert.False(host.PageTalk("guest", round, Lines(), TalkPage.Skip));
+        Assert.False(host.PageTalk("host", round - 1, Lines(), TalkPage.Skip));
+        Assert.False(host.PageTalk("host", round, Lines() + 1, TalkPage.Skip));   // lines a reply has just replaced
+        Assert.True(host.PageTalk("host", round, Lines(), TalkPage.Skip));
+        host.GuestPageTalk(1, round, Lines(), (int)TalkPage.Replay);   // a watcher's: ignored
+        Assert.True(host.PageTalk("host", round, Lines(), TalkPage.Summary));
         var watched = host.TalkFor("guest")!;
         Assert.Equal(new[] { TalkPage.Skip, TalkPage.Summary }, watched.PagingSoFar);
         Assert.Equal(watched.PagingSoFar, host.TalkFor("host")!.PagingSoFar);
         // It's sent: the view changed.
         Assert.Equal(new[] { TalkPage.Skip, TalkPage.Summary },
             TalkView.Decode(host.TalkUpdates().Single(u => u.Peer == 1).Data)!.PagingSoFar);
-        // A reply: new lines, paged afresh.
+        // A reply: new lines, paged afresh; a page for the old ones refused.
+        int old = Lines();
         Assert.True(host.ChooseReply("host", round, IndexOf(host, "host", "yes_this_is_supply_ship")));
         Assert.Empty(host.TalkFor("guest")!.PagingSoFar);
-        Assert.True(host.PageTalk("host", world.Visit!.Round, TalkPage.Replay));
+        Assert.False(host.PageTalk("host", world.Visit!.Round, old, TalkPage.Skip));
+        Assert.True(host.PageTalk("host", world.Visit!.Round, Lines(), TalkPage.Replay));
         Assert.Equal(new[] { TalkPage.Replay }, host.TalkFor("guest")!.PagingSoFar);
+        // The replier leaves: the replies, and the paging, pass to the guest; the one who left is refused.
+        world.Leave("host");
+        Assert.Equal("guest", world.Visit!.Replier.Id);
+        int lines = host.TalkFor("guest")!.LinesHash;
+        Assert.False(host.PageTalk("host", world.Visit.Round, lines, TalkPage.Skip));
+        host.GuestPageTalk(1, world.Visit.Round, lines, (int)TalkPage.Skip);
+        host.GuestPageTalk(1, world.Visit.Round, lines, 256);   // past the pages: not one cut down to Skip
+        host.GuestPageTalk(1, world.Visit.Round, lines, -1);
+        Assert.Equal(new[] { TalkPage.Replay, TalkPage.Skip }, host.TalkFor("guest")!.PagingSoFar);
         // Bounded.
-        for (int i = 1; i < TalkView.MostPaging; ++i)
-            Assert.True(host.PageTalk("host", world.Visit!.Round, TalkPage.Replay));
-        Assert.False(host.PageTalk("host", world.Visit!.Round, TalkPage.Replay));
+        for (int i = 2; i < TalkView.MostPaging; ++i)
+            Assert.True(world.PageTalk("guest", world.Visit.Round, lines, TalkPage.Replay));
+        Assert.False(world.PageTalk("guest", world.Visit.Round, lines, TalkPage.Replay));
     }
 }

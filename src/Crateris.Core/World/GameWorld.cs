@@ -601,13 +601,15 @@ public sealed class GameWorld
     /// (skipped them, played them again, the summary): kept with the talk
     /// as it's shown, for everyone watching to follow (decision 7). False,
     /// changing nothing, from anyone else, in an ordinary talk (no one
-    /// watches it), for a set of replies already answered, or past
+    /// watches it), for lines other than those shown now
+    /// (<paramref name="lines"/>, their <see cref="TalkView.LinesHash"/>:
+    /// a reply can replace them in the same round), or past
     /// <see cref="TalkView.MostPaging"/>.
     /// </summary>
-    public bool PageTalk(string id, int round, TalkPage page)
+    public bool PageTalk(string id, int round, int lines, TalkPage page)
     {
         if (Visit is not { Story: true } visit || visit.Replier.Id != id || round != visit.Round
-                || !Enum.IsDefined(page) || TalkView.Of(visit) is not { } view)
+                || !Enum.IsDefined(page) || TalkView.Of(visit) is not { } view || view.LinesHash != lines)
             return false;
         if (visit.Paging?.Key != view.LinesKey)
             visit.Paging = new TalkPaging(view.LinesKey, new List<TalkPage>());
