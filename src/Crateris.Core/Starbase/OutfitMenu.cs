@@ -73,7 +73,12 @@ public sealed class OutfitMenu
         return ops;
     }
 
-    private void Draw(ScreenOpKind kind, int a = 0, int b = 0, int c = 0) => _ops.Add(new ScreenOp(kind, a, b, c));
+    private void Draw(ScreenOpKind kind, int a = 0, int b = 0, int c = 0)
+    {
+        if (kind == ScreenOpKind.ModuleStrings)
+            Shown = (byte)a;
+        _ops.Add(new ScreenOp(kind, a, b, c));
+    }
 
     /// <summary>
     /// Outfitting as it stands, drawn afresh (when drawing was lost): as
@@ -142,8 +147,12 @@ public sealed class OutfitMenu
         _ => ShipModules.ModuleSlotCount,
     };
 
-    /// <summary>In Modules, the piece the radar shows (DrawModuleStrings): the module being chosen, or the slot's piece.</summary>
-    public byte Shown => Choosing ? State : _rules.Piece(Row, Item);
+    /// <summary>
+    /// In Modules, the piece the radar last showed (DrawModuleStrings): the
+    /// module being chosen, a slot's piece, or what the last select did
+    /// (a sold lander's empty mark while its slot still counts a lander).
+    /// </summary>
+    public byte Shown { get; private set; } = ShipModules.EmptyModule;
 
     /// <summary>Choosing a module to buy (CurState below EMPTY_SLOT in Modules).</summary>
     public bool Choosing => _installing && State < ShipModules.EmptySlot;

@@ -290,8 +290,9 @@ public sealed class StarbaseMenu
     /// The ship and the prices as they stand (<paramref name="now"/>),
     /// changed since last drawn by someone else (UQM has no such case:
     /// another player's gift, the crew price their purchases move, a
-    /// module's price their talk sets): what the screen shows of it drawn
-    /// again. Outfitting and the shipyard: the resource units' message, or
+    /// module's price their talk sets, the Chmmr's bomb): what the screen
+    /// shows of it drawn again. The bomb's state: the screen drawn afresh.
+    /// Outfitting and the shipyard: the resource units' message, or
     /// with the minerals the status area, which shows the storage bays
     /// (the shipyard drawn afresh, its blueprint showing them too); the
     /// shipyard's menu with the crew price; in Modules, the price of the
@@ -306,7 +307,9 @@ public sealed class StarbaseMenu
             return;
         var ops = new List<ScreenOp>();
         bool minerals = now.MineralMass != was.MineralMass;
-        if (minerals && Yard is not null)
+        if (now.BombState != was.BombState)
+            ops.AddRange(Redraw());   // the bomb shows in the landers' place, hides the shields, changes the status message
+        else if (minerals && Yard is not null)
             ops.AddRange(Yard.Redraw());
         else
         {
@@ -316,7 +319,7 @@ public sealed class StarbaseMenu
                 ops.Add(new(ScreenOpKind.Gauges, 0, 0, ScreenOp.Undefined));
             if (Yard is not null && now.CrewCost != was.CrewCost)
                 ops.Add(new(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Yard.State));
-            if (Outfit is { Installing: true, Shown: var piece } && piece < World.ShipModules.EmptySlot
+            if (Outfit is { Installing: true } outfit && outfit.Shown is var piece && piece < World.ShipModules.EmptySlot
                     && now.ModuleCosts[piece] != was.ModuleCosts[piece])
                 ops.Add(new(ScreenOpKind.ModuleStrings, piece));
         }

@@ -805,4 +805,83 @@ public class StarbaseTests
         world.Give(new Gift("guest", "host", 0, new[] { 0, 0, 0, 5, 0, 0, 0, 0 }, 0));
         Assert.Equal(host.Ship.Visit!.Menu!.Yard!.Redraw(), Drawn(world).Single().Ops);
     }
+
+    [ContentFact]
+    public void OthersChangesAreDrawnOnceWhereverTheDockedPlayerIs()
+    {
+        var world = Allied(guest: true);
+        var host = Docked(world);
+        var guest = world.Find("guest")!;
+        guest.Ship.Hold.ResourceUnits = 1000;
+        var cargo = new int[8];
+        cargo[3] = 20;
+        guest.Ship.Hold.LanderLeaves();
+        guest.Ship.Hold.LanderReturns(guest.Ship.Hold.LanderOut!.Value.Crew, cargo, 0);
+        var none = new int[8];
+        var some = new[] { 0, 0, 0, 2, 0, 0, 0, 0 };
+        // Talking to the commander: nothing drawn here, and outfitting opened after draws it once, afresh.
+        Drawn(world);
+        Keys(world, "host", MenuKey.Select);
+        world.Give(new Gift("guest", "host", 10, none, 0));
+        Assert.Empty(Drawn(world));
+        world.ChooseReply("host", Reply(world, "host", "goodbye_commander"), host.Ship.Visit!.Round);
+        Keys(world, "host", MenuKey.Down, MenuKey.Select);
+        Assert.Equal(new[] { ScreenOpKind.MenuOpened, ScreenOpKind.MenuMoved, ScreenOpKind.OutfitOpened },
+            Drawn(world).Select(d => d.Ops[0].Kind));
+        // Units and minerals in one gift: the status area covers both.
+        world.Give(new Gift("guest", "host", 10, some, 0));
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.SisDisplay) }, Drawn(world).Single().Ops);
+        // Given, then renamed: the gift drawn first.
+        world.Give(new Gift("guest", "host", 10, none, 0));
+        world.Rename("host", "Rocinante", null);
+        Assert.Equal(new[] { ScreenOpKind.Gauges, ScreenOpKind.FlagshipName }, world.TakeStarbaseDrawing("host").Select(d => d.Ops[0].Kind));
+        // The client lost its picture: one drawing afresh, the gift in it.
+        world.RedrawStarbase("host");
+        world.Give(new Gift("guest", "host", 10, none, 0));
+        var fresh = Drawn(world).Single();
+        Assert.Equal(ScreenOpKind.OutfitOpened, fresh.Ops[0].Kind);
+        Assert.Equal(host.Ship.Hold.ResourceUnits, fresh.Ship!.ResourceUnits);
+        Assert.Empty(Drawn(world));
+        // In Modules on a slot's piece (the first module slot past the empty one): its price, set elsewhere, redrawn.
+        Keys(world, "host", MenuKey.Down, MenuKey.Select);   // Modules
+        Assert.True(host.Ship.Visit!.Menu!.Outfit!.Installing);
+        for (int i = 0; i < ShipModules.ModuleSlotCount && host.Ship.Visit.Menu.Outfit.Shown >= ShipModules.EmptySlot; ++i)
+            Keys(world, "host", MenuKey.Right);
+        Assert.True(host.Ship.Visit.Menu.Outfit.Shown < ShipModules.EmptySlot);
+        byte piece = host.Ship.Visit.Menu.Outfit.Shown;
+        Drawn(world);
+        world.Story!.SetModuleCost(ShipModules.Names[piece], world.Story.ModuleCost(ShipModules.Names[piece]) + 1);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.ModuleStrings, piece) }, Drawn(world).Single().Ops);
+        // A lander sold: the radar shows the empty mark, whatever the slot now counts, and a lander's price
+        // changing then draws nothing over it.
+        Keys(world, "host", MenuKey.Down);
+        Assert.Equal(SlotKind.Lander, host.Ship.Visit.Menu.Outfit.Row);
+        host.Ship.Hold.SetLanders(3);
+        Keys(world, "host", MenuKey.Select);
+        Assert.Equal(ShipModules.EmptyLander, host.Ship.Visit.Menu.Outfit.Shown);
+        Drawn(world);
+        world.Story.SetModuleCost("PLANET_LANDER", world.Story.ModuleCost("PLANET_LANDER") + 1);
+        Assert.Empty(Drawn(world));
+        // The bomb's state, moved by another's talk: the screen drawn afresh.
+        world.Story.Set("CHMMR_BOMB_STATE", 3);
+        Assert.Equal(host.Ship.Visit.Menu.Redraw(), Drawn(world).Single().Ops);
+        world.Story.Set("CHMMR_BOMB_STATE", 0);
+        Drawn(world);
+        // The shipyard: units given draw the units' message; another player docked there hiring past the
+        // threshold moves the shared crew price, which the host's menu shows.
+        Keys(world, "host", MenuKey.Cancel, MenuKey.Cancel, MenuKey.Cancel, MenuKey.Down, MenuKey.Select);
+        Assert.Equal(StarbaseScreen.Shipyard, world.StarbaseFor("host")!.Screen);
+        Drawn(world);
+        world.Give(new Gift("guest", "host", 10, none, 0));
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.Gauges, 0, 0, ScreenOp.Undefined) }, Drawn(world).Single().Ops);
+        int threshold = world.Story.Rules.CrewExpenseThreshold - 1;
+        world.Story.Set("CREW_PURCHASED0", threshold & 0xFF);
+        world.Story.Set("CREW_PURCHASED1", threshold >> 8);
+        int price = world.Story.CrewCost;
+        guest.Ship.Hold.SetCrew(1);
+        Docked(world, "guest");
+        Keys(world, "guest", MenuKey.Down, MenuKey.Down, MenuKey.Select, MenuKey.Select, MenuKey.Select, MenuKey.Up);
+        Assert.NotEqual(price, world.Story.CrewCost);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.Crew) }, Drawn(world).Single().Ops);
+    }
 }
