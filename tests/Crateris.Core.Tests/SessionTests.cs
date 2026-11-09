@@ -52,6 +52,16 @@ public class SessionTests
         Assert.Throws<ArgumentException>(() => InputScript.Parse("thrust"));
         // A step of no frames would be skipped before its key is pressed: refused.
         Assert.Throws<ArgumentException>(() => InputScript.Parse("none:5,select:0"));
+        // The giving screen's steps: give opens or closes it, page up and down are menu keys.
+        script = InputScript.Parse("give:2,pageup:1,pagedown+give:1");
+        var steps = new List<(ShipInput, MenuKey?, bool)>();
+        for (int i = 0; i < 5; ++i)
+            steps.Add((script.Next(out var key, out bool give), key, give));
+        Assert.Equal(new (ShipInput, MenuKey?, bool)[]
+        {
+            (ShipInput.None, null, true), (ShipInput.None, null, false), (ShipInput.None, MenuKey.PageUp, false),
+            (ShipInput.None, MenuKey.PageDown, true), (ShipInput.None, null, false),
+        }, steps);
     }
 
     [ContentFact]

@@ -12,22 +12,32 @@ using Crateris.Core.World;
 namespace Crateris.Core.Session;
 
 /// <summary>
+/// What the giving screen shows (<see cref="TradeScreen.Follow"/>): the row
+/// the cursor is on; the player to give to (their id and name, null and ""
+/// with no one else in the game); whether they're in the giver's solar
+/// system, where alone cargo can go; the room in their storage bays for
+/// minerals, as the host takes it (null if the snapshot hasn't their hold);
+/// and, by <see cref="TradeScreen"/>'s rows, what the giver has and the
+/// amount chosen to give (the receiver's row's unused).
+/// </summary>
+public sealed record TradeShown(int Row, string? To, string ToName, bool Here, int? Room, IReadOnlyList<long> Have,
+    IReadOnlyList<int> Give);
+
+/// <summary>
 /// The screen for giving another player resource units, minerals or bio
 /// data (stage 3a, item 9), the player's own: its rows are the player to
 /// give to, the resource units, each element category and the bio data.
 /// Up and down choose the row; left and right choose the player, or the
 /// amount (by 1; page up and down by 10, the units by 100); select gives
 /// the row's amount; cancel closes it. A gift goes to the host, which
-/// refuses it with a reason if it can't go. Until item 11 draws it, it's
-/// listed in the status panel.
+/// refuses it with a reason if it can't go. It's drawn in the status area
+/// as the Manifest's cargo display is (item 11: Presentation's
+/// GivingScreen, from <see cref="Follow"/>).
 /// </summary>
 public sealed class TradeScreen
 {
     /// <summary>The rows: the player, the units, the 8 categories, the bio data.</summary>
     public const int PlayerRow = 0, UnitsRow = 1, BioRow = 2 + ShipHold.Categories, Rows = BioRow + 1;
-
-    private static readonly string[] Categories =
-        { "common", "corrosive", "base metal", "noble", "rare earth", "precious", "radioactive", "exotic" };
 
     public int Row { get; private set; } = UnitsRow;
 
@@ -40,10 +50,8 @@ public sealed class TradeScreen
     /// <summary>A key; returns the gift to send if it gave one.</summary>
     public Gift? Press(MenuKey key, WorldSnapshot? snapshot, string me)
     {
-        var others = snapshot?.Ships.Where(s => s.Id != me).Select(s => s.Id).ToList() ?? new List<string>();
-        if (To is null || !others.Contains(To))
-            To = others.FirstOrDefault();
-        var mine = snapshot?.Ships.FirstOrDefault(s => s.Id == me)?.Hold;
+        var others = Others(snapshot, me);
+        var mine = Follow(snapshot, me, others);
         switch (key)
         {
             case MenuKey.Up:
@@ -76,6 +84,22 @@ public sealed class TradeScreen
         return null;
     }
 
+    private static List<string> Others(WorldSnapshot? snapshot, string me) =>
+        snapshot?.Ships.Where(s => s.Id != me).Select(s => s.Id).ToList() ?? new List<string>();
+
+    // The screen follows the game: the receiver is one of the others in it
+    // (the first, until one is chosen, or if theirs has left), and no
+    // amount is more than the player has now.
+    private HoldSnapshot? Follow(WorldSnapshot? snapshot, string me, List<string> others)
+    {
+        if (To is null || !others.Contains(To))
+            To = others.FirstOrDefault();
+        var mine = snapshot?.Ships.FirstOrDefault(s => s.Id == me)?.Hold;
+        for (int row = UnitsRow; row < Rows; ++row)
+            Amounts[row] = Math.Min(Amounts[row], Have(mine, row));
+        return mine;
+    }
+
     // What the player has of a row's kind, as the host last said.
     private static int Have(HoldSnapshot? hold, int row) => hold is null ? 0 : row switch
     {
@@ -84,18 +108,45 @@ public sealed class TradeScreen
         _ => hold.Minerals[row - 2],
     };
 
-    /// <summary>The screen in words.</summary>
-    public IEnumerable<string> Lines(WorldSnapshot? snapshot, string me)
+    /// <summary>
+    /// The screen as it stands with <paramref name="snapshot"/>, followed as
+    /// a key would follow it (the receiver one of the others in the game,
+    /// no amount more than the player has).
+    /// </summary>
+    public TradeShown Follow(WorldSnapshot? snapshot, string me)
     {
-        var mine = snapshot?.Ships.FirstOrDefault(s => s.Id == me)?.Hold;
-        string who = snapshot?.Ships.FirstOrDefault(s => s.Id == To)?.Name ?? (To is null ? "(no one else here)" : To);
-        string Mark(int row) => row == Row ? ">" : " ";
-        yield return "Give to another player (T, Esc or Backspace: close):";
-        yield return $"{Mark(PlayerRow)} To: {who}";
-        yield return $"{Mark(UnitsRow)} Resource units: {Amounts[UnitsRow]} of {Have(mine, UnitsRow)}";
-        for (int i = 0; i < ShipHold.Categories; ++i)
-            yield return $"{Mark(2 + i)} {Categories[i]}: {Amounts[2 + i]} of {Have(mine, 2 + i)}";
-        yield return $"{Mark(BioRow)} Bio data: {Amounts[BioRow]} of {Have(mine, BioRow)}";
-        yield return "Up, down: the row; left, right: the player or amount (PgUp, PgDn by more); Enter: give. Cargo goes only within a system.";
+        var mine = Follow(snapshot, me, Others(snapshot, me));
+        var giver = snapshot?.Ships.FirstOrDefault(s => s.Id == me);
+        var taker = To is null ? null : snapshot?.Ships.FirstOrDefault(s => s.Id == To);
+        var have = new long[Rows];
+        if (mine is not null)
+        {
+            have[UnitsRow] = mine.ResourceUnits;
+            for (int i = 0; i < ShipHold.Categories; ++i)
+                have[2 + i] = mine.Minerals[i];
+            have[BioRow] = mine.BioData;
+        }
+        bool here = giver?.SystemStar is int star && taker?.SystemStar == star;
+        return new TradeShown(Row, taker?.Id, taker?.Name ?? To ?? "", here, taker is null ? null : RoomFor(taker), have,
+            Amounts.ToArray());
+    }
+
+    /// <summary>
+    /// The minerals another player may give this ship, as the host takes it
+    /// (<see cref="ShipHold.RoomForCargo"/>), from what a snapshot shows: its
+    /// free storage, less what its lander may still bring up while it's on
+    /// a surface (the lander's room was the ship's when it left; gifts since
+    /// can only have lessened the free storage, so this is the host's own
+    /// sum); null without its hold.
+    /// </summary>
+    public static int? RoomFor(ShipSnapshot ship)
+    {
+        if (ship.Hold is not { } hold)
+            return null;
+        int free = hold.StorageCapacity - hold.MineralMass;
+        if (ship.Activity != Activity.Planetside)
+            return Math.Max(0, free);
+        int lander = hold.Upgrades.HasFlag(LanderUpgrades.Cargo) ? ShipHold.MaxScrounged << 1 : ShipHold.MaxScrounged;
+        return Math.Max(0, free - lander);
     }
 }

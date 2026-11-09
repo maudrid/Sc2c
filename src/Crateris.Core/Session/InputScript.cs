@@ -14,13 +14,14 @@ namespace Crateris.Core.Session;
 /// <summary>
 /// Scripted input instead of keys (--script, for tests): steps like
 /// "thrust:40,right+thrust:10,down:2,none:20", each held for some frames.
-/// left, right, thrust, action and none are ship input; up, down, select
-/// and cancel press an orbit menu key once as their step starts.
+/// left, right, thrust, action and none are ship input; up, down, select,
+/// cancel, pageup and pagedown press an orbit menu key once as their step
+/// starts, and give opens or closes the giving screen (as T does) then.
 /// </summary>
 public sealed class InputScript
 {
     /// <summary>One step: input held for some frames; a menu key is pressed once as the step starts.</summary>
-    public sealed record Step(int Frames, ShipInput Input, MenuKey? Key = null);
+    public sealed record Step(int Frames, ShipInput Input, MenuKey? Key = null, bool Give = false);
 
     private readonly IReadOnlyList<Step> _steps;
     private int _step;
@@ -50,14 +51,22 @@ public sealed class InputScript
                 throw new ArgumentException($"A script step is name:frames, with at least one frame, not '{part}'");
             var input = ShipInput.None;
             MenuKey? menuKey = null;
+            bool give = false;
             foreach (var key in kv[0].Split('+'))
             {
+                if (key.Trim() == "give")
+                {
+                    give = true;
+                    continue;
+                }
                 MenuKey? mk = key.Trim() switch
                 {
                     "up" => MenuKey.Up,
                     "down" => MenuKey.Down,
                     "select" => MenuKey.Select,
                     "cancel" => MenuKey.Cancel,
+                    "pageup" => MenuKey.PageUp,
+                    "pagedown" => MenuKey.PageDown,
                     _ => null,
                 };
                 if (mk != null)
@@ -77,7 +86,7 @@ public sealed class InputScript
                     var k => throw new ArgumentException($"Unknown input '{k}' in --script"),
                 };
             }
-            steps.Add(new Step(frames, input, menuKey));
+            steps.Add(new Step(frames, input, menuKey, give));
         }
         return new InputScript(steps);
     }
@@ -86,15 +95,19 @@ public sealed class InputScript
     /// The next frame's input, and the menu key its step presses if this is
     /// the step's first frame. After the last step, no input.
     /// </summary>
-    public ShipInput Next(out MenuKey? press)
+    public ShipInput Next(out MenuKey? press) => Next(out press, out _);
+
+    /// <summary>The next frame's input, as <see cref="Next(out MenuKey?)"/>, and whether its step opens or closes the giving screen.</summary>
+    public ShipInput Next(out MenuKey? press, out bool give)
     {
         press = null;
+        give = false;
         Skip();
         if (_step >= _steps.Count)
             return ShipInput.None;
         var step = _steps[_step];
         if (_frame++ == 0)
-            press = step.Key;
+            (press, give) = (step.Key, step.Give);
         return step.Input;
     }
 

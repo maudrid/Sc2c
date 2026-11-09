@@ -67,6 +67,7 @@ public partial class Main : Node2D
     private ReportView _reportView = null!;
     private CommView _commView = null!;
     private SellingView _sellingView = null!;
+    private GivingView _givingView = null!;
     private StarbaseScreenView _starbaseView = null!;
     private Label _hud = null!;
     private SystemCatalog _systems = null!;
@@ -154,6 +155,14 @@ public partial class Main : Node2D
                 RpcId(1, MethodName.StarbaseRedraw);
         };
         AddChild(_starbaseView);
+        // The giving screen, in the status area where the cargo display goes, over every view.
+        _givingView = new GivingView
+        {
+            Position = statusOrigin + new Vector2(GivingScreen.Area.X - UqmCanvas.SpaceWidth, GivingScreen.Area.Y) * SisScreen.Scale,
+            Width = systemScreenAt.X - 24,
+            Visible = false,
+        };
+        AddChild(_givingView);
         var layer = new CanvasLayer();
         AddChild(layer);
         // Left of the system screen; long lines wrap.
@@ -293,6 +302,7 @@ public partial class Main : Node2D
                 _starbaseView.UseContent(content, sheets);
                 _reportView.UseContent(content, sheets);
                 _sellingView.UseContent(content, sheets);
+                _givingView.UseContent(content, sheets);
             }
         }
         catch (ContentPackageException e)
@@ -405,6 +415,8 @@ public partial class Main : Node2D
                 Log(host.StartVisit());
             if (_options.StartMinerals is { } minerals)
                 Log(host.StartWithMinerals(minerals));
+            if (_options.StartUnits is { } units)
+                Log(host.StartWithUnits(units));
             if (_options.StartDocked)
                 Log(host.StartDocked());
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
@@ -875,8 +887,8 @@ public partial class Main : Node2D
             GetViewport().SetInputAsHandled();
             return;
         }
-        // Docked, outfitting: F2 and F3 rename the ship and the captain.
-        if (k.Keycode is Key.F2 or Key.F3 && _player.Starbase is { Screen: StarbaseScreen.Outfit })
+        // Docked, outfitting: F2 and F3 rename the ship and the captain (not over the giving screen, which has the keys).
+        if (k.Keycode is Key.F2 or Key.F3 && _player.Starbase is { Screen: StarbaseScreen.Outfit } && _player.Trade is null)
         {
             StartNaming(k.Keycode == Key.F2);
             GetViewport().SetInputAsHandled();
@@ -1016,6 +1028,8 @@ public partial class Main : Node2D
             _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)
             _systemView.Show(player.Snapshot, player.PlayerId);
+        // The giving screen, while it's open, over whichever screen it was opened on.
+        _givingView.Visible = !Headless && _givingView.Show(player);
     }
 
     private void UpdateHud()
@@ -1024,8 +1038,9 @@ public partial class Main : Node2D
             _player.Status = _status;
         _hud.Text = _player == null ? _status : string.Join("\n", _player.StatusLines());
         // Those screens stand alone; the cargo display covers the status area, as UQM's does (the
-        // Manifest's, and the minerals' count-down's).
-        _hud.Visible = _firstRun == null && _contentError == null && _player?.OrbitMenu?.CargoOpen != true && !_sellingView.Visible;
+        // Manifest's, and the minerals' count-down's), and the giving screen, laid out after it.
+        _hud.Visible = _firstRun == null && _contentError == null && _player?.OrbitMenu?.CargoOpen != true && !_sellingView.Visible
+            && !_givingView.Visible;
     }
 
     // ---------------------------------------------------- quit / report

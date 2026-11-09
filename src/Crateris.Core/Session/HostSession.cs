@@ -101,6 +101,13 @@ public sealed class HostSession
         return $"Starting with {amounts.Sum()} units of minerals";
     }
 
+    /// <summary>--start-units (testing): the host's wallet starts with these resource units.</summary>
+    public string StartWithUnits(uint units)
+    {
+        World.Host.Ship.Hold.ResourceUnits = units;
+        return $"Starting with {units} resource units";
+    }
+
     /// <summary>
     /// --start-visit (testing): the host's ship by Earth's starbase, in the
     /// visit's first talk, as if it had just flown into it. Needs the talks'

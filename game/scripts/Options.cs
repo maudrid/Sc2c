@@ -23,13 +23,14 @@ namespace Crateris.Game;
 /// not the game's own downloaded copy.
 /// Testing options: --id ID (player id instead of the saved one),
 /// --script "thrust:40,right:10,none:20" (scripted input instead of keys;
-/// up, down, select and cancel press an orbit menu key once as their step starts),
+/// up, down, select, cancel, pageup and pagedown press an orbit menu key once as their step starts, give opens or closes the giving screen),
 /// --first-run-use FILE (the first-run screen acts as if the player chose
 /// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
 /// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],
 /// --start-visit (host: a new game starts in the commander's talk at Earth's starbase),
 /// --start-docked (host: a new game starts docked at Earth's starbase's menu, the opening over),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
+/// --start-units N (host: the wallet starts with N resource units),
 /// --guests-in-orbit (host: guests joining for the first time start in
 /// orbit where the host is), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
@@ -80,6 +81,9 @@ public sealed class Options
 
     /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>
     public int[]? StartMinerals { get; private set; }
+
+    /// <summary>--start-units N: the host's wallet starts with N resource units (testing: giving them).</summary>
+    public uint? StartUnits { get; private set; }
 
     /// <summary>--guests-in-orbit: guests joining for the first time are put in orbit where the host is (testing).</summary>
     public bool GuestsInOrbit { get; private set; }
@@ -137,6 +141,7 @@ public sealed class Options
                 case "--start-minerals":
                     o.StartMinerals = Array.ConvertAll(Next().Split(','), int.Parse);
                     break;
+                case "--start-units": o.StartUnits = uint.Parse(Next()); break;
                 case "--show-report": o.ShowReport = Next(); break;
                 case "--start-orbit":
                 {

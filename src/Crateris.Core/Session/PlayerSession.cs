@@ -290,6 +290,7 @@ public sealed class PlayerSession
         // carries; in UQM only using a device could, which leaves the list).
         OrbitMenu?.RefreshDevices(Devices());
         NoteLander();
+        FollowTalk();
     }
 
     /// <summary>The local player's lander on its surface, as the last snapshot gives it; null if it isn't down.</summary>
@@ -370,7 +371,9 @@ public sealed class PlayerSession
         ShipInput input;
         if (_script != null)
         {
-            input = _script.Next(out var press);
+            input = _script.Next(out var press, out bool give);
+            if (give)
+                ToggleTrade();
             if (press is MenuKey key)
                 PressMenu(key);
         }
@@ -448,6 +451,7 @@ public sealed class PlayerSession
         if (view is null || Talk is null || view.Round != Talk.Round)
             ReplyCursor = 0;
         Talk = view;
+        FollowTalk();
     }
 
     private static string OneLine(string text) => text.Replace('\n', ' ').Replace('\r', ' ');
@@ -604,8 +608,10 @@ public sealed class PlayerSession
     /// <summary>
     /// Opens or closes the giving screen. It doesn't open while the game
     /// waits for a story talk (nothing can be given then, and the replier's
-    /// keys are the talk's), over the cargo display, or with no one else in
-    /// the game.
+    /// keys are the talk's), in a talk (the communication screen has the
+    /// keys, and the minerals' count-down the status area), over the cargo
+    /// display or the Devices list, or with no one else in the game; and it
+    /// closes when a talk is shown (<see cref="FollowTalk"/>).
     /// </summary>
     public void ToggleTrade()
     {
@@ -616,6 +622,8 @@ public sealed class PlayerSession
         }
         if (StoryPaused)
             Notify(Gift.Why(TradeRefusal.Paused));
+        else if (TalkShown)
+            Notify("Not during a talk.");
         else if (OrbitMenu?.CargoOpen == true)
             Notify("Close the cargo display first.");
         else if (OrbitMenu?.DeviceList is not null)
@@ -630,6 +638,15 @@ public sealed class PlayerSession
     {
         Trade = null;
         _waitForRelease = true;
+    }
+
+    // A talk shown (the player's own, or the story's, which pauses the
+    // game) closes the giving screen: its keys are the talk's, and the
+    // status area the minerals' count-down's.
+    private void FollowTalk()
+    {
+        if (Trade is not null && (StoryPaused || TalkShown))
+            CloseTrade();
     }
 
     /// <summary>The gifts to send the host, once each.</summary>
@@ -942,9 +959,8 @@ public sealed class PlayerSession
                 lines.Add($"{(i == OrbitMenu.DeviceCursor ? ">" : " ")} {DeviceName(devices[i])}");
             lines.Add("Up, down (PgUp, PgDn by a page): choose; Esc: back");
         }
-        if (Trade is { } t)
-            lines.AddRange(t.Lines(Snapshot, PlayerId));
-        else if (Snapshot?.Ships.Count > 1 && !StoryPaused)   // giving waits while the story's talk goes on
+        // The giving screen is drawn in the status area, which hides this panel while it's open.
+        if (Trade is null && Snapshot?.Ships.Count > 1 && !StoryPaused && !TalkShown)   // giving waits while a talk goes on
             lines.Add("T: give another player something");
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();

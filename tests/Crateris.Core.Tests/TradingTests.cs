@@ -184,7 +184,6 @@ public class TradingTests
         me.PressMenu(MenuKey.PageUp);
         me.PressMenu(MenuKey.Select);
         Assert.Equal(new Gift("host", "guest", 0, Minerals(2, 10), 0), me.TakeGifts().Single());
-        Assert.Contains(me.StatusLines(), l => l.Contains("To: Guest"));
         me.PressMenu(MenuKey.Cancel);
         Assert.Null(me.Trade);
         me.ShowGift(new Gift("guest", "host", 5, NoMinerals, 0));
@@ -262,5 +261,135 @@ public class TradingTests
         alone.Observe(world.Snapshot());
         alone.ToggleTrade();
         Assert.Null(alone.Trade);
+    }
+
+    [ContentFact]
+    public void TheGivingScreenShowsWhoItGivesToFromTheStartAndFollowsTheHold()
+    {
+        var world = TwoPlayers(sameSystem: true);
+        Load(world.Host, Minerals(2, 12), 3);
+        world.Host.Ship.Hold.ResourceUnits = 150;
+        var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        me.Observe(world.Snapshot());
+        me.ToggleTrade();
+        // Before any key: the first other player, in this system, with their room; what the host has.
+        var shown = me.Trade!.Follow(me.Snapshot, "host");
+        Assert.Equal(("guest", "Guest", true, TradeScreen.UnitsRow), (shown.To, shown.ToName, shown.Here, shown.Row));
+        Assert.Equal(world.Find("guest")!.Ship.Hold.RoomForCargo, shown.Room);
+        Assert.Equal(new long[] { 0, 150, 0, 0, 12, 0, 0, 0, 0, 0, 3 }, shown.Have);
+        Assert.All(shown.Give, a => Assert.Equal(0, a));
+        // An amount chosen is never more than the player has now.
+        me.PressMenu(MenuKey.PageUp);
+        Assert.Equal(100, me.Trade.Follow(me.Snapshot, "host").Give[TradeScreen.UnitsRow]);
+        world.Host.Ship.Hold.ResourceUnits = 40;
+        world.SubmitInput("host", world.Frame + 1, Hyperspace.ShipInput.None);
+        world.Step();
+        me.Observe(world.Snapshot());
+        Assert.Equal(40, me.Trade.Follow(me.Snapshot, "host").Give[TradeScreen.UnitsRow]);
+        // The guest leaving the system: they're elsewhere; leaving the game: no one.
+        world.Find("guest")!.Ship.Ip!.ReturnFromOrbit();
+        Assert.True(me.Trade.Follow(world.Snapshot(), "host").Here);   // still in Sol
+        var gone = world.Snapshot() with { Ships = world.Snapshot().Ships.Select(s => s.Id == "guest" ? s with { SystemStar = null } : s).ToList() };
+        Assert.False(me.Trade.Follow(gone, "host").Here);
+        var alone = world.Snapshot() with { Ships = world.Snapshot().Ships.Where(s => s.Id == "host").ToList() };
+        shown = me.Trade.Follow(alone, "host");
+        Assert.Equal((null, "", false, (int?)null), (shown.To, shown.ToName, shown.Here, shown.Room));
+        // The panel lists nothing of it while it's open (it's drawn over the status area), and offers it once it's closed.
+        Assert.DoesNotContain(me.StatusLines(), l => l.Contains("give", StringComparison.OrdinalIgnoreCase));
+        me.ToggleTrade();
+        Assert.Contains("T: give another player something", me.StatusLines());
+    }
+
+    [ContentFact]
+    public void TheReceiversRoomIsTheHostsWithTheirLanderDown()
+    {
+        foreach (int free in new[] { 300, 60, 30 })
+        {
+            var world = TwoPlayers(sameSystem: true);
+            var guest = world.Find("guest")!;
+            guest.Ship.Hold.Restore(guest.Ship.Hold.Save() with { Minerals = Minerals(7, guest.Ship.Hold.StorageCapacity - free) });
+            var ship = world.Snapshot().Ships.Single(s => s.Id == "guest");
+            Assert.Equal(guest.Ship.Hold.RoomForCargo, TradeScreen.RoomFor(ship));
+            Assert.Equal(free, TradeScreen.RoomFor(ship));
+            Assert.Equal(DispatchRefusal.None, world.Dispatch("guest", 100, 100));
+            ship = world.Snapshot().Ships.Single(s => s.Id == "guest");
+            Assert.Equal(Activity.Planetside, ship.Activity);
+            Assert.Equal(guest.Ship.Hold.RoomForCargo, TradeScreen.RoomFor(ship));   // free less the lander's 50, or none
+            // A gift since it left lessens the free room, and the sum still matches the host's.
+            if (guest.Ship.Hold.RoomForCargo > 5)
+            {
+                Load(world.Host, Minerals(0, 5), 0);
+                Assert.Equal(TradeRefusal.None, world.Give(new Gift("host", "guest", 0, Minerals(0, 5), 0)));
+                Assert.Equal(guest.Ship.Hold.RoomForCargo, TradeScreen.RoomFor(world.Snapshot().Ships.Single(s => s.Id == "guest")));
+            }
+            Assert.Null(TradeScreen.RoomFor(ship with { Hold = null }));
+        }
+    }
+
+    [ContentFact]
+    public void TheGivingScreenDoesntOpenInATalkAndClosesWhenOneShows()
+    {
+        var world = TwoPlayers(sameSystem: true);
+        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, Data.ConversationScripts.Load(DataDir)));
+        world.DialogueLocks = Comm.DialogueLocks.Load(DataDir);
+        var story = world.Story!;
+        foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED" })
+            story.Set(f, 1);
+        story.Set32("STARBASE_BULLETS0", 0xFFFFFFFF);
+        world.CommanderMet = true;
+        world.PutInOrbit("host", Sol, Earth, Luna);
+        world.Host.Ship.Ip!.ReturnFromOrbit();
+        world.VisitStarbase(world.Host);
+        Assert.Equal(Activity.Starbase, world.Host.Ship.Activity);
+        var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        me.Observe(world.Snapshot());
+        me.ShowStarbase(world.StarbaseFor("host"));
+        // Docked at the menu, it opens, and has the keys.
+        me.ToggleTrade();
+        Assert.NotNull(me.Trade);
+        me.PressMenu(MenuKey.Down);
+        Assert.Empty(me.TakeStarbaseKeys());
+        // Talking to the commander (a key sent before it opened): the talk shows, and it closes.
+        world.StarbaseKey("host", MenuKey.Select, out _);
+        me.Observe(world.Snapshot());
+        me.ShowStarbase(world.StarbaseFor("host"));
+        me.ShowTalk(world.TalkFor("host"));
+        Assert.True(me.TalkShown);
+        Assert.Null(me.Trade);
+        // In the talk it doesn't open, nor is it offered.
+        me.ToggleTrade();
+        Assert.Null(me.Trade);
+        Assert.Equal("Not during a talk.", me.Notice);
+        Assert.DoesNotContain("T: give another player something", me.StatusLines());
+    }
+
+    [ContentFact]
+    public void TheGivingScreenClosesWhenTheStoryPausesTheGame()
+    {
+        var world = TwoPlayers(sameSystem: true);
+        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, Data.ConversationScripts.Load(DataDir)));
+        var guest = new PlayerSession(Systems, null, "guest", TestContent.Shapes.HyperFlagship.Count);
+        guest.Observe(world.Snapshot());
+        guest.ToggleTrade();
+        Assert.NotNull(guest.Trade);
+        world.PutInOrbit("host", Sol, Earth, Luna);
+        world.Host.Ship.Ip!.ReturnFromOrbit();
+        world.VisitStarbase(world.Host);   // the opening: the game waits for everyone
+        Assert.True(world.StoryPaused);
+        world.SubmitInput("host", world.Frame + 1, Hyperspace.ShipInput.None);
+        world.Step();
+        guest.Observe(world.Snapshot());
+        Assert.Null(guest.Trade);
+        guest.ToggleTrade();
+        Assert.Null(guest.Trade);
+        Assert.Equal(Gift.Why(TradeRefusal.Paused), guest.Notice);
+    }
+
+    [ContentFact]
+    public void StartUnitsFillTheHostsWallet()
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems, TestContent.Shapes);
+        Assert.Contains("2500", host.StartWithUnits(2500));   // --start-units (testing: giving them)
+        Assert.Equal(2500u, host.World.Host.Ship.Hold.ResourceUnits);
     }
 }
