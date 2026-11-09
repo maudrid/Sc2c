@@ -3348,6 +3348,165 @@ def record_report(uqm, exe, strings_exe, package):
     return data
 
 
+# ------------------------------------------------------------ selling minerals
+
+SELL_PROGRAM = os.path.join(HERE, "golden", "sell.c")
+SELL_LINK = ["uqm/planets/cargo.c", "uqm/sis.c", "uqm/menu.c", "uqm/util.c", "libs/graphics/pixmap.c"]
+SELL_SHEET = "graphics.miscdata"   # MiscDataFrame
+SELL_ICON = 11                     # NUM_SCANDOT_TRANSITIONS * 2 + 3: the first element's icon
+# A scenario's calls are kept whole up to this many; past it, the first
+# SELL_HEAD and the last SELL_TAIL, with how many and a hash of them all.
+SELL_WHOLE, SELL_HEAD, SELL_TAIL = 600, 150, 60
+
+
+def sell_loads():
+    """The holds sold: (name, the 8 element amounts, bio data, storage
+    bays, resource units, CHMMR_BOMB_STATE, the key patterns tried, None
+    for all of record_selling's)."""
+    every = None
+    return [
+        ("one", [0, 0, 0, 12, 0, 0, 0, 0], 0, 1, 0, 0,
+         ["none", "at-first-wait", "held", "mid-category", "last-category", "at-the-end"]),
+        ("first-only", [5, 0, 0, 0, 0, 0, 0, 0], 0, 1, 40, 0,
+         ["none", "at-first-wait", "held-let-go", "held", "mid-category"]),
+        ("last-only", [0, 0, 0, 0, 0, 0, 0, 3], 2, 1, 0, 0, ["none", "at-first-wait", "mid-category"]),
+        ("one-unit", [0, 1, 0, 0, 0, 0, 0, 0], 0, 1, 0, 0, ["none", "at-first-wait"]),
+        ("several", [10, 0, 7, 0, 0, 3, 0, 0], 4, 1, 1234, 0, every),
+        ("all-eight", [3, 4, 5, 6, 7, 8, 9, 10], 25, 1, 7, 0, every),
+        ("full-hold", [0, 0, 0, 0, 500, 0, 0, 0], 0, 1, 0, 0, ["none", "mid-category"]),
+        ("unlimited", [6, 0, 0, 2, 0, 0, 0, 4], 1, 2, 300, 2, ["none", "mid-category", "between-categories"]),
+        ("big", [1500, 700, 300, 200, 100, 50, 25, 10], 120, 6, 65000, 0,
+         ["none", "mid-category", "between-categories"]),
+    ]
+
+
+def record_selling(uqm, exe, strings_exe, package):
+    """UQM's mineral selling (golden/sell.c): SellMinerals counting the
+    hold down in the status area, a unit a millisecond, its waits, and
+    keys that sell the rest at once, on the program's clock (in
+    milliseconds). graphics.miscdata's frame count and its first element
+    icon's size are read from the content."""
+    import hashlib
+    import zipfile
+    with open(os.path.join(REPO, "data", "new-game.json")) as f:
+        worth = json.load(f)["prices"]["element_worth"]
+    worth = [worth[c] for c in ("COMMON", "CORROSIVE", "BASE_METAL", "NOBLE", "RARE_EARTH", "PRECIOUS",
+                                "RADIOACTIVE", "EXOTIC")]
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        ani_path = index[SELL_SHEET][1]
+        lines = [l.split() for l in z.read(ani_path).decode("latin-1").splitlines() if l.strip()]
+        png = z.read(os.path.dirname(ani_path) + "/" + lines[SELL_ICON][0])
+        icon = (int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big"))
+    frames = len(lines)
+
+    def run(load, keys):
+        _, amounts, bio, bays, ru, bomb, _ = load
+        inp = "\n".join([" ".join(map(str, amounts + worth + [bio, bays, ru, bomb])),
+                         f"{frames} {icon[0]}:{icon[1]}", " ".join(keys) or "-"]) + "\n"
+        out = subprocess.run([exe], input=inp, capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"sell: exit {out.returncode}: {out.stderr}")
+        return json.loads(out.stdout)
+
+    def units(load, got):
+        """When each category's units were counted (DeltaSISGauges' status message cleared), from a run with no keys."""
+        times = [t for t, c in got["calls"] if c[0] == "c"]
+        out, k = [], 0
+        for amount in load[1]:
+            out.append(times[k:k + amount])
+            k += amount
+        return out
+
+    def patterns(load, plain):
+        counted = [u for u in units(load, plain) if u]
+        longest = max(counted, key=len)
+        p = {
+            "none": [],
+            "at-first-wait": ["d:100", "u:150"],
+            "held-let-go": ["h", "u:300"],
+            "held": ["h", f"u:{counted[0][0] + 50}"],
+            "mid-category": [f"d:{longest[len(longest) // 2]}", f"u:{longest[len(longest) // 2] + 30}"],
+            "last-category": [f"d:{counted[-1][-1] - 1}", f"u:{counted[-1][-1] + 40}"] if len(counted[-1]) > 1 else None,
+            "between-categories": [f"d:{counted[0][-1] + 100}", f"u:{counted[0][-1] + 140}"] if len(counted) > 1 else None,
+            "tap-in-a-wait": [f"d:{counted[0][-1] + 60}", f"u:{counted[0][-1] + 60}"] if len(counted) > 1 else None,
+            "at-the-end": [f"d:{plain['put_away'] - 200}", f"u:{plain['put_away'] - 150}"],
+            "mashing": [k for t in range(150, plain["put_away"], 37) for k in (f"d:{t}", f"u:{t + 9}")],
+        }
+        return {name: keys for name, keys in p.items() if keys is not None}
+
+    def calls(got):
+        whole = got["calls"]
+        if len(whole) <= SELL_WHOLE:
+            return {"calls": whole}
+        text = "\n".join(json.dumps(c, separators=(",", ":")) for c in whole)
+        return {"head": whole[:SELL_HEAD], "tail": whole[-SELL_TAIL:], "count": len(whole),
+                "sha256": hashlib.sha256(text.encode()).hexdigest()}
+
+    scenarios = []
+    for load in sell_loads():
+        plain = run(load, [])
+        chosen = patterns(load, plain)
+        if load[6] is not None:
+            if set(load[6]) - set(chosen):
+                raise RuntimeError(f"sell {load[0]}: no {set(load[6]) - set(chosen)}")
+            chosen = {k: chosen[k] for k in load[6]}
+        for pattern, keys in chosen.items():
+            got = plain if not keys else run(load, keys)
+            if got["hold"] != [0] * 8 or got["mass"] != 0:
+                raise RuntimeError(f"sell {load[0]}/{pattern}: the hold isn't empty: {got['hold']}")
+            name, amounts, bio, bays, ru, bomb, _ = load
+            scenarios.append({"name": f"{name}/{pattern}", "amounts": amounts, "bio": bio, "bays": bays,
+                              "res_units": ru, "bomb_state": bomb, "keys": keys, "before": got["before"],
+                              **calls(got), "put_away": got["put_away"], "res_units_after": got["res_units"]})
+
+    data = header(uqm, ["tools/extract/golden/sell.c", "src/uqm/comm/starbas/starbas.c", "src/uqm/planets/cargo.c",
+                        "src/uqm/sis.c", "src/uqm/util.c", "src/uqm/gameinp.c", "src/libs/input/sdl/vcontrol.c",
+                        "src/libs/threads/thrcommon.c", "src/libs/time/sdl/sdltime.c"], [
+        "UQM 0.8.0's own mineral selling, recorded by running starbas.c's "
+        "SellMinerals with cargo.c's DrawCargoStrings and ShowRemainingCapacity and "
+        "sis.c's DeltaSISGauges and DrawStatusMessage (tools/extract/golden/sell.c), "
+        "from its start to the ClearSISRect that puts the cargo display away: each "
+        "drawing call in the screen's coordinates, at the time on the program's "
+        "clock, in milliseconds (SDL_GetTicks; GetTimeCounter's ticks, 840 a second, "
+        "made from it as UQM's SDL clock makes them; TaskSwitch takes a millisecond, "
+        "a sleep wakes at the first millisecond whose ticks reach its time, drawing "
+        "takes none), with keys going down and up at scripted times, seen as UQM's "
+        "input sees them (a key held, or one gone down since the last look). The "
+        "resource units are the status message's (SMM_RES_UNITS, as at the starbase). "
+        "graphics.miscdata's frame count and its frame 11's size are read from the "
+        f"official content package (SHA-256 {CONTENT_SHA256}).",
+        "worth: each element category's worth (ElementWorth, data/new-game.json's). "
+        "Each scenario: the hold (amounts, the 8 element amounts; bio, the bio data; "
+        "bays, the storage bays in the module slots), res_units and bomb_state "
+        "(CHMMR_BOMB_STATE) as the selling starts; the keys (\"h\" a key held as it "
+        "starts, gone down before it into the talk's replies; \"d:T\" down at T, "
+        "\"u:T\" up at T); before, the status message as UQM's status area shows it "
+        "there already (DrawStatusMessage (NULL), drawn at 0); the calls as [time, "
+        "call]; put_away, when SellMinerals called ClearSISRect (DRAW_SIS_DISPLAY), "
+        "the cargo display put away before the commander speaks; res_units_after.",
+        f"A scenario with more than {SELL_WHOLE} calls keeps the first {SELL_HEAD} (head) "
+        f"and the last {SELL_TAIL} (tail), how many there were (count) and the SHA-256 "
+        "of them all, each written as compact JSON ([time,call], no spaces) and joined "
+        "by newlines.",
+        "A call: [\"s\", resource, frame, x, y] DrawStamp, [\"r\", x, y, width, height, "
+        "r, g, b] DrawFilledRectangle, [\"c\", x, y, width, height, r, g, b] "
+        "ClearDrawable (the clip rectangle in the background colour), [\"t\", font, "
+        "x, y, align, count, text, r, g, b] font_DrawText ({gs:N} is GAME_STRING (N)); "
+        "each with the context's clip rectangle as x, y, width, height.",
+        "frames: graphics.miscdata's number of frames; icon: its frame 11's width "
+        "and height (the icons' bounds DrawCargoDisplay takes).",
+    ])
+    data["worth"] = worth
+    data["frames"] = frames
+    data["icon"] = list(icon)
+    data["scenarios"] = scenarios
+    return data
+
+
 # ------------------------------------------------------------ the talk's text
 
 COMMTEXT_PROGRAM = os.path.join(HERE, "golden", "commtext.c")
@@ -3580,6 +3739,9 @@ def main():
         report = os.path.join(build_dir, "report")
         if args.content:
             build(uqm, REPORT_PROGRAM, REPORT_LINK, report)
+        sell = os.path.join(build_dir, "sell")
+        if args.content:
+            build(uqm, SELL_PROGRAM, SELL_LINK, sell, libs=["-lm", "-Wl,--wrap=ClearSISRect"])
         cmap = os.path.join(build_dir, "cmap")
         build(uqm, CMAP_PROGRAM, [], cmap)
         commanim = os.path.join(build_dir, "commanim")
@@ -3625,6 +3787,7 @@ def main():
                      ("commtext", lambda: record_commtext(uqm, commtext, strings, args.content)),
                      ("screens", lambda: record_screens(uqm, screens, outfit, strings, args.content)),
                      ("report", lambda: record_report(uqm, report, strings, args.content)),
+                     ("selling", lambda: record_selling(uqm, sell, strings, args.content)),
                      ("contact", lambda: record_contact(uqm, systems, strings, images, args.content)),
                      ("lander-pickups", lambda: record_lander_pickups(uqm, lander, strings, images, args.content)),
                      ("lander-creatures", lambda: record_lander_creatures(uqm, lander, strings, images, args.content)),

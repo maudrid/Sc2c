@@ -126,6 +126,18 @@ public sealed class Talk
     /// <summary>Everything the talk has done so far.</summary>
     public IReadOnlyList<TalkEvent> Events => _events;
 
+    private readonly List<(int At, MineralSale Sale)> _sales = new();
+
+    /// <summary>
+    /// The minerals the script sold (SellMinerals), each with how many
+    /// events came before it: not an event of UQM's engine (the recording
+    /// has none), but what the seller's client counts down.
+    /// </summary>
+    public IReadOnlyList<(int At, MineralSale Sale)> Sales => _sales;
+
+    /// <summary>The script sells the hold (<paramref name="sale"/>, as it was before): the seller's client draws the counting (SellMinerals).</summary>
+    public void SoldMinerals(MineralSale sale) => _sales.Add((_events.Count, sale));
+
     /// <summary>The fields that aren't shared, as the talk has left them.</summary>
     public IReadOnlyDictionary<string, int> OwnFields => _own;
 

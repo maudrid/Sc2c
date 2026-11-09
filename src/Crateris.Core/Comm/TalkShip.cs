@@ -43,6 +43,12 @@ public interface ITalkShip
     /// <summary>The minerals in the hold by element category (ElementAmounts); a script may change them (selling them).</summary>
     IList<int> Minerals { get; }
 
+    /// <summary>The bio data aboard (TotalBioMass), which the cargo display shows as the minerals are sold.</summary>
+    int BioData => 0;
+
+    /// <summary>The minerals the storage holds (GetStorageBayCapacity): the ship's own, as its hold is.</summary>
+    int StorageCapacity => ModuleSlots.Count(m => m == "STORAGE_BAY") * 500;
+
     /// <summary>Drive slots with a thruster (DriveSlots below EMPTY_SLOT); the flagship's, in the game (decision 4).</summary>
     int Thrusters { get; }
 

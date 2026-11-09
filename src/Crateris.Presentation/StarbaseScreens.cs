@@ -1060,22 +1060,29 @@ public sealed class StarbaseScreens
     }
 
     // sis.c's DrawStatusMessage (NULL), in SMM_RES_UNITS mode as at the starbase.
-    private void StatusMessage()
+    private void StatusMessage() => StatusMessage(_c, _s.ResUnits, _s.BombState, GameString);
+
+    /// <summary>
+    /// sis.c's DrawStatusMessage (NULL) in SMM_RES_UNITS mode, as at the
+    /// starbase: the status area's message, the resource units (UNLIMITED
+    /// once CHMMR_BOMB_STATE is 2 or more).
+    /// </summary>
+    internal static void StatusMessage(UqmCanvas c, uint resUnits, int bombState, Func<int, string> gameString)
     {
-        var old = _c.SetContext(_c.Status);
-        var ctx = _c.ClipRect;
-        _c.SetContext(_c.OffScreen);
-        _c.SetClipRect(new URect(2 + ctx.X, 130 + ctx.Y, StatusMessageWidth, StatusMessageHeight));
-        _c.SetBackground(StatusMessageBack);
-        _c.Clear();
-        string text = _s.BombState < 2
-            ? $"{_s.ResUnits} {GameString(GameStrings.StatusBase + 1)}"
-            : $"{GameString(GameStrings.StatusBase + 2)} {GameString(GameStrings.StatusBase + 1)}";
-        _c.SetFont("tiny");
-        _c.SetForeground(StatusMessageText);
-        _c.Text(StatusMessageWidth >> 1, StatusMessageHeight - 1, TextAlign.Center, text);
-        _c.SetClipRect(null);
-        _c.SetContext(old);
+        var old = c.SetContext(c.Status);
+        var ctx = c.ClipRect;
+        c.SetContext(c.OffScreen);
+        c.SetClipRect(new URect(2 + ctx.X, 130 + ctx.Y, StatusMessageWidth, StatusMessageHeight));
+        c.SetBackground(StatusMessageBack);
+        c.Clear();
+        string text = bombState < 2
+            ? $"{resUnits} {gameString(GameStrings.StatusBase + 1)}"
+            : $"{gameString(GameStrings.StatusBase + 2)} {gameString(GameStrings.StatusBase + 1)}";
+        c.SetFont("tiny");
+        c.SetForeground(StatusMessageText);
+        c.Text(StatusMessageWidth >> 1, StatusMessageHeight - 1, TextAlign.Center, text);
+        c.SetClipRect(null);
+        c.SetContext(old);
     }
 
     // sis.c's DrawSISMessage (normal state).

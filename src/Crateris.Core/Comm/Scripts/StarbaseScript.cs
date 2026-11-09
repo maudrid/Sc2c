@@ -862,6 +862,9 @@ public sealed class StarbaseScript : CommScript
         // COUNT: what the load is worth, in 16 bits.
         ushort total = 0;
         var worth = T.Story.ElementWorth;
+        // The hold as it was: the seller's client counts it down (the counting is the client's to draw).
+        T.SoldMinerals(new MineralSale(Sis.Minerals.ToArray(), worth.Take(MineralSale.Categories).ToArray(), Sis.BioData,
+            Sis.StorageCapacity, Sis.ResourceUnits, GetGameState("CHMMR_BOMB_STATE")));
         for (int i = 0; i < Sis.Minerals.Count; ++i)
         {
             int amount = Sis.Minerals[i];

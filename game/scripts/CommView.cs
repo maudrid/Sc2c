@@ -26,6 +26,9 @@ namespace Crateris.Game;
 /// replies, unlit for everyone watching a story talk), the reply said, and
 /// the summary on Esc. What it shows is <see cref="CommScreen"/>'s; this
 /// node keeps the clock (the client's own), the content and the textures.
+/// While the player's minerals are counted down (<see cref="SellingView"/>)
+/// the lines wait, the reply said shown and the alien standing still, as
+/// UQM's SellMinerals runs before the commander speaks.
 /// </summary>
 public partial class CommView : Node2D
 {
@@ -46,6 +49,7 @@ public partial class CommView : Node2D
     private int _cursor = -1;
     private long _timePassingSince = -1;   // DoTimePassage: when the fade to black began
     private bool _watching;
+    private bool _holding;   // the lines waited for the minerals' count-down
     private int _round, _lines;
     // The talk last shown, and its lines' key (worked out once a talk, not every frame).
     private TalkView? _talk;
@@ -90,8 +94,12 @@ public partial class CommView : Node2D
         return f;
     }
 
-    /// <summary>The talk the session shows (call while the screen is up).</summary>
-    public void Show(PlayerSession session)
+    /// <summary>
+    /// The talk the session shows (call while the screen is up). Its lines
+    /// play from <paramref name="linesFrom"/> (the clock's ticks: when the
+    /// minerals' count-down was put away), or wait while it's -1.
+    /// </summary>
+    public void Show(PlayerSession session, long linesFrom)
     {
         if (_content is null || _scripts is null || session.Talk is not { } talk)
             return;
@@ -111,7 +119,17 @@ public partial class CommView : Node2D
                 _screen = new CommScreen(window, race, Font(race.Font), _player!, _tiny!, _button!.Width);
             }
         }
-        _screen?.Show(talk.Lines, talk.Said, talk.Replies, talk.Round, Now);
+        if (linesFrom < 0)
+        {
+            // SellMinerals counts the hold down after the reply said, before the lines.
+            _screen?.Show(Array.Empty<string>(), talk.Said, Array.Empty<string>(), talk.Round, Now);
+            _cursor = -1;
+            _holding = true;
+            return;
+        }
+        // The lines play from when the count-down was put away (the first time they're shown after it).
+        _screen?.Show(talk.Lines, talk.Said, talk.Replies, talk.Round, _holding ? Math.Min(linesFrom, Now) : Now);
+        _holding = false;
         _cursor = session.Replying ? session.ReplyCursor : -1;
         // Every screen follows the replier's paging of these lines that it hasn't applied (decision 7);
         // a watcher's own paging keys do nothing.
@@ -124,6 +142,7 @@ public partial class CommView : Node2D
     /// <summary>The screen is gone (no talk): the next starts afresh.</summary>
     public void Close()
     {
+        _holding = false;
         _script = "";
         _screen = null;
         _window = null;
@@ -155,7 +174,9 @@ public partial class CommView : Node2D
     {
         if (!Visible || _screen is null)
             return;
-        if (_screen.Update(Now) || _window is null)
+        // While SellMinerals counts the hold down nothing runs the alien's animations (UQM's
+        // UpdateCommGraphics waits for its input loops): the picture stands still.
+        if ((!_holding && _screen.Update(Now)) || _window is null)
         {
             var w = _screen.Window;
             var image = Image.CreateFromData(AlienWindow.Width, w.Height, false, Image.Format.Rgba8, w.Pixels);

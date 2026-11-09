@@ -414,8 +414,23 @@ public class OpeningTests
         Assert.Equal(paged.PagingSoFar, TalkView.Decode(paged.Encode())!.PagingSoFar);
         Assert.False(view.Same(paged));
         var bad = paged.Encode();
-        bad[^1] = 9;   // no such paging
+        bad[^2] = 9;   // no such paging (the last byte says there's no sale)
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(bad));
+        // The minerals the replier's reply sold, for their client to count down.
+        var sale = new MineralSale(new[] { 1, 0, 2, 0, 0, 0, 1, 9 }, new[] { 1, 2, 3, 4, 5, 6, 8, 25 }, 3, 1500,
+            4_000_000_000, 2);
+        var sold = view with { Sale = sale };
+        Assert.Equal(sale, TalkView.Decode(sold.Encode())!.Sale);
+        Assert.True(sold.Same(TalkView.Decode(sold.Encode())));
+        Assert.False(view.Same(sold));
+        Assert.False(sold.Same(view with { Sale = sale with { Amounts = new[] { 1, 0, 2, 0, 0, 0, 1, 8 } } }));
+        bad = view.Encode();
+        bad[^1] = 2;   // no such sale
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(bad));
+        bad = sold.Encode();
+        bad[^1] = 0xFF;   // the bomb's state, its varint left unfinished
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(bad));
+        Assert.Throws<ArgumentException>(() => (view with { Sale = sale with { Amounts = new[] { 1 } } }).Encode());
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(new byte[] { 99 }));
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(view.Encode().Append((byte)0).ToArray()));   // bytes after its end
         var big = new Net.WireWriter();

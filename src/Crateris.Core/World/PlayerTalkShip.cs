@@ -73,6 +73,10 @@ internal sealed class PlayerTalkShip : ITalkShip
 
     public IList<int> Minerals => _minerals;
 
+    public int BioData => Hold.BioData;
+
+    public int StorageCapacity => Hold.StorageCapacity;
+
     public int Thrusters => _flagship.Modules.Thrusters;
 
     public int Jets => _flagship.Modules.Jets;

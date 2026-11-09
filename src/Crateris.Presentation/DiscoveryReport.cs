@@ -75,14 +75,9 @@ public sealed class DiscoveryReport
     private readonly string _endText;
     private readonly IEnumerator<long> _run;
     private readonly List<(long At, UqmDraw Call)> _drawn = new();
-    private readonly Queue<(long At, int Key, bool Down)> _keys = new();
+    private readonly AnyButton _input = new();
     private long _clock, _wake;
     private bool _finished;
-    // How many times each key is held, each key on its own (VControl counts per control, so keys
-    // bound to one share a count; per key, a key forgotten by FlushInput coming up lowers nothing
-    // else's, and nothing here depends on the bindings).
-    private readonly Dictionary<int, int> _held = new();
-    private bool _started;   // VCONTROL_STARTBIT: gone down since the last look
     private bool _result;    // the last wait's
 
     /// <param name="canvas">The canvas the report draws on (its frames: graphics.orbitbackground's).</param>
@@ -125,15 +120,13 @@ public sealed class DiscoveryReport
     public bool Waiting { get; private set; }
 
     /// <summary>Key <paramref name="key"/> went down at <paramref name="at"/> (keys come in the order they happen).</summary>
-    public void KeyDown(long at, int key = 0) => _keys.Enqueue((at, key, true));
+    public void KeyDown(long at, int key = 0) => _input.Down(at, key);
 
     /// <summary>Key <paramref name="key"/> came up at <paramref name="at"/>: one not held (forgotten, or held before the report) changes nothing.</summary>
-    public void KeyUp(long at, int key = 0) => _keys.Enqueue((at, key, false));
+    public void KeyUp(long at, int key = 0) => _input.Up(at, key);
 
     /// <summary>Every key let go at <paramref name="at"/> (the window lost the keyboard: no key comes up there, as SDL's does).</summary>
-    public void LetGo(long at) => _keys.Enqueue((at, AllKeys, false));
-
-    private const int AllKeys = int.MinValue;
+    public void LetGo(long at) => _input.LetGo(at);
 
     /// <summary>Runs the report up to <paramref name="now"/>: what it drew meanwhile, each call at its time.</summary>
     public List<(long At, UqmDraw Call)> Run(long now)
@@ -175,47 +168,10 @@ public sealed class DiscoveryReport
 
     // ------------------------------------------------------------ the keys and the clock
 
-    // The keys that have gone down or up by now.
-    private void KeyEvents()
-    {
-        while (_keys.Count > 0 && _keys.Peek().At <= _clock)
-        {
-            var (_, key, down) = _keys.Dequeue();
-            if (key == AllKeys)
-                _held.Clear();
-            else if (down)
-            {
-                // A key (not 0, the recordings' one control) can't go down twice: down again, its
-                // coming up was lost (the window's focus away a moment), so it's held once.
-                _held[key] = key != 0 && _held.ContainsKey(key) ? 1 : _held.GetValueOrDefault(key) + 1;
-                _started = true;
-            }
-            else if (_held.TryGetValue(key, out int n))
-            {
-                if (n > 1)
-                    _held[key] = n - 1;
-                else
-                    _held.Remove(key);
-            }
-        }
-    }
+    // AnyButtonPress and FlushInput, at the clock.
+    private bool AnyButtonPress() => _input.Press(_clock);
 
-    // AnyButtonPress: a key held, or one gone down since the last look (cleared by BeginInputFrame).
-    private bool AnyButtonPress()
-    {
-        KeyEvents();
-        bool pressed = _held.Count > 0 || _started;
-        _started = false;
-        return pressed;
-    }
-
-    // FlushInput: every key held is forgotten (VControl_ResetInput).
-    private void FlushInput()
-    {
-        KeyEvents();
-        _held.Clear();
-        _started = false;
-    }
+    private void FlushInput() => _input.Flush(_clock);
 
     // SleepThread (ONE_SECOND / 40), as the waits look at the keys.
     private long Sleep()

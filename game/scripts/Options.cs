@@ -29,6 +29,7 @@ namespace Crateris.Game;
 /// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],
 /// --start-visit (host: a new game starts in the commander's talk at Earth's starbase),
 /// --start-docked (host: a new game starts docked at Earth's starbase's menu, the opening over),
+/// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --guests-in-orbit (host: guests joining for the first time start in
 /// orbit where the host is), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
@@ -76,6 +77,9 @@ public sealed class Options
 
     /// <summary>--start-docked: a new game starts docked at Earth's starbase's menu, as after the opening (testing).</summary>
     public bool StartDocked { get; private set; }
+
+    /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>
+    public int[]? StartMinerals { get; private set; }
 
     /// <summary>--guests-in-orbit: guests joining for the first time are put in orbit where the host is (testing).</summary>
     public bool GuestsInOrbit { get; private set; }
@@ -130,6 +134,9 @@ public sealed class Options
                 case "--script": o.Script = InputScript.Parse(Next()); break;
                 case "--start-visit": o.StartVisit = true; break;
                 case "--start-docked": o.StartDocked = true; break;
+                case "--start-minerals":
+                    o.StartMinerals = Array.ConvertAll(Next().Split(','), int.Parse);
+                    break;
                 case "--show-report": o.ShowReport = Next(); break;
                 case "--start-orbit":
                 {

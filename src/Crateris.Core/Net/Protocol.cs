@@ -76,8 +76,12 @@ public static class Protocol
     /// 17: the replier of a story talk sends how they page it (TalkPage:
     /// skipped, played again, the summary, with the lines it was for), and the talk sent to everyone
     /// carries it for watchers to follow (decision 7).
+    /// 18: the talk carries the minerals its replier's last reply sold
+    /// (MineralSale: the hold before the sale, the worths, the bio data,
+    /// the storage, the resource units and the bomb's state), which the
+    /// replier's client counts down before the commander's reply.
     /// </summary>
-    public const int Version = 17;
+    public const int Version = 18;
     public const int DefaultPort = 24642;
 
     /// <summary>

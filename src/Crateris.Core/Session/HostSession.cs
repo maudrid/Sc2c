@@ -86,6 +86,22 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-minerals (testing): the host's hold starts with these
+    /// minerals (the 8 element categories' amounts), as if mined, to sell
+    /// at the starbase (ArgumentException if they're not 8 or don't fit).
+    /// </summary>
+    public string StartWithMinerals(IReadOnlyList<int> amounts)
+    {
+        var hold = World.Host.Ship.Hold;
+        if (amounts.Count != ShipHold.Categories || amounts.Any(a => a < 0))
+            throw new ArgumentException($"{ShipHold.Categories} amounts, none below 0");
+        if (amounts.Sum() > hold.FreeStorage)
+            throw new ArgumentException($"{amounts.Sum()} units don't fit in {hold.FreeStorage} free");
+        hold.MoveCargo(amounts, 0, 1);
+        return $"Starting with {amounts.Sum()} units of minerals";
+    }
+
+    /// <summary>
     /// --start-visit (testing): the host's ship by Earth's starbase, in the
     /// visit's first talk, as if it had just flown into it. Needs the talks'
     /// content (InvalidOperationException).

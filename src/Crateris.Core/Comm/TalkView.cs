@@ -23,11 +23,14 @@ namespace Crateris.Core.Comm;
 /// <see cref="Replier"/> is the player who answers it: everyone is shown a
 /// story talk, and only they reply (decision 7); <see cref="Said"/> is the
 /// reply they last chose, which the lines answer ("" before any).
+/// <see cref="Sale"/> is the replier's minerals, if that reply sold them
+/// (SellMinerals): the replier's client counts the hold down before the
+/// lines play; everyone else's shows nothing of it.
 /// Sent to them by the host when it changes, as a reliable message;
 /// <see cref="Protocol.NoView"/> means no talk.
 /// </summary>
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
-    int Round = 0, string Replier = "", string Said = "", IReadOnlyList<TalkPage>? Paging = null)
+    int Round = 0, string Replier = "", string Said = "", IReadOnlyList<TalkPage>? Paging = null, MineralSale? Sale = null)
 {
     /// <summary>The most paging a view carries (<see cref="Paging"/>): past it, the replier's paging isn't followed.</summary>
     public const int MostPaging = 256;
@@ -85,8 +88,12 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             }
         }
         var lines = new List<string>();
+        MineralSale? sale = null;
         for (int t = talkFrom; t < visit.Talks.Count; ++t)
         {
+            foreach (var (at, sold) in visit.Talks[t].Sales)
+                if (t > talkFrom || at >= eventFrom)
+                    sale = sold;
             foreach (var e in visit.Talks[t].Events.Skip(t == talkFrom ? eventFrom : 0))
             {
                 switch (e)
@@ -106,7 +113,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var talk = visit.Talk;
         string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
         var view = new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round,
-            visit.Replier.Id, said);
+            visit.Replier.Id, said, Sale: sale);
         return visit.Paging is { } paging && paging.Key == view.LinesKey ? view with { Paging = paging.Pages.ToList() } : view;
     }
 
@@ -127,6 +134,8 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         w.UInt((ulong)PagingSoFar.Count);
         foreach (var p in PagingSoFar)
             w.Byte((byte)p);
+        w.Byte(Sale is null ? (byte)0 : (byte)1);
+        Sale?.Encode(w);
         return w.Written.ToArray();
     }
 
@@ -155,10 +164,16 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         for (ulong n = Count(r.UInt(), MostPaging); n > 0; --n)
             paging.Add(r.Byte() is var p && p <= (byte)TalkPage.SummaryTurn ? (TalkPage)p
                 : throw new InvalidDataException($"Bad talk paging {p}."));
+        var sale = r.Byte() switch
+        {
+            0 => null,
+            1 => MineralSale.Decode(ref r),
+            var b => throw new InvalidDataException($"Bad talk sale {b}."),
+        };
         if (!r.AtEnd)
             throw new InvalidDataException("A talk has bytes after its end.");
         return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier, said,
-            paging.Count == 0 ? null : paging);
+            paging.Count == 0 ? null : paging, sale);
     }
 
     private static ulong Count(ulong n, int most) =>
@@ -166,5 +181,6 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
 
     public bool Same(TalkView? other) =>
         other is not null && Step == other.Step && Script == other.Script && Round == other.Round && Replier == other.Replier && Said == other.Said
-        && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies) && PagingSoFar.SequenceEqual(other.PagingSoFar);
+        && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies) && PagingSoFar.SequenceEqual(other.PagingSoFar)
+        && Equals(Sale, other.Sale);
 }

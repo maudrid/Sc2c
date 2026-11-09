@@ -169,6 +169,18 @@ public class StarbaseTests
         Assert.Equal((80u, 0u), (guest.Ship.Hold.ResourceUnits, world.Host.Ship.Hold.ResourceUnits));
         Assert.Equal(0, guest.Ship.Hold.MineralMass);
         Assert.Equal(1, world.Story!.Get("LIGHT_MINERAL_LOAD"));   // the group's count (decision 5)
+        // The talker's client is sent the hold as it was, to count it down before the commander's reply.
+        var view = world.TalkFor("guest")!;
+        Assert.Equal(new[] { 0, 0, 0, 0, 0, 0, 10, 0 }, view.Sale!.Amounts);
+        Assert.Equal(world.Story.ElementWorth.Take(8), view.Sale.Worth);
+        Assert.Equal((0u, guest.Ship.Hold.StorageCapacity, guest.Ship.Hold.BioData, 0),
+            (view.Sale.ResourceUnits, view.Sale.StorageCapacity, view.Sale.BioData, view.Sale.BombState));
+        Assert.Equal(80, view.Sale.Total);
+        Assert.Equal("guest", view.Replier);
+        Assert.True(view.Same(TalkView.Decode(view.Encode())));
+        // The next reply's lines sold nothing.
+        world.ChooseReply("guest", Reply(world, "guest", "need_info"));
+        Assert.Null(world.TalkFor("guest")!.Sale);
     }
 
     [ContentFact]

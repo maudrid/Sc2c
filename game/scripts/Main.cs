@@ -66,6 +66,7 @@ public partial class Main : Node2D
     private PlanetsideView _planetsideView = null!;
     private ReportView _reportView = null!;
     private CommView _commView = null!;
+    private SellingView _sellingView = null!;
     private StarbaseScreenView _starbaseView = null!;
     private Label _hud = null!;
     private SystemCatalog _systems = null!;
@@ -129,6 +130,16 @@ public partial class Main : Node2D
                 RpcId(1, MethodName.PageTalk, round, lines, (int)page);
         };
         AddChild(_commView);
+        // The minerals' count-down, in the status area left of the communication screen,
+        // where the orbit screen's cargo display goes (SisScreen.StatusOrigin).
+        var statusOrigin = new Vector2(12, systemScreenAt.Y + SisScreen.MenuTop)
+            - new Vector2(OrbitScreenText.MenuAreaX - 1, OrbitScreenText.MenuAreaY) * SisScreen.Scale;
+        _sellingView = new SellingView
+        {
+            Position = statusOrigin + new Vector2(MineralSelling.Area.X - UqmCanvas.SpaceWidth, MineralSelling.Area.Y) * SisScreen.Scale,
+            Visible = false,
+        };
+        AddChild(_sellingView);
         // UQM's whole screen, at the right as the system screen is.
         _starbaseView = new StarbaseScreenView
         {
@@ -281,6 +292,7 @@ public partial class Main : Node2D
                 _commView.UseContent(content, sheets, scripts, _names);
                 _starbaseView.UseContent(content, sheets);
                 _reportView.UseContent(content, sheets);
+                _sellingView.UseContent(content, sheets);
             }
         }
         catch (ContentPackageException e)
@@ -391,6 +403,8 @@ public partial class Main : Node2D
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
             if (_options.StartVisit)
                 Log(host.StartVisit());
+            if (_options.StartMinerals is { } minerals)
+                Log(host.StartWithMinerals(minerals));
             if (_options.StartDocked)
                 Log(host.StartDocked());
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
@@ -636,7 +650,8 @@ public partial class Main : Node2D
             bool inGame = _host != null || (_connected && _player.Snapshot != null);
             // No ship keys while the about screen is up (its Esc mustn't take off).
             // Nor while the lander report has them (UQM waits for its keys).
-            var keys = _about.Visible || ReportHasKeys ? ShipInput.None : ReadKeys(_player.Screen == PlayerScreen.Planetside);
+            var keys = _about.Visible || ReportHasKeys || SellingHasKeys ? ShipInput.None
+                : ReadKeys(_player.Screen == PlayerScreen.Planetside);
             var input = inGame ? _player.NextInput(keys) : ShipInput.None;
             var landing = inGame ? _player.TakeLandingRequest() : null;
             var discards = inGame ? _player.TakeDiscards() : Array.Empty<int>();
@@ -727,7 +742,7 @@ public partial class Main : Node2D
     {
         if (!_running)
             return;
-        _player?.Advance(delta, _player.Scripted || _about.Visible || ReportHasKeys ? HeldKeys.None : HeldArrows());
+        _player?.Advance(delta, _player.Scripted || _about.Visible || ReportHasKeys || SellingHasKeys ? HeldKeys.None : HeldArrows());
         _orbitView.Advance(delta);
         if (_player != null)
             _orbitView.Show(_player.OrbitMenu, _player.Taken, _player.Snapshot, _player.PlayerId, _player.OrbitMessage);
@@ -774,6 +789,23 @@ public partial class Main : Node2D
     /// <summary>Whether the lander report is up and has the player's keys (shown, and not over: <see cref="ReportView.Active"/>).</summary>
     private bool ReportHasKeys => _reportView.Visible && _reportView.Active;
 
+    /// <summary>Whether the minerals' count-down is up and has the player's keys (until it's put away).</summary>
+    private bool SellingHasKeys => _sellingView.Visible && _sellingView.Active;
+
+    // The keys down (physical), for a count-down starting while one is held: UQM's input sees it held.
+    private readonly HashSet<Key> _down = new();
+
+    public override void _Input(InputEvent e)
+    {
+        if (e is InputEventKey { Echo: false } k)
+        {
+            if (k.Pressed)
+                _down.Add(k.PhysicalKeycode);
+            else
+                _down.Remove(k.PhysicalKeycode);
+        }
+    }
+
     public override void _UnhandledInput(InputEvent e)
     {
         if (!_running)
@@ -787,6 +819,19 @@ public partial class Main : Node2D
             _taken.Up((long)up.Keycode);
             if (_reportView.Active)
                 _reportView.KeyUp(up.PhysicalKeycode);   // the key itself, whatever the layout
+            if (_sellingView.Active)
+                _sellingView.KeyUp(up.PhysicalKeycode);
+        }
+        // The minerals' count-down takes every key while it's up, as the report does (any key sells the rest at once).
+        if (e is InputEventKey sk && SellingHasKeys && !_about.Visible && sk.Keycode != Key.F1 && _player is { Scripted: false })
+        {
+            if (sk.Pressed && !sk.Echo)
+            {
+                _sellingView.KeyDown(sk.PhysicalKeycode);
+                _taken.Take((long)sk.Keycode);
+            }
+            GetViewport().SetInputAsHandled();
+            return;
         }
         if (e is InputEventKey rk && ReportHasKeys && !_about.Visible && rk.Keycode != Key.F1
                 && _player is { Scripted: false })
@@ -934,9 +979,23 @@ public partial class Main : Node2D
             _reportView.Show(reportText);
         _commView.Visible = screen == PlayerScreen.Comm;
         if (_commView.Visible)
-            _commView.Show(player);
+        {
+            // The player's own reply sold their minerals: counted down before the commander's lines (SellMinerals).
+            long linesFrom = 0;
+            if (player.Talk is { } talk)
+            {
+                if (talk.Sale is { } sale && talk.Replier == player.PlayerId && !Headless)
+                    _sellingView.Count(sale, talk.LinesKey, _down);
+                linesFrom = _sellingView.LinesFrom(talk.LinesKey);
+            }
+            _commView.Show(player, linesFrom);
+        }
         else
+        {
             _commView.Close();
+            _sellingView.Stop();
+        }
+        _sellingView.Visible = _commView.Visible && _sellingView.Active;
         _starbaseView.Visible = screen == PlayerScreen.Starbase;
         _starbaseView.Show(player.Starbase);
         if (_planetsideView.Visible)
@@ -950,8 +1009,9 @@ public partial class Main : Node2D
         if (_player != null)
             _player.Status = _status;
         _hud.Text = _player == null ? _status : string.Join("\n", _player.StatusLines());
-        // Those screens stand alone; the cargo display covers the status area, as UQM's does.
-        _hud.Visible = _firstRun == null && _contentError == null && _player?.OrbitMenu?.CargoOpen != true;
+        // Those screens stand alone; the cargo display covers the status area, as UQM's does (the
+        // Manifest's, and the minerals' count-down's).
+        _hud.Visible = _firstRun == null && _contentError == null && _player?.OrbitMenu?.CargoOpen != true && !_sellingView.Visible;
     }
 
     // ---------------------------------------------------- quit / report
@@ -963,6 +1023,8 @@ public partial class Main : Node2D
         else if (what == NotificationApplicationFocusOut)
         {
             _reportView?.LetGo();   // the keys held come up elsewhere
+            _sellingView?.LetGo();
+            _down.Clear();
             _taken.Clear();
         }
     }
