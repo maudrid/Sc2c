@@ -792,9 +792,10 @@ public partial class Main : Node2D
                 && _player is { Scripted: false })
         {
             if (rk.Pressed && !rk.Echo)
+            {
                 _reportView.KeyDown(rk.PhysicalKeycode);
-            if (rk.Pressed)
                 _taken.Take((long)rk.Keycode);
+            }
             GetViewport().SetInputAsHandled();
             return;
         }
@@ -804,11 +805,12 @@ public partial class Main : Node2D
         if ((k.Keycode == Key.F1 && !k.Echo) || (_about.Visible && k.Keycode == Key.Escape))
         {
             _about.Visible = k.Keycode == Key.F1 && !_about.Visible;
-            _taken.Take((long)k.Keycode);
+            if (!k.Echo)
+                _taken.Take((long)k.Keycode);
             GetViewport().SetInputAsHandled();
             return;
         }
-        if (_about.Visible)
+        if (_about.Visible && !k.Echo)
             _taken.Take((long)k.Keycode);
         if (_about.Visible || _player == null || _player.Scripted || _naming is not null)
             return;
@@ -882,14 +884,21 @@ public partial class Main : Node2D
         _naming.GuiInput += e =>
         {
             if (e is InputEventKey { Pressed: true, Keycode: Key.Escape })
+            {
+                _naming?.AcceptEvent();   // not the menu's Esc too
                 EndNaming();
+            }
         };
         _screens.AddChild(_naming);
         _naming.GrabFocus();
     }
 
+    // The Enter or Esc that put the name line away, held, isn't the menu's (TakenKeys).
     private void EndNaming()
     {
+        foreach (var key in new[] { Key.Enter, Key.KpEnter, Key.Escape })
+            if (Input.IsKeyPressed(key))
+                _taken.Take((long)key);
         _naming?.QueueFree();
         _naming = null;
     }

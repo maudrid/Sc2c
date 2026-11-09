@@ -131,7 +131,8 @@ public sealed class PlayerSession
     /// Shows a one-off message under the status line for a while (and logs
     /// it). One too long for a page (a lander report) is shown a page at a
     /// time (<see cref="NoticePages"/>), each numbered and up for as long as
-    /// it takes to read, so the status panel's other lines stay on the screen.
+    /// it takes to read (and for its share of <paramref name="seconds"/>, if
+    /// longer), so the status panel's other lines stay on the screen.
     /// </summary>
     public void Notify(string message, double seconds = NoticeSeconds)
     {
@@ -144,33 +145,58 @@ public sealed class PlayerSession
             double until = _time;
             for (int i = 0; i < pages.Count; ++i)
             {
-                until += Math.Max(NoticeSeconds, pages[i].Length / ReadingPace);
+                until += Math.Max(Math.Max(NoticeSeconds, pages[i].Length / ReadingPace), seconds / pages.Count);
                 _notice.Add(($"{pages[i]}\n({i + 1}/{pages.Count})", until));
             }
         }
         Log(message);
     }
 
-    /// <summary>The most characters a page of a notice holds (about ten lines of the status panel).</summary>
-    public const int NoticePageChars = 240;
+    /// <summary>
+    /// The most lines of the status panel a page of a notice takes (its
+    /// number one more): with the panel's other lines for four players,
+    /// about all the window has room for.
+    /// </summary>
+    public const int NoticePageLines = 9;
+
+    /// <summary>The fewest characters a line of the status panel holds (capitals, wrapped between words).</summary>
+    public const int NoticeLineChars = 22;
 
     /// <summary>How fast a long notice's page is taken to be read, in characters a second.</summary>
     public const double ReadingPace = 20;
 
+    /// <summary>The lines of the status panel a notice's text takes at most (<see cref="NoticeLineChars"/> to a line).</summary>
+    public static int NoticeLines(string text) =>
+        text.Split('\n').Sum(line => Math.Max(1, (line.Length + NoticeLineChars - 1) / NoticeLineChars));
+
+    private static bool FitsAPage(string text) => NoticeLines(text) <= NoticePageLines;
+
+    // How a notice too long for a page is split, in turn while a piece is still too long:
+    // between paragraphs (one blank line or more; the next one's indent kept), lines,
+    // sentences, words, and a word too long for a page into pieces that fit.
+    private static readonly (Func<string, IEnumerable<string>> Split, string Joint)[] NoticeSplits =
+    {
+        (t => Regex.Split(t, @"\n(?:[ \t]*\n)+").Select(p => p.Trim('\n')).Where(p => p.Trim() != ""), "\n\n"),
+        (t => t.Split('\n'), "\n"),
+        (t => Regex.Split(t, @"(?<=[.!?]) +"), " "),
+        (t => t.Split(' ', StringSplitOptions.RemoveEmptyEntries), " "),
+        (t => t.Chunk(NoticeLineChars * NoticePageLines).Select(c => new string(c)), ""),
+    };
+
     /// <summary>
     /// A notice's pages: the whole text if it fits on one; otherwise its
     /// paragraphs, together while they fit, one too long for a page split
-    /// between its sentences, and a sentence too long between its words.
+    /// between its lines, then its sentences, then its words.
     /// </summary>
     public static IReadOnlyList<string> NoticePages(string text)
     {
-        if (text.Length <= NoticePageChars)
+        if (FitsAPage(text))
             return new[] { text };
         var pages = new List<string>();
         var page = new StringBuilder();
         void Add(string piece, string joint)
         {
-            if (page.Length > 0 && page.Length + joint.Length + piece.Length > NoticePageChars)
+            if (page.Length > 0 && !FitsAPage($"{page}{joint}{piece}"))
             {
                 pages.Add(page.ToString());
                 page.Clear();
@@ -179,17 +205,21 @@ public sealed class PlayerSession
                 page.Append(joint);
             page.Append(piece);
         }
-        // Between paragraphs: one blank line or more (the next one's indent kept).
-        foreach (string paragraph in Regex.Split(text, @"\n(?:[ \t]*\n)+").Select(p => p.Trim('\n')).Where(p => p.Trim() != ""))
+        // Each piece of text, split at the level given if too long; the first piece joined as the text is.
+        void Split(string part, int level, string joint)
         {
-            string joint = "\n\n";
-            foreach (string sentence in paragraph.Length <= NoticePageChars ? new[] { paragraph } : Regex.Split(paragraph, @"(?<=[.!?]) +"))
-                foreach (string piece in sentence.Length <= NoticePageChars ? new[] { sentence } : sentence.Split(' '))
-                {
+            foreach (string piece in NoticeSplits[level].Split(part))
+            {
+                if (FitsAPage(piece) || level == NoticeSplits.Length - 1)
                     Add(piece, joint);
-                    joint = " ";
-                }
+                else
+                    Split(piece, level + 1, joint);
+                joint = NoticeSplits[level].Joint;
+            }
         }
+        Split(text.Replace("\r\n", "\n"), 0, "");
+        if (pages.Count == 0 && page.Length == 0)
+            return new[] { text };   // nothing but blank space
         if (page.Length > 0)
             pages.Add(page.ToString());
         return pages;

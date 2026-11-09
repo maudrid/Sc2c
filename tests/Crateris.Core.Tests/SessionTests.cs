@@ -164,43 +164,67 @@ public class SessionTests
     }
 
     [Fact]
-    public void ALongNoticeIsSplitIntoPagesBetweenParagraphsThenSentencesThenWords()
+    public void ALongNoticeIsSplitIntoPagesBetweenParagraphsThenLinesSentencesAndWords()
     {
         string Words(int n, string end = ".") => string.Join(" ", Enumerable.Range(0, n).Select(i => $"word{i % 10}")) + end;
+        void Fit(IEnumerable<string> pages) =>
+            Assert.All(pages, p => Assert.InRange(PlayerSession.NoticeLines(p), 1, PlayerSession.NoticePageLines));
         // Paragraphs share a page while they fit (however many blank lines between them; an indent kept).
-        string paragraph = Words(16);   // 111 characters
-        Assert.Equal(new[] { $"Heading:\n  {paragraph}\n\n{paragraph}", paragraph },
-            PlayerSession.NoticePages($"Heading:\n  {paragraph}\n\n\n{paragraph}\n \n\n{paragraph}\n"));
-        // One too long for a page is split at its sentences' ends.
-        string sentence = Words(20);    // 139
-        Assert.Equal(new[] { sentence, sentence, sentence }, PlayerSession.NoticePages($"{sentence} {sentence} {sentence}"));
-        // A sentence too long for a page, between its words.
+        string paragraph = Words(6);   // 41 characters: two lines
+        Assert.Equal(new[] { $"Heading:\n  {paragraph}\n\n{paragraph}\n\n{paragraph}", paragraph },
+            PlayerSession.NoticePages($"Heading:\n  {paragraph}\n\n\n{paragraph}\n \n\n{paragraph}\n\n{paragraph}\n"));
+        // One too long for a page between its lines (a line each: the commander's closing lines).
+        var lines = Enumerable.Range(1, 12).Select(i => $"line {i}").ToList();
+        Assert.Equal(new[] { string.Join("\n", lines.Take(9)), string.Join("\n", lines.Skip(9)) },
+            PlayerSession.NoticePages(string.Join("\n", lines)));
+        // A line too long for a page at its sentences' ends.
+        string sentence = Words(10);   // 60: three lines
+        var bySentence = PlayerSession.NoticePages(string.Join(" ", Enumerable.Repeat(sentence, 5)));
+        Fit(bySentence);
+        Assert.Equal(new[] { $"{sentence} {sentence} {sentence}", $"{sentence} {sentence}" }, bySentence);   // 182 characters: nine lines
+        // A sentence too long for a page between its words, and a word too long for one in pieces.
         string longest = Words(60, "");
-        var pages = PlayerSession.NoticePages(longest);
-        Assert.True(pages.Count > 1);
-        Assert.All(pages, p => Assert.InRange(p.Length, 1, PlayerSession.NoticePageChars));
-        Assert.Equal(longest, string.Join(" ", pages));
-        // A notice that fits is its own page, as it is.
+        var byWord = PlayerSession.NoticePages(longest);
+        Fit(byWord);
+        Assert.True(byWord.Count > 1);
+        Assert.Equal(longest, string.Join(" ", byWord));
+        string word = new('x', 500);
+        var byPiece = PlayerSession.NoticePages(word);
+        Fit(byPiece);
+        Assert.Equal(word, string.Concat(byPiece));
+        // Windows' line ends are lines too.
+        string big = Words(25);
+        Assert.Equal(new[] { big, big }, PlayerSession.NoticePages($"{big}\r\n\r\n{big}"));
+        // A notice that fits is its own page, as it is; so is nothing but blank space.
         Assert.Equal(new[] { "  a\n\n\nb " }, PlayerSession.NoticePages("  a\n\n\nb "));
+        string blank = new(' ', 500);
+        Assert.Equal(new[] { blank }, PlayerSession.NoticePages(blank));
     }
 
     [ContentFact]
     public void ALongNoticeIsShownAPageAtATimeForAsLongAsItTakesToRead()
     {
         var player = Player("guest");
-        string text = string.Join("\n\n", Enumerable.Range(0, 3).Select(i => new string((char)('a' + i), 200)));
-        player.Notify(text, seconds: 1);
+        string text = string.Join("\n\n", Enumerable.Range(0, 3).Select(i => new string((char)('a' + i), 150)));
         var pages = PlayerSession.NoticePages(text);
         Assert.Equal(3, pages.Count);
-        for (int i = 0; i < pages.Count; ++i)
+        void ShownInTurn(double each)
         {
-            Assert.Equal($"{pages[i]}\n({i + 1}/3)", player.Notice);
-            Assert.Contains(player.Notice, player.StatusLines());
-            player.Advance(200 / PlayerSession.ReadingPace - 0.5);
-            Assert.Equal($"{pages[i]}\n({i + 1}/3)", player.Notice);   // still being read
-            player.Advance(0.6);
+            for (int i = 0; i < pages.Count; ++i)
+            {
+                Assert.Equal($"{pages[i]}\n({i + 1}/3)", player.Notice);
+                Assert.Contains(player.Notice, player.StatusLines());
+                player.Advance(each - 0.5);
+                Assert.Equal($"{pages[i]}\n({i + 1}/3)", player.Notice);   // still being read
+                player.Advance(0.6);
+            }
+            Assert.Equal("", player.Notice);
         }
-        Assert.Equal("", player.Notice);
+        player.Notify(text, seconds: 1);
+        ShownInTurn(150 / PlayerSession.ReadingPace);
+        // Asked to show for longer: each page its share.
+        player.Notify(text, seconds: 60);
+        ShownInTurn(20);
         // A new notice puts the rest of a long one away.
         player.Notify(text);
         player.Notify("Hello");

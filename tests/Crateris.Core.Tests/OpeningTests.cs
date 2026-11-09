@@ -155,6 +155,16 @@ public class OpeningTests
         Assert.Null(other.TakeOwnReport());
         Assert.StartsWith("host's lander found it:\n" + table[0][..20], other.Notice);
         Assert.Contains(other.Notice, other.StatusLines());
+        // All of it, a page at a time.
+        var shown = new List<string>();
+        for (int i = 0; i < 1000 && other.Notice != ""; ++i, other.Advance(1))
+            if (shown.LastOrDefault() != other.Notice)
+                shown.Add(other.Notice);
+        Assert.True(shown.Count > 1);
+        string Squeezed(string s) => string.Concat(s.Where(c => !char.IsWhiteSpace(c)));
+        Assert.Equal(Squeezed("host's lander found it:\n" + table[0]),
+            Squeezed(string.Concat(shown.Select((p, i) => p[..p.LastIndexOf('\n')]))));
+        Assert.All(shown, p => Assert.InRange(PlayerSession.NoticeLines(p), 1, PlayerSession.NoticePageLines + 1));
         // Shown in orbit or planet-side once the screen is free; kept through a talk.
         finder.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport));
         Assert.Null(finder.OwnReportFor(PlayerScreen.Orbit, free: false));
