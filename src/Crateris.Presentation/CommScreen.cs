@@ -13,6 +13,7 @@
 // 1992-2002, and the UQM contributors, under the GNU GPL 2 or later.
 
 using System.Text;
+using Crateris.Core.Comm;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
 
@@ -162,44 +163,76 @@ public sealed class CommScreen
     }
 
     /// <summary>A key, as UQM's talk takes it (see the class).</summary>
-    public CommKeyResult Press(MenuKey key)
+    public CommKeyResult Press(MenuKey key) => Press(key, out _);
+
+    /// <summary>
+    /// A key, as UQM's talk takes it (see the class); <paramref name="paged"/>
+    /// what it did to the lines, for watchers to follow (null if nothing).
+    /// </summary>
+    public CommKeyResult Press(MenuKey key, out TalkPage? paged)
+    {
+        paged = PageFor(key);
+        if (paged is { } p)
+        {
+            Page(p);
+            return CommKeyResult.Used;
+        }
+        return _summary is null && !_talking && key is MenuKey.Up or MenuKey.Down or MenuKey.Select
+            ? CommKeyResult.Replies : CommKeyResult.Ignored;
+    }
+
+    /// <summary>
+    /// What a key does to the lines now: while they play, Cancel skips and
+    /// Left plays them again (UQM's Right seeks on: the pages have no
+    /// voice to seek yet); at the replies, Cancel opens the summary and
+    /// Left plays the lines again; with the summary open, Select, Cancel
+    /// and Right turn its page. Null for none.
+    /// </summary>
+    public TalkPage? PageFor(MenuKey key)
     {
         if (_summary is not null)
+            return key is MenuKey.Select or MenuKey.Cancel or MenuKey.Right ? TalkPage.SummaryTurn : null;
+        if (_talking)
+            return key switch { MenuKey.Cancel => TalkPage.Skip, MenuKey.Left => TalkPage.Replay, _ => null };
+        return key switch
         {
-            if (key is MenuKey.Select or MenuKey.Cancel or MenuKey.Right)
-            {
+            MenuKey.Cancel => TalkPage.Summary,
+            MenuKey.Left when _pages.Count > 0 => TalkPage.Replay,
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// The lines paged, by this player's key or as the replier paged them
+    /// (a watcher following, whose screen may be a moment behind): a skip
+    /// with the lines over does nothing; the summary opens over lines
+    /// still playing as if they'd been skipped; a turn with no summary open
+    /// does nothing.
+    /// </summary>
+    public void Page(TalkPage page)
+    {
+        switch (page)
+        {
+            case TalkPage.Skip when _talking:
+                EndLines();
+                break;
+            case TalkPage.Replay when _pages.Count > 0:
+                _summary = null;
+                Play(_now);
+                break;
+            case TalkPage.Summary:
+                if (_talking)
+                    EndLines();
+                _summary = CommText.Summary(_tiny, _lines);
+                _summaryPage = 0;
+                break;
+            case TalkPage.SummaryTurn when _summary is not null:
                 if (++_summaryPage >= _summary.Count)
                 {
                     _summary = null;
                     Window.Clear();
                 }
-                return CommKeyResult.Used;
-            }
-            return CommKeyResult.Ignored;
-        }
-        if (_talking)
-        {
-            if (key == MenuKey.Cancel)
-                EndLines();
-            else if (key == MenuKey.Left)
-                Play(_now);
-            else
-                return CommKeyResult.Ignored;   // UQM's Right seeks on: the pages have no voice to seek yet
-            return CommKeyResult.Used;
-        }
-        switch (key)
-        {
-            case MenuKey.Cancel:
-                _summary = CommText.Summary(_tiny, _lines);
-                _summaryPage = 0;
-                return CommKeyResult.Used;
-            case MenuKey.Left when _pages.Count > 0:
-                Play(_now);
-                return CommKeyResult.Used;
-            case MenuKey.Up or MenuKey.Down or MenuKey.Select:
-                return CommKeyResult.Replies;
-            default:
-                return CommKeyResult.Ignored;
+                break;
         }
     }
 

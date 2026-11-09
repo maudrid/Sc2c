@@ -27,8 +27,21 @@ namespace Crateris.Core.Comm;
 /// <see cref="Protocol.NoView"/> means no talk.
 /// </summary>
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
-    int Round = 0, string Replier = "", string Said = "")
+    int Round = 0, string Replier = "", string Said = "", IReadOnlyList<TalkPage>? Paging = null)
 {
+    /// <summary>The most paging a view carries (<see cref="Paging"/>): past it, the replier's paging isn't followed.</summary>
+    public const int MostPaging = 256;
+
+    /// <summary>
+    /// How the replier has paged these lines and their replies so far, in
+    /// order, for everyone watching a story talk to follow (decision 7):
+    /// empty for new lines.
+    /// </summary>
+    public IReadOnlyList<TalkPage> PagingSoFar => Paging ?? Array.Empty<TalkPage>();
+
+    /// <summary>What the lines are: a view with other lines (or another reply said, or another set of replies) is paged afresh.</summary>
+    public string LinesKey => $"{Round}\u0001{Said}\u0001{string.Join("\u0002", Lines)}";
+
     /// <summary>The view of a visit as it stands (its closing lines once it's over), or null without one.</summary>
     public static TalkView? Of(StarbaseVisit? visit)
     {
@@ -76,8 +89,9 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         }
         var talk = visit.Talk;
         string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
-        return new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round,
+        var view = new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round,
             visit.Replier.Id, said);
+        return visit.Paging is { } paging && paging.Key == view.LinesKey ? view with { Paging = paging.Pages.ToList() } : view;
     }
 
     public byte[] Encode()
@@ -94,6 +108,9 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         w.UInt((ulong)Replies.Count);
         foreach (var r in Replies)
             w.String(r);
+        w.UInt((ulong)PagingSoFar.Count);
+        foreach (var p in PagingSoFar)
+            w.Byte((byte)p);
         return w.Written.ToArray();
     }
 
@@ -118,9 +135,14 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var replies = new List<string>();
         for (ulong n = Count(r.UInt(), Talk.MaxReplies); n > 0; --n)
             replies.Add(r.String() ?? "");
+        var paging = new List<TalkPage>();
+        for (ulong n = Count(r.UInt(), MostPaging); n > 0; --n)
+            paging.Add(r.Byte() is var p && p <= (byte)TalkPage.SummaryTurn ? (TalkPage)p
+                : throw new InvalidDataException($"Bad talk paging {p}."));
         if (!r.AtEnd)
             throw new InvalidDataException("A talk has bytes after its end.");
-        return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier, said);
+        return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier, said,
+            paging.Count == 0 ? null : paging);
     }
 
     private static ulong Count(ulong n, int most) =>
@@ -128,5 +150,5 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
 
     public bool Same(TalkView? other) =>
         other is not null && Step == other.Step && Script == other.Script && Round == other.Round && Replier == other.Replier && Said == other.Said
-        && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies);
+        && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies) && PagingSoFar.SequenceEqual(other.PagingSoFar);
 }

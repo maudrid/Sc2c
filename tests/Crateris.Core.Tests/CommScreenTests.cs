@@ -183,4 +183,41 @@ public class CommScreenTests
         Assert.Contains(screen.Draw(7).Below, b => b.Kind == CommTextKind.Stamp && b.Count == 6);   // the up arrow
         Assert.Equal(0, screen.TopFor(0));   // round to the first: from the start again
     }
+
+    [ContentFact]
+    public void AWatcherFollowsTheRepliersPagingEvenAMomentBehind()
+    {
+        // The replier's keys say what they did to the lines.
+        var replier = Starbase(out _);
+        replier.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
+        replier.Update(10);
+        Assert.Equal(CommKeyResult.Used, replier.Press(MenuKey.Cancel, out var paged));
+        Assert.Equal(TalkPage.Skip, paged);
+        Assert.Equal(CommKeyResult.Used, replier.Press(MenuKey.Cancel, out paged));
+        Assert.Equal(TalkPage.Summary, paged);
+        Assert.Equal(CommKeyResult.Used, replier.Press(MenuKey.Right, out paged));
+        Assert.Equal(TalkPage.SummaryTurn, paged);
+        while (replier.SummaryOpen)
+            replier.Page(TalkPage.SummaryTurn);
+        Assert.Equal(CommKeyResult.Replies, replier.Press(MenuKey.Down, out paged));   // the replies' key: no paging
+        Assert.Null(paged);
+        // A watcher still playing the lines when the summary opened: they end, and the summary opens.
+        var watcher = Starbase(out _);
+        watcher.Show(new[] { First, Second }, "", new[] { "Hello." }, 1, 0);
+        watcher.Update(10);
+        watcher.Page(TalkPage.Summary);
+        Assert.False(watcher.Talking);
+        Assert.True(watcher.SummaryOpen);
+        // Turned past its last page: closed; a turn with none open, or a skip with the lines over, does nothing.
+        while (watcher.SummaryOpen)
+            watcher.Page(TalkPage.SummaryTurn);
+        watcher.Page(TalkPage.SummaryTurn);
+        watcher.Page(TalkPage.Skip);
+        Assert.False(watcher.Talking || watcher.SummaryOpen);
+        // Played again: from the start.
+        watcher.Page(TalkPage.Replay);
+        Assert.True(watcher.Talking);
+        watcher.Page(TalkPage.Skip);
+        Assert.False(watcher.Talking);
+    }
 }

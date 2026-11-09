@@ -73,8 +73,11 @@ public static class Protocol
     /// screen drawn afresh.
     /// 16: a drawing can redraw the shipyard's blueprint (ScreenOpKind.Blueprint,
     /// for minerals another player gives while it's open).
+    /// 17: the replier of a story talk sends how they page it (TalkPage:
+    /// skipped, played again, the summary), and the talk sent to everyone
+    /// carries it for watchers to follow (decision 7).
     /// </summary>
-    public const int Version = 16;
+    public const int Version = 17;
     public const int DefaultPort = 24642;
 
     /// <summary>

@@ -596,6 +596,27 @@ public sealed class GameWorld
         return chosen;
     }
 
+    /// <summary>
+    /// The replier of the story talk paged its lines on their screen
+    /// (skipped them, played them again, the summary): kept with the talk
+    /// as it's shown, for everyone watching to follow (decision 7). False,
+    /// changing nothing, from anyone else, in an ordinary talk (no one
+    /// watches it), for a set of replies already answered, or past
+    /// <see cref="TalkView.MostPaging"/>.
+    /// </summary>
+    public bool PageTalk(string id, int round, TalkPage page)
+    {
+        if (Visit is not { Story: true } visit || visit.Replier.Id != id || round != visit.Round
+                || !Enum.IsDefined(page) || TalkView.Of(visit) is not { } view)
+            return false;
+        if (visit.Paging?.Key != view.LinesKey)
+            visit.Paging = new TalkPaging(view.LinesKey, new List<TalkPage>());
+        if (visit.Paging.Pages.Count >= TalkView.MostPaging)
+            return false;
+        visit.Paging.Pages.Add(page);
+        return true;
+    }
+
     /// <summary>What a docked player's request to talk to the commander came to.</summary>
     public enum CommanderTalk
     {

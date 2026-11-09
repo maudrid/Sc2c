@@ -112,6 +112,9 @@ public sealed class StarbaseVisit
     /// </summary>
     public Player Replier { get; internal set; }
 
+    /// <summary>How the replier has paged the current lines (decision 7): what watchers follow; null before any.</summary>
+    public Comm.TalkPaging? Paging { get; internal set; }
+
     /// <summary>Whether the visit is still in the opening (before the menu): one at a time, taken back if its starter leaves.</summary>
     public bool Opening => Step < VisitStep.Menu;
 
