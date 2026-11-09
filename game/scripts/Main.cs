@@ -775,13 +775,15 @@ public partial class Main : Node2D
             return;
         // The lander report takes every key while it's up, going down and
         // coming up (UQM waits for any key), but the about screen's.
-        if (e is InputEventKey rk && !rk.Echo && ReportHasKeys && !_about.Visible && rk.Keycode != Key.F1
+        // A key coming up goes to a running report wherever it went down, so it's never left
+        // held (the report would wait for it for ever); a key held down repeating goes nowhere.
+        if (e is InputEventKey { Pressed: false } up && _reportView.Active)
+            _reportView.KeyUp(up.Keycode);
+        if (e is InputEventKey rk && ReportHasKeys && !_about.Visible && rk.Keycode != Key.F1
                 && _player is { Scripted: false })
         {
-            if (rk.Pressed)
-                _reportView.KeyDown();
-            else
-                _reportView.KeyUp();
+            if (rk.Pressed && !rk.Echo)
+                _reportView.KeyDown(rk.Keycode);
             GetViewport().SetInputAsHandled();
             return;
         }
@@ -892,7 +894,7 @@ public partial class Main : Node2D
         _reportView.Visible = screen is PlayerScreen.Planetside or PlayerScreen.Orbit;
         if (Headless)
             player.TakeOwnReport();   // nothing to show it on (the session has logged it)
-        else if (_reportView.Ready && player.TakeOwnReport() is { } reportText)
+        else if (_reportView.Visible && _reportView.Ready && player.TakeOwnReport() is { } reportText)   // kept till then
             _reportView.Show(reportText);
         _commView.Visible = screen == PlayerScreen.Comm;
         if (_commView.Visible)

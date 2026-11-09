@@ -75,10 +75,12 @@ public sealed class DiscoveryReport
     private readonly string _endText;
     private readonly IEnumerator<long> _run;
     private readonly List<(long At, UqmDraw Call)> _drawn = new();
-    private readonly Queue<(long At, bool Down)> _keys = new();
+    private readonly Queue<(long At, int Key, bool Down)> _keys = new();
     private long _clock, _wake;
     private bool _finished;
-    private int _held;
+    // How many times each key is held (VControl counts each control's own: a key forgotten by
+    // FlushInput coming up lowers nothing, not another key's count).
+    private readonly Dictionary<int, int> _held = new();
     private bool _started;   // VCONTROL_STARTBIT: gone down since the last look
     private bool _result;    // the last wait's
 
@@ -121,11 +123,11 @@ public sealed class DiscoveryReport
     /// <summary>Whether a page is up, waiting for a key (the next page, or the report put away).</summary>
     public bool Waiting { get; private set; }
 
-    /// <summary>A key went down at <paramref name="at"/> (keys come in the order they happen).</summary>
-    public void KeyDown(long at) => _keys.Enqueue((at, true));
+    /// <summary>Key <paramref name="key"/> went down at <paramref name="at"/> (keys come in the order they happen).</summary>
+    public void KeyDown(long at, int key = 0) => _keys.Enqueue((at, key, true));
 
-    /// <summary>A key came up at <paramref name="at"/>.</summary>
-    public void KeyUp(long at) => _keys.Enqueue((at, false));
+    /// <summary>Key <paramref name="key"/> came up at <paramref name="at"/>: one not held (forgotten, or held before the report) changes nothing.</summary>
+    public void KeyUp(long at, int key = 0) => _keys.Enqueue((at, key, false));
 
     /// <summary>Runs the report up to <paramref name="now"/>: what it drew meanwhile, each call at its time.</summary>
     public List<(long At, UqmDraw Call)> Run(long now)
@@ -172,14 +174,19 @@ public sealed class DiscoveryReport
     {
         while (_keys.Count > 0 && _keys.Peek().At <= _clock)
         {
-            var (_, down) = _keys.Dequeue();
+            var (_, key, down) = _keys.Dequeue();
             if (down)
             {
-                ++_held;
+                _held[key] = _held.GetValueOrDefault(key) + 1;
                 _started = true;
             }
-            else if (_held > 0)
-                --_held;
+            else if (_held.TryGetValue(key, out int n))
+            {
+                if (n > 1)
+                    _held[key] = n - 1;
+                else
+                    _held.Remove(key);
+            }
         }
     }
 
@@ -187,7 +194,7 @@ public sealed class DiscoveryReport
     private bool AnyButtonPress()
     {
         KeyEvents();
-        bool pressed = _held > 0 || _started;
+        bool pressed = _held.Count > 0 || _started;
         _started = false;
         return pressed;
     }
@@ -196,7 +203,7 @@ public sealed class DiscoveryReport
     private void FlushInput()
     {
         KeyEvents();
-        _held = 0;
+        _held.Clear();
         _started = false;
     }
 

@@ -199,6 +199,29 @@ public class DiscoveryReportTests
         Assert.Empty(report.Run(9000));
     }
 
+    [Fact]
+    public void AKeyForgottenComingUpDoesntLetGoOfAnotherHeld()
+    {
+        const int Up = 1, Space = 2;
+        var report = new DiscoveryReport(Canvas(), "Short.", "END", 0);
+        report.KeyDown(0, Up);                // held as the report starts: forgotten (FlushInput)
+        report.Run(4000);
+        Assert.True(report.Waiting);
+        report.KeyDown(5000, Space);
+        report.Run(5100);
+        Assert.True(report.Restored);
+        report.KeyUp(5200, Up);               // the forgotten key: Space is still down
+        report.Run(5300);
+        Assert.False(report.Done);
+        report.KeyUp(5400, Space);
+        report.Run(5500);
+        Assert.True(report.Done);
+    }
+
+    [Fact]
+    public void TheEndOfPageStringIsTheOneRecorded() =>
+        Assert.Equal(Root.GetProperty("end_string").GetInt32(), DiscoveryReport.EndPageString);
+
     // ------------------------------------------------------------ the picture
 
     [ContentFact]

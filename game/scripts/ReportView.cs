@@ -101,10 +101,10 @@ public partial class ReportView : Node2D
     }
 
     /// <summary>A key went down (any key: UQM's AnyButtonPress).</summary>
-    public void KeyDown() => _report?.KeyDown(Now);
+    public void KeyDown(Key key) => _report?.KeyDown(Now, (int)key);
 
-    /// <summary>A key came up.</summary>
-    public void KeyUp() => _report?.KeyUp(Now);
+    /// <summary>A key came up (sent whenever a report is running, wherever the key went down, so none is left held).</summary>
+    public void KeyUp(Key key) => _report?.KeyUp(Now, (int)key);
 
     private void Fail(Exception e)
     {
