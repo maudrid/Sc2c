@@ -783,7 +783,7 @@ public partial class Main : Node2D
         return input;
     }
 
-    // A key held for the game: not one taken by the about screen or the report, still held since.
+    // A key held for the game: not one taken by another screen (TakenKeys) and held since.
     private bool Held(Key key) => Input.IsKeyPressed(key) && _taken.Free((long)key);
 
     /// <summary>Whether the lander report is up and has the player's keys (shown, and not over: <see cref="ReportView.Active"/>).</summary>
@@ -799,9 +799,12 @@ public partial class Main : Node2D
     {
         if (e is InputEventKey { Echo: false } k)
         {
-            // Under the about screen, every key going down is taken, its buttons' keys too (the GUI has them first).
+            // Under the about screen, every key going down is taken, its buttons' keys too (the GUI has
+            // them first); and a key coming up is let go here, before a button can keep it.
             if (k.Pressed && _about.Visible)
                 _taken.Take((long)k.Keycode);
+            if (!k.Pressed)
+                _taken.Up((long)k.Keycode);
             if (k.Pressed)
                 _down[k.PhysicalKeycode] = k.Keycode;
             else
@@ -857,8 +860,6 @@ public partial class Main : Node2D
             GetViewport().SetInputAsHandled();
             return;
         }
-        if (_about.Visible && !k.Echo)
-            _taken.Take((long)k.Keycode);
         if (_about.Visible || _player == null || _player.Scripted || _naming is not null)
             return;
         // Held since it went down into the about screen or the report (its Esc mustn't leave orbit).
@@ -992,7 +993,7 @@ public partial class Main : Node2D
                 {
                     // A key held as it starts is the count-down's, as a key pressed then would be (TakeHeld),
                     // and the game's again only once it's come up; taken as it's to start (if it can't be drawn, till they come up all the same).
-                    if (!_sellingView.Active && _sellingView.CanCount(talk.LinesKey))
+                    if (_sellingView.CanCount(talk.LinesKey))
                     {
                         var seen = _taken.TakeHeld(_down.Select(d => ((long)d.Key, (long)d.Value)),
                             _about.Visible || player.Scripted, (long)Key.F1);
