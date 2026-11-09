@@ -86,9 +86,12 @@ public class StarbaseScreensTests
 
     /// <summary>
     /// The port's screens, moved step by step as a scenario's steps moved
-    /// UQM's: the menus take the keys and list what to draw, the starbase
-    /// turns and the power lines change on the clock, and the screen draws
-    /// it all over what it drew before.
+    /// UQM's, as the game moves them: the menus take the keys and list
+    /// what to draw, the host's drawing goes as its message (each key's
+    /// with the ship as the key left it, <see cref="StarbaseDrawing"/>),
+    /// and the client's picture (<see cref="StarbasePicture"/>) draws it
+    /// over what it drew before, the starbase turning and the power lines
+    /// changing on its clock.
     /// </summary>
     private sealed class Replay
     {
@@ -98,10 +101,9 @@ public class StarbaseScreensTests
         private readonly OutfitTests.TestShip _ship;
         private readonly StoryState _story;
         private readonly Outfitting _rules;
+        private readonly List<UqmDraw> _drawn = new();
         private OutfitMenu? _outfit;
         private ShipyardMenu? _yard;
-        private StarbaseTurning? _turning;
-        private PowerLines? _lines;
         private int _baseState;
         private long _now;
         private On _on;
@@ -111,9 +113,13 @@ public class StarbaseScreensTests
             _sc = sc;
             (_ship, _story) = OutfitTests.Start(sc);
             _rules = new Outfitting(_ship, _story);
+            Picture = new StarbasePicture(Canvas(), Placeholder, FrameCount(StarbaseScreens.StarbaseSheet),
+                Root.GetProperty("hangar_maps").GetInt32(), s => SisState.Of(s, "", ""));
         }
 
-        public StarbaseScreens Screens { get; } = new(Canvas(), Placeholder);
+        public StarbasePicture Picture { get; }
+
+        public StarbaseScreens Screens => Picture.Screens;
 
         /// <summary>Whether a screen is open (outfitting or the shipyard left: none, until the next opens).</summary>
         public bool Open => _on != On.Nothing;
@@ -121,9 +127,9 @@ public class StarbaseScreensTests
         /// <summary>The step's drawing: the calls it added.</summary>
         public List<UqmDraw> Step(string step)
         {
-            int from = Screens.Drawn.Count;
+            _drawn.Clear();
             Run(step);
-            return Screens.Drawn.Skip(from).ToList();
+            return new List<UqmDraw>(_drawn);
         }
 
         private void Run(string step)
@@ -131,10 +137,8 @@ public class StarbaseScreensTests
             if (step.StartsWith("base:"))
             {
                 _baseState = int.Parse(step[5..]);
-                _turning = new StarbaseTurning(FrameCount(StarbaseScreens.StarbaseSheet));
-                _turning.Open(_now);
                 _on = On.Base;
-                Screens.OpenMenu(_baseState);
+                Send(null, new() { new(ScreenOpKind.MenuOpened, _baseState) });
                 return;
             }
             if (step == "outfit")
@@ -142,16 +146,14 @@ public class StarbaseScreensTests
                 _outfit = new OutfitMenu(_rules, _rules.Apply);
                 _outfit.Open();
                 _on = On.Outfit;
-                Draw(_outfit.TakeOps());
+                Send(Ship(), _outfit.TakeOps());
                 return;
             }
             if (step == "shipyard")
             {
                 _yard = new ShipyardMenu(_rules, _rules.Apply);
-                _lines = new PowerLines(Root.GetProperty("hangar_maps").GetInt32());
-                _lines.Open(_now);
                 _on = On.Yard;
-                Draw(_yard.TakeOps());
+                Send(Ship(), _yard.TakeOps());
                 return;
             }
             MenuKey? key = null;
@@ -180,29 +182,28 @@ public class StarbaseScreensTests
                     else if (key is MenuKey.Right or MenuKey.Down)
                         _baseState = (_baseState + 1) % 4;
                     if (_baseState != was)
-                        Screens.MoveMenu(was, _baseState);
-                    if (_turning!.Pass(_now))
-                        Screens.Turn(_turning.Frame);
+                        Send(null, new() { new(ScreenOpKind.MenuMoved, was, _baseState) });
+                    _drawn.AddRange(Picture.Tick(_now));
                     break;
                 case On.Outfit when key is { } k:
                     if (_outfit!.Key(k) == OutfitOutcome.Left)
                         _on = On.Nothing;
-                    Draw(_outfit.TakeOps());
+                    Send(Ship(), _outfit.TakeOps());
                     break;
                 case On.Yard:
-                    if (_lines!.Frame(_now))   // on_input_frame, then the screen
-                        Screens.PowerLines(_lines.Map);
+                    _drawn.AddRange(Picture.Tick(_now));   // on_input_frame, then the screen
                     if (key is { } y && _yard!.Key(y) == OutfitOutcome.Left)
                         _on = On.Nothing;
-                    Draw(_yard!.TakeOps());
+                    Send(Ship(), _yard!.TakeOps());
                     break;
             }
         }
 
-        private void Draw(List<ScreenOp> ops)
+        // The host's drawing for a key, through its message, drawn on the client's picture.
+        private void Send(StarbaseShip? ship, List<ScreenOp> ops)
         {
-            Screens.Ship = Sis();
-            Screens.Apply(ops);
+            var sent = StarbaseDrawing.Decode(StarbaseDrawing.Encode(new[] { new StarbaseDrawing(ship, ops) }));
+            _drawn.AddRange(Picture.Draw(sent, _now));
         }
 
         /// <summary>Where the flashing highlight is now (none on the starbase's menu).</summary>
@@ -213,17 +214,18 @@ public class StarbaseScreensTests
             _ => null,
         };
 
-        // The flagship and the prices as the screens are given them.
-        private SisState Sis()
+        // The flagship and the prices as the host sends them with a drawing.
+        private StarbaseShip Ship()
         {
             var ship = _sc.GetProperty("ship");
             var state = _sc.GetProperty("state");
             int State(string f) => state.TryGetProperty(f, out var v) ? v.GetInt32() : 0;
-            return new SisState(_ship.Modules.ModuleSlots.ToArray(), _ship.Modules.DriveSlots.ToArray(),
+            return new StarbaseShip(_ship.Modules.ModuleSlots.ToArray(), _ship.Modules.DriveSlots.ToArray(),
                 _ship.Modules.JetSlots.ToArray(), _ship.Crew, _ship.Fuel, _ship.Landers, _ship.ResourceUnits, _ship.MineralMass,
                 ship.GetProperty("ship").GetString()!, ship.GetProperty("captain").GetString()!, State("CHMMR_BOMB_STATE"),
                 State("LANDER_SHIELDS"), _story.FuelCost, _story.CrewCost,
-                m => OutfitTests.Rules.Modules.Contains(ShipModules.Names[m]) ? _story.ModuleCost(ShipModules.Names[m]) : 0);
+                ShipModules.Names.Select(m => OutfitTests.Rules.Modules.Contains(m) ? _story.ModuleCost(m) : 0).ToArray(),
+                OutfitTests.Rules.ModuleCostScale);
         }
     }
 

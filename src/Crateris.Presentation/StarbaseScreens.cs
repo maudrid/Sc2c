@@ -38,7 +38,18 @@ namespace Crateris.Presentation;
 /// </summary>
 public sealed record SisState(byte[] Modules, byte[] Drives, byte[] Jets, int Crew, uint Fuel, int Landers, uint ResUnits,
     int MineralMass, string ShipName, string Captain, int BombState, int LanderShields, int FuelCost, int CrewCost,
-    Func<int, int> ModuleCost, int ModuleCostScale = 50);
+    Func<int, int> ModuleCost, int ModuleCostScale = 50)
+{
+    /// <summary>
+    /// The ship as the host sent it with a drawing, its names null for
+    /// the flagship's UQM names (<paramref name="flagshipName"/> and
+    /// <paramref name="commanderName"/>, NAMING_STRING_BASE + 2 and + 3).
+    /// </summary>
+    public static SisState Of(StarbaseShip s, string flagshipName, string commanderName) =>
+        new(s.Modules, s.Drives, s.Jets, s.Crew, s.Fuel, s.Landers, s.ResourceUnits, s.MineralMass,
+            s.ShipName ?? flagshipName, s.Captain ?? commanderName, s.BombState, s.LanderShields, s.FuelCost, s.CrewCost,
+            m => m >= 0 && m < s.ModuleCosts.Length ? s.ModuleCosts[m] : 0, s.ModuleCostScale);
+}
 
 /// <summary>
 /// The allied starbase's screens as UQM's PC version draws them: each
@@ -238,6 +249,12 @@ public sealed class StarbaseScreens
                 break;
             case ScreenOpKind.CaptainsName:
                 CaptainsName();
+                break;
+            case ScreenOpKind.MenuOpened:
+                OpenMenu(op.A);
+                break;
+            case ScreenOpKind.MenuMoved:
+                MoveMenu(op.A, op.B);
                 break;
         }
     }

@@ -66,8 +66,13 @@ public static class Protocol
     /// 14: the shipyard's screen as UQM's keys move round it (stage 3a,
     /// item 11): StarbaseView carries its mode (the menu, the cursor on the
     /// flagship or the hangar's slots, the crew) and the cursor.
+    /// 15: the starbase's screens drawn (stage 3a, item 11): the host
+    /// sends a docked player what their screen draws (StarbaseDrawing, a
+    /// reliable message before their StarbaseView), each key's with the
+    /// ship as that key left it; a client without a picture asks for the
+    /// screen drawn afresh.
     /// </summary>
-    public const int Version = 14;
+    public const int Version = 15;
     public const int DefaultPort = 24642;
 
     /// <summary>

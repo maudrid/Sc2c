@@ -27,6 +27,9 @@ public enum PlayerScreen
 
     /// <summary>The communication screen: a talk this player is in, or watches in a story pause (<see cref="PlayerSession.TalkShown"/>).</summary>
     Comm,
+
+    /// <summary>Docked at the allied starbase: its menu, outfitting or the shipyard (<see cref="PlayerSession.Starbase"/>).</summary>
+    Starbase,
 }
 
 /// <summary>
@@ -718,6 +721,8 @@ public sealed class PlayerSession
             var me = Me;
             if (me == null || me.Activity == Activity.Hyperspace || Entering)
                 return PlayerScreen.Hyperspace;
+            if (me.Activity == Activity.Starbase && Starbase is { Screen: not StarbaseScreen.Talk })
+                return PlayerScreen.Starbase;
             return me.Activity switch
             {
                 Activity.Orbit => PlayerScreen.Orbit,
@@ -829,7 +834,7 @@ public sealed class PlayerSession
     private static string Menu(IReadOnlyList<string> items, int at) =>
         string.Join("  ", items.Select((x, i) => i == at ? $"[{x}]" : x));
 
-    // The starbase's screens in words, until item 11 draws them.
+    // The starbase's screens in words beside their picture: where the cursor is, and the keys.
     private IEnumerable<string> StarbaseLines(StarbaseView sb)
     {
         var me = Me!;

@@ -386,6 +386,7 @@ public class StarbaseTests
         var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count);
         me.Observe(world.Snapshot());
         me.ShowStarbase(world.StarbaseFor("host"));
+        Assert.Equal(PlayerScreen.Starbase, me.Screen);   // the starbase's screens, drawn
         me.PressMenu(MenuKey.Down);
         me.PressMenu(MenuKey.Select);
         Assert.Equal(new[] { MenuKey.Down, MenuKey.Select }, me.TakeStarbaseKeys());
@@ -571,5 +572,125 @@ public class StarbaseTests
         Assert.Equal(OutfitOutcome.Left, yard.Key(MenuKey.Select));
         Assert.Equal(OutfitOutcome.Left, new ShipyardMenu(YardRules(), _ => true).Key(MenuKey.Cancel));
         Assert.Equal(new OutfitAction[] { new HireCrew(), new DismissCrew() }, acts);
+    }
+
+    // What the host has drawn for a player since the last take, through its message as the client gets it.
+    private static List<StarbaseDrawing> Drawn(GameWorld world, string id = "host") =>
+        world.TakeStarbaseDrawing(id) is { Count: > 0 } d ? StarbaseDrawing.Decode(StarbaseDrawing.Encode(d)) : new();
+
+    [ContentFact]
+    public void TheHostSendsEachKeysDrawingWithTheShipAsThatKeyLeftIt()
+    {
+        var world = Allied();
+        var host = Docked(world);
+        host.Ship.Hold.ResourceUnits = 10000;
+        // Docked: DoStarBase drawn afresh, the drawing not reading the ship.
+        var d = Drawn(world).Single();
+        Assert.Null(d.Ship);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuOpened, StarbaseMenu.TalkCommander) }, d.Ops);
+        Assert.Empty(Drawn(world));   // taken: nothing more
+        Keys(world, "host", MenuKey.Down);
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuMoved, StarbaseMenu.TalkCommander, StarbaseMenu.OutfitStarship) },
+            Drawn(world).Single().Ops);
+        // Outfitting opens, drawn with the ship: the flagship's UQM names are the client's to read.
+        Keys(world, "host", MenuKey.Select);
+        d = Drawn(world).Single();
+        Assert.Equal(ScreenOpKind.OutfitOpened, d.Ops[0].Kind);
+        Assert.Equal(host.Ship.Modules.ModuleSlots, d.Ship!.Modules);
+        Assert.Equal((null, null, 10000u), (d.Ship.ShipName, d.Ship.Captain, d.Ship.ResourceUnits));
+        Assert.Equal(world.Story!.ModuleCost("FUEL_TANK"), d.Ship.ModuleCosts[ShipModules.FuelTank]);
+        // Two units of fuel bought before the drawing is taken: each drawn with its own ship.
+        uint fuel = host.Ship.Flight.Fuel;
+        Keys(world, "host", MenuKey.Select, MenuKey.Up, MenuKey.Up);
+        var bought = Drawn(world);
+        Assert.Equal(2, bought.Count);
+        Assert.Equal(new[] { fuel + 100, fuel + 200 }, bought.Select(b => b.Ship!.Fuel));
+        Assert.All(bought, b => Assert.Equal(new[] { ScreenOpKind.Gauges, ScreenOpKind.RedistributeFuel }, b.Ops.Select(o => o.Kind)));
+        // Renamed: the names drawn, the new one sent.
+        world.Rename("host", "Rocinante", null);
+        d = Drawn(world).Single();
+        Assert.Equal(("Rocinante", (string?)null), (d.Ship!.ShipName, d.Ship.Captain));
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.FlagshipName) }, d.Ops);
+        // Leaving outfitting: back on the menu, drawn afresh on its cursor.
+        Keys(world, "host", MenuKey.Cancel, MenuKey.Cancel);
+        Assert.Equal(new ScreenOp(ScreenOpKind.MenuOpened, StarbaseMenu.OutfitStarship), Drawn(world).Last().Ops.Last());
+    }
+
+    [ContentFact]
+    public void AGuestsDrawingGoesToItsPeerAndALostPictureIsDrawnAfresh()
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems, TestContent.Shapes);
+        var world = host.World;
+        world.TalkLibrary = Library.Value;
+        world.DialogueLocks = DialogueLocks.Load(DataDir);
+        host.Hello(1, "guest", "Guest", Protocol.Version);
+        world.UndockShown("guest");
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        world.PutInOrbit("guest", Sol, Earth, Luna);
+        world.Find("guest")!.Ship.Ip!.ReturnFromOrbit();
+        Assert.Empty(host.StarbaseDrawings());   // not docked: nothing
+        world.VisitStarbase(world.Find("guest")!);
+        var sent = host.StarbaseDrawings().Single();
+        Assert.Equal(1, sent.Peer);
+        Assert.Equal(ScreenOpKind.MenuOpened, StarbaseDrawing.Decode(sent.Data).Single().Ops.Single().Kind);
+        Assert.Empty(host.HostStarbaseDrawing());   // the host isn't docked
+        host.GuestStarbaseKey(1, (int)MenuKey.Down);
+        host.GuestStarbaseKey(1, (int)MenuKey.Select);
+        host.GuestStarbaseKey(1, (int)MenuKey.Down);   // outfitting's menu on Modules
+        var drawn = StarbaseDrawing.Decode(host.StarbaseDrawings().Single().Data);
+        Assert.Equal(new[] { ScreenOpKind.MenuMoved, ScreenOpKind.OutfitOpened, ScreenOpKind.MenuStrings },
+            drawn.Select(x => x.Ops[0].Kind));
+        // A guest's captain is the name they joined with; its escort's name the host's setting.
+        Assert.Equal(("Guest", world.Find("guest")!.Ship.Name), (drawn[1].Ship!.Captain, drawn[1].Ship!.ShipName));
+        // The client lost its picture: the screen drawn afresh, as it stands (outfitting, on Modules).
+        host.GuestStarbaseRedraw(1);
+        drawn = StarbaseDrawing.Decode(host.StarbaseDrawings().Single().Data);
+        Assert.Equal(new[] { ScreenOpKind.OutfitOpened, ScreenOpKind.MenuStrings }, drawn.Single().Ops.Select(o => o.Kind));
+        Assert.Equal(OutfitMenu.Modules, drawn.Single().Ops[1].B);
+        // Drawing no one takes is dropped past its bound, and drawn afresh when next taken.
+        for (int i = 0; i < StarbaseMenu.MostKept + 10; ++i)
+            world.StarbaseKey("guest", MenuKey.Down, out _);
+        drawn = StarbaseDrawing.Decode(host.StarbaseDrawings().Single().Data);
+        Assert.Equal(ScreenOpKind.OutfitOpened, drawn.Single().Ops[0].Kind);
+        Assert.Empty(host.StarbaseDrawings());
+    }
+
+    [Fact]
+    public void TheStarbaseDrawingMessageRoundTripsAndBadOnesAreRefused()
+    {
+        var ship = new StarbaseShip(new byte[ShipModules.ModuleSlotCount], new byte[ShipModules.DriveSlotCount],
+            new byte[ShipModules.JetSlotCount], 31, 1234, 2, 4321, 77, "Zoë's", null, 3, 9, 20, 3,
+            Enumerable.Range(0, ShipModules.Modules).ToArray(), 50);
+        var ops = new List<ScreenOp>
+        {
+            new(ScreenOpKind.Gauges, ScreenOp.Undefined, -150, 9), new(ScreenOpKind.ShipPiece, ShipModules.FuelTank, 15),
+            new(ScreenOpKind.CrewPoint, 1, 30), new(ScreenOpKind.MenuMoved, 3, 0),
+        };
+        var drawings = new[] { new StarbaseDrawing(ship, ops), new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 2) }) };
+        var back = StarbaseDrawing.Decode(StarbaseDrawing.Encode(drawings));
+        Assert.Equal(ops, back[0].Ops);
+        Assert.Equal(ship.ModuleCosts, back[0].Ship!.ModuleCosts);
+        Assert.Equal(ship with { Modules = back[0].Ship!.Modules, Drives = back[0].Ship!.Drives, Jets = back[0].Ship!.Jets,
+            ModuleCosts = back[0].Ship!.ModuleCosts }, back[0].Ship);
+        Assert.Null(back[1].Ship);
+        Assert.Empty(StarbaseDrawing.Decode(StarbaseDrawing.Encode(Array.Empty<StarbaseDrawing>())));
+        void Bad(StarbaseDrawing d) =>
+            Assert.Throws<InvalidDataException>(() => StarbaseDrawing.Decode(StarbaseDrawing.Encode(new[] { d })));
+        // Operations the screens can't draw: no such kind, a slot past its row, a menu's entry past its end.
+        Bad(new StarbaseDrawing(null, new[] { new ScreenOp((ScreenOpKind)99) }));
+        Bad(new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.ShipPiece, ShipModules.TurningJets, 8) }));
+        Bad(new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.ModuleStrings, ShipModules.EmptyLander + 1) }));
+        Bad(new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, 3) }));
+        Bad(new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.MenuOpened, 4) }));
+        Bad(new StarbaseDrawing(null, new[] { new ScreenOp(ScreenOpKind.CrewPoint, 2, 0) }));
+        Bad(new StarbaseDrawing(null, Enumerable.Repeat(new ScreenOp(ScreenOpKind.FlagshipStats), 65).ToList()));
+        // A ship the screens can't draw: a slot that's no piece, more landers than there's room for.
+        var slots = new byte[ShipModules.ModuleSlotCount];
+        slots[3] = ShipModules.EmptyLander + 1;
+        Bad(new StarbaseDrawing(ship with { Modules = slots }, ops));
+        Bad(new StarbaseDrawing(ship with { Landers = ShipHold.MaxLanders + 1 }, ops));
+        var bytes = StarbaseDrawing.Encode(drawings);
+        Assert.Throws<InvalidDataException>(() => StarbaseDrawing.Decode(bytes.Append((byte)0).ToArray()));
+        Assert.Throws<InvalidDataException>(() => StarbaseDrawing.Decode(bytes[..^1]));
     }
 }

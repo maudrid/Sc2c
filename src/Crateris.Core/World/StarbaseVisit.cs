@@ -278,6 +278,7 @@ public sealed class StarbaseVisit
         Talk = null;
         Menu ??= new Starbase.StarbaseMenu();
         Menu.Screen = Starbase.StarbaseScreen.Menu;
+        Menu.Opened();
     }
 
     /// <summary>The docked player's screens (the menu, outfitting, the shipyard), once docked.</summary>

@@ -6,7 +6,8 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 //
-// Follows The Ur-Quan Masters 0.8.0 (src/uqm/outfit.c's DoOutfit,
+// Follows The Ur-Quan Masters 0.8.0 (src/uqm/starbase.c's DoStarBase;
+// outfit.c's DoOutfit,
 // DoInstallModule and ChangeFuelQuantity; shipyard.c's DoShipyard and
 // DoModifyShips; the drawing each does, and where), Copyright Paul Reiche,
 // Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM contributors,
@@ -68,6 +69,16 @@ public enum ScreenOpKind : byte
 
     /// <summary>DrawCaptainsName: the captain's name in the status area (renamed).</summary>
     CaptainsName,
+
+    /// <summary>
+    /// DoStarBase's first drawing (docked, or back from the commander,
+    /// outfitting or the shipyard): the screen cleared, the starbase's
+    /// frame 0, the entries with <see cref="ScreenOp.A"/> lit.
+    /// </summary>
+    MenuOpened,
+
+    /// <summary>DoStarBase's cursor moved: DrawBaseStateStrings (<see cref="ScreenOp.A"/>, <see cref="ScreenOp.B"/>).</summary>
+    MenuMoved,
 }
 
 /// <summary>

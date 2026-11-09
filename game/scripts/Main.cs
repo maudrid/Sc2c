@@ -65,6 +65,7 @@ public partial class Main : Node2D
     private OrbitView _orbitView = null!;
     private PlanetsideView _planetsideView = null!;
     private CommView _commView = null!;
+    private StarbaseScreenView _starbaseView = null!;
     private Label _hud = null!;
     private SystemCatalog _systems = null!;
 
@@ -110,6 +111,20 @@ public partial class Main : Node2D
         AddChild(_planetsideView);
         _commView = new CommView { Position = systemScreenAt, Visible = false };
         AddChild(_commView);
+        // UQM's whole screen, at the right as the system screen is.
+        _starbaseView = new StarbaseScreenView
+        {
+            Position = new Vector2(1024 - StarbaseScreenView.Size.X - 12, (768 - StarbaseScreenView.Size.Y) / 2),
+            Visible = false,
+        };
+        _starbaseView.Lost += () =>
+        {
+            if (_host != null)
+                _host.World.RedrawStarbase(_host.HostId);
+            else if (_connected)
+                RpcId(1, MethodName.StarbaseRedraw);
+        };
+        AddChild(_starbaseView);
         var layer = new CanvasLayer();
         AddChild(layer);
         // Left of the system screen; long lines wrap.
@@ -243,6 +258,7 @@ public partial class Main : Node2D
                 _orbitView.Surfaces = _planetsideView.Surfaces = new PlanetSurfaces(content);
                 _orbitView.Sprites = _planetsideView.Sprites = new PlanetsideSprites(content, sheets);
                 _commView.UseContent(content, sheets, scripts, _names);
+                _starbaseView.UseContent(content, sheets);
             }
         }
         catch (ContentPackageException e)
@@ -351,6 +367,8 @@ public partial class Main : Node2D
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
             if (_options.StartVisit)
                 Log(host.StartVisit());
+            if (_options.StartDocked)
+                Log(host.StartDocked());
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
         }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
@@ -466,6 +484,22 @@ public partial class Main : Node2D
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void RenameShip(string ship, string captain) => _host?.GuestRename(Multiplayer.GetRemoteSenderId(), ship, captain);
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void StarbaseRedraw() => _host?.GuestStarbaseRedraw(Multiplayer.GetRemoteSenderId());
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void DrawStarbase(byte[] drawing)
+    {
+        try
+        {
+            _starbaseView.Receive(StarbaseDrawing.Decode(drawing));
+        }
+        catch (InvalidDataException e)
+        {
+            Log($"Bad starbase drawing from the host: {e.Message}");
+        }
+    }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowStarbase(byte[] view)
@@ -599,6 +633,7 @@ public partial class Main : Node2D
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
                 _player.ShowTalk(_host.TalkFor(_host.HostId));
+                _starbaseView.Receive(_host.HostStarbaseDrawing());
                 _player.ShowStarbase(_host.StarbaseFor(_host.HostId));
                 // Each guest gets its own: a delta from what it has, or in full.
                 if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
@@ -607,6 +642,9 @@ public partial class Main : Node2D
                         RpcId(peer, MethodName.ReceiveSnapshot, _host.SnapshotFor(peer));
                     foreach (var (peer, talk) in _host.TalkUpdates())
                         RpcId(peer, MethodName.ShowTalk, talk);
+                    // The drawing before the screen it's for (both reliable, in order).
+                    foreach (var (peer, drawing) in _host.StarbaseDrawings())
+                        RpcId(peer, MethodName.DrawStarbase, drawing);
                     foreach (var (peer, view) in _host.StarbaseUpdates())
                         RpcId(peer, MethodName.ShowStarbase, view);
                 }
@@ -811,6 +849,9 @@ public partial class Main : Node2D
             _commView.Show(player);
         else
             _commView.Close();
+        _starbaseView.Visible = screen == PlayerScreen.Starbase;
+        if (player.Starbase is { } starbase)
+            _starbaseView.Show(starbase);
         if (_planetsideView.Visible)
             _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)

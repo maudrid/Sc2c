@@ -75,6 +75,24 @@ public sealed class OutfitMenu
 
     private void Draw(ScreenOpKind kind, int a = 0, int b = 0, int c = 0) => _ops.Add(new ScreenOp(kind, a, b, c));
 
+    /// <summary>
+    /// Outfitting as it stands, drawn afresh (when drawing was lost): as
+    /// it opens with the fuel aboard now, then the menu on its entry, or in
+    /// Modules the radar cleared and what the cursor is on.
+    /// </summary>
+    public List<ScreenOp> Redraw()
+    {
+        var ops = new List<ScreenOp> { new(ScreenOpKind.OutfitOpened, (int)_rules.Ship.Fuel) };
+        if (_installing)
+        {
+            ops.Add(new(ScreenOpKind.ClearRadar));
+            ops.Add(new(ScreenOpKind.ModuleStrings, Choosing ? State : _rules.Piece(Row, Item)));
+        }
+        else if (State is not (Fuel or DoFuel))
+            ops.Add(new(ScreenOpKind.MenuStrings, ScreenOp.PmFuel, State));
+        return ops;
+    }
+
     /// <summary>The ship or the captain renamed while outfitting: onNamingDone's DrawFlagshipName, and the captain's name.</summary>
     public void Renamed(bool ship, bool captain)
     {

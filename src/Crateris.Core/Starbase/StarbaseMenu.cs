@@ -94,6 +94,18 @@ public sealed class ShipyardMenu
 
     private void Draw(ScreenOpKind kind, int a = 0, int b = 0, int c = 0) => _ops.Add(new ScreenOp(kind, a, b, c));
 
+    /// <summary>
+    /// The shipyard as it stands, drawn afresh (when drawing was lost): as
+    /// it opens, then the menu on its entry if that isn't Crew.
+    /// </summary>
+    public List<ScreenOp> Redraw()
+    {
+        var ops = new List<ScreenOp> { new(ScreenOpKind.YardOpened) };
+        if (State != Crew)
+            ops.Add(new(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, State));
+        return ops;
+    }
+
     /// <summary>The menu's cursor.</summary>
     public byte State { get; private set; } = Crew;
 
@@ -248,6 +260,68 @@ public sealed class StarbaseMenu
 
     /// <summary>How many times a key was refused (MENU_SOUND_FAILURE): the client sounds each new one.</summary>
     public int Refusals { get; internal set; }
+
+    /// <summary>
+    /// The most drawings kept for a player who isn't being sent them (no
+    /// one takes them): past it they're dropped, and the next taken is the
+    /// screen drawn afresh (<see cref="Redraw"/>).
+    /// </summary>
+    public const int MostKept = 256;
+
+    private readonly List<StarbaseDrawing> _drawn = new();
+    private bool _lost;
+
+    /// <summary>A key's drawing (none: nothing kept), with the ship as the key left it (null: the drawing doesn't read it).</summary>
+    internal void Drew(StarbaseShip? ship, List<ScreenOp> ops)
+    {
+        if (ops.Count == 0 || _lost)
+            return;
+        if (_drawn.Count >= MostKept)
+        {
+            _drawn.Clear();
+            _lost = true;
+            return;
+        }
+        _drawn.Add(new StarbaseDrawing(ship, ops));
+    }
+
+    /// <summary>The player's client lost its picture: the next drawing taken is the screen drawn afresh.</summary>
+    internal void RedrawNext()
+    {
+        _drawn.Clear();
+        _lost = true;
+    }
+
+    /// <summary>DoStarBase drawn afresh (docked, or back on the menu), on the menu's cursor.</summary>
+    internal void Opened() => Drew(null, new List<ScreenOp> { new(ScreenOpKind.MenuOpened, State) });
+
+    /// <summary>
+    /// The drawing since the last take, in order, to send the player; the
+    /// screen drawn afresh, with <paramref name="ship"/>, if some was
+    /// dropped (<see cref="MostKept"/>).
+    /// </summary>
+    internal List<StarbaseDrawing> TakeDrawing(Func<StarbaseShip> ship)
+    {
+        if (_lost)
+        {
+            _lost = false;
+            _drawn.Clear();
+            var ops = Redraw();
+            return ops.Count == 0 ? new() : new() { new StarbaseDrawing(ship(), ops) };
+        }
+        var drawn = new List<StarbaseDrawing>(_drawn);
+        _drawn.Clear();
+        return drawn;
+    }
+
+    /// <summary>The screen as it stands, drawn afresh (none for the commander's talk: the communication screen shows).</summary>
+    public List<ScreenOp> Redraw() => Screen switch
+    {
+        StarbaseScreen.Menu => new() { new(ScreenOpKind.MenuOpened, State) },
+        StarbaseScreen.Outfit when Outfit is not null => Outfit.Redraw(),
+        StarbaseScreen.Shipyard when Yard is not null => Yard.Redraw(),
+        _ => new(),
+    };
 
     /// <summary>The screen as sent to its player.</summary>
     public StarbaseView View() => new(Screen, State, Outfit?.State ?? 0, Outfit?.Item ?? 0, Outfit?.Installing ?? false,

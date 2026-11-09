@@ -667,10 +667,13 @@ public sealed class GameWorld
         {
             case Starbase.StarbaseScreen.Menu:
                 m.Busy = null;
+                byte was = m.State;
                 if (key is Crateris.Core.Systems.MenuKey.Left or Crateris.Core.Systems.MenuKey.Up)
                     m.State = (byte)(m.State == Starbase.StarbaseMenu.TalkCommander ? Starbase.StarbaseMenu.DepartBase : m.State - 1);
                 else if (key is Crateris.Core.Systems.MenuKey.Right or Crateris.Core.Systems.MenuKey.Down)
                     m.State = (byte)(m.State == Starbase.StarbaseMenu.DepartBase ? Starbase.StarbaseMenu.TalkCommander : m.State + 1);
+                if (m.State != was)
+                    m.Drew(null, new() { new(Starbase.ScreenOpKind.MenuMoved, was, m.State) });   // DrawBaseStateStrings
                 else if (key == Crateris.Core.Systems.MenuKey.Select)
                 {
                     switch (m.State)
@@ -686,12 +689,12 @@ public sealed class GameWorld
                                 a => Outfit(id, a));
                             m.Screen = Starbase.StarbaseScreen.Outfit;
                             m.Outfit.Open();
-                            m.Outfit.TakeOps();   // not sent yet (item 11)
+                            m.Drew(StarbaseShipOf(player), m.Outfit.TakeOps());
                             break;
                         case Starbase.StarbaseMenu.Shipyard:
                             m.Yard = new Starbase.ShipyardMenu(new Starbase.Outfitting(new OutfitShip(player.Ship), Story),
                                 a => Outfit(id, a));
-                            m.Yard.TakeOps();   // not sent yet (item 11)
+                            m.Drew(StarbaseShipOf(player), m.Yard.TakeOps());
                             m.Screen = Starbase.StarbaseScreen.Shipyard;
                             break;
                         default:
@@ -703,12 +706,11 @@ public sealed class GameWorld
             case Starbase.StarbaseScreen.Outfit:
                 // GameOptions: the host saves; a guest has no save of their own.
                 outcome = m.Outfit!.Key(key, canSave: player.IsHost);
-                // What the screen draws isn't sent yet (item 11 shows the starbase's screens): not kept.
-                m.Outfit.TakeOps();
+                m.Drew(StarbaseShipOf(player), m.Outfit.TakeOps());   // with the ship as this key left it
                 break;
             case Starbase.StarbaseScreen.Shipyard:
                 outcome = m.Yard!.Key(key, canSave: player.IsHost);
-                m.Yard.TakeOps();
+                m.Drew(StarbaseShipOf(player), m.Yard.TakeOps());
                 break;
             default:
                 return outcome;   // the talk's replies come as their own messages
@@ -719,8 +721,44 @@ public sealed class GameWorld
         else if (outcome == Starbase.OutfitOutcome.Left)
         {
             (m.Outfit, m.Yard, m.Screen) = (null, null, Starbase.StarbaseScreen.Menu);
+            m.Opened();   // DoStarBase, not Initialized: the menu drawn afresh
         }
         return outcome;
+    }
+
+    /// <summary>
+    /// What a docked player's starbase screen has drawn since the last
+    /// take, in order, each with the ship as its key left it, to send to
+    /// their client (empty: nothing, or not docked).
+    /// </summary>
+    public List<Starbase.StarbaseDrawing> TakeStarbaseDrawing(string id) =>
+        Find(id) is { Ship.Visit.Menu: { } m } player && Story is not null
+            ? m.TakeDrawing(() => StarbaseShipOf(player)) : new();
+
+    /// <summary>A docked player's client has no picture of its starbase screen: the next drawing taken draws it afresh.</summary>
+    public void RedrawStarbase(string id)
+    {
+        if (Find(id) is { Ship.Visit.Menu: { } m })
+            m.RedrawNext();
+    }
+
+    // A player's ship and the prices as the starbase's screens draw them.
+    private Starbase.StarbaseShip StarbaseShipOf(Player player)
+    {
+        var ship = player.Ship;
+        var story = Story!;
+        bool flagship = ship.Kind == ShipKind.Flagship;
+        return new Starbase.StarbaseShip(ship.Modules.ModuleSlots.ToArray(), ship.Modules.DriveSlots.ToArray(),
+            ship.Modules.JetSlots.ToArray(), ship.Hold.Crew, ship.Flight.Fuel, ship.Hold.Landers, ship.Hold.ResourceUnits,
+            ship.Hold.MineralMass,
+            // The flagship's UQM names are the client's to read (null); a guest's captain is the name they joined with.
+            ship.Name ?? (flagship ? null : ""), player.CaptainName ?? (flagship ? null : ShipNames.Fit(player.Name)),
+            story.Get("CHMMR_BOMB_STATE"),
+            (int)(ship.Hold.Upgrades & (LanderUpgrades.BioShield | LanderUpgrades.QuakeShield
+                | LanderUpgrades.LightningShield | LanderUpgrades.LavaShield)),
+            story.FuelCost, story.CrewCost,
+            ShipModules.Names.Select(n => story.Rules.Modules.Contains(n) ? story.ModuleCost(n) : 0).ToArray(),
+            story.Rules.ModuleCostScale);
     }
 
     /// <summary>A docked player's starbase screen, as their client is shown it; null if not docked.</summary>
@@ -1047,10 +1085,10 @@ public sealed class GameWorld
             player.Ship.Name = ShipNames.Fit(shipName);
         if (captainName is not null)
             player.CaptainName = ShipNames.Fit(captainName);
-        if (player.Ship.Visit is { Menu.Outfit: { } outfit })
+        if (player.Ship.Visit is { Menu: { Outfit: { } outfit } menu })
         {
             outfit.Renamed(shipName is not null, captainName is not null);
-            outfit.TakeOps();   // not sent yet (item 11), as for the keys
+            menu.Drew(StarbaseShipOf(player), outfit.TakeOps());
         }
         return true;
     }

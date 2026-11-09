@@ -102,6 +102,29 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-docked (testing): the host's ship docked at Earth's
+    /// starbase's menu, as after the opening: the starbase ready and the
+    /// commander met, with no news. Needs the talks' content
+    /// (InvalidOperationException).
+    /// </summary>
+    public string StartDocked()
+    {
+        if (World.TalkLibrary is null || World.Systems is null || World.Story is not { } story)
+            throw new InvalidOperationException("the starbase needs the content");
+        foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED" })
+            story.Set(f, 1);
+        story.Set("STARBASE_MONTH", World.Clock.Month);
+        story.Set("STARBASE_DAY", World.Clock.Day);
+        story.Set32("STARBASE_BULLETS0", 0xFFFFFFFF);   // no news
+        World.CommanderMet = true;
+        int sol = World.Systems.Map.Stars.Single(s => s.Special == "SOL_DEFINED").Number;
+        World.PutInOrbit(HostId, sol, 2, 1);
+        World.Host.Ship.Ip!.ReturnFromOrbit();
+        World.VisitStarbase(World.Host);
+        return World.Host.Ship.Visit is { AtMenu: true } ? "Starting docked at Earth's starbase" : "Couldn't dock at Earth's starbase";
+    }
+
+    /// <summary>
     /// --guests-in-orbit (testing): each guest joining for the first time is
     /// put in orbit where the host is as it joins (its undocking scene still
     /// shows), rather than in the inner system beside it.
@@ -318,6 +341,34 @@ public sealed class HostSession
         }
         return updates;
     }
+
+    /// <summary>
+    /// The starbase's drawing to send the guests: each docked guest's
+    /// since the last call, in order, as one message (reliable, sent
+    /// before <see cref="StarbaseUpdates"/>' screens, as each is drawn over
+    /// the last); empty for none.
+    /// </summary>
+    public List<(long Peer, byte[] Data)> StarbaseDrawings()
+    {
+        var drawings = new List<(long, byte[])>();
+        foreach (var (peer, id) in _peers)
+        {
+            var drawn = World.TakeStarbaseDrawing(id);
+            if (drawn.Count != 0)
+                drawings.Add((peer, Starbase.StarbaseDrawing.Encode(drawn)));
+        }
+        return drawings;
+    }
+
+    /// <summary>A guest's client has no picture of its starbase screen: it's drawn afresh in the next drawings sent.</summary>
+    public void GuestStarbaseRedraw(long peer)
+    {
+        if (_peers.TryGetValue(peer, out var id))
+            World.RedrawStarbase(id);
+    }
+
+    /// <summary>The host's own starbase drawing since the last call (see <see cref="StarbaseDrawings"/>).</summary>
+    public List<Starbase.StarbaseDrawing> HostStarbaseDrawing() => World.TakeStarbaseDrawing(HostId);
 
     /// <summary>The lander reports to show (World.TakeReports): the host's own, and each guest's by its peer.</summary>
     public (List<LanderReport> Host, List<(long Peer, LanderReport Report)> Guests) TakeReports()
