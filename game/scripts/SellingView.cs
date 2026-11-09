@@ -77,6 +77,9 @@ public partial class SellingView : Node2D
         _counted != linesKey || _selling is null ? (long)(Now * 840 / 1000)
         : _selling.Done ? _selling.DoneAt * 840 / 1000 : -1;
 
+    /// <summary>Whether <see cref="Count"/> would start a count-down for these lines (not counted yet, the content loaded).</summary>
+    public bool CanCount(string linesKey) => linesKey != _counted && _content is not null;
+
     /// <summary>
     /// The player's reply sold their minerals (<paramref name="sale"/>,
     /// with the lines it was for, <see cref="TalkView.LinesKey"/>): the
@@ -85,7 +88,7 @@ public partial class SellingView : Node2D
     /// </summary>
     public void Count(MineralSale sale, string linesKey, IEnumerable<Key> held)
     {
-        if (linesKey == _counted || _content is null)
+        if (!CanCount(linesKey))
             return;
         _counted = linesKey;
         try

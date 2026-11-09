@@ -47,4 +47,24 @@ public sealed class TakenKeys
 
     /// <summary>Whether a key held is the game's (polled each frame: not taken).</summary>
     public bool Free(long key) => !_keys.Contains(key);
+
+    /// <summary>
+    /// A screen that takes keys starting with keys held (the minerals'
+    /// count-down, whose UQM input sees a key held): of those
+    /// <paramref name="down"/> (each its physical key and its key), the
+    /// physical keys it sees held, as a key pressed then would have gone to
+    /// it: none if it gets no keys (<paramref name="shut"/>: under the about
+    /// screen, or a scripted player's), and never <paramref name="except"/>
+    /// (F1) nor one taken by another screen and held since. Every one held
+    /// but <paramref name="except"/> is taken, the game's again only once
+    /// it's come up.
+    /// </summary>
+    public IReadOnlyList<long> TakeHeld(IEnumerable<(long Physical, long Key)> down, bool shut, long except)
+    {
+        var held = down.Where(d => d.Key != except).ToList();
+        var seen = shut ? new List<long>() : held.Where(d => Free(d.Key)).Select(d => d.Physical).ToList();
+        foreach (var (_, key) in held)
+            Take(key);
+        return seen;
+    }
 }

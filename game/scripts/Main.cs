@@ -799,6 +799,9 @@ public partial class Main : Node2D
     {
         if (e is InputEventKey { Echo: false } k)
         {
+            // Under the about screen, every key going down is taken, its buttons' keys too (the GUI has them first).
+            if (k.Pressed && _about.Visible)
+                _taken.Take((long)k.Keycode);
             if (k.Pressed)
                 _down[k.PhysicalKeycode] = k.Keycode;
             else
@@ -987,17 +990,14 @@ public partial class Main : Node2D
                 _sellingView.Follow(talk.LinesKey);
                 if (talk.Sale is { } sale && talk.Replier == player.PlayerId && !Headless)
                 {
-                    // A key held as it starts is the count-down's, as a key pressed then would be: not F1,
-                    // nor one under the about screen or taken by another screen and held since, nor any
-                    // for a scripted player. Each is the game's again only once it's come up.
-                    bool started = _sellingView.Active;
-                    var held = _down.Where(d => d.Value != Key.F1).ToList();
-                    var counted = _about.Visible || player.Scripted ? Enumerable.Empty<Key>()
-                        : held.Where(d => _taken.Free((long)d.Value)).Select(d => d.Key);
-                    _sellingView.Count(sale, talk.LinesKey, counted);
-                    if (!started && _sellingView.Active)
-                        foreach (var (_, key) in held)
-                            _taken.Take((long)key);
+                    // A key held as it starts is the count-down's, as a key pressed then would be (TakeHeld),
+                    // and the game's again only once it's come up; taken as it's to start (if it can't be drawn, till they come up all the same).
+                    if (!_sellingView.Active && _sellingView.CanCount(talk.LinesKey))
+                    {
+                        var seen = _taken.TakeHeld(_down.Select(d => ((long)d.Key, (long)d.Value)),
+                            _about.Visible || player.Scripted, (long)Key.F1);
+                        _sellingView.Count(sale, talk.LinesKey, seen.Select(k => (Key)k).ToList());
+                    }
                 }
                 linesFrom = _sellingView.LinesFrom(talk.LinesKey);
             }
