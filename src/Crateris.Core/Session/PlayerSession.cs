@@ -884,9 +884,15 @@ public sealed class PlayerSession
                 break;
             case StarbaseScreen.Shipyard:
                 yield return "The shipyard:";
-                yield return sb.CrewMode
-                    ? $"Crew {me.Hold?.Crew} of {CrewRoom(me)}, {Snapshot?.Story?.CrewCost} RU each: up hires, down sends away; Enter: done"
-                    : Menu(YardItems, sb.YardState);
+                yield return sb.YardMode switch
+                {
+                    YardMode.Crew =>
+                        $"Crew {me.Hold?.Crew} of {CrewRoom(me)}, {Snapshot?.Story?.CrewCost} RU each: up hires, down sends away; Enter: done",
+                    YardMode.Ships => ShipyardMenu.OnFlagship(sb.YardCursor)
+                        ? "The flagship (arrows: the hangar's slots; Enter: its crew; Esc: back)"
+                        : $"Hangar slot {(sb.YardCursor & 0xF) + 1}, empty: fleet ships come with combat (arrows: move; Esc: back)",
+                    _ => Menu(YardItems, sb.YardState),
+                };
                 break;
         }
     }

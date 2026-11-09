@@ -2978,7 +2978,7 @@ SCREENS_LINK = ["uqm/sis.c", "uqm/menu.c", "uqm/border.c", "uqm/util.c", "libs/g
 SCREENS_STUBS = os.path.join(HERE, "golden", "screens_stubs.c")
 SCREENS_FRAMES = ["graphics.starbase", "graphics.modulesmenu", "graphics.outfit", "graphics.playmenu",
                   "graphics.shipyard", "graphics.outfitmodules", "graphics.fontgradient",
-                  "graphics.flagshipstatus"]
+                  "graphics.flagshipstatus", "graphics.blueprints"]
 # The fonts' leading, as UQM's loader gives it (UqmFont, checked against
 # it by fonts.json): StarCon, Tiny, Micro.
 SCREENS_LEADING = "11 10 15"
@@ -3000,6 +3000,14 @@ def screens_scenarios():
             steps.append(key)
         out.append({"name": f"base-{state}", "ship": talk_ship(), "state": {}, "costs": {}, "fuel_cost": 20,
                     "crew_cost": 3, "steps": steps})
+    # Round the starbase's frames and past frame 0, some passes too soon to turn it, a key between.
+    steps = ["base:1"]
+    for k in range(1, 75):
+        steps.append(f"t:{21 * k}")
+        if k % 9 == 0:
+            steps.append("r")
+    out.append({"name": "base-turning", "ship": talk_ship(), "state": {}, "costs": {}, "fuel_cost": 20,
+                "crew_cost": 3, "steps": steps})
     for sc in outfit_scenarios():
         if "walk" in sc["name"] or any(s in ("hire", "dismiss") for s in sc["steps"]):
             continue
@@ -3008,14 +3016,72 @@ def screens_scenarios():
                                                and sc["name"] not in ("choose-slot-0", "choose-slot-7", "choose-slot-15")):
             continue
         out.append(sc)
-    out.append({**out[4], "name": "names-long", "ship": talk_ship(ship="The Long Voyage", captain="Captain Quinlan"),
+    menu = next(sc for sc in out if sc["name"] == "menu")
+    out.append({**menu, "name": "names-long", "ship": talk_ship(ship="The Long Voyage", captain="Captain Quinlan"),
                 "steps": ["outfit", "d", "s", "c", "c"]})
+    # The lander's shields, drawn on the landers unless the bomb is built.
+    for name, shields in (("shields-all", 15), ("shields-some", 5)):
+        out.append({**menu, "name": name, "state": {"LANDER_SHIELDS": shields},
+                    "steps": ["outfit", "d", "s", "d", "s", "s", "c", "c", "c"]})
+    out += shipyard_screens_scenarios()
+    return out
+
+
+def shipyard_screens_scenarios():
+    """The shipyard with the flagship alone (fleet ships come with stage
+    4): its menu, the cursor round the hangar's slots and back to the
+    flagship, the crew hired and sent away (the pods filling and
+    emptying, too dear, full, none left, the price rising and falling at
+    CREW_EXPENSE_THRESHOLD), Save game, leaving, the power lines on the
+    clock, and blueprints of other ships."""
+    out = []
+
+    def add(name, steps, ship=None, state=None, crew_cost=3):
+        out.append({"name": name, "ship": ship or talk_ship(ru=2000), "state": state or {}, "costs": {},
+                    "fuel_cost": 20, "crew_cost": crew_cost, "shofixti": False, "steps": steps.split()})
+
+    def times(start, n, step):
+        return " ".join(f"t:{start + k * step}" for k in range(n))
+
+    add("yard-menu", "shipyard d d d u u t:20 t:56 t:60 t:113 " + times(170, 20, 57) + " s")
+    add("yard-menu-cancel", "shipyard c")
+    add("yard-exit", "shipyard u s")
+    add("yard-save", "shipyard d s d s")
+    add("yard-ships", "shipyard s r r r r l u u u d d d l r c d u c")
+    add("yard-ships-all", "shipyard s u " + "r " * 6 + "u " + "l " * 7 + "u d d c c")
+    add("yard-crew", "shipyard s s u u u d d s c c")
+    add("yard-crew-cancel", "shipyard s s u c s d c c")
+    add("yard-crew-other-keys", "shipyard s s l r t:30 t:90 u s c")
+    add("yard-crew-full", "shipyard s s u u d d c c", talk_ship(ru=2000, crew=48))
+    add("yard-crew-poor", "shipyard s s u u u d u c c", talk_ship(ru=7))
+    add("yard-crew-none", "shipyard s s d d d u c c", talk_ship(ru=2000, crew=2))
+    add("yard-crew-threshold", "shipyard s s u u d d d u c c", state={"CREW_PURCHASED0": 999 & 255,
+                                                                     "CREW_PURCHASED1": 999 >> 8})
+    pods = ["CREW_POD", "CREW_POD", "STORAGE_BAY", "FUEL_TANK", "CREW_POD", "STORAGE_BAY", "HIGHEFF_FUELSYS",
+            "DYNAMO_UNIT", "SHIVA_FURNACE", "TRACKING_SYSTEM", "ANTIMISSILE_DEFENSE", "EMPTY", "STORAGE_BAY",
+            "BLASTER_WEAPON", "CANNON_WEAPON", "GUN_WEAPON"]
+    add("yard-blueprint", "shipyard s s " + "u " * 6 + "d " * 4 + "c c d d s",
+        talk_ship(ru=2000, crew=97, fuel=9050, landers=4, elements=[100, 90, 80, 70, 60, 50, 40, 31],
+                  modules=pods, drives=[0, 3, 5, 6, 10], jets=[1, 2, 7]))
+    add("yard-blueprint-empty", "shipyard s s u c c", talk_ship(ru=2000, crew=0, fuel=0, landers=0,
+                                                              modules=["EMPTY"] * 16, drives=[], jets=[]))
+    add("yard-blueprint-pods", "shipyard s s " + "d " * 6 + "u " * 3 + "c c",
+        talk_ship(ru=2000, crew=150, fuel=1000, modules=["CREW_POD"] * 3 + ["EMPTY"] * 12 + ["GUN_WEAPON"]))
+    add("yard-blueprint-bays", "shipyard c",
+        talk_ship(ru=2000, crew=0, elements=[500, 499, 1, 0, 0, 0, 0, 0],
+                  modules=["STORAGE_BAY"] * 3 + ["EMPTY"] * 13))
+    add("yard-blueprint-bomb", "shipyard s s u c c",
+        talk_ship(ru=2000, modules=["BOMB_MODULE_0", "BOMB_MODULE_1", "BOMB_MODULE_2", "BOMB_MODULE_3",
+                                    "BOMB_MODULE_4", "BOMB_MODULE_5", "CREW_POD"] + ["EMPTY"] * 9),
+        state={"CHMMR_BOMB_STATE": 3})
     return out
 
 
 def record_screens(uqm, exe, outfit_exe, strings_exe, package):
     """What UQM draws on the starbase's screens (golden/screens.c): the
-    menu and outfitting, step by step. The frame counts are read from the
+    menu, outfitting and the shipyard, step by step, with the flashing
+    highlight and the hangar's colour map after each. The frame counts
+    and rectangles and colortable.hangar's size are read from the
     content; the pictures aren't recorded."""
     import zipfile
     with open(os.path.join(REPO, "data", "game-state.json")) as f:
@@ -3029,6 +3095,11 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
         with open(index_file, "wb") as f:
             f.write(z.read("uqm.rmp"))
         index = read_resource_index(strings_exe, index_file)
+        hangar = os.path.join(tmp, "hangar.ct")
+        with open(hangar, "wb") as f:
+            f.write(z.read(index["colortable.hangar"][1]))
+        cmaps = len(json.loads(subprocess.run([strings_exe, "bintab", hangar], capture_output=True, text=True,
+                                              check=True).stdout)[0])
         counts, rects = [], []
         for res in SCREENS_FRAMES:
             ani_path = index[res][1]
@@ -3041,14 +3112,14 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
     scenarios = []
     for sc in screens_scenarios():
         steps = sc["steps"]
-        if steps[0] != "outfit" and not steps[0].startswith("base:"):
+        if steps[0] not in ("outfit", "shipyard") and not steps[0].startswith("base:"):
             raise RuntimeError(f"screens {sc['name']}: starts with {steps[0]}")
-        if not steps[0].startswith("base:"):
+        if steps[0] == "outfit":
             steps, _ = run_outfit(outfit_exe, {**sc, "shofixti": sc.get("shofixti", False)}, fields, state_bytes,
                                   prices)
         ship = sc["ship"]
         head = outfit_head(sc, fields, state_bytes, prices) + [
-            f"{ship['ship']}|{ship['captain']}", " ".join(counts), " ".join(rects), SCREENS_LEADING]
+            f"{ship['ship']}|{ship['captain']}", " ".join(counts), " ".join(rects), SCREENS_LEADING, str(cmaps)]
         out = subprocess.run([exe], input="\n".join(head + [" ".join(steps)]) + "\n", capture_output=True, text=True)
         if out.returncode:
             raise RuntimeError(f"screens {sc['name']}: {out.stdout[-300:]}{out.stderr}")
@@ -3056,12 +3127,13 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
         if len(lines) != len(steps):
             raise RuntimeError(f"screens {sc['name']}: {len(lines)} of {len(steps)} steps")
         scenarios.append({k: v for k, v in sc.items() if k not in ("steps",)} | {
-            "steps": steps, "drawn": [x["draw"] for x in lines]})
+            "steps": steps, "drawn": [x["draw"] for x in lines], "flash": [x["flash"] for x in lines],
+            "cmap": [x["cmap"] for x in lines]})
     data = header(uqm, ["tools/extract/golden/screens.c", "tools/extract/golden/screens_stubs.c",
-                        "src/uqm/starbase.c", "src/uqm/outfit.c", "src/uqm/sis.c", "src/uqm/menu.c",
-                        "src/uqm/border.c", "src/uqm/util.c"], [
+                        "src/uqm/starbase.c", "src/uqm/outfit.c", "src/uqm/shipyard.c", "src/uqm/sis.c",
+                        "src/uqm/menu.c", "src/uqm/border.c", "src/uqm/util.c"], [
         "What UQM 0.8.0's own starbase screens draw, recorded by running its "
-        "DoStarBase and DoOutfit (with sis.c, menu.c, border.c and util.c's "
+        "DoStarBase, DoOutfit and DoShipyard (with sis.c, menu.c, border.c and util.c's "
         "drawing) with each drawing call recorded in the screen's "
         "coordinates (tools/extract/golden/screens.c), on a clock of the "
         "program's own; the frames counted from the official content "
@@ -3075,9 +3147,27 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
         "rectangle, an outline, the clip rectangle cleared, [\"p\", x, y, r, "
         "g, b] a point, [\"t\", font, x, y, align, count, text, r, g, b, "
         "effect] text ({gs:N} is GAME_STRING (N); effect the font effect's "
-        "frame of graphics.fontgradient, or -1).",
+        "frame of graphics.fontgradient, or -1), each with its context's "
+        "clip rectangle as x, y, width, height (UQM draws only inside it); "
+        "and after each step, where the flashing highlight is (sis.c's "
+        "SetFlashRect: [x, y, width, height] or null) and the colour map "
+        "last set (the shipyard's power lines: a map of colortable.hangar, "
+        "or -1).",
+        "The shipyard (\"shipyard\" opens DoShipyard as DoStarBase does, "
+        "with its menu on SHIPYARD; each later step runs on_input_frame, "
+        "then the screen, as DoInput does) has the flagship alone: fleet "
+        "ships come with stage 4.",
+        "frames: each resource's number of frames; hangar_maps: how many "
+        "colour maps colortable.hangar has; rects: each frame's "
+        "GetFrameRect, [x, y, width, height] (its corner less the hot "
+        "spot, and its size), read from the content.",
     ])
     data["frames"] = dict(zip(counts[::2], map(int, counts[1::2])))
+    data["hangar_maps"] = cmaps
+    data["rects"] = {res: [] for res in SCREENS_FRAMES}
+    for r in rects:
+        res, i, hx, hy, w, h = r.rsplit(":", 5)
+        data["rects"][res].append([-int(hx), -int(hy), int(w), int(h)])
     data["scenarios"] = scenarios
     return data
 

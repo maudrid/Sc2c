@@ -59,7 +59,21 @@ public sealed class OutfitMenu
 
     private readonly Outfitting _rules;
     private readonly Func<OutfitAction, bool> _act;
+    private readonly List<ScreenOp> _ops = new();
     private bool _installing, _initialized;
+
+    /// <summary>What the screen draws for the keys so far, in order, at UQM's points (taken by <see cref="TakeOps"/>).</summary>
+    public IReadOnlyList<ScreenOp> Ops => _ops;
+
+    /// <summary>The drawing since the last take.</summary>
+    public List<ScreenOp> TakeOps()
+    {
+        var ops = new List<ScreenOp>(_ops);
+        _ops.Clear();
+        return ops;
+    }
+
+    private void Draw(ScreenOpKind kind, int a = 0, int b = 0, int c = 0) => _ops.Add(new ScreenOp(kind, a, b, c));
 
     /// <param name="rules">The player's ship and the prices, as this side sees them.</param>
     /// <param name="act">Does an action (sends it, and applies it here); false if refused.</param>
@@ -79,12 +93,24 @@ public sealed class OutfitMenu
     public bool Installing => _installing;
 
     /// <summary>The row the cursor is on in Modules, from <see cref="State"/>.</summary>
-    public SlotKind Row => State switch
+    public SlotKind Row => RowOf(State);
+
+    /// <summary>The row a cursor's CurState in Modules is on.</summary>
+    public static SlotKind RowOf(byte state) => state switch
     {
         ShipModules.PlanetLander or ShipModules.EmptyLander => SlotKind.Lander,
         ShipModules.FusionThruster or ShipModules.EmptyDrive => SlotKind.Drive,
         ShipModules.TurningJets or ShipModules.EmptyJet => SlotKind.Jet,
         _ => SlotKind.Module,
+    };
+
+    /// <summary>How many slots a row has: MAX_LANDERS, NUM_DRIVE_SLOTS, NUM_JET_SLOTS, NUM_MODULE_SLOTS.</summary>
+    public static int SlotCount(SlotKind row) => row switch
+    {
+        SlotKind.Lander => ShipHold.MaxLanders,
+        SlotKind.Drive => ShipModules.DriveSlotCount,
+        SlotKind.Jet => ShipModules.JetSlotCount,
+        _ => ShipModules.ModuleSlotCount,
     };
 
     /// <summary>Choosing a module to buy (CurState below EMPTY_SLOT in Modules).</summary>
@@ -96,6 +122,7 @@ public sealed class OutfitMenu
         _installing = false;
         State = Fuel;
         Item = 0;
+        Draw(ScreenOpKind.OutfitOpened, (int)_rules.Ship.Fuel);   // drawn before the fuel is rounded
         _act(new OpenOutfit());
     }
 
@@ -131,6 +158,8 @@ public sealed class OutfitMenu
                     _installing = true;
                     return InstallModule(null);
                 case SaveLoad:
+                    // GameOptions, then the menu drawn again.
+                    Draw(ScreenOpKind.MenuStrings, ScreenOp.PmFuel, SaveLoad);
                     return OutfitOutcome.SaveLoad;
             }
             return OutfitOutcome.None;
@@ -147,13 +176,22 @@ public sealed class OutfitMenu
             };
             if (incr == 0)
                 return OutfitOutcome.None;
-            return _act(new ChangeFuel(incr)) ? OutfitOutcome.Acted : OutfitOutcome.Refused;
+            var (fuel, ru) = (_rules.Ship.Fuel, _rules.Ship.ResourceUnits);
+            if (!_act(new ChangeFuel(incr)))
+                return OutfitOutcome.Refused;
+            // ChangeFuelQuantity: DeltaSISGauges (0, incr, -cost), then RedistributeFuel.
+            Draw(ScreenOpKind.Gauges, 0, (int)(_rules.Ship.Fuel - (long)fuel), (int)(_rules.Ship.ResourceUnits - (long)ru));
+            Draw(ScreenOpKind.RedistributeFuel);
+            return OutfitOutcome.Acted;
         }
-        // DoMenuChooser (PM_FUEL): four entries, wrapping round.
+        // DoMenuChooser (PM_FUEL): four entries, wrapping round, the menu drawn on any arrow.
         if (key is MenuKey.Left or MenuKey.Up)
             State = (byte)(State == Fuel ? Exit : State - 1);
         else if (key is MenuKey.Right or MenuKey.Down)
             State = (byte)(State == Exit ? Fuel : State + 1);
+        else
+            return OutfitOutcome.None;
+        Draw(ScreenOpKind.MenuStrings, ScreenOp.PmFuel, State);
         return OutfitOutcome.None;
     }
 
@@ -179,7 +217,10 @@ public sealed class OutfitMenu
 
         if (!_initialized)
         {
+            // ClearSISRect (CLEAR_SIS_RADAR), then InitFlash's DrawModuleStrings of the slot's piece.
             _initialized = true;
+            Draw(ScreenOpKind.ClearRadar);
+            Draw(ScreenOpKind.ModuleStrings, oldPiece);
             return outcome;
         }
         if (select || cancel)
@@ -187,19 +228,21 @@ public sealed class OutfitMenu
             byte newPiece = State;
             if (select)
             {
+                uint ru = _rules.Ship.ResourceUnits;
+                bool acted = false;
                 if (newPiece < ShipModules.EmptySlot)
                 {
                     // Buying: in a module's own row, at the slot the cursor was on.
                     if (!_act(new Install(row, Item, newPiece)))
                         return OutfitOutcome.Refused;
-                    outcome = OutfitOutcome.Acted;
+                    acted = true;
                 }
                 else if (oldPiece < ShipModules.EmptySlot)
                 {
                     // Selling.
                     if (!_act(new Remove(row, Item)))
                         return OutfitOutcome.Refused;
-                    outcome = OutfitOutcome.Acted;
+                    acted = true;
                 }
                 else
                 {
@@ -208,22 +251,44 @@ public sealed class OutfitMenu
                     if (newPiece > ShipModules.CrewPod)
                         newPiece = ShipModules.PlanetLander;
                 }
+                if (acted)
+                {
+                    // The gauges, then the landers, or the piece, the fuel and the stats.
+                    outcome = OutfitOutcome.Acted;
+                    Draw(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined,
+                        (int)(_rules.Ship.ResourceUnits - (long)ru));
+                    if (row == SlotKind.Lander)
+                        Draw(ScreenOpKind.DisplayLanders);
+                    else
+                    {
+                        Draw(ScreenOpKind.ShipPiece, newPiece, Item);
+                        if (newPiece > ShipModules.TurningJets && oldPiece > ShipModules.TurningJets)
+                            Draw(ScreenOpKind.RedistributeFuel);
+                        Draw(ScreenOpKind.FlagshipStats);
+                    }
+                }
                 cancel = false;
             }
 
             if (State < ShipModules.EmptySlot)
             {
-                // Back from choosing to the row.
+                // Back from choosing to the row, showing what was bought (or, cancelled, nothing).
                 int s = State + ShipModules.EmptySlot - 1;
                 State = (byte)(s < ShipModules.EmptySlot ? ShipModules.EmptyLander
                     : s > ShipModules.EmptyModule ? ShipModules.EmptyModule : s);
+                Draw(ScreenOpKind.ModuleStrings, cancel ? State : newPiece);
             }
             else if (!cancel)
+            {
                 State = newPiece;
+                Draw(ScreenOpKind.ModuleStrings, newPiece);
+            }
             else
             {
                 State = Modules;
                 _installing = false;
+                Draw(ScreenOpKind.MenuStrings, ScreenOp.PmFuel, Modules);
+                Draw(ScreenOpKind.SisDisplay);
             }
             return outcome;
         }
@@ -272,13 +337,20 @@ public sealed class OutfitMenu
         }
 
         if (newState < ShipModules.EmptySlot)
-            State = (byte)newItem;
+        {
+            if (newItem != State)
+            {
+                State = (byte)newItem;
+                Draw(ScreenOpKind.ModuleStrings, State);
+            }
+        }
         else if (newItem != Item || newState != State)
         {
             if (newState == State)
                 Item = newItem;
             else
                 State = newState;
+            Draw(ScreenOpKind.ModuleStrings, _rules.Piece(Row, Item));
         }
         return outcome;
     }

@@ -1,7 +1,8 @@
 /*
  * Attack on Crateris: record what UQM draws on the starbase's screens
- * (the menu, outfitting), for the C# port (docs/plans/stage-3.md, item
- * 11), as the lander's drawing was recorded for 2b's item 10.
+ * (the menu, outfitting, the shipyard), for the C# port
+ * (docs/plans/stage-3.md, item 11), as the lander's drawing was recorded
+ * for 2b's item 10.
  *
  * Copyright (C) 2026 Attack on Crateris contributors.
  *
@@ -19,7 +20,10 @@
  * screen's coordinates (the context's clip rectangle's corner added, as
  * UQM's drawing does). Fonts are names with their leading; the game's
  * strings are "{gs:N}" for GAME_STRING (N). The clock is the program's
- * own.
+ * own. The flashing highlight (sis.c's SetFlashRect, whose Flash_*
+ * calls are this program's) and the colour map last set (the shipyard's
+ * power lines cycle colortable.hangar's maps) are kept as each step
+ * leaves them.
  *
  * Input (stdin), one item per line:
  *   the game state, in hex;
@@ -30,23 +34,29 @@
  *   the frame counts: "RESOURCE COUNT ..." pairs;
  *   the frames' rectangles: "RESOURCE:INDEX:HOTX:HOTY:WIDTH:HEIGHT ...";
  *   the fonts' leading: StarCon, Tiny, Micro;
+ *   the number of colour maps in colortable.hangar;
  *   the steps, space-separated: "base:S" opens the starbase's menu on
  *     state S (DoStarBase, freshly); "outfit" opens outfitting (DoOutfit,
- *     freshly); "t:N" sets the clock to N and gives the screen a pass
- *     with no key; u, d, l, r, s, c, pu and pd are a key given to it.
+ *     freshly); "shipyard" opens the shipyard (DoShipyard, freshly; each
+ *     later step runs its input callback first, as DoInput does); "t:N"
+ *     sets the clock to N and gives the screen a pass with no key; u, d,
+ *     l, r, s, c, pu and pd are a key given to it.
  *
- * Output: one JSON line a step: {"step": s, "draw": [...]}, each drawing
- * call one of
- *   ["s", resource, frame, x, y]            DrawStamp
- *   ["f", resource, frame, x, y, r, g, b]   DrawFilledStamp
- *   ["r", x, y, width, height, r, g, b]     DrawFilledRectangle
- *   ["o", x, y, width, height, r, g, b]     DrawRectangle
- *   ["p", x, y, r, g, b]                    DrawPoint
- *   ["c", x, y, width, height, r, g, b]     ClearDrawable (the clip
- *                                           rectangle, the background)
- *   ["t", font, x, y, align, count, text, r, g, b, effect]   font_DrawText
+ * Output: one JSON line a step: {"step": s, "draw": [...], "flash":
+ * [x, y, width, height] or null, "cmap": the colour map last set or -1},
+ * each drawing call one of
+ *   ["s", resource, frame, x, y, CLIP]            DrawStamp
+ *   ["f", resource, frame, x, y, r, g, b, CLIP]   DrawFilledStamp
+ *   ["r", x, y, width, height, r, g, b, CLIP]     DrawFilledRectangle
+ *   ["o", x, y, width, height, r, g, b, CLIP]     DrawRectangle
+ *   ["p", x, y, r, g, b, CLIP]                    DrawPoint
+ *   ["c", x, y, width, height, r, g, b, CLIP]     ClearDrawable (the clip
+ *                                                 rectangle, the background)
+ *   ["t", font, x, y, align, count, text, r, g, b, effect, CLIP]   font_DrawText
  * (count -1 all; the text as JSON; effect the font effect's frame of
- * graphics.fontgradient, the text drawn in its colours, or -1).
+ * graphics.fontgradient, the text drawn in its colours, or -1; CLIP the
+ * context's clip rectangle as x, y, width, height, all in the screen's
+ * coordinates, as UQM clips what it draws to it).
  */
 
 #include "uqm/outfit.c"
@@ -168,6 +178,17 @@ GetContextClipRect (RECT *r)
 static int ox (void) { return cur->clipped ? cur->clip.corner.x : 0; }
 static int oy (void) { return cur->clipped ? cur->clip.corner.y : 0; }
 
+/* The context's clip rectangle, in the screen's coordinates. */
+static const char *
+clip4 (void)
+{
+	static char b[64];
+	RECT r;
+	GetContextClipRect (&r);
+	snprintf (b, sizeof b, "%d, %d, %d, %d", r.corner.x, r.corner.y, r.extent.width, r.extent.height);
+	return b;
+}
+
 BOOLEAN
 GetContextFontLeading (SIZE *h)
 {
@@ -255,8 +276,8 @@ DrawStamp (STAMP *s)
 	char b[160];
 	if (!s->frame)
 		return;
-	snprintf (b, sizeof b, "[\"s\", \"%s\", %d, %d, %d]", res_of (s->frame), GetFrameIndex (s->frame),
-			ox () + s->origin.x, oy () + s->origin.y);
+	snprintf (b, sizeof b, "[\"s\", \"%s\", %d, %d, %d, %s]", res_of (s->frame), GetFrameIndex (s->frame),
+			ox () + s->origin.x, oy () + s->origin.y, clip4 ());
 	emit (b);
 }
 
@@ -267,8 +288,8 @@ DrawFilledStamp (STAMP *s)
 	if (!s->frame)
 		return;
 	color3 (c, sizeof c, cur->fg);
-	snprintf (b, sizeof b, "[\"f\", \"%s\", %d, %d, %d, %s]", res_of (s->frame), GetFrameIndex (s->frame),
-			ox () + s->origin.x, oy () + s->origin.y, c);
+	snprintf (b, sizeof b, "[\"f\", \"%s\", %d, %d, %d, %s, %s]", res_of (s->frame), GetFrameIndex (s->frame),
+			ox () + s->origin.x, oy () + s->origin.y, c, clip4 ());
 	emit (b);
 }
 
@@ -277,8 +298,8 @@ rect (const char *kind, RECT *r, Color col)
 {
 	char b[160], c[40];
 	color3 (c, sizeof c, col);
-	snprintf (b, sizeof b, "[\"%s\", %d, %d, %d, %d, %s]", kind, ox () + r->corner.x, oy () + r->corner.y,
-			r->extent.width, r->extent.height, c);
+	snprintf (b, sizeof b, "[\"%s\", %d, %d, %d, %d, %s, %s]", kind, ox () + r->corner.x, oy () + r->corner.y,
+			r->extent.width, r->extent.height, c, clip4 ());
 	emit (b);
 }
 
@@ -290,7 +311,7 @@ DrawPoint (POINT *p)
 {
 	char b[120], c[40];
 	color3 (c, sizeof c, cur->fg);
-	snprintf (b, sizeof b, "[\"p\", %d, %d, %s]", ox () + p->x, oy () + p->y, c);
+	snprintf (b, sizeof b, "[\"p\", %d, %d, %s, %s]", ox () + p->x, oy () + p->y, c, clip4 ());
 	emit (b);
 }
 
@@ -323,12 +344,70 @@ font_DrawText (TEXT *t)
 		else
 			b[n++] = ch;
 	}
-	snprintf (b + n, sizeof b - n, "\", %s, %d]", c, cur->effect ? GetFrameIndex (cur->effect) : -1);
+	snprintf (b + n, sizeof b - n, "\", %s, %d, %s]", c, cur->effect ? GetFrameIndex (cur->effect) : -1, clip4 ());
 	emit (b);
 }
 
+/* The flashing highlight: where sis.c's SetFlashRect leaves it. */
+static int flash_on;
+static RECT flash_at;
+static FlashContext *const the_flash = (FlashContext *) &flash_at;
+
+FlashContext *
+Flash_createHighlight (CONTEXT gfxContext, const RECT *rect)
+{
+	(void) gfxContext;
+	flash_on = 1;
+	flash_at = *rect;
+	return the_flash;
+}
+
+void Flash_setRect (FlashContext *context, const RECT *rect) { (void) context; flash_at = *rect; }
+void Flash_terminate (FlashContext *context) { (void) context; flash_on = 0; }
+
+/* The hangar's colour maps (colortable.hangar), the one colour table
+ * these screens load: its maps are numbered from CMAP_BASE, wrapping at
+ * its size as SetAbsStringTableIndex and SetRelStringTableIndex wrap. */
+#define CMAP_BASE 0x10000
+#define CMAP_TABLE ((STRING_TABLE) 1)
+static int cmap_count = 1, cmap_shown = -1;
+
+STRING_TABLE
+LoadStringTableInstance (RESOURCE res)
+{
+	return !strcmp (res, HANGAR_COLOR_TAB) ? CMAP_TABLE : NULL;
+}
+
+STRING CaptureStringTable (STRING_TABLE t) { return (STRING) t; }
+
+STRING
+SetRelStringTableIndex (STRING s, SIZE offs)
+{
+	intptr_t i = (intptr_t) s;
+	if (i < CMAP_BASE)
+		return NULL;
+	while (offs < 0)
+		offs += cmap_count;
+	return (STRING) (CMAP_BASE + (i - CMAP_BASE + offs) % cmap_count);
+}
+
+COLORMAPPTR GetColorMapAddress (COLORMAP c) { return (COLORMAPPTR) c; }
+
+BOOLEAN
+SetColorMap (COLORMAPPTR p)
+{
+	cmap_shown = (int) ((intptr_t) p - CMAP_BASE);
+	return TRUE;
+}
+
 /* The game's strings: "{gs:N}". */
-STRING SetAbsStringTableIndex (STRING t, COUNT i) { (void) t; return (STRING) (intptr_t) (i + 1); }
+STRING
+SetAbsStringTableIndex (STRING t, COUNT i)
+{
+	if ((STRING_TABLE) t == CMAP_TABLE)
+		return (STRING) (intptr_t) (CMAP_BASE + i % cmap_count);
+	return (STRING) (intptr_t) (i + 1);
+}
 
 UNICODE *
 GetStringAddress (STRING s)
@@ -389,7 +468,7 @@ main (void)
 	int i, n;
 	unsigned v;
 	char *p, *tok, *bar;
-	enum { NONE, BASE, OUTFIT } mode = NONE;
+	enum { NONE, BASE, OUTFIT, YARD } mode = NONE;
 
 	read_line (line, sizeof line);
 	for (i = 0; i < (int) sizeof (GlobData.Game_state.GameState) && line[2 * i]; ++i)
@@ -467,6 +546,10 @@ main (void)
 	read_line (line, sizeof line);
 	sscanf (line, "%d %d %d", &starcon.leading, &tiny.leading, &micro.leading);
 	read_line (line, sizeof line);
+	cmap_count = atoi (line);
+	if (cmap_count < 1)
+		return 2;
+	read_line (line, sizeof line);
 
 	/* setup.c's InitContexts and border.c's InitSISContexts. */
 	status_ctx.clipped = 1;
@@ -504,6 +587,16 @@ main (void)
 			DoOutfit (&ms);
 			mode = OUTFIT;
 		}
+		else if (!strcmp (tok, "shipyard"))
+		{
+			/* DoStarBase calls it with its menu on SHIPYARD (which
+			 * DrawBluePrint reads: the crew pods drawn lit). */
+			memset (&ms, 0, sizeof ms);
+			ms.CurState = SHIPYARD;
+			ms.InputFunc = DoShipyard;
+			DoShipyard (&ms);
+			mode = YARD;
+		}
 		else
 		{
 			int key = -2;
@@ -525,12 +618,21 @@ main (void)
 			}
 			if (key >= 0)
 				PulsedInputState.menu[key] = 1;
+			if (mode == YARD)
+				/* DoInput: the input callback, then the input function. */
+				on_input_frame ();
 			if (mode == BASE)
 				DoStarBase (&ms);
 			else if (!(*ms.InputFunc) (&ms))
 				mode = NONE;
 		}
-		printf ("{\"step\": \"%s\", \"draw\": [%s]}\n", tok, out);
+		printf ("{\"step\": \"%s\", \"draw\": [%s], ", tok, out);
+		if (flash_on)
+			printf ("\"flash\": [%d, %d, %d, %d], ", flash_at.corner.x, flash_at.corner.y,
+					flash_at.extent.width, flash_at.extent.height);
+		else
+			printf ("\"flash\": null, ");
+		printf ("\"cmap\": %d}\n", cmap_shown);
 		fflush (stdout);
 	}
 	return 0;

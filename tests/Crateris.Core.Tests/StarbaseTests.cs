@@ -205,7 +205,7 @@ public class StarbaseTests
         var guest = Docked(world, "guest");
         guest.Ship.Hold.ResourceUnits = 100;
         guest.Ship.Hold.SetCrew(5);
-        Keys(world, "guest", MenuKey.Down, MenuKey.Down, MenuKey.Select, MenuKey.Select, MenuKey.Up, MenuKey.Up);
+        Keys(world, "guest", MenuKey.Down, MenuKey.Down, MenuKey.Select, MenuKey.Select, MenuKey.Select, MenuKey.Up, MenuKey.Up);
         Assert.Equal((7, 94u), (guest.Ship.Hold.Crew, guest.Ship.Hold.ResourceUnits));
         Assert.Equal(2, world.Story!.CrewPurchased);
         // The escort's kit holds 10: the sixth more is refused.
@@ -353,14 +353,29 @@ public class StarbaseTests
     [Fact]
     public void TheStarbaseScreensMessageRoundTripsAndBadOnesAreRefused()
     {
-        var view = new StarbaseView(StarbaseScreen.Outfit, 1, ShipModules.EmptyModule, 15, true, 2, true, "Zoë", 7);
+        var view = new StarbaseView(StarbaseScreen.Outfit, 1, ShipModules.EmptyModule, 15, true, 2, YardMode.Crew, 0xF3, "Zoë", 7);
         Assert.Equal(view, StarbaseView.Decode(view.Encode()));
         Assert.Null(StarbaseView.Decode(Array.Empty<byte>()));
         var bytes = view.Encode();
         Assert.Throws<InvalidDataException>(() => StarbaseView.Decode(bytes.Concat(new byte[] { 0 }).ToArray()));
         Assert.Throws<InvalidDataException>(() => StarbaseView.Decode(new byte[] { 9 }));
-        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode(new StarbaseView(StarbaseScreen.Menu, 4, 0, 0, false, 0, false, "", 0).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { State = 4 }).Encode()));
         Assert.Throws<InvalidDataException>(() => StarbaseView.Decode(bytes[..3]));
+        // Outfitting's slot within its row's slots: the jets have 8, the landers 10, the drives 11.
+        Assert.Equal(7, StarbaseView.Decode((view with { OutfitState = ShipModules.EmptyJet, OutfitItem = 7 }).Encode())!.OutfitItem);
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { OutfitState = ShipModules.EmptyJet, OutfitItem = 8 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { OutfitState = ShipModules.TurningJets, OutfitItem = 12 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { OutfitState = ShipModules.PlanetLander, OutfitItem = 10 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { OutfitState = ShipModules.EmptyDrive, OutfitItem = 11 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { OutfitItem = 16 }).Encode()));
+        // Off Modules, the menu's entries and the fuel.
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { Installing = false, OutfitState = 5, OutfitItem = 0 }).Encode()));
+        // The shipyard's mode and cursor: a hangar slot (0 to 11) or the flagship with a column.
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardMode = (YardMode)3 }).Encode()));
+        Assert.Equal(11, StarbaseView.Decode((view with { YardCursor = 11 }).Encode())!.YardCursor);
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardCursor = 12 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardCursor = 0xF6 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardCursor = 0x10 }).Encode()));
     }
 
     [ContentFact]
@@ -475,26 +490,61 @@ public class StarbaseTests
         Assert.Equal(Activity.InnerSystem, guest.Ship.Activity);
     }
 
+    // A new game's flagship and prices, for the shipyard's menu.
+    private static Outfitting YardRules()
+    {
+        string modules = string.Join(", ", new[] { "EMPTY", "FUEL_TANK", "CREW_POD" }.Concat(Enumerable.Repeat("EMPTY", 5))
+            .Append("STORAGE_BAY").Concat(Enumerable.Repeat("EMPTY", 6)).Append("GUN_WEAPON").Select(m => $"\"{m}\""));
+        var sc = System.Text.Json.JsonDocument.Parse("{\"state\": {}, \"costs\": {}, \"fuel_cost\": 20, \"crew_cost\": 3, "
+            + "\"ship\": {\"crew\": 40, \"fuel\": 1000, \"landers\": 1, \"ru\": 2000, \"elements\": [0, 0, 0, 0, 0, 0, 0, 0], "
+            + $"\"modules\": [{modules}], \"drives\": [5, 6], \"jets\": [0, 6]}}}}").RootElement;
+        var (ship, story) = OutfitTests.Start(sc);
+        return new Outfitting(ship, story);
+    }
+
     [Fact]
-    public void TheShipyardsMenuGoesRoundAndItsCrewModeHiresAndSendsAway()
+    public void TheShipyardsMenuGoesRoundItsCursorRoundTheHangarAndItsCrewModeHiresAndSendsAway()
     {
         var acts = new List<OutfitAction>();
-        var yard = new ShipyardMenu(a => { acts.Add(a); return a is HireCrew; });
+        var yard = new ShipyardMenu(YardRules(), a => { acts.Add(a); return a is HireCrew; });
         yard.Key(MenuKey.Up);
         Assert.Equal(ShipyardMenu.Exit, yard.State);
         yard.Key(MenuKey.Right);
         Assert.Equal(ShipyardMenu.Crew, yard.State);
+        // Crew: the cursor on the flagship (DoModifyShips), then its crew.
+        Assert.Equal(OutfitOutcome.None, yard.Key(MenuKey.Select));
+        Assert.Equal((YardMode.Ships, ShipyardMenu.Flagship), (yard.Mode, yard.Cursor));
         Assert.Equal(OutfitOutcome.None, yard.Key(MenuKey.Select));
         Assert.True(yard.CrewMode);
         Assert.Equal(OutfitOutcome.Acted, yard.Key(MenuKey.Up));
         Assert.Equal(OutfitOutcome.Refused, yard.Key(MenuKey.Down));
+        Assert.Equal(OutfitOutcome.None, yard.Key(MenuKey.Left));   // only up and down change the crew
         Assert.Equal(OutfitOutcome.None, yard.Key(MenuKey.Cancel));
-        Assert.False(yard.CrewMode);
+        Assert.Equal(YardMode.Ships, yard.Mode);
+        // Round the hangar: up from the flagship to the bottom row, along it, and down to the flagship again.
+        yard.Key(MenuKey.Up);
+        Assert.Equal(6, yard.Cursor);
+        yard.Key(MenuKey.Left);
+        Assert.Equal(11, yard.Cursor);
+        Assert.Equal(OutfitOutcome.Refused, yard.Key(MenuKey.Select));   // building fleet ships: stage 4
+        yard.Key(MenuKey.Down);
+        Assert.Equal(0xF5, yard.Cursor);   // the flagship, the column kept
+        Assert.True(ShipyardMenu.OnFlagship(yard.Cursor));
+        yard.Key(MenuKey.Right);           // left and right don't leave the flagship
+        Assert.Equal(0xF5, yard.Cursor);
+        yard.Key(MenuKey.Down);            // down from the flagship: the top row
+        Assert.Equal(5, yard.Cursor);
+        yard.Key(MenuKey.Up);
+        yard.Key(MenuKey.Select);
+        Assert.True(yard.CrewMode);
+        yard.Key(MenuKey.Select);
+        Assert.Equal(OutfitOutcome.None, yard.Key(MenuKey.Cancel));
+        Assert.Equal((YardMode.Menu, ShipyardMenu.Crew), (yard.Mode, yard.State));
         yard.Key(MenuKey.Down);
         Assert.Equal(OutfitOutcome.SaveLoad, yard.Key(MenuKey.Select));
         yard.Key(MenuKey.Down);
         Assert.Equal(OutfitOutcome.Left, yard.Key(MenuKey.Select));
-        Assert.Equal(OutfitOutcome.Left, new ShipyardMenu(_ => true).Key(MenuKey.Cancel));
+        Assert.Equal(OutfitOutcome.Left, new ShipyardMenu(YardRules(), _ => true).Key(MenuKey.Cancel));
         Assert.Equal(new OutfitAction[] { new HireCrew(), new DismissCrew() }, acts);
     }
 }

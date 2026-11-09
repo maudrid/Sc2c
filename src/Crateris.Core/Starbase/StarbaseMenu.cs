@@ -32,57 +32,187 @@ public enum StarbaseScreen : byte
     Shipyard,
 }
 
+/// <summary>Where the shipyard's keys go (DoShipyard, then DoModifyShips' modes).</summary>
+public enum YardMode : byte
+{
+    /// <summary>DoShipyard's menu: Crew, Save/Load, Exit.</summary>
+    Menu,
+
+    /// <summary>DoModifyShips navigating: the cursor on the flagship or one of the hangar's slots.</summary>
+    Ships,
+
+    /// <summary>DoModifyShips editing the flagship's crew: up hires, down sends away.</summary>
+    Crew,
+}
+
 /// <summary>
-/// The shipyard's screen, for the player's own ship (DoShipyard): its menu
-/// (Crew, Save/Load, Exit), and on Crew, the ship's crew: up hires one,
-/// down sends one away (DMS_ModifyCrew), select or cancel goes back. The
-/// escort fleet's ships come with combat (stage 4).
+/// The shipyard's screen, for the player's own ship, as UQM's keys move
+/// round it: DoShipyard's menu (Crew, Save/Load, Exit); on Crew,
+/// DoModifyShips with the cursor on the flagship, moved round the
+/// hangar's twelve slots and back (DMS_MoveCursor); select on the
+/// flagship edits its crew (up hires one, down sends one away,
+/// DMS_ModifyCrew; select or cancel goes back to the cursor), and cancel
+/// goes back to the menu. The escort fleet's ships come with combat
+/// (stage 4): select on a slot is refused, where UQM would open the list
+/// of ships to build (docs/differences.md row 44).
 /// </summary>
 public sealed class ShipyardMenu
 {
     /// <summary>SHIPYARD_CREW, SHIPYARD_SAVELOAD and SHIPYARD_EXIT.</summary>
     public const byte Crew = 0, SaveLoad = 1, Exit = 2;
 
+    /// <summary>HANGAR_SHIPS_ROW and HANGAR_ROWS: the PC hangar's 6 by 2 slots.</summary>
+    public const int HangarShipsRow = 6, HangarRows = 2;
+
+    /// <summary>DoModifyShips' CurState for the flagship: MAKE_BYTE (0, 0xF).</summary>
+    public const byte Flagship = 0xF0;
+
+    private readonly Outfitting _rules;
     private readonly Func<OutfitAction, bool> _act;
+    private readonly List<ScreenOp> _ops = new();
 
-    public ShipyardMenu(Func<OutfitAction, bool> act) => _act = act;
+    /// <summary>The shipyard opened (DoShipyard's first drawing).</summary>
+    /// <param name="rules">The player's ship and the prices, as this side sees them.</param>
+    /// <param name="act">Does an action (sends it, and applies it here); false if refused.</param>
+    public ShipyardMenu(Outfitting rules, Func<OutfitAction, bool> act)
+    {
+        _rules = rules;
+        _act = act;
+        Draw(ScreenOpKind.YardOpened);
+    }
 
+    /// <summary>What the screen draws for the keys so far, in order, at UQM's points (taken by <see cref="TakeOps"/>).</summary>
+    public IReadOnlyList<ScreenOp> Ops => _ops;
+
+    /// <summary>The drawing since the last take.</summary>
+    public List<ScreenOp> TakeOps()
+    {
+        var ops = new List<ScreenOp>(_ops);
+        _ops.Clear();
+        return ops;
+    }
+
+    private void Draw(ScreenOpKind kind, int a = 0, int b = 0, int c = 0) => _ops.Add(new ScreenOp(kind, a, b, c));
+
+    /// <summary>The menu's cursor.</summary>
     public byte State { get; private set; } = Crew;
 
-    /// <summary>Changing the crew (DoModifyShips' crew mode on the flagship).</summary>
-    public bool CrewMode { get; private set; }
+    public YardMode Mode { get; private set; } = YardMode.Menu;
 
+    /// <summary>
+    /// DoModifyShips' cursor: a hangar slot (0 to 11), or the flagship
+    /// (the high nibble 0xF; the low one keeps the column it came from).
+    /// </summary>
+    public byte Cursor { get; private set; } = Flagship;
+
+    /// <summary>Whether <paramref name="cursor"/> is on the flagship (HINIBBLE (CurState) != 0).</summary>
+    public static bool OnFlagship(byte cursor) => cursor >> 4 != 0;
+
+    /// <summary>Changing the crew (DoModifyShips' crew mode on the flagship).</summary>
+    public bool CrewMode => Mode == YardMode.Crew;
+
+    /// <summary>A key, as DoShipyard or DoModifyShips takes it.</summary>
     public OutfitOutcome Key(MenuKey key)
     {
-        if (CrewMode)
+        switch (Mode)
         {
-            switch (key)
-            {
-                case MenuKey.Up:
-                    return _act(new HireCrew()) ? OutfitOutcome.Acted : OutfitOutcome.Refused;
-                case MenuKey.Down:
-                    return _act(new DismissCrew()) ? OutfitOutcome.Acted : OutfitOutcome.Refused;
-                case MenuKey.Select or MenuKey.Cancel:
-                    CrewMode = false;
-                    break;
-            }
-            return OutfitOutcome.None;
+            case YardMode.Crew:
+                switch (key)
+                {
+                    case MenuKey.Up or MenuKey.Down:
+                        return ModifyCrew(key == MenuKey.Up);
+                    case MenuKey.Select or MenuKey.Cancel:
+                        Mode = YardMode.Ships;
+                        break;
+                }
+                return OutfitOutcome.None;
+            case YardMode.Ships:
+                switch (key)
+                {
+                    case MenuKey.Select when OnFlagship(Cursor):
+                        Mode = YardMode.Crew;
+                        return OutfitOutcome.None;
+                    case MenuKey.Select:
+                        return OutfitOutcome.Refused;   // building fleet ships: stage 4
+                    case MenuKey.Cancel:
+                        (Mode, State) = (YardMode.Menu, Crew);
+                        Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
+                        return OutfitOutcome.None;
+                    case MenuKey.Left:
+                        Cursor = MoveCursor(Cursor, -1, 0);
+                        break;
+                    case MenuKey.Right:
+                        Cursor = MoveCursor(Cursor, 1, 0);
+                        break;
+                    case MenuKey.Up:
+                        Cursor = MoveCursor(Cursor, 0, -1);
+                        break;
+                    case MenuKey.Down:
+                        Cursor = MoveCursor(Cursor, 0, 1);
+                        break;
+                }
+                return OutfitOutcome.None;
         }
         if (key == MenuKey.Cancel || (key == MenuKey.Select && State == Exit))
             return OutfitOutcome.Left;
         if (key == MenuKey.Select)
         {
             if (State == SaveLoad)
+            {
+                // GameOptions, then the menu drawn again.
+                Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, SaveLoad);
                 return OutfitOutcome.SaveLoad;
-            CrewMode = true;
+            }
+            (Mode, Cursor) = (YardMode.Ships, Flagship);
             return OutfitOutcome.None;
         }
-        // DoMenuChooser (PM_CREW): three entries, wrapping round.
+        // DoMenuChooser (PM_CREW): three entries, wrapping round, the menu drawn on any arrow.
         if (key is MenuKey.Left or MenuKey.Up)
             State = (byte)(State == Crew ? Exit : State - 1);
         else if (key is MenuKey.Right or MenuKey.Down)
             State = (byte)(State == Exit ? Crew : State + 1);
+        else
+            return OutfitOutcome.None;
+        Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, State);
         return OutfitOutcome.None;
+    }
+
+    // DMS_ModifyCrew for the flagship: a crew member hired (its point drawn, then the gauges) or sent away (the gauges,
+    // then its point erased), and CrewTransaction's menu drawn again if the price changed.
+    private OutfitOutcome ModifyCrew(bool hire)
+    {
+        var ship = _rules.Ship;
+        var (crew, ru, cost) = (ship.Crew, ship.ResourceUnits, _rules.Story.CrewCost);
+        if (!_act(hire ? new HireCrew() : new DismissCrew()))
+            return OutfitOutcome.Refused;
+        int ruDelta = (int)(ship.ResourceUnits - (long)ru);
+        if (hire)
+            Draw(ScreenOpKind.CrewPoint, 1);
+        Draw(ScreenOpKind.Gauges, ship.Crew - crew, 0, ruDelta);
+        if (!hire)
+            Draw(ScreenOpKind.CrewPoint, 0);
+        if (_rules.Story.CrewCost != cost)
+            Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
+        return OutfitOutcome.Acted;
+    }
+
+    /// <summary>DMS_MoveCursor: the flagship is a row of its own below the hangar's; rows and columns wrap round.</summary>
+    public static byte MoveCursor(byte cur, int dx, int dy)
+    {
+        int row = (cur & 0xF) / HangarShipsRow, col = (cur & 0xF) % HangarShipsRow;
+        bool flagship = cur >> 4 != 0;
+        if (dy != 0)
+        {
+            if (flagship)
+                row = HangarRows;
+            row = (row + (HangarRows + 1) + dy) % (HangarRows + 1);
+            flagship = row == HangarRows;
+            if (flagship)
+                row = 0;
+        }
+        else if (dx != 0 && !flagship)
+            col = (col + HangarShipsRow + dx) % HangarShipsRow;
+        return (byte)((row * HangarShipsRow + col) | (flagship ? 0xF0 : 0));
     }
 }
 
@@ -115,19 +245,23 @@ public sealed class StarbaseMenu
 
     /// <summary>The screen as sent to its player.</summary>
     public StarbaseView View() => new(Screen, State, Outfit?.State ?? 0, Outfit?.Item ?? 0, Outfit?.Installing ?? false,
-        Yard?.State ?? 0, Yard?.CrewMode ?? false, Busy ?? "", Refusals);
+        Yard?.State ?? 0, Yard?.Mode ?? YardMode.Menu, Yard?.Cursor ?? ShipyardMenu.Flagship, Busy ?? "", Refusals);
 }
 
 /// <summary>
 /// A docked player's starbase screen as their client is sent it (a
 /// reliable message when it changes): the screen, the menu's cursor,
 /// outfitting's cursor (<see cref="OutfitMenu.State"/> and
-/// <see cref="OutfitMenu.Item"/>, UQM's numbers), the shipyard's, who's
-/// talking to the commander if Talk was refused, and the refusals so far.
+/// <see cref="OutfitMenu.Item"/>, UQM's numbers), the shipyard's (its
+/// menu, its mode and DoModifyShips' cursor), who's talking to the
+/// commander if Talk was refused, and the refusals so far.
 /// </summary>
 public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte OutfitState, int OutfitItem, bool Installing,
-    byte YardState, bool CrewMode, string Busy, int Refusals)
+    byte YardState, YardMode YardMode, byte YardCursor, string Busy, int Refusals)
 {
+    /// <summary>Changing the flagship's crew in the shipyard.</summary>
+    public bool CrewMode => YardMode == YardMode.Crew;
+
     public byte[] Encode()
     {
         var w = new WireWriter();
@@ -137,7 +271,8 @@ public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte Outfit
         w.UInt((ulong)OutfitItem);
         w.UInt(Installing ? 1UL : 0);
         w.UInt(YardState);
-        w.UInt(CrewMode ? 1UL : 0);
+        w.UInt((ulong)YardMode);
+        w.UInt(YardCursor);
         w.String(Busy);
         w.UInt((ulong)Refusals);
         return w.Written.ToArray();
@@ -153,15 +288,22 @@ public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte Outfit
         if (screen == 0 || screen - 1 > (ulong)StarbaseScreen.Shipyard)
             throw new InvalidDataException("Bad starbase screen.");
         ulong state = r.UInt(), outfitState = r.UInt(), outfitItem = r.UInt(), installing = r.UInt();
-        ulong yardState = r.UInt(), crewMode = r.UInt();
+        ulong yardState = r.UInt(), yardMode = r.UInt(), yardCursor = r.UInt();
         string busy = r.String() ?? "";
         ulong refusals = r.UInt();
-        if (state > StarbaseMenu.DepartBase || outfitState > World.ShipModules.EmptyLander || outfitItem > 15
-                || installing > 1 || yardState > ShipyardMenu.Exit || crewMode > 1 || refusals > int.MaxValue)
+        // Outfitting's slot within its row (the screen indexes the row's slots by it); off Modules, the menu's
+        // entries; the shipyard's cursor a hangar slot or the flagship (its column kept in the low nibble).
+        int slots = installing == 1 && outfitState <= World.ShipModules.EmptyLander
+            ? OutfitMenu.SlotCount(OutfitMenu.RowOf((byte)outfitState)) : World.ShipModules.ModuleSlotCount;
+        bool cursorOk = yardCursor >> 4 == 0 ? yardCursor < ShipyardMenu.HangarShipsRow * ShipyardMenu.HangarRows
+            : yardCursor >> 4 == 0xF && (yardCursor & 0xF) < ShipyardMenu.HangarShipsRow;
+        if (state > StarbaseMenu.DepartBase || outfitState > World.ShipModules.EmptyLander || outfitItem >= (ulong)slots
+                || installing > 1 || (installing == 0 && outfitState > OutfitMenu.DoFuel) || yardState > ShipyardMenu.Exit
+                || yardMode > (ulong)YardMode.Crew || !cursorOk || refusals > int.MaxValue)
             throw new InvalidDataException("Bad starbase screen state.");
         if (!r.AtEnd)
             throw new InvalidDataException("A starbase screen has bytes after its end.");
         return new StarbaseView((StarbaseScreen)(int)(screen - 1), (byte)state, (byte)outfitState, (int)outfitItem,
-            installing == 1, (byte)yardState, crewMode == 1, busy, (int)refusals);
+            installing == 1, (byte)yardState, (YardMode)(int)yardMode, (byte)yardCursor, busy, (int)refusals);
     }
 }

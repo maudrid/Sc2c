@@ -47,18 +47,27 @@ public enum UqmDrawKind
 /// the sheet (a GFXRES resource); text names its font (starcon, tiny,
 /// micro), its alignment, how many characters (-1 all) and its effect
 /// (a frame of graphics.fontgradient the characters take their colours
-/// from, or -1).
+/// from, or -1). <see cref="Clip"/> is the context's clip rectangle, in
+/// the screen's pixels: UQM draws only inside it.
 /// </summary>
 public readonly record struct UqmDraw(UqmDrawKind Kind, int X, int Y, int Width = 0, int Height = 0, Rgb Color = default,
     string Sheet = "", int Frame = 0, string Font = "", TextAlign Align = TextAlign.Left, int Count = -1, string Text = "",
-    int Effect = -1);
+    int Effect = -1, URect Clip = default);
 
 /// <summary>UQM's RECT.</summary>
-public struct URect
+public struct URect : IEquatable<URect>
 {
     public int X, Y, W, H;
 
     public URect(int x, int y, int w, int h) => (X, Y, W, H) = (x, y, w, h);
+
+    public readonly bool Equals(URect o) => X == o.X && Y == o.Y && W == o.W && H == o.H;
+
+    public override readonly bool Equals(object? o) => o is URect r && Equals(r);
+
+    public override readonly int GetHashCode() => HashCode.Combine(X, Y, W, H);
+
+    public override readonly string ToString() => $"({X}, {Y}, {W}, {H})";
 }
 
 /// <summary>
@@ -163,27 +172,30 @@ public sealed class UqmCanvas
     private int Ox => _cur.Clip?.X ?? 0;
     private int Oy => _cur.Clip?.Y ?? 0;
 
-    public void FillRect(URect r) => Drawn.Add(new UqmDraw(UqmDrawKind.Rect, Ox + r.X, Oy + r.Y, r.W, r.H, _cur.Fg));
+    public void FillRect(URect r) =>
+        Drawn.Add(new UqmDraw(UqmDrawKind.Rect, Ox + r.X, Oy + r.Y, r.W, r.H, _cur.Fg, Clip: ClipRect));
 
-    public void Outline(URect r) => Drawn.Add(new UqmDraw(UqmDrawKind.Outline, Ox + r.X, Oy + r.Y, r.W, r.H, _cur.Fg));
+    public void Outline(URect r) =>
+        Drawn.Add(new UqmDraw(UqmDrawKind.Outline, Ox + r.X, Oy + r.Y, r.W, r.H, _cur.Fg, Clip: ClipRect));
 
-    public void Point(int x, int y) => Drawn.Add(new UqmDraw(UqmDrawKind.Point, Ox + x, Oy + y, Color: _cur.Fg));
+    public void Point(int x, int y) => Drawn.Add(new UqmDraw(UqmDrawKind.Point, Ox + x, Oy + y, Color: _cur.Fg, Clip: ClipRect));
 
     public void Clear()
     {
         var r = ClipRect;
-        Drawn.Add(new UqmDraw(UqmDrawKind.Clear, Ox, Oy, r.W, r.H, _cur.Bg));
+        Drawn.Add(new UqmDraw(UqmDrawKind.Clear, Ox, Oy, r.W, r.H, _cur.Bg, Clip: r));
     }
 
     public void Stamp(string sheet, int frame, int x, int y) =>
-        Drawn.Add(new UqmDraw(UqmDrawKind.Stamp, Ox + x, Oy + y, Sheet: sheet, Frame: Frame(sheet, frame)));
+        Drawn.Add(new UqmDraw(UqmDrawKind.Stamp, Ox + x, Oy + y, Sheet: sheet, Frame: Frame(sheet, frame), Clip: ClipRect));
 
     public void FilledStamp(string sheet, int frame, int x, int y) =>
-        Drawn.Add(new UqmDraw(UqmDrawKind.FilledStamp, Ox + x, Oy + y, Color: _cur.Fg, Sheet: sheet, Frame: Frame(sheet, frame)));
+        Drawn.Add(new UqmDraw(UqmDrawKind.FilledStamp, Ox + x, Oy + y, Color: _cur.Fg, Sheet: sheet, Frame: Frame(sheet, frame),
+            Clip: ClipRect));
 
     public void Text(int x, int y, TextAlign align, string text, int count = -1) =>
         Drawn.Add(new UqmDraw(UqmDrawKind.Text, Ox + x, Oy + y, Color: _cur.Fg, Font: _cur.Font, Align: align, Count: count,
-            Text: text, Effect: _cur.Effect));
+            Text: text, Effect: _cur.Effect, Clip: ClipRect));
 
     /// <summary>DrawStarConBox (util.c).</summary>
     public void StarConBox(URect r, int border, Rgb topLeft, Rgb bottomRight, bool fill, Rgb interior)

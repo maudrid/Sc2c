@@ -688,7 +688,8 @@ public sealed class GameWorld
                             m.Outfit.Open();
                             break;
                         case Starbase.StarbaseMenu.Shipyard:
-                            m.Yard = new Starbase.ShipyardMenu(a => Outfit(id, a));
+                            m.Yard = new Starbase.ShipyardMenu(new Starbase.Outfitting(new OutfitShip(player.Ship), Story),
+                                a => Outfit(id, a));
                             m.Screen = Starbase.StarbaseScreen.Shipyard;
                             break;
                         default:

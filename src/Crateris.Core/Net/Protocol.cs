@@ -61,8 +61,13 @@ public static class Protocol
     /// 12: a player gives another resource units, minerals or bio data
     /// (stage 3a, item 9): the gift goes to the host as a reliable message,
     /// refused with a reason, and its giver and receiver are told of it.
+    /// 13: "no view" (no talk, not docked) is one zero byte
+    /// (<see cref="NoView"/>), as Godot's RPC doesn't deliver an empty one.
+    /// 14: the shipyard's screen as UQM's keys move round it (stage 3a,
+    /// item 11): StarbaseView carries its mode (the menu, the cursor on the
+    /// flagship or the hangar's slots, the crew) and the cursor.
     /// </summary>
-    public const int Version = 13;
+    public const int Version = 14;
     public const int DefaultPort = 24642;
 
     /// <summary>

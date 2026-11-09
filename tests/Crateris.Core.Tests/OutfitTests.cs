@@ -24,7 +24,7 @@ namespace Crateris.Core.Tests;
 public class OutfitTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
-    private static readonly StoryRules Rules = StoryRules.Load(DataDir);
+    internal static readonly StoryRules Rules = StoryRules.Load(DataDir);
     private static readonly JsonElement Recorded = Golden.Load("outfit").GetProperty("scenarios");
 
     /// <summary>A ship for outfitting, as the tests give it.</summary>
@@ -47,16 +47,19 @@ public class OutfitTests
         ["EMPTY"] = ShipModules.EmptyModule,
     };
 
-    private static (TestShip, StoryState) Start(JsonElement scenario)
+    /// <summary>A scenario's ship and story, as golden/outfit.c and golden/screens.c are given them.</summary>
+    internal static (TestShip, StoryState) Start(JsonElement scenario)
     {
         var story = StoryState.NewGame(Rules, new GameClock(2155, 3, 4));
+        // The fields each ship keeps (the lander's shields) aren't the story's: the screens read them from the scenario.
         foreach (var f in scenario.GetProperty("state").EnumerateObject())
-            story.Set(f.Name, f.Value.GetInt32());
+            if (!StoryState.NotShared.ContainsKey(f.Name))
+                story.Set(f.Name, f.Value.GetInt32());
         foreach (var c in scenario.GetProperty("costs").EnumerateObject())
             story.SetModuleCost(c.Name, c.Value.GetInt32());
         story.SetFuelCost(scenario.GetProperty("fuel_cost").GetInt32());
         story.SetCrewCost(scenario.GetProperty("crew_cost").GetInt32());
-        if (scenario.GetProperty("shofixti").GetBoolean())
+        if (scenario.TryGetProperty("shofixti", out var shofixti) && shofixti.GetBoolean())
             story.SetAlliance("SHOFIXTI_SHIP", Allied.Good);
         var s = scenario.GetProperty("ship");
         var drives = s.GetProperty("drives").Ints();
