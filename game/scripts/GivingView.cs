@@ -50,6 +50,8 @@ public partial class GivingView : Node2D
         _maps = new ColorMaps();
         _maps.Set(BinaryTable.Load(content, "colortable.main")[0]);
         _strings = GameStrings.Load(content);
+        _icons = null;   // drawn afresh from this content
+        _frames.Clear();
         Broken = false;
         foreach (var f in new[] { "starcon", "tiny" })
             _fonts[f] = UqmFont.Load(content, "font." + f);
@@ -167,34 +169,6 @@ public partial class GivingView : Node2D
 
     private const int FontSize = 13, LineHeight = 15, KeyLines = 3;
 
-    // Text wrapped at words to the width, in at most some lines: one cut short ends in an ellipsis.
-    private List<string> Wrap(Font font, string text, int most)
-    {
-        bool Fits(string s) => font.GetStringSize(s, HorizontalAlignment.Left, -1, FontSize).X <= Width;
-        var lines = new List<string>();
-        var line = "";
-        foreach (var word in text.Replace('\n', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            string longer = line == "" ? word : line + " " + word;
-            if (line != "" && !Fits(longer))
-            {
-                lines.Add(line);
-                line = word;
-            }
-            else
-                line = longer;
-        }
-        if (line != "")
-            lines.Add(line);
-        if (lines.Count <= most)
-            return lines;
-        lines.RemoveRange(most, lines.Count - most);
-        string last = lines[^1];
-        while (last.Contains(' ') && !Fits(last + "…"))
-            last = last[..last.LastIndexOf(' ')];
-        while (last.Length > 1 && !Fits(last + "…"))
-            last = last[..^1];   // one word too long for the line
-        lines[^1] = last + "…";
-        return lines;
-    }
+    private List<string> Wrap(Font font, string text, int most) =>
+        GivingScreen.Wrap(text, most, s => font.GetStringSize(s, HorizontalAlignment.Left, -1, FontSize).X <= Width);
 }

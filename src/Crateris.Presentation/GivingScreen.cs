@@ -186,6 +186,41 @@ public static class GivingScreen
         }
     }
 
+    /// <summary>
+    /// The text below the box (who it gives to, a notice, the keys) wrapped
+    /// at words into lines that <paramref name="fits"/>, at most
+    /// <paramref name="most"/>: one cut short ends in an ellipsis, a word
+    /// too long for that last line cut a whole character at a time.
+    /// </summary>
+    public static List<string> Wrap(string text, int most, Func<string, bool> fits)
+    {
+        var lines = new List<string>();
+        var line = "";
+        foreach (var word in text.Replace('\n', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string longer = line == "" ? word : line + " " + word;
+            if (line != "" && !fits(longer))
+            {
+                lines.Add(line);
+                line = word;
+            }
+            else
+                line = longer;
+        }
+        if (line != "")
+            lines.Add(line);
+        if (lines.Count <= most)
+            return lines;
+        lines.RemoveRange(most, lines.Count - most);
+        string last = lines[^1];
+        while (last.Contains(' ') && !fits(last + "…"))
+            last = last[..last.LastIndexOf(' ')];
+        while (!fits(last + "…") && new StringInfo(last).LengthInTextElements > 1)
+            last = new StringInfo(last).SubstringByTextElements(0, new StringInfo(last).LengthInTextElements - 1);
+        lines[^1] = last + "…";
+        return lines;
+    }
+
     private static string N(long n) => n.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>

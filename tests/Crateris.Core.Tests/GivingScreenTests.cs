@@ -164,6 +164,18 @@ public class GivingScreenTests
     }
 
     [Fact]
+    public void TheTextBelowTheBoxWrapsAtWordsAndEndsInAnEllipsisWhenCut()
+    {
+        bool Fits(string s) => s.Length <= 12;
+        Assert.Equal(new[] { "one two", "three four" }, GivingScreen.Wrap("one two\nthree four", 3, Fits));
+        Assert.Equal(new[] { "one two", "three four…" }, GivingScreen.Wrap("one two three four five", 2, Fits));
+        // A word too long for the last line is cut, a whole character at a time.
+        Assert.Equal(new[] { "abcdefghijk…" }, GivingScreen.Wrap("abcdefghijklmnop qr", 1, Fits));
+        Assert.Equal(new[] { "😀😀😀😀😀…" }, GivingScreen.Wrap(string.Concat(Enumerable.Repeat("😀", 9)) + " x", 1, Fits));
+        Assert.Empty(GivingScreen.Wrap("", 2, Fits));
+    }
+
+    [Fact]
     public void WithTheReceiverElsewhereTheCargoRowsAreDimmedAndTheUnitsAreNot()
     {
         var drawn = Draw(Shown(here: false, row: 3));
