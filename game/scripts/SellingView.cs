@@ -22,7 +22,8 @@ namespace Crateris.Game;
 /// of the communication screen where the orbit screen's cargo display
 /// goes, the cargo display and the resource units below it, on the
 /// client's clock. While it's up the player's keys are its own (any key
-/// sells the rest at once, as UQM's); once it's put away the commander's
+/// but F1 sells the rest at once, as with the lander report; UQM's sees
+/// only the keys bound to its controls); once it's put away the commander's
 /// reply plays. A count-down that can't be drawn is dropped, and the
 /// reply plays at once.
 /// </summary>

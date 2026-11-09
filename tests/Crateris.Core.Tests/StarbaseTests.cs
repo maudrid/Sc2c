@@ -184,7 +184,7 @@ public class StarbaseTests
     }
 
     [ContentFact]
-    public void AStoryTalksSaleIsCountedOnlyByItsSellerWhileTheyReply()
+    public void AStoryTalksSaleIsSentWhileItsSellerRepliesAndDroppedOnceTheRepliesPassOn()
     {
         var world = Allied(guest: true);
         world.Story!.Set("MOONBASE_ON_SHIP", 1);   // the commander's talk is a story talk: everyone watches
