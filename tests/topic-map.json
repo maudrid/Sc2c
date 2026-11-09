@@ -49,7 +49,7 @@
   "src/Crateris.Core/Planetside/SurfaceElement.cs": "d00dca2bbf7c4901",
   "src/Crateris.Core/Session/HostSession.cs": "5d6882932c18b1f5",
   "src/Crateris.Core/Session/InputScript.cs": "90592fb66fafe496",
-  "src/Crateris.Core/Session/PlayerSession.cs": "f779ce419409f1b4",
+  "src/Crateris.Core/Session/PlayerSession.cs": "06ea1c745356e8d6",
   "src/Crateris.Core/Session/StarEntryTracker.cs": "9f116c5090c46f85",
   "src/Crateris.Core/Session/TradeScreen.cs": "b74452c7ca4c71a2",
   "src/Crateris.Core/Starbase/OutfitMenu.cs": "67e1ec033df2ab00",
