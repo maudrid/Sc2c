@@ -6,6 +6,8 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using System.Text;
+using System.Text.RegularExpressions;
 using Crateris.Core.Comm;
 using Crateris.Core.Starbase;
 using Crateris.Core.Content;
@@ -63,8 +65,7 @@ public sealed class PlayerSession
     private bool _wasSweeping;
     private int _undockFrames = -1;
     private double _time;
-    private string _notice = "";
-    private double _noticeUntil;
+    private List<(string Text, double Until)> _notice = new();
 
     /// <param name="names">Star and world names for the status (null: by number).</param>
     /// <param name="entryFrameCount">The hyperspace flagship sheet's frame count, for star entries.</param>
@@ -113,8 +114,8 @@ public sealed class PlayerSession
     /// <summary>The lasting status line (hosting, connected, an error), set by the Godot layer.</summary>
     public string Status { get; set; } = "";
 
-    /// <summary>The notice being shown, or "" once it has run out.</summary>
-    public string Notice => _time < _noticeUntil ? _notice : "";
+    /// <summary>The notice being shown (a long one's page), or "" once it has run out.</summary>
+    public string Notice => _notice.FirstOrDefault(p => _time < p.Until).Text ?? "";
 
     /// <summary>Whether a first-time guest's undocking scene is showing.</summary>
     public bool Undocking => _undockFrames >= 0 && !UndockDone;
@@ -126,12 +127,72 @@ public sealed class PlayerSession
 
     private void Log(string message) => Logged?.Invoke(message);
 
-    /// <summary>Shows a one-off message under the status line for a while (and logs it).</summary>
+    /// <summary>
+    /// Shows a one-off message under the status line for a while (and logs
+    /// it). One too long for a page (a lander report) is shown a page at a
+    /// time (<see cref="NoticePages"/>), each numbered and up for as long as
+    /// it takes to read, so the status panel's other lines stay on the screen.
+    /// </summary>
     public void Notify(string message, double seconds = NoticeSeconds)
     {
-        _notice = message;
-        _noticeUntil = _time + seconds;
+        var pages = NoticePages(message);
+        _notice = new();
+        if (pages.Count == 1)
+            _notice.Add((message, _time + seconds));
+        else
+        {
+            double until = _time;
+            for (int i = 0; i < pages.Count; ++i)
+            {
+                until += Math.Max(NoticeSeconds, pages[i].Length / ReadingPace);
+                _notice.Add(($"{pages[i]}\n({i + 1}/{pages.Count})", until));
+            }
+        }
         Log(message);
+    }
+
+    /// <summary>The most characters a page of a notice holds (about ten lines of the status panel).</summary>
+    public const int NoticePageChars = 240;
+
+    /// <summary>How fast a long notice's page is taken to be read, in characters a second.</summary>
+    public const double ReadingPace = 20;
+
+    /// <summary>
+    /// A notice's pages: the whole text if it fits on one; otherwise its
+    /// paragraphs, together while they fit, one too long for a page split
+    /// between its sentences, and a sentence too long between its words.
+    /// </summary>
+    public static IReadOnlyList<string> NoticePages(string text)
+    {
+        if (text.Length <= NoticePageChars)
+            return new[] { text };
+        var pages = new List<string>();
+        var page = new StringBuilder();
+        void Add(string piece, string joint)
+        {
+            if (page.Length > 0 && page.Length + joint.Length + piece.Length > NoticePageChars)
+            {
+                pages.Add(page.ToString());
+                page.Clear();
+            }
+            if (page.Length > 0)
+                page.Append(joint);
+            page.Append(piece);
+        }
+        // Between paragraphs: one blank line or more (the next one's indent kept).
+        foreach (string paragraph in Regex.Split(text, @"\n(?:[ \t]*\n)+").Select(p => p.Trim('\n')).Where(p => p.Trim() != ""))
+        {
+            string joint = "\n\n";
+            foreach (string sentence in paragraph.Length <= NoticePageChars ? new[] { paragraph } : Regex.Split(paragraph, @"(?<=[.!?]) +"))
+                foreach (string piece in sentence.Length <= NoticePageChars ? new[] { sentence } : sentence.Split(' '))
+                {
+                    Add(piece, joint);
+                    joint = " ";
+                }
+        }
+        if (page.Length > 0)
+            pages.Add(page.ToString());
+        return pages;
     }
 
     /// <summary>
@@ -415,7 +476,7 @@ public sealed class PlayerSession
             Notify(text, ReportSeconds);
     }
 
-    /// <summary>How long another player's lander report stays up as a notice.</summary>
+    /// <summary>How long a lander report shown as a notice stays up, if it fits on a page (a longer one is up a page at a time, <see cref="Notify"/>).</summary>
     public const double ReportSeconds = 20;
 
     /// <summary>The reply chosen (its round and place), to send to the host once; null if none is waiting.</summary>

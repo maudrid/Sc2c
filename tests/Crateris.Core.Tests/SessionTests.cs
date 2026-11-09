@@ -163,6 +163,52 @@ public class SessionTests
         Assert.DoesNotContain("Hello", player.StatusLines());
     }
 
+    [Fact]
+    public void ALongNoticeIsSplitIntoPagesBetweenParagraphsThenSentencesThenWords()
+    {
+        string Words(int n, string end = ".") => string.Join(" ", Enumerable.Range(0, n).Select(i => $"word{i % 10}")) + end;
+        // Paragraphs share a page while they fit (however many blank lines between them; an indent kept).
+        string paragraph = Words(16);   // 111 characters
+        Assert.Equal(new[] { $"Heading:\n  {paragraph}\n\n{paragraph}", paragraph },
+            PlayerSession.NoticePages($"Heading:\n  {paragraph}\n\n\n{paragraph}\n \n\n{paragraph}\n"));
+        // One too long for a page is split at its sentences' ends.
+        string sentence = Words(20);    // 139
+        Assert.Equal(new[] { sentence, sentence, sentence }, PlayerSession.NoticePages($"{sentence} {sentence} {sentence}"));
+        // A sentence too long for a page, between its words.
+        string longest = Words(60, "");
+        var pages = PlayerSession.NoticePages(longest);
+        Assert.True(pages.Count > 1);
+        Assert.All(pages, p => Assert.InRange(p.Length, 1, PlayerSession.NoticePageChars));
+        Assert.Equal(longest, string.Join(" ", pages));
+        // A notice that fits is its own page, as it is.
+        Assert.Equal(new[] { "  a\n\n\nb " }, PlayerSession.NoticePages("  a\n\n\nb "));
+    }
+
+    [ContentFact]
+    public void ALongNoticeIsShownAPageAtATimeForAsLongAsItTakesToRead()
+    {
+        var player = Player("guest");
+        string text = string.Join("\n\n", Enumerable.Range(0, 3).Select(i => new string((char)('a' + i), 200)));
+        player.Notify(text, seconds: 1);
+        var pages = PlayerSession.NoticePages(text);
+        Assert.Equal(3, pages.Count);
+        for (int i = 0; i < pages.Count; ++i)
+        {
+            Assert.Equal($"{pages[i]}\n({i + 1}/3)", player.Notice);
+            Assert.Contains(player.Notice, player.StatusLines());
+            player.Advance(200 / PlayerSession.ReadingPace - 0.5);
+            Assert.Equal($"{pages[i]}\n({i + 1}/3)", player.Notice);   // still being read
+            player.Advance(0.6);
+        }
+        Assert.Equal("", player.Notice);
+        // A new notice puts the rest of a long one away.
+        player.Notify(text);
+        player.Notify("Hello");
+        Assert.Equal("Hello", player.Notice);
+        player.Advance(PlayerSession.NoticeSeconds + 0.1);
+        Assert.Equal("", player.Notice);
+    }
+
     [ContentFact]
     public void AFirstTimeGuestUndocksOnceAfterItsScene()
     {

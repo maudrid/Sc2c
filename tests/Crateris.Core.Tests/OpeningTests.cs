@@ -153,7 +153,8 @@ public class OpeningTests
         var other = new PlayerSession(Systems, null, "guest", TestContent.Shapes.HyperFlagship.Count) { StringTables = Tables };
         other.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport, "host"));
         Assert.Null(other.TakeOwnReport());
-        Assert.Contains("host's lander found it:\n" + table[0], string.Join("\n", other.StatusLines()));
+        Assert.StartsWith("host's lander found it:\n" + table[0][..20], other.Notice);
+        Assert.Contains(other.Notice, other.StatusLines());
         // Shown in orbit or planet-side once the screen is free; kept through a talk.
         finder.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport));
         Assert.Null(finder.OwnReportFor(PlayerScreen.Orbit, free: false));
@@ -163,7 +164,7 @@ public class OpeningTests
         finder.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport));
         Assert.Null(finder.OwnReportFor(PlayerScreen.Hyperspace, free: true));
         Assert.Null(finder.OwnReportFor(PlayerScreen.Orbit, free: true));
-        Assert.Contains(table[0], string.Join("\n", finder.StatusLines()));
+        Assert.StartsWith(table[0][..20], finder.Notice);
     }
 
     // ------------------------------------------------------------ the visit

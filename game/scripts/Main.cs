@@ -79,6 +79,8 @@ public partial class Main : Node2D
     private FirstRunScreen? _firstRun;
     private ContentErrorScreen? _contentError;
     private AboutScreen _about = null!;
+    // Keys that went down into the about screen or the lander report: the game's keys wait for each to come up.
+    private readonly TakenKeys _taken = new();
     private CanvasLayer _screens = null!;
 
     private static bool Headless => DisplayServer.GetName() == "headless";
@@ -744,27 +746,30 @@ public partial class Main : Node2D
     // The keys held. On a planet's surface, as UQM's: Space, Enter or Ctrl
     // fires, Esc takes off (a key of its own, never leaving orbit); elsewhere
     // Space and Enter are the action key.
-    private static ShipInput ReadKeys(bool onSurface)
+    private ShipInput ReadKeys(bool onSurface)
     {
         var input = ShipInput.None;
-        if (Input.IsKeyPressed(Key.Left))
+        if (Held(Key.Left))
             input |= ShipInput.Left;
-        if (Input.IsKeyPressed(Key.Right))
+        if (Held(Key.Right))
             input |= ShipInput.Right;
-        if (Input.IsKeyPressed(Key.Up))
+        if (Held(Key.Up))
             input |= ShipInput.Thrust;
-        bool select = Input.IsKeyPressed(Key.Enter) || Input.IsKeyPressed(Key.Space);
+        bool select = Held(Key.Enter) || Held(Key.Space);
         if (onSurface)
         {
-            if (select || Input.IsKeyPressed(Key.Ctrl))
+            if (select || Held(Key.Ctrl))
                 input |= ShipInput.Fire;
-            if (Input.IsKeyPressed(Key.Escape))
+            if (Held(Key.Escape))
                 input |= ShipInput.TakeOff;
         }
         else if (select)
             input |= ShipInput.Action;
         return input;
     }
+
+    // A key held for the game: not one taken by the about screen or the report, still held since.
+    private bool Held(Key key) => Input.IsKeyPressed(key) && _taken.Free((long)key);
 
     /// <summary>Whether the lander report is up and has the player's keys (shown, and not over: <see cref="ReportView.Active"/>).</summary>
     private bool ReportHasKeys => _reportView.Visible && _reportView.Active;
@@ -777,13 +782,19 @@ public partial class Main : Node2D
         // coming up (UQM waits for any key), but the about screen's.
         // A key coming up goes to a running report wherever it went down, so it's never left
         // held (the report would wait for it for ever); a key held down repeating goes nowhere.
-        if (e is InputEventKey { Pressed: false } up && _reportView.Active)
-            _reportView.KeyUp(up.PhysicalKeycode);   // the key itself, whatever the layout
+        if (e is InputEventKey { Pressed: false } up)
+        {
+            _taken.Up((long)up.Keycode);
+            if (_reportView.Active)
+                _reportView.KeyUp(up.PhysicalKeycode);   // the key itself, whatever the layout
+        }
         if (e is InputEventKey rk && ReportHasKeys && !_about.Visible && rk.Keycode != Key.F1
                 && _player is { Scripted: false })
         {
             if (rk.Pressed && !rk.Echo)
                 _reportView.KeyDown(rk.PhysicalKeycode);
+            if (rk.Pressed)
+                _taken.Take((long)rk.Keycode);
             GetViewport().SetInputAsHandled();
             return;
         }
@@ -793,11 +804,20 @@ public partial class Main : Node2D
         if ((k.Keycode == Key.F1 && !k.Echo) || (_about.Visible && k.Keycode == Key.Escape))
         {
             _about.Visible = k.Keycode == Key.F1 && !_about.Visible;
+            _taken.Take((long)k.Keycode);
             GetViewport().SetInputAsHandled();
             return;
         }
+        if (_about.Visible)
+            _taken.Take((long)k.Keycode);
         if (_about.Visible || _player == null || _player.Scripted || _naming is not null)
             return;
+        // Held since it went down into the about screen or the report (its Esc mustn't leave orbit).
+        if (!_taken.Pass((long)k.Keycode, k.Echo))
+        {
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         // T opens and closes the giving screen (item 9).
         if (k.Keycode == Key.T && !k.Echo && (_host != null || _connected))
         {
@@ -875,11 +895,11 @@ public partial class Main : Node2D
     }
 
     /// <summary>The arrow keys held, which move the landing site while it's picked.</summary>
-    private static HeldKeys HeldArrows() =>
-        (Input.IsKeyPressed(Key.Up) ? HeldKeys.Up : 0)
-        | (Input.IsKeyPressed(Key.Down) ? HeldKeys.Down : 0)
-        | (Input.IsKeyPressed(Key.Left) ? HeldKeys.Left : 0)
-        | (Input.IsKeyPressed(Key.Right) ? HeldKeys.Right : 0);
+    private HeldKeys HeldArrows() =>
+        (Held(Key.Up) ? HeldKeys.Up : 0)
+        | (Held(Key.Down) ? HeldKeys.Down : 0)
+        | (Held(Key.Left) ? HeldKeys.Left : 0)
+        | (Held(Key.Right) ? HeldKeys.Right : 0);
 
     /// <summary>Shows the screen the session picks, with what it holds.</summary>
     private void ShowViews(PlayerSession player)
@@ -925,7 +945,10 @@ public partial class Main : Node2D
         if (what == NotificationWMCloseRequest)
             SaveGame();
         else if (what == NotificationApplicationFocusOut)
+        {
             _reportView?.LetGo();   // the keys held come up elsewhere
+            _taken.Clear();
+        }
     }
 
     private void Log(string message)
