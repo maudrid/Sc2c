@@ -328,6 +328,10 @@ public class TradingTests
             Assert.Equal(guest.Ship.Hold.RoomForCargo, TradeScreen.RoomFor(world.Snapshot().Ships.Single(s => s.Id == "guest")));
             if (free == 30)
                 Assert.Equal(20, TradeScreen.RoomFor(world.Snapshot().Ships.Single(s => s.Id == "guest")));   // 50 free, the lander keeping 30
+            // Back, or lost: the room is the free storage again.
+            int crew = free == 60 ? 0 : guest.Ship.Hold.LanderOut!.Value.Crew;
+            guest.Ship.Hold.LanderReturns(crew, Minerals(0, 0), 0);
+            Assert.Equal(guest.Ship.Hold.FreeStorage, TradeScreen.RoomFor(world.Snapshot().Ships.Single(s => s.Id == "guest")));
             Assert.Null(TradeScreen.RoomFor(ship with { Hold = null }));
         }
     }
@@ -389,6 +393,22 @@ public class TradingTests
         guest.ToggleTrade();
         Assert.Null(guest.Trade);
         Assert.Equal(Gift.Why(TradeRefusal.Paused), guest.Notice);
+    }
+
+    [ContentFact]
+    public void AScriptsShipInputWaitsWhileTheGivingScreenIsOpen()
+    {
+        var world = TwoPlayers(sameSystem: false);
+        var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count,
+            InputScript.Parse("thrust:1,give+thrust:2,give+thrust:1"));
+        me.Observe(world.Snapshot());
+        me.NextInput(Hyperspace.ShipInput.None);
+        Assert.Null(me.Trade);
+        Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.None));   // opened: the thrust waits
+        Assert.NotNull(me.Trade);
+        Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.None));
+        Assert.Equal(Hyperspace.ShipInput.Thrust, me.NextInput(Hyperspace.ShipInput.None));   // closed: it flies
+        Assert.Null(me.Trade);
     }
 
     [ContentFact]

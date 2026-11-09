@@ -429,6 +429,8 @@ public static partial class SnapshotCodec
             (LanderUpgrades)ToInt(r.Int()), ToUInt(r.UInt()), ToInt(r.Int()));
         if ((hold.Upgrades & ~LanderUpgrades.All) != 0)
             throw new InvalidDataException("Bad lander upgrades.");
+        if (hold.LanderRoom < 0)
+            throw new InvalidDataException("Bad lander room.");
         return hold;
     }
 

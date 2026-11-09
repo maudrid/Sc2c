@@ -66,7 +66,7 @@ public class SnapshotCodecTests
             AnyInt(r), AnyInt(r), AnyInt(r), r.Next(2) == 0 ? null : AnyText(r)),
         r.Next(3) == 0 ? null : new HoldSnapshot(AnyInt(r), AnyInt(r), AnyInt(r),
             Enumerable.Range(0, r.Next(9)).Select(_ => AnyInt(r)).ToArray(), AnyInt(r), (LanderUpgrades)r.Next(128),
-            (uint)r.NextInt64(0, uint.MaxValue + 1L), AnyInt(r)))
+            (uint)r.NextInt64(0, uint.MaxValue + 1L), r.Next(3) == 0 ? 0 : r.Next(int.MaxValue)))
         with { ShipName = AnyName(r), CaptainName = AnyName(r) };
 
     private static WorldSnapshot AnySnapshot(Random r, long frame) => new WorldSnapshot(frame, AnyInt(r), AnyInt(r), AnyInt(r),
@@ -152,6 +152,22 @@ public class SnapshotCodecTests
         var got = SnapshotCodec.Decode(bytes, b);
         Assert.Same(b.Ships[0], got.Ships[0]);
         Assert.Same(b.OrbitedWorlds, got.OrbitedWorlds);
+    }
+
+    [Fact]
+    public void TheRoomALandersKeepsIsSentWhenItAloneChanges()
+    {
+        var r = new Random(5);
+        var hold = new HoldSnapshot(10, 1, 500, new int[8], 0);
+        var b = AnySnapshot(r, 10) with { Ships = new[] { AnyShip(r, "a") with { Hold = hold } } };
+        var s = b with { Frame = 11, Ships = new[] { b.Ships[0] with { Hold = hold with { LanderRoom = 50 } } } };
+        Assert.Equal(50, SnapshotCodec.Decode(Encode(s, b), b).Ships[0].Hold!.LanderRoom);
+        Assert.Equal(50, SnapshotCodec.Decode(Encode(s)).Ships[0].Hold!.LanderRoom);
+        Assert.Equal(450, s.Ships[0].Hold!.RoomForCargo);
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Encode(s with
+        {
+            Ships = new[] { s.Ships[0] with { Hold = hold with { LanderRoom = -1 } } },
+        })));
     }
 
     [Fact]

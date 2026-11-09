@@ -50,6 +50,7 @@ public partial class GivingView : Node2D
         _maps = new ColorMaps();
         _maps.Set(BinaryTable.Load(content, "colortable.main")[0]);
         _strings = GameStrings.Load(content);
+        Broken = false;
         foreach (var f in new[] { "starcon", "tiny" })
             _fonts[f] = UqmFont.Load(content, "font." + f);
     }
@@ -151,7 +152,18 @@ public partial class GivingView : Node2D
     public float Width { get; set; } = 260;
 
     /// <summary>How many lines of text fit below the box: five above the orbit menu or the lander's gauges, more elsewhere.</summary>
-    public int MostLines { get; set; } = 5;
+    public int MostLines
+    {
+        get => _mostLines;
+        set
+        {
+            if (value != _mostLines)
+                QueueRedraw();
+            _mostLines = value;
+        }
+    }
+
+    private int _mostLines = 5;
 
     private const int FontSize = 13, LineHeight = 15, KeyLines = 3;
 
@@ -180,6 +192,8 @@ public partial class GivingView : Node2D
         string last = lines[^1];
         while (last.Contains(' ') && !Fits(last + "…"))
             last = last[..last.LastIndexOf(' ')];
+        while (last.Length > 1 && !Fits(last + "…"))
+            last = last[..^1];   // one word too long for the line
         lines[^1] = last + "…";
         return lines;
     }
