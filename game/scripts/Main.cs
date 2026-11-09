@@ -822,7 +822,7 @@ public partial class Main : Node2D
             if (_sellingView.Active)
                 _sellingView.KeyUp(up.PhysicalKeycode);
         }
-        // The minerals' count-down takes every key while it's up, as the report does (any key sells the rest at once).
+        // The minerals' count-down takes every key but F1 while it's up, as the report does (any such key sells the rest at once).
         if (e is InputEventKey sk && SellingHasKeys && !_about.Visible && sk.Keycode != Key.F1 && _player is { Scripted: false })
         {
             if (sk.Pressed && !sk.Echo)
