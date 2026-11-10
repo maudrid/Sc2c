@@ -20,8 +20,8 @@
  * collide.c, gravity.c, misc.c, weapon.c, ship.c, tactrans.c, init.c,
  * status.c and shipstat.c (crew and energy as DeltaCrew and DeltaEnergy
  * keep them; their drawing is stubbed), displist.c, velocity.c, trans.c,
- * pixmap.c (frame indexing), intersec.c and boxint.c (DrawablesIntersect).
- * galaxy.c and random.c are included here: MoveGalaxy is wrapped to read
+ * pixmap.c (frame indexing), intersec.c and boxint.c (DrawablesIntersect),
+ * and the AI's intel.c and cyborg.c (item 4's traces). galaxy.c and random.c are included here: MoveGalaxy is wrapped to read
  * the camera's scroll (CalcView passes it on), TFB_Random to note where
  * each number is drawn (the caller's address; golden_uqm.py names the
  * function from the program's symbols). Sound, music, the status panel's
@@ -35,7 +35,8 @@
  * Ilwrath's sheets (item 2's traces); or one of the game's own ships
  * (item 3's): the flagship, UQM's sis_ship.c (init_sis building it from
  * GLOBAL_SIS's slots and crew, as in an encounter), or the Ilwrath,
- * ilwrath.c (init_ilwrath), with the sheets their RACE_DESCs name.
+ * ilwrath.c (init_ilwrath), with the sheets their RACE_DESCs name. Each
+ * side is flown by scripted keys or by UQM's own AI (item 4's).
  *
  * Usage: battle SHEETS MASKS. SHEETS lists the sheets, a line each:
  * "number resource frames"; MASKS is a folder of NUMBER.INDEX.mask files
@@ -46,7 +47,7 @@
  * Input on stdin, one battle per line:
  *   name seed scale runaway planet0 planet1 planet2
  *   ship0 ship1 fleet0 fleet1  nsteps (frames keys0 keys1)...
- *   nevents (frame side target crew)...
+ *   nevents (frame side target crew)...  control0 control1 earth
  * seed is TFB_SeedRandom's; scale 0 the step zoom (TFB_SCALE_STEP), 1 the
  * smooth (TFB_SCALE_TRILINEAR, UQM's default); runaway 1 sets
  * STARBASE_AVAILABLE, so side 0 can retreat (BATTLE_ESCAPE); planet0..2
@@ -76,12 +77,20 @@
  * a frame calls AbandonShip (misc.c) on side's ship in the battle towards
  * target's, for crew, before that frame; the program refuses one from or
  * towards a ship without crew (dead, warped out or emptied; see DoInput).
+ * control0 and control1 say who flies each side: 0 the keys, or UQM's AI
+ * (intel.c's computer_intelligence, cyborg.c's tactical_intelligence and
+ * the ship's own intelligence_func: ilwrath_intelligence, sis_intelligence)
+ * at a rating, 1 STANDARD_RATING, 2 GOOD_RATING, 3 AWESOME_RATING, the
+ * story's enemy (restart.c: COMPUTER_CONTROL | AWESOME_RATING; side 0 as
+ * the Cyborg option makes it, CYBORG_CONTROL); a side the AI flies ignores
+ * its keys. earth 1 sets PROBE_ILWRATH_ENCOUNTER, as the Earth fight has it
+ * (with IN_ENCOUNTER, the Ilwrath's AI doesn't cloak).
  *
  * Output: one JSON object per battle: its stars (InitGalaxy's
  * log_star_array, [x, y] each), and its frames: the first after the
  * ships are spawned, then one a frame after DoBattle:
  *   [seed, scroll_x, scroll_y, zoom_out, view_state, SpaceOrg x, y, ships,
- *    elements, draws]
+ *    elements, draws, inputs]
  * seed TFB_Random's; scroll the camera's this frame (CalcView's dx, dy);
  * ships each side's ships in its queue, each [crew_level, energy_level,
  * ShipFacing, energy_counter, weapon_counter, special_counter,
@@ -94,7 +103,10 @@
  * [sheet, frame index] of current.image.frame, playerNr, the primitive's
  * type and whether its colour is black, the slot (its handle) and
  * hTarget's slot (0 none), and the primitive's colour (prim_color: RGB15,
- * -1 never set); draws each TFB_Random's caller, as an address.
+ * -1 never set); draws each TFB_Random's caller, as an address; inputs
+ * each side's BATTLE_INPUT_STATE this frame as its frameInput returned it
+ * (the keys, or the AI's), -1 for a side whose frameInput wasn't called
+ * (no ship with an element; the first frame's are -1).
  * "ended" says whether the battle ended (IN_BATTLE cleared);
  * "crew_enlisted" is GLOBAL_SIS (CrewEnlisted) after it: uninit_sis writes
  * crew_level - 1 there when free_ship frees the flagship's description
@@ -542,8 +554,29 @@ scripted_keys (InputContext *context, STARSHIP *StarShipPtr)
 	return 0;
 }
 
-static BattleInputHandlers scripted_handlers = {
-	(BattleFrameInputFunction) scripted_keys, NULL, NULL, NULL,
+/* Who flies each side: 0 the keys, else the AI at a rating (1 standard,
+ * 2 good, 3 awesome); and PROBE_ILWRATH_ENCOUNTER. */
+static int side_control[NUM_SIDES], earth;
+static int frame_input[NUM_SIDES];   /* this frame's, -1 none */
+
+/* A side's frameInput: the keys, or intel.c's computer_intelligence (the
+ * computer's handlers' frameInput, battlecontrols.c), noting what it
+ * returned. */
+static BATTLE_INPUT_STATE
+side_input (InputContext *context, STARSHIP *StarShipPtr)
+{
+	BATTLE_INPUT_STATE s;
+	if (side_control[context->playerNr])
+		s = computer_intelligence ((ComputerInputContext *) context,
+				StarShipPtr);
+	else
+		s = scripted_keys (context, StarShipPtr);
+	frame_input[context->playerNr] = s;
+	return s;
+}
+
+static BattleInputHandlers side_handlers = {
+	(BattleFrameInputFunction) side_input, NULL, NULL, NULL,
 };
 static InputContext inputs[NUM_PLAYERS];
 
@@ -637,7 +670,8 @@ record (int start)
 	}
 	for (i = 0; i < num_draws; ++i)
 		printf ("%s%lu", i ? ", " : "", (unsigned long) draws[i]);
-	printf ("]]");
+	printf ("], [%d, %d]]", frame_input[0], frame_input[1]);
+	frame_input[0] = frame_input[1] = -1;
 	num_draws = 0;
 	frame_scroll_x = frame_scroll_y = 0;
 	frame_view = -1;
@@ -807,6 +841,7 @@ fight (const char *name, int scale, int runaway)
 	GLOBAL (CurrentActivity) = IN_ENCOUNTER;
 	SET_GAME_STATE (STARBASE_AVAILABLE, runaway);
 	SET_GAME_STATE (CHMMR_BOMB_STATE, sis_bomb);
+	SET_GAME_STATE (PROBE_ILWRATH_ENCOUNTER, earth);
 	GLOBAL_SIS (CrewEnlisted) = sis_crew;
 	memcpy (GLOBAL_SIS (DriveSlots), sis_drives, sizeof sis_drives);
 	memcpy (GLOBAL_SIS (JetSlots), sis_jets, sizeof sis_jets);
@@ -838,10 +873,15 @@ fight (const char *name, int scale, int runaway)
 					? test_ships[i].desc.ship_info.max_crew : 0;
 			PutQueue (&race_q[i], h);
 		}
-		inputs[i].handlers = &scripted_handlers;
+		inputs[i].handlers = &side_handlers;
 		inputs[i].playerNr = i;
 		PlayerInput[i] = &inputs[i];
-		PlayerControl[i] = HUMAN_CONTROL;
+		if (!side_control[i])
+			PlayerControl[i] = HUMAN_CONTROL;
+		else
+			PlayerControl[i] = (i == 0 ? CYBORG_CONTROL : COMPUTER_CONTROL)
+					| (STANDARD_RATING << (side_control[i] - 1));
+		frame_input[i] = -1;
 	}
 	ended = 0;
 	num_draws = 0;
@@ -908,6 +948,11 @@ main (int argc, char *argv[])
 			if (scanf ("%d %d %d %d", &event_frame[i], &event_side[i],
 					&event_target[i], &event_crew[i]) != 4)
 				return bad_input (name, "an event");
+		if (scanf ("%d %d %d", &side_control[0], &side_control[1], &earth) != 3
+				|| side_control[0] < 0 || side_control[0] > 3
+				|| side_control[1] < 0 || side_control[1] > 3
+				|| earth < 0 || earth > 1)
+			return bad_input (name, "the sides' control and the Earth flag");
 		battle_seed = s;
 		fight (name, scale, runaway);
 	}

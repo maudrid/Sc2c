@@ -4,7 +4,8 @@
 // (src/uqm/ships/sis_ship/sis_ship.c: init_sis and uninit_sis in battle,
 // InitWeaponSlots, InitModuleSlots, InitDriveSlots, InitJetSlots,
 // sis_battle_preprocess, sis_battle_postprocess, spawn_point_defense,
-// blaster_preprocess, blaster_collision, initialize_blasters), Copyright
+// blaster_preprocess, blaster_collision, initialize_blasters,
+// sis_intelligence), Copyright
 // Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM
 // contributors.
 //
@@ -103,7 +104,9 @@ public sealed record SisDescription(RaceDesc RaceDesc, IReadOnlyList<MissileBloc
 /// count) turning its shots towards the nearest enemy and costing energy;
 /// point defence lasers (the Special); energy from dynamos (faster) and
 /// furnaces (more); thrust from fusion thrusters and turning from jets;
-/// crew from crew pods and an escort's kit, the captain on top.
+/// crew from crew pods and an escort's kit, the captain on top. The AI can
+/// fly it (sis_intelligence, UQM's Cyborg option's), though no player ship
+/// is flown so.
 /// <para>
 /// Where UQM reads globals the inputs are explicit (<see cref="SisLoadout"/>)
 /// and the results too: <see cref="BombCarrier"/> for BOMB_CARRIER, which
@@ -194,6 +197,9 @@ public sealed class SisShip : IShipCode
             throw new InvalidOperationException(
                 $"a player ship's Starship has no crew of its own ({starship.CrewLevel}): its crew is its loadout's");
         var (rd, described, trackers) = Describe(_description, Loadout);
+        rd.ManeuverabilityIndex = (ushort)_description.Intel.ManeuverabilityIndex;
+        rd.WeaponRange = (ushort)_description.Intel.WeaponRange;
+        rd.Intelligence = (ship, concerns, count) => Intelligence(battle, ship, concerns, count, trackers);
         int blasterSpeed = _description.Define("BLASTER_SPEED");
         var blasters = described.Select(b =>
         {
@@ -515,6 +521,72 @@ public sealed class SisShip : IShipCode
             }
         }
         return made;
+    }
+
+    // sis_intelligence: with point defence, the Special against a shot
+    // within 2 frames or the enemy ship within 4 (and no dodging); without,
+    // a slow ship keeps after a shot it would entice; and with tracking,
+    // firing when the enemy ship is near and a gun points its way.
+    private static void Intelligence(Battle battle, Element ship, EvaluateDesc[] concerns, int concernCounter,
+        int trackers)
+    {
+        var starShip = ship.Parent!;
+        var rd = starShip.RaceDesc!;
+
+        ref var weapon = ref concerns[Battle.EnemyWeaponIndex];
+        if (weapon.Object != null)
+        {
+            if (rd.Characteristics.SpecialEnergyCost != 0)
+            {
+                if (starShip.SpecialCounter == 0
+                    && ((weapon.Object != null && weapon.WhichTurn <= 2)
+                        || (concerns[Battle.EnemyShipIndex].Object != null
+                            && concerns[Battle.EnemyShipIndex].WhichTurn <= 4)))
+                    starShip.ShipInputState |= StatusFlags.Special;
+                else
+                    starShip.ShipInputState &= ~StatusFlags.Special;
+                weapon.Object = null;
+            }
+            else if (rd.ManeuverabilityIndex < Battle.MediumShip
+                     && weapon.MoveState == MoveState.Entice
+                     && ((weapon.Object.StateFlags & ElementFlags.CrewObject) == 0 || weapon.WhichTurn <= 8)
+                     && ((weapon.Object.StateFlags & ElementFlags.FiniteLife) == 0
+                         || (weapon.Object.MassPoints >= 4 && weapon.WhichTurn == 2
+                                                           && concerns[Battle.EnemyShipIndex].WhichTurn > 16)))
+                weapon.MoveState = MoveState.Pursue;
+        }
+
+        battle.ShipIntelligence(ship, concerns, concernCounter);
+
+        ref var enemy = ref concerns[Battle.EnemyShipIndex];
+        if (trackers != 0
+            && starShip.WeaponCounter == 0
+            && (starShip.ShipInputState & StatusFlags.Weapon) == 0
+            && enemy.Object != null
+            && enemy.WhichTurn <= 16)
+        {
+            // Not across the seam, as UQM's.
+            short deltaX = (short)(enemy.Object.Current.X - ship.Current.X);
+            short deltaY = (short)(enemy.Object.Current.Y - ship.Current.Y);
+            int directionFacing = UqmMath.NormalizeFacing(UqmMath.AngleToFacing(UqmMath.ArcTan(deltaX, deltaY)));
+
+            var shipFlags = rd.ShipFlags;
+            // UQM adds a QUADRANT (an angle) to a facing for each way a
+            // gun fires: a whole turn of facings, so every way is tested
+            // against the ship's own facing.
+            int facing = starShip.ShipFacing;
+            for (var fireFlags = ShipFlags.FiresFore; fireFlags <= ShipFlags.FiresLeft;
+                 fireFlags = (ShipFlags)((int)fireFlags << 1), facing += UqmMath.Quadrant)
+            {
+                if ((shipFlags & fireFlags) != 0
+                    && UqmMath.NormalizeFacing(directionFacing - facing + UqmMath.AngleToFacing(UqmMath.Quadrant >> 1))
+                    <= UqmMath.AngleToFacing(UqmMath.Quadrant))
+                {
+                    starShip.ShipInputState |= StatusFlags.Weapon;
+                    break;
+                }
+            }
+        }
     }
 
     // MAKE_BYTE (lo, hi).

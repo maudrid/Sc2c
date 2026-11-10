@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Attack on Crateris contributors.
 // Ported from The Ur-Quan Masters 0.8.0
 // (src/uqm/ships/ilwrath/ilwrath.c: init_ilwrath, ilwrath_preprocess,
-// initialize_flame, flame_preprocess, flame_collision), Copyright Paul
+// initialize_flame, flame_preprocess, flame_collision,
+// ilwrath_intelligence), Copyright Paul
 // Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM
 // contributors.
 //
@@ -25,8 +26,9 @@ namespace Crateris.Core.Combat;
 /// back in; firing while cloaked first turns it to where the ship it
 /// tracks will be in four frames.
 /// <para>
-/// Its AI (ilwrath_intelligence) is item 4's, with the rule it reads from
-/// globals made an input here: <see cref="NoCloak"/>.
+/// Its AI (ilwrath_intelligence) closes in and flames within reach, and
+/// cloaks when it can, but for the rule UQM reads from globals, made an
+/// input here: <see cref="NoCloak"/>.
 /// </para>
 /// </summary>
 public sealed class IlwrathShip : IShipCode
@@ -49,8 +51,8 @@ public sealed class IlwrathShip : IShipCode
     /// <param name="noCloak">
     /// Whether its AI never cloaks: UQM's ilwrath_intelligence doesn't in an
     /// encounter while PROBE_ILWRATH_ENCOUNTER is set, which is the Earth
-    /// fight's (stage 4 item 4: the Earth battle's own rule, not the story
-    /// field). Kept for the AI; keys still cloak it.
+    /// fight's (stage 4 item 4: the Earth battle's own rule, set by the
+    /// visit that starts it, not the story field). Keys still cloak it.
     /// </param>
     public IlwrathShip(ShipDescription description, Views? hull, Views? fire, bool noCloak = false)
     {
@@ -87,7 +89,47 @@ public sealed class IlwrathShip : IShipCode
             lookAhead = d.Define("LOOK_AHEAD");
         rd.Preprocess = e => Preprocess(battle, e, weaponEnergyCost, specialEnergyCost, lookAhead);
         rd.InitWeapon = e => InitializeFlame(battle, e, flame);
+        rd.ManeuverabilityIndex = (ushort)d.Intel.ManeuverabilityIndex;
+        rd.WeaponRange = (ushort)d.Intel.WeaponRange;
+        bool noCloak = NoCloak;
+        rd.Intelligence = (ship, concerns, count) => Intelligence(battle, ship, concerns, count, noCloak);
         return rd;
+    }
+
+    // ilwrath_intelligence: always after the enemy ship, not dodging when
+    // it could be flaming; within 6 frames of it (or 10 with a shot as
+    // near), flame, cloaked or not (a cloaked ship thrusting); otherwise
+    // cloak when it may.
+    private static void Intelligence(Battle battle, Element ship, EvaluateDesc[] concerns, int concernCounter,
+        bool noCloak)
+    {
+        ref var enemy = ref concerns[Battle.EnemyShipIndex];
+        enemy.MoveState = MoveState.Pursue;
+        if (enemy.Object != null && enemy.WhichTurn <= 10)
+            concerns[Battle.EnemyWeaponIndex].Object = null;   // don't dodge when you could be flaming
+
+        battle.ShipIntelligence(ship, concerns, concernCounter);
+
+        var starShip = ship.Parent!;
+        if (enemy.Object != null
+            && (enemy.WhichTurn <= 6
+                || (enemy.WhichTurn <= 10 && concerns[Battle.EnemyWeaponIndex].WhichTurn <= 10)))
+        {
+            starShip.ShipInputState &= ~StatusFlags.Special;
+            if (Battle.ObjectCloaked(ship))
+            {
+                // UQM's: ~LEFT | RIGHT clears only LEFT.
+                starShip.ShipInputState &= ~StatusFlags.Left | StatusFlags.Right;
+                starShip.ShipInputState |= StatusFlags.Thrust;
+            }
+            starShip.ShipInputState |= StatusFlags.Weapon;
+        }
+        else if (starShip.SpecialCounter == 0 && !noCloak)
+        {
+            starShip.ShipInputState &= ~StatusFlags.Special;
+            if (!Battle.ObjectCloaked(ship) && (starShip.ShipInputState & StatusFlags.Weapon) == 0)
+                starShip.ShipInputState |= StatusFlags.Special;
+        }
     }
 
     // flame_preprocess: the next frame every next_turn + 1 frames.

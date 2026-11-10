@@ -49,11 +49,18 @@ public class ShipBattleTests
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !bombCarrier;
         var battle = BattleReplay.Run(Reference.Value, name, fleets, runaway, colours: true);
         Assert.Equal(recorded.GetProperty("bomb_carrier").GetInt32() != 0, bombCarrier);
-
-        // After the battle UQM's UninitShips frees the ships still in it,
-        // the floating crew going to the one alive (item 6 ports it; here no
-        // crew is floating, so each is only freed).
         Assert.DoesNotContain(battle.List.Elements, e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+        CheckFreed(recorded, fleets, sis);
+    }
+
+    /// <summary>
+    /// The ships still in the battle freed, as UQM's UninitShips frees them
+    /// after it (its floating crew going to the one alive is item 6's: the
+    /// battles end with none floating), and the flagship's crew left against
+    /// what uninit_sis wrote.
+    /// </summary>
+    internal static void CheckFreed(JsonElement recorded, IEnumerable<IReadOnlyList<Starship>> fleets, IReadOnlyList<SisShip> sis)
+    {
         foreach (var starship in fleets.SelectMany(f => f).Where(s => s.RaceDesc != null))
             starship.RaceDesc!.Uninit?.Invoke(starship.RaceDesc);
 
@@ -68,9 +75,12 @@ public class ShipBattleTests
         Assert.Equal(freed.Value.Destroyed ? 0 : crewEnlisted, freed.Value.CrewLeft);
     }
 
-    // A recorded ship: the flagship from its slots and crew, or the Ilwrath
-    // with its crew; and the crew its STARSHIP comes with (0: the flagship's own).
-    private static (IShipCode Code, ushort Crew) Ship(JsonElement s)
+    /// <summary>
+    /// A recorded ship: the flagship from its slots and crew, or the Ilwrath
+    /// with its crew (its AI not cloaking with <paramref name="noCloak"/>);
+    /// and the crew its STARSHIP comes with (0: the flagship's own).
+    /// </summary>
+    internal static (IShipCode Code, ushort Crew) Ship(JsonElement s, bool noCloak = false)
     {
         var description = BattleReplay.Ships[s.GetProperty("ship").GetString()!];
         var hull = BattleReplay.ViewsOf(description.Graphics.Ship);
@@ -84,7 +94,7 @@ public class ShipBattleTests
                     Slots(s.GetProperty("modules")), crew, carriesBomb: s.GetProperty("bomb").GetInt32() == 3);
                 return (new SisShip(description, hull, weapon, loadout), 0);
             case "ilwrath":
-                return (new IlwrathShip(description, hull, weapon), (ushort)crew);
+                return (new IlwrathShip(description, hull, weapon, noCloak), (ushort)crew);
             default:
                 throw new InvalidDataException($"a ship of kind {s.GetProperty("kind")}");
         }

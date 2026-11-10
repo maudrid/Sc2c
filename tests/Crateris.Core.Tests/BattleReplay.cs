@@ -17,9 +17,10 @@ namespace Crateris.Core.Tests;
 
 /// <summary>
 /// Replays a battle UQM's own engine recorded (tools/extract/golden/battle.c:
-/// tests/golden/battle.json, battle-ships.json) from its seed and keys,
-/// comparing every frame's random generator, camera, ships, elements (as
-/// the netplay checksum takes them) and random draws.
+/// tests/golden/battle.json, battle-ships.json, battle-ai.json) from its
+/// seed and keys (or its AI), comparing every frame's random generator,
+/// camera, ships, elements (as the netplay checksum takes them) and random
+/// draws, and where recorded each side's input.
 /// </summary>
 internal static class BattleReplay
 {
@@ -57,10 +58,13 @@ internal static class BattleReplay
     /// The battle replayed from its input with <paramref name="fleets"/>
     /// (each side's ships, made from the input's ships), each frame compared
     /// with UQM's; <paramref name="colours"/> when its elements end with
-    /// their primitive's colour.
+    /// their primitive's colour. A side with a rating in <paramref name="ai"/>
+    /// is flown by the AI (<see cref="Battle.ComputerIntelligence"/>), the
+    /// rest by the steps' keys; when the battle recorded each frame's inputs,
+    /// they're compared too.
     /// </summary>
     public static Battle Run(JsonElement reference, string name, IReadOnlyList<IReadOnlyList<Starship>> fleets,
-        bool runAwayAllowed, bool colours)
+        bool runAwayAllowed, bool colours, IReadOnlyList<CyborgRating?>? ai = null)
     {
         var recorded = Recorded(reference, name);
         var input = recorded.GetProperty("input");
@@ -80,6 +84,9 @@ internal static class BattleReplay
         Check(name, 0, frames[0], battle, places, sheetNumbers, colours);
         var events = input.TryGetProperty("events", out var ev)
             ? ev.EnumerateArray().Select(e => e.Ints()).ToList() : new List<int[]>();
+        var recordedInputs = recorded.TryGetProperty("inputs", out var ins)
+            ? ins.EnumerateArray().Select(i => i.Ints()).ToList() : null;
+        var inputs = new int[Battle.NumSides];
         int frame = 0;
         foreach (var step in input.GetProperty("steps").EnumerateArray().Select(s => s.Ints()))
         {
@@ -89,8 +96,18 @@ internal static class BattleReplay
                 places.Clear();
                 foreach (var e in events.Where(e => e[0] == frame))
                     battle.AbandonShip(InBattle(battle, e[1]), InBattle(battle, e[2]), e[3]);
-                battle.Step(new[] { (BattleInput)step[1], (BattleInput)step[2] });
+                Array.Fill(inputs, -1);
+                battle.Step(ship =>
+                {
+                    var keys = (BattleInput)step[1 + ship.PlayerNr];
+                    var given = ai?[ship.PlayerNr] is { } rating ? battle.ComputerIntelligence(ship, rating) : keys;
+                    inputs[ship.PlayerNr] = (int)given;
+                    return given;
+                });
                 Assert.True(frame + 1 < frames.Count, $"{name}: the battle runs past UQM's {frames.Count - 1} frames");
+                if (recordedInputs != null)
+                    Assert.True(recordedInputs[frame + 1].SequenceEqual(inputs),
+                        $"{name} frame {frame + 1}: inputs [{string.Join(",", inputs)}], UQM [{string.Join(",", recordedInputs[frame + 1])}]");
                 Check(name, frame + 1, frames[frame + 1], battle, places, sheetNumbers, colours);
             }
         }

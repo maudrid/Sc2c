@@ -247,6 +247,33 @@ public sealed class Element
     /// <summary>The element before this one in its list (GetPredElement), or none.</summary>
     public Element? Predecessor => Pred;
 
+    /// <summary>
+    /// A copy of the element, outside the list and its slot (UQM's struct
+    /// copies, <c>Ship = *ShipPtr</c>: the AI works on one): every field
+    /// as the element's, its intersection control copied too; it shares the
+    /// element's slot number and links, but the list never holds it.
+    /// </summary>
+    internal Element Copy()
+    {
+        var c = new Element(Slot)
+        {
+            Pred = Pred, Succ = Succ,
+            PreprocessFunc = PreprocessFunc, PostprocessFunc = PostprocessFunc, DeathFunc = DeathFunc,
+            CollisionFunc = CollisionFunc,
+            PlayerNr = PlayerNr, StateFlags = StateFlags, LifeSpan = LifeSpan, CrewLevel = CrewLevel,
+            MassPoints = MassPoints, TurnWait = TurnWait, ThrustWait = ThrustWait, ColorCycleIndex = ColorCycleIndex,
+            Velocity = Velocity, Prim = Prim, PrimColor = PrimColor, Current = Current, Next = Next,
+            Parent = Parent, Target = Target,
+        };
+        c.Intersect.Frame = Intersect.Frame;
+        c.Intersect.OriginX = Intersect.OriginX;
+        c.Intersect.OriginY = Intersect.OriginY;
+        c.Intersect.EndX = Intersect.EndX;
+        c.Intersect.EndY = Intersect.EndY;
+        c.Intersect.LastTime = Intersect.LastTime;
+        return c;
+    }
+
     /// <summary>AllocElement's memset: every field cleared but the primitive's colour (<see cref="PrimColor"/>), not drawn.</summary>
     internal void Clear()
     {

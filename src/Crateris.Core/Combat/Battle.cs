@@ -207,22 +207,39 @@ public sealed partial class Battle
     private const int BigStarCount = 30, MedStarCount = 60, SmlStarCount = 90;
 
     /// <summary>
-    /// DoBattle: each side's keys into its ships (ProcessInput), then the
-    /// list stepped (RedrawQueue). Returns whether the battle goes on.
+    /// DoBattle with one key state a side, every ship of a side taking its
+    /// side's keys: <see cref="Step(Func{Starship, BattleInput})"/>.
     /// </summary>
     public bool Step(IReadOnlyList<BattleInput> keys)
     {
         if (keys.Count != NumSides)
             throw new ArgumentException("a key state for each side");
+        return Step(ship => keys[ship.PlayerNr]);
+    }
+
+    /// <summary>
+    /// DoBattle: each ship's input (ProcessInput), then the list stepped
+    /// (RedrawQueue). Returns whether the battle goes on.
+    /// <paramref name="input"/> gives a ship's input for the frame (its
+    /// player's keys, or <see cref="ComputerIntelligence"/>'s): it is
+    /// asked in ProcessInput's order, as UQM asks each side's frameInput,
+    /// side 0's ships first, each side's in its fleet's order, for every
+    /// ship with an element in the battle, its crew or not; each ship's
+    /// input takes effect before the next is asked (a retreat, DoRunAway,
+    /// changes the ship at once), so the AI flying side 1 sees that frame's
+    /// retreats.
+    /// </summary>
+    public bool Step(Func<Starship, BattleInput> input)
+    {
         if (!InBattle)
             throw new InvalidOperationException("the battle is over");
-        ProcessInput(keys);
+        ProcessInput(input);
         RedrawQueue();
         return InBattle;
     }
 
     // battle.c's ProcessInput.
-    private void ProcessInput(IReadOnlyList<BattleInput> keys)
+    private void ProcessInput(Func<Starship, BattleInput> keys)
     {
         for (int side = 0; side < NumSides; ++side)
         {
@@ -230,7 +247,7 @@ public sealed partial class Battle
             {
                 if (ship.Ship == null)
                     continue;
-                var input = keys[side];
+                var input = keys(ship);
                 ship.ShipInputState = StatusFlags.None;
                 if (ship.RaceDesc!.CrewLevel == 0)
                     continue;

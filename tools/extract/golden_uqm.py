@@ -1838,7 +1838,8 @@ BATTLE_LINK = ["uqm/process.c", "uqm/collide.c", "uqm/gravity.c",
                "uqm/globdata.c", "libs/math/sqrt.c",
                "libs/graphics/pixmap.c", "libs/graphics/intersec.c",
                "libs/graphics/boxint.c",
-               "uqm/ships/sis_ship/sis_ship.c", "uqm/ships/ilwrath/ilwrath.c"]
+               "uqm/ships/sis_ship/sis_ship.c", "uqm/ships/ilwrath/ilwrath.c",
+               "uqm/intel.c", "uqm/cyborg.c"]
 BATTLE_STUBS = os.path.join(HERE, "golden", "battle_stubs.c")
 
 # The planets the battles have (load_gravity_well's battle sprites).
@@ -1853,9 +1854,13 @@ B_LEFT, B_RIGHT, B_THRUST, B_WEAPON, B_SPECIAL, B_ESCAPE = 1, 2, 4, 8, 16, 32
 # six missiles round the ship.
 W_MISSILE, W_HOMING, W_LASER, W_SPRAY = 1, 2, 4, 8
 
+# The AI's ratings (intel.h), as the battle program numbers them from 1.
+AI_RATINGS = [None, "standard", "good", "awesome"]
+
 # An element as the battle program writes it.
-# A frame as it writes it: its ships, elements and draws.
-F_ZOOM, F_SHIPS, F_ELEMENTS, F_DRAWS = 3, 7, 8, 9
+# A frame as it writes it: its ships, elements and draws (and each side's
+# input, which run() takes out into the battle's "inputs").
+F_ZOOM, F_SHIPS, F_ELEMENTS, F_DRAWS, F_INPUTS = 3, 7, 8, 9, 10
 E_FLAGS, E_LIFE, E_CREW, E_MASS = 0, 1, 2, 3
 E_CX, E_CY, E_SHEET, E_FRAME, E_PLAYER, E_PRIM = 15, 16, 19, 20, 21, 22
 E_BLACK, E_SLOT, E_TARGET, E_COLOR = 23, 24, 25, 26
@@ -1942,6 +1947,10 @@ def battle_line(scenario, numbers):
     parts.append(len(scenario.get("events", [])))
     for event in scenario.get("events", []):
         parts += list(event)
+    # Who flies each side (the keys, or the AI at a rating), and the Earth
+    # fight's PROBE_ILWRATH_ENCOUNTER.
+    parts += [AI_RATINGS.index(c) if c else 0 for c in scenario.get("ai", [None, None])]
+    parts.append(1 if scenario.get("earth") else 0)
     return " ".join(str(p) for p in parts)
 
 
@@ -1983,6 +1992,7 @@ class BattleProgram:
             raise RuntimeError("the battle program lost a battle")
         places = {}
         for battle in battles:
+            battle["inputs"] = [frame.pop(F_INPUTS) for frame in battle["frames"]]
             for frame in battle["frames"]:
                 frame[9] = [places.setdefault(a, self.place(a)) for a in frame[9]]
                 if not colours:
@@ -2961,6 +2971,265 @@ def record_battle_ships(uqm, battle_exe, strings_exe, images_exe, package):
         "battle's end if not (its crew held to its most when it warped in, "
         "spawn_ship's clamp), 65535 for none left, UQM's game over; bomb_carrier: "
         "BOMB_CARRIER after it (init_sis sets it when CHMMR_BOMB_STATE is 3).",
+    ])
+    data["sheets"] = ids
+    data["battles"] = out
+    return data
+
+
+# ---- The AI (stage 4a item 4) ----
+
+# How many battles random_ai_battle makes.
+RANDOM_AI_BATTLES = 6
+
+
+def away_from(side):
+    """A pilot's goal: the point of the arena opposite side's ship."""
+    def goal(frame):
+        s = ship_of(frame, side)
+        return ((s[E_CX] + 4096) % 8192, (s[E_CY] + 3840) % 7680) if s else None
+    return goal
+
+
+def random_ai_battle(name, rng):
+    """The flagship with slots and crew at random, flown by keys at
+    random, against the Ilwrath flown by UQM's AI at a rating at random,
+    at Earth (no cloak) or elsewhere."""
+    pieces = [EMPTY_MODULE] * 5 + [M_CREW_POD, M_STORAGE_BAY, M_FUEL_TANK, M_DYNAMO, M_FURNACE, M_GUN,
+                                   M_BLASTER, M_CANNON, M_TRACKING, M_DEFENSE]
+    modules = {i: rng.choice(pieces) for i in range(16)}
+    modules[15] = rng.choice([M_GUN, M_BLASTER, M_CANNON, EMPTY_MODULE])
+    for i in [i for i, m in modules.items() if m == M_DEFENSE][7:]:
+        modules[i] = EMPTY_MODULE
+    ship = sis(rng.choice([3, 40, 150, 2000]), modules,
+               thrusters=rng.sample(range(11), rng.randint(0, 11)), jets=rng.sample(range(8), rng.randint(0, 8)))
+    keys = [0, B_THRUST, B_LEFT, B_RIGHT, B_THRUST | B_LEFT, B_THRUST | B_RIGHT, B_WEAPON, B_WEAPON | B_THRUST,
+            B_WEAPON | B_LEFT, B_SPECIAL, B_SPECIAL | B_THRUST, B_SPECIAL | B_WEAPON]
+    return dict(name=name, seed=rng.randrange(1 << 31), planet=rng.choice(BATTLE_PLANETS),
+                zoom=rng.choice(["smooth", "smooth", "step"]), earth=rng.random() < 0.4,
+                ships=[ship, ilwrath(rng.choice([7, 15, 22]))], ai=[None, rng.choice(["standard", "good", "awesome",
+                                                                                     "awesome"])],
+                steps=random_steps(rng.randrange(1 << 30), rng.choice([1200, 1800]), choices=keys,
+                                   longest=rng.choice([4, 12, 30])),
+                full=60)
+
+
+def ai_battle_scenarios(program):
+    """The Ilwrath flown by UQM's own AI (intel.c, cyborg.c,
+    ilwrath_intelligence) against a scripted flagship, at Earth
+    (PROBE_ILWRATH_ENCOUNTER: no cloak) and elsewhere; and the flagship
+    flown by the AI (sis_intelligence, the Cyborg option's)."""
+    out = []
+    shoot = lambda keep_off: lambda f, side, t: steer(f, side, the_ship(1 - side), fire=True, keep_off=keep_off)
+    flee = lambda f, side, t: steer(f, side, away_from(1 - side))
+    # The Earth fight: a new game's flagship against the Ilwrath of 7
+    # crew, the story's AI (AWESOME_RATING), not cloaking.
+    pods = {**START_MODULES, 3: M_CREW_POD, 4: M_CREW_POD}
+    s = dict(name="ai-earth", seed=8001, planet="planet.water", ships=[sis(120, pods), ilwrath(7)],
+             ai=[None, "awesome"], earth=True, steps=[(20, 0, 0)], full=200)
+    out.append(piloted(program, s, 1200, [lambda f, side, t: steer(f, side, the_ship(1), fire=t % 60 < 10,
+                                                                    keep_off=700), None]))
+    # The same, the flagship keeping away (the AI hunting it far off,
+    # where elsewhere it would cloak), then turning to fight.
+    s = dict(name="ai-earth-chase", seed=8002, planet="planet.chondrite", ships=[sis(30), ilwrath(7)],
+             ai=[None, "awesome"], earth=True, steps=[(20, 0, 0)], full=150)
+    out.append(piloted(program, s, 1500, [lambda f, side, t: flee(f, side, t) if t < 700 else shoot(500)(f, side, t),
+                                          None]))
+    # Elsewhere: the Ilwrath of 22 crew cloaks, hunting the flagship.
+    s = dict(name="ai-cloak", seed=8003, planet="planet.water", ships=[sis(120, pods), ilwrath(22)],
+             ai=[None, "awesome"], steps=[(20, 0, 0)], full=200)
+    out.append(piloted(program, s, 1500, [shoot(700), None]))
+    s = dict(name="ai-cloak-chase", seed=8004, planet="planet.chondrite", ships=[sis(80), ilwrath(22)],
+             ai=[None, "awesome"], steps=[(20, 0, 0)], full=150)
+    out.append(piloted(program, s, 1500, [lambda f, side, t: flee(f, side, t) if (t // 300) % 2 == 0
+                                          else shoot(400)(f, side, t), None]))
+    # The ratings: GOOD_RATING aims with a margin of error of 20 pixels;
+    # STANDARD_RATING 40, and never uses the special (tactical_intelligence
+    # adds to its counter each frame), so never cloaks.
+    for rating, seed in (("good", 8005), ("standard", 8006)):
+        s = dict(name=f"ai-{rating}", seed=seed, planet="planet.water", ships=[sis(50), ilwrath(22)],
+                 ai=[None, rating], steps=[(20, 0, 0)], full=150)
+        out.append(piloted(program, s, 1200, [shoot(600), None]))
+    # Layouts: point defence held against the hellfire, guns all round
+    # spinning, tracking shots.
+    s = dict(name="ai-point-defence", seed=8007, planet="planet.chondrite",
+             ships=[sis(120, {**pods, 9: M_DEFENSE, 10: M_DEFENSE, 11: M_DEFENSE}), ilwrath(22)],
+             ai=[None, "awesome"], steps=[(20, 0, 0)], full=150)
+    out.append(piloted(program, s, 1200, [lambda f, side, t: B_SPECIAL | steer(f, side, the_ship(1), fire=t % 50 < 10,
+                                                                                keep_off=400), None]))
+    s = dict(name="ai-all-round", seed=8008, planet="planet.water",
+             ships=[sis(80, {0: M_GUN, 1: M_CREW_POD, 2: M_CREW_POD, 3: M_DYNAMO, 4: M_DYNAMO, 5: M_FURNACE,
+                             13: M_CANNON, 14: M_GUN, 15: M_BLASTER}, thrusters=(0, 2, 4, 6, 8, 10), jets=(1, 3, 5)),
+                    ilwrath(22)],
+             ai=[None, "awesome"], earth=True, steps=[(20, 0, 0)], full=150)
+    out.append(piloted(program, s, 1200, [lambda f, side, t: B_WEAPON | (B_LEFT if (t // 40) % 2 else B_RIGHT | B_THRUST),
+                                          None]))
+    s = dict(name="ai-tracking", seed=8009, planet="planet.chondrite",
+             ships=[sis(50, {0: M_CANNON, 2: M_CREW_POD, 4: M_TRACKING, 5: M_TRACKING, 14: M_BLASTER, 15: M_CANNON}),
+                    ilwrath(15)],
+             ai=[None, "awesome"], steps=[(20, 0, 0)], full=150)
+    rnd = random_steps(8090, 1500, sides=1, choices=[0, B_THRUST, B_LEFT | B_THRUST, B_RIGHT | B_THRUST, B_WEAPON,
+                                                     B_WEAPON | B_LEFT])
+    flat = [k for n, k in rnd for _ in range(n)]
+    out.append(piloted(program, s, 1500, [lambda f, side, t: flat[min(len(flat) - 1, t)], None]))
+    # Retreating with the AI after it: the flagship flees (DoRunAway, in
+    # ProcessInput before the AI's turn, so the AI sees it that frame:
+    # the ship's mass made 100) and warps out.
+    s = dict(name="ai-retreat", seed=8010, planet="planet.water", runaway=True,
+             ships=[sis(40), ilwrath(22)], ai=[None, "awesome"], steps=[(20, 0, 0)], full=60)
+    def retreat_when_close(f, side, t):
+        ship, them = ship_of(f, 0), ship_of(f, 1)
+        if t > 150 and ship and them and distance(ship, them) < 900:
+            return B_ESCAPE
+        return flee(f, side, t)
+    s = piloted(program, s, 600, [retreat_when_close, None], chunk=2)
+    out.append(dict(s, full=sum(n for n, *_ in s["steps"])))
+    # Crew floating (AbandonShip, as the Syreen's song): the Ilwrath's crew
+    # after it and the flagship's after the Ilwrath, the ships far apart;
+    # the AI goes for crew (CREW_OBJECT_INDEX) when its enemy is far.
+    s = dict(name="ai-crew", seed=8011, planet="planet.chondrite", ships=[sis(60), ilwrath(22)], ai=[None, "awesome"],
+             earth=True, steps=[(20, 0, 0)], events=[(120, 1, 0, 6), (130, 0, 1, 8), (400, 1, 0, 5)], full=150)
+    out.append(clamp_events(program, piloted(program, s, 1200, [flee, None])))
+    # The AI flying the flagship (sis_intelligence; UQM's Cyborg option),
+    # against the Ilwrath's AI: point defence, tracking and guns; and
+    # against an Ilwrath cloaking under keys (the AI's margin for a
+    # cloaked ship).
+    s = dict(name="ai-sis-vs-ai", seed=8012, planet="planet.water",
+             ships=[sis(80, {**START_MODULES, 3: M_TRACKING, 4: M_TRACKING, 9: M_DEFENSE, 10: M_DEFENSE, 13: M_CANNON,
+                             14: M_BLASTER, 6: M_DYNAMO}, thrusters=range(8), jets=range(6)), ilwrath(22)],
+             ai=["awesome", "awesome"], steps=[(1500, 0, 0)], full=200)
+    out.append(s)
+    s = dict(name="ai-sis-vs-keys", seed=8013, planet="planet.chondrite",
+             ships=[sis(60, {**START_MODULES, 0: M_GUN, 9: M_DEFENSE}), ilwrath(22)], ai=["good", None],
+             steps=[(20, 0, 0)], full=150)
+    out.append(piloted(program, s, 1200, [None, cloaker(period=120, close=500)]))
+    s = dict(name="ai-sis-standard", seed=8014, planet="planet.water",
+             ships=[sis(30, {**START_MODULES, 12: M_TRACKING}, thrusters=(1, 2, 3)), ilwrath(7)],
+             ai=["standard", "good"], earth=True, steps=[(1200, 0, 0)], full=100)
+    out.append(s)
+    # Two Ilwraths flown by the AI, both cloaking (elsewhere).
+    out.append(dict(name="ai-duel", seed=8015, planet="planet.chondrite", ships=[ilwrath(22), ilwrath(22)],
+                    ai=["awesome", "awesome"], steps=[(1500, 0, 0)], full=100))
+    rng = __import__("random").Random(4444)
+    out += [random_ai_battle(f"ai-random-{i}", rng) for i in range(RANDOM_AI_BATTLES)]
+    return out
+
+
+def check_ai_battles(scenarios, battles):
+    """Each battle flown by the AI shows what it's for."""
+    by_name = {b["name"]: b for b in battles}
+
+    def frames(name):
+        return by_name[name]["frames"]
+
+    def fail(name, what):
+        raise RuntimeError(f"{name}: {what}")
+
+    def cloaked(f, side):
+        s = ship_of(f, side)
+        return s and s[E_PRIM] == STAMPFILL_PRIM and s[E_BLACK]
+
+    def lost(name, side):
+        c = [fighting(f, side)[0] if fighting(f, side) else None for f in frames(name)]
+        return any(a is not None and b is not None and b < a for a, b in zip(c, c[1:]))
+
+    def flames(name, side):
+        return any(e[E_PLAYER] == side and e[E_FLAGS] & FINITE_LIFE_FLAG and not e[E_FLAGS] & PLAYER_SHIP_FLAG
+                   and e[E_PRIM] == 1 for f in frames(name) for e in f[F_ELEMENTS])
+
+    for sc in scenarios:
+        name = sc["name"]
+        inputs = by_name[name]["inputs"]
+        for side, rating in enumerate(sc.get("ai", [None, None])):
+            used = {i[side] for i in inputs[1:] if i[side] >= 0}
+            if rating and not used - {0}:
+                fail(name, f"the AI flying side {side} did nothing")
+            if rating and len(frames(name)) < 150:
+                fail(name, "the battle is too short for the AI's choices to matter")
+        if sc.get("earth") and "ilwrath" in [s["ship"] for s in sc["ships"][1:]] and sc["ai"][1]:
+            if any(cloaked(f, 1) for f in frames(name)) or any(i[1] >= 0 and i[1] & B_SPECIAL for i in inputs):
+                fail(name, "the Ilwrath cloaked at Earth")
+    for name in ("ai-earth", "ai-cloak", "ai-earth-chase", "ai-cloak-chase"):
+        if not flames(name, 1):
+            fail(name, "the AI never fired")
+    for name in ("ai-cloak", "ai-cloak-chase", "ai-good", "ai-duel"):
+        if not any(cloaked(f, 1) for f in frames(name)):
+            fail(name, "the AI never cloaked")
+    if not any(cloaked(f, 0) for f in frames("ai-duel")):
+        fail("ai-duel", "the AI on side 0 never cloaked")
+    if any(cloaked(f, 1) for f in frames("ai-standard")):
+        fail("ai-standard", "the standard AI cloaked")
+    if not lost("ai-earth", 0) or not lost("ai-cloak", 0):
+        fail("ai-earth", "the AI's hellfire never hit")
+    fr = frames("ai-retreat")
+    if not by_name["ai-retreat"]["ended"] or ship_of(fr[-1], 0) \
+            or not any(ship_of(f, 0) and ship_of(f, 0)[E_PRIM] == STAMPFILL_PRIM for f in fr):
+        fail("ai-retreat", "the flagship didn't retreat")
+    if not any(e[E_FLAGS] & CREW_OBJECT_FLAG for f in frames("ai-crew") for e in f[F_ELEMENTS]):
+        fail("ai-crew", "no crew floated")
+    # sis_intelligence: point defence (lasers) and shots.
+    fr = frames("ai-sis-vs-ai")
+    if not any(e[E_PRIM] == LINE_PRIM and e[E_PLAYER] == 0 for f in fr for e in f[F_ELEMENTS]) \
+            or not flames("ai-sis-vs-ai", 0):
+        fail("ai-sis-vs-ai", "the flagship's AI never used its point defence and guns")
+    draws = {d for b in battles for f in b["frames"] for d in f[F_DRAWS]}
+    for place in ("TurnShip", "Entice"):
+        if place not in draws:
+            fail("ai-*", f"the AI never drew a random number in {place}")
+
+
+def record_battle_ai(uqm, battle_exe, strings_exe, images_exe, package):
+    """The Ilwrath (and the flagship) flown by UQM's own AI (intel.c,
+    cyborg.c, ilwrath_intelligence, sis_intelligence) in UQM's own battle
+    engine (battle.c)."""
+    ids = battle_program_sheets()
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp, list(enumerate(ids)))
+        sheets_file = os.path.join(tmp, "sheets.txt")
+        with open(sheets_file, "w") as f:
+            for n, key in enumerate(ids):
+                f.write(f"{n} {key} {len(hashes[key])}\n")
+        program = BattleProgram(battle_exe, sheets_file, masks)
+        scenarios = ai_battle_scenarios(program)
+        battles = program.run(scenarios, colours=True)
+    check_ai_battles(scenarios, battles)
+    out = []
+    for scenario, battle in zip(scenarios, battles):
+        full = scenario["full"]
+        frames = [f if i <= full else f[:F_SHIPS] + [len(f[F_ELEMENTS]), battle_frame_hash(f)]
+                  for i, f in enumerate(battle["frames"])]
+        inputs = {k: v for k, v in scenario.items() if k not in ("name", "full")}
+        out.append({"name": scenario["name"], "input": inputs, "full": full, "ended": battle["ended"],
+                    "crew_enlisted": battle["crew_enlisted"], "bomb_carrier": battle["bomb_carrier"],
+                    "stars": battle["stars"], "inputs": battle["inputs"], "frames": frames})
+    data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
+                  + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
+                                                         "src/libs/math/random.c"], [
+        "UQM 0.8.0's own AI (intel.c's computer_intelligence, cyborg.c's "
+        "tactical_intelligence, ship_intelligence and the rest, and the "
+        "ships' own intelligence_func: ilwrath.c's ilwrath_intelligence, "
+        "sis_ship.c's sis_intelligence) flying ships in its own battle "
+        "engine, recorded by the program battle.json and battle-ships.json "
+        "are (tools/extract/golden/battle.c; see their notes for the engine, "
+        "the sheets, the masks, the ships and the frames), as an encounter "
+        "runs a battle: battle.c's ProcessInput calls each side's frameInput "
+        "in turn, side 0's ships first, and a side the AI flies has intel.c's "
+        "computer_intelligence for it, as battlecontrols.c's computer "
+        "handlers have.",
+        "input: as battle-ships.json's, and ai: who flies each side, null the "
+        "keys (the steps' keys for a side the AI flies are ignored), or the "
+        "AI at a rating (PlayerControl: standard STANDARD_RATING, good "
+        "GOOD_RATING, awesome AWESOME_RATING, the story's enemy's, restart.c; "
+        "side 1 COMPUTER_CONTROL, side 0 CYBORG_CONTROL as UQM's Cyborg option "
+        "makes it); earth: PROBE_ILWRATH_ENCOUNTER set, with IN_ENCOUNTER the "
+        "Earth fight's rule, in which ilwrath_intelligence doesn't cloak.",
+        "inputs: each frame's BATTLE_INPUT_STATE for each side as its "
+        "frameInput returned it (1 left, 2 right, 4 thrust, 8 weapon, 16 "
+        "special), -1 where it wasn't called (no ship with an element; the "
+        "first frame, before DoBattle). frames: as battle-ships.json's; the "
+        "AI's random draws (TurnShip turning a half circle, Entice dodging) "
+        "are among each frame's draws, named by UQM's function. "
+        "crew_enlisted and bomb_carrier: as battle-ships.json's.",
     ])
     data["sheets"] = ids
     data["battles"] = out
@@ -5020,6 +5289,7 @@ def main():
                      ("battle-masks", lambda: record_battle_masks(uqm, strings, images, args.content)),
                      ("battle", lambda: record_battle(uqm, battle, strings, images, args.content)),
                      ("battle-ships", lambda: record_battle_ships(uqm, battle, strings, images, args.content)),
+                     ("battle-ai", lambda: record_battle_ai(uqm, battle, strings, images, args.content)),
                      ("lander-pickups", lambda: record_lander_pickups(uqm, lander, strings, images, args.content)),
                      ("lander-creatures", lambda: record_lander_creatures(uqm, lander, strings, images, args.content)),
                      ("lander-hazards", lambda: record_lander_hazards(uqm, lander, strings, images, args.content)),

@@ -91,6 +91,22 @@ public sealed class RaceDesc
     public Func<Element, IReadOnlyList<Element?>>? InitWeapon;
 
     /// <summary>
+    /// cyborg_control (INTEL_STUFF): how manoeuvrable the AI thinks the ship
+    /// is (ManeuverabilityIndex: 0 until the AI first looks at the ship,
+    /// when InitCyborg works it out from the characteristics) and how far
+    /// its weapon reaches (WeaponRange), which the AI reads for this ship
+    /// and its enemy.
+    /// </summary>
+    public ushort ManeuverabilityIndex, WeaponRange;
+
+    /// <summary>
+    /// cyborg_control.intelligence_func: the ship's own AI, given the
+    /// ship (a copy of its element) and what tactical_intelligence found
+    /// around it; null for a ship the AI can't fly.
+    /// </summary>
+    public IntelligenceFunc? Intelligence;
+
+    /// <summary>
     /// uninit_func: called as the description is freed (free_ship), when
     /// the ship's element is done with in the battle: the flagship's
     /// (uninit_sis) gives back the crew it has left.
@@ -136,6 +152,12 @@ public sealed class Starship
     public ushort MaxCrew;
     public byte WeaponCounter, SpecialCounter, EnergyCounter;
     public StatusFlags ShipInputState, CurStatusFlags, OldStatusFlags;
+
+    /// <summary>
+    /// control's rating, as the AI last flew the ship (UQM sets control
+    /// from PlayerControl each frame; the AI reads only its rating).
+    /// </summary>
+    public CyborgRating Rating = CyborgRating.Awesome;
 
     /// <summary>Its element in the battle (hShip), or none.</summary>
     public Element? Ship;
