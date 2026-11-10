@@ -180,7 +180,11 @@ public class SisShipTests
         Assert.Throws<ArgumentException>(() => new SisShip(Ships[ShipDescriptions.Ilwrath], null, null, loadout));
         Assert.Throws<ArgumentException>(() => new SisLoadout(Drives(2), Jets(2), new byte[3], 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new SisLoadout(Drives(2), Jets(2), Modules(), -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new SisLoadout(Drives(2), Jets(2), Modules(), 0, kitCrew: 65000));
+        // The most crew, sixteen crew pods, the kit's and the captain, fits a COUNT, and no more.
+        var pods = Modules(Enumerable.Range(0, ShipModules.ModuleSlotCount).Select(i => (i, ShipModules.CrewPod)).ToArray());
+        var (most, _, _) = SisShip.Describe(Sis, new SisLoadout(Drives(0), Jets(0), pods, 0, kitCrew: 64734));
+        Assert.Equal(ushort.MaxValue, most.MaxCrew);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SisLoadout(Drives(2), Jets(2), Modules(), 0, kitCrew: 64735));
     }
 
     // A battle on sheets of our own (solid squares): the ship against the Ilwrath.

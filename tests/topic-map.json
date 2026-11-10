@@ -187,7 +187,7 @@
   "tests/Crateris.Core.Tests/ShipBattleTests.cs": "4d3633bd428466c5",
   "tests/Crateris.Core.Tests/ShipDescriptionTests.cs": "7f0ddf53da9cb9bb",
   "tests/Crateris.Core.Tests/ShipNamesTests.cs": "e58e7690dc5a9746",
-  "tests/Crateris.Core.Tests/SisShipTests.cs": "babad088e00a3e47",
+  "tests/Crateris.Core.Tests/SisShipTests.cs": "299300449bf78e59",
   "tests/Crateris.Core.Tests/SmoothedMotionTests.cs": "cf8ad3c9ffb86d64",
   "tests/Crateris.Core.Tests/SnapshotCodecTests.cs": "9e3678e05804eca6",
   "tests/Crateris.Core.Tests/SpritesTests.cs": "132e4409d0f16967",

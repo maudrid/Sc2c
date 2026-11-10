@@ -2718,8 +2718,8 @@ def ship_battle_scenarios(program):
              ships=[sis(50, {**START_MODULES, 9: M_DEFENSE, 10: M_DEFENSE}), ilwrath()], steps=[(20, 0, 0)])
     s = piloted(program, s, 500, [lambda f, side, t: B_SPECIAL, creeper])
     out.append(dict(s, full=sum(n for n, *_ in s["steps"])))
-    # Two Ilwraths, both cloaking and firing (TrackShip passing over a
-    # cloaked ship; the Earth fight's 7 crew on one side).
+    # Two Ilwraths, both cloaking and firing, cloaked at once at times (the
+    # Earth fight's 7 crew on one side).
     out.append(dict(name="ilwrath-duel", seed=7010, planet="planet.chondrite",
                     ships=[ilwrath(7), ilwrath(22)],
                     steps=random_steps(7100, 1500, choices=[0, B_THRUST, B_LEFT, B_RIGHT, B_THRUST | B_LEFT,
@@ -2807,8 +2807,18 @@ def check_ship_battles(scenarios, battles):
             fail(name, f"the cloak's colours: {sorted(colours)}")
     # Point defence held, ready and paid for, with the cloaked Ilwrath in
     # its range (and nothing else), fires nothing.
-    fr, keys = frames("sis-defence-cloaked"), [None] + [k[1] for k in scenario["sis-defence-cloaked"]["steps"]
-                                                       for _ in range(k[0])]
+    def in_laser_range(e, ship):
+        """spawn_point_defense's range: the next places' deltas as SIZEs,
+        not across the seam, in display units, within LASER_RANGE."""
+        d = []
+        for k in (17, 18):
+            v = (e[k] - ship[k] + 32768) % 65536 - 32768
+            v = -v if v < 0 and v != -32768 else v
+            d.append((v >> 2) & 0xFFFF)
+        return d[0] <= 100 and d[1] <= 100 and d[0] * d[0] + d[1] * d[1] <= 100 * 100
+    defended = scenario["sis-defence-cloaked"]
+    cost = min(defended["ships"][0]["modules"].count(M_DEFENSE), 8) << 2
+    fr, keys = frames("sis-defence-cloaked"), [None] + [k[1] for k in defended["steps"] for _ in range(k[0])]
     passed = 0
     for i in range(1, len(fr)):
         before, now = fighting(fr[i - 1], 0), fighting(fr[i], 0)
@@ -2816,9 +2826,8 @@ def check_ship_battles(scenarios, battles):
         if not (before and now and ship and them and cloaked(fr[i], 1) and keys[i] & B_SPECIAL):
             continue
         near = [e for e in fr[i][F_ELEMENTS] if e is not ship and not e[E_FLAGS] & ((1 << 6) | (1 << 4))
-                and (abs(wrap_delta(e[E_CX] - ship[E_CX], 8192)) >> 2) ** 2
-                + (abs(wrap_delta(e[E_CY] - ship[E_CY], 7680)) >> 2) ** 2 <= 100 * 100]
-        if near == [them] and before[5] == 0 and before[1] >= 8 and now[5] == 0:
+                and in_laser_range(e, ship)]
+        if near == [them] and before[5] == 0 and before[1] >= cost and now[5] == 0:
             passed += 1
     if not passed:
         fail("sis-defence-cloaked", "the point defence never passed over the cloaked Ilwrath")
