@@ -171,7 +171,7 @@ Each is a row of `docs/differences.md`:
 - **No combat:** the Ilwrath fight, buying fleet ships and the Arilou's gift wait for stage 4.
 - **No other races:** every other conversation, the drone, the Slylandro probes and the Melnorme come with ships in space in stage 3b (which comes after stage 4).
 - **No story events:** the event calendar keeps its dates and is saved, but apart from the one a new game runs at once (the Slylandro's ramp-up, which only changes the story state) no event runs until stage 3c, nor do the devices do anything, the other energy nodes' stories (Fwiffo on Pluto among them) or the other time skips.
-- **The status panel** still stands for most of UQM's status area (the flagship's picture, crew, fuel, names, landers), and still says "stage 2" at the top.
+- **The status panel** still stands for most of UQM's status area (the flagship's picture, crew, fuel, names, landers).
 
 ## Bugs
 

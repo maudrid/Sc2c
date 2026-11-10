@@ -927,7 +927,7 @@ public sealed class PlayerSession
     /// <summary>The status panel's lines.</summary>
     public IReadOnlyList<string> StatusLines()
     {
-        var lines = new List<string> { "Attack on Crateris - stage 2", Status, Notice };
+        var lines = new List<string> { "Attack on Crateris - stage 3a", Status, Notice };
         if (Snapshot != null)
         {
             lines.Add($"Date {Snapshot.Year:D4}-{Snapshot.Month:D2}-{Snapshot.Day:D2}");

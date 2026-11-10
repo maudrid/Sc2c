@@ -161,7 +161,7 @@ public class SessionTests
         player.Status = "Playing.";
         player.Observe(host.Step(ShipInput.None));
         var lines = player.StatusLines();
-        Assert.Equal("Attack on Crateris - stage 2", lines[0]);
+        Assert.Equal("Attack on Crateris - stage 3a", lines[0]);
         Assert.Contains("Playing.", lines);
         Assert.Contains("You: hyperspace 175.2 : 145.0", lines);
         Assert.Contains("Crew 10, landers 1, minerals 0 / 500, bio 0, 0 RU", lines);
