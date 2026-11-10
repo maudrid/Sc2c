@@ -3229,10 +3229,11 @@ def check_ai_battles(scenarios, battles):
         fail("ai-immediate", "side 0's second ship never fired its laser")
     # No waits: the ship's facing changing frame after frame (a turn wait
     # holds it for a frame at least).
-    # (and no thrust wait either, which InitCyborg's other branch needs)
+    # (and no thrust wait either, nor a manoeuvrability given, which
+    # InitCyborg's other branch needs)
     facings = [fighting(f, 1)[2] if fighting(f, 1) else None for f in frames("ai-zero-wait")]
     still = scenario_by_name["ai-zero-wait"]["ships"][1]["characteristics"]
-    if still["turn_wait"] or still["thrust_wait"] \
+    if still["turn_wait"] or still["thrust_wait"] or scenario_by_name["ai-zero-wait"]["ships"][1].get("maneuverability") \
             or not any(a is not None and b is not None and c is not None and a != b != c
                        for a, b, c in zip(facings, facings[1:], facings[2:])):
         fail("ai-zero-wait", "the ship has a wait, or never turned two frames running")
