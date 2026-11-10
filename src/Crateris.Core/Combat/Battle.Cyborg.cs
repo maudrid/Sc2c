@@ -97,9 +97,10 @@ public sealed partial class Battle
     /// <para>
     /// UQM chooses the enemy ship as the nearest player ship by
     /// straight-line distance (not TrackShip's |dx| + |dy|), with no side
-    /// check: it skips only its own ship and its own shots (IGNORE_SIMILAR
-    /// with the same STARSHIP); with two sides of one ship each that is the
-    /// other side's. The port considers only opposing ships
+    /// check: of the player ships it could collide with (CollisionPossible),
+    /// it skips only its own (IGNORE_SIMILAR with the same STARSHIP, which
+    /// skips its own shots too); with two sides of one ship each that is
+    /// the other side's. The port considers only opposing ships
     /// (the co-op rule: with several ships on a side, a teammate isn't an
     /// enemy), which keeps UQM's choice with one ship a side.
     /// </para>

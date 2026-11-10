@@ -62,9 +62,9 @@ public class CyborgTests
         Put(flagship.Ship!, ai, 2400, 0);
 
         // A teammate of the Ilwrath's, much nearer than the flagship. UQM's
-        // choice has no side check (cyborg.c skips only its own ship and
-        // shots, by IGNORE_SIMILAR and the same STARSHIP) and would take it;
-        // the port's takes the flagship.
+        // choice has no side check (of the player ships it could collide
+        // with, cyborg.c skips only its own, by IGNORE_SIMILAR and the same
+        // STARSHIP) and would take it; the port's takes the flagship.
         var teammate = Decoy(battle, 1, ai, 200, 100);
         Assert.Same(flagship.Ship, Chosen(battle, ilwrath));
 
@@ -102,6 +102,24 @@ public class CyborgTests
 
         // The keys of one side apply to all its ships, as before.
         Assert.Throws<ArgumentException>(() => battle.Step(new[] { BattleInput.None }));
+    }
+
+    [Fact]
+    public void SeveralShipsOfASideAreAskedInTheirFleetsOrder()
+    {
+        // Each side's second ship in the battle too (as item 5's sides will
+        // have them), placed away from the rest.
+        var (battle, flagship, ilwrath) = Fought(fleet: 2);
+        var (flagship2, ilwrath2) = (battle.Fleet(0)[1], battle.Fleet(1)[1]);
+        InBattle(battle, flagship2, flagship.Ship!, 1500, 0);
+        InBattle(battle, ilwrath2, ilwrath.Ship!, -1500, 0);
+        var asked = new List<Starship>();
+        battle.Step(ship =>
+        {
+            asked.Add(ship);
+            return BattleInput.None;
+        });
+        Assert.Equal(new[] { flagship, flagship2, ilwrath, ilwrath2 }, asked);
     }
 
     [Fact]
@@ -222,8 +240,14 @@ public class CyborgTests
         IShipCode code = side == 0
             ? new SisShip(Sis, Hull, Shot, Loadout())
             : new IlwrathShip(Ilwrath, Hull, Shot);
-        var starship = new Starship(code, side, side == 0 ? (ushort)0 : (ushort)22, 0);
-        starship.RaceDesc = code.Load(battle, starship);
+        return InBattle(battle, new Starship(code, side, side == 0 ? (ushort)0 : (ushort)22, 0), near, dx, dy);
+    }
+
+    // A ship given an element in the battle (its description loaded), placed by another element.
+    private static Element InBattle(Battle battle, Starship starship, Element near, int dx, int dy)
+    {
+        short side = starship.PlayerNr;
+        starship.RaceDesc = starship.Code.Load(battle, starship);
         var e = battle.List.Alloc()!;
         e.StateFlags = ElementFlags.PlayerShip | ElementFlags.IgnoreSimilar;
         e.PlayerNr = side;
