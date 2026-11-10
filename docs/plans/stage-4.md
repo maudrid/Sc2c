@@ -1,6 +1,6 @@
 # Stage 4 plan: combat
 
-**Status:** draft, 2026-11-10, for the owner's review: fifteen decisions wait on them (see "Decisions", recommendations first).
+**Status:** approved by the owner on 2026-11-10, with all fifteen recommendations accepted (see "Decisions"). Stage 4a is being built.
 
 Build order item: "4. Combat, including joining battles, one enemy at a time, and the minimap" (`docs/design.md`), after stage 3a and before 3b, since most races' conversations can end in a battle (stage 3, decision 2). Stage 3a left these to stage 4: the Ilwrath fight at Earth (`docs/differences.md` row 39, stage 3 decision 3), the battle's own fields (row 36, stage 3 decision 11), the escort fleet's ships at the shipyard (row 44), the Arilou's gift of ships (row 43) and the Sa-Matra (row 27). The content stage left the ship and battle graphics to it (`docs/plans/content-stage.md`).
 
@@ -154,7 +154,7 @@ Each item ends with tests that run headless, in a new topic, `combat` (`tests/to
 
 ## Decisions
 
-Recommendations first.
+All fifteen recommendations were accepted on 2026-11-10. Recommendations first.
 
 1. **Splitting stage 4.**
    - **Two parts, 4a and 4b, as above; the Sa-Matra with the endgame (recommended).** 4a can be played through (the Ilwrath fight, together), and 4b's ships each plug into an engine already checked.

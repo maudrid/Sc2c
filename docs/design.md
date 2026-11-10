@@ -199,7 +199,7 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
    - 3a. Talking, the story state and Earth: the conversation engine and screen, story pauses, the dialogue lock, the group inventory, UQM's opening at Earth and the allied starbase, names, wallets and cargo trading. **Built** (plan: `docs/plans/stage-3.md`; see `docs/how-to-try/stage-3a.md`).
    - 3b. Ships in space and the races: alien ships in systems and hyperspace, hailing, the races' conversations, Melnorme trading. After stage 4.
    - 3c. Story events and devices: the event calendar, energy nodes on story worlds, devices, time skips, cutscenes. After 3b.
-4. Combat, including joining battles, one enemy at a time, and the minimap. After 3a, before 3b, since most races' conversations can end in a battle. Plan (draft, for review): `docs/plans/stage-4.md`.
+4. Combat, including joining battles, one enemy at a time, and the minimap. After 3a, before 3b, since most races' conversations can end in a battle. Plan: `docs/plans/stage-4.md` (4a, then 4b).
 
 ### Working rules
 
