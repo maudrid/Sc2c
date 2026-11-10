@@ -1735,6 +1735,9 @@ def record_battle_masks(uqm, strings_exe, images_exe, package):
                         "src/libs/graphics/gfxload.c",
                         "src/libs/graphics/sdl/canvas.c",
                         "src/libs/graphics/tfb_draw.c",
+                        "src/libs/graphics/sdl/sdl_common.c",
+                        "src/libs/graphics/sdl/sdl1_common.c",
+                        "src/libs/graphics/sdl/pure.c",
                         "src/uqm/collide.h", "src/uqm/init.c",
                         "src/uqm/cons_res.c"], [
         "The collision masks of the sprite sheets a battle tests for "
@@ -1744,7 +1747,9 @@ def record_battle_masks(uqm, strings_exe, images_exe, package):
         "with its colour key set as process_image sets it, and a pixel "
         "able to touch as TFB_DrawCanvas_Intersect decides it; the "
         "planets, true colour without alpha, converted to the screen's 32 "
-        "bits first, as TFB_DrawImage_New converts them.",
+        "bits first, as TFB_DrawImage_New converts them (TFB_DisplayFormatAlpha "
+        "to the 32-bit screens without alpha): the images program models that "
+        "step, as its SDL stand-in has no conversion.",
         "Collisions test the big size only (InitIntersectFrame takes the "
         "frame from farray[0]), so only it is here: "
         f"{', '.join(BATTLE_SHIPS)}'s ship, weapon and special sheets as "
@@ -1832,7 +1837,9 @@ def record_contact(uqm, systems_exe, strings_exe, images_exe, package):
     out = {}
     data = header(uqm, ["tools/extract/golden/images.c",
                         "src/libs/graphics/gfxload.c",
-                        "src/libs/graphics/sdl/canvas.c"], [
+                        "src/libs/graphics/sdl/canvas.c",
+                        "src/libs/graphics/tfb_draw.c",
+                        "src/libs/graphics/sdl/sdl_common.c"], [
         "The collision masks of the sprite sheets UQM tests for contact, "
         f"from the official content package (SHA-256 {CONTENT_SHA256}): "
         "each frame as _GetCelData loads it, read by UQM's own PNG loader, "
@@ -1843,7 +1850,8 @@ def record_contact(uqm, systems_exe, strings_exe, images_exe, package):
         "true colour frame without alpha (only the orbit background's last, "
         "never tested for contact) is converted to the screen's 32 bits "
         "first, as TFB_DrawImage_New converts it, which the images program "
-        "models. Content, so hashes only.",
+        "models (its SDL stand-in has no conversion). Content, so hashes "
+        "only.",
     ])
     data["sheets"] = hashes
     out["sprite-masks"] = data

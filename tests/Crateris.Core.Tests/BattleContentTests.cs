@@ -81,6 +81,18 @@ public class BattleContentTests
     }
 
     [ContentFact]
+    public void TheRaceStringsTheStatusPanelShowsLoad()
+    {
+        // The status panel names a ship from its race strings (shipstat.c:
+        // entry 1) and its captain from one of the 16 from NAME_OFFSET, 5
+        // (build.h, NameCaptain). The flagship's names are the player's own.
+        Assert.Null(Fighters[0].RaceStrings);
+        var table = TestContent.With(p => StringTable.Load(p, Fighters[1].RaceStrings!));
+        Assert.True(table.Count >= 5 + 16, $"{Fighters[1].RaceStrings} has {table.Count} strings");
+        Assert.All(Enumerable.Range(5, 16).Append(1), i => Assert.NotEqual("", table[i]));
+    }
+
+    [ContentFact]
     public void TheShapesAreTheOnesUqmTests()
     {
         var shapes = BattleShapes.Load(Sheets.Value, Fighters, Planets);
@@ -124,6 +136,26 @@ public class BattleContentTests
             Assert.Equal((png.Pixels[i * 3] | png.Pixels[i * 3 + 1] | png.Pixels[i * 3 + 2]) != 0 ? 1 : 0, keyed.Mask[i]);
         Assert.Contains((byte)0, keyed.Mask);
         Assert.Contains((byte)1, keyed.Mask);
+    }
+
+    [Fact]
+    public void ATrueColourFramesKeyComesFromItsPng()
+    {
+        // UQM's loader on a 24-bit image with a tRNS colour (images.json's
+        // rgb8_key): its key is the PNG's (R | G << 8 | B << 16) for an .ani
+        // transparent colour other than 0 or -1, and only that colour can't touch.
+        var own = Golden.Load("images").GetProperty("own").EnumerateArray().First(c => c.GetProperty("name").GetString() == "rgb8_key");
+        var result = own.GetProperty("result");
+        var png = Png.Decode(Convert.FromHexString(own.GetProperty("png").GetString()!));
+        long key = result[5].GetInt64();
+        var pixels = Convert.FromHexString(result[7].GetString()!);
+        var want = Enumerable.Range(0, pixels.Length / 3)
+            .Select(i => (byte)((pixels[i * 3] | pixels[i * 3 + 1] << 8 | pixels[i * 3 + 2] << 16) != key ? 1 : 0)).ToArray();
+        Assert.Equal(new byte[] { 1, 0, 1, 1, 1, 1 }, want);
+        Assert.Equal(want, ContactShapes.Frame(new AnimationFrame("x", 5, -1, 0, 0), png).Mask);
+        // With 0, black is the key (none here); with -1 there's none, and black (0) can't touch.
+        Assert.Equal(new byte[] { 1, 1, 1, 1, 1, 1 }, ContactShapes.Frame(new AnimationFrame("x", 0, -1, 0, 0), png).Mask);
+        Assert.Equal(new byte[] { 1, 1, 1, 1, 1, 1 }, ContactShapes.Frame(new AnimationFrame("x", -1, -1, 0, 0), png).Mask);
     }
 
     [ContentFact]

@@ -72,7 +72,11 @@ public sealed record ShipGraphics(
         return sheets;
     }
 
-    /// <summary>Every GFXRES resource a battle loads for the ship (load_ship with its battle data): its sheets, captain and icons.</summary>
+    /// <summary>
+    /// Every GFXRES resource a battle draws for the ship: its sheets, captain
+    /// and icons (load_ship with its battle data). load_ship loads the melee
+    /// icon too, but only a system (ipdisp.c) and the shipyard draw it.
+    /// </summary>
     public IEnumerable<string> BattleResources() =>
         new[] { Sheets(Ship), Sheets(Weapon), Sheets(Special) }
             .Where(s => s != null).SelectMany(s => s!)
@@ -205,7 +209,7 @@ public sealed class ShipDescriptions
                 throw new InvalidDataException("ships.json names a ship twice");
             return new ShipDescriptions(ships);
         }
-        catch (Exception e) when (e is KeyNotFoundException or InvalidOperationException or FormatException)
+        catch (Exception e) when (e is KeyNotFoundException or InvalidOperationException or FormatException or ArgumentException)
         {
             throw new InvalidDataException($"ships.json can't be read: {e.Message}", e);
         }

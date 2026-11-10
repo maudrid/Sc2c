@@ -17,7 +17,7 @@ using Crateris.Core.Uqm;
 namespace Crateris.Core.Combat;
 
 /// <summary>
-/// The content a battle loads, by resource id: each ship's (as its
+/// The graphics a battle draws, by resource id: each ship's (as its
 /// description names it, <see cref="ShipGraphics.BattleResources"/>) and
 /// the arena's: InitSpace's stars, explosions, blasts and asteroids, the
 /// status panel's frames (StatusFrame, loaded at start by setup.c) and the
@@ -51,7 +51,7 @@ public static class BattleResources
         new[] { Stars, Status }.Concat(Explosion).Concat(Blast).Concat(Asteroid)
             .Concat(Planets(planets).SelectMany(p => p));
 
-    /// <summary>Every resource a battle between <paramref name="ships"/> loads, each once.</summary>
+    /// <summary>Every graphics resource a battle between <paramref name="ships"/> draws, each once (the ships' race strings, a string table, aside).</summary>
     public static IReadOnlyList<string> All(IEnumerable<ShipDescription> ships, PlanetTypes planets) =>
         ships.SelectMany(s => s.Graphics.BattleResources()).Concat(Arena(planets)).Distinct().ToList();
 
@@ -122,6 +122,8 @@ public sealed class BattleShapes
                 var frames = decoded[id].Select(f => ContactShapes.Frame(f.Frame, f.Image)).ToList();
                 if (frames.Count == 0)
                     throw new ContentPackageException($"{id} has no images");
+                // Every kind of image the loader makes has a shape
+                // (ContactShapes.Frame), so this only guards against one that hasn't.
                 int unknown = frames.FindIndex(f => f.Mask is null);
                 if (unknown >= 0)
                     throw new ContentPackageException($"{id} frame {unknown} is tested for contact, but its shape can't be read");
