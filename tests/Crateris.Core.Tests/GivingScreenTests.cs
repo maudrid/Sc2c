@@ -176,6 +176,11 @@ public class GivingScreenTests
         Assert.Equal(new[] { "a", "b", "c…", "(2/3)" }, GivingScreen.Wrap("a\nb\nc\nd\ne\n(2/3)", 4, Fits));
         Assert.Equal(new[] { "a…" }, GivingScreen.Wrap("a\nb\n(2/3)", 1, Fits));
         Assert.Equal(new[] { "(1/2)" }, GivingScreen.Wrap("\n(1/2)", 3, Fits));
+        Assert.Equal(new[] { "one", "two (1/2)" }, GivingScreen.Wrap("one\ntwo\n(1/2)", 2, Fits));        // exactly the lines there are
+        Assert.Equal(new[] { "one…", "(1/2)" }, GivingScreen.Wrap("one\ntwo three\n(1/2)", 2, Fits));   // not fitting: cut for it
+        Assert.Empty(GivingScreen.Wrap("one\n(1/2)", 0, Fits));
+        Assert.Equal(new[] { "(1/2)" }, GivingScreen.Wrap("(1/2)", 3, Fits));   // alone, only text
+        Assert.Equal(new[] { "one", "two", "three" }, GivingScreen.Wrap("one\r\ntwo\rthree", 5, Fits));
         Assert.Equal(new[] { "one two", "three four…" }, GivingScreen.Wrap("one two three four five", 2, Fits));
         // Whole words are dropped from the last line to make room for the ellipsis.
         Assert.Equal(new[] { "abcde…" }, GivingScreen.Wrap("abcde fghijk lmn", 1, Fits));
@@ -209,7 +214,7 @@ public class GivingScreenTests
             GivingScreen.Below(report, "", keys, 3, Fits));
         // A paged notice keeps its number however it's cut, and counts it where it ends its last line.
         Assert.Equal(new[] { ("word word", false), ("word (1/2)", false), ("keys one two", true), ("three", true) },
-            GivingScreen.Below("To someone.", "word word\nword\n(1/2)", keys, 5, Fits));
+            GivingScreen.Below("To someone.", "word word\nword\n(1/2)", keys, 4, Fits));
         Assert.Equal(new[] { ("word word", false), ("word word…", false), ("(1/2)", false) },
             GivingScreen.Below("To someone.", report + "\n(1/2)", keys, 3, Fits));
         // However few the lines, the top has one, and no more are given than there are.

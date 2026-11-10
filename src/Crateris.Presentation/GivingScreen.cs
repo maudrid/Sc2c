@@ -218,13 +218,13 @@ public static class GivingScreen
     /// too long for a line of its own (a long name) is broken, a whole
     /// character at a time, over as many lines as it takes. A notice's page
     /// number ends its last line if it fits there, and is kept when the
-    /// rest is cut.
+    /// rest is cut (given two lines or more).
     /// </summary>
     public static List<string> Wrap(string text, int most, Func<string, bool> fits)
     {
         // A notice's page number (PlayerSession.Notify: "\n(i/n)" after the page) goes at the end of its last
         // line if it fits there, else on a line of its own; and it stays when the page is cut.
-        var given = text.Replace("\r", "").Split('\n').ToList();
+        var given = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n').ToList();
         string? page = given.Count > 1 && PageNumber.IsMatch(given[^1]) ? given[^1] : null;
         if (page is null)
             return Cut(Wrapped(given, fits), most, fits);
