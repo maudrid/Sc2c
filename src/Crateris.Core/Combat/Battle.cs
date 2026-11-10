@@ -120,7 +120,7 @@ public sealed class BattleRandom
 /// (<see cref="Teammates"/>, decision 2). The arena may be bigger than UQM's
 /// (<see cref="ArenaSize"/>, decision 4), and then contact is tested across
 /// the seam (<see cref="AcrossSeam"/>, decision 5). The camera, UQM's moving
-/// frame, follows one ship a side (<see cref="Followed"/>). With one ship a
+/// frame, follows one ship a side (<see cref="FollowedElement"/>). With one ship a
 /// side and UQM's arena, the battle is UQM's, frame for frame.
 /// </para>
 /// </summary>
@@ -336,7 +336,10 @@ public sealed partial class Battle
     /// drawing from the battle's random numbers. Returns false, changing
     /// nothing, when the list is full (no element for it). A ship already in
     /// a battle, or spent by one (no longer available), is refused, as is
-    /// joining a battle that's over or during a frame (from a ship's input).
+    /// joining a battle that's over, or decided (the other side has no ship
+    /// left able to fight, its last one exploding: the battle ends once
+    /// it's gone), or during a frame (from a ship's input). A ship its own
+    /// code refuses (<see cref="IShipCode.Load"/> throwing) changes nothing.
     /// </summary>
     public bool Join(Starship ship)
     {
@@ -352,11 +355,14 @@ public sealed partial class Battle
             throw new ArgumentException("the ship isn't free to fight: in a battle or spent by one");
         if (BattleCounter[ship.PlayerNr] == byte.MaxValue)
             throw new InvalidOperationException("the side has as many ships as it can count");
+        if (BattleCounter[1 - ship.PlayerNr] == 0)
+            throw new InvalidOperationException("the battle is decided: the other side has no ship left to fight");
         if (List.Full)
             return false;
+        // The ship first (its code may refuse it, changing nothing), then its side's.
+        SpawnShip(ship);   // with a slot free, it can't fail
         _fleets[ship.PlayerNr].Add(ship);
         BattleCounter[ship.PlayerNr]++;
-        SpawnShip(ship);   // with a slot free, it can't fail
         return true;
     }
 

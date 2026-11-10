@@ -177,8 +177,8 @@ public sealed partial class Battle
     // one ship a side is the other side's) and has none if it's dead too;
     // with several ships a side at once (item 5) a teammate isn't the
     // winner, and the winner is the first of the other side's ships alive.
-    // A ship whose element has no ship (its side had no next ship, gone at
-    // the frame's end) isn't one (UQM's would crash on it).
+    // (A ship's element without a ship isn't one: cleanup_dead_ship leaves
+    // the element no longer a ship's, so it can't come up.)
     private Starship? FindAliveStarShip(Element deadShip)
     {
         for (var e = List.Head; e != null; e = e.Succ)

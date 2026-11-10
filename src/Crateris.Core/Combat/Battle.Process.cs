@@ -495,25 +495,41 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// Whether the camera follows this ship's element (decision 5's moving
-    /// frame): UQM's follows every ship, one a side; here one ship a side,
-    /// the side's first in its fleet still fighting (with crew; for side 0,
-    /// the battle's first player still in it), or with none fighting, the
-    /// first still with an element (UQM's camera follows a ship exploding).
-    /// An element of a ship that isn't in a fleet, or no longer has a ship
-    /// (one whose side had no next ship, gone at the frame's end), is
-    /// followed, as UQM's is. With one ship a side, every ship is followed.
+    /// The element of a side's ship the camera follows (decision 5's moving
+    /// frame), or null: UQM's follows every ship, one a side; here one ship
+    /// a side, the side's first in its fleet still fighting (its element a
+    /// ship's, with crew, not running away; for side 0 the battle's first
+    /// player still in it), or with none fighting, the first whose element
+    /// is still a ship's (UQM's camera follows a ship exploding or warping
+    /// out). With one ship a side, that ship's element.
     /// </summary>
-    public bool Followed(Element ship)
+    public Element? FollowedElement(int side)
     {
-        var owner = ship.Parent;
-        if (owner == null || owner.PlayerNr is < 0 or >= NumSides || !_fleets[owner.PlayerNr].Contains(owner))
-            return true;
-        var fleet = _fleets[owner.PlayerNr];
-        var followed = fleet.FirstOrDefault(s => s.Ship != null && s.RaceDesc is { CrewLevel: > 0 })
-                       ?? fleet.FirstOrDefault(s => s.Ship != null);
-        return followed == owner;
+        Element? fallback = null;
+        foreach (var s in _fleets[side])
+        {
+            var e = s.Ship;
+            if (e == null || (e.StateFlags & ElementFlags.PlayerShip) == 0)
+                continue;
+            if (s.RaceDesc is { CrewLevel: > 0 } && e.MassPoints <= MaxShipMass + 1)
+                return e;
+            fallback ??= e;
+        }
+        return fallback;
     }
+
+    /// <summary>
+    /// Whether the camera follows a ship's element now: it is its side's
+    /// <see cref="FollowedElement"/>, or the side has none (then every one
+    /// of its ships is followed, as UQM's are). <see cref="PreProcessQueue"/>
+    /// takes each side's element once, as the frame starts, so a ship dying
+    /// during the frame is followed to its end, as UQM's is, and a side never
+    /// goes without one for a frame.
+    /// </summary>
+    public bool Followed(Element ship) =>
+        ship.PlayerNr is < 0 or >= NumSides || Followed(ship, FollowedElement(ship.PlayerNr));
+
+    private static bool Followed(Element ship, Element? followed) => followed == null || followed == ship;
 
     // PreProcessQueue: every element's step before moving and its
     // collisions, and the camera from the ships it follows.
@@ -527,6 +543,8 @@ public sealed partial class Battle
             minReduction = maxReduction = MaxZoomOut + (1 << ZoomShift);
 
         short originX = (short)(Size.Width >> 1), originY = (short)(Size.Height >> 1);
+        // The ships the camera follows this frame (one a side), taken before any element steps.
+        Element? followed0 = FollowedElement(0), followed1 = FollowedElement(1);
         int shipsAlive = 0;
         var element = List.Head;
         while (element != null)
@@ -539,7 +557,8 @@ public sealed partial class Battle
             if (Colliding(e) && (e.StateFlags & ElementFlags.Collision) == 0)
                 ProcessCollisions(nextElement, e, MaxTimeValue, ElementFlags.PreProcess);
 
-            if ((e.StateFlags & ElementFlags.PlayerShip) != 0 && Followed(e))
+            if ((e.StateFlags & ElementFlags.PlayerShip) != 0
+                && Followed(e, e.PlayerNr == 0 ? followed0 : e.PlayerNr == 1 ? followed1 : null))
             {
                 shipsAlive++;
                 if (maxReduction > _optMaxZoomOut && minReduction > _optMaxZoomOut)

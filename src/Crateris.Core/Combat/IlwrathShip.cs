@@ -218,8 +218,9 @@ public sealed class IlwrathShip : IShipCode
                             var (dx0, dy0) = v.Next((ushort)lookAhead);
                             v = e.Velocity;
                             var (dx1, dy1) = v.Next((ushort)lookAhead);
-                            short dx = (short)((target.Current.X + dx0) - (e.Current.X + dx1));
-                            short dy = (short)((target.Current.Y + dy0) - (e.Current.Y + dy1));
+                            // Across the seam where contact is tested so (decision 5).
+                            short dx = battle.SeamDeltaX((target.Current.X + dx0) - (e.Current.X + dx1));
+                            short dy = battle.SeamDeltaY((target.Current.Y + dy0) - (e.Current.Y + dy1));
                             starShip.ShipFacing = UqmMath.NormalizeFacing(UqmMath.AngleToFacing(UqmMath.ArcTan(dx, dy)));
                             if (e.TurnWait == 0)
                                 ++e.TurnWait;

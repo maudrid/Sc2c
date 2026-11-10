@@ -301,6 +301,18 @@ public class SeveralShipsTests
         foreach (var slot in taken)
             battle.List.Free(slot);
 
+        // A ship its own code refuses (a player ship with crew of its own) changes nothing.
+        int count = battle.List.Count;
+        seed = battle.Random.Seed;
+        var refused = new Starship(new SisShip(Sis, Hull, Shot, Loadout()), 0, 5, 0);
+        Assert.ThrowsAny<Exception>(() => battle.Join(refused));
+        Assert.Equal((2, (byte)2, seed, count), (battle.Fleet(0).Count, battle.BattleCounter[0], battle.Random.Seed, battle.List.Count));
+        Assert.True(refused.Available);
+        Assert.Null(refused.RaceDesc);
+        Assert.Null(refused.Ship);
+        // Nor can a ship of no side join.
+        Assert.Throws<ArgumentException>(() => battle.Join(new Starship(new SisShip(Sis, Hull, Shot, Loadout()), 2, 0, 0)));
+
         // A ship that joins as the side's last one explodes keeps the battle going.
         foreach (var p in battle.Fleet(0))
             battle.DoDamage(p.Ship!, (short)p.Ship!.CrewLevel);
@@ -320,6 +332,28 @@ public class SeveralShipsTests
             battle.Step(None);
         Assert.False(battle.InBattle);
         Assert.Throws<InvalidOperationException>(() => battle.Join(Player()));
+    }
+
+    [Fact]
+    public void NoneJoinsABattleDecided()
+    {
+        // The enemy has no ship left able to fight (its last exploding): the battle is decided.
+        var (battle, _, ilwrath) = Fought(1);
+        battle.DoDamage(ilwrath.Ship!, (short)ilwrath.Ship!.CrewLevel);
+        battle.Step(None);
+        Assert.True(battle.InBattle);
+        Assert.Throws<InvalidOperationException>(() => battle.Join(Player()));
+    }
+
+    [Fact]
+    public void ASideCountsAtMost255Ships()
+    {
+        var (battle, _, _) = Fought(1, ArenaSize.Scaled(2));
+        for (int i = 1; i < byte.MaxValue; ++i)
+            Assert.True(battle.Join(Player()));
+        Assert.Equal(byte.MaxValue, battle.BattleCounter[0]);
+        Assert.Throws<InvalidOperationException>(() => battle.Join(Player()));
+        Assert.Equal(byte.MaxValue, battle.Fleet(0).Count);
     }
 
     [Fact]
@@ -352,7 +386,7 @@ public class SeveralShipsTests
 
         // The frame moves so the two it follows are about the arena's centre.
         battle.Step(None);
-        AssertCentred(players[0], ilwrath);
+        AssertCentred(battle, players[0], ilwrath, cx, cy);
 
         // The first player dies: the camera follows the next still fighting.
         battle.DoDamage(players[0].Ship!, (short)players[0].Ship!.CrewLevel);
@@ -360,14 +394,86 @@ public class SeveralShipsTests
         Assert.Equal(new[] { false, true, false, true },
             players.Append(ilwrath).Select(p => battle.Followed(p.Ship!)));
         battle.Step(None);
-        AssertCentred(players[1], ilwrath);
+        AssertCentred(battle, players[1], ilwrath, cx, cy);
+    }
 
-        void AssertCentred(Starship a, Starship b)
+    // The two ships' midpoint (the shorter way) about the arena's centre.
+    private static void AssertCentred(Battle battle, Starship a, Starship b, int cx, int cy)
+    {
+        int midX = a.Ship!.Current.X + battle.WrapDeltaX(b.Ship!.Current.X - a.Ship.Current.X) / 2;
+        int midY = a.Ship.Current.Y + battle.WrapDeltaY(b.Ship.Current.Y - a.Ship.Current.Y) / 2;
+        Assert.InRange(midX, cx - 8, cx + 8);
+        Assert.InRange(midY, cy - 8, cy + 8);
+    }
+
+    [Fact]
+    public void TheCameraFollowsAPlayerKilledMidFrameToTheFramesEnd()
+    {
+        // The first player, after a teammate who joined later in the list,
+        // is killed by a shot in the frame's collisions: the camera follows
+        // it to the frame's end (not the enemy alone, which would slow its
+        // scroll and zoom it in), then the teammate.
+        var (battle, players, ilwrath) = Fought(2, ArenaSize.Scaled(1.5));
+        var (cx, cy) = Cleared(battle, players[0], ilwrath);
+        var first = players[0];
+        first.Ship!.CrewLevel = 1;
+        first.RaceDesc!.CrewLevel = 1;
+        Missile(battle, ilwrath, cx - 400, cy, West, 32, life: 30);
+        int zoom = battle.ZoomOut;
+        for (int frame = 0; frame < 20 && first.RaceDesc!.CrewLevel != 0; ++frame)
         {
-            int midX = a.Ship!.Current.X + battle.WrapDeltaX(b.Ship!.Current.X - a.Ship.Current.X) / 2;
-            int midY = a.Ship.Current.Y + battle.WrapDeltaY(b.Ship.Current.Y - a.Ship.Current.Y) / 2;
-            Assert.InRange(midX, cx - 8, cx + 8);
-            Assert.InRange(midY, cy - 8, cy + 8);
+            battle.Step(None);
+            Assert.Equal((0, 0), ((int)battle.ScrollX, (int)battle.ScrollY));
+            Assert.Equal(zoom, battle.ZoomOut);
+        }
+        Assert.Equal(0, first.RaceDesc!.CrewLevel);
+        Assert.Same(players[1].Ship, battle.FollowedElement(0));
+        battle.Step(None);
+        AssertCentred(battle, players[1], ilwrath, cx, cy);
+    }
+
+    [Fact]
+    public void TheCameraLeavesAPlayerRetreating()
+    {
+        // The first player retreats: from then the camera follows the
+        // teammate still fighting, never no player, until the first is gone.
+        var (battle, players, ilwrath) = Fought(2, ArenaSize.Scaled(1.5), runAwayAllowed: true);
+        var (cx, cy) = Cleared(battle, players[0], ilwrath);
+        battle.Step(ship => ship == players[0] ? BattleInput.Escape : BattleInput.None);
+        Assert.Same(players[1].Ship, battle.FollowedElement(0));
+        battle.Step(None);
+        AssertCentred(battle, players[1], ilwrath, cx, cy);
+        for (int frame = 0; frame < 300 && players[0].Ship != null; ++frame)
+        {
+            battle.Step(None);
+            Assert.Same(players[1].Ship, battle.FollowedElement(0));
+            Assert.Equal((0, 0), ((int)battle.ScrollX, (int)battle.ScrollY));
+        }
+        Assert.Null(players[0].Ship);
+    }
+
+    [Fact]
+    public void AnArenaThreeTimesUqmsRuns()
+    {
+        // The biggest arena: ships flying and firing about it, the AI after
+        // them, every place within it (lines may end past an edge for a frame).
+        var size = ArenaSize.Scaled(ArenaSize.MaxScale);
+        foreach (uint seed in new uint[] { 3, 31 })
+        {
+            var battle = NewBattle(seed, size, maxElements: 300);
+            for (int i = 0; i < 2; ++i)
+                Assert.True(battle.Join(Player()));
+            for (int frame = 0; frame < 600 && battle.InBattle; ++frame)
+            {
+                battle.Step(ship => ship.PlayerNr == 1 ? battle.ComputerIntelligence(ship)
+                    : BattleInput.Thrust | BattleInput.Weapon | (frame / 20 % 3 == 0 ? BattleInput.Left : BattleInput.None));
+                foreach (var e in battle.List.Elements)
+                {
+                    int slack = e.Prim == PrimType.Line ? size.Width : 0;
+                    Assert.InRange(e.Current.X, -slack, size.Width - 1 + slack);
+                    Assert.InRange(e.Current.Y, -slack, size.Height - 1 + slack);
+                }
+            }
         }
     }
 
@@ -467,6 +573,30 @@ public class SeveralShipsTests
             var pushed = second.Ship!.Velocity.Current();
             Assert.True(pushed.dx > 0 && pushed.dy == 0, $"the Ilwrath pushed east, not ({pushed.dx}, {pushed.dy})");
         }
+    }
+
+    [Theory]
+    [InlineData(1.0, false)]
+    [InlineData(1.5, true)]
+    public void TheIlwrathUncloakingAimsAcrossTheSeamInABiggerArena(double scale, bool across)
+    {
+        // A second Ilwrath (one the camera doesn't follow) cloaks, then fires
+        // from black at a player 400 units west of it over the seam: it
+        // turns to where its target will be (ilwrath_preprocess), the shorter way.
+        var size = ArenaSize.Scaled(scale);
+        var (battle, players, ilwrath) = Fought(2, size);
+        var (_, cy) = Cleared(battle, players[0], ilwrath);
+        var second = Avenger();
+        Assert.True(battle.Join(second));
+        WarpIn(battle);
+        Put(battle, second.Ship!, 100, cy + 2000);
+        Put(battle, players[1].Ship!, size.Width - 300, cy + 2000);
+        battle.Step(ship => ship == second ? BattleInput.Special : BattleInput.None);
+        for (int frame = 0; frame < 100 && !Battle.ObjectCloaked(second.Ship!); ++frame)
+            battle.Step(None);
+        Assert.True(Battle.ObjectCloaked(second.Ship!));
+        battle.Step(ship => ship == second ? BattleInput.Weapon : BattleInput.None);
+        Assert.Equal(across ? West : East, second.ShipFacing);
     }
 
     [Theory]
