@@ -62,9 +62,10 @@ public class CyborgTests
         Put(flagship.Ship!, ai, 2400, 0);
 
         // A teammate of the Ilwrath's, much nearer than the flagship. UQM's
-        // choice has no side check (of the player ships it could collide
-        // with, cyborg.c skips only its own, by IGNORE_SIMILAR and the same
-        // STARSHIP) and would take it; the port's takes the flagship.
+        // choice has no side check (it takes the nearest player ship that
+        // CollisionPossible lets through, which leaves out its own, by
+        // IGNORE_SIMILAR and the same STARSHIP, but none by side) and would
+        // take it; the port's takes the flagship.
         var teammate = Decoy(battle, 1, ai, 200, 100);
         Assert.Same(flagship.Ship, Chosen(battle, ilwrath));
 
@@ -108,11 +109,18 @@ public class CyborgTests
     public void SeveralShipsOfASideAreAskedInTheirFleetsOrder()
     {
         // Each side's second ship in the battle too (as item 5's sides will
-        // have them), placed away from the rest.
+        // have them), at the list's head, so its order isn't the fleets';
+        // non-solid, as they have none of a ship's callbacks to collide with.
         var (battle, flagship, ilwrath) = Fought(fleet: 2);
         var (flagship2, ilwrath2) = (battle.Fleet(0)[1], battle.Fleet(1)[1]);
-        InBattle(battle, flagship2, flagship.Ship!, 1500, 0);
-        InBattle(battle, ilwrath2, ilwrath.Ship!, -1500, 0);
+        foreach (var (second, first) in new[] { (flagship2, flagship), (ilwrath2, ilwrath) })
+        {
+            var e = InBattle(battle, second, first.Ship!, 1500, 0);
+            e.StateFlags |= ElementFlags.NonSolid;
+            battle.List.Remove(e);
+            battle.List.Insert(e, battle.List.Head);
+        }
+        Assert.Equal(new[] { ilwrath2.Ship, flagship2.Ship }, battle.List.Elements.Take(2));
         var asked = new List<Starship>();
         battle.Step(ship =>
         {
