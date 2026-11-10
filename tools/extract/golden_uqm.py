@@ -2135,7 +2135,7 @@ def battle_scenarios(program):
         lambda f, side, t: B_LEFT if t > 400 else 0]))
     # Crew floating towards a ship that dies: they turn to their own ship
     # or the nearest (crew_preprocess). The dying ship is crew-immune: its
-    # AbandonShip does nothing, and crew reaching it are lost. The first
+    # AbandonShip does nothing. The first
     # crew leave a ship still since it warped in (its velocity zeroed:
     # TravelAngle 0, so they go as from a ship moving straight up).
     s = dict(name="crew-orphans", seed=131, planet="planet.chondrite",
@@ -2169,7 +2169,7 @@ def battle_scenarios(program):
     s = dict(name="fleets", seed=301, planet="planet.water", fleet=[3, 2],
              ships=[test_ship(ilwrath, crew=3, weapons=W_MISSILE | W_HOMING),
                     test_ship(ilwrath, crew=3, weapons=W_MISSILE | W_HOMING)],
-             steps=[(20, 0, 0)], full=300)
+             steps=[(20, 0, 0)], full=480)
     out.append(piloted(program, s, 900, [lambda f, side, t: steer(f, side, the_ship(1), fire=True, keep_off=300),
                                          lambda f, side, t: steer(f, side, the_ship(0), fire=True, keep_off=300)],
                        chunk=6))
@@ -2355,7 +2355,8 @@ def check_battles(scenarios, battles):
                  and e[E_FLAGS] & FINITE_LIFE_FLAG}
         for e in b[F_ELEMENTS]:
             was = shots.get(e[24])
-            if was and e[E_MASS] == 2 and e[E_LIFE] == was[E_LIFE] - 1 and e[6] != was[6]:
+            if was and e[E_MASS] == 2 and e[E_LIFE] == was[E_LIFE] - 1 and e[6] != was[6] \
+                    and e[E_FRAME] != was[E_FRAME]:   # its facing too: not gravity's pull
                 turns += 1
     if not turns or not lost("homing", 1):
         fail("homing", "the homing missiles never turned and hit")
