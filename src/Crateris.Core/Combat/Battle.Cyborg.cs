@@ -85,8 +85,10 @@ public sealed partial class Battle
     /// <summary>
     /// tactical_intelligence: the AI looks at every element in the battle
     /// and picks what concerns its ship (the nearest enemy ship, crew to
-    /// pick up, the enemy shot to dodge first, the planet to keep clear of,
-    /// the nearest asteroid), then the ship's own AI decides on the keys,
+    /// pick up, the enemy shot to dodge first, the planet to keep clear of;
+    /// and the nearest asteroid, which only a ship's own AI may act on, as
+    /// <see cref="ShipIntelligence"/> stops short of it), then the ship's
+    /// own AI decides on the keys,
     /// which come back as the ship's input. It works on a copy of its
     /// ship's element, but the ship's keys (ship_input_state, which it
     /// keeps from frame to frame), its facing (put back after) and, for
@@ -94,9 +96,10 @@ public sealed partial class Battle
     /// ship's own, and it draws from the battle's random numbers.
     /// <para>
     /// UQM chooses the enemy ship as the nearest player ship by
-    /// straight-line distance, of any side but its own ship's (whose shots
-    /// and itself it skips as its own); with two sides of one ship each
-    /// that is the other side's. The port considers only opposing ships
+    /// straight-line distance (not TrackShip's |dx| + |dy|), with no side
+    /// check: it skips only its own ship and its own shots (IGNORE_SIMILAR
+    /// with the same STARSHIP); with two sides of one ship each that is the
+    /// other side's. The port considers only opposing ships
     /// (the co-op rule: with several ships on a side, a teammate isn't an
     /// enemy), which keeps UQM's choice with one ship a side.
     /// </para>
@@ -320,7 +323,9 @@ public sealed partial class Battle
     // GetFrameRect (SetAbsFrameIndex (IntersectStamp.frame, 0)): the
     // footprint of the first frame of the sheet the ship's intersection
     // tests, none before it has one. InitIntersectFrame takes that frame
-    // from next.image.farray[0], which a ship never changes.
+    // from next.image.farray[0]: the ship's hull for the ships ported (a
+    // ship changing its farray, as the Mmrnmhrm transforming, would need
+    // the intersection's own sheet).
     private static IntersectFrame? FrameZeroShape(Element ship) =>
         ship.Intersect.HasFrame && ship.Next.FrameArray != null ? ship.Next.FrameArray[0].Shape : null;
 
@@ -638,8 +643,10 @@ public sealed partial class Battle
     }
 
     /// <summary>
-    /// ship_intelligence: from the farthest concern to the enemy ship, the
-    /// ship moves about the first it can (once a frame) and fires at the
+    /// ship_intelligence: in the concerns' order from the planet down
+    /// (the planet, the enemy shot, crew, the enemy ship; not the asteroid
+    /// at <see cref="FirstEmptyIndex"/>), the ship moves about the first it
+    /// can (once a frame) and fires at the
     /// enemy ship, or a shot it isn't dodging, when its weapon would hit.
     /// Ships' own AIs (<see cref="RaceDesc.Intelligence"/>) call it.
     /// </summary>

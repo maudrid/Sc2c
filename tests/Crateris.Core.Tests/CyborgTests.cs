@@ -45,6 +45,13 @@ public class CyborgTests
         // Farther than the flagship: the flagship.
         Put(nearer, ai, 0, 3000);
         Assert.Same(flagship.Ship, Chosen(battle, ilwrath));
+
+        // By straight-line distance (cyborg.c), not TrackShip's |dx| + |dy|:
+        // the flagship 1,414 units off diagonally (2,000 by |dx| + |dy|)
+        // beats a ship 1,600 off straight ahead.
+        Put(flagship.Ship!, ai, 1000, 1000);
+        Put(nearer, ai, 1600, 0);
+        Assert.Same(flagship.Ship, Chosen(battle, ilwrath));
     }
 
     [Fact]
@@ -66,8 +73,9 @@ public class CyborgTests
         Assert.Null(Chosen(battle, ilwrath));
         battle.List.Put(flagship.Ship!);
 
-        // An opposing ship as near is taken.
-        var opposing = Decoy(battle, 0, ai, -200, -100);
+        // An opposing ship farther than the teammate but nearer than the
+        // flagship is taken (UQM's would still take the teammate).
+        var opposing = Decoy(battle, 0, ai, -700, 0);
         Assert.Same(opposing, Chosen(battle, ilwrath));
         Assert.NotSame(teammate, Chosen(battle, ilwrath));
     }
@@ -75,7 +83,9 @@ public class CyborgTests
     [Fact]
     public void EachShipsInputIsAskedInProcessInputsOrder()
     {
-        var (battle, flagship, ilwrath) = Fought(runAwayAllowed: true);
+        // Two ships a side: only the one in the battle (with an element) is asked.
+        var (battle, flagship, ilwrath) = Fought(runAwayAllowed: true, fleet: 2);
+        Assert.All(new[] { 0, 1 }, side => Assert.Null(battle.Fleet(side)[1].Ship));
         var asked = new List<Starship>();
         int massSeen = -1;
         battle.Step(ship =>
@@ -143,14 +153,19 @@ public class CyborgTests
     // A battle of a flagship against the Ilwrath on sheets of our own, run
     // until both have warped in (the AI flies only a ship that's drawn).
     private static (Battle Battle, Starship Flagship, Starship Ilwrath) Fought(bool runAwayAllowed = false,
-        bool noCloak = false)
+        bool noCloak = false, int fleet = 1)
     {
         var arena = new BattleArena(new Views(Solid("stars", 3, 1)), Three(Solid("asteroid", 21, 10)),
             Three(Solid("blast", 8, 5)), Three(Solid("boom", 9, 3)), Three(Solid("planet", 1, 60)));
-        var flagship = new Starship(new SisShip(Sis, Hull, Shot, Loadout()), 0, 0, 0);
-        var ilwrath = new Starship(new IlwrathShip(Ilwrath, Hull, Shot, noCloak), 1, 22, 0) { CaptainsNameIndex = 5 };
-        var battle = new Battle(arena, new[] { new[] { flagship }, new[] { ilwrath } }, 777,
-            runAwayAllowed: runAwayAllowed);
+        Starship Flagship() => new(new SisShip(Sis, Hull, Shot, Loadout()), 0, 0, 0);
+        Starship Avenger() => new(new IlwrathShip(Ilwrath, Hull, Shot, noCloak), 1, 22, 0) { CaptainsNameIndex = 5 };
+        var fleets = new[]
+        {
+            Enumerable.Range(0, fleet).Select(_ => Flagship()).ToArray(),
+            Enumerable.Range(0, fleet).Select(_ => Avenger()).ToArray(),
+        };
+        var (flagship, ilwrath) = (fleets[0][0], fleets[1][0]);
+        var battle = new Battle(arena, fleets, 777, runAwayAllowed: runAwayAllowed);
         for (int i = 0; i < 200 && (flagship.Ship!.Prim == PrimType.None || ilwrath.Ship!.Prim == PrimType.None
                                     || (flagship.Ship.StateFlags & ElementFlags.Appearing) != 0); ++i)
             battle.Step(new[] { BattleInput.None, BattleInput.None });
