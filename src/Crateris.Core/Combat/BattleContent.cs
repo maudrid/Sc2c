@@ -110,7 +110,7 @@ public sealed class BattleShapes
     /// <summary>
     /// The shapes of these sheets. Every frame must have a known mask, and
     /// every sheet a frame; anything wrong is a <see cref="ContentPackageException"/>,
-    /// found when it's made rather than in a battle (the host will make it as the
+    /// found when it's made rather than in a battle (the game will make it as the
     /// content is opened, headless too, stage 4a item 6; the tests do now).
     /// </summary>
     public static BattleShapes Load(AnimationSheets decoded, IEnumerable<string> sheets)
