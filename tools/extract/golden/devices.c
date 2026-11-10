@@ -1,7 +1,7 @@
 /*
  * Attack on Crateris: record the Manifest's Devices list as UQM's own
- * planets/devices.c makes and moves it, for the C# port (docs/plans/
- * stage-3.md, item 10: the group inventory).
+ * planets/devices.c makes, moves and draws it, for the C# port (docs/
+ * plans/stage-3.md, item 10: the group inventory; item 11: its drawing).
  *
  * Copyright (C) 2026 Attack on Crateris contributors.
  *
@@ -11,10 +11,18 @@
  * (at your option) any later version.
  *
  * devices.c is included, so its static functions (DoManipulateDevices,
- * DrawDevices) can be called, and libs/strings/unicode.c linked (a name's
- * two lines). The drawing is stubbed and records what it's asked to draw:
- * which game string each name is (GAME_STRING's index) and which icon
- * (MiscDataFrame's frame), at which row, lit or not.
+ * DrawDevices) can be called, and linked with util.c (DrawStarConBox) and
+ * libs/strings/unicode.c (a name's two lines). The drawing primitives are
+ * this program's: each records itself, in the screen's coordinates (the
+ * context's clip rectangle's corner added, as UQM's drawing does), as
+ * golden/sell.c records them. Fonts are names. The game's strings are
+ * this program's (the names are content): GAME_STRING (N) is "{gs:N}",
+ * then by N % 4 nothing more, " b", " b c" or "\xc3\xa9 b" (the last
+ * puts a two-byte character before the space, which utf8StringPos
+ * counts as one), so a name's split into its two lines is recorded. The
+ * frames are MiscDataFrame's indexes, as SetAbsFrameIndex is asked for
+ * them (their wrapping round its count isn't recorded: there are frames
+ * for every device).
  *
  * Input (stdin): the game state in hex (UQM's GameState bytes); then the
  * keys, space-separated: u, d, l, r (up, down, left, right), pu and pd
@@ -23,10 +31,15 @@
  * Output, a JSON line each:
  *   {"list": [devices...]}                   InventoryDevices' list
  *   {"step": "open"|key, "state": n, "top": n, "left": 0|1,
- *    "drawn": [["icon", frame] | ["name", string, row, lit]...]}
- *                                             after DevicesMenu's first
+ *    "calls": [call...]}                      after DevicesMenu's first
  *                                             DrawDevices, then after
  *                                             each key
+ * each call one of
+ *   ["s", resource, frame, x, y, CLIP]                     DrawStamp
+ *   ["r", x, y, width, height, r, g, b, CLIP]              DrawFilledRectangle
+ *   ["t", font, x, y, align, count, text, r, g, b, CLIP]   font_DrawText
+ * (count -1 all; CLIP the context's clip rectangle as x, y, width,
+ * height, all in the screen's coordinates).
  */
 
 #include "uqm/planets/devices.c"
@@ -36,11 +49,10 @@
 
 GLOBDATA GlobData;
 CONTROLLER_INPUT_STATE PulsedInputState;
-CONTEXT StatusContext, SpaceContext, ScreenContext, OffScreenContext;
 FRAME MiscDataFrame, Screen;
-FONT StarConFont, TinyFont, MicroFont;
 STRING GameStrings;
 int optWhichMenu, optWhichFonts;
+int ScreenWidth = 320, ScreenHeight = 240;
 
 BYTE
 getGameState (BYTE *state, int startBit, int endBit)
@@ -52,79 +64,118 @@ getGameState (BYTE *state, int startBit, int endBit)
 			& ((1 << (endBit - startBit + 1)) - 1));
 }
 
-static char drawn[8192];
+/* ------------------------------------------------------------ recording */
+
+static char drawn[1 << 16];
+static char line_buf[1024];
 
 static void
 note (const char *s)
 {
+	if (strlen (drawn) + strlen (s) + 4 >= sizeof drawn)
+	{
+		fprintf (stderr, "devices: too much drawn\n");
+		exit (3);
+	}
 	if (drawn[0])
 		strcat (drawn, ", ");
 	strcat (drawn, s);
 }
 
-/* The string and frame indexes travel as the handles, from 1. */
-STRING SetAbsStringTableIndex (STRING table, COUNT index) { (void) table; return (STRING) (intptr_t) (index + 1); }
-static COUNT last_string;
-static UNICODE name_text[] = "First Second";
-UNICODE *
-GetStringAddress (STRING s)
+struct font_desc { const char *name; };
+static struct font_desc starcon = { "starcon" }, tiny = { "tiny" }, micro = { "micro" };
+FONT StarConFont = (FONT) &starcon, TinyFont = (FONT) &tiny, MicroFont = (FONT) &micro;
+
+struct context_desc
 {
-	last_string = (COUNT) ((intptr_t) s - 1);
-	return name_text;
+	const char *name;
+	int clipped;
+	RECT clip;
+	Color fg, bg;
+	FONT font;
+};
+static struct context_desc screen_ctx = { "Screen" }, status_ctx = { "Status" }, space_ctx = { "Space" },
+		offscreen_ctx = { "OffScreen" };
+CONTEXT ScreenContext = &screen_ctx, StatusContext = &status_ctx, SpaceContext = &space_ctx,
+		OffScreenContext = &offscreen_ctx;
+static CONTEXT cur = &screen_ctx;
+
+CONTEXT SetContext (CONTEXT c) { CONTEXT old = cur; if (c) cur = c; return old; }
+Color SetContextForeGroundColor (Color c) { Color old = cur->fg; cur->fg = c; return old; }
+FONT SetContextFont (FONT f) { FONT old = cur->font; cur->font = f; return old; }
+void BatchGraphics (void) {}
+void UnbatchGraphics (void) {}
+
+static int ox (void) { return cur->clipped ? cur->clip.corner.x : 0; }
+static int oy (void) { return cur->clipped ? cur->clip.corner.y : 0; }
+
+static const char *
+clip4 (void)
+{
+	static char b[64];
+	if (cur->clipped)
+		snprintf (b, sizeof b, "%d, %d, %d, %d", cur->clip.corner.x, cur->clip.corner.y, cur->clip.extent.width,
+				cur->clip.extent.height);
+	else
+		snprintf (b, sizeof b, "0, 0, %d, %d", SCREEN_WIDTH, SCREEN_HEIGHT);
+	return b;
 }
+
+/* The frames travel as their indexes, from 1. */
 FRAME SetAbsFrameIndex (FRAME f, COUNT index) { (void) f; return (FRAME) (intptr_t) (index + 1); }
 
 void
 DrawStamp (STAMP *s)
 {
-	char buf[64];
-	snprintf (buf, sizeof buf, "[\"icon\", %d]", (int) ((intptr_t) s->frame - 1));
-	note (buf);
-}
-
-/* DrawDevice: a line's background (its row from its y, lit by its colour),
- * then the name's two lines, the first drawn from the string looked up. */
-static Color fore;
-static int pending_row = -1, pending_lit;
-
-Color
-SetContextForeGroundColor (Color c)
-{
-	Color old = fore;
-	fore = c;
-	return old;
+	snprintf (line_buf, sizeof line_buf, "[\"s\", \"graphics.miscdata\", %d, %d, %d, %s]",
+			(int) ((intptr_t) s->frame - 1), ox () + s->origin.x, oy () + s->origin.y, clip4 ());
+	note (line_buf);
 }
 
 void
 DrawFilledRectangle (RECT *r)
 {
-	Color lit = DEVICES_SELECTED_BACK_COLOR;
-	pending_row = (r->corner.y - DEVICE_ORG_Y - NAME_OFS_Y) / DEVICE_SPACING_Y;
-	pending_lit = !memcmp (&fore, &lit, sizeof fore);
+	snprintf (line_buf, sizeof line_buf, "[\"r\", %d, %d, %d, %d, %d, %d, %d, %s]", ox () + r->corner.x,
+			oy () + r->corner.y, r->extent.width, r->extent.height, cur->fg.r, cur->fg.g, cur->fg.b, clip4 ());
+	note (line_buf);
 }
 
 void
 font_DrawText (TEXT *t)
 {
-	char buf[96];
-	(void) t;
-	if (pending_row == -2)
-		return;   /* a name's second line */
-	if (pending_row < 0)
-		snprintf (buf, sizeof buf, "[\"title\", %u]", (unsigned) last_string);
-	else
-		snprintf (buf, sizeof buf, "[\"name\", %u, %d, %d]", (unsigned) last_string, pending_row, pending_lit);
-	note (buf);
-	/* The name's second line is the same string's rest; the title has one. */
-	pending_row = pending_row < 0 ? -1 : -2;
-	last_string = (COUNT)~0;
+	int n, k;
+	n = snprintf (line_buf, sizeof line_buf, "[\"t\", \"%s\", %d, %d, %d, %d, \"",
+			cur->font ? ((struct font_desc *) cur->font)->name : "?", ox () + t->baseline.x, oy () + t->baseline.y,
+			(int) t->align, t->CharCount == (COUNT)~0 ? -1 : (int) t->CharCount);
+	for (k = 0; t->pStr && t->pStr[k] && n < (int) sizeof line_buf - 128; ++k)
+	{
+		unsigned char ch = (unsigned char) t->pStr[k];
+		if (ch == '"' || ch == '\\' || ch < 0x20 || ch == 0x7f)
+		{
+			fprintf (stderr, "devices: a text that isn't plain\n");
+			exit (3);
+		}
+		line_buf[n++] = ch;   /* UTF-8, as JSON takes it */
+	}
+	snprintf (line_buf + n, sizeof line_buf - n, "\", %d, %d, %d, %s]", cur->fg.r, cur->fg.g, cur->fg.b, clip4 ());
+	note (line_buf);
 }
 
-CONTEXT SetContext (CONTEXT c) { (void) c; return 0; }
-FONT SetContextFont (FONT f) { (void) f; return 0; }
-void BatchGraphics (void) {}
-void UnbatchGraphics (void) {}
-void DrawStarConBox (RECT *r, SIZE b, Color a, Color c, BOOLEAN f, Color d) { (void) r; (void) b; (void) a; (void) c; (void) f; (void) d; pending_row = -1; }
+/* The game's strings: "{gs:N}" and, by N % 4, more words. */
+STRING SetAbsStringTableIndex (STRING table, COUNT index) { (void) table; return (STRING) (intptr_t) (index + 1); }
+
+UNICODE *
+GetStringAddress (STRING s)
+{
+	static const char *more[4] = { "", " b", " b c", "\xc3\xa9 b" };
+	static char ring[8][48];
+	static int at;
+	char *b = ring[at++ & 7];
+	int n = (int) ((intptr_t) s - 1);
+	snprintf (b, 48, "{gs:%d}%s", n, more[n % 4]);
+	return b;
+}
+
 void SleepThread (TimePeriod t) { (void) t; }
 void PlayMenuSound (MENU_SOUND_EFFECT s) { (void) s; }
 void SetMenuSounds (MENU_SOUND_FLAGS a, MENU_SOUND_FLAGS b) { (void) a; (void) b; }
@@ -146,6 +197,13 @@ main (void)
 		line[0] = '\0';
 	line[strcspn (line, "\r\n")] = '\0';
 
+	/* setup.c's InitContexts and border.c's InitSISContexts: the status area. */
+	status_ctx.clipped = 1;
+	status_ctx.clip.corner.x = SPACE_WIDTH + SAFE_X;
+	status_ctx.clip.corner.y = SAFE_Y;
+	status_ctx.clip.extent.width = STATUS_WIDTH;
+	status_ctx.clip.extent.height = STATUS_HEIGHT;
+
 	memset (&ms, 0, sizeof ms);
 	memset (&ds, 0, sizeof ds);
 	ms.privData = &ds;
@@ -159,7 +217,7 @@ main (void)
 
 	drawn[0] = '\0';
 	DrawDevices (&ds, (COUNT)~0, ms.CurState);
-	printf ("{\"step\": \"open\", \"state\": %u, \"top\": %u, \"left\": 0, \"drawn\": [%s]}\n",
+	printf ("{\"step\": \"open\", \"state\": %u, \"top\": %u, \"left\": 0, \"calls\": [%s]}\n",
 			ms.CurState, ds.topIndex, drawn);
 	for (tok = strtok (line, " "); tok; tok = strtok (NULL, " "))
 	{
@@ -174,7 +232,7 @@ main (void)
 		PulsedInputState.menu[key] = 1;
 		drawn[0] = '\0';
 		on = DoManipulateDevices (&ms);
-		printf ("{\"step\": \"%s\", \"state\": %u, \"top\": %u, \"left\": %d, \"drawn\": [%s]}\n",
+		printf ("{\"step\": \"%s\", \"state\": %u, \"top\": %u, \"left\": %d, \"calls\": [%s]}\n",
 				tok, ms.CurState, ds.topIndex, on ? 0 : 1, drawn);
 		if (!on)
 			break;

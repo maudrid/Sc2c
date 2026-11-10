@@ -109,6 +109,35 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-devices (testing): the group carries these devices (by
+    /// globdata.h's name, as data/devices.json has them, or number): each
+    /// one's story field set (to its value, for the Ultron's states). Ones
+    /// the Manifest never lists are refused (ArgumentException), as are
+    /// two of the Ultron's states, which share one field.
+    /// </summary>
+    public string StartWithDevices(IEnumerable<string> devices)
+    {
+        if (World.Story is not { } story || World.Systems?.StoryRules is not { } rules)
+            throw new InvalidOperationException("the story needs the content");
+        var table = rules.Devices;
+        var chosen = new List<Crateris.Core.Story.Device>();
+        foreach (var name in devices)
+        {
+            var d = (int.TryParse(name, out int n) ? table.All.ElementAtOrDefault(n) : null)
+                ?? table.All.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))
+                ?? throw new ArgumentException($"no device {name}");
+            if (!d.Listed)
+                throw new ArgumentException($"{d.Name} is never listed");
+            if (chosen.Any(c => c.Field == d.Field && c.Value != d.Value))
+                throw new ArgumentException($"{d.Name} and {chosen.First(c => c.Field == d.Field).Name} are one field's values");
+            chosen.Add(d);
+        }
+        foreach (var d in chosen)
+            story.Set(d.Field!, d.Value ?? 1);
+        return $"Starting with {chosen.Count} devices aboard";
+    }
+
+    /// <summary>
     /// --start-visit (testing): the host's ship by Earth's starbase, in the
     /// visit's first talk, as if it had just flown into it. Needs the talks'
     /// content (InvalidOperationException).

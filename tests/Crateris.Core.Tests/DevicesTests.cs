@@ -19,7 +19,8 @@ namespace Crateris.Core.Tests;
 /// <summary>
 /// The group inventory (docs/plans/stage-3.md, item 10): the devices the
 /// group carries, and the Manifest's Devices list, against UQM's own
-/// planets/devices.c (tests/golden/devices.json).
+/// planets/devices.c (tests/golden/devices.json; its drawing is
+/// DevicesDisplayTests').
 /// </summary>
 [Trait("Topic", "story")]
 public class DevicesTests
@@ -67,22 +68,6 @@ public class DevicesTests
             Assert.True(want.GetProperty("state").GetInt32() == menu.Cursor, $"{where}: cursor {menu.Cursor}");
             Assert.True(want.GetProperty("top").GetInt32() == menu.Top, $"{where}: top {menu.Top}");
             Assert.Equal(want.GetProperty("left").GetInt32() == 1, menu.Left);
-            var drawn = want.GetProperty("drawn").EnumerateArray().ToList();
-            // A whole page drawn (with the title): the rows shown, each the
-            // device's name and icon, as the port would show them.
-            if (drawn.Count > 0 && drawn[0][0].GetString() == "title")
-            {
-                Assert.Equal(GameStrings.DeviceBase, drawn[0][1].GetInt32());
-                var shown = list.Skip(menu.Top).Take(DeviceTable.VisibleRows).ToList();
-                var icons = drawn.Where(d => d[0].GetString() == "icon").Select(d => d[1].GetInt32()).ToList();
-                var names = drawn.Where(d => d[0].GetString() == "name" && d[3].GetInt32() == 0)
-                    .Select(d => (d[1].GetInt32(), d[2].GetInt32())).ToList();
-                Assert.Equal(shown.Select(d => DeviceTable.FirstIconFrame + d), icons);
-                Assert.Equal(shown.Select((d, row) => (DeviceTable.NameString(d), row)), names);
-            }
-            // The row lit is the cursor's, with its name.
-            if (drawn.LastOrDefault(d => d[0].GetString() == "name" && d[3].GetInt32() == 1) is { ValueKind: JsonValueKind.Array } lit)
-                Assert.Equal((DeviceTable.NameString(list[menu.Cursor]), menu.Cursor - menu.Top), (lit[1].GetInt32(), lit[2].GetInt32()));
         }
     }
 
@@ -99,7 +84,7 @@ public class DevicesTests
     }
 
     [ContentFact]
-    public void EveryPlayersManifestListsTheGroupsDevicesByName()
+    public void EveryPlayersManifestListsTheGroupsDevices()
     {
         var systems = SystemCatalog.Load(DataDir);
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host",
@@ -126,11 +111,26 @@ public class DevicesTests
         Assert.Equal(new[] { 4, 27 }, me.Devices());
         me.PressMenu(MenuKey.Select);
         Assert.Equal(new[] { 4, 27 }, me.OrbitMenu.DeviceList);
-        string sphere = names.GameString(DeviceTable.NameString(4)).Replace('\n', ' ');
-        Assert.Contains(me.StatusLines(), l => l == $"> {sphere}");
+        // Drawn in the status area (DevicesDisplay), which hides the status panel: its lines don't list them.
+        Assert.DoesNotContain(me.StatusLines(), l => l.Contains("Rosy Sphere") || l.Contains("Moon Base"));
         me.PressMenu(MenuKey.Select);
         Assert.Contains("later stage", me.OrbitMessage);
         me.PressMenu(MenuKey.Cancel);
         Assert.Null(me.OrbitMenu.DeviceList);
+    }
+
+    [ContentFact]
+    public void StartDevicesPutThemAboardTheGroup()
+    {
+        var systems = SystemCatalog.Load(DataDir);
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host", systems,
+            TestContent.Shapes);
+        // --start-devices (testing: the Manifest's Devices list): by name, in any case, or number; the Ultron by its state.
+        Assert.Contains("4 devices", host.StartWithDevices(new[] { "ROSY_SPHERE_DEVICE", "egg_casing1_device", "27", "ULTRON_2_DEVICE" }));
+        Assert.Equal(new[] { 4, 9, 19, 27 }, Rules.Devices.Inventory(host.World.Story!.Get));
+        Assert.Throws<ArgumentException>(() => host.StartWithDevices(new[] { "DESTRUCT_CODE_DEVICE" }));   // never listed
+        Assert.Throws<ArgumentException>(() => host.StartWithDevices(new[] { "NO_SUCH_DEVICE" }));
+        Assert.Throws<ArgumentException>(() => host.StartWithDevices(new[] { "ULTRON_0_DEVICE", "ULTRON_3_DEVICE" }));
+        Assert.Equal(new[] { 4, 9, 19, 27 }, Rules.Devices.Inventory(host.World.Story!.Get));   // a refusal changes nothing
     }
 }

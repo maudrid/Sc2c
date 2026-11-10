@@ -2766,7 +2766,7 @@ def record_outfit(uqm, exe):
 # ------------------------------------------------------------ devices
 
 DEVICES_PROGRAM = os.path.join(HERE, "golden", "devices.c")
-DEVICES_LINK = ["libs/strings/unicode.c"]
+DEVICES_LINK = ["uqm/util.c", "libs/strings/unicode.c"]
 
 
 def devices_scenarios():
@@ -2824,18 +2824,29 @@ def record_devices(uqm, exe):
             raise RuntimeError(f"devices {sc['name']}: {out.stdout[-300:]}{out.stderr}")
         lines = [json.loads(x) for x in out.stdout.splitlines()]
         scenarios.append({**sc, "list": lines[0]["list"], "steps": lines[1:]})
-    data = header(uqm, ["tools/extract/golden/devices.c", "src/uqm/planets/devices.c"], [
+    data = header(uqm, ["tools/extract/golden/devices.c", "src/uqm/planets/devices.c", "src/uqm/util.c",
+                        "src/libs/strings/unicode.c"], [
         "The Manifest's Devices list, recorded by running UQM 0.8.0's own "
-        "InventoryDevices and DoManipulateDevices (planets/devices.c) with "
-        "the drawing stubbed (tools/extract/golden/devices.c). Code only.",
+        "InventoryDevices, DoManipulateDevices and DrawDevices "
+        "(planets/devices.c, with util.c's DrawStarConBox) with the drawing "
+        "primitives recording each call (tools/extract/golden/devices.c). "
+        "Code only.",
         "Each scenario: the story fields set (the rest 0), the keys (u, d, "
         "l, r, pu, pd, c), the list (device numbers, globdata.h's), and the "
         "steps: open (DevicesMenu's first drawing; none when the list is "
         "empty), then each key: the cursor (CurState), the top row shown "
-        "(topIndex), whether the list was left, and what was drawn: the "
-        "title and each name by its game string's index (DEVICE_STRING_BASE "
-        "+ 1 + device), its row and whether lit, and each icon by "
-        "MiscDataFrame's frame.",
+        "(topIndex), whether the list was left, and the calls drawn "
+        "meanwhile, in the screen's coordinates (the status area's clip "
+        "rectangle's corner added).",
+        "A call: [\"s\", resource, frame, x, y] DrawStamp (the frame as "
+        "SetAbsFrameIndex is asked for it), [\"r\", x, y, width, height, r, "
+        "g, b] DrawFilledRectangle, [\"t\", font, x, y, align, count, text, "
+        "r, g, b] font_DrawText (count -1: all), each followed by the "
+        "context's clip rectangle (x, y, width, height).",
+        "The game's strings are the recording program's, not the content's: "
+        "GAME_STRING (N) is \"{gs:N}\" followed, by N % 4, by nothing, "
+        "\" b\", \" b c\" or \"\u00e9 b\", so each way a name splits into "
+        "its two lines (utf8StringPos, skipUTF8Chars) is recorded.",
     ])
     data["scenarios"] = scenarios
     return data

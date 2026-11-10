@@ -911,10 +911,6 @@ public sealed class PlayerSession
             ? rules.Devices.Inventory(f => story.Get(rules.Table, f))
             : Array.Empty<int>();
 
-    /// <summary>A device's name (its game string, which UQM draws a word a line; one line here).</summary>
-    public string DeviceName(int device) =>
-        _names?.GameString(Story.DeviceTable.NameString(device)) ?? _systems.StoryRules?.Devices.All[device].Name ?? $"device {device}";
-
     /// <summary>The status panel's lines.</summary>
     public IReadOnlyList<string> StatusLines()
     {
@@ -966,13 +962,7 @@ public sealed class PlayerSession
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
         else if (Me?.Activity != Activity.Orbit && !Entering)
             lines.Add("Arrows: turn and thrust");
-        if (OrbitMenu?.DeviceList is { } devices && !StoryPaused)
-        {
-            lines.Add("Devices (the group's):");
-            for (int i = OrbitMenu.DeviceTop; i < Math.Min(devices.Count, OrbitMenu.DeviceTop + Story.DeviceTable.VisibleRows); ++i)
-                lines.Add($"{(i == OrbitMenu.DeviceCursor ? ">" : " ")} {DeviceName(devices[i])}");
-            lines.Add("Up, down (PgUp, PgDn by a page): choose; Esc: back");
-        }
+        // The Manifest's Devices list is drawn in the status area (DevicesDisplay), which hides this panel while it's open.
         // The giving screen is drawn in the status area, which hides this panel while it's open.
         if (Trade is null && Snapshot?.Ships.Count > 1 && !StoryPaused && !TalkShown)   // giving waits while a talk goes on
             lines.Add("T: give another player something");

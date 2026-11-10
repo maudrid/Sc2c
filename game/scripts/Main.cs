@@ -68,6 +68,7 @@ public partial class Main : Node2D
     private CommView _commView = null!;
     private SellingView _sellingView = null!;
     private GivingView _givingView = null!;
+    private DevicesView _devicesView = null!;
     private StarbaseScreenView _starbaseView = null!;
     private Label _hud = null!;
     private SystemCatalog _systems = null!;
@@ -163,6 +164,13 @@ public partial class Main : Node2D
             Visible = false,
         };
         AddChild(_givingView);
+        // The Manifest's Devices list, in the status area where the cargo display goes, over the orbit view.
+        _devicesView = new DevicesView
+        {
+            Position = statusOrigin + new Vector2(DevicesDisplay.Area.X - UqmCanvas.SpaceWidth, DevicesDisplay.Area.Y) * SisScreen.Scale,
+            Visible = false,
+        };
+        AddChild(_devicesView);
         var layer = new CanvasLayer();
         AddChild(layer);
         // Left of the system screen; long lines wrap.
@@ -303,6 +311,7 @@ public partial class Main : Node2D
                 _reportView.UseContent(content, sheets);
                 _sellingView.UseContent(content, sheets);
                 _givingView.UseContent(content, sheets);
+                _devicesView.UseContent(content, sheets);
             }
         }
         catch (ContentPackageException e)
@@ -403,7 +412,7 @@ public partial class Main : Node2D
         _player!.Observe(_host.World.Snapshot());
     }
 
-    /// <summary>--start-at and --start-orbit (testing): a notice says if they can't be done.</summary>
+    /// <summary>--start-at, --start-orbit and the other --start options (testing): a notice says if they can't be done.</summary>
     private void ApplyStartOptions(HostSession host)
     {
         try
@@ -418,6 +427,8 @@ public partial class Main : Node2D
                 Log(host.StartWithMinerals(minerals));
             if (_options.StartUnits is { } units)
                 Log(host.StartWithUnits(units));
+            if (_options.StartDevices is { } devices)
+                Log(host.StartWithDevices(devices));
             if (_options.StartDocked)
                 Log(host.StartDocked());
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
@@ -1036,6 +1047,13 @@ public partial class Main : Node2D
         _givingView.MostLines = gauges ? 7 : 12;
         _givingView.Visible = !Headless && _givingView.Show(player);
         _orbitView.MenuCovered = _givingView.Visible;
+        // The Manifest's Devices list, while it's open in orbit. One that can't be drawn is closed.
+        _devicesView.Visible = !Headless && screen == PlayerScreen.Orbit && _devicesView.Show(player);
+        if (_devicesView.Broken && player.OrbitMenu?.DeviceList is not null)
+        {
+            player.PressMenu(MenuKey.Cancel);
+            player.Notify("The Devices list couldn't be drawn.");
+        }
         if (_givingView.Broken && player.Trade is not null)
         {
             player.ToggleTrade();
@@ -1055,9 +1073,10 @@ public partial class Main : Node2D
             _player.Status = _status;
         _hud.Text = _player == null ? _status : string.Join("\n", _player.StatusLines());
         // Those screens stand alone; the cargo display covers the status area, as UQM's does (the
-        // Manifest's, and the minerals' count-down's), and the giving screen, laid out after it.
+        // Manifest's, and the minerals' count-down's), and the giving screen, laid out after it, and the
+        // Manifest's Devices list.
         _hud.Visible = _firstRun == null && _contentError == null && _player?.OrbitMenu?.CargoOpen != true && !_sellingView.Visible
-            && !_givingView.Visible;
+            && !_givingView.Visible && !_devicesView.Visible;
     }
 
     // ---------------------------------------------------- quit / report

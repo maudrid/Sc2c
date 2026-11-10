@@ -31,6 +31,7 @@ namespace Crateris.Game;
 /// --start-docked (host: a new game starts docked at Earth's starbase's menu, the opening over),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
+/// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
 /// --guests-in-orbit (host: guests joining for the first time start in
 /// orbit where the host is), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
@@ -84,6 +85,9 @@ public sealed class Options
 
     /// <summary>--start-units N: the host's wallet starts with N resource units (testing: giving them).</summary>
     public uint? StartUnits { get; private set; }
+
+    /// <summary>--start-devices DEVICE[,DEVICE]: the group carries these devices, by name (ROSY_SPHERE_DEVICE) or number (testing: the Manifest's Devices list).</summary>
+    public string[]? StartDevices { get; private set; }
 
     /// <summary>--guests-in-orbit: guests joining for the first time are put in orbit where the host is (testing).</summary>
     public bool GuestsInOrbit { get; private set; }
@@ -142,6 +146,7 @@ public sealed class Options
                     o.StartMinerals = Array.ConvertAll(Next().Split(','), int.Parse);
                     break;
                 case "--start-units": o.StartUnits = uint.Parse(Next()); break;
+                case "--start-devices": o.StartDevices = Next().Split(','); break;
                 case "--show-report": o.ShowReport = Next(); break;
                 case "--start-orbit":
                 {
