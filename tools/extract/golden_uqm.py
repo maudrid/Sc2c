@@ -1922,6 +1922,7 @@ def battle_line(scenario, numbers):
         parts += [ship["characteristics"][c] for c in CHARACTERISTICS]
         parts += [ship[k] for k in ("weapons", "life", "speed", "hits", "damage", "offset",
                                     "track_wait", "laser_range")]
+    parts += scenario.get("fleet", [1, 1])
     parts.append(len(scenario["steps"]))
     for step in scenario["steps"]:
         parts += list(step)
@@ -1973,6 +1974,12 @@ def wrap_delta(d, size):
     return (d + size // 2) % size - size // 2
 
 
+def fighting(frame, side):
+    """The side's ship in the battle (its element still there), as the
+    battle program writes it, or None."""
+    return next((s for s in frame[F_SHIPS][side] if s and s[7]), None)
+
+
 def ship_of(frame, side):
     return next((e for e in frame[F_ELEMENTS] if e[E_FLAGS] & PLAYER_SHIP_FLAG and e[E_PLAYER] == side), None)
 
@@ -1983,11 +1990,11 @@ def steer(frame, side, goal, fire=False, keep_off=0):
     within keep_off world units."""
     ship = ship_of(frame, side)
     target = goal(frame) if ship else None
-    if ship is None or target is None or frame[F_SHIPS][side] is None:
+    if ship is None or target is None or fighting(frame, side) is None:
         return 0
     dx = wrap_delta(target[0] - ship[E_CX], 8192)
     dy = wrap_delta(target[1] - ship[E_CY], 7680)
-    diff = (facing_towards(dx, dy) - frame[F_SHIPS][side][2]) % 16
+    diff = (facing_towards(dx, dy) - fighting(frame, side)[2]) % 16
     keys = 0 if diff == 0 else B_RIGHT if diff < 8 else B_LEFT
     if diff in (0, 1, 15):
         if abs(dx) + abs(dy) > keep_off:
@@ -2129,7 +2136,8 @@ def battle_scenarios(program):
     # Crew floating towards a ship that dies: they turn to their own ship
     # or the nearest (crew_preprocess). The dying ship is crew-immune: its
     # AbandonShip does nothing, and crew reaching it are lost. The first
-    # crew leave a still ship (TravelAngle 0: straight down).
+    # crew leave a ship still since it warped in (its velocity zeroed:
+    # TravelAngle 0, so they go as from a ship moving straight up).
     s = dict(name="crew-orphans", seed=131, planet="planet.chondrite",
              ships=[test_ship(ilwrath, crew=4, flags=64), test_ship(flagship, crew=40, weapons=W_MISSILE | W_HOMING)],
              steps=[(20, 0, 0)], events=[(20, 1, 0, 6), (24, 0, 1, 2), (90, 1, 0, 5)], full=200)
@@ -2154,6 +2162,16 @@ def battle_scenarios(program):
                     ships=[test_ship(flagship), test_ship(ilwrath)],
                     steps=[(10, B_ESCAPE, 0), (30, B_THRUST, B_THRUST), (2, B_ESCAPE, 0), (400, 0, B_WEAPON)],
                     full=100))
+    # Fleets of two ships a side, shooting: two ships die together (the
+    # second while the first explodes), and each side's next ship warps in
+    # in its element (GetNextStarShip), until a side is out of ships.
+    s = dict(name="fleets", seed=301, planet="planet.water", fleet=[2, 2],
+             ships=[test_ship(ilwrath, crew=3, weapons=W_MISSILE | W_HOMING),
+                    test_ship(ilwrath, crew=3, weapons=W_MISSILE | W_HOMING)],
+             steps=[(20, 0, 0)], full=300)
+    out.append(piloted(program, s, 700, [lambda f, side, t: steer(f, side, the_ship(1), fire=True, keep_off=300),
+                                         lambda f, side, t: steer(f, side, the_ship(0), fire=True, keep_off=300)],
+                       chunk=6))
     # Jostling: two quick-turning ships at random, without weapons, which
     # turn into each other and the asteroids (ProcessCollisions at time 1:
     # the turn taken back); seed 13 spawns two asteroids on each other,
@@ -2235,7 +2253,8 @@ def record_battle(uqm, battle_exe, strings_exe, images_exe, package):
         "blaster's numbers or the Ilwrath's hellfire's.",
         "input: seed (TFB_SeedRandom's), zoom (smooth, UQM's default "
         "TFB_SCALE_TRILINEAR, or step), runaway (STARBASE_AVAILABLE set: side "
-        "0 can retreat), the planet's sheets, each side's ship, steps "
+        "0 can retreat), the planet's sheets, each side's ship, fleet (how many "
+        "of its ship each side has, 1 each without), steps "
         "[frames, side 0's keys, side 1's] in BATTLE_INPUT_STATE (1 left, 2 "
         "right, 4 thrust, 8 weapon, 16 special, 32 escape), events [frame, "
         "side, target, crew]: AbandonShip called on side's ship towards "
@@ -2250,10 +2269,10 @@ def record_battle(uqm, battle_exe, strings_exe, images_exe, package):
         "scroll this frame (CalcView's dx, dy, added to every element), "
         "zoom_out, the view (0 stable, 1 scrolled, 2 zoomed; -1 before the "
         "first frame), SpaceOrg x and y (the view's corner), ships, elements, "
-        "draws]. ships: each side's [crew_level "
+        "draws]. ships: each side's ships in its queue, each [crew_level "
         "and energy_level (SHIP_INFO's: the status panel's), ShipFacing, "
         "energy_counter, weapon_counter, special_counter, cur_status_flags, 1 "
-        "if it has an element], or null once its RACE_DESC is freed. "
+        "if it has an element], or null without a RACE_DESC (not yet picked, or freed). "
         "elements: the display list from its head, each [state_flags, "
         "life_span, crew_level (hit_points), mass_points, turn_wait, "
         "thrust_wait, the velocity's TravelAngle, vector, fract, error and "
@@ -2277,6 +2296,7 @@ def record_battle(uqm, battle_exe, strings_exe, images_exe, package):
 def check_battles(scenarios, battles):
     """Each battle shows what it's for."""
     by_name = {b["name"]: b for b in battles}
+    scenario = {sc["name"]: sc for sc in scenarios}
 
     def frames(name):
         return by_name[name]["frames"]
@@ -2284,34 +2304,95 @@ def check_battles(scenarios, battles):
     def draws(name):
         return {d for f in frames(name)[1:] for d in f[F_DRAWS]}
 
-    # A ship crashing into the planet loses crew; the shooting ends in a death.
-    crew = [f[F_SHIPS][0][0] for f in frames("planet-crash") if f[F_SHIPS][0]]
-    if not any(b < a for a, b in zip(crew, crew[1:])):
-        raise RuntimeError("planet-crash: the ship never hit the planet")
-    if not by_name["shooting"]["ended"]:
-        raise RuntimeError("shooting: nobody died")
-    if not by_name["retreat"]["ended"]:
-        raise RuntimeError("retreat: the ship didn't warp out")
-    if max(len(f[F_ELEMENTS]) for f in frames("list-full")) < 150:
-        raise RuntimeError("list-full: the list never filled")
+    def crew(name, side):
+        return [fighting(f, side)[0] if fighting(f, side) else None for f in frames(name)]
+
+    def lost(name, side):
+        c = crew(name, side)
+        return any(a is not None and b is not None and b < a for a, b in zip(c, c[1:]))
+
+    def keys(name, side):
+        """Each frame's keys for the side (frame n's at n, n from 1)."""
+        return [None] + [step[1 + side] for step in scenario[name]["steps"] for _ in range(step[0])]
+
+    def fail(name, what):
+        raise RuntimeError(f"{name}: {what}")
+
+    def near(f, a, b, distance):
+        return a and b and abs(wrap_delta(a[E_CX] - b[E_CX], 8192)) + abs(wrap_delta(a[E_CY] - b[E_CY], 7680)) < distance
+
+    def turns_taken_back(name, side, turn_wait):
+        """Frames where the ship turned (its turn wait set again from 0)
+        but ends facing as it was: ProcessCollisions took the turn back,
+        its frame touching something at the frame's start (time 1)."""
+        fr, k = frames(name), keys(name, side)
+        n = 0
+        for i in range(1, len(fr) - 1):
+            a, b = ship_of(fr[i], side), ship_of(fr[i + 1], side)
+            if a and b and k[i + 1] & (B_LEFT | B_RIGHT) and a[4] == 0 and b[4] == turn_wait \
+                    and fighting(fr[i], side)[2] == fighting(fr[i + 1], side)[2]:
+                n += 1
+        return n
+
+    if frames("warp-in")[0][F_DRAWS].count("spawn_planet") != 12:
+        fail("warp-in", "the planet wasn't put on an asteroid first (TimeSpaceMatterConflict)")
+    if not lost("planet-crash", 0) or not by_name["planet-crash"]["ended"]:
+        fail("planet-crash", "the ship didn't die of the planet")
+    # A ship that never thrusts only waits to thrust after a bump
+    # (COLLISION_THRUST_WAIT); here with the other ship next to it.
+    if not any(near(f, ship_of(f, 0), ship_of(f, 1), 400) and ship_of(f, 1)[5]
+               for f in frames("ramming")):
+        fail("ramming", "the ships never bumped")
+    if not by_name["shooting"]["ended"] or "explosion_preprocess" not in draws("shooting"):
+        fail("shooting", "nobody died")
+    # The homing missiles (side 0's, the flagship's blaster) turn in flight.
+    turned = set()
+    for f in frames("homing")[1:]:
+        for e in f[F_ELEMENTS]:
+            if e[E_PLAYER] == 0 and e[E_MASS] == 2 and e[E_FLAGS] & FINITE_LIFE_FLAG:
+                turned.add((e[24], e[6]))
+    slots = {}
+    for slot, angle in turned:
+        slots.setdefault(slot, set()).add(angle)
+    if not any(len(a) > 1 for a in slots.values()) or not lost("homing", 1):
+        fail("homing", "the homing missiles never turned and hit")
     if "spawn_asteroid" not in draws("asteroids"):
-        raise RuntimeError("asteroids: no asteroid came back")
+        fail("asteroids", "no asteroid came back")
+    if max(len(f[F_ELEMENTS]) for f in frames("list-full")) < 150:
+        fail("list-full", "the list never filled")
     if "AbandonShip" not in draws("crew-floating"):
-        raise RuntimeError("crew-floating: no crew left a ship")
-    picked = [f[F_SHIPS][0][0] for f in frames("crew-floating") if f[F_SHIPS][0]]
-    if not any(b > a for a, b in zip(picked, picked[1:])):
-        raise RuntimeError("crew-floating: no crew picked up")
-    if "explosion_preprocess" not in draws("shooting"):
-        raise RuntimeError("shooting: no explosion")
-    hit = [f[F_SHIPS][1][0] for f in frames("homing") if f[F_SHIPS][1]]
-    if not any(b < a for a, b in zip(hit, hit[1:])):
-        raise RuntimeError("homing: the homing missiles never hit")
-    # A ship that never thrusts waits to after a bump (COLLISION_THRUST_WAIT).
-    if not any(ship_of(f, 1) and ship_of(f, 1)[5] for f in frames("ramming")):
-        raise RuntimeError("ramming: the ships never bumped")
+        fail("crew-floating", "no crew left a ship")
+    c = crew("crew-floating", 0)
+    if not any(a is not None and b is not None and b > a for a, b in zip(c, c[1:])):
+        fail("crew-floating", "no crew picked up")
+    # Crew heading for side 0's ship (slot of its element) head elsewhere once it dies.
+    fr = frames("crew-orphans")
+    dead_slot = ship_of(fr[1], 0)[24]
+    if not any(e[E_FLAGS] & CREW_OBJECT_FLAG and e[25] not in (0, dead_slot) for f in fr for e in f[F_ELEMENTS]) \
+            or not by_name["crew-orphans"]["ended"]:
+        fail("crew-orphans", "no crew turned to another ship after theirs died")
+    if turns_taken_back("scrape", 0, scenario["scrape"]["ships"][0]["characteristics"]["turn_wait"]) == 0:
+        fail("scrape", "no turn taken back")
+    # Seed 13's two asteroids on each other break up on the first frame.
+    first = frames("jostle")[1][F_ELEMENTS]
+    if sum(1 for e in first if e[E_FLAGS] & FINITE_LIFE_FLAG and e[E_FRAME] == 16 and e[E_PRIM] == 1) < 2:
+        fail("jostle", "the asteroids spawned on each other didn't break up")
+    # The retreat: flashing (a filled stamp), then gone with its crew.
+    fr = frames("retreat")
+    last = [f[F_SHIPS][0][0] for f in fr if f[F_SHIPS][0][0]][-1]
+    if not by_name["retreat"]["ended"] or not any(ship_of(f, 0) and ship_of(f, 0)[E_PRIM] == 2 for f in fr) \
+            or not last[0]:
+        fail("retreat", "the ship didn't warp out with its crew")
     zooms = {f[F_ZOOM] for f in frames("step-zoom")}
     if not zooms <= {0, 1, 2, 3} or len(zooms) < 3:
-        raise RuntimeError(f"step-zoom: zooms {sorted(zooms)}")
+        fail("step-zoom", f"zooms {sorted(zooms)}")
+    # Fleets: both die at once (the second while the first explodes), and
+    # each side's next ship takes over its element.
+    fr = frames("fleets")
+    both = any(all(s and s[0] == 0 and s[7] for s in (fighting(f, 0), fighting(f, 1))) for f in fr)
+    second = [any(s and s[7] for s in f[F_SHIPS][side][1:]) for f in fr for side in (0, 1)]
+    if not both or not any(second):
+        fail("fleets", "no ships dying together, or no next ship")
 
 
 def record_contact(uqm, systems_exe, strings_exe, images_exe, package):

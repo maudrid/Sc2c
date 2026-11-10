@@ -13,7 +13,10 @@
  *
  * Compiled without UQM's headers, so each stand-in can take any
  * arguments; functions return 0 and the data are zeroed space. None of
- * them is reached in a battle but to draw, to play a sound or to wait.
+ * them is reached in a battle but to draw, to play a sound or to wait, but
+ * for PLRPlaying: with no music playing, readyForBattleEnd (tactrans.c)
+ * is ready at once, so new_ship never waits for a victory ditty (a dead
+ * ship's element goes after the frames cleanup_dead_ship gives it).
  */
 
 long Async_process () { return 0; }

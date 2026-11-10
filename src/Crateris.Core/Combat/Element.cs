@@ -199,8 +199,19 @@ public sealed class Element
     public readonly IntersectControl Intersect = new();
     public PrimType Prim;
 
-    /// <summary>The primitive's colour as UQM's MAKE_RGB15 gives it (red, green, blue, 5 bits each), 0 black.</summary>
-    public int PrimColor;
+    /// <summary>
+    /// The primitive's colour as UQM's MAKE_RGB15 gives it (red, green,
+    /// blue, 5 bits each), 0 black; <see cref="NoColor"/> before any is
+    /// set (a zeroed primitive, whose alpha 0 isn't BLACK_COLOR). UQM keeps
+    /// it in the element's primitive, which <see cref="Clear"/> leaves as
+    /// AllocElement's memset does: an element reusing a slot starts with
+    /// the colour its last one left (each slot has its own primitive, as
+    /// UQM hands out both last freed first).
+    /// </summary>
+    public int PrimColor = NoColor;
+
+    /// <summary><see cref="PrimColor"/> never set.</summary>
+    public const int NoColor = -1;
     public ElementState Current, Next;
 
     /// <summary>The ship the element belongs to (pParent), or none.</summary>
@@ -233,7 +244,7 @@ public sealed class Element
     /// <summary>The element after this one in its list, or none.</summary>
     public Element? Successor => Succ;
 
-    /// <summary>AllocElement's memset: every field cleared, not drawn.</summary>
+    /// <summary>AllocElement's memset: every field cleared but the primitive's colour (<see cref="PrimColor"/>), not drawn.</summary>
     internal void Clear()
     {
         Pred = Succ = null;

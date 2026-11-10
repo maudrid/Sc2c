@@ -58,11 +58,10 @@ public class BattleEngineTests
         var arena = sheets.Arena(new[] { $"{planet}.large", $"{planet}.medium", $"{planet}.small" });
 
         var ships = input.GetProperty("ships").EnumerateArray().ToList();
-        var fleets = ships.Select((s, side) => (IReadOnlyList<Starship>)new[]
-        {
+        int[] fleetSizes = input.TryGetProperty("fleet", out var fleet) ? fleet.Ints() : new[] { 1, 1 };
+        var fleets = ships.Select((s, side) => (IReadOnlyList<Starship>)Enumerable.Range(0, fleetSizes[side]).Select(_ =>
             new Starship(new TestShip(s, sheets), (short)side, (ushort)s.GetProperty("crew").GetInt32(),
-                (ushort)s.GetProperty("max_crew").GetInt32()) { CaptainsNameIndex = (byte)(side == 0 ? 0 : 5) },
-        }).ToList();
+                (ushort)s.GetProperty("max_crew").GetInt32()) { CaptainsNameIndex = (byte)(side == 0 ? 0 : 5) }).ToList()).ToList();
         var places = new List<string>();
         var zoom = input.TryGetProperty("zoom", out var z) && z.GetString() == "step" ? BattleZoom.Step : BattleZoom.Smooth;
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean();
@@ -84,7 +83,7 @@ public class BattleEngineTests
                 // The draws an event makes count in the frame it comes before.
                 places.Clear();
                 foreach (var e in events.Where(e => e[0] == frame))
-                    battle.AbandonShip(battle.Fleet(e[1])[0].Ship!, battle.Fleet(e[2])[0].Ship!, e[3]);
+                    battle.AbandonShip(InBattle(battle, e[1]), InBattle(battle, e[2]), e[3]);
                 battle.Step(new[] { (BattleInput)step[1], (BattleInput)step[2] });
                 Assert.True(frame + 1 < frames.Count, $"{name}: the battle runs past UQM's {frames.Count - 1} frames");
                 Check(name, frame + 1, frames[frame + 1], battle, places, sheetNumbers);
@@ -128,13 +127,16 @@ public class BattleEngineTests
         Assert.True(wantElements.Count == elements.Count, $"{at}: {elements.Count} elements, UQM {wantElements.Count}");
     }
 
+    // The side's ship in the battle.
+    private static Element InBattle(Battle battle, int side) => battle.Fleet(side).First(s => s.Ship != null).Ship!;
+
     private static string ShipsText(Battle battle) => "[" + string.Join(",", Enumerable.Range(0, Battle.NumSides).Select(side =>
-    {
-        var s = battle.Fleet(side)[0];
-        var rd = s.RaceDesc;
-        return rd == null ? "null" : Ints(rd.CrewLevel, rd.EnergyLevel, s.ShipFacing, s.EnergyCounter, s.WeaponCounter,
-            s.SpecialCounter, (int)s.CurStatusFlags, s.Ship != null ? 1 : 0);
-    })) + "]";
+        "[" + string.Join(",", battle.Fleet(side).Select(s =>
+        {
+            var rd = s.RaceDesc;
+            return rd == null ? "null" : Ints(rd.CrewLevel, rd.EnergyLevel, s.ShipFacing, s.EnergyCounter, s.WeaponCounter,
+                s.SpecialCounter, (int)s.CurStatusFlags, s.Ship != null ? 1 : 0);
+        })) + "]")) + "]";
 
     private static string ElementText(Element e, IReadOnlyDictionary<string, int> sheetNumbers)
     {

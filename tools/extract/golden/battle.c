@@ -42,7 +42,8 @@
  *
  * Input on stdin, one battle per line:
  *   name seed scale runaway planet0 planet1 planet2
- *   ship0 ship1  nsteps (frames keys0 keys1)...  nevents (frame side target crew)...
+ *   ship0 ship1 fleet0 fleet1  nsteps (frames keys0 keys1)...
+ *   nevents (frame side target crew)...
  * seed is TFB_SeedRandom's; scale 0 the step zoom (TFB_SCALE_STEP), 1 the
  * smooth (TFB_SCALE_TRILINEAR, UQM's default); runaway 1 sets
  * STARBASE_AVAILABLE, so side 0 can retreat (BATTLE_ESCAPE); planet0..2
@@ -61,8 +62,10 @@
  * others); life, speed, hits, damage and offset are the missiles'
  * MISSILE_BLOCK's (offset also the laser's pixoffs). Keys hold for the
  * step's frames, as BATTLE_INPUT_STATE: 1 left, 2 right, 4 thrust,
- * 8 weapon, 16 special, 32 escape; after the steps the battle ends. An
- * event at a frame calls AbandonShip (misc.c) on side's ship towards
+ * 8 weapon, 16 special, 32 escape; after the steps the battle ends.
+ * fleet0 and fleet1 are how many of its test ship each side has: when
+ * one dies, the next takes over its element (GetNextStarShip). An event at
+ * a frame calls AbandonShip (misc.c) on side's ship in the battle towards
  * target's, for crew, before that frame.
  *
  * Output: one JSON object per battle: its stars (InitGalaxy's
@@ -71,9 +74,10 @@
  *   [seed, scroll_x, scroll_y, zoom_out, view_state, SpaceOrg x, y, ships,
  *    elements, draws]
  * seed TFB_Random's; scroll the camera's this frame (CalcView's dx, dy);
- * ships each side's [crew_level, energy_level, ShipFacing,
- * energy_counter, weapon_counter, special_counter, cur_status_flags,
- * has a ship (hShip)], or null once its RACE_DESC is freed; elements
+ * ships each side's ships in its queue, each [crew_level, energy_level,
+ * ShipFacing, energy_counter, weapon_counter, special_counter,
+ * cur_status_flags, has an element (hShip)], or null without a RACE_DESC
+ * (not yet picked, or freed); elements
  * the display list from its head, each [state_flags, life_span,
  * crew_level, mass_points, turn_wait, thrust_wait, the velocity's
  * TravelAngle, vector, fract, error and incr (width then height), current x,
@@ -515,18 +519,24 @@ record (int start)
 			(int) zoom_out, frame_view, SpaceOrg.x, SpaceOrg.y);
 	for (i = 0; i < NUM_SIDES; ++i)
 	{
-		HSTARSHIP hs = GetHeadLink (&race_q[i]);
-		STARSHIP *s = LockStarShip (&race_q[i], hs);
-		if (i)
-			printf (", ");
-		if (s->RaceDescPtr == NULL)
-			printf ("null");
-		else
-			printf ("[%u, %u, %u, %u, %u, %u, %u, %d]",
-					s->RaceDescPtr->ship_info.crew_level,
-					s->RaceDescPtr->ship_info.energy_level, s->ShipFacing,
-					s->energy_counter, s->weapon_counter, s->special_counter,
-					s->cur_status_flags, s->hShip != 0);
+		HSTARSHIP hs, hnext;
+		int any = 0;
+		printf ("%s[", i ? ", " : "");
+		for (hs = GetHeadLink (&race_q[i]); hs; hs = hnext)
+		{
+			STARSHIP *s = LockStarShip (&race_q[i], hs);
+			hnext = _GetSuccLink (s);
+			printf ("%s", any++ ? ", " : "");
+			if (s->RaceDescPtr == NULL)
+				printf ("null");
+			else
+				printf ("[%u, %u, %u, %u, %u, %u, %u, %d]",
+						s->RaceDescPtr->ship_info.crew_level,
+						s->RaceDescPtr->ship_info.energy_level, s->ShipFacing,
+						s->energy_counter, s->weapon_counter, s->special_counter,
+						s->cur_status_flags, s->hShip != 0);
+		}
+		printf ("]");
 	}
 	printf ("], [");
 	first = 1;
@@ -572,8 +582,17 @@ record (int start)
 
 static STARSHIP *
 side_ship (int side)
-{
-	return LockStarShip (&race_q[side], GetHeadLink (&race_q[side]));
+{	/* the side's ship in the battle */
+	HSTARSHIP h, next;
+	for (h = GetHeadLink (&race_q[side]); h; h = next)
+	{
+		STARSHIP *s = LockStarShip (&race_q[side], h);
+		next = _GetSuccLink (s);
+		if (s->hShip)
+			return s;
+	}
+	fprintf (stderr, "side %d has no ship for an event\n", side);
+	exit (1);
 }
 
 /* battle.c's one DoInput: DoBattle until it stops or the steps run out. */
@@ -667,10 +686,12 @@ read_ship (int side)
 	return 1;
 }
 
+static int fleet_size[NUM_SIDES];
+
 static void
 fight (const char *name, int scale, int runaway)
 {
-	int i;
+	int i, k;
 
 	memset (&GlobData, 0, sizeof GlobData);
 	GLOBAL (DisplayArray) = DisplayArray;
@@ -687,15 +708,18 @@ fight (const char *name, int scale, int runaway)
 		HSTARSHIP h;
 		STARSHIP *s;
 		InitQueue (&race_q[i], MAX_SHIPS_PER_SIDE, sizeof (STARSHIP));
-		h = AllocLink (&race_q[i]);
-		s = LockStarShip (&race_q[i], h);
-		memset (s, 0, sizeof *s);
-		s->SpeciesID = i == 0 ? SIS_SHIP_ID : ILWRATH_ID;
-		s->playerNr = i;
-		s->captains_name_index = i == 0 ? 0 : 5;
-		s->crew_level = test_ships[i].desc.ship_info.crew_level;
-		s->max_crew = test_ships[i].desc.ship_info.max_crew;
-		PutQueue (&race_q[i], h);
+		for (k = 0; k < fleet_size[i]; ++k)
+		{	/* Build's, as many of the side's test ship as asked */
+			h = AllocLink (&race_q[i]);
+			s = LockStarShip (&race_q[i], h);
+			memset (s, 0, sizeof *s);
+			s->SpeciesID = i == 0 ? SIS_SHIP_ID : ILWRATH_ID;
+			s->playerNr = i;
+			s->captains_name_index = i == 0 ? 0 : 5;
+			s->crew_level = test_ships[i].desc.ship_info.crew_level;
+			s->max_crew = test_ships[i].desc.ship_info.max_crew;
+			PutQueue (&race_q[i], h);
+		}
 		inputs[i].handlers = &scripted_handlers;
 		inputs[i].playerNr = i;
 		PlayerInput[i] = &inputs[i];
@@ -741,6 +765,10 @@ main (int argc, char *argv[])
 			planet[i] = &sheet_frames[p[i]][0];
 		if (!read_ship (0) || !read_ship (1))
 			return bad_input (name, "a ship");
+		if (scanf ("%d %d", &fleet_size[0], &fleet_size[1]) != 2
+				|| fleet_size[0] < 1 || fleet_size[0] > MAX_SHIPS_PER_SIDE
+				|| fleet_size[1] < 1 || fleet_size[1] > MAX_SHIPS_PER_SIDE)
+			return bad_input (name, "fleet sizes");
 		if (scanf ("%d", &n) != 1 || n < 0 || n > MAX_STEPS)
 			return bad_input (name, "the steps' count (at most MAX_STEPS)");
 		num_steps = n;

@@ -35,7 +35,8 @@ public sealed partial class Battle
         }
     }
 
-    private static uint VelocitySquared(int dx, int dy) => (uint)((long)dx * dx + (long)dy * dy);
+    // velocity.h's VelocitySquared: SIZE arguments.
+    private static uint VelocitySquared(short dx, short dy) => (uint)((long)dx * dx + (long)dy * dy);
 
     // inertial_thrust: a thrust along the ship's facing, up to its top speed.
     private static StatusFlags InertialThrust(Element e)
@@ -64,7 +65,7 @@ public sealed partial class Battle
         short dx = (short)(curDx + Cosine(currentAngle, thrustIncrement));
         short dy = (short)(curDy + Sine(currentAngle, thrustIncrement));
         uint desiredSpeed = VelocitySquared(dx, dy);
-        uint maxSpeed = VelocitySquared(Velocity.WorldToVelocity(maxThrust), 0);
+        uint maxSpeed = VelocitySquared((short)Velocity.WorldToVelocity(maxThrust), 0);
 
         if (desiredSpeed <= maxSpeed)
             velocity.SetComponents(dx, dy);   // normal acceleration
