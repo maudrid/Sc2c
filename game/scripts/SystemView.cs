@@ -526,6 +526,8 @@ public partial class OrbitView : Control
                 DrawString(font, new Vector2(right, origin.Y + menu.Texts[i].Layout.Glyphs[0].Y * SisScreen.Scale),
                     "(later)", HorizontalAlignment.Left, -1, 13, Colors.Gray);
         }
+        if (MenuCovered)
+            return;   // the gauges only: the message and the keys come back with the menu
         float below = areaAt.Y + OrbitScreenText.MenuAreaHeight * SisScreen.Scale;
         float width = Position.X - 24;
         DrawString(font, new Vector2(areaAt.X, below + 22), _message, HorizontalAlignment.Left, width, 14, Colors.Khaki);

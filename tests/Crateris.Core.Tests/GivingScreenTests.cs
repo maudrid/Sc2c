@@ -199,6 +199,10 @@ public class GivingScreenTests
         // Who it gives to keeps the keys, cut to the lines they leave.
         Assert.Equal(new[] { ("word word…", false), ("keys one two", true), ("three", true) },
             GivingScreen.Below(report, "", keys, 3, Fits));
+        // However few the lines, the top has one, and no more are given than there are.
+        Assert.Equal(new[] { ("word word…", false), ("keys one…", true) }, GivingScreen.Below(report, "", keys, 2, Fits));
+        Assert.Equal(new[] { ("word word…", false) }, GivingScreen.Below(report, "", keys, 1, Fits));
+        Assert.Equal(new[] { ("word word…", false) }, GivingScreen.Below(report, "", keys, 0, Fits));
     }
 
     [Fact]

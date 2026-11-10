@@ -643,7 +643,15 @@ public sealed class PlayerSession
     {
         Trade = null;
         _waitForRelease = true;
+        TradeClosed?.Invoke();
     }
+
+    /// <summary>
+    /// The giving screen closed (a key, a talk shown, the story pausing the
+    /// game), as it closes: the keys held then aren't the game's till they've
+    /// come up, before another key's repeat can reach what's under it.
+    /// </summary>
+    public event Action? TradeClosed;
 
     // A talk shown (the player's own, or the story's, which pauses the
     // game) closes the giving screen: its keys are the talk's, and the

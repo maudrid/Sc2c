@@ -23,7 +23,9 @@ namespace Crateris.Game;
 /// and the minerals' count-down go, at the space screen's scale (the status
 /// panel's text hidden meanwhile); below it, in the engine's font as the
 /// cargo display's description goes below the orbit menu, who it gives to,
-/// the notice (a gift given or refused) and the keys.
+/// or the notice (a gift given or refused, another player's report), and
+/// the keys, which a notice too long to leave them room has the lines of
+/// (<see cref="GivingScreen.Below"/>).
 /// </summary>
 public partial class GivingView : Node2D
 {

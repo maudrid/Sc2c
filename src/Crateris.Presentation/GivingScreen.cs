@@ -196,12 +196,13 @@ public static class GivingScreen
     /// </summary>
     public static List<(string Line, bool Keys)> Below(string to, string notice, string keys, int most, Func<string, bool> fits)
     {
-        var keyLines = Wrap(keys, Math.Min(KeyLines, most), fits);
+        most = Math.Max(1, most);
+        var keyLines = Wrap(keys, Math.Min(KeyLines, most - 1), fits);
         var top = notice != "" ? notice : to;
         var lines = Wrap(top, int.MaxValue, fits);
         if (notice != "" && lines.Count + keyLines.Count > most)
-            return Wrap(top, most, fits).Select(l => (l, false)).ToList();
-        return Wrap(top, Math.Max(1, most - keyLines.Count), fits).Select(l => (l, false))
+            keyLines.Clear();
+        return Cut(lines, most - keyLines.Count, fits).Select(l => (l, false))
             .Concat(keyLines.Select(l => (l, true))).ToList();
     }
 
@@ -233,9 +234,17 @@ public static class GivingScreen
         }
         if (line != "")
             lines.Add(line);
-        if (lines.Count <= most)
-            return lines;
-        lines.RemoveRange(most, lines.Count - most);
+        return Cut(lines, most, fits);
+    }
+
+    // Lines wrapped, at most most of them: the last of those cut short ends in an ellipsis.
+    private static List<string> Cut(List<string> wrapped, int most, Func<string, bool> fits)
+    {
+        if (wrapped.Count <= most)
+            return wrapped;
+        if (most <= 0)
+            return new List<string>();
+        var lines = wrapped.Take(most).ToList();
         string last = lines[^1];
         while (last.Contains(' ') && !fits(last + "…"))
             last = last[..last.LastIndexOf(' ')];

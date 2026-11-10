@@ -248,10 +248,14 @@ public class TradingTests
         me.Observe(world.Snapshot());
         me.NextInput(Hyperspace.ShipInput.None);
         Assert.NotNull(me.OrbitMenu);
+        int closed = 0;
+        me.TradeClosed += () => ++closed;
         me.ToggleTrade();
         Assert.NotNull(me.Trade);
-        me.PressMenu(MenuKey.Cancel);       // Esc closes it...
+        Assert.Equal(0, closed);
+        me.PressMenu(MenuKey.Cancel);       // Esc closes it, and says so as it does (the game takes the keys held)...
         Assert.Null(me.Trade);
+        Assert.Equal(1, closed);
         // ...and the still-held Esc (the lander's take-off) waits for its release.
         Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.TakeOff));
         Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.None));
@@ -359,13 +363,16 @@ public class TradingTests
         Assert.NotNull(me.Trade);
         me.PressMenu(MenuKey.Down);
         Assert.Empty(me.TakeStarbaseKeys());
-        // Talking to the commander (a key sent before it opened): the talk shows, and it closes.
+        // Talking to the commander (a key sent before it opened): the talk shows, and it closes, saying so as it does.
+        int closed = 0;
+        me.TradeClosed += () => ++closed;
         world.StarbaseKey("host", MenuKey.Select, out _);
         me.Observe(world.Snapshot());
         me.ShowStarbase(world.StarbaseFor("host"));
         me.ShowTalk(world.TalkFor("host"));
         Assert.True(me.TalkShown);
         Assert.Null(me.Trade);
+        Assert.Equal(1, closed);
         // In the talk it doesn't open, nor is it offered.
         me.ToggleTrade();
         Assert.Null(me.Trade);
@@ -382,6 +389,8 @@ public class TradingTests
         guest.Observe(world.Snapshot());
         guest.ToggleTrade();
         Assert.NotNull(guest.Trade);
+        int closed = 0;
+        guest.TradeClosed += () => ++closed;
         world.PutInOrbit("host", Sol, Earth, Luna);
         world.Host.Ship.Ip!.ReturnFromOrbit();
         world.VisitStarbase(world.Host);   // the opening: the game waits for everyone
@@ -390,6 +399,7 @@ public class TradingTests
         world.Step();
         guest.Observe(world.Snapshot());
         Assert.Null(guest.Trade);
+        Assert.Equal(1, closed);
         guest.ToggleTrade();
         Assert.Null(guest.Trade);
         Assert.Equal(Gift.Why(TradeRefusal.Paused), guest.Notice);

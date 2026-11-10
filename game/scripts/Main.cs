@@ -330,6 +330,7 @@ public partial class Main : Node2D
             ModuleCostScale = _systems.StoryRules?.ModuleCostScale ?? 50,
         };
         _player.Logged += Log;
+        _player.TradeClosed += TradeClosed;
         if (_options.ShowReport is { } report)
             _player.ShowReport(new Crateris.Core.Planetside.LanderReport(report));
         if (_options.Join)
@@ -1040,15 +1041,13 @@ public partial class Main : Node2D
             player.ToggleTrade();
             player.Notify("The giving screen couldn't be drawn.");
         }
-        // The keys held as it closes (the Esc that closed it, an arrow as a talk closed it) are taken, the game's
-        // again only once they've come up: their repeats mustn't leave outfitting, the Manifest, or move a reply.
-        bool trading = player.Trade is not null;
-        if (_trading && !trading)
-            _taken.TakeHeld(_down.Select(d => ((long)d.Key, (long)d.Value)), shut: true, except: (long)Key.F1);
-        _trading = trading;
     }
 
-    private bool _trading;   // the giving screen was open, the last frame shown
+    // The keys held as the giving screen closes (the Esc that closed it, an arrow as a talk closed it) are taken
+    // there and then, the game's again only once they've come up: their repeats mustn't leave outfitting, the
+    // Manifest, or move a reply (a guest's talk comes between frames, before the next key's handled).
+    private void TradeClosed() =>
+        _taken.TakeHeld(_down.Select(d => ((long)d.Key, (long)d.Value)), shut: true, except: (long)Key.F1);
 
     private void UpdateHud()
     {
