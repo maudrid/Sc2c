@@ -175,6 +175,30 @@ public class GivingScreenTests
         Assert.Equal(new[] { "abcdefghijk…" }, GivingScreen.Wrap("abcdefghijklmnop qr", 1, Fits));
         Assert.Equal(new[] { "😀😀😀😀😀…" }, GivingScreen.Wrap(string.Concat(Enumerable.Repeat("😀", 9)) + " x", 1, Fits));
         Assert.Empty(GivingScreen.Wrap("", 2, Fits));
+        // A word too long for a line of its own (a long name) is broken over lines, a whole character at a time.
+        Assert.Equal(new[] { "To", "abcdefghijkl", "mnopqrstuvwx", "yz, here." },
+            GivingScreen.Wrap("To abcdefghijklmnopqrstuvwxyz, here.", 5, Fits));
+        Assert.Equal(new[] { "😀😀😀😀😀😀", "😀😀 x" }, GivingScreen.Wrap(string.Concat(Enumerable.Repeat("😀", 8)) + " x", 5, Fits));
+    }
+
+    [Fact]
+    public void BelowTheBoxANoticeTooLongToLeaveTheKeysRoomHasEveryLine()
+    {
+        bool Fits(string s) => s.Length <= 12;
+        const string keys = "keys one two three";   // two lines
+        // Who it gives to, then the keys.
+        Assert.Equal(new[] { ("To someone,", false), ("here.", false), ("keys one two", true), ("three", true) },
+            GivingScreen.Below("To someone, here.", "", keys, 5, Fits));
+        // A notice takes its place; one too long for the room the keys leave has it all, the keys left out.
+        Assert.Equal(new[] { ("Gave ten.", false), ("keys one two", true), ("three", true) },
+            GivingScreen.Below("To someone, here.", "Gave ten.", keys, 5, Fits));
+        var report = string.Join(" ", Enumerable.Repeat("word", 8));   // four lines
+        Assert.Equal(Enumerable.Repeat(("word word", false), 4), GivingScreen.Below("To someone.", report, keys, 5, Fits));
+        Assert.Equal(new[] { ("word word", false), ("word word", false), ("word word…", false) },
+            GivingScreen.Below("To someone.", report, keys, 3, Fits));
+        // Who it gives to keeps the keys, cut to the lines they leave.
+        Assert.Equal(new[] { ("word word…", false), ("keys one two", true), ("three", true) },
+            GivingScreen.Below(report, "", keys, 3, Fits));
     }
 
     [Fact]

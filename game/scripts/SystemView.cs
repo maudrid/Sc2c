@@ -278,6 +278,14 @@ public partial class OrbitView : Control
     /// <summary>The scan map's dots and cursor, and the lander's gauges (set with <see cref="Names"/>).</summary>
     public PlanetsideSprites? Sprites { get; set; }
 
+    /// <summary>
+    /// Whether the giving screen is open over the status area: the menu, which
+    /// hasn't the keys meanwhile, isn't drawn (nor its message and keys), so
+    /// the giving screen's text has its room; the lander's gauges, while the
+    /// site is picked, still are.
+    /// </summary>
+    public bool MenuCovered { get; set; }
+
     private readonly StampTextures _stamps = new();
 
     private PlanetSurface? _surface;     // the orbited world's surface, made once per visit
@@ -473,6 +481,8 @@ public partial class OrbitView : Control
     {
         // UQM's PC menu box (DrawPCMenu, in the status area's coordinates), to the
         // left of the space screen below the status lines.
+        if (MenuCovered && !_menu!.Picking)
+            return;
         var items = _menu!.Items;
         if (!ReferenceEquals(_menuLayout?.Items, items) || _menuLayout.Value.Selected != _menu.Selected)
             _menuLayout = (items, _menu.Selected, Text!.Menu(items, items.ToList().IndexOf(_menu.Selected)));

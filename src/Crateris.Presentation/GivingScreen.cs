@@ -187,16 +187,40 @@ public static class GivingScreen
     }
 
     /// <summary>
+    /// The text below the box: the notice while there is one (a gift given
+    /// or refused, another player's report), else who it gives to
+    /// (<paramref name="to"/>), then the keys, in at most
+    /// <paramref name="most"/> lines that <paramref name="fits"/>. A notice
+    /// too long to leave the keys room has every line (the keys are back
+    /// once it's gone). Each line with whether it's the keys'.
+    /// </summary>
+    public static List<(string Line, bool Keys)> Below(string to, string notice, string keys, int most, Func<string, bool> fits)
+    {
+        var keyLines = Wrap(keys, Math.Min(KeyLines, most), fits);
+        var top = notice != "" ? notice : to;
+        var lines = Wrap(top, int.MaxValue, fits);
+        if (notice != "" && lines.Count + keyLines.Count > most)
+            return Wrap(top, most, fits).Select(l => (l, false)).ToList();
+        return Wrap(top, Math.Max(1, most - keyLines.Count), fits).Select(l => (l, false))
+            .Concat(keyLines.Select(l => (l, true))).ToList();
+    }
+
+    /// <summary>The most lines the keys below the box take.</summary>
+    public const int KeyLines = 3;
+
+    /// <summary>
     /// The text below the box (who it gives to, a notice, the keys) wrapped
     /// at words into lines that <paramref name="fits"/>, at most
     /// <paramref name="most"/>: one cut short ends in an ellipsis, a word
-    /// too long for that last line cut a whole character at a time.
+    /// too long for that last line cut a whole character at a time. A word
+    /// too long for a line of its own (a long name) is broken, a whole
+    /// character at a time, over as many lines as it takes.
     /// </summary>
     public static List<string> Wrap(string text, int most, Func<string, bool> fits)
     {
         var lines = new List<string>();
         var line = "";
-        foreach (var word in text.Replace('\n', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var word in text.Replace('\n', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(w => Broken(w, fits)))
         {
             string longer = line == "" ? word : line + " " + word;
             if (line != "" && !fits(longer))
@@ -219,6 +243,30 @@ public static class GivingScreen
             last = new StringInfo(last).SubstringByTextElements(0, new StringInfo(last).LengthInTextElements - 1);
         lines[^1] = last + "…";
         return lines;
+    }
+
+    // A word too long for a line, in pieces each as long as fits (at least a character); a word that fits whole.
+    private static IEnumerable<string> Broken(string word, Func<string, bool> fits)
+    {
+        if (fits(word))
+        {
+            yield return word;
+            yield break;
+        }
+        var piece = new StringBuilder();
+        var letters = StringInfo.GetTextElementEnumerator(word);
+        while (letters.MoveNext())
+        {
+            string letter = letters.GetTextElement();
+            if (piece.Length > 0 && !fits(piece + letter))
+            {
+                yield return piece.ToString();
+                piece.Clear();
+            }
+            piece.Append(letter);
+        }
+        if (piece.Length > 0)
+            yield return piece.ToString();
     }
 
     private static string N(long n) => n.ToString(CultureInfo.InvariantCulture);

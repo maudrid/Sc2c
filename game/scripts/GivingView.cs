@@ -134,19 +134,15 @@ public partial class GivingView : Node2D
         var source = new Rect2(area.X, area.Y, area.W, area.H);
         DrawTextureRectRegion(_texture, new Rect2(Vector2.Zero, source.Size * SisScreen.Scale), source);
         // Below the box, as the cargo display's description is below the orbit menu: who it gives to, or the
-        // notice while there is one (a gift given or refused), then the keys, in the lines there are.
+        // notice while there is one (a gift given or refused, another's report), then the keys, in the lines
+        // there are (a long notice has them all).
         var font = ThemeDB.FallbackFont;
-        var keys = Wrap(font, Keys, KeyLines);
-        var top = Wrap(font, _notice != "" ? _notice : _to, Math.Max(1, MostLines - keys.Count));
         float y = area.H * SisScreen.Scale + 12;
-        foreach (var line in top)
+        foreach (var (line, keys) in GivingScreen.Below(_to, _notice, Keys, MostLines,
+                     s => font.GetStringSize(s, HorizontalAlignment.Left, -1, FontSize).X <= Width))
         {
-            DrawString(font, new Vector2(0, y), line, HorizontalAlignment.Left, Width, FontSize, _notice != "" ? Colors.Khaki : Colors.White);
-            y += LineHeight;
-        }
-        foreach (var line in keys)
-        {
-            DrawString(font, new Vector2(0, y), line, HorizontalAlignment.Left, Width, FontSize, Colors.Gray);
+            DrawString(font, new Vector2(0, y), line, HorizontalAlignment.Left, Width, FontSize,
+                keys ? Colors.Gray : _notice != "" ? Colors.Khaki : Colors.White);
             y += LineHeight;
         }
     }
@@ -154,7 +150,7 @@ public partial class GivingView : Node2D
     /// <summary>How wide the text below the box may be (to the space screen's left, less a margin).</summary>
     public float Width { get; set; } = 260;
 
-    /// <summary>How many lines of text fit below the box: five above the orbit menu or the lander's gauges, more elsewhere.</summary>
+    /// <summary>How many lines of text fit below the box: seven above the lander's gauges, more elsewhere.</summary>
     public int MostLines
     {
         get => _mostLines;
@@ -166,10 +162,7 @@ public partial class GivingView : Node2D
         }
     }
 
-    private int _mostLines = 5;
+    private int _mostLines = 7;
 
-    private const int FontSize = 13, LineHeight = 15, KeyLines = 3;
-
-    private List<string> Wrap(Font font, string text, int most) =>
-        GivingScreen.Wrap(text, most, s => font.GetStringSize(s, HorizontalAlignment.Left, -1, FontSize).X <= Width);
+    private const int FontSize = 13, LineHeight = 15;
 }

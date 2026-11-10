@@ -1028,16 +1028,27 @@ public partial class Main : Node2D
             _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)
             _systemView.Show(player.Snapshot, player.PlayerId);
-        // The giving screen, while it's open, over whichever screen it was opened on: below it five lines fit
-        // above the orbit menu or the lander's gauges, more elsewhere. One that can't be drawn is closed.
-        _givingView.MostLines = screen is PlayerScreen.Orbit or PlayerScreen.Planetside ? 5 : 12;
+        // The giving screen, while it's open, over whichever screen it was opened on: below it seven lines fit
+        // above the lander's gauges, more elsewhere (the orbit menu, which hasn't the keys meanwhile, isn't
+        // drawn). One that can't be drawn is closed.
+        bool gauges = screen == PlayerScreen.Planetside || (screen == PlayerScreen.Orbit && player.OrbitMenu is { Picking: true });
+        _givingView.MostLines = gauges ? 7 : 12;
         _givingView.Visible = !Headless && _givingView.Show(player);
+        _orbitView.MenuCovered = _givingView.Visible;
         if (_givingView.Broken && player.Trade is not null)
         {
             player.ToggleTrade();
             player.Notify("The giving screen couldn't be drawn.");
         }
+        // The keys held as it closes (the Esc that closed it, an arrow as a talk closed it) are taken, the game's
+        // again only once they've come up: their repeats mustn't leave outfitting, the Manifest, or move a reply.
+        bool trading = player.Trade is not null;
+        if (_trading && !trading)
+            _taken.TakeHeld(_down.Select(d => ((long)d.Key, (long)d.Value)), shut: true, except: (long)Key.F1);
+        _trading = trading;
     }
+
+    private bool _trading;   // the giving screen was open, the last frame shown
 
     private void UpdateHud()
     {
