@@ -647,8 +647,9 @@ public sealed class PlayerSession
     }
 
     /// <summary>
-    /// The giving screen closed (a key, a talk shown, the story pausing the
-    /// game), as it closes: the keys held then aren't the game's till they've
+    /// The giving screen closed (a key or a script's <c>give</c>, a talk
+    /// shown, the story pausing the game, the game unable to draw it), as it
+    /// closes: the keys held then aren't the game's till they've
     /// come up, before another key's repeat can reach what's under it.
     /// </summary>
     public event Action? TradeClosed;

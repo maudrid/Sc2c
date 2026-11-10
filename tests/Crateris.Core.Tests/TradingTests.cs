@@ -301,8 +301,11 @@ public class TradingTests
         Assert.Equal((null, "", false, (int?)null), (shown.To, shown.ToName, shown.Here, shown.Room));
         // The panel lists nothing of it while it's open (it's drawn over the status area), and offers it once it's closed.
         Assert.DoesNotContain(me.StatusLines(), l => l.Contains("give", StringComparison.OrdinalIgnoreCase));
-        me.ToggleTrade();
+        int closed = 0;
+        me.TradeClosed += () => ++closed;
+        me.ToggleTrade();   // T closes it, saying so once
         Assert.Contains("T: give another player something", me.StatusLines());
+        Assert.Equal(1, closed);
     }
 
     [ContentFact]
@@ -402,6 +405,7 @@ public class TradingTests
         Assert.Equal(1, closed);
         guest.ToggleTrade();
         Assert.Null(guest.Trade);
+        Assert.Equal(1, closed);   // a refused opening closes nothing
         Assert.Equal(Gift.Why(TradeRefusal.Paused), guest.Notice);
     }
 
@@ -411,6 +415,8 @@ public class TradingTests
         var world = TwoPlayers(sameSystem: false);
         var me = new PlayerSession(Systems, null, "host", TestContent.Shapes.HyperFlagship.Count,
             InputScript.Parse("thrust:1,give+thrust:2,give+thrust:1"));
+        int closed = 0;
+        me.TradeClosed += () => ++closed;
         me.Observe(world.Snapshot());
         me.NextInput(Hyperspace.ShipInput.None);
         Assert.Null(me.Trade);
@@ -419,6 +425,7 @@ public class TradingTests
         Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.None));
         Assert.Equal(Hyperspace.ShipInput.Thrust, me.NextInput(Hyperspace.ShipInput.None));   // closed: it flies
         Assert.Null(me.Trade);
+        Assert.Equal(1, closed);   // the script's give closing it says so, as a key's does
     }
 
     [ContentFact]
