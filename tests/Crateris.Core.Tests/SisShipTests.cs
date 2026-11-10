@@ -180,6 +180,7 @@ public class SisShipTests
         Assert.Throws<ArgumentException>(() => new SisShip(Ships[ShipDescriptions.Ilwrath], null, null, loadout));
         Assert.Throws<ArgumentException>(() => new SisLoadout(Drives(2), Jets(2), new byte[3], 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new SisLoadout(Drives(2), Jets(2), Modules(), -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SisLoadout(Drives(2), Jets(2), Modules(), 0, kitCrew: 65000));
     }
 
     // A battle on sheets of our own (solid squares): the ship against the Ilwrath.

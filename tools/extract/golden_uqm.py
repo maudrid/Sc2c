@@ -2703,8 +2703,23 @@ def ship_battle_scenarios(program):
              ships=[sis(30, {**START_MODULES, 9: M_DEFENSE}), ilwrath()], steps=[(20, 0, 0)], full=200)
     out.append(piloted(program, s, 900, [lambda f, side, t: B_SPECIAL | (B_THRUST if t % 100 < 30 else 0)
                                          | (B_LEFT if t % 200 < 15 else 0), cloaker(period=90, close=450)]))
-    # Two Ilwraths, both cloaking and firing (TrackShip and point defence
-    # passing over cloaked ships; the Earth fight's 7 crew on one side).
+    # Point defence passing over a cloaked ship: the flagship sits holding
+    # Special while the Ilwrath, cloaked, comes within its lasers' range
+    # without firing.
+    def creeper(f, side, t):
+        ship, them = ship_of(f, side), ship_of(f, 0)
+        if not ship or not them:
+            return 0
+        if ship[E_PRIM] == 1:
+            return B_SPECIAL   # seen: cloak (Special while cloaked would uncloak)
+        far = distance(ship, them) > 1200
+        return steer(f, side, the_ship(0)) & ~(0 if far or t % 24 < 2 else B_THRUST)
+    s = dict(name="sis-defence-cloaked", seed=7011, planet="planet.chondrite",
+             ships=[sis(50, {**START_MODULES, 9: M_DEFENSE, 10: M_DEFENSE}), ilwrath()], steps=[(20, 0, 0)])
+    s = piloted(program, s, 500, [lambda f, side, t: B_SPECIAL, creeper])
+    out.append(dict(s, full=sum(n for n, *_ in s["steps"])))
+    # Two Ilwraths, both cloaking and firing (TrackShip passing over a
+    # cloaked ship; the Earth fight's 7 crew on one side).
     out.append(dict(name="ilwrath-duel", seed=7010, planet="planet.chondrite",
                     ships=[ilwrath(7), ilwrath(22)],
                     steps=random_steps(7100, 1500, choices=[0, B_THRUST, B_LEFT, B_RIGHT, B_THRUST | B_LEFT,
@@ -2790,6 +2805,23 @@ def check_ship_battles(scenarios, battles):
         colours = {ship_of(f, 1)[E_COLOR] for f in fr if ship_of(f, 1) and ship_of(f, 1)[E_PRIM] == STAMPFILL_PRIM}
         if len(colours) < 6:
             fail(name, f"the cloak's colours: {sorted(colours)}")
+    # Point defence held, ready and paid for, with the cloaked Ilwrath in
+    # its range (and nothing else), fires nothing.
+    fr, keys = frames("sis-defence-cloaked"), [None] + [k[1] for k in scenario["sis-defence-cloaked"]["steps"]
+                                                       for _ in range(k[0])]
+    passed = 0
+    for i in range(1, len(fr)):
+        before, now = fighting(fr[i - 1], 0), fighting(fr[i], 0)
+        ship, them = ship_of(fr[i], 0), ship_of(fr[i], 1)
+        if not (before and now and ship and them and cloaked(fr[i], 1) and keys[i] & B_SPECIAL):
+            continue
+        near = [e for e in fr[i][F_ELEMENTS] if e is not ship and not e[E_FLAGS] & ((1 << 6) | (1 << 4))
+                and (abs(wrap_delta(e[E_CX] - ship[E_CX], 8192)) >> 2) ** 2
+                + (abs(wrap_delta(e[E_CY] - ship[E_CY], 7680)) >> 2) ** 2 <= 100 * 100]
+        if near == [them] and before[5] == 0 and before[1] >= 8 and now[5] == 0:
+            passed += 1
+    if not passed:
+        fail("sis-defence-cloaked", "the point defence never passed over the cloaked Ilwrath")
     if not lost("ilwrath-hunt", 0):
         fail("ilwrath-hunt", "the hellfire never hit")
     fr = frames("ilwrath-duel")
@@ -2849,9 +2881,11 @@ def record_battle_ships(uqm, battle_exe, strings_exe, images_exe, package):
         "blue, five bits each, red highest), -1 for one never set (UQM "
         "keeps a primitive per slot: an element starts with its slot's last "
         "colour). The Ilwrath's cloak fades through its colours. "
-        "crew_enlisted: GLOBAL_SIS (CrewEnlisted) after the battle, the "
-        "input's crew unless the flagship died (free_ship calling uninit_sis: "
-        "crew_level - 1, 65535 for none left, UQM's game over); bomb_carrier: "
+        "crew_enlisted: GLOBAL_SIS (CrewEnlisted) after the battle: "
+        "uninit_sis writes crew_level - 1 there as free_ship frees the "
+        "flagship's description, new_ship if it died, UninitShips at the "
+        "battle's end if not (its crew held to its most when it warped in, "
+        "spawn_ship's clamp), 65535 for none left, UQM's game over; bomb_carrier: "
         "BOMB_CARRIER after it (init_sis sets it when CHMMR_BOMB_STATE is 3).",
     ])
     data["sheets"] = ids

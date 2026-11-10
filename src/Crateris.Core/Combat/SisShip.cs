@@ -42,7 +42,8 @@ public sealed class SisLoadout
                                         + $"{ShipModules.ModuleSlotCount} module slots");
         if (crew < 0 || crew >= ushort.MaxValue)
             throw new ArgumentOutOfRangeException(nameof(crew), $"{crew} crew");
-        if (kitCrew < 0)
+        // The most crew, every module slot a crew pod, the kit's and the captain, is a COUNT.
+        if (kitCrew < 0 || kitCrew > ushort.MaxValue - ShipModules.ModuleSlotCount * ShipLoadout.CrewPodCapacity - 1)
             throw new ArgumentOutOfRangeException(nameof(kitCrew), $"{kitCrew} kit crew");
         DriveSlots = driveSlots.ToArray();
         JetSlots = jetSlots.ToArray();
@@ -363,7 +364,8 @@ public sealed class SisShip : IShipCode
         var rd = starShip.RaceDesc!;
         byte cost = rd.Characteristics.SpecialEnergyCost;
         // UQM's table has 8 colours, for costs 0 to 7; MAX_DEFENSE's 8 reads
-        // past its end. Only the laser's colour, never compared.
+        // past its end (undefined). Only the laser's colour; the traces keep
+        // to seven point defences at most.
         int laserColor = ColorRange[Math.Min((int)cost, ColorRange.Length - 1)];
         bool paidFor = false;
         var ship = starShip.Ship!;

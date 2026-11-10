@@ -95,9 +95,10 @@
  * hTarget's slot (0 none), and the primitive's colour (prim_color: RGB15,
  * -1 never set); draws each TFB_Random's caller, as an address.
  * "ended" says whether the battle ended (IN_BATTLE cleared);
- * "crew_enlisted" is GLOBAL_SIS (CrewEnlisted) after it (uninit_sis writes
- * a dead flagship's crew there, through free_ship) and "bomb_carrier"
- * BOMB_CARRIER (init_sis sets it).
+ * "crew_enlisted" is GLOBAL_SIS (CrewEnlisted) after it: uninit_sis writes
+ * crew_level - 1 there when free_ship frees the flagship's description
+ * (new_ship if it died, UninitShips at the battle's end if not), 65535
+ * for none left; "bomb_carrier" is BOMB_CARRIER (init_sis sets it).
  */
 
 #include "uqm/battle.c"
@@ -488,7 +489,8 @@ load_ship (SPECIES_ID SpeciesID, BOOLEAN LoadBattleData)
 }
 
 /* loadship.c's free_ship: the ship's uninit_func (uninit_sis writes the
- * crew left to GLOBAL_SIS (CrewEnlisted)), then the RACE_DESC freed. */
+ * crew left less the captain to GLOBAL_SIS (CrewEnlisted)), then the
+ * RACE_DESC freed. */
 void
 free_ship (RACE_DESC *RaceDescPtr, BOOLEAN FreeIconData, BOOLEAN FreeBattleData)
 {
