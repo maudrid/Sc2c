@@ -226,6 +226,27 @@ public class DevicesDisplayTests
     }
 
     [ContentFact]
+    public void ThePainterCountsANamesCharactersAsUqmDoes()
+    {
+        // A name's first line is drawn with a count of code points (utf8StringPos, getCharFromString's
+        // characters), so a combining mark is one, not part of its letter's.
+        WithContent(paint =>
+        {
+            var tiny = new UqmDraw(UqmDrawKind.Text, 290, 50, Color: DevicesDisplay.Name, Font: "tiny", Align: TextAlign.Center,
+                Clip: new URect(UqmCanvas.SpaceWidth, 0, UqmCanvas.StatusWidth, UqmCanvas.StatusHeight));
+            var counted = paint.Raster();
+            counted.Paint(tiny with { Text = "E\u0301XY", Count = 3 });
+            var whole = paint.Raster();
+            whole.Paint(tiny with { Text = "E\u0301X" });
+            var more = paint.Raster();
+            more.Paint(tiny with { Text = "E\u0301XY" });
+            Assert.True(counted.Rgba.SequenceEqual(whole.Rgba), "three code points aren't the first three drawn");
+            Assert.False(counted.Rgba.SequenceEqual(more.Rgba), "the fourth drawn too");
+            return 0;
+        });
+    }
+
+    [ContentFact]
     public void PaintedFromTheContentEveryDeviceIsDrawnInsideTheBox()
     {
         var rules = StoryRules.Load(Path.Combine(AppContext.BaseDirectory, "data"));

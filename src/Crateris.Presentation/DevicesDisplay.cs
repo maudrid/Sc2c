@@ -53,8 +53,8 @@ public static class DevicesDisplay
 
     /// <summary>
     /// The status area's part it draws on, in the screen's pixels: its box
-    /// (DrawDevicesDisplay's, whose bottom line UQM draws a pixel lower than
-    /// the cargo display's).
+    /// (DrawDevicesDisplay's, the cargo display's own, whose bottom line
+    /// UQM's comment calls a pixel too low).
     /// </summary>
     public static readonly URect Area = new(UqmCanvas.SpaceWidth + BoxX, BoxY, FieldWidth + 1, BoxBottom - BoxY);
 

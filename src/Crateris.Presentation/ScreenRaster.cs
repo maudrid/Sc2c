@@ -12,7 +12,6 @@
 // backing), Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc.
 // 1992-2002, and the UQM contributors, under the GNU GPL 2 or later.
 
-using System.Globalization;
 using System.Text;
 
 namespace Crateris.Presentation;
@@ -127,11 +126,10 @@ public sealed class ScreenRaster
         string text = _text(d.Text);
         if (d.Count >= 0)
         {
-            // TEXT.CharCount: so many characters.
-            var e = StringInfo.GetTextElementEnumerator(text);
+            // TEXT.CharCount: so many characters, each a code point as UQM's getCharFromString takes them.
             var cut = new StringBuilder();
-            for (int n = 0; n < d.Count && e.MoveNext(); ++n)
-                cut.Append(e.GetTextElement());
+            foreach (var rune in text.EnumerateRunes().Take(d.Count))
+                cut.Append(rune.ToString());
             text = cut.ToString();
         }
         var layout = font.Layout(text, d.X, d.Y, d.Align);
