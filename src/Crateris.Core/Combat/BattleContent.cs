@@ -138,3 +138,43 @@ public sealed class BattleShapes
         return new BattleShapes(loaded);
     }
 }
+
+/// <summary>
+/// The sheets a battle runs with, from the content: each resource's frames
+/// counted (the zoom's sizes take an index round their own count), and for
+/// the sheets collisions test (the big size) their shapes from
+/// <see cref="BattleShapes"/>.
+/// </summary>
+public sealed class BattleSheets
+{
+    private readonly AnimationSheets _decoded;
+    private readonly BattleShapes _shapes;
+    private readonly Dictionary<string, Sheet> _sheets = new();
+
+    public BattleSheets(AnimationSheets decoded, BattleShapes shapes)
+    {
+        _decoded = decoded;
+        _shapes = shapes;
+    }
+
+    /// <summary>A sheet by resource id.</summary>
+    public Sheet this[string resourceId]
+    {
+        get
+        {
+            if (!_sheets.TryGetValue(resourceId, out var sheet))
+                _sheets[resourceId] = sheet = new Sheet(resourceId, _decoded[resourceId].Count,
+                    _shapes.Sheets.TryGetValue(resourceId, out var shapes) ? shapes : null);
+            return sheet;
+        }
+    }
+
+    /// <summary>A farray: the sheets load_animation loads for a RACE_DESC's three sizes (<see cref="ShipGraphics.Sheets"/>), or null for none.</summary>
+    public Views? Views(IReadOnlyList<string?> resources) =>
+        ShipGraphics.Sheets(resources) is { } sheets ? new Views(sheets.Select(s => this[s]).ToArray()) : null;
+
+    /// <summary>The arena's sheets (InitSpace's), with a planet's battle sprites (load_gravity_well).</summary>
+    public BattleArena Arena(IReadOnlyList<string> planet) => new(
+        new Views(this[BattleResources.Stars]), Views(BattleResources.Asteroid)!, Views(BattleResources.Blast)!,
+        Views(BattleResources.Explosion)!, Views(planet)!);
+}

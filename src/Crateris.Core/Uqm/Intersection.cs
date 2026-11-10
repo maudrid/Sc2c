@@ -57,7 +57,28 @@ public sealed class IntersectControl
         OriginY = EndY = y;
     }
 
+    /// <summary>A control without a frame yet (an element's, cleared as AllocElement clears it).</summary>
+    public IntersectControl() => Frame = null!;
+
+    /// <summary>The frame tested; null until one is set (<see cref="HasFrame"/>).</summary>
     public IntersectFrame Frame { get; set; }
+
+    /// <summary>Whether a frame has been set: DrawablesIntersect finds nothing for a control without one.</summary>
+    public bool HasFrame => Frame is not null;
+
+    /// <summary>Everything cleared, the frame too.</summary>
+    public void Clear()
+    {
+        Frame = null!;
+        OriginX = OriginY = EndX = EndY = 0;
+        LastTime = 0;
+    }
+
+    /// <summary>A copy (UQM copies the struct).</summary>
+    public IntersectControl Copy() => new()
+    {
+        Frame = Frame, OriginX = OriginX, OriginY = OriginY, EndX = EndX, EndY = EndY, LastTime = LastTime,
+    };
     public short OriginX { get; set; }
     public short OriginY { get; set; }
     public short EndX { get; set; }
@@ -88,6 +109,8 @@ public static class Intersection
         if (maxTime > MaxTimeValue)
             maxTime = MaxTimeValue;
         c0.LastTime = c1.LastTime = 0;
+        if (!c0.HasFrame || !c1.HasFrame)
+            return 0;   // a null frame touches nothing
 
         Rect r0 = default, r1 = default;
         r0.X = c0.OriginX;

@@ -1826,6 +1826,494 @@ def write_masks(strings_exe, images_exe, package, tmp, sheets=None):
     return masks, hashes
 
 
+
+# ---- The battle engine (stage 4a item 2) ----
+
+# UQM's battle code the battle program runs (tools/extract/golden/battle.c
+# includes battle.c, galaxy.c and random.c).
+BATTLE_LINK = ["uqm/process.c", "uqm/collide.c", "uqm/gravity.c",
+               "uqm/misc.c", "uqm/weapon.c", "uqm/ship.c", "uqm/tactrans.c",
+               "uqm/init.c", "uqm/status.c", "uqm/shipstat.c",
+               "uqm/displist.c", "uqm/velocity.c", "uqm/trans.c",
+               "uqm/globdata.c", "libs/math/sqrt.c",
+               "libs/graphics/pixmap.c", "libs/graphics/intersec.c",
+               "libs/graphics/boxint.c"]
+BATTLE_STUBS = os.path.join(HERE, "golden", "battle_stubs.c")
+
+# The planets the battles have (load_gravity_well's battle sprites).
+BATTLE_PLANETS = ["planet.water", "planet.chondrite"]
+
+# BATTLE_INPUT_STATE.
+B_LEFT, B_RIGHT, B_THRUST, B_WEAPON, B_SPECIAL, B_ESCAPE = 1, 2, 4, 8, 16, 32
+# The test ships' weapons (battle.c): a missile, a homing missile, a laser,
+# six missiles round the ship.
+W_MISSILE, W_HOMING, W_LASER, W_SPRAY = 1, 2, 4, 8
+
+# An element as the battle program writes it.
+# A frame as it writes it: its ships, elements and draws.
+F_ZOOM, F_SHIPS, F_ELEMENTS, F_DRAWS = 3, 7, 8, 9
+E_FLAGS, E_LIFE, E_CREW, E_MASS = 0, 1, 2, 3
+E_CX, E_CY, E_SHEET, E_FRAME, E_PLAYER, E_PRIM = 15, 16, 19, 20, 21, 22
+PLAYER_SHIP_FLAG, FINITE_LIFE_FLAG, CREW_OBJECT_FLAG = 1 << 2, 1 << 10, 1 << 14
+
+
+def battle_ships():
+    with open(os.path.join(REPO, "data", "ships.json")) as f:
+        data = json.load(f)
+    return {s["id"]: s for s in data["ships"]}, data["flag_values"]
+
+
+def battle_program_sheets():
+    """The sheets the battle program loads, numbered: the flagship's and
+    the Ilwrath's ship and weapon sheets (data/ships.json), the arena's
+    asteroids, blasts and explosions (InitSpace) and the battles' planets,
+    each at its three sizes, and the stars (one size)."""
+    ships, _ = battle_ships()
+    ids = []
+    for ship in BATTLE_SHIPS:
+        g = ships[ship]["graphics"]
+        ids += g["ship"] + g["weapon"]
+    for base in ["graphics.asteroid", "graphics.blast", "graphics.boom"] + BATTLE_PLANETS:
+        ids += [f"{base}.large", f"{base}.medium", f"{base}.small"]
+    ids.append("graphics.stars")
+    return ids
+
+
+def test_ship(ship_id, crew=None, weapons=W_MISSILE, **changes):
+    """A test ship flying ship_id's sheets with its RACE_DESC's numbers
+    (data/ships.json) and plain weapons: the flagship's blaster's numbers
+    and laser range, or the Ilwrath's hellfire's. changes overrides any
+    field (a characteristic by its name)."""
+    ships, flag_values = battle_ships()
+    s = ships[ship_id]
+    d = s["defines"]
+    if ship_id == "sis_ship":
+        weapon = dict(life=d["BLASTER_LIFE"], speed=d["BLASTER_SPEED"], hits=d["BLASTER_HITS"],
+                      damage=d["BLASTER_DAMAGE"], offset=d["BLASTER_OFFSET"], laser_range=d["LASER_RANGE"])
+    else:
+        weapon = dict(life=d["MISSILE_LIFE"], speed=d["MISSILE_SPEED"], hits=d["MISSILE_HITS"],
+                      damage=d["MISSILE_DAMAGE"], offset=d["ILWRATH_OFFSET"], laser_range=0)
+    ship = dict(ship=ship_id, crew=s["crew"] if crew is None else crew, max_crew=s["max_crew"],
+                energy=s["energy"], max_energy=s["max_energy"],
+                flags=sum(flag_values[f] for f in s["flags"]),
+                characteristics=dict(s["characteristics"]), weapons=weapons, track_wait=2, **weapon)
+    for key, value in changes.items():
+        if key in ship["characteristics"]:
+            ship["characteristics"][key] = value
+        else:
+            ship[key] = value
+    return ship
+
+
+CHARACTERISTICS = ["max_thrust", "thrust_increment", "energy_regeneration", "weapon_energy_cost",
+                   "special_energy_cost", "energy_wait", "turn_wait", "thrust_wait", "weapon_wait",
+                   "special_wait", "ship_mass"]
+
+
+def battle_line(scenario, numbers):
+    ships, _ = battle_ships()
+    parts = [scenario["name"], scenario["seed"], 1 if scenario.get("zoom", "smooth") == "smooth" else 0,
+             1 if scenario.get("runaway") else 0]
+    parts += [numbers[f"{scenario['planet']}.{s}"] for s in ("large", "medium", "small")]
+    for ship in scenario["ships"]:
+        g = ships[ship["ship"]]["graphics"]
+        parts += [numbers[r] for r in g["ship"] + g["weapon"]]
+        parts += [ship["crew"], ship["max_crew"], ship["energy"], ship["max_energy"], ship["flags"]]
+        parts += [ship["characteristics"][c] for c in CHARACTERISTICS]
+        parts += [ship[k] for k in ("weapons", "life", "speed", "hits", "damage", "offset",
+                                    "track_wait", "laser_range")]
+    parts.append(len(scenario["steps"]))
+    for step in scenario["steps"]:
+        parts += list(step)
+    parts.append(len(scenario.get("events", [])))
+    for event in scenario.get("events", []):
+        parts += list(event)
+    return " ".join(str(p) for p in parts)
+
+
+class BattleProgram:
+    """The battle program with its sheets and masks, run on scenarios."""
+
+    def __init__(self, exe, sheets_file, masks):
+        self.exe, self.sheets_file, self.masks = exe, sheets_file, masks
+        self.ids = battle_program_sheets()
+        self.numbers = {r: n for n, r in enumerate(self.ids)}
+        out = subprocess.run(["nm", "-n", exe], capture_output=True, text=True, check=True).stdout
+        self.symbols = [(int(a, 16), name) for a, kind, name in
+                        (line.split() for line in out.splitlines() if len(line.split()) == 3)
+                        if kind in "tT"]
+
+    def place(self, address):
+        """The function an address is in (the program has its symbols)."""
+        import bisect
+        i = bisect.bisect_right([a for a, _ in self.symbols], address) - 1
+        return self.symbols[i][1]
+
+    def run(self, scenarios):
+        lines = [battle_line(s, self.numbers) for s in scenarios]
+        out = subprocess.run([self.exe, self.sheets_file, self.masks], input="\n".join(lines) + "\n",
+                             capture_output=True, text=True, check=True).stdout
+        battles = json.loads("[" + out.replace("}\n{", "},\n{") + "]")
+        if len(battles) != len(scenarios):
+            raise RuntimeError("the battle program lost a battle")
+        places = {}
+        for battle in battles:
+            for frame in battle["frames"]:
+                frame[9] = [places.setdefault(a, self.place(a)) for a in frame[9]]
+        return battles
+
+
+def facing_towards(dx, dy):
+    """UQM's facing (0 up, clockwise, 16 a turn) nearest the way (dx, dy)."""
+    import math
+    return round(math.atan2(dx, -dy) / (2 * math.pi / 16)) % 16
+
+
+def wrap_delta(d, size):
+    return (d + size // 2) % size - size // 2
+
+
+def ship_of(frame, side):
+    return next((e for e in frame[F_ELEMENTS] if e[E_FLAGS] & PLAYER_SHIP_FLAG and e[E_PLAYER] == side), None)
+
+
+def steer(frame, side, goal, fire=False, keep_off=0):
+    """Keys turning side's ship towards goal(frame) (a place, or None to
+    drift), thrusting when it faces it (and firing, if asked) unless
+    within keep_off world units."""
+    ship = ship_of(frame, side)
+    target = goal(frame) if ship else None
+    if ship is None or target is None or frame[F_SHIPS][side] is None:
+        return 0
+    dx = wrap_delta(target[0] - ship[E_CX], 8192)
+    dy = wrap_delta(target[1] - ship[E_CY], 7680)
+    diff = (facing_towards(dx, dy) - frame[F_SHIPS][side][2]) % 16
+    keys = 0 if diff == 0 else B_RIGHT if diff < 8 else B_LEFT
+    if diff in (0, 1, 15):
+        if abs(dx) + abs(dy) > keep_off:
+            keys |= B_THRUST
+        if fire:
+            keys |= B_WEAPON
+    return keys
+
+
+def the_planet(frame):
+    p = next((e for e in frame[F_ELEMENTS] if e[E_MASS] == 200), None)
+    return (p[E_CX], p[E_CY]) if p else None
+
+
+def the_ship(side):
+    def goal(frame):
+        s = ship_of(frame, side)
+        return (s[E_CX], s[E_CY]) if s else None
+    return goal
+
+
+def nearest_asteroid(side):
+    def goal(frame):
+        ship = ship_of(frame, side)
+        rocks = [e for e in frame[F_ELEMENTS] if e[E_MASS] == 3 and not e[E_FLAGS] & FINITE_LIFE_FLAG
+                 and e[E_PRIM] == 1]
+        if not ship or not rocks:
+            return None
+        rock = min(rocks, key=lambda e: abs(wrap_delta(e[E_CX] - ship[E_CX], 8192))
+                   + abs(wrap_delta(e[E_CY] - ship[E_CY], 7680)))
+        return (rock[E_CX], rock[E_CY])
+    return goal
+
+
+def nearest_crew(side):
+    def goal(frame):
+        ship = ship_of(frame, side)
+        crew = [e for e in frame[F_ELEMENTS] if e[E_FLAGS] & CREW_OBJECT_FLAG]
+        if not ship or not crew:
+            return None
+        c = min(crew, key=lambda e: abs(wrap_delta(e[E_CX] - ship[E_CX], 8192))
+                + abs(wrap_delta(e[E_CY] - ship[E_CY], 7680)))
+        return (c[E_CX], c[E_CY])
+    return goal
+
+
+def piloted(program, scenario, frames, pilots, chunk=4):
+    """The scenario's steps made by flying: every chunk frames, each side's
+    pilot (frame, side, frames run so far -> keys; None for no keys) picks
+    its keys from the battle as it is (the battle run again from the start
+    each time)."""
+    scenario = dict(scenario, steps=list(scenario.get("steps", [])))
+    while sum(s[0] for s in scenario["steps"]) < frames:
+        battle = program.run([scenario])[0]
+        if battle["ended"]:
+            break
+        last = battle["frames"][-1]
+        t = len(battle["frames"]) - 1
+        keys = [pilot(last, side, t) if pilot else 0 for side, pilot in enumerate(pilots)]
+        n = min(chunk, frames - sum(s[0] for s in scenario["steps"]))
+        steps = scenario["steps"]
+        if steps and list(steps[-1][1:]) == keys:
+            steps[-1] = (steps[-1][0] + n, *keys)
+        else:
+            steps.append((n, *keys))
+    return scenario
+
+
+def random_steps(seed, frames, sides=2, choices=None, longest=30):
+    """Seeded random keys for each side: steps of 1 to longest frames."""
+    import random
+    rng = random.Random(seed)
+    steps, total = [], 0
+    choices = choices or [0, B_THRUST, B_THRUST, B_LEFT, B_RIGHT, B_THRUST | B_LEFT, B_THRUST | B_RIGHT,
+                          B_WEAPON, B_WEAPON | B_THRUST, B_WEAPON | B_LEFT, B_WEAPON | B_RIGHT | B_THRUST,
+                          B_LEFT | B_RIGHT, B_SPECIAL | B_THRUST]
+    while total < frames:
+        n = min(rng.randint(1, longest), frames - total)
+        steps.append((n, *[rng.choice(choices) for _ in range(sides)]))
+        total += n
+    return steps
+
+
+def battle_scenarios(program):
+    """The traces: each a battle UQM runs from a seed with scripted keys
+    (some flown by a pilot steering at a goal; the keys are recorded)."""
+    flagship, ilwrath = "sis_ship", "ilwrath"
+    out = []
+    # Warping in and drifting: the arena, the warp-in and the camera.
+    # (Seed 522 puts the planet on an asteroid first: TimeSpaceMatterConflict.)
+    out.append(dict(name="warp-in", seed=522, planet="planet.water",
+                    ships=[test_ship(flagship), test_ship(ilwrath)], steps=[(80, 0, 0)], full=80))
+    # Flying into the planet until the ship dies of it.
+    s = dict(name="planet-crash", seed=23, planet="planet.chondrite",
+             ships=[test_ship(flagship, crew=12), test_ship(ilwrath)], steps=[(20, 0, 0)], full=200)
+    out.append(piloted(program, s, 700, [lambda f, side, t: steer(f, side, the_planet), None]))
+    # Ramming the other ship again and again.
+    s = dict(name="ramming", seed=37, planet="planet.water",
+             ships=[test_ship(ilwrath), test_ship(flagship)], steps=[(20, 0, 0)], full=150)
+    out.append(piloted(program, s, 500, [lambda f, side, t: steer(f, side, the_ship(1)),
+                                         lambda f, side, t: B_LEFT if (t >> 3) % 3 == 0 else 0]))
+    # Shooting each other until one dies: missiles, the blaster's own blast,
+    # the laser; the explosion, and the battle's end.
+    s = dict(name="shooting", seed=41, planet="planet.water",
+             ships=[test_ship(flagship, weapons=W_MISSILE | W_LASER), test_ship(ilwrath, crew=10)],
+             steps=[(20, 0, 0)], full=150)
+    out.append(piloted(program, s, 900, [lambda f, side, t: steer(f, side, the_ship(1), fire=True, keep_off=900),
+                                         lambda f, side, t: steer(f, side, the_ship(0), fire=True, keep_off=600)]))
+    # Homing missiles after a ship flying at random.
+    s = dict(name="homing", seed=53, planet="planet.chondrite",
+             ships=[test_ship(flagship, weapons=W_HOMING, weapon_wait=10), test_ship(ilwrath, crew=22)],
+             steps=[(20, 0, 0)], full=120)
+    rnd = random_steps(530, 600, sides=1)
+    flat = [k for n, k in rnd for _ in range(n)]
+    out.append(piloted(program, s, 600, [lambda f, side, t: steer(f, side, the_ship(1), fire=True, keep_off=2000),
+                                         lambda f, side, t: flat[min(len(flat) - 1, t)] & ~B_WEAPON]))
+    # Shooting asteroids: they break up and come back on the seam.
+    s = dict(name="asteroids", seed=67, planet="planet.water",
+             ships=[test_ship(ilwrath, weapon_energy_cost=0), test_ship(flagship)], steps=[(20, 0, 0)], full=120)
+    out.append(piloted(program, s, 900, [lambda f, side, t: steer(f, side, nearest_asteroid(0), fire=True, keep_off=500),
+                                         None]))
+    # The list full: six long-lived missiles a frame from each ship.
+    out.append(dict(name="list-full", seed=71, planet="planet.chondrite",
+                    ships=[test_ship(ilwrath, weapons=W_SPRAY, life=60, weapon_energy_cost=0),
+                           test_ship(ilwrath, weapons=W_SPRAY, life=90, weapon_energy_cost=0,
+                                     crew=22)],
+                    steps=[(20, 0, 0), (120, B_WEAPON, B_WEAPON | B_LEFT), (60, B_THRUST, 0),
+                           (100, B_WEAPON | B_THRUST, B_WEAPON | B_RIGHT | B_THRUST)], full=40))
+    # Crew floating: AbandonShip called directly, the ships near each
+    # other, moving and still; the crew drift to their ship (or, once
+    # theirs has none, the nearest) and are picked up.
+    s = dict(name="crew-floating", seed=83, planet="planet.water",
+             ships=[test_ship(ilwrath, crew=12), test_ship(flagship, crew=30)],
+             steps=[(20, 0, 0)], events=[(200, 1, 0, 8), (260, 0, 1, 3), (300, 1, 0, 30)], full=120)
+    out.append(piloted(program, s, 560, [
+        lambda f, side, t: steer(f, side, the_ship(1), keep_off=300) if t < 200
+        else steer(f, side, lambda fr: nearest_crew(0)(fr) or the_ship(1)(fr)),
+        lambda f, side, t: B_LEFT if t > 400 else 0]))
+    # Crew floating towards a ship that dies: they turn to their own ship
+    # or the nearest (crew_preprocess). The dying ship is crew-immune: its
+    # AbandonShip does nothing, and crew reaching it are lost. The first
+    # crew leave a still ship (TravelAngle 0: straight down).
+    s = dict(name="crew-orphans", seed=131, planet="planet.chondrite",
+             ships=[test_ship(ilwrath, crew=4, flags=64), test_ship(flagship, crew=40, weapons=W_MISSILE | W_HOMING)],
+             steps=[(20, 0, 0)], events=[(20, 1, 0, 6), (24, 0, 1, 2), (90, 1, 0, 5)], full=200)
+    out.append(piloted(program, s, 400, [lambda f, side, t: steer(f, side, the_ship(1), keep_off=500),
+                                         lambda f, side, t: steer(f, side, the_ship(0), fire=True, keep_off=800)]))
+    # Scraping: ships turning while they touch each other or the planet,
+    # so a turn alone makes them overlap (ProcessCollisions' time 1).
+    def scrape(goal):
+        def pilot(f, side, t):
+            ship, target = ship_of(f, side), goal(f)
+            if ship and target and abs(wrap_delta(target[0] - ship[E_CX], 8192)) \
+                    + abs(wrap_delta(target[1] - ship[E_CY], 7680)) < 700:
+                return (B_LEFT if (t >> 2) % 2 else B_RIGHT) | B_THRUST
+            return steer(f, side, goal)
+        return pilot
+    s = dict(name="scrape", seed=149, planet="planet.water",
+             ships=[test_ship(ilwrath), test_ship(flagship)], steps=[(20, 0, 0)], full=150)
+    out.append(piloted(program, s, 700, [lambda f, side, t: scrape(the_ship(1) if t < 400 else the_planet)(f, side, t),
+                                         lambda f, side, t: B_LEFT if t % 40 < 20 else B_RIGHT]))
+    # Retreating: the ship flashes and warps out; the battle ends.
+    out.append(dict(name="retreat", seed=97, planet="planet.water", runaway=True,
+                    ships=[test_ship(flagship), test_ship(ilwrath)],
+                    steps=[(10, B_ESCAPE, 0), (30, B_THRUST, B_THRUST), (2, B_ESCAPE, 0), (400, 0, B_WEAPON)],
+                    full=100))
+    # Jostling: two quick-turning ships at random, without weapons, which
+    # turn into each other and the asteroids (ProcessCollisions at time 1:
+    # the turn taken back); seed 13 spawns two asteroids on each other,
+    # which both break up at once.
+    out.append(dict(name="jostle", seed=13, planet="planet.water",
+                    ships=[test_ship(ilwrath, weapons=0), test_ship(ilwrath, weapons=0)],
+                    steps=random_steps(1300, 2500, choices=list(range(8)), longest=7), full=60))
+    # The step zoom (TFB_SCALE_STEP) and long battles at random.
+    out.append(dict(name="step-zoom", seed=101, planet="planet.chondrite", zoom="step",
+                    ships=[test_ship(flagship, weapons=W_MISSILE | W_HOMING), test_ship(ilwrath)],
+                    steps=random_steps(1010, 1200), full=60))
+    out.append(dict(name="long-1", seed=1234567, planet="planet.water",
+                    ships=[test_ship(flagship, weapons=W_MISSILE | W_LASER), test_ship(ilwrath)],
+                    steps=random_steps(1111, 2000), full=60))
+    out.append(dict(name="long-2", seed=2222222, planet="planet.chondrite",
+                    ships=[test_ship(ilwrath), test_ship(flagship, weapons=W_HOMING | W_LASER)],
+                    steps=random_steps(2222, 2000), full=60))
+    return out
+
+
+def battle_frame_hash(frame):
+    """A frame's ships, elements and draws as the reference keeps a long
+    battle's: the SHA-256 of their compact JSON, its first 16 hex digits."""
+    import hashlib
+    text = json.dumps(frame[F_SHIPS:F_DRAWS + 1], separators=(",", ":"))
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+def record_battle(uqm, battle_exe, strings_exe, images_exe, package):
+    """UQM's own battle engine, frame by frame (battle.c), with the
+    package's masks of the battle's sheets."""
+    ids = battle_program_sheets()
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp, list(enumerate(ids)))
+        sheets_file = os.path.join(tmp, "sheets.txt")
+        with open(sheets_file, "w") as f:
+            for n, key in enumerate(ids):
+                f.write(f"{n} {key} {len(hashes[key])}\n")
+        program = BattleProgram(battle_exe, sheets_file, masks)
+        scenarios = battle_scenarios(program)
+        battles = program.run(scenarios)
+    check_battles(scenarios, battles)
+    out = []
+    for scenario, battle in zip(scenarios, battles):
+        full = scenario["full"]
+        frames = [f if i <= full else f[:F_SHIPS] + [len(f[F_ELEMENTS]), battle_frame_hash(f)]
+                  for i, f in enumerate(battle["frames"])]
+        inputs = {k: v for k, v in scenario.items() if k not in ("name", "full")}
+        out.append({"name": scenario["name"], "input": inputs, "full": full,
+                    "ended": battle["ended"], "stars": battle["stars"], "frames": frames})
+    data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
+                  + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
+                                                         "src/libs/math/random.c"], [
+        "UQM 0.8.0's own battle engine, recorded by running battle.c's Battle "
+        "as an encounter runs it (see tools/extract/golden/battle.c): "
+        "TFB_SeedRandom from the seed, InitShips (the stars, five asteroids, "
+        "the planet), each side's ship warping in (the enemy's first), then "
+        "DoBattle's frames: ProcessInput, and RedrawQueue's PreProcessQueue "
+        "(each element's step, moving, ProcessCollisions over UQM's own "
+        "DrawablesIntersect and collide()), CalcView and PostProcessQueue, "
+        "with UQM's process.c, collide.c, gravity.c, misc.c, weapon.c, ship.c, "
+        "tactrans.c, init.c, status.c and shipstat.c; drawing, sound and "
+        "music stubbed. Contact is found with the masks of the sheets "
+        "(sheets, numbered; the big size's, as battle-masks.json has them) "
+        f"from the official content package (SHA-256 {CONTENT_SHA256}); the "
+        "medium and small sizes only count their frames (SetAbsFrameIndex "
+        "takes an index round them). Everything else is code.",
+        "The ships are test ships (load_ship in battle.c): UQM's stock "
+        "ship_preprocess and ship_postprocess with no callbacks of their "
+        "own, flying the flagship's or the Ilwrath's sheets with its "
+        "RACE_DESC's numbers (data/ships.json, changed where input says) and "
+        "plain weapons made by weapon.c: weapons 1 a missile ahead "
+        "(initialize_missile from the ship's weapon sheet at its facing), 2 "
+        "a homing missile ahead (turning a facing towards TrackShip's "
+        "target every track_wait + 1 frames), 4 a laser ahead "
+        "(initialize_laser, laser_range pixels), 8 six missiles round the "
+        "ship (facing + i * 8 / 3) instead; life, speed, hits, damage and "
+        "offset are the missiles' (offset the laser's too): the flagship's "
+        "blaster's numbers or the Ilwrath's hellfire's.",
+        "input: seed (TFB_SeedRandom's), zoom (smooth, UQM's default "
+        "TFB_SCALE_TRILINEAR, or step), runaway (STARBASE_AVAILABLE set: side "
+        "0 can retreat), the planet's sheets, each side's ship, steps "
+        "[frames, side 0's keys, side 1's] in BATTLE_INPUT_STATE (1 left, 2 "
+        "right, 4 thrust, 8 weapon, 16 special, 32 escape), events [frame, "
+        "side, target, crew]: AbandonShip called on side's ship towards "
+        "target's before that frame. Some battles' keys were made by a pilot "
+        "steering at the planet, the other ship or an asteroid; they're "
+        "recorded as keys.",
+        "stars: InitGalaxy's stars (log_star_array: 30 big, 60 medium, 90 "
+        "small, each block sorted by y), [x, y] each, before MoveGalaxy moves "
+        "them.",
+        "frames: the first after the ships are spawned (before any frame), "
+        "then one after each DoBattle: [TFB_Random's seed, the camera's "
+        "scroll this frame (CalcView's dx, dy, added to every element), "
+        "zoom_out, the view (0 stable, 1 scrolled, 2 zoomed; -1 before the "
+        "first frame), SpaceOrg x and y (the view's corner), ships, elements, "
+        "draws]. ships: each side's [crew_level "
+        "and energy_level (SHIP_INFO's: the status panel's), ShipFacing, "
+        "energy_counter, weapon_counter, special_counter, cur_status_flags, 1 "
+        "if it has an element], or null once its RACE_DESC is freed. "
+        "elements: the display list from its head, each [state_flags, "
+        "life_span, crew_level (hit_points), mass_points, turn_wait, "
+        "thrust_wait, the velocity's TravelAngle, vector, fract, error and "
+        "incr (width then height), current x, y, next x, y] as Super Melee's "
+        "netplay checksum (checksum.c) takes them, then [its sheet's number, "
+        "frame index, playerNr, the primitive's type (7 none), 1 if a filled "
+        "stamp in black (cloaked), its slot in the list's table (its handle, "
+        "1 to 150) and its hTarget's (0 none)]. draws: each TFB_Random this "
+        "frame, by the UQM function that drew it.",
+        "After the first full frames (full, counting the first), a frame is "
+        "[seed, scroll x, y, zoom_out, view, SpaceOrg x, y, the number of elements, the "
+        "first 16 hex digits of the SHA-256 of [ships, elements, draws] as "
+        "compact JSON (no spaces)]. ended: whether the battle ended (a side "
+        "out of ships) before the steps did.",
+    ])
+    data["sheets"] = ids
+    data["battles"] = out
+    return data
+
+
+def check_battles(scenarios, battles):
+    """Each battle shows what it's for."""
+    by_name = {b["name"]: b for b in battles}
+
+    def frames(name):
+        return by_name[name]["frames"]
+
+    def draws(name):
+        return {d for f in frames(name)[1:] for d in f[F_DRAWS]}
+
+    # A ship crashing into the planet loses crew; the shooting ends in a death.
+    crew = [f[F_SHIPS][0][0] for f in frames("planet-crash") if f[F_SHIPS][0]]
+    if not any(b < a for a, b in zip(crew, crew[1:])):
+        raise RuntimeError("planet-crash: the ship never hit the planet")
+    if not by_name["shooting"]["ended"]:
+        raise RuntimeError("shooting: nobody died")
+    if not by_name["retreat"]["ended"]:
+        raise RuntimeError("retreat: the ship didn't warp out")
+    if max(len(f[F_ELEMENTS]) for f in frames("list-full")) < 150:
+        raise RuntimeError("list-full: the list never filled")
+    if "spawn_asteroid" not in draws("asteroids"):
+        raise RuntimeError("asteroids: no asteroid came back")
+    if "AbandonShip" not in draws("crew-floating"):
+        raise RuntimeError("crew-floating: no crew left a ship")
+    picked = [f[F_SHIPS][0][0] for f in frames("crew-floating") if f[F_SHIPS][0]]
+    if not any(b > a for a, b in zip(picked, picked[1:])):
+        raise RuntimeError("crew-floating: no crew picked up")
+    if "explosion_preprocess" not in draws("shooting"):
+        raise RuntimeError("shooting: no explosion")
+    hit = [f[F_SHIPS][1][0] for f in frames("homing") if f[F_SHIPS][1]]
+    if not any(b < a for a, b in zip(hit, hit[1:])):
+        raise RuntimeError("homing: the homing missiles never hit")
+    # A ship that never thrusts waits to after a bump (COLLISION_THRUST_WAIT).
+    if not any(ship_of(f, 1) and ship_of(f, 1)[5] for f in frames("ramming")):
+        raise RuntimeError("ramming: the ships never bumped")
+    zooms = {f[F_ZOOM] for f in frames("step-zoom")}
+    if not zooms <= {0, 1, 2, 3} or len(zooms) < 3:
+        raise RuntimeError(f"step-zoom: zooms {sorted(zooms)}")
+
+
 def record_contact(uqm, systems_exe, strings_exe, images_exe, package):
     """Contact by sprite shape, with the package's masks: the masks
     (content, so hashes), UQM's own DrawablesIntersect on many cases, and
@@ -3834,6 +4322,9 @@ def main():
         build(uqm, DEVICES_PROGRAM, DEVICES_LINK, devices)
         outfit = os.path.join(build_dir, "outfit")
         build(uqm, OUTFIT_PROGRAM, OUTFIT_LINK, outfit, extra=[OUTFIT_STUBS], libs=["-lm"])
+        battle = os.path.join(build_dir, "battle")
+        build(uqm, os.path.join(HERE, "golden", "battle.c"), BATTLE_LINK, battle,
+              extra=[BATTLE_STUBS])
         strings = os.path.join(build_dir, "strings")
         build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
               strings, extra=[UIO_FILES], libs=["-lm"])   # the name index's hash table: ceil, floor
@@ -3874,6 +4365,7 @@ def main():
                      ("selling", lambda: record_selling(uqm, sell, strings, args.content)),
                      ("contact", lambda: record_contact(uqm, systems, strings, images, args.content)),
                      ("battle-masks", lambda: record_battle_masks(uqm, strings, images, args.content)),
+                     ("battle", lambda: record_battle(uqm, battle, strings, images, args.content)),
                      ("lander-pickups", lambda: record_lander_pickups(uqm, lander, strings, images, args.content)),
                      ("lander-creatures", lambda: record_lander_creatures(uqm, lander, strings, images, args.content)),
                      ("lander-hazards", lambda: record_lander_hazards(uqm, lander, strings, images, args.content)),
