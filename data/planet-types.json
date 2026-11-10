@@ -7,7 +7,8 @@
     "files": [
       "src/uqm/plandata.c",
       "src/uqm/planets/plandata.h",
-      "src/uqm/planets/elemdata.h"
+      "src/uqm/planets/elemdata.h",
+      "src/uqm/cons_res.c"
     ]
   },
   "_notes": [
@@ -15,7 +16,8 @@
     "quantity_class: FEW, MODERATE or NUMEROUS (see constants); quality_class: LIGHT, MEDIUM or HEAVY. Packed as the low and high nibble of ELEMENT_ENTRY.Density.",
     "useful_elements lists the used slots of UsefulElements (8 in UQM). The unused slots (NOTHING, no deposit) are always the last ones, so the 8 slots are the list padded with empty ones; mineral generation draws a random number for every slot, empty or not.",
     "density_class and atmosphere_class are the low and high nibble of PlanetFrame.AtmoAndDensity.",
-    "color_map_resource and color_table_resource are content resource ids (planet graphics), resolved by the client."
+    "color_map_resource and color_table_resource are content resource ids (planet graphics), resolved by the client.",
+    "battle_sprites are the content resource ids of the planet in a battle, big, medium and small, as load_gravity_well (cons_res.c) names them; shielded_battle_sprites are a shielded world's (PLANET_SHIELDED: \"slaveshield\"), whatever its type."
   ],
   "constants": {
     "SMALL_ROCKY_WORLD": 0,
@@ -88,7 +90,12 @@
         }
       ],
       "color_map_resource": "planet.oolite.colortable",
-      "color_table_resource": "planet.oolite.translatetable"
+      "color_table_resource": "planet.oolite.translatetable",
+      "battle_sprites": [
+        "planet.oolite.large",
+        "planet.oolite.medium",
+        "planet.oolite.small"
+      ]
     },
     {
       "type": "YTTRIC_WORLD",
@@ -115,7 +122,12 @@
         }
       ],
       "color_map_resource": "planet.yttric.colortable",
-      "color_table_resource": "planet.yttric.translatetable"
+      "color_table_resource": "planet.yttric.translatetable",
+      "battle_sprites": [
+        "planet.yttric.large",
+        "planet.yttric.medium",
+        "planet.yttric.small"
+      ]
     },
     {
       "type": "QUASI_DEGENERATE_WORLD",
@@ -137,7 +149,12 @@
         }
       ],
       "color_map_resource": "planet.quasidegenerate.colortable",
-      "color_table_resource": "planet.quasidegenerate.translatetable"
+      "color_table_resource": "planet.quasidegenerate.translatetable",
+      "battle_sprites": [
+        "planet.quasidegenerate.large",
+        "planet.quasidegenerate.medium",
+        "planet.quasidegenerate.small"
+      ]
     },
     {
       "type": "LANTHANIDE_WORLD",
@@ -194,7 +211,12 @@
         }
       ],
       "color_map_resource": "planet.lanthanide.colortable",
-      "color_table_resource": "planet.lanthanide.translatetable"
+      "color_table_resource": "planet.lanthanide.translatetable",
+      "battle_sprites": [
+        "planet.lanthanide.large",
+        "planet.lanthanide.medium",
+        "planet.lanthanide.small"
+      ]
     },
     {
       "type": "TREASURE_WORLD",
@@ -241,7 +263,12 @@
         }
       ],
       "color_map_resource": "planet.treasure.colortable",
-      "color_table_resource": "planet.treasure.translatetable"
+      "color_table_resource": "planet.treasure.translatetable",
+      "battle_sprites": [
+        "planet.treasure.large",
+        "planet.treasure.medium",
+        "planet.treasure.small"
+      ]
     },
     {
       "type": "UREA_WORLD",
@@ -268,7 +295,12 @@
         }
       ],
       "color_map_resource": "planet.urea.colortable",
-      "color_table_resource": "planet.urea.translatetable"
+      "color_table_resource": "planet.urea.translatetable",
+      "battle_sprites": [
+        "planet.urea.large",
+        "planet.urea.medium",
+        "planet.urea.small"
+      ]
     },
     {
       "type": "METAL_WORLD",
@@ -320,7 +352,12 @@
         }
       ],
       "color_map_resource": "planet.metal.colortable",
-      "color_table_resource": "planet.metal.translatetable"
+      "color_table_resource": "planet.metal.translatetable",
+      "battle_sprites": [
+        "planet.metal.large",
+        "planet.metal.medium",
+        "planet.metal.small"
+      ]
     },
     {
       "type": "RADIOACTIVE_WORLD",
@@ -367,7 +404,12 @@
         }
       ],
       "color_map_resource": "planet.radioactive.colortable",
-      "color_table_resource": "planet.radioactive.translatetable"
+      "color_table_resource": "planet.radioactive.translatetable",
+      "battle_sprites": [
+        "planet.radioactive.large",
+        "planet.radioactive.medium",
+        "planet.radioactive.small"
+      ]
     },
     {
       "type": "OPALESCENT_WORLD",
@@ -414,7 +456,12 @@
         }
       ],
       "color_map_resource": "planet.opalescent.colortable",
-      "color_table_resource": "planet.opalescent.translatetable"
+      "color_table_resource": "planet.opalescent.translatetable",
+      "battle_sprites": [
+        "planet.opalescent.large",
+        "planet.opalescent.medium",
+        "planet.opalescent.small"
+      ]
     },
     {
       "type": "CYANIC_WORLD",
@@ -436,7 +483,12 @@
         }
       ],
       "color_map_resource": "planet.cyanic.colortable",
-      "color_table_resource": "planet.cyanic.translatetable"
+      "color_table_resource": "planet.cyanic.translatetable",
+      "battle_sprites": [
+        "planet.cyanic.large",
+        "planet.cyanic.medium",
+        "planet.cyanic.small"
+      ]
     },
     {
       "type": "ACID_WORLD",
@@ -483,7 +535,12 @@
         }
       ],
       "color_map_resource": "planet.acid.colortable",
-      "color_table_resource": "planet.acid.translatetable"
+      "color_table_resource": "planet.acid.translatetable",
+      "battle_sprites": [
+        "planet.acid.large",
+        "planet.acid.medium",
+        "planet.acid.small"
+      ]
     },
     {
       "type": "ALKALI_WORLD",
@@ -515,7 +572,12 @@
         }
       ],
       "color_map_resource": "planet.alkali.colortable",
-      "color_table_resource": "planet.alkali.translatetable"
+      "color_table_resource": "planet.alkali.translatetable",
+      "battle_sprites": [
+        "planet.alkali.large",
+        "planet.alkali.medium",
+        "planet.alkali.small"
+      ]
     },
     {
       "type": "HALIDE_WORLD",
@@ -557,7 +619,12 @@
         }
       ],
       "color_map_resource": "planet.halide.colortable",
-      "color_table_resource": "planet.halide.translatetable"
+      "color_table_resource": "planet.halide.translatetable",
+      "battle_sprites": [
+        "planet.halide.large",
+        "planet.halide.medium",
+        "planet.halide.small"
+      ]
     },
     {
       "type": "GREEN_WORLD",
@@ -584,7 +651,12 @@
         }
       ],
       "color_map_resource": "planet.green.colortable",
-      "color_table_resource": "planet.green.translatetable"
+      "color_table_resource": "planet.green.translatetable",
+      "battle_sprites": [
+        "planet.green.large",
+        "planet.green.medium",
+        "planet.green.small"
+      ]
     },
     {
       "type": "COPPER_WORLD",
@@ -611,7 +683,12 @@
         }
       ],
       "color_map_resource": "planet.copper.colortable",
-      "color_table_resource": "planet.copper.translatetable"
+      "color_table_resource": "planet.copper.translatetable",
+      "battle_sprites": [
+        "planet.copper.large",
+        "planet.copper.medium",
+        "planet.copper.small"
+      ]
     },
     {
       "type": "CARBIDE_WORLD",
@@ -643,7 +720,12 @@
         }
       ],
       "color_map_resource": "planet.carbide.colortable",
-      "color_table_resource": "planet.carbide.translatetable"
+      "color_table_resource": "planet.carbide.translatetable",
+      "battle_sprites": [
+        "planet.carbide.large",
+        "planet.carbide.medium",
+        "planet.carbide.small"
+      ]
     },
     {
       "type": "ULTRAMARINE_WORLD",
@@ -675,7 +757,12 @@
         }
       ],
       "color_map_resource": "planet.ultramarine.colortable",
-      "color_table_resource": "planet.ultramarine.translatetable"
+      "color_table_resource": "planet.ultramarine.translatetable",
+      "battle_sprites": [
+        "planet.ultramarine.large",
+        "planet.ultramarine.medium",
+        "planet.ultramarine.small"
+      ]
     },
     {
       "type": "NOBLE_WORLD",
@@ -722,7 +809,12 @@
         }
       ],
       "color_map_resource": "planet.noble.colortable",
-      "color_table_resource": "planet.noble.translatetable"
+      "color_table_resource": "planet.noble.translatetable",
+      "battle_sprites": [
+        "planet.noble.large",
+        "planet.noble.medium",
+        "planet.noble.small"
+      ]
     },
     {
       "type": "AZURE_WORLD",
@@ -754,7 +846,12 @@
         }
       ],
       "color_map_resource": "planet.azure.colortable",
-      "color_table_resource": "planet.azure.translatetable"
+      "color_table_resource": "planet.azure.translatetable",
+      "battle_sprites": [
+        "planet.azure.large",
+        "planet.azure.medium",
+        "planet.azure.small"
+      ]
     },
     {
       "type": "CHONDRITE_WORLD",
@@ -781,7 +878,12 @@
         }
       ],
       "color_map_resource": "planet.chondrite.colortable",
-      "color_table_resource": "planet.chondrite.translatetable"
+      "color_table_resource": "planet.chondrite.translatetable",
+      "battle_sprites": [
+        "planet.chondrite.large",
+        "planet.chondrite.medium",
+        "planet.chondrite.small"
+      ]
     },
     {
       "type": "PURPLE_WORLD",
@@ -808,7 +910,12 @@
         }
       ],
       "color_map_resource": "planet.purple.colortable",
-      "color_table_resource": "planet.purple.translatetable"
+      "color_table_resource": "planet.purple.translatetable",
+      "battle_sprites": [
+        "planet.purple.large",
+        "planet.purple.medium",
+        "planet.purple.small"
+      ]
     },
     {
       "type": "SUPER_DENSE_WORLD",
@@ -835,7 +942,12 @@
         }
       ],
       "color_map_resource": "planet.superdense.colortable",
-      "color_table_resource": "planet.superdense.translatetable"
+      "color_table_resource": "planet.superdense.translatetable",
+      "battle_sprites": [
+        "planet.superdense.large",
+        "planet.superdense.medium",
+        "planet.superdense.small"
+      ]
     },
     {
       "type": "PELLUCID_WORLD",
@@ -857,7 +969,12 @@
         }
       ],
       "color_map_resource": "planet.pellucid.colortable",
-      "color_table_resource": "planet.pellucid.translatetable"
+      "color_table_resource": "planet.pellucid.translatetable",
+      "battle_sprites": [
+        "planet.pellucid.large",
+        "planet.pellucid.medium",
+        "planet.pellucid.small"
+      ]
     },
     {
       "type": "DUST_WORLD",
@@ -889,7 +1006,12 @@
         }
       ],
       "color_map_resource": "planet.dust.colortable",
-      "color_table_resource": "planet.dust.translatetable"
+      "color_table_resource": "planet.dust.translatetable",
+      "battle_sprites": [
+        "planet.dust.large",
+        "planet.dust.medium",
+        "planet.dust.small"
+      ]
     },
     {
       "type": "CRIMSON_WORLD",
@@ -931,7 +1053,12 @@
         }
       ],
       "color_map_resource": "planet.crimson.colortable",
-      "color_table_resource": "planet.crimson.translatetable"
+      "color_table_resource": "planet.crimson.translatetable",
+      "battle_sprites": [
+        "planet.crimson.large",
+        "planet.crimson.medium",
+        "planet.crimson.small"
+      ]
     },
     {
       "type": "CIMMERIAN_WORLD",
@@ -968,7 +1095,12 @@
         }
       ],
       "color_map_resource": "planet.cimmerian.colortable",
-      "color_table_resource": "planet.cimmerian.translatetable"
+      "color_table_resource": "planet.cimmerian.translatetable",
+      "battle_sprites": [
+        "planet.cimmerian.large",
+        "planet.cimmerian.medium",
+        "planet.cimmerian.small"
+      ]
     },
     {
       "type": "INFRARED_WORLD",
@@ -990,7 +1122,12 @@
         }
       ],
       "color_map_resource": "planet.infrared.colortable",
-      "color_table_resource": "planet.infrared.translatetable"
+      "color_table_resource": "planet.infrared.translatetable",
+      "battle_sprites": [
+        "planet.infrared.large",
+        "planet.infrared.medium",
+        "planet.infrared.small"
+      ]
     },
     {
       "type": "SELENIC_WORLD",
@@ -1022,7 +1159,12 @@
         }
       ],
       "color_map_resource": "planet.selenic.colortable",
-      "color_table_resource": "planet.selenic.translatetable"
+      "color_table_resource": "planet.selenic.translatetable",
+      "battle_sprites": [
+        "planet.selenic.large",
+        "planet.selenic.medium",
+        "planet.selenic.small"
+      ]
     },
     {
       "type": "AURIC_WORLD",
@@ -1054,7 +1196,12 @@
         }
       ],
       "color_map_resource": "planet.auric.colortable",
-      "color_table_resource": "planet.auric.translatetable"
+      "color_table_resource": "planet.auric.translatetable",
+      "battle_sprites": [
+        "planet.auric.large",
+        "planet.auric.medium",
+        "planet.auric.small"
+      ]
     },
     {
       "type": "FLUORESCENT_WORLD",
@@ -1091,7 +1238,12 @@
         }
       ],
       "color_map_resource": "planet.fluorescent.colortable",
-      "color_table_resource": "planet.fluorescent.translatetable"
+      "color_table_resource": "planet.fluorescent.translatetable",
+      "battle_sprites": [
+        "planet.fluorescent.large",
+        "planet.fluorescent.medium",
+        "planet.fluorescent.small"
+      ]
     },
     {
       "type": "ULTRAVIOLET_WORLD",
@@ -1128,7 +1280,12 @@
         }
       ],
       "color_map_resource": "planet.ultraviolet.colortable",
-      "color_table_resource": "planet.ultraviolet.translatetable"
+      "color_table_resource": "planet.ultraviolet.translatetable",
+      "battle_sprites": [
+        "planet.ultraviolet.large",
+        "planet.ultraviolet.medium",
+        "planet.ultraviolet.small"
+      ]
     },
     {
       "type": "PLUTONIC_WORLD",
@@ -1180,7 +1337,12 @@
         }
       ],
       "color_map_resource": "planet.plutonic.colortable",
-      "color_table_resource": "planet.plutonic.translatetable"
+      "color_table_resource": "planet.plutonic.translatetable",
+      "battle_sprites": [
+        "planet.plutonic.large",
+        "planet.plutonic.medium",
+        "planet.plutonic.small"
+      ]
     },
     {
       "type": "RAINBOW_WORLD",
@@ -1232,7 +1394,12 @@
         }
       ],
       "color_map_resource": "planet.rainbow.colortable",
-      "color_table_resource": "planet.rainbow.translatetable"
+      "color_table_resource": "planet.rainbow.translatetable",
+      "battle_sprites": [
+        "planet.rainbow.large",
+        "planet.rainbow.medium",
+        "planet.rainbow.small"
+      ]
     },
     {
       "type": "SHATTERED_WORLD",
@@ -1284,7 +1451,12 @@
         }
       ],
       "color_map_resource": "planet.shattered.colortable",
-      "color_table_resource": "planet.shattered.translatetable"
+      "color_table_resource": "planet.shattered.translatetable",
+      "battle_sprites": [
+        "planet.shattered.large",
+        "planet.shattered.medium",
+        "planet.shattered.small"
+      ]
     },
     {
       "type": "SAPPHIRE_WORLD",
@@ -1311,7 +1483,12 @@
         }
       ],
       "color_map_resource": "planet.sapphire.colortable",
-      "color_table_resource": "planet.sapphire.translatetable"
+      "color_table_resource": "planet.sapphire.translatetable",
+      "battle_sprites": [
+        "planet.sapphire.large",
+        "planet.sapphire.medium",
+        "planet.sapphire.small"
+      ]
     },
     {
       "type": "ORGANIC_WORLD",
@@ -1348,7 +1525,12 @@
         }
       ],
       "color_map_resource": "planet.organic.colortable",
-      "color_table_resource": "planet.organic.translatetable"
+      "color_table_resource": "planet.organic.translatetable",
+      "battle_sprites": [
+        "planet.organic.large",
+        "planet.organic.medium",
+        "planet.organic.small"
+      ]
     },
     {
       "type": "XENOLITHIC_WORLD",
@@ -1380,7 +1562,12 @@
         }
       ],
       "color_map_resource": "planet.xenolithic.colortable",
-      "color_table_resource": "planet.xenolithic.translatetable"
+      "color_table_resource": "planet.xenolithic.translatetable",
+      "battle_sprites": [
+        "planet.xenolithic.large",
+        "planet.xenolithic.medium",
+        "planet.xenolithic.small"
+      ]
     },
     {
       "type": "REDUX_WORLD",
@@ -1432,7 +1619,12 @@
         }
       ],
       "color_map_resource": "planet.redux.colortable",
-      "color_table_resource": "planet.redux.translatetable"
+      "color_table_resource": "planet.redux.translatetable",
+      "battle_sprites": [
+        "planet.redux.large",
+        "planet.redux.medium",
+        "planet.redux.small"
+      ]
     },
     {
       "type": "PRIMORDIAL_WORLD",
@@ -1474,7 +1666,12 @@
         }
       ],
       "color_map_resource": "planet.primordial.colortable",
-      "color_table_resource": "planet.primordial.translatetable"
+      "color_table_resource": "planet.primordial.translatetable",
+      "battle_sprites": [
+        "planet.primordial.large",
+        "planet.primordial.medium",
+        "planet.primordial.small"
+      ]
     },
     {
       "type": "EMERALD_WORLD",
@@ -1501,7 +1698,12 @@
         }
       ],
       "color_map_resource": "planet.emerald.colortable",
-      "color_table_resource": "planet.emerald.translatetable"
+      "color_table_resource": "planet.emerald.translatetable",
+      "battle_sprites": [
+        "planet.emerald.large",
+        "planet.emerald.medium",
+        "planet.emerald.small"
+      ]
     },
     {
       "type": "CHLORINE_WORLD",
@@ -1548,7 +1750,12 @@
         }
       ],
       "color_map_resource": "planet.chlorine.colortable",
-      "color_table_resource": "planet.chlorine.translatetable"
+      "color_table_resource": "planet.chlorine.translatetable",
+      "battle_sprites": [
+        "planet.chlorine.large",
+        "planet.chlorine.medium",
+        "planet.chlorine.small"
+      ]
     },
     {
       "type": "MAGNETIC_WORLD",
@@ -1590,7 +1797,12 @@
         }
       ],
       "color_map_resource": "planet.magnetic.colortable",
-      "color_table_resource": "planet.magnetic.translatetable"
+      "color_table_resource": "planet.magnetic.translatetable",
+      "battle_sprites": [
+        "planet.magnetic.large",
+        "planet.magnetic.medium",
+        "planet.magnetic.small"
+      ]
     },
     {
       "type": "WATER_WORLD",
@@ -1637,7 +1849,12 @@
         }
       ],
       "color_map_resource": "planet.water.colortable",
-      "color_table_resource": "planet.water.translatetable"
+      "color_table_resource": "planet.water.translatetable",
+      "battle_sprites": [
+        "planet.water.large",
+        "planet.water.medium",
+        "planet.water.small"
+      ]
     },
     {
       "type": "TELLURIC_WORLD",
@@ -1669,7 +1886,12 @@
         }
       ],
       "color_map_resource": "planet.telluric.colortable",
-      "color_table_resource": "planet.telluric.translatetable"
+      "color_table_resource": "planet.telluric.translatetable",
+      "battle_sprites": [
+        "planet.telluric.large",
+        "planet.telluric.medium",
+        "planet.telluric.small"
+      ]
     },
     {
       "type": "HYDROCARBON_WORLD",
@@ -1701,7 +1923,12 @@
         }
       ],
       "color_map_resource": "planet.hydrocarbon.colortable",
-      "color_table_resource": "planet.hydrocarbon.translatetable"
+      "color_table_resource": "planet.hydrocarbon.translatetable",
+      "battle_sprites": [
+        "planet.hydrocarbon.large",
+        "planet.hydrocarbon.medium",
+        "planet.hydrocarbon.small"
+      ]
     },
     {
       "type": "IODINE_WORLD",
@@ -1733,7 +1960,12 @@
         }
       ],
       "color_map_resource": "planet.iodine.colortable",
-      "color_table_resource": "planet.iodine.translatetable"
+      "color_table_resource": "planet.iodine.translatetable",
+      "battle_sprites": [
+        "planet.iodine.large",
+        "planet.iodine.medium",
+        "planet.iodine.small"
+      ]
     },
     {
       "type": "VINYLOGOUS_WORLD",
@@ -1770,7 +2002,12 @@
         }
       ],
       "color_map_resource": "planet.vinylogous.colortable",
-      "color_table_resource": "planet.vinylogous.translatetable"
+      "color_table_resource": "planet.vinylogous.translatetable",
+      "battle_sprites": [
+        "planet.vinylogous.large",
+        "planet.vinylogous.medium",
+        "planet.vinylogous.small"
+      ]
     },
     {
       "type": "RUBY_WORLD",
@@ -1797,7 +2034,12 @@
         }
       ],
       "color_map_resource": "planet.ruby.colortable",
-      "color_table_resource": "planet.ruby.translatetable"
+      "color_table_resource": "planet.ruby.translatetable",
+      "battle_sprites": [
+        "planet.ruby.large",
+        "planet.ruby.medium",
+        "planet.ruby.small"
+      ]
     },
     {
       "type": "MAGMA_WORLD",
@@ -1829,7 +2071,12 @@
         }
       ],
       "color_map_resource": "planet.magma.colortable",
-      "color_table_resource": "planet.magma.translatetable"
+      "color_table_resource": "planet.magma.translatetable",
+      "battle_sprites": [
+        "planet.magma.large",
+        "planet.magma.medium",
+        "planet.magma.small"
+      ]
     },
     {
       "type": "MAROON_WORLD",
@@ -1871,7 +2118,12 @@
         }
       ],
       "color_map_resource": "planet.maroon.colortable",
-      "color_table_resource": "planet.maroon.translatetable"
+      "color_table_resource": "planet.maroon.translatetable",
+      "battle_sprites": [
+        "planet.maroon.large",
+        "planet.maroon.medium",
+        "planet.maroon.small"
+      ]
     },
     {
       "type": "BLU_GAS_GIANT",
@@ -1887,7 +2139,12 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.bluegas.colortable",
-      "color_table_resource": "planet.bluegas.translatetable"
+      "color_table_resource": "planet.bluegas.translatetable",
+      "battle_sprites": [
+        "planet.bluegas.large",
+        "planet.bluegas.medium",
+        "planet.bluegas.small"
+      ]
     },
     {
       "type": "CYA_GAS_GIANT",
@@ -1903,7 +2160,12 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.cyangas.colortable",
-      "color_table_resource": "planet.cyangas.translatetable"
+      "color_table_resource": "planet.cyangas.translatetable",
+      "battle_sprites": [
+        "planet.cyangas.large",
+        "planet.cyangas.medium",
+        "planet.cyangas.small"
+      ]
     },
     {
       "type": "GRN_GAS_GIANT",
@@ -1919,7 +2181,12 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.greengas.colortable",
-      "color_table_resource": "planet.greengas.translatetable"
+      "color_table_resource": "planet.greengas.translatetable",
+      "battle_sprites": [
+        "planet.greengas.large",
+        "planet.greengas.medium",
+        "planet.greengas.small"
+      ]
     },
     {
       "type": "GRY_GAS_GIANT",
@@ -1935,7 +2202,12 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.greygas.colortable",
-      "color_table_resource": "planet.greygas.translatetable"
+      "color_table_resource": "planet.greygas.translatetable",
+      "battle_sprites": [
+        "planet.greygas.large",
+        "planet.greygas.medium",
+        "planet.greygas.small"
+      ]
     },
     {
       "type": "ORA_GAS_GIANT",
@@ -1951,7 +2223,12 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.orangegas.colortable",
-      "color_table_resource": "planet.orangegas.translatetable"
+      "color_table_resource": "planet.orangegas.translatetable",
+      "battle_sprites": [
+        "planet.orangegas.large",
+        "planet.orangegas.medium",
+        "planet.orangegas.small"
+      ]
     },
     {
       "type": "PUR_GAS_GIANT",
@@ -1967,7 +2244,12 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.purplegas.colortable",
-      "color_table_resource": "planet.purplegas.translatetable"
+      "color_table_resource": "planet.purplegas.translatetable",
+      "battle_sprites": [
+        "planet.purplegas.large",
+        "planet.purplegas.medium",
+        "planet.purplegas.small"
+      ]
     },
     {
       "type": "RED_GAS_GIANT",
@@ -1983,7 +2265,12 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.redgas.colortable",
-      "color_table_resource": "planet.redgas.translatetable"
+      "color_table_resource": "planet.redgas.translatetable",
+      "battle_sprites": [
+        "planet.redgas.large",
+        "planet.redgas.medium",
+        "planet.redgas.small"
+      ]
     },
     {
       "type": "VIO_GAS_GIANT",
@@ -1999,7 +2286,12 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.violetgas.colortable",
-      "color_table_resource": "planet.violetgas.translatetable"
+      "color_table_resource": "planet.violetgas.translatetable",
+      "battle_sprites": [
+        "planet.violetgas.large",
+        "planet.violetgas.medium",
+        "planet.violetgas.small"
+      ]
     },
     {
       "type": "YEL_GAS_GIANT",
@@ -2015,7 +2307,17 @@
       "base_elevation": 29,
       "useful_elements": [],
       "color_map_resource": "planet.yellowgas.colortable",
-      "color_table_resource": "planet.yellowgas.translatetable"
+      "color_table_resource": "planet.yellowgas.translatetable",
+      "battle_sprites": [
+        "planet.yellowgas.large",
+        "planet.yellowgas.medium",
+        "planet.yellowgas.small"
+      ]
     }
+  ],
+  "shielded_battle_sprites": [
+    "planet.slaveshield.large",
+    "planet.slaveshield.medium",
+    "planet.slaveshield.small"
   ]
 }

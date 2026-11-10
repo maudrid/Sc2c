@@ -120,7 +120,7 @@ Found while porting, all kept as UQM does them:
 - With the real shapes, the recorded flights match the circle-based ones frame for frame up to the first contact, which comes 2 to 11 frames earlier (the flagship's sprite is bigger than the 3-pixel circle); one of the eight flights doesn't change at all.
 - UQM tests a new contact with a world or star as a single point: the last frame of `graphics.stars` in a system, of `graphics.ambient` in hyperspace (`DecFrameIndex (stars_in_space)`; `LoadHyperspace` swaps them). A ship must cover a world's or star's centre with its own sprite, not just touch its edge.
 - Hyperspace contact is tested in display pixels of a quarter logical unit (`WORLD_TO_DISPLAY`), the scale of the hyperspace screen; stage 2's provisional circles assumed 32 logical units a pixel.
-- The orbit background's last frame is a true colour image without alpha, which UQM converts to the screen's format; it's never tested for contact, so its mask isn't modelled.
+- The orbit background's last frame is a true colour image without alpha, which UQM converts to the screen's format; it's never tested for contact, so its mask wasn't modelled. Stage 4 models the conversion, as the planets in a battle are such images and are tested (`ContactShapes.Frame`; `tools/extract/golden/images.c`), so this frame has its mask too.
 - UQM draws a ship's thrust only in battle (`spawn_ion_trail` runs only up to `IN_ENCOUNTER`); in hyperspace and systems the flagship shows no thrust, so the placeholder flame is gone.
 - UQM's text layout stops at the first bad UTF-8 sequence, and draws at most 100 characters of a text (`MAX_DELTAS`).
 

@@ -103,6 +103,18 @@ class PlanetsAndElements(unittest.TestCase):
             for u in t["useful_elements"]:
                 self.assertIn(u["element"], elements)
 
+    def test_planet_battle_sprites(self):
+        d = load("planet-types")
+        water = [t for t in d["planet_types"] if t["type"] == "WATER_WORLD"][0]
+        self.assertEqual(water["battle_sprites"], ["planet.water.large",
+                         "planet.water.medium", "planet.water.small"])
+        self.assertEqual(d["shielded_battle_sprites"],
+                         ["planet.slaveshield.large",
+                          "planet.slaveshield.medium",
+                          "planet.slaveshield.small"])
+        for t in d["planet_types"]:
+            self.assertEqual(len(t["battle_sprites"]), 3, t["type"])
+
     def test_yttric_world_minerals(self):
         t = [t for t in load("planet-types")["planet_types"]
              if t["type"] == "YTTRIC_WORLD"][0]
@@ -183,6 +195,44 @@ class Ships(unittest.TestCase):
     def test_syreen_start_below_max_crew(self):
         s = self.ships["syreen"]
         self.assertEqual((s["crew"], s["max_crew"]), (12, 42))
+
+    def test_flags(self):
+        # SHIELD_DEFENSE (races.h) is set by the Utwig and the Yehat only.
+        self.assertEqual(self.ships["utwig"]["flags"],
+                         ["FIRES_FORE", "POINT_DEFENSE", "SHIELD_DEFENSE"])
+        self.assertEqual(self.ships["yehat"]["flags"],
+                         ["FIRES_FORE", "SHIELD_DEFENSE"])
+        self.assertEqual(self.ships["ilwrath"]["flags"], ["FIRES_FORE"])
+        self.assertEqual(self.ships["sis_ship"]["flags"], [])
+
+    def test_graphics(self):
+        g = self.ships["sis_ship"]["graphics"]
+        self.assertEqual(g["ship"], [f"ship.flagship.graphics.flagship.{v}"
+                                     for v in ("large", "medium", "small")])
+        self.assertEqual(g["weapon"], [f"ship.flagship.graphics.blaster.{v}"
+                                       for v in ("large", "medium", "small")])
+        self.assertEqual(g["special"], [None] * 3)
+        self.assertEqual((g["captain"], g["icons"], g["melee_icon"]),
+                         ("ship.flagship.graphics.captain",
+                          "ship.flagship.icons", None))
+        g = self.ships["ilwrath"]["graphics"]
+        self.assertEqual(g["ship"], [f"ship.ilwrath.graphics.avenger.{v}"
+                                     for v in ("large", "medium", "small")])
+        self.assertEqual(g["weapon"], [f"ship.ilwrath.graphics.fire.{v}"
+                                       for v in ("large", "medium", "small")])
+        self.assertEqual((g["captain"], g["icons"], g["melee_icon"]),
+                         ("ship.ilwrath.graphics.captain",
+                          "ship.ilwrath.icons", "ship.ilwrath.meleeicons"))
+        # The Umgah's spritz has one size, which load_animation reuses.
+        self.assertEqual(self.ships["umgah"]["graphics"]["weapon"],
+                         ["ship.umgah.graphics.spritz", None, None])
+        for s in self.ships.values():
+            g = s["graphics"]
+            for key in ("ship", "weapon", "special"):
+                self.assertEqual(len(g[key]), 3, s["id"])
+                # A big frame or nothing: load_animation needs the big one.
+                if g[key][0] is None:
+                    self.assertEqual(g[key], [None] * 3, s["id"])
 
 
 class StateAndRules(unittest.TestCase):

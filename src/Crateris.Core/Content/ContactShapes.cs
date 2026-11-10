@@ -133,9 +133,11 @@ public sealed class ContactShapes
         {
             if (frames.Count < Math.Max(count, only.Length == 0 ? 0 : only.Max() + 1))
                 throw new ContentPackageException($"{what} has {frames.Count} frames; contact needs more");
+            // Every kind of image the loader makes has a shape (Frame), so
+            // this only guards against one that hasn't.
             foreach (int i in only.Length > 0 ? only : Enumerable.Range(0, count))
                 if (frames[i].Mask is null)
-                    throw new ContentPackageException($"{what} frame {i} is tested for contact, but its shape can't be read (a true colour image without alpha)");
+                    throw new ContentPackageException($"{what} frame {i} is tested for contact, but its shape can't be read");
         }
         Need("graphics.flagship", shapes.IpFlagship, Uqm.UqmMath.Facings);
         Need("graphics.planets", shapes.Worlds, Systems.WorldImages.WorldFrames);
@@ -167,8 +169,12 @@ public sealed class ContactShapes
     /// (<see cref="ProcessImage.ColorKey"/>); TFB_DrawCanvas_Intersect then
     /// counts a pixel as touching if it isn't fully transparent (with an
     /// alpha channel) or isn't the colour key (0 when there's none). A
-    /// true colour image without alpha is converted to the screen's format
-    /// first, which isn't modelled: its mask is unknown.
+    /// true colour image without alpha (the planets in a battle) is first
+    /// converted to the screen's format (TFB_DrawImage_New), 32 bits
+    /// without alpha, which keeps each pixel's colour and the key's: a
+    /// pixel touches if its colour isn't the key's, black when there's
+    /// none. Null (unknown) only for an image of another kind, which UQM's
+    /// content doesn't have.
     /// </summary>
     public static IntersectFrame Frame(AnimationFrame frame, Png png)
     {
@@ -185,6 +191,18 @@ public sealed class ContactShapes
             mask = new byte[png.Width * png.Height];
             for (int i = 0; i < mask.Length; ++i)
                 mask[i] = (byte)(png.Pixels[i * 4 + 3] != 0 ? 1 : 0);
+        }
+        else if (png.BytesPerPixel == 3)
+        {
+            long key = ProcessImage.ColorKey(frame, png);
+            if (key < 0)
+                key = 0;
+            mask = new byte[png.Width * png.Height];
+            for (int i = 0; i < mask.Length; ++i)
+            {
+                long rgb = png.Pixels[i * 3] | (png.Pixels[i * 3 + 1] << 8) | (png.Pixels[i * 3 + 2] << 16);
+                mask[i] = (byte)(rgb != key ? 1 : 0);
+            }
         }
         return new IntersectFrame(png.Width, png.Height, frame.HotSpotX, frame.HotSpotY, mask);
     }

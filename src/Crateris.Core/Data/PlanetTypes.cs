@@ -49,6 +49,13 @@ public sealed record PlanetType(int Index, string Name, PlanetSize Size, int Bas
     public string ColorMapResource { get; init; } = "";
     public string TranslateTableResource { get; init; } = "";
 
+    /// <summary>
+    /// The planet's sprite in a battle, big, medium and small (GFXRES
+    /// resource ids, as load_gravity_well in cons_res.c names them:
+    /// planet.TYPE.large and so on).
+    /// </summary>
+    public IReadOnlyList<string> BattleSprites { get; init; } = Array.Empty<string>();
+
     public const int UsefulElementSlots = 8;   // NUM_USEFUL_ELEMENTS
 }
 
@@ -59,12 +66,20 @@ public sealed class PlanetTypes
 
     private readonly int[] _elementCategory;
 
-    private PlanetTypes(PlanetType[] types, int[] elementCategory, int[] worth)
+    private PlanetTypes(PlanetType[] types, int[] elementCategory, int[] worth, IReadOnlyList<string> shielded)
     {
         _types = types;
         _elementCategory = elementCategory;
         CategoryWorth = worth;
+        ShieldedBattleSprites = shielded;
     }
+
+    /// <summary>
+    /// A shielded world's sprite in a battle, whatever its type
+    /// (load_gravity_well's "slaveshield" for PLANET_SHIELDED), big, medium
+    /// and small, as <see cref="PlanetType.BattleSprites"/>.
+    /// </summary>
+    public IReadOnlyList<string> ShieldedBattleSprites { get; }
 
     /// <summary>Each element category's worth a unit (ElementWorth, as InitGameStructures sets it at the start).</summary>
     public IReadOnlyList<int> CategoryWorth { get; }
@@ -143,11 +158,22 @@ public sealed class PlanetTypes
                 BaseElevation = t.GetProperty("base_elevation").GetInt32(),
                 ColorMapResource = t.GetProperty("color_map_resource").GetString() ?? "",
                 TranslateTableResource = t.GetProperty("color_table_resource").GetString() ?? "",
+                BattleSprites = Views(t.GetProperty("battle_sprites"), t.GetProperty("type").GetString()!),
             });
         }
         var worth = new int[ElementCategoryNames.Count];
         foreach (var c in elementsDoc.RootElement.GetProperty("categories").EnumerateArray())
             worth[ElementCategoryNames.ToList().IndexOf(c.GetProperty("category").GetString()!)] = c.GetProperty("worth").GetInt32();
-        return new PlanetTypes(list.ToArray(), categories, worth);
+        return new PlanetTypes(list.ToArray(), categories, worth,
+            Views(doc.RootElement.GetProperty("shielded_battle_sprites"), "a shielded world"));
+    }
+
+    /// <summary>A battle sprite's three sizes (NUM_VIEWS).</summary>
+    private static string[] Views(JsonElement sprites, string what)
+    {
+        var ids = sprites.EnumerateArray().Select(e => e.GetString() ?? "").ToArray();
+        if (ids.Length != 3 || ids.Any(string.IsNullOrEmpty))
+            throw new InvalidDataException($"{what}'s battle sprites aren't three resource ids");
+        return ids;
     }
 }

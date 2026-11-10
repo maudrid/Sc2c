@@ -17,9 +17,9 @@ namespace Crateris.Core.Uqm;
 /// <summary>
 /// A sprite frame as UQM's intersection sees it: its size, hot spot and
 /// collision mask (one byte a pixel, row by row, nonzero where it can
-/// touch). A frame whose mask isn't known (a true colour image without
-/// alpha, which UQM converts to the screen's format) has a null mask and
-/// can't be tested.
+/// touch). A frame whose mask isn't known has a null mask and can't be
+/// tested (none from the content: <see cref="Content.ContactShapes.Frame"/>
+/// knows every kind of image the loader makes).
 /// </summary>
 public sealed class IntersectFrame
 {

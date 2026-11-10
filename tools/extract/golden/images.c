@@ -21,17 +21,23 @@
  *   images mask FILE TRANSPARENT...
  *                    each sprite frame's collision mask, for an image and
  *                    its .ani transparent colour: [0] if it doesn't load,
- *                    [2, bits per pixel, width, height] for a true colour
- *                    image without alpha (UQM converts those to the
- *                    screen's format, which this program doesn't model;
- *                    no frame tested for contact is one), or [1, width, height, mask (one
- *                    byte per pixel, 1 where it can touch, in hex)].
+ *                    or [1, width, height, mask (one byte per pixel, 1
+ *                    where it can touch, in hex)].
  *                    The colour key is set as process_image (gfxload.c)
  *                    sets it, and a pixel can touch as
  *                    TFB_DrawCanvas_Intersect (sdl/canvas.c) decides it:
  *                    with an alpha channel, any pixel not fully
  *                    transparent; otherwise any pixel that isn't the
- *                    colour key (0 when there's none).
+ *                    colour key (0 when there's none). A true colour
+ *                    image without alpha (the planets in a battle) is
+ *                    first converted to the screen's format, as
+ *                    TFB_DrawImage_New (tfb_draw.c) converts it with
+ *                    TFB_DisplayFormatAlpha (sdl_common.c): the screens
+ *                    are 32 bits, 8 a channel, without alpha (pure.c,
+ *                    opengl.c), and SDL_ConvertSurface keeps each pixel's
+ *                    colour and the colour key's, so a pixel touches if
+ *                    its colour isn't the key's (black when there's no
+ *                    key, as the converted 0 is black).
  */
 
 #include "sdl/SDL.h"
@@ -94,8 +100,20 @@ mask_main (int argc, char *argv[])
 			s->format->colorkey = 0;
 		}
 		if (!s->format->palette && !s->format->Amask)
-		{
-			printf ("[2, %d, %d, %d]\n", s->format->BitsPerPixel, s->w, s->h);
+		{	/* Converted to the screen's 32 bits: compare colours. */
+			Uint32 rgb = 0xffffff;
+			key = (s->flags & SDL_SRCCOLORKEY) ? s->format->colorkey & rgb : 0;
+			printf ("[1, %d, %d, \"", s->w, s->h);
+			for (y = 0; y < s->h; ++y)
+				for (x = 0; x < s->w; ++x)
+				{
+					Uint8 *p = (Uint8 *) s->pixels + y * s->pitch
+							+ x * s->format->BytesPerPixel;
+					Uint32 c = (Uint32) p[0] | ((Uint32) p[1] << 8)
+							| ((Uint32) p[2] << 16);
+					printf ("%02x", c != key ? 1 : 0);
+				}
+			printf ("\"]\n");
 			SDL_FreeSurface (s);
 			continue;
 		}

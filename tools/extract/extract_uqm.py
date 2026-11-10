@@ -353,6 +353,25 @@ def extract_planets(uqm):
             "color_map_resource": None if f[-2] == "-" else f[-2],
             "color_table_resource": None if f[-1] == "-" else f[-1],
         })
+    # The planet's sprites in a battle: load_gravity_well (cons_res.c)
+    # names them "planet.%s.%s" from planet_types and planet_sizes, or
+    # with "slaveshield" for a shielded world (PLANET_SHIELDED).
+    body = r"""
+    int i, v;
+    if (sizeof planet_types / sizeof planet_types[0] != NUMBER_OF_PLANET_TYPES
+            || sizeof planet_sizes / sizeof planet_sizes[0] != NUM_VIEWS)
+        return 1;
+    for (i = 0; i <= NUMBER_OF_PLANET_TYPES; ++i) {
+        for (v = 0; v < NUM_VIEWS; ++v)
+            printf("planet.%s.%s ", i < NUMBER_OF_PLANET_TYPES
+                ? planet_types[i] : "slaveshield", planet_sizes[v]);
+        printf("\n");
+    }"""
+    battle = [line.split() for line in uqm.run_c(body, ["uqm/cons_res.c"])]
+    if len(battle) != len(out) + 1:
+        raise RuntimeError("cons_res.c's planet_types don't match the types")
+    for t, sprites in zip(out, battle):
+        t["battle_sprites"] = sprites
     notes = [
         "One entry per planet type (PlanetFrame), not per planet. Planets "
         "themselves are generated from seeds by planets/plangen.c, calc.c "
@@ -368,10 +387,15 @@ def extract_planets(uqm):
         "PlanetFrame.AtmoAndDensity.",
         "color_map_resource and color_table_resource are content resource "
         "ids (planet graphics), resolved by the client.",
+        "battle_sprites are the content resource ids of the planet in a "
+        "battle, big, medium and small, as load_gravity_well (cons_res.c) "
+        "names them; shielded_battle_sprites are a shielded world's "
+        "(PLANET_SHIELDED: \"slaveshield\"), whatever its type.",
     ]
     return wrap(uqm, ["src/uqm/plandata.c", "src/uqm/planets/plandata.h",
-                      "src/uqm/planets/elemdata.h"],
-                {"constants": consts, "planet_types": out}, notes)
+                      "src/uqm/planets/elemdata.h", "src/uqm/cons_res.c"],
+                {"constants": consts, "planet_types": out,
+                 "shielded_battle_sprites": battle[-1]}, notes)
 
 
 def extract_elements(uqm):
@@ -470,12 +494,26 @@ SHIP_FIELDS = r"""
         d->cyborg_control.WeaponRange);
     printf("%s\n", d->ship_info.race_strings_rsc
         ? d->ship_info.race_strings_rsc : "-");
+    {
+        int v;
+        for (v = 0; v < NUM_VIEWS; ++v)
+            printf("%s ", d->ship_data.ship_rsc[v] ? d->ship_data.ship_rsc[v] : "-");
+        for (v = 0; v < NUM_VIEWS; ++v)
+            printf("%s ", d->ship_data.weapon_rsc[v] ? d->ship_data.weapon_rsc[v] : "-");
+        for (v = 0; v < NUM_VIEWS; ++v)
+            printf("%s ", d->ship_data.special_rsc[v] ? d->ship_data.special_rsc[v] : "-");
+        printf("%s %s %s\n",
+            d->ship_data.captain_control.captain_rsc
+                ? d->ship_data.captain_control.captain_rsc : "-",
+            d->ship_info.icons_rsc ? d->ship_info.icons_rsc : "-",
+            d->ship_info.melee_icon_rsc ? d->ship_info.melee_icon_rsc : "-");
+    }
 """
 
 SHIP_FLAG_NAMES = ["FIRES_FORE", "FIRES_RIGHT", "FIRES_AFT", "FIRES_LEFT",
                    "SEEKING_WEAPON", "SEEKING_SPECIAL", "POINT_DEFENSE",
-                   "IMMEDIATE_WEAPON", "CREW_IMMUNE", "DONT_CHASE",
-                   "PLAYER_CAPTAIN"]
+                   "IMMEDIATE_WEAPON", "CREW_IMMUNE", "SHIELD_DEFENSE",
+                   "DONT_CHASE", "PLAYER_CAPTAIN"]
 
 
 def file_defines(text):
@@ -561,6 +599,11 @@ def extract_ships(uqm):
         ch = list(map(int, lines[2].split()))
         intel = list(map(int, lines[3].split()))
         flags = [f for f in SHIP_FLAG_NAMES if info[0] & flag_values[f]]
+        unnamed = info[0] & ~sum(flag_values[f] for f in flags)
+        if unnamed:
+            raise RuntimeError(f"{name}: ship_flags {info[0]:#x} has bits "
+                               f"{unnamed:#x} SHIP_FLAG_NAMES doesn't name")
+        rsc = [None if r == "-" else r for r in lines[5].split()]
         defines = eval_defines(uqm, file_defines(text), inc, extra)
         out.append({
             "id": name,
@@ -582,11 +625,15 @@ def extract_ships(uqm):
             "ai": {"maneuverability_index": intel[0],
                    "weapon_range": intel[1]},
             "race_strings_resource": None if lines[4] == "-" else lines[4],
+            "graphics": {"ship": rsc[0:3], "weapon": rsc[3:6],
+                         "special": rsc[6:9], "captain": rsc[9],
+                         "icons": rsc[10], "melee_icon": rsc[11]},
             "defines": defines,
         })
     return wrap(uqm, ["src/uqm/ships/*/*.c", "src/uqm/races.h",
                       "src/uqm/loadship.c"], {
         "species_ids": species_values,
+        "flag_values": {f: flag_values[f] for f in SHIP_FLAG_NAMES},
         "ships": out,
     }, [
         "One entry per ship directory in src/uqm/ships. Values are the "
@@ -603,6 +650,16 @@ def extract_ships(uqm):
         "and is ported by hand.",
         "species is the SPECIES_ID that loads this ship (code_resources "
         "in loadship.c).",
+        "flags are SHIP_INFO.ship_flags by name; flag_values gives each "
+        "name's bit (races.h).",
+        "graphics are the content resource ids the RACE_DESC names "
+        "(DATA_STUFF and SHIP_INFO), null for NULL_RESOURCE: ship, weapon "
+        "and special at the three zooms (ship_rsc, weapon_rsc, "
+        "special_rsc: big, medium, small; load_animation reuses the size "
+        "before for a null one), the captain's window (captain_rsc), the "
+        "status panel's icons (icons_rsc) and Super Melee's icon "
+        "(melee_icon_rsc). The flagship's are sis_desc's, as init_sis "
+        "starts from them outside hyperspace.",
     ])
 
 

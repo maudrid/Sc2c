@@ -15,7 +15,9 @@
     "fleet.strength and fleet.home_x/home_y are the starting size and centre of the race's sphere of influence (FLEET_STUFF), in universe units; strength 0 means no sphere.",
     "Waits are in battle frames (24 per second, BATTLE_FRAME_RATE). Speeds and distances are in world units; DISPLAY_TO_WORLD (x) is x << 2 (units.h).",
     "defines lists every integer #define in the ship's source file, including weapon speed, life, damage and range, which are not stored in RACE_DESC. Behaviour (weapons, specials, AI) stays code and is ported by hand.",
-    "species is the SPECIES_ID that loads this ship (code_resources in loadship.c)."
+    "species is the SPECIES_ID that loads this ship (code_resources in loadship.c).",
+    "flags are SHIP_INFO.ship_flags by name; flag_values gives each name's bit (races.h).",
+    "graphics are the content resource ids the RACE_DESC names (DATA_STUFF and SHIP_INFO), null for NULL_RESOURCE: ship, weapon and special at the three zooms (ship_rsc, weapon_rsc, special_rsc: big, medium, small; load_animation reuses the size before for a null one), the captain's window (captain_rsc), the status panel's icons (icons_rsc) and Super Melee's icon (melee_icon_rsc). The flagship's are sis_desc's, as init_sis starts from them outside hyperspace."
   ],
   "species_ids": {
     "NO_ID": 0,
@@ -48,6 +50,20 @@
     "SA_MATRA_ID": 27,
     "UR_QUAN_PROBE_ID": 28,
     "NUM_SPECIES_ID": 29
+  },
+  "flag_values": {
+    "FIRES_FORE": 128,
+    "FIRES_RIGHT": 256,
+    "FIRES_AFT": 512,
+    "FIRES_LEFT": 1024,
+    "SEEKING_WEAPON": 4,
+    "SEEKING_SPECIAL": 8,
+    "POINT_DEFENSE": 16,
+    "IMMEDIATE_WEAPON": 32,
+    "CREW_IMMUNE": 64,
+    "SHIELD_DEFENSE": 2048,
+    "DONT_CHASE": 4096,
+    "PLAYER_CAPTAIN": 8192
   },
   "ships": [
     {
@@ -85,6 +101,26 @@
         "weapon_range": 1000
       },
       "race_strings_resource": "ship.androsynth.text",
+      "graphics": {
+        "ship": [
+          "ship.androsynth.graphics.guardian.large",
+          "ship.androsynth.graphics.guardian.medium",
+          "ship.androsynth.graphics.guardian.small"
+        ],
+        "weapon": [
+          "ship.androsynth.graphics.bubble.large",
+          "ship.androsynth.graphics.bubble.medium",
+          "ship.androsynth.graphics.bubble.small"
+        ],
+        "special": [
+          "ship.androsynth.graphics.blazer.large",
+          "ship.androsynth.graphics.blazer.medium",
+          "ship.androsynth.graphics.blazer.small"
+        ],
+        "captain": "ship.androsynth.graphics.captain",
+        "icons": "ship.androsynth.icons",
+        "melee_icon": "ship.androsynth.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 20,
         "MAX_ENERGY": 24,
@@ -148,6 +184,26 @@
         "weapon_range": 218
       },
       "race_strings_resource": "ship.arilou.text",
+      "graphics": {
+        "ship": [
+          "ship.arilou.graphics.skiff.large",
+          "ship.arilou.graphics.skiff.medium",
+          "ship.arilou.graphics.skiff.small"
+        ],
+        "weapon": [
+          null,
+          null,
+          null
+        ],
+        "special": [
+          "ship.arilou.graphics.warp.large",
+          "ship.arilou.graphics.warp.medium",
+          "ship.arilou.graphics.warp.small"
+        ],
+        "captain": "ship.arilou.graphics.captain",
+        "icons": "ship.arilou.icons",
+        "melee_icon": "ship.arilou.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 6,
         "MAX_ENERGY": 20,
@@ -201,6 +257,26 @@
         "weapon_range": 200
       },
       "race_strings_resource": "ship.kohrah.text",
+      "graphics": {
+        "ship": [
+          "ship.kohrah.graphics.marauder.large",
+          "ship.kohrah.graphics.marauder.medium",
+          "ship.kohrah.graphics.marauder.small"
+        ],
+        "weapon": [
+          "ship.kohrah.graphics.buzzsaw.large",
+          "ship.kohrah.graphics.buzzsaw.medium",
+          "ship.kohrah.graphics.buzzsaw.small"
+        ],
+        "special": [
+          "ship.kohrah.graphics.gas.large",
+          "ship.kohrah.graphics.gas.medium",
+          "ship.kohrah.graphics.gas.small"
+        ],
+        "captain": "ship.kohrah.graphics.captain",
+        "icons": "ship.kohrah.icons",
+        "melee_icon": "ship.kohrah.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 42,
         "MAX_ENERGY": 42,
@@ -274,6 +350,26 @@
         "weapon_range": 4000
       },
       "race_strings_resource": "ship.chenjesu.text",
+      "graphics": {
+        "ship": [
+          "ship.chenjesu.graphics.broodhome.large",
+          "ship.chenjesu.graphics.broodhome.medium",
+          "ship.chenjesu.graphics.broodhome.small"
+        ],
+        "weapon": [
+          "ship.chenjesu.graphics.spark.large",
+          "ship.chenjesu.graphics.spark.medium",
+          "ship.chenjesu.graphics.spark.small"
+        ],
+        "special": [
+          "ship.chenjesu.graphics.doggy.large",
+          "ship.chenjesu.graphics.doggy.medium",
+          "ship.chenjesu.graphics.doggy.small"
+        ],
+        "captain": "ship.chenjesu.graphics.captain",
+        "icons": "ship.chenjesu.icons",
+        "melee_icon": "ship.chenjesu.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 36,
         "MAX_ENERGY": 30,
@@ -347,6 +443,26 @@
         "weapon_range": 200
       },
       "race_strings_resource": "ship.chmmr.text",
+      "graphics": {
+        "ship": [
+          "ship.chmmr.graphics.avatar.large",
+          "ship.chmmr.graphics.avatar.medium",
+          "ship.chmmr.graphics.avatar.small"
+        ],
+        "weapon": [
+          "ship.chmmr.graphics.muzzle.large",
+          "ship.chmmr.graphics.muzzle.medium",
+          "ship.chmmr.graphics.muzzle.small"
+        ],
+        "special": [
+          "ship.chmmr.graphics.satellite.large",
+          "ship.chmmr.graphics.satellite.medium",
+          "ship.chmmr.graphics.satellite.small"
+        ],
+        "captain": "ship.chmmr.graphics.captain",
+        "icons": "ship.chmmr.icons",
+        "melee_icon": "ship.chmmr.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 42,
         "MAX_ENERGY": 42,
@@ -407,6 +523,26 @@
         "weapon_range": 2400
       },
       "race_strings_resource": "ship.druuge.text",
+      "graphics": {
+        "ship": [
+          "ship.druuge.graphics.mauler.large",
+          "ship.druuge.graphics.mauler.medium",
+          "ship.druuge.graphics.mauler.small"
+        ],
+        "weapon": [
+          "ship.druuge.graphics.cannon.large",
+          "ship.druuge.graphics.cannon.medium",
+          "ship.druuge.graphics.cannon.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.druuge.graphics.captain",
+        "icons": "ship.druuge.icons",
+        "melee_icon": "ship.druuge.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 14,
         "MAX_ENERGY": 32,
@@ -468,6 +604,26 @@
         "weapon_range": 4000
       },
       "race_strings_resource": "ship.earthling.text",
+      "graphics": {
+        "ship": [
+          "ship.earthling.graphics.human.large",
+          "ship.earthling.graphics.human.medium",
+          "ship.earthling.graphics.human.small"
+        ],
+        "weapon": [
+          "ship.earthling.graphics.saturn.large",
+          "ship.earthling.graphics.saturn.medium",
+          "ship.earthling.graphics.saturn.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.earthling.graphics.captain",
+        "icons": "ship.earthling.icons",
+        "melee_icon": "ship.earthling.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 18,
         "MAX_ENERGY": 18,
@@ -529,6 +685,26 @@
         "weapon_range": 200
       },
       "race_strings_resource": "ship.ilwrath.text",
+      "graphics": {
+        "ship": [
+          "ship.ilwrath.graphics.avenger.large",
+          "ship.ilwrath.graphics.avenger.medium",
+          "ship.ilwrath.graphics.avenger.small"
+        ],
+        "weapon": [
+          "ship.ilwrath.graphics.fire.large",
+          "ship.ilwrath.graphics.fire.medium",
+          "ship.ilwrath.graphics.fire.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.ilwrath.graphics.captain",
+        "icons": "ship.ilwrath.icons",
+        "melee_icon": "ship.ilwrath.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 22,
         "MAX_ENERGY": 16,
@@ -587,6 +763,26 @@
         "weapon_range": 0
       },
       "race_strings_resource": null,
+      "graphics": {
+        "ship": [
+          "ship.samatra.graphics.samatra.large",
+          "ship.samatra.graphics.samatra.medium",
+          "ship.samatra.graphics.samatra.small"
+        ],
+        "weapon": [
+          "ship.samatra.graphics.sentinel.large",
+          "ship.samatra.graphics.sentinel.medium",
+          "ship.samatra.graphics.sentinel.small"
+        ],
+        "special": [
+          "ship.samatra.graphics.generator.large",
+          "ship.samatra.graphics.generator.medium",
+          "ship.samatra.graphics.generator.small"
+        ],
+        "captain": "ship.samatra.graphics.captain",
+        "icons": null,
+        "melee_icon": null
+      },
       "defines": {
         "MAX_CREW": 1,
         "MAX_ENERGY": 42,
@@ -659,6 +855,26 @@
         "weapon_range": 1800
       },
       "race_strings_resource": "ship.melnorme.text",
+      "graphics": {
+        "ship": [
+          "ship.melnorme.graphics.trader.large",
+          "ship.melnorme.graphics.trader.medium",
+          "ship.melnorme.graphics.trader.small"
+        ],
+        "weapon": [
+          "ship.melnorme.graphics.pumpup.large",
+          "ship.melnorme.graphics.pumpup.medium",
+          "ship.melnorme.graphics.pumpup.small"
+        ],
+        "special": [
+          "ship.melnorme.graphics.confuse.large",
+          "ship.melnorme.graphics.confuse.medium",
+          "ship.melnorme.graphics.confuse.small"
+        ],
+        "captain": "ship.melnorme.graphics.captain",
+        "icons": "ship.melnorme.icons",
+        "melee_icon": "ship.melnorme.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 20,
         "MAX_ENERGY": 42,
@@ -724,6 +940,26 @@
         "weapon_range": 200
       },
       "race_strings_resource": "ship.mmrnmhrm.text",
+      "graphics": {
+        "ship": [
+          "ship.mmrnmhrm.graphics.xform.large",
+          "ship.mmrnmhrm.graphics.xform.medium",
+          "ship.mmrnmhrm.graphics.xform.small"
+        ],
+        "weapon": [
+          "ship.mmrnmhrm.graphics.torpedo.large",
+          "ship.mmrnmhrm.graphics.torpedo.medium",
+          "ship.mmrnmhrm.graphics.torpedo.small"
+        ],
+        "special": [
+          "ship.mmrnmhrm.graphics.ywing.large",
+          "ship.mmrnmhrm.graphics.ywing.medium",
+          "ship.mmrnmhrm.graphics.ywing.small"
+        ],
+        "captain": "ship.mmrnmhrm.graphics.captain",
+        "icons": "ship.mmrnmhrm.icons",
+        "melee_icon": "ship.mmrnmhrm.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 20,
         "MAX_ENERGY": 10,
@@ -796,6 +1032,26 @@
         "weapon_range": 3200
       },
       "race_strings_resource": "ship.mycon.text",
+      "graphics": {
+        "ship": [
+          "ship.mycon.graphics.podship.large",
+          "ship.mycon.graphics.podship.medium",
+          "ship.mycon.graphics.podship.small"
+        ],
+        "weapon": [
+          "ship.mycon.graphics.plasma.large",
+          "ship.mycon.graphics.plasma.medium",
+          "ship.mycon.graphics.plasma.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.mycon.graphics.captain",
+        "icons": "ship.mycon.icons",
+        "melee_icon": "ship.mycon.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 20,
         "MAX_ENERGY": 40,
@@ -857,6 +1113,26 @@
         "weapon_range": 1440
       },
       "race_strings_resource": "ship.orz.text",
+      "graphics": {
+        "ship": [
+          "ship.orz.graphics.nemesis.large",
+          "ship.orz.graphics.nemesis.medium",
+          "ship.orz.graphics.nemesis.small"
+        ],
+        "weapon": [
+          "ship.orz.graphics.howitzer.large",
+          "ship.orz.graphics.howitzer.medium",
+          "ship.orz.graphics.howitzer.small"
+        ],
+        "special": [
+          "ship.orz.graphics.turret.large",
+          "ship.orz.graphics.turret.medium",
+          "ship.orz.graphics.turret.small"
+        ],
+        "captain": "ship.orz.graphics.captain",
+        "icons": "ship.orz.icons",
+        "melee_icon": "ship.orz.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 16,
         "MAX_ENERGY": 20,
@@ -924,6 +1200,26 @@
         "weapon_range": 201
       },
       "race_strings_resource": "ship.pkunk.text",
+      "graphics": {
+        "ship": [
+          "ship.pkunk.graphics.fury.large",
+          "ship.pkunk.graphics.fury.medium",
+          "ship.pkunk.graphics.fury.small"
+        ],
+        "weapon": [
+          "ship.pkunk.graphics.bug.large",
+          "ship.pkunk.graphics.bug.medium",
+          "ship.pkunk.graphics.bug.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.pkunk.graphics.captain",
+        "icons": "ship.pkunk.icons",
+        "melee_icon": "ship.pkunk.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 8,
         "MAX_ENERGY": 12,
@@ -981,6 +1277,26 @@
         "weapon_range": 0
       },
       "race_strings_resource": null,
+      "graphics": {
+        "ship": [
+          null,
+          null,
+          null
+        ],
+        "weapon": [
+          null,
+          null,
+          null
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": null,
+        "icons": null,
+        "melee_icon": "ship.drone.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 1,
         "MAX_ENERGY": 1,
@@ -1031,6 +1347,26 @@
         "weapon_range": 960
       },
       "race_strings_resource": "ship.shofixti.text",
+      "graphics": {
+        "ship": [
+          "ship.shofixti.graphics.scout.large",
+          "ship.shofixti.graphics.scout.medium",
+          "ship.shofixti.graphics.scout.small"
+        ],
+        "weapon": [
+          "ship.shofixti.graphics.missile.large",
+          "ship.shofixti.graphics.missile.medium",
+          "ship.shofixti.graphics.missile.small"
+        ],
+        "special": [
+          "ship.shofixti.graphics.destruct.large",
+          "ship.shofixti.graphics.destruct.medium",
+          "ship.shofixti.graphics.destruct.small"
+        ],
+        "captain": "ship.shofixti.graphics.captain",
+        "icons": "ship.shofixti.icons",
+        "melee_icon": "ship.shofixti.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 6,
         "MAX_ENERGY": 4,
@@ -1090,6 +1426,26 @@
         "weapon_range": 1152
       },
       "race_strings_resource": null,
+      "graphics": {
+        "ship": [
+          "ship.flagship.graphics.flagship.large",
+          "ship.flagship.graphics.flagship.medium",
+          "ship.flagship.graphics.flagship.small"
+        ],
+        "weapon": [
+          "ship.flagship.graphics.blaster.large",
+          "ship.flagship.graphics.blaster.medium",
+          "ship.flagship.graphics.blaster.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.flagship.graphics.captain",
+        "icons": "ship.flagship.icons",
+        "melee_icon": null
+      },
       "defines": {
         "MAX_CREW": 42,
         "MAX_ENERGY": 42,
@@ -1157,6 +1513,26 @@
         "weapon_range": 400
       },
       "race_strings_resource": "ship.slylandro.text",
+      "graphics": {
+        "ship": [
+          "ship.slylandro.graphics.probe.large",
+          "ship.slylandro.graphics.probe.medium",
+          "ship.slylandro.graphics.probe.small"
+        ],
+        "weapon": [
+          null,
+          null,
+          null
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.slylandro.graphics.captain",
+        "icons": "ship.slylandro.icons",
+        "melee_icon": "ship.slylandro.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 12,
         "MAX_ENERGY": 20,
@@ -1213,6 +1589,26 @@
         "weapon_range": 1200
       },
       "race_strings_resource": "ship.spathi.text",
+      "graphics": {
+        "ship": [
+          "ship.spathi.graphics.eluder.large",
+          "ship.spathi.graphics.eluder.medium",
+          "ship.spathi.graphics.eluder.small"
+        ],
+        "weapon": [
+          "ship.spathi.graphics.missile.large",
+          "ship.spathi.graphics.missile.medium",
+          "ship.spathi.graphics.missile.small"
+        ],
+        "special": [
+          "ship.spathi.graphics.butt.large",
+          "ship.spathi.graphics.butt.medium",
+          "ship.spathi.graphics.butt.small"
+        ],
+        "captain": "ship.spathi.graphics.captain",
+        "icons": "ship.spathi.icons",
+        "melee_icon": "ship.spathi.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 30,
         "MAX_ENERGY": 10,
@@ -1277,6 +1673,26 @@
         "weapon_range": 600
       },
       "race_strings_resource": "ship.supox.text",
+      "graphics": {
+        "ship": [
+          "ship.supox.graphics.blade.large",
+          "ship.supox.graphics.blade.medium",
+          "ship.supox.graphics.blade.small"
+        ],
+        "weapon": [
+          "ship.supox.graphics.glob.large",
+          "ship.supox.graphics.glob.medium",
+          "ship.supox.graphics.glob.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.supox.graphics.captain",
+        "icons": "ship.supox.icons",
+        "melee_icon": "ship.supox.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 12,
         "MAX_ENERGY": 16,
@@ -1333,6 +1749,26 @@
         "weapon_range": 800
       },
       "race_strings_resource": "ship.syreen.text",
+      "graphics": {
+        "ship": [
+          "ship.syreen.graphics.penetrator.large",
+          "ship.syreen.graphics.penetrator.medium",
+          "ship.syreen.graphics.penetrator.small"
+        ],
+        "weapon": [
+          "ship.syreen.graphics.dagger.large",
+          "ship.syreen.graphics.dagger.medium",
+          "ship.syreen.graphics.dagger.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.syreen.graphics.captain",
+        "icons": "ship.syreen.icons",
+        "melee_icon": "ship.syreen.meleeicons"
+      },
       "defines": {
         "SYREEN_MAX_CREW_SIZE": 42,
         "MAX_CREW": 12,
@@ -1392,6 +1828,26 @@
         "weapon_range": 900
       },
       "race_strings_resource": "ship.thraddash.text",
+      "graphics": {
+        "ship": [
+          "ship.thraddash.graphics.torch.large",
+          "ship.thraddash.graphics.torch.medium",
+          "ship.thraddash.graphics.torch.small"
+        ],
+        "weapon": [
+          "ship.thraddash.graphics.horn.large",
+          "ship.thraddash.graphics.horn.medium",
+          "ship.thraddash.graphics.horn.small"
+        ],
+        "special": [
+          "ship.thraddash.graphics.napalm.large",
+          "ship.thraddash.graphics.napalm.medium",
+          "ship.thraddash.graphics.napalm.small"
+        ],
+        "captain": "ship.thraddash.graphics.captain",
+        "icons": "ship.thraddash.icons",
+        "melee_icon": "ship.thraddash.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 8,
         "MAX_ENERGY": 24,
@@ -1458,6 +1914,26 @@
         "weapon_range": 16000
       },
       "race_strings_resource": "ship.umgah.text",
+      "graphics": {
+        "ship": [
+          "ship.umgah.graphics.drone.large",
+          "ship.umgah.graphics.drone.medium",
+          "ship.umgah.graphics.drone.small"
+        ],
+        "weapon": [
+          "ship.umgah.graphics.spritz",
+          null,
+          null
+        ],
+        "special": [
+          "ship.umgah.graphics.cone.large",
+          "ship.umgah.graphics.cone.medium",
+          "ship.umgah.graphics.cone.small"
+        ],
+        "captain": "ship.umgah.graphics.captain",
+        "icons": "ship.umgah.icons",
+        "melee_icon": "ship.umgah.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 10,
         "MAX_ENERGY": 30,
@@ -1516,6 +1992,26 @@
         "weapon_range": 1600
       },
       "race_strings_resource": "ship.urquan.text",
+      "graphics": {
+        "ship": [
+          "ship.urquan.graphics.dreadnought.large",
+          "ship.urquan.graphics.dreadnought.medium",
+          "ship.urquan.graphics.dreadnought.small"
+        ],
+        "weapon": [
+          "ship.urquan.graphics.fusion.large",
+          "ship.urquan.graphics.fusion.medium",
+          "ship.urquan.graphics.fusion.small"
+        ],
+        "special": [
+          "ship.urquan.graphics.fighter.large",
+          "ship.urquan.graphics.fighter.medium",
+          "ship.urquan.graphics.fighter.small"
+        ],
+        "captain": "ship.urquan.graphics.captain",
+        "icons": "ship.urquan.icons",
+        "melee_icon": "ship.urquan.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 42,
         "MAX_ENERGY": 42,
@@ -1552,7 +2048,8 @@
       "species": "UTWIG_ID",
       "flags": [
         "FIRES_FORE",
-        "POINT_DEFENSE"
+        "POINT_DEFENSE",
+        "SHIELD_DEFENSE"
       ],
       "cost": 22,
       "crew": 20,
@@ -1582,6 +2079,26 @@
         "weapon_range": 200
       },
       "race_strings_resource": "ship.utwig.text",
+      "graphics": {
+        "ship": [
+          "ship.utwig.graphics.jugger.large",
+          "ship.utwig.graphics.jugger.medium",
+          "ship.utwig.graphics.jugger.small"
+        ],
+        "weapon": [
+          "ship.utwig.graphics.lance.large",
+          "ship.utwig.graphics.lance.medium",
+          "ship.utwig.graphics.lance.small"
+        ],
+        "special": [
+          null,
+          null,
+          null
+        ],
+        "captain": "ship.utwig.graphics.captain",
+        "icons": "ship.utwig.icons",
+        "melee_icon": "ship.utwig.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 20,
         "MAX_ENERGY": 20,
@@ -1646,6 +2163,26 @@
         "weapon_range": 200
       },
       "race_strings_resource": "ship.vux.text",
+      "graphics": {
+        "ship": [
+          "ship.vux.graphics.intruder.large",
+          "ship.vux.graphics.intruder.medium",
+          "ship.vux.graphics.intruder.small"
+        ],
+        "weapon": [
+          "ship.vux.graphics.slime",
+          null,
+          null
+        ],
+        "special": [
+          "ship.vux.graphics.limpets.large",
+          "ship.vux.graphics.limpets.medium",
+          "ship.vux.graphics.limpets.small"
+        ],
+        "captain": "ship.vux.graphics.captain",
+        "icons": "ship.vux.icons",
+        "melee_icon": "ship.vux.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 20,
         "MAX_ENERGY": 40,
@@ -1678,7 +2215,8 @@
       "id": "yehat",
       "species": "YEHAT_ID",
       "flags": [
-        "FIRES_FORE"
+        "FIRES_FORE",
+        "SHIELD_DEFENSE"
       ],
       "cost": 23,
       "crew": 20,
@@ -1708,6 +2246,26 @@
         "weapon_range": 266
       },
       "race_strings_resource": "ship.yehat.text",
+      "graphics": {
+        "ship": [
+          "ship.yehat.graphics.terminator.large",
+          "ship.yehat.graphics.terminator.medium",
+          "ship.yehat.graphics.terminator.small"
+        ],
+        "weapon": [
+          "ship.yehat.graphics.missile.large",
+          "ship.yehat.graphics.missile.medium",
+          "ship.yehat.graphics.missile.small"
+        ],
+        "special": [
+          "ship.yehat.graphics.shield.large",
+          "ship.yehat.graphics.shield.medium",
+          "ship.yehat.graphics.shield.small"
+        ],
+        "captain": "ship.yehat.graphics.captain",
+        "icons": "ship.yehat.icons",
+        "melee_icon": "ship.yehat.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 20,
         "MAX_ENERGY": 10,
@@ -1766,6 +2324,26 @@
         "weapon_range": 400
       },
       "race_strings_resource": "ship.zoqfotpik.text",
+      "graphics": {
+        "ship": [
+          "ship.zoqfotpik.graphics.stinger.large",
+          "ship.zoqfotpik.graphics.stinger.medium",
+          "ship.zoqfotpik.graphics.stinger.small"
+        ],
+        "weapon": [
+          "ship.zoqfotpik.graphics.spit.large",
+          "ship.zoqfotpik.graphics.spit.medium",
+          "ship.zoqfotpik.graphics.spit.small"
+        ],
+        "special": [
+          "ship.zoqfotpik.graphics.proboscis.large",
+          "ship.zoqfotpik.graphics.proboscis.medium",
+          "ship.zoqfotpik.graphics.proboscis.small"
+        ],
+        "captain": "ship.zoqfotpik.graphics.captain",
+        "icons": "ship.zoqfotpik.icons",
+        "melee_icon": "ship.zoqfotpik.meleeicons"
+      },
       "defines": {
         "MAX_CREW": 10,
         "MAX_ENERGY": 10,

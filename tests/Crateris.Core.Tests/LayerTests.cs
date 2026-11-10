@@ -31,7 +31,7 @@ public class LayerTests
     }
 
     [ContentFact]
-    public void AFrameTestedForContactWithoutAKnownShapeIsAContentError()
+    public void AFrameTestedForContactHasAKnownShapeOfAnyKind()
     {
         var sheets = TestContent.With(p =>
         {
@@ -40,13 +40,20 @@ public class LayerTests
                 .ToDictionary(id => id, id => decoded[id]);
         });
         // The orbit background's last frame is a true colour image without
-        // alpha: put it where a flagship facing is, and loading refuses it.
+        // alpha, which UQM converts to the screen's format (TFB_DrawImage_New):
+        // put where a flagship facing is, it loads with a shape, touching
+        // where it isn't black.
+        var (frame, png) = sheets["graphics.orbitbackground"][21];
+        Assert.Equal((3, false), (png.BytesPerPixel, png.HasAlpha));
         var flagship = sheets["graphics.flagship"].ToList();
-        flagship[3] = sheets["graphics.orbitbackground"][21];
-        var bad = new Dictionary<string, IReadOnlyList<(AnimationFrame, Png)>>(sheets) { ["graphics.flagship"] = flagship };
-        var e = Assert.Throws<ContentPackageException>(() => ContactShapes.Load(new AnimationSheets(bad)));
-        Assert.Contains("graphics.flagship frame 3", e.Message);
-        // Unchanged, the same sheets load (frame 21 itself is never tested).
-        Assert.NotNull(ContactShapes.Load(new AnimationSheets(sheets)));
+        flagship[3] = (frame, png);
+        var changed = new Dictionary<string, IReadOnlyList<(AnimationFrame, Png)>>(sheets) { ["graphics.flagship"] = flagship };
+        var mask = ContactShapes.Load(new AnimationSheets(changed)).IpFlagship[3].Mask!;
+        for (int i = 0; i < mask.Length; ++i)
+            Assert.Equal((png.Pixels[i * 3] | png.Pixels[i * 3 + 1] | png.Pixels[i * 3 + 2]) != 0 ? 1 : 0, mask[i]);
+        // A sheet without images is refused.
+        changed["graphics.flagship"] = Array.Empty<(AnimationFrame, Png)>();
+        var e = Assert.Throws<ContentPackageException>(() => ContactShapes.Load(new AnimationSheets(changed)));
+        Assert.Contains("graphics.flagship has no images", e.Message);
     }
 }

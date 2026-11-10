@@ -1697,6 +1697,69 @@ HAZARD_SHEETS = LANDER_SHEETS + [
 ]
 
 
+# The ships ported so far (data/ships.json ids): stage 4a's.
+BATTLE_SHIPS = ["sis_ship", "ilwrath"]
+
+
+def battle_sheets():
+    """The sheets a battle tests for contact, the big size only (farray[0],
+    InitIntersectFrame in collide.h): the flagship's and the Ilwrath's
+    ship and weapon (and special, for a ship that has one) as their
+    RACE_DESCs name them (data/ships.json), the arena's asteroids, blasts
+    and explosions (InitSpace, init.c), stars_in_space, whose last frame
+    is floating crew, lasers and ion trails (graphics.stars), and every
+    planet the battle can have (load_gravity_well, cons_res.c: each
+    planet type's and a shielded world's, data/planet-types.json). The
+    sheet numbers only name the images program's files."""
+    with open(os.path.join(REPO, "data", "ships.json")) as f:
+        ships = {s["id"]: s for s in json.load(f)["ships"]}
+    with open(os.path.join(REPO, "data", "planet-types.json")) as f:
+        planets = json.load(f)
+    ids = []
+    for ship in BATTLE_SHIPS:
+        g = ships[ship]["graphics"]
+        ids += [g[k][0] for k in ("ship", "weapon", "special") if g[k][0]]
+    ids += ["graphics.asteroid.large", "graphics.blast.large",
+            "graphics.boom.large", "graphics.stars"]
+    ids += [t["battle_sprites"][0] for t in planets["planet_types"]]
+    ids.append(planets["shielded_battle_sprites"][0])
+    return list(enumerate(ids))
+
+
+def record_battle_masks(uqm, strings_exe, images_exe, package):
+    """The collision masks of the battle's sheets (battle_sheets)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        _, hashes = write_masks(strings_exe, images_exe, package, tmp,
+                                battle_sheets())
+    data = header(uqm, ["tools/extract/golden/images.c",
+                        "src/libs/graphics/gfxload.c",
+                        "src/libs/graphics/sdl/canvas.c",
+                        "src/libs/graphics/tfb_draw.c",
+                        "src/uqm/collide.h", "src/uqm/init.c",
+                        "src/uqm/cons_res.c"], [
+        "The collision masks of the sprite sheets a battle tests for "
+        "contact, from the official content package (SHA-256 "
+        f"{CONTENT_SHA256}), as sprite-masks.json records the others: "
+        "each frame as _GetCelData loads it, read by UQM's own PNG loader, "
+        "with its colour key set as process_image sets it, and a pixel "
+        "able to touch as TFB_DrawCanvas_Intersect decides it; the "
+        "planets, true colour without alpha, converted to the screen's 32 "
+        "bits first, as TFB_DrawImage_New converts them.",
+        "Collisions test the big size only (InitIntersectFrame takes the "
+        "frame from farray[0]), so only it is here: "
+        f"{', '.join(BATTLE_SHIPS)}'s ship, weapon and special sheets as "
+        "data/ships.json names them, the asteroids, blasts and explosions "
+        "(InitSpace), graphics.stars (floating crew, lasers and ion "
+        "trails are its last frame) and every planet's battle sprite "
+        "(load_gravity_well).",
+        "By resource id, each frame is [width, height, hot spot x, hot "
+        "spot y, SHA-256 of the mask: a byte a pixel, row by row, 1 where "
+        "it can touch]. Content, so hashes only.",
+    ])
+    data["sheets"] = hashes
+    return data
+
+
 def write_masks(strings_exe, images_exe, package, tmp, sheets=None):
     """Every frame of the contact sheets as UQM loads it (_GetCelData:
     each .ani line names an image, its transparent colour and hot spot,
@@ -1743,16 +1806,9 @@ def write_masks(strings_exe, images_exe, package, tmp, sheets=None):
                 result = json.loads(line)
                 if result[0] == 0:
                     continue   # dropped, as _GetCelData drops it
-                if result[0] == 2:
-                    # True colour without alpha (orbit background frame 21,
-                    # never tested for contact): its mask is unknown, 2s,
-                    # and the systems program stops if it's ever tested.
-                    _, _, w, h = result
-                    bits, digest = bytes([2]) * (w * h), None
-                else:
-                    _, w, h, bits = result
-                    bits = bytes.fromhex(bits)
-                    digest = hashlib.sha256(bits).hexdigest()
+                _, w, h, bits = result
+                bits = bytes.fromhex(bits)
+                digest = hashlib.sha256(bits).hexdigest()
                 with open(os.path.join(masks, f"{sheet}.{len(entries)}.mask"), "w") as f:
                     f.write(f"{w} {h} {hx} {hy}\n")
                     for y in range(h):
@@ -1785,8 +1841,9 @@ def record_contact(uqm, systems_exe, strings_exe, images_exe, package):
         "each frame is [width, height, hot spot x, hot spot y, SHA-256 of "
         "the mask: a byte a pixel, row by row, 1 where it can touch]. A "
         "true colour frame without alpha (only the orbit background's last, "
-        "never tested for contact) has null: UQM converts it to the "
-        "screen's format, which isn't modelled. Content, so hashes only.",
+        "never tested for contact) is converted to the screen's 32 bits "
+        "first, as TFB_DrawImage_New converts it, which the images program "
+        "models. Content, so hashes only.",
     ])
     data["sheets"] = hashes
     out["sprite-masks"] = data
@@ -3800,6 +3857,7 @@ def main():
                      ("report", lambda: record_report(uqm, report, strings, args.content)),
                      ("selling", lambda: record_selling(uqm, sell, strings, args.content)),
                      ("contact", lambda: record_contact(uqm, systems, strings, images, args.content)),
+                     ("battle-masks", lambda: record_battle_masks(uqm, strings, images, args.content)),
                      ("lander-pickups", lambda: record_lander_pickups(uqm, lander, strings, images, args.content)),
                      ("lander-creatures", lambda: record_lander_creatures(uqm, lander, strings, images, args.content)),
                      ("lander-hazards", lambda: record_lander_hazards(uqm, lander, strings, images, args.content)),
