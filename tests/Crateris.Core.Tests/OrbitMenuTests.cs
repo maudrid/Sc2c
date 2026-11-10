@@ -293,5 +293,12 @@ public class OrbitMenuTests
         menu.Press(MenuKey.Cancel, NothingTaken);
         Assert.Null(menu.DeviceList);
         Assert.Equal(OrbitMenuItem.Devices, menu.Selected);
+        // The game unable to draw it closes it, back at the Manifest, not by a key.
+        aboard = new[] { 1, 3 };
+        menu.Press(MenuKey.Select, NothingTaken);
+        Assert.NotNull(menu.DeviceList);
+        menu.CloseDevices();
+        Assert.Null(menu.DeviceList);
+        Assert.Equal(OrbitMenuItem.Devices, menu.Selected);
     }
 }

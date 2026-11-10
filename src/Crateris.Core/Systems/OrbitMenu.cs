@@ -175,6 +175,9 @@ public sealed class OrbitMenu
         Devices = list.Count == 0 ? null : Devices.With(list);
     }
 
+    /// <summary>Closes the Devices list, back at the Manifest (the game unable to draw it).</summary>
+    public void CloseDevices() => Devices = null;
+
     private MenuOutcome PressDevices(MenuKey key)
     {
         var outcome = Devices!.Press(key);

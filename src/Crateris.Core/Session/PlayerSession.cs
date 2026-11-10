@@ -974,7 +974,7 @@ public sealed class PlayerSession
     private static readonly string[] OutfitItems = { "Fuel", "Modules", "Save game", "Exit" };
     private static readonly string[] YardItems = { "Crew", "Save game", "Exit" };
 
-    /// <summary>A module's name, in words (until item 11 draws them).</summary>
+    /// <summary>A module's name, in words (the status panel's, listing the outfitting menu as its keys' help, row 45).</summary>
     public static string ModuleName(byte piece) => piece switch
     {
         ShipModules.PlanetLander => "planet lander",

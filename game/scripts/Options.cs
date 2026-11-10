@@ -146,7 +146,7 @@ public sealed class Options
                     o.StartMinerals = Array.ConvertAll(Next().Split(','), int.Parse);
                     break;
                 case "--start-units": o.StartUnits = uint.Parse(Next()); break;
-                case "--start-devices": o.StartDevices = Next().Split(','); break;
+                case "--start-devices": o.StartDevices = Next().Split(',', StringSplitOptions.TrimEntries); break;
                 case "--show-report": o.ShowReport = Next(); break;
                 case "--start-orbit":
                 {

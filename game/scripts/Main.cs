@@ -71,6 +71,7 @@ public partial class Main : Node2D
     private DevicesView _devicesView = null!;
     private StarbaseScreenView _starbaseView = null!;
     private Label _hud = null!;
+    private Label _boxNotice = null!;   // the notice, below the cargo display or the Devices list (the panel hidden)
     private SystemCatalog _systems = null!;
 
     // What the game reads from the UQM content package (checked as the
@@ -182,6 +183,21 @@ public partial class Main : Node2D
         };
         _hud.AddThemeColorOverride("font_color", Colors.White);
         layer.AddChild(_hud);
+        // While the Manifest's cargo display or Devices list covers the status area (its panel hidden), the
+        // notice (a gift, another player's report) is shown below the box, as the giving screen shows it; a
+        // notice's page fits in seven of these lines.
+        _boxNotice = new Label
+        {
+            Position = _devicesView.Position + new Vector2(0, DevicesDisplay.Area.H * SisScreen.Scale + 8),
+            Size = new Vector2(GivingView.TextWidth, 130),
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MaxLinesVisible = 8,
+            Visible = false,
+        };
+        _boxNotice.AddThemeColorOverride("font_color", Colors.Khaki);
+        _boxNotice.AddThemeFontSizeOverride("font_size", 13);
+        _boxNotice.AddThemeConstantOverride("line_spacing", 0);
+        layer.AddChild(_boxNotice);
 
         _screens = new CanvasLayer { Layer = 10 };
         AddChild(_screens);
@@ -1049,9 +1065,9 @@ public partial class Main : Node2D
         _orbitView.MenuCovered = _givingView.Visible;
         // The Manifest's Devices list, while it's open in orbit. One that can't be drawn is closed.
         _devicesView.Visible = !Headless && screen == PlayerScreen.Orbit && _devicesView.Show(player);
-        if (_devicesView.Broken && player.OrbitMenu?.DeviceList is not null)
+        if (_devicesView.Broken && player.OrbitMenu is { DeviceList: not null } broken)
         {
-            player.PressMenu(MenuKey.Cancel);
+            broken.CloseDevices();   // not a key: in a story pause the keys are the talk's
             player.Notify("The Devices list couldn't be drawn.");
         }
         if (_givingView.Broken && player.Trade is not null)
@@ -1075,8 +1091,11 @@ public partial class Main : Node2D
         // Those screens stand alone; the cargo display covers the status area, as UQM's does (the
         // Manifest's, and the minerals' count-down's), and the giving screen, laid out after it, and the
         // Manifest's Devices list.
-        _hud.Visible = _firstRun == null && _contentError == null && _player?.OrbitMenu?.CargoOpen != true && !_sellingView.Visible
-            && !_givingView.Visible && !_devicesView.Visible;
+        bool box = _player?.OrbitMenu?.CargoOpen == true || _devicesView.Visible;
+        _hud.Visible = _firstRun == null && _contentError == null && !box && !_sellingView.Visible && !_givingView.Visible;
+        _boxNotice.Text = _player?.Notice ?? "";
+        _boxNotice.Visible = _firstRun == null && _contentError == null && box && !_sellingView.Visible && !_givingView.Visible
+            && _boxNotice.Text != "";
     }
 
     // ---------------------------------------------------- quit / report
