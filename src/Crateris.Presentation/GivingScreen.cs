@@ -190,7 +190,7 @@ public static class GivingScreen
     /// The text below the box: the notice while there is one (a gift given
     /// or refused, another player's report), else who it gives to
     /// (<paramref name="to"/>), then the keys, in at most
-    /// <paramref name="most"/> lines (though at least one) that
+    /// <paramref name="most"/> lines (a <paramref name="most"/> under one taken as one) that
     /// <paramref name="fits"/>. A notice
     /// too long to leave the keys room has every line (the keys are back
     /// once it's gone). Each line with whether it's the keys'.

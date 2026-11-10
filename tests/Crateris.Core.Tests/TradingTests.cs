@@ -422,6 +422,7 @@ public class TradingTests
         Assert.Null(me.Trade);
         Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.None));   // opened: the thrust waits
         Assert.NotNull(me.Trade);
+        Assert.Equal(0, closed);
         Assert.Equal(Hyperspace.ShipInput.None, me.NextInput(Hyperspace.ShipInput.None));
         Assert.Equal(Hyperspace.ShipInput.Thrust, me.NextInput(Hyperspace.ShipInput.None));   // closed: it flies
         Assert.Null(me.Trade);
