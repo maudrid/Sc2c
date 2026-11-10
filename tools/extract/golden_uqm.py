@@ -2120,6 +2120,27 @@ def random_battle(name, rng):
                 ships=ships, steps=steps, events=events, full=60)
 
 
+def clamp_events(program, scenario):
+    """The scenario's AbandonShip events holding the ship to one crew at
+    least, as the Syreen's song (UQM's only caller) does: each event's crew
+    cut to the ship's crew then, less one, and dropped if none can go."""
+    events = []
+    for frame, side, target, crew in scenario["events"]:
+        steps, left = [], frame
+        for step in scenario["steps"]:
+            if left <= 0:
+                break
+            steps.append((min(step[0], left), *step[1:]))
+            left -= step[0]
+        battle = program.run([dict(scenario, steps=steps, events=events)])[0]
+        if len(battle["frames"]) <= frame:
+            continue   # the battle was over by then
+        ship = fighting(battle["frames"][frame], side)
+        if ship and fighting(battle["frames"][frame], target) and ship[0] > 1:
+            events.append((frame, side, target, min(crew, ship[0] - 1)))
+    return dict(scenario, events=events)
+
+
 def battle_scenarios(program):
     """The traces: each a battle UQM runs from a seed with scripted keys
     (some flown by a pilot steering at a goal; the keys are recorded)."""
@@ -2234,12 +2255,12 @@ def battle_scenarios(program):
     s = dict(name="lonely-death", seed=500, planet="planet.water",
              ships=[test_ship(ilwrath, crew=1), test_ship(ilwrath, crew=1)], steps=[(20, 0, 0)], full=360)
     out.append(piloted(program, s, 600, [None, shoot_then_crash]))
-    # Battles with everything at random (random_battle): they reach the
-    # Skiff's thrust, crew held to its most, the camera's scroll clamped
-    # both ways, AbandonShip from ships moving every way and a dying ship
-    # with no other ship's element left, among others.
+    # Battles with everything at random (random_battle): among others they
+    # reach the Skiff's thrust, crew held to its most, the camera's scroll
+    # clamped both ways and AbandonShip from a ship moving downwards
+    # (check_battles makes sure).
     rng = __import__("random").Random(4242)
-    out += [random_battle(f"random-{i}", rng) for i in range(RANDOM_BATTLES)]
+    out += [clamp_events(program, random_battle(f"random-{i}", rng)) for i in range(RANDOM_BATTLES)]
     # The step zoom (TFB_SCALE_STEP) and long battles at random.
     out.append(dict(name="step-zoom", seed=101, planet="planet.chondrite", zoom="step",
                     ships=[test_ship(flagship, weapons=W_MISSILE | W_HOMING), test_ship(ilwrath)],
@@ -2455,13 +2476,40 @@ def check_battles(scenarios, battles):
         fail("step-zoom", f"zooms {sorted(zooms)}")
     # A ship dying with no other ship's element in the list.
     lonely = 0
+    before = frames("lonely-death")[0]
     for f in frames("lonely-death")[1:]:
         for e in f[F_ELEMENTS]:
             if e[E_FLAGS] & PLAYER_SHIP_FLAG and e[E_FLAGS] & FINITE_LIFE_FLAG and e[E_LIFE] == 35 and e[E_CREW] == 0 \
-                    and not any(x[E_FLAGS] & PLAYER_SHIP_FLAG and x[24] != e[24] for x in f[F_ELEMENTS]):
+                    and not any(x[E_FLAGS] & PLAYER_SHIP_FLAG and x[24] != e[24]
+                                for g in (before, f) for x in g[F_ELEMENTS]):
                 lonely += 1
+        before = f
     if not lonely or not by_name["lonely-death"]["ended"]:
         fail("lonely-death", "no ship died alone")
+    # The random battles keep what they were added for.
+    randoms = [n for n in by_name if n.startswith("random-")]
+    def ships_input(name, side):
+        return scenario[name]["ships"][side]
+    if not any(ships_input(n, side)["crew"] > ships_input(n, side)["max_crew"]
+               and fighting(frames(n)[0], side)[0] == ships_input(n, side)["max_crew"]
+               for n in randoms for side in (0, 1)):
+        fail("random-*", "no ship's crew held to its most")
+    skiffs = [(n, side) for n in randoms for side in (0, 1)
+              if ships_input(n, side)["characteristics"]["thrust_increment"]
+              == ships_input(n, side)["characteristics"]["max_thrust"]]
+    if not any(fighting(f, side) and fighting(f, side)[6] & B_THRUST
+               for n, side in skiffs for f in frames(n)):
+        fail("random-*", "no Skiff thrusting")
+    if not any(f[1] == (8192 // 75) & ~3 for n in randoms for f in frames(n)):
+        fail("random-*", "the camera's scroll never clamped to the right")
+    down = 0
+    for n in randoms:
+        for frame, side, target, crew in scenario[n]["events"]:
+            ship = ship_of(frames(n)[frame], side)
+            if ship and 17 <= ship[6] <= 47:   # its TravelAngle: moving downwards
+                down += 1
+    if not down:
+        fail("random-*", "no AbandonShip from a ship moving downwards")
     # Fleets: two die at once (both with an element and no crew), and on
     # each side a later ship flies in the first one's element (slot).
     fr = frames("fleets")
