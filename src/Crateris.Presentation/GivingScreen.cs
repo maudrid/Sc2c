@@ -200,10 +200,9 @@ public static class GivingScreen
         most = Math.Max(1, most);
         var keyLines = Wrap(keys, Math.Min(KeyLines, most - 1), fits);
         var top = notice != "" ? notice : to;
-        var lines = Wrap(top, int.MaxValue, fits);
-        if (notice != "" && lines.Count + keyLines.Count > most)
+        if (notice != "" && Wrap(top, int.MaxValue, fits).Count + keyLines.Count > most)
             keyLines.Clear();
-        return Cut(lines, most - keyLines.Count, fits).Select(l => (l, false))
+        return Wrap(top, most - keyLines.Count, fits).Select(l => (l, false))
             .Concat(keyLines.Select(l => (l, true))).ToList();
     }
 
@@ -217,15 +216,41 @@ public static class GivingScreen
     /// <paramref name="most"/>: one cut short ends in an ellipsis, a word
     /// too long for that last line cut a whole character at a time. A word
     /// too long for a line of its own (a long name) is broken, a whole
-    /// character at a time, over as many lines as it takes.
+    /// character at a time, over as many lines as it takes. A notice's page
+    /// number ends its last line if it fits there, and is kept when the
+    /// rest is cut.
     /// </summary>
     public static List<string> Wrap(string text, int most, Func<string, bool> fits)
     {
+        // A notice's page number (PlayerSession.Notify: "\n(i/n)" after the page) goes at the end of its last
+        // line if it fits there, else on a line of its own; and it stays when the page is cut.
+        var given = text.Replace("\r", "").Split('\n').ToList();
+        string? page = given.Count > 1 && PageNumber.IsMatch(given[^1]) ? given[^1] : null;
+        if (page is null)
+            return Cut(Wrapped(given, fits), most, fits);
+        given.RemoveAt(given.Count - 1);
+        var lines = Wrapped(given, fits);
+        if (lines.Count > 0 && lines.Count <= most && fits(lines[^1] + " " + page))
+        {
+            lines[^1] += " " + page;
+            return lines;
+        }
+        if (most < 2)
+            return Cut(lines.Append(page).ToList(), most, fits);
+        var cut = Cut(lines, most - 1, fits);
+        cut.Add(page);
+        return cut;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex PageNumber = new(@"^\(\d+/\d+\)$");
+
+    private static List<string> Wrapped(IEnumerable<string> given, Func<string, bool> fits)
+    {
         var lines = new List<string>();
-        foreach (var given in text.Split('\n'))
+        foreach (var part in given)
         {
             var line = "";
-            foreach (var word in given.Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(w => Broken(w, fits)))
+            foreach (var word in part.Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(w => Broken(w, fits)))
             {
                 string longer = line == "" ? word : line + " " + word;
                 if (line != "" && !fits(longer))
@@ -239,7 +264,7 @@ public static class GivingScreen
             if (line != "")
                 lines.Add(line);
         }
-        return Cut(lines, most, fits);
+        return lines;
     }
 
     // Lines wrapped, at most most of them: the last of those cut short ends in an ellipsis.
