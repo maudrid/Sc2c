@@ -85,7 +85,7 @@ public class BattleContentTests
     {
         // The status panel names a ship from its race strings (shipstat.c:
         // entry 1) and its captain from one of the 16 from NAME_OFFSET, 5
-        // (build.h, NameCaptain). The flagship's names are the player's own.
+        // (build.h, PickCaptainName). The flagship's names are the player's own.
         Assert.Null(Fighters[0].RaceStrings);
         var table = TestContent.With(p => StringTable.Load(p, Fighters[1].RaceStrings!));
         Assert.True(table.Count >= 5 + 16, $"{Fighters[1].RaceStrings} has {table.Count} strings");
@@ -153,7 +153,9 @@ public class BattleContentTests
             .Select(i => (byte)((pixels[i * 3] | pixels[i * 3 + 1] << 8 | pixels[i * 3 + 2] << 16) != key ? 1 : 0)).ToArray();
         Assert.Equal(new byte[] { 1, 0, 1, 1, 1, 1 }, want);
         Assert.Equal(want, ContactShapes.Frame(new AnimationFrame("x", 5, -1, 0, 0), png).Mask);
-        // With 0, black is the key (none here); with -1 there's none, and black (0) can't touch.
+        // With 0 or -1 the PNG's key is dropped: the key is black, or none, and
+        // then too black can't touch (this image has no black; the water
+        // planet's does: ATrueColourFrameTouchesWhereItIsntItsKey).
         Assert.Equal(new byte[] { 1, 1, 1, 1, 1, 1 }, ContactShapes.Frame(new AnimationFrame("x", 0, -1, 0, 0), png).Mask);
         Assert.Equal(new byte[] { 1, 1, 1, 1, 1, 1 }, ContactShapes.Frame(new AnimationFrame("x", -1, -1, 0, 0), png).Mask);
     }

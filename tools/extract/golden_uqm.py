@@ -1738,6 +1738,8 @@ def record_battle_masks(uqm, strings_exe, images_exe, package):
                         "src/libs/graphics/sdl/sdl_common.c",
                         "src/libs/graphics/sdl/sdl1_common.c",
                         "src/libs/graphics/sdl/pure.c",
+                        "src/libs/graphics/sdl/sdl2_pure.c",
+                        "src/libs/graphics/sdl/opengl.c",
                         "src/uqm/collide.h", "src/uqm/init.c",
                         "src/uqm/cons_res.c"], [
         "The collision masks of the sprite sheets a battle tests for "
@@ -1839,7 +1841,11 @@ def record_contact(uqm, systems_exe, strings_exe, images_exe, package):
                         "src/libs/graphics/gfxload.c",
                         "src/libs/graphics/sdl/canvas.c",
                         "src/libs/graphics/tfb_draw.c",
-                        "src/libs/graphics/sdl/sdl_common.c"], [
+                        "src/libs/graphics/sdl/sdl_common.c",
+                        "src/libs/graphics/sdl/sdl1_common.c",
+                        "src/libs/graphics/sdl/pure.c",
+                        "src/libs/graphics/sdl/sdl2_pure.c",
+                        "src/libs/graphics/sdl/opengl.c"], [
         "The collision masks of the sprite sheets UQM tests for contact, "
         f"from the official content package (SHA-256 {CONTENT_SHA256}): "
         "each frame as _GetCelData loads it, read by UQM's own PNG loader, "

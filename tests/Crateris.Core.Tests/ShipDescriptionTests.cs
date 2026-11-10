@@ -110,7 +110,9 @@ public class ShipDescriptionTests
             File.WriteAllText(Path.Combine(dir, "ships.json"), json.Replace("\"MAX_ENERGY\": 24,", "\"MAX_ENERGY\": 24, \"MAX_ENERGY\": 25,"));
             Assert.Throws<InvalidDataException>(() => ShipDescriptions.Load(dir));
             Write(r => r["ships"]![0]!["id"] = null);
-            Assert.Throws<InvalidDataException>(() => ShipDescriptions.Load(dir));
+            Assert.Contains("no id", Assert.Throws<InvalidDataException>(() => ShipDescriptions.Load(dir)).Message);
+            Write(r => r["ships"]![0]!["id"] = "");
+            Assert.Contains("no id", Assert.Throws<InvalidDataException>(() => ShipDescriptions.Load(dir)).Message);
             // Graphics not at three sizes.
             Write(r => r["ships"]![0]!["graphics"]!["ship"]!.AsArray().RemoveAt(2));
             Assert.Throws<InvalidDataException>(() => ShipDescriptions.Load(dir));
@@ -135,7 +137,7 @@ public class ShipDescriptionTests
         Assert.Equal(new[] { "large", "medium", "small" }.Select(v => $"ship.ilwrath.graphics.fire.{v}"), ilwrath.Weapon);
         Assert.Equal(("ship.ilwrath.graphics.captain", "ship.ilwrath.icons", "ship.ilwrath.meleeicons"),
             (ilwrath.Captain, ilwrath.Icons, ilwrath.MeleeIcon));
-        // A battle draws the sheets at three zooms, the captain and the icons, not the melee icon (which load_ship loads, for systems and the shipyard).
+        // A battle draws the sheets at three zooms, the captain and the icons, not the melee icon (which load_ship loads, for screens outside a battle: systems, the shipyard, Super Melee's team).
         Assert.Equal(8, ilwrath.BattleResources().Count());
         Assert.DoesNotContain("ship.ilwrath.meleeicons", ilwrath.BattleResources());
         // load_animation reuses the size before for a size without a resource: the Umgah's spritz has one.

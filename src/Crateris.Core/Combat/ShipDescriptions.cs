@@ -75,7 +75,8 @@ public sealed record ShipGraphics(
     /// <summary>
     /// Every GFXRES resource a battle draws for the ship: its sheets, captain
     /// and icons (load_ship with its battle data). load_ship loads the melee
-    /// icon too, but only a system (ipdisp.c) and the shipyard draw it.
+    /// icon too, but only screens outside a battle draw it (systems, the
+    /// shipyard, Super Melee's team screen).
     /// </summary>
     public IEnumerable<string> BattleResources() =>
         new[] { Sheets(Ship), Sheets(Weapon), Sheets(Special) }
@@ -166,7 +167,8 @@ public sealed class ShipDescriptions
             var ships = new List<ShipDescription>();
             foreach (var s in root.GetProperty("ships").EnumerateArray())
             {
-                string id = s.GetProperty("id").GetString()!;
+                string id = s.GetProperty("id").GetString() is { Length: > 0 } named
+                    ? named : throw new InvalidDataException("a ship in ships.json has no id");
                 var flags = ShipFlags.None;
                 foreach (var f in s.GetProperty("flags").EnumerateArray())
                     flags |= FlagNames.TryGetValue(f.GetString()!, out var flag)

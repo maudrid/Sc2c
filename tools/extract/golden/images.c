@@ -34,13 +34,15 @@
  *                    TFB_DrawImage_New (tfb_draw.c) converts it with
  *                    TFB_DisplayFormatAlpha (sdl_common.c): the screens
  *                    are 32 bits, 8 a channel, without alpha (pure.c,
- *                    opengl.c), and SDL_ConvertSurface keeps each pixel's
+ *                    opengl.c, sdl2_pure.c), and SDL_ConvertSurface keeps each pixel's
  *                    colour and the colour key's, so a pixel touches if
  *                    its colour isn't the key's (black when there's no
- *                    key, as the converted 0 is black). That rests on
- *                    SDL's blit writing 0 into the 32-bit pixel's unused
- *                    byte (no Amask), as TFB_DrawCanvas_Intersect compares
- *                    all 32 bits. This step is modelled here, not run: the
+ *                    key, as the converted 0 is black). For a frame
+ *                    without a key that rests on SDL's blit writing 0 into
+ *                    the 32-bit pixel's unused byte (no Amask), as
+ *                    TFB_DrawCanvas_Intersect compares all 32 bits (checked
+ *                    for SDL 1.2's blitter; a keyed frame's key is
+ *                    converted with its pixels, so it holds either way). This step is modelled here, not run: the
  *                    stand-in SDL has no conversion.
  */
 
