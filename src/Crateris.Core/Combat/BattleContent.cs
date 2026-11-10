@@ -152,6 +152,10 @@ public sealed class BattleSheets
     private readonly Dictionary<string, Sheet> _sheets = new();
     private readonly Dictionary<string, Views> _views = new();
 
+    // Sheets and views are made when first asked for, from several threads
+    // at once (the tests replaying battles in parallel): one lock for both.
+    private readonly object _lock = new();
+
     public BattleSheets(AnimationSheets decoded, BattleShapes shapes)
     {
         _decoded = decoded;
@@ -163,10 +167,13 @@ public sealed class BattleSheets
     {
         get
         {
-            if (!_sheets.TryGetValue(resourceId, out var sheet))
-                _sheets[resourceId] = sheet = new Sheet(resourceId, _decoded[resourceId].Count,
-                    _shapes.Sheets.TryGetValue(resourceId, out var shapes) ? shapes : null);
-            return sheet;
+            lock (_lock)
+            {
+                if (!_sheets.TryGetValue(resourceId, out var sheet))
+                    _sheets[resourceId] = sheet = new Sheet(resourceId, _decoded[resourceId].Count,
+                        _shapes.Sheets.TryGetValue(resourceId, out var shapes) ? shapes : null);
+                return sheet;
+            }
         }
     }
 
@@ -182,8 +189,7 @@ public sealed class BattleSheets
         if (ShipGraphics.Sheets(resources) is not { } sheets)
             return null;
         string key = string.Join("\n", sheets);
-        // Asked from several threads at once (the tests replaying battles in parallel).
-        lock (_views)
+        lock (_lock)
         {
             if (!_views.TryGetValue(key, out var views))
                 _views[key] = views = new Views(sheets.Select(s => this[s]).ToArray());
