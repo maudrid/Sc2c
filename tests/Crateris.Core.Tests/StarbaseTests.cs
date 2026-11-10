@@ -337,7 +337,8 @@ public class StarbaseTests
         var kit = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
         var hostModules = kit["players"]!.AsArray().First(p => p!["kind"]!.GetValue<string>() == "flagship")!["modules"]!;
         hostModules["kit_crew"] = 10;
-        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(kit.ToJsonString(), Systems, TestContent.Shapes));
+        Assert.Contains("crew pods only",
+            Assert.Throws<InvalidDataException>(() => HostSave.FromJson(kit.ToJsonString(), Systems, TestContent.Shapes)).Message);
         // An older save's ship has its loadout's slots.
         var old = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
         old["version"] = 8;

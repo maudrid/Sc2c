@@ -195,7 +195,7 @@
   "tests/Crateris.Core.Tests/StarEntryTrackerTests.cs": "93f843a3d7b2b3a4",
   "tests/Crateris.Core.Tests/StarSystemTests.cs": "a822532e44182158",
   "tests/Crateris.Core.Tests/StarbaseScreensTests.cs": "1aed24cacb6a9eec",
-  "tests/Crateris.Core.Tests/StarbaseTests.cs": "1705c260acae4345",
+  "tests/Crateris.Core.Tests/StarbaseTests.cs": "35bc74a425ee1be3",
   "tests/Crateris.Core.Tests/StoryStateTests.cs": "3cddac4c370eb956",
   "tests/Crateris.Core.Tests/StringTableTests.cs": "ed1f78733719ae9a",
   "tests/Crateris.Core.Tests/SurfaceMapTests.cs": "afc7725a9682422f",

@@ -1970,12 +1970,12 @@ class BattleProgram:
         res = subprocess.run([self.exe, self.sheets_file, self.masks], input="\n".join(lines) + "\n",
                              capture_output=True, text=True)
         if res.returncode < 0:
-            # UQM's own code crashing: AbandonShip events emptying a ship (the
-            # Syreen's song, UQM's one caller, leaves one crew) can leave
-            # floating crew whose ship is freed under them (crew_preprocess).
-            raise RuntimeError(f"the battle program crashed (signal {-res.returncode}); possibly an "
-                               "AbandonShip event emptying a ship (clamp_events keeps one crew aboard). "
-                               f"{res.stderr.strip()}")
+            # UQM's own code crashing. The one cause seen: AbandonShip events
+            # emptying a ship (the Syreen's song, UQM's one caller, leaves one
+            # crew), leaving floating crew whose ship is freed under them.
+            raise RuntimeError(" ".join(filter(None, [
+                f"the battle program crashed (signal {-res.returncode}); possibly an AbandonShip event "
+                "emptying a ship (clamp_events keeps one crew aboard).", res.stderr.strip()])))
         if res.returncode:
             raise RuntimeError(f"the battle program refused a battle: {res.stderr.strip()}")
         out = res.stdout
@@ -2837,7 +2837,7 @@ def check_ship_battles(scenarios, battles):
         c = [x for x in crew(name, 0) if x is not None]
         last = frames(name)[-1]
         if not by_name[name]["ended"] or by_name[name]["crew_enlisted"] in (0xFFFF, scenario[name]["ships"][0]["crew"]) \
-                or by_name[name]["crew_enlisted"] != c[-1] - 1 or not c[-1] \
+                or by_name[name]["crew_enlisted"] != c[-1] - 1 \
                 or ship_of(last, 0) or not (fighting(last, 1) and fighting(last, 1)[0]) \
                 or not any(ship_of(f, 0) and ship_of(f, 0)[E_PRIM] == STAMPFILL_PRIM for f in frames(name)):
             fail(name, "the flagship didn't retreat with its crew")
