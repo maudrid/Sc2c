@@ -244,6 +244,9 @@ public sealed class Element
     /// <summary>The element after this one in its list, or none.</summary>
     public Element? Successor => Succ;
 
+    /// <summary>The element before this one in its list (GetPredElement), or none.</summary>
+    public Element? Predecessor => Pred;
+
     /// <summary>AllocElement's memset: every field cleared but the primitive's colour (<see cref="PrimColor"/>), not drawn.</summary>
     internal void Clear()
     {

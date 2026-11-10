@@ -607,7 +607,7 @@ public sealed partial class Battle
     }
 
     // Untarget: nothing homes in on or follows this element any more.
-    private void Untarget(Element e)
+    internal void Untarget(Element e)
     {
         foreach (var l in List.Elements)
             if (l.Target == e)

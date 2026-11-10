@@ -28,11 +28,14 @@
  * and the screen's drawing are stubbed (battle_stubs.c); the clock is
  * the seed.
  *
- * The ships are test ships (load_ship): a RACE_DESC with UQM's stock
+ * A ship is a test ship (load_ship): a RACE_DESC with UQM's stock
  * ship_preprocess and ship_postprocess (no preprocess_func or
  * postprocess_func of their own) and plain weapons made with weapon.c's
  * initialize_missile and initialize_laser, flying the flagship's or the
- * Ilwrath's sheets. Item 3 ports the real ships.
+ * Ilwrath's sheets (item 2's traces); or one of the game's own ships
+ * (item 3's): the flagship, UQM's sis_ship.c (init_sis building it from
+ * GLOBAL_SIS's slots and crew, as in an encounter), or the Ilwrath,
+ * ilwrath.c (init_ilwrath), with the sheets their RACE_DESCs name.
  *
  * Usage: battle SHEETS MASKS. SHEETS lists the sheets, a line each:
  * "number resource frames"; MASKS is a folder of NUMBER.INDEX.mask files
@@ -47,7 +50,8 @@
  * seed is TFB_SeedRandom's; scale 0 the step zoom (TFB_SCALE_STEP), 1 the
  * smooth (TFB_SCALE_TRILINEAR, UQM's default); runaway 1 sets
  * STARBASE_AVAILABLE, so side 0 can retreat (BATTLE_ESCAPE); planet0..2
- * the planet's sheets (planet[], load_gravity_well's). A ship:
+ * the planet's sheets (planet[], load_gravity_well's). A ship is its
+ * kind, then what that kind takes: 0 a test ship,
  *   hull0 hull1 hull2 weap0 weap1 weap2 crew max_crew energy max_energy
  *   ship_flags max_thrust thrust_increment energy_regeneration
  *   weapon_energy_cost special_energy_cost energy_wait turn_wait
@@ -60,10 +64,14 @@
  * TrackShip every track_wait + 1 frames), 4 a laser ahead (initialize_laser,
  * laser_range pixels), 8 six missiles round the ship (instead of the
  * others); life, speed, hits, damage and offset are the missiles'
- * MISSILE_BLOCK's (offset also the laser's pixoffs). Keys hold for the
+ * MISSILE_BLOCK's (offset also the laser's pixoffs); 1 the flagship (side
+ * 0 only), "crew bomb drive0..10 jet0..7 module0..15": GLOBAL_SIS's
+ * CrewEnlisted and slots (sis.h's module numbers), and CHMMR_BOMB_STATE;
+ * 2 the Ilwrath, "crew": its STARSHIP's crew_level (its RACE_DESC's 22
+ * held to that, as an encounter's ship). Keys hold for the
  * step's frames, as BATTLE_INPUT_STATE: 1 left, 2 right, 4 thrust,
  * 8 weapon, 16 special, 32 escape; after the steps the battle ends.
- * fleet0 and fleet1 are how many of its test ship each side has: when
+ * fleet0 and fleet1 are how many of its ship each side has: when
  * one dies, the next takes over its element (GetNextStarShip). An event at
  * a frame calls AbandonShip (misc.c) on side's ship in the battle towards
  * target's, for crew, before that frame.
@@ -83,9 +91,13 @@
  * TravelAngle, vector, fract, error and incr (width then height), current x,
  * y, next x, y] as the netplay checksum (checksum.c) takes it, then
  * [sheet, frame index] of current.image.frame, playerNr, the primitive's
- * type and whether its colour is black, and the slot (its handle) and
- * hTarget's slot (0 none); draws each TFB_Random's caller, as an address.
- * "ended" says whether the battle ended (IN_BATTLE cleared).
+ * type and whether its colour is black, the slot (its handle) and
+ * hTarget's slot (0 none), and the primitive's colour (prim_color: RGB15,
+ * -1 never set); draws each TFB_Random's caller, as an address.
+ * "ended" says whether the battle ended (IN_BATTLE cleared);
+ * "crew_enlisted" is GLOBAL_SIS (CrewEnlisted) after it (uninit_sis writes
+ * a dead flagship's crew there, through free_ship) and "bomb_carrier"
+ * BOMB_CARRIER (init_sis sets it).
  */
 
 #include "uqm/battle.c"
@@ -433,21 +445,56 @@ test_weapons (ELEMENT *ShipPtr, HELEMENT Weapon[])
 	return n;
 }
 
-/* build.c's load_ship: the side's test ship, a fresh copy of its RACE_DESC. */
+/* ---- The ships of the game: sis_ship.c's flagship and ilwrath.c's ---- */
+
+enum { K_TEST = 0, K_SIS = 1, K_ILWRATH = 2 };
+static int ship_kind[NUM_SIDES];
+static int ship_crew[NUM_SIDES];   /* the STARSHIP's crew_level (the Ilwrath's) */
+
+/* The flagship's GLOBAL_SIS, which init_sis reads, and CHMMR_BOMB_STATE. */
+static int sis_crew, sis_bomb;
+static BYTE sis_drives[NUM_DRIVE_SLOTS], sis_jets[NUM_JET_SLOTS],
+		sis_modules[NUM_MODULE_SLOTS];
+
+extern RACE_DESC *init_sis (void);
+extern RACE_DESC *init_ilwrath (void);
+
+/* load_animation's frames for a RACE_DESC's sheets, by their resources. */
+static void
+bind_frames (FRAME *frames, RESOURCE *rsc)
+{
+	int j;
+	for (j = 0; j < NUM_VIEWS; ++j)
+		frames[j] = rsc[j] ? &sheet_frames[sheet_named (rsc[j])][0] : NULL;
+}
+
+/* build.c's load_ship: the side's ship, a fresh copy of its RACE_DESC (a
+ * test ship's, or init_sis's or init_ilwrath's with its sheets). */
 RACE_DESC *
 load_ship (SPECIES_ID SpeciesID, BOOLEAN LoadBattleData)
 {
 	int side = SpeciesID == SIS_SHIP_ID ? 0 : 1;
 	RACE_DESC *rd = malloc (sizeof *rd);
 	(void) LoadBattleData;
-	*rd = test_ships[side].desc;
+	if (ship_kind[side] == K_TEST)
+		*rd = test_ships[side].desc;
+	else
+	{
+		*rd = ship_kind[side] == K_SIS ? *init_sis () : *init_ilwrath ();
+		bind_frames (rd->ship_data.ship, rd->ship_data.ship_rsc);
+		bind_frames (rd->ship_data.weapon, rd->ship_data.weapon_rsc);
+	}
 	return rd;
 }
 
+/* loadship.c's free_ship: the ship's uninit_func (uninit_sis writes the
+ * crew left to GLOBAL_SIS (CrewEnlisted)), then the RACE_DESC freed. */
 void
 free_ship (RACE_DESC *RaceDescPtr, BOOLEAN FreeIconData, BOOLEAN FreeBattleData)
 {
 	(void) FreeIconData; (void) FreeBattleData;
+	if (RaceDescPtr->uninit_func != NULL)
+		(*RaceDescPtr->uninit_func) (RaceDescPtr);
 	free (RaceDescPtr);
 }
 
@@ -510,6 +557,18 @@ slot_of (HELEMENT h)
 	return h ? (int) (((BYTE *) h - disp_q.pq_tab) / sizeof (ELEMENT)) + 1 : 0;
 }
 
+/* The primitive's colour as MAKE_RGB15 took it (5 bits each of red,
+ * green and blue), or -1 for one never set (a zeroed primitive's alpha 0,
+ * which isn't BLACK_COLOR's). */
+static int
+prim_color (PRIMITIVE *p)
+{
+	Color c = GetPrimColor (p);
+	if (c.a == 0)
+		return -1;
+	return ((c.r >> 3) << 10) | ((c.g >> 3) << 5) | (c.b >> 3);
+}
+
 static void
 record (int start)
 {
@@ -548,7 +607,7 @@ record (int start)
 		LockElement (h, &e);
 		p = &DisplayArray[e->PrimIndex];
 		printf ("%s[%u, %u, %u, %u, %u, %u, %u, %d, %d, %d, %d, %d, %d, %d, %d, "
-				"%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d]", first ? "" : ", ",
+				"%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d]", first ? "" : ", ",
 				e->state_flags, e->life_span, e->crew_level, e->mass_points,
 				e->turn_wait, e->thrust_wait, e->velocity.TravelAngle,
 				e->velocity.vector.width, e->velocity.vector.height,
@@ -562,7 +621,7 @@ record (int start)
 				GetPrimType (p),
 				(GetPrimType (p) == STAMPFILL_PRIM
 				&& sameColor (GetPrimColor (p), BLACK_COLOR)),
-				slot_of (h), slot_of (e->hTarget));
+				slot_of (h), slot_of (e->hTarget), prim_color (p));
 		first = 0;
 		next = GetSuccElement (e);
 		UnlockElement (h);
@@ -647,6 +706,30 @@ read_ship (int side)
 	RACE_DESC *rd = &t->desc;
 	CHARACTERISTIC_STUFF *c = &rd->characteristics;
 	int v[29], i, j;
+	if (scanf ("%d", &ship_kind[side]) != 1
+			|| ship_kind[side] < K_TEST || ship_kind[side] > K_ILWRATH)
+		return 0;
+	if (ship_kind[side] == K_SIS)
+	{
+		int slot;
+		if (side != 0 || scanf ("%d %d", &sis_crew, &sis_bomb) != 2)
+			return 0;
+		for (i = 0; i < NUM_DRIVE_SLOTS + NUM_JET_SLOTS + NUM_MODULE_SLOTS; ++i)
+		{
+			if (scanf ("%d", &slot) != 1)
+				return 0;
+			if (i < NUM_DRIVE_SLOTS)
+				sis_drives[i] = (BYTE) slot;
+			else if (i < NUM_DRIVE_SLOTS + NUM_JET_SLOTS)
+				sis_jets[i - NUM_DRIVE_SLOTS] = (BYTE) slot;
+			else
+				sis_modules[i - NUM_DRIVE_SLOTS - NUM_JET_SLOTS] = (BYTE) slot;
+		}
+		ship_crew[side] = 0;   /* the flagship's crew is GLOBAL_SIS's */
+		return 1;
+	}
+	if (ship_kind[side] == K_ILWRATH)
+		return scanf ("%d", &ship_crew[side]) == 1;
 	for (i = 0; i < 29; ++i)
 		if (scanf ("%d", &v[i]) != 1)
 			return 0;
@@ -684,6 +767,7 @@ read_ship (int side)
 	if (scanf ("%d", &t->laser_range) != 1)
 		return 0;
 	rd->init_weapon_func = test_weapons;
+	ship_crew[side] = rd->ship_info.crew_level;
 	return 1;
 }
 
@@ -698,12 +782,20 @@ fight (const char *name, int scale, int runaway)
 	GLOBAL (DisplayArray) = DisplayArray;
 	GLOBAL (CurrentActivity) = IN_ENCOUNTER;
 	SET_GAME_STATE (STARBASE_AVAILABLE, runaway);
+	SET_GAME_STATE (CHMMR_BOMB_STATE, sis_bomb);
+	GLOBAL_SIS (CrewEnlisted) = sis_crew;
+	memcpy (GLOBAL_SIS (DriveSlots), sis_drives, sizeof sis_drives);
+	memcpy (GLOBAL_SIS (JetSlots), sis_jets, sizeof sis_jets);
+	memcpy (GLOBAL_SIS (ModuleSlots), sis_modules, sizeof sis_modules);
 	optMeleeScale = scale ? TFB_SCALE_TRILINEAR : TFB_SCALE_STEP;
 	InitStatusOffsets ();
 	/* Each battle as if the game had just started: no winner from the
 	 * last (tactrans.c keeps it), the view's corner where it starts. */
 	ResetWinnerStarShip ();
 	SpaceOrg.x = SpaceOrg.y = 0;
+	/* and the primitives as a new game's: zeroed, no colour set (each
+	 * element keeps its slot's last colour, within a battle). */
+	memset (DisplayArray, 0, sizeof DisplayArray);
 	for (i = 0; i < NUM_SIDES; ++i)
 	{
 		HSTARSHIP h;
@@ -717,8 +809,9 @@ fight (const char *name, int scale, int runaway)
 			s->SpeciesID = i == 0 ? SIS_SHIP_ID : ILWRATH_ID;
 			s->playerNr = i;
 			s->captains_name_index = i == 0 ? 0 : 5;
-			s->crew_level = test_ships[i].desc.ship_info.crew_level;
-			s->max_crew = test_ships[i].desc.ship_info.max_crew;
+			s->crew_level = ship_crew[i];
+			s->max_crew = ship_kind[i] == K_TEST
+					? test_ships[i].desc.ship_info.max_crew : 0;
 			PutQueue (&race_q[i], h);
 		}
 		inputs[i].handlers = &scripted_handlers;
@@ -732,7 +825,9 @@ fight (const char *name, int scale, int runaway)
 	frame_view = -1;
 	printf ("{\"name\": \"%s\", \"stars\": ", name);
 	Battle (NULL);
-	printf ("\n], \"ended\": %s}\n", ended ? "true" : "false");
+	printf ("\n], \"ended\": %s, \"crew_enlisted\": %u, \"bomb_carrier\": %d}\n",
+			ended ? "true" : "false", GLOBAL_SIS (CrewEnlisted),
+			GET_GAME_STATE (BOMB_CARRIER));
 	for (i = 0; i < NUM_SIDES; ++i)
 		UninitQueue (&race_q[i]);
 	fflush (stdout);
@@ -764,6 +859,7 @@ main (int argc, char *argv[])
 	{
 		for (i = 0; i < NUM_VIEWS; ++i)
 			planet[i] = &sheet_frames[p[i]][0];
+		sis_crew = sis_bomb = 0;
 		if (!read_ship (0) || !read_ship (1))
 			return bad_input (name, "a ship");
 		if (scanf ("%d %d", &fleet_size[0], &fleet_size[1]) != 2

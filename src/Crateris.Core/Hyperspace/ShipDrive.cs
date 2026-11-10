@@ -12,9 +12,11 @@
 namespace Crateris.Core.Hyperspace;
 
 /// <summary>
-/// Flight characteristics of a player ship in hyperspace, derived from its
-/// thrusters and turning jets the way init_sis does for the flagship.
-/// Escorts use the same rules (their module set is an open item).
+/// Flight characteristics of a player ship, derived from its thrusters and
+/// turning jets the way init_sis does for the flagship (InitDriveSlots,
+/// InitJetSlots): in hyperspace, and in battle (the flagship's battle
+/// description, <see cref="Combat.SisShip"/>). Escorts use the same rules
+/// (stage 4, decision 3).
 /// </summary>
 public readonly record struct ShipDrive(int MaxThrust, int ThrustIncrement, int ThrustWait, int TurnWait)
 {
@@ -29,7 +31,12 @@ public readonly record struct ShipDrive(int MaxThrust, int ThrustIncrement, int 
     public const int MaxJets = 8;        // NUM_JET_SLOTS
 
     /// <summary>init_sis in hyperspace, for a ship with this many thrusters and jets.</summary>
-    public static ShipDrive ForHyperspace(int thrusters, int jets)
+    public static ShipDrive ForHyperspace(int thrusters, int jets) => Make(thrusters, jets, hyperspace: true);
+
+    /// <summary>init_sis in battle, for a ship with this many thrusters and jets.</summary>
+    public static ShipDrive ForBattle(int thrusters, int jets) => Make(thrusters, jets, hyperspace: false);
+
+    private static ShipDrive Make(int thrusters, int jets, bool hyperspace)
     {
         if (thrusters < 0 || thrusters > MaxThrusters)
             throw new ArgumentOutOfRangeException(nameof(thrusters));
@@ -37,7 +44,7 @@ public readonly record struct ShipDrive(int MaxThrust, int ThrustIncrement, int 
             throw new ArgumentOutOfRangeException(nameof(jets));
 
         // inHQSpace: max_thrust -= 4, before the drive slots are counted.
-        int maxThrust = BaseMaxThrust - HyperspaceThrustPenalty;
+        int maxThrust = BaseMaxThrust - (hyperspace ? HyperspaceThrustPenalty : 0);
         maxThrust += 2 * thrusters;
         int thrustWait = (byte)(BaseThrustWait - (thrusters >> 1));
         maxThrust = (maxThrust / BaseThrustIncrement + 1) * BaseThrustIncrement;

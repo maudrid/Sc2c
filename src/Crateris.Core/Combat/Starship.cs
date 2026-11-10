@@ -89,6 +89,13 @@ public sealed class RaceDesc
     /// be made (the list full).
     /// </summary>
     public Func<Element, IReadOnlyList<Element?>>? InitWeapon;
+
+    /// <summary>
+    /// uninit_func: called as the description is freed (free_ship), when
+    /// the ship's element is done with in the battle: the flagship's
+    /// (uninit_sis) gives back the crew it has left.
+    /// </summary>
+    public Action<RaceDesc>? Uninit;
 }
 
 /// <summary>Makes a ship's RACE_DESC for a battle (load_ship), the ship's own code bound to it.</summary>
