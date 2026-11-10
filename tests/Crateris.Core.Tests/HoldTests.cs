@@ -234,6 +234,10 @@ public class HoldTests
         ((JsonObject)node["settings"]!).Remove("battle_max_elements");
         Assert.Equal(defaults, HostSave.FromJson(node.ToJsonString()).Settings);
 
+        // A number given as null isn't one: the save is refused.
+        node["settings"]![field] = null;
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString()));
+
         node["settings"]![field] = field == "battle_max_elements" ? JsonValue.Create((int)value) : JsonValue.Create(value);
         var e = Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString()));
         Assert.Contains("battle", e.Message);

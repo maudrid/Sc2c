@@ -34,7 +34,11 @@ public sealed record BattleArena(Views Stars, Views Asteroid, Views Blast, Views
 /// which shows half UQM's arena each way. Places are 16-bit, as UQM's
 /// COORDs: an arena of at most <see cref="MaxScale"/> times UQM's keeps
 /// every place and every difference of two places in range, with room for
-/// the elements past an edge before they're wrapped. Each side is a
+/// the elements past an edge before they're wrapped. A place moved by the
+/// arena's size to test contact across the seam can pass a COORD's 32,767
+/// in an arena over about 2.67 times UQM's: what does so works in ints
+/// (<see cref="PlotIntercept"/>'s places) or display units (the contact
+/// tests' controls), never in a COORD. Each side is a
 /// multiple of 8, so the arena's centre is on a whole pixel, as UQM's is.
 /// </summary>
 public sealed record ArenaSize
@@ -462,16 +466,14 @@ public sealed partial class Battle
     // teammate in the battle isn't the next ship).
     private bool GetNextStarShip(Starship? last, int side)
     {
-        var next = _fleets[side].FirstOrDefault(s => s.Available && (s.Ship == null || s == last));
+        // (UQM recycles a ship of an infinite fleet, picking the dead one
+        // again; new_ship here always makes the dead ship unavailable first,
+        // so it never comes up: 4b's infinite fleets must bring it back.)
+        var next = _fleets[side].FirstOrDefault(s => s.Available && s.Ship == null);
         if (next != null)
         {
             if (last != null)
-            {
-                if (next == last)
-                    last = null;   // recycled (infinite fleets)
-                else
-                    next.Ship = last.Ship;
-            }
+                next.Ship = last.Ship;
             if (!SpawnShip(next))
                 return false;
         }

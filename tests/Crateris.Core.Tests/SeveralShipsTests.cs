@@ -601,6 +601,11 @@ public class SeveralShipsTests
         for (uint seed = 1; seed <= 10; ++seed)
         {
             var battle = NewBattle(seed, size, maxElements: 300);
+            // The random places (the ships', the planet's, the asteroids' off
+            // the seam, and a ship joining) reach past UQM's arena.
+            Assert.True(battle.Join(Player()));
+            farOut |= battle.List.Elements.Any(a => (a.Current.X >= Battle.LogSpaceWidth && a.Current.X != size.Width)
+                                                  || (a.Current.Y >= Battle.LogSpaceHeight && a.Current.Y != size.Height));
             Assert.True(battle.AcrossSeam);
             Assert.Equal(300, battle.List.Capacity);
             // The asteroids start on the arena's seam.
@@ -615,7 +620,6 @@ public class SeveralShipsTests
                     Assert.InRange(a.Current.X, 0, size.Width - 1);
                     Assert.InRange(a.Current.Y, 0, size.Height - 1);
                 });
-                farOut |= battle.List.Elements.Any(a => a.Current.X >= Battle.LogSpaceWidth || a.Current.Y >= Battle.LogSpaceHeight);
             }
             // The view's centre is the arena's; its size UQM's (MAX_ZOOM_OUT 1024: 8,192 * zoom / 4,096).
             Assert.Equal(Battle.DisplayAlign(size.Width / 2 - Battle.LogSpaceWidth * battle.ZoomOut / 4096), battle.SpaceOrgX);
@@ -653,11 +657,21 @@ public class SeveralShipsTests
         Assert.Equal(across ? crew - 2 : crew, escort.RaceDesc.CrewLevel);
         Assert.Equal(0, battle.ScrollX);
 
-        // Point defence reaches across it.
-        Put(battle, escort.Ship!, w - 200, cy + 1000);
-        Missile(battle, ilwrath, 100, (short)(cy + 1000), East, 0, life: 30);
+        // Point defence reaches across it (the arena's height: its width,
+        // 12,288, is 6 times 2,048, and a laser's 16-bit velocity would hide
+        // an aim off by it).
+        int h = size.Height, x = w / 2 - 3000;
+        Put(battle, escort.Ship!, x, h - 200);
+        Missile(battle, ilwrath, x, 100, East, 0, life: 30);
         battle.Step(ship => ship == escort ? BattleInput.Special : BattleInput.None);
         Assert.Equal(across ? 1 : 0, Lasers(battle, escort).Count);
+        if (across)
+        {
+            // Aimed the shorter way: it ends at the shot, 300 units south over the seam.
+            var laser = Lasers(battle, escort)[0];
+            Assert.InRange(battle.WrapDeltaX(laser.Current.X - x), -16, 16);
+            Assert.InRange(battle.WrapDeltaY(laser.Current.Y - 100), -16, 16);
+        }
 
         // A second Ilwrath, not the one the camera follows, and the escort
         // flying east into it across the seam: they bump.
@@ -763,6 +777,114 @@ public class SeveralShipsTests
         Assert.Equal(across, crew.Current.X > player.Current.X);
     }
 
+    [Fact]
+    public void PlotInterceptAcrossTheSeamOfTheBiggestArena()
+    {
+        // A player's shot near the arena's east edge flying east, the Ilwrath
+        // 8,788 units east of it over the seam: moved by the arena's size it
+        // is past a COORD's 32,767, and the AI still sees the hit coming.
+        var size = ArenaSize.Scaled(ArenaSize.MaxScale);
+        var (battle, players, ilwrath) = Fought(1, size);
+        var (_, cy) = Cleared(battle, players[0], ilwrath);
+        foreach (int shotX in new[] { 24000, 18000 })
+        {
+            var ai = ilwrath.Ship!;
+            Put(battle, ai, shotX + 8788 - size.Width, cy);
+            var shot = Steady(battle, Missile(battle, players[0], shotX, cy, East, 96, life: 200), shotX, cy);
+            Assert.NotEqual(0, battle.PlotIntercept(shot, ai, 200, 0));
+            Assert.NotEqual(0, battle.PlotIntercept(shot, ai, 200, (ushort)Battle.DisplayToWorld(20)));
+            battle.List.Remove(shot);
+            battle.List.Free(shot);
+        }
+    }
+
+    [Fact]
+    public void GravityHomingAndCrewMeasureTheBiggerArenasWayRound()
+    {
+        // In an arena 1.5 times UQM's (12,288 wide) the shorter way round is
+        // the arena's, not UQM's 8,192 wrap.
+        var size = ArenaSize.Scaled(1.5);
+        var (battle, players, ilwrath) = Fought(3, size);
+        var (_, cy) = Cleared(battle, players[0], ilwrath, keep: e => Battle.GravityMass(e.MassPoints));
+        var planet = battle.List.Elements.Single(e => Battle.GravityMass(e.MassPoints));
+
+        // The planet pulls a ship 800 units west of it over the seam, not
+        // one 7,692 east (4,596 west the arena's way round, 500 UQM's).
+        int y = cy + 3000;
+        Put(battle, planet, 300, y);
+        Put(battle, players[1].Ship!, 300 - 800, y);
+        Put(battle, players[2].Ship!, 300 + 7692, y);
+        battle.Step(None);
+        Assert.False(players[1].Ship!.Velocity.IsZero, "pulled across the seam");
+        Assert.True(players[2].Ship!.Velocity.IsZero, "too far the arena's way round");
+        battle.List.Remove(planet);
+        battle.List.Free(planet);
+
+        // The Ilwrath's shot homes in on the ship 4,000 east, not the one
+        // 5,000 east (3,192 west UQM's way round).
+        Put(battle, players[1].Ship!, 500 + 5000, y);
+        Put(battle, players[2].Ship!, 500 + 4000, y);
+        var tracker = Missile(battle, ilwrath, 500, y, North, 0, life: 30);
+        ushort facing = North;
+        battle.TrackShip(tracker, ref facing);
+        Assert.Same(players[2].Ship, tracker.Target);
+        Assert.Equal(1, facing);   // turning east
+        battle.List.Remove(tracker);
+        battle.List.Free(tracker);
+
+        // Crew floating 5,000 west of the Ilwrath drift east to it, 4 units a
+        // frame (but their first, as they appear).
+        battle.AbandonShip(players[1].Ship!, ilwrath.Ship!, 1);
+        var crew = battle.List.Elements.Single(e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+        var at = ilwrath.Ship!;
+        Put(battle, crew, at.Current.X - 5000, at.Current.Y + 400);
+        for (int frame = 0; frame < 3; ++frame)
+            battle.Step(None);
+        Assert.Equal(5000 - 2 * 4, battle.WrapDeltaX(at.Current.X - crew.Current.X));
+        Assert.Equal(400 - 2 * 4, battle.WrapDeltaY(crew.Current.Y - at.Current.Y));
+    }
+
+    [Fact]
+    public void TheCameraCentresShipsFarApartInTheBiggerArena()
+    {
+        // The two it follows 5,000 apart (more than half UQM's arena, less
+        // than half this one): their midpoint the shorter way is centred.
+        var size = ArenaSize.Scaled(1.5);
+        var (battle, players, ilwrath) = Fought(1, size);
+        var (cx, cy) = Cleared(battle, players[0], ilwrath);
+        Put(battle, players[0].Ship!, cx - 2500, cy);
+        Put(battle, ilwrath.Ship!, cx + 2500, cy);
+        battle.Step(None);
+        AssertCentred(battle, players[0], ilwrath, cx, cy);
+
+        // Their midpoint 5,000 from the centre: the frame scrolls 5,000.
+        Put(battle, players[0].Ship!, cx + 5000 - 300, cy + 500);
+        Put(battle, ilwrath.Ship!, cx + 5000 + 300, cy + 500);
+        battle.Step(None);
+        Assert.Equal(-5000, battle.ScrollX);
+        AssertCentred(battle, players[0], ilwrath, cx, cy);
+    }
+
+    [Fact]
+    public void FloatingCrewStillMeetsAsteroids()
+    {
+        // Crew (neutral) and an asteroid (neutral) aren't teammates: the crew
+        // hit the asteroid and are gone, as in UQM.
+        var (battle, players, ilwrath) = Fought(2);
+        var (_, cy) = Cleared(battle, players[0], ilwrath, keep: e => e.MassPoints == 3);
+        var asteroid = battle.List.Elements.First(e => e.MassPoints == 3);
+        Put(battle, asteroid, 2000, cy + 3000);
+        battle.AbandonShip(players[1].Ship!, ilwrath.Ship!, 1);
+        var crew = battle.List.Elements.Single(e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+        Put(battle, crew, 2000, cy + 2000);
+        battle.Step(None);
+        Assert.Contains(crew, battle.List.Elements);
+        Put(battle, crew, asteroid.Current.X, asteroid.Current.Y);
+        battle.Step(None);
+        Assert.DoesNotContain(crew, battle.List.Elements);
+        Assert.Contains(asteroid, battle.List.Elements);
+    }
+
     // ---- The battle ----
 
     // A battle of the flagship (or a player ship of the loadout given)
@@ -825,10 +947,16 @@ public class SeveralShipsTests
     // The planet and asteroids taken out; the two ships the camera follows
     // put still either side of the arena's centre, so the frame stays where
     // it is. Returns the centre.
-    private static (int X, int Y) Cleared(Battle battle, Starship first, Starship enemy)
+    private static (int X, int Y) Cleared(Battle battle, Starship first, Starship enemy, Func<Element, bool>? keep = null)
     {
+        bool kept = false;
         foreach (var e in battle.List.Elements.Where(e => (e.StateFlags & ElementFlags.PlayerShip) == 0).ToList())
         {
+            if (!kept && keep?.Invoke(e) == true)
+            {
+                kept = true;
+                continue;
+            }
             battle.List.Remove(e);
             battle.List.Free(e);
         }
@@ -840,6 +968,17 @@ public class SeveralShipsTests
         battle.Step(None);
         Assert.Equal((0, 0), ((int)battle.ScrollX, (int)battle.ScrollY));
         return (cx, cy);
+    }
+
+    // A shot put still at a place, then flying on as it was, its shape set
+    // (as the AI's ship_weapons sets up a shot just made).
+    private static Element Steady(Battle battle, Element shot, int x, int y)
+    {
+        var velocity = shot.Velocity;
+        Put(battle, shot, x, y);
+        shot.Velocity = velocity;
+        shot.Intersect.Frame = shot.Current.Frame.Shape;
+        return shot;
     }
 
     // An element put still at a place (world units), taken round the arena,

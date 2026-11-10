@@ -133,8 +133,17 @@ public static class HostSave
 
     private static GameWorld Load(string json, SystemCatalog? systems, ContactShapes? shapes)
     {
-        var save = JsonSerializer.Deserialize<SaveFile>(json, Options)
-            ?? throw new InvalidDataException("Empty save file.");
+        SaveFile save;
+        try
+        {
+            save = JsonSerializer.Deserialize<SaveFile>(json, Options)
+                   ?? throw new InvalidDataException("Empty save file.");
+        }
+        catch (JsonException e)
+        {
+            // Not JSON, or a value of the wrong kind (a number setting given as null).
+            throw new InvalidDataException($"The save isn't readable: {e.Message}", e);
+        }
         if (save.Version < OldestReadableVersion || save.Version > Version)
             throw new InvalidDataException(
                 $"Save version {save.Version} is not supported (expected {OldestReadableVersion} to {Version}).");
@@ -144,7 +153,9 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have resource units or have met the commander.");
         if (save.Version < 9 && (save.Players ?? new()).Any(p => p.Modules is not null))
             throw new InvalidDataException($"A version {save.Version} save can't have ship slots.");
-        // A setting a save leaves out, or gives as null, is the default.
+        // A setting a save leaves out is the default, and so is the ship's
+        // name or the escort's kit given as null; a number given as null
+        // isn't a number, and the save is refused (above).
         var settings = save.Settings ?? throw new InvalidDataException("The save has no settings.");
         if (settings.EscortShipName is null)
             settings = settings with { EscortShipName = new GameSettings().EscortShipName };

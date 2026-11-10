@@ -515,10 +515,14 @@ public sealed partial class Battle
                     if (margin != 0)
                         return (ushort)(timeY0 + 1);
 
-                    short pt0X = e0.Current.X, pt0Y = e0.Current.Y;
+                    // The places as UQM's COORDs; where contact is tested
+                    // across the seam, as ints: the second, moved by the
+                    // arena's size, and either, flying on, may pass 32,767
+                    // in a big arena (only differences of places stay in a COORD).
+                    int pt0X = e0.Current.X, pt0Y = e0.Current.Y;
                     var velocity0 = e0.Velocity;
                     var control0 = e0.Intersect.Copy();
-                    short pt1X = (short)(e1.Current.X + seamX), pt1Y = (short)(e1.Current.Y + seamY);
+                    int pt1X = e1.Current.X + seamX, pt1Y = e1.Current.Y + seamY;
                     var velocity1 = e1.Velocity;
                     var control1 = e1.Intersect.Copy();
                     Move(control1, (short)(seamX >> OneShift), (short)(seamY >> OneShift));
@@ -526,16 +530,16 @@ public sealed partial class Battle
                     if (timeY0 != 0)
                     {
                         (dx0, dy0) = velocity0.Next((ushort)timeY0);
-                        pt0X = (short)(pt0X + dx0);
-                        pt0Y = (short)(pt0Y + dy0);
-                        control0.EndX = WorldToDisplay(pt0X);
-                        control0.EndY = WorldToDisplay(pt0Y);
+                        pt0X = Place(pt0X + dx0);
+                        pt0Y = Place(pt0Y + dy0);
+                        control0.EndX = Display(pt0X);
+                        control0.EndY = Display(pt0Y);
 
                         (dx1, dy1) = velocity1.Next((ushort)timeY0);
-                        pt1X = (short)(pt1X + dx1);
-                        pt1Y = (short)(pt1Y + dy1);
-                        control1.EndX = WorldToDisplay(pt1X);
-                        control1.EndY = WorldToDisplay(pt1Y);
+                        pt1X = Place(pt1X + dx1);
+                        pt1Y = Place(pt1Y + dy1);
+                        control1.EndX = Display(pt1X);
+                        control1.EndY = Display(pt1Y);
                     }
 
                     do
@@ -543,22 +547,22 @@ public sealed partial class Battle
                         ++timeY0;
 
                         (dx0, dy0) = velocity0.Next(1);
-                        pt0X = (short)(pt0X + dx0);
-                        pt0Y = (short)(pt0Y + dy0);
+                        pt0X = Place(pt0X + dx0);
+                        pt0Y = Place(pt0Y + dy0);
 
                         (dx1, dy1) = velocity1.Next(1);
-                        pt1X = (short)(pt1X + dx1);
-                        pt1Y = (short)(pt1Y + dy1);
+                        pt1X = Place(pt1X + dx1);
+                        pt1Y = Place(pt1Y + dy1);
 
                         control0.OriginX = control0.EndX;
                         control0.OriginY = control0.EndY;
-                        control0.EndX = WorldToDisplay(pt0X);
-                        control0.EndY = WorldToDisplay(pt0Y);
+                        control0.EndX = Display(pt0X);
+                        control0.EndY = Display(pt0Y);
 
                         control1.OriginX = control1.EndX;
                         control1.OriginY = control1.EndY;
-                        control1.EndX = WorldToDisplay(pt1X);
-                        control1.EndY = WorldToDisplay(pt1Y);
+                        control1.EndX = Display(pt1X);
+                        control1.EndY = Display(pt1Y);
                         ushort when = Intersection.DrawablesIntersect(control0, control1, MaxTimeValue);
                         if (when != 0)
                         {
@@ -566,10 +570,10 @@ public sealed partial class Battle
                                           && ((e0.StateFlags | e1.StateFlags) & ElementFlags.Appearing) != 0)
                             {
                                 when = 0;
-                                control0.EndX = WorldToDisplay(pt0X);
-                                control0.EndY = WorldToDisplay(pt0Y);
-                                control1.EndX = WorldToDisplay(pt1X);
-                                control1.EndY = WorldToDisplay(pt1Y);
+                                control0.EndX = Display(pt0X);
+                                control0.EndY = Display(pt0Y);
+                                control1.EndX = Display(pt1X);
+                                control1.EndY = Display(pt1Y);
                             }
 
                             if (when != 0)
@@ -582,6 +586,13 @@ public sealed partial class Battle
 
         return 0;
     }
+
+    // PlotIntercept's places: a COORD as UQM's (16 bits, wrapping), or an
+    // int where contact is tested across the seam.
+    private int Place(int v) => AcrossSeam ? v : (short)v;
+
+    // A place in display units (WORLD_TO_DISPLAY), within a COORD.
+    private static short Display(int v) => (short)(v >> OneShift);
 
     // ship_movement: what to do about one concern.
     private void ShipMovement(Element ship, ref EvaluateDesc ed)
