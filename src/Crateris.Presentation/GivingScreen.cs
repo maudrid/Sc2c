@@ -212,7 +212,8 @@ public static class GivingScreen
 
     /// <summary>
     /// The text below the box (who it gives to, a notice, the keys) wrapped
-    /// at words into lines that <paramref name="fits"/>, at most
+    /// at words, and at its own line breaks (a blank line left out), into
+    /// lines that <paramref name="fits"/>, at most
     /// <paramref name="most"/>: one cut short ends in an ellipsis, a word
     /// too long for that last line cut a whole character at a time. A word
     /// too long for a line of its own (a long name) is broken, a whole
@@ -221,20 +222,23 @@ public static class GivingScreen
     public static List<string> Wrap(string text, int most, Func<string, bool> fits)
     {
         var lines = new List<string>();
-        var line = "";
-        foreach (var word in text.Replace('\n', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(w => Broken(w, fits)))
+        foreach (var given in text.Split('\n'))
         {
-            string longer = line == "" ? word : line + " " + word;
-            if (line != "" && !fits(longer))
+            var line = "";
+            foreach (var word in given.Split(' ', StringSplitOptions.RemoveEmptyEntries).SelectMany(w => Broken(w, fits)))
             {
-                lines.Add(line);
-                line = word;
+                string longer = line == "" ? word : line + " " + word;
+                if (line != "" && !fits(longer))
+                {
+                    lines.Add(line);
+                    line = word;
+                }
+                else
+                    line = longer;
             }
-            else
-                line = longer;
+            if (line != "")
+                lines.Add(line);
         }
-        if (line != "")
-            lines.Add(line);
         return Cut(lines, most, fits);
     }
 

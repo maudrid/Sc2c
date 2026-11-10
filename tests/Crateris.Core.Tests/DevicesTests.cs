@@ -117,6 +117,14 @@ public class DevicesTests
         Assert.Contains("later stage", me.OrbitMessage);
         me.PressMenu(MenuKey.Cancel);
         Assert.Null(me.OrbitMenu.DeviceList);
+        // The game unable to draw it closes it as Esc does, not by a key: back at the Manifest, the message gone.
+        me.PressMenu(MenuKey.Select);
+        me.PressMenu(MenuKey.Select);
+        Assert.Contains("later stage", me.OrbitMessage);
+        me.CloseDevices();
+        Assert.Null(me.OrbitMenu.DeviceList);
+        Assert.Equal(OrbitMenu.MenuPage.Manifest, me.OrbitMenu.Page);
+        Assert.Equal("", me.OrbitMessage);
     }
 
     [ContentFact]

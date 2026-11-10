@@ -168,6 +168,8 @@ public class GivingScreenTests
     {
         bool Fits(string s) => s.Length <= 12;
         Assert.Equal(new[] { "one two", "three four" }, GivingScreen.Wrap("one two\nthree four", 3, Fits));
+        // Its own line breaks kept (a notice's page number on a line of its own), blank lines left out.
+        Assert.Equal(new[] { "one", "two three", "(1/2)" }, GivingScreen.Wrap("one\ntwo three\n\n(1/2)", 5, Fits));
         Assert.Equal(new[] { "one two", "three four…" }, GivingScreen.Wrap("one two three four five", 2, Fits));
         // Whole words are dropped from the last line to make room for the ellipsis.
         Assert.Equal(new[] { "abcde…" }, GivingScreen.Wrap("abcde fghijk lmn", 1, Fits));

@@ -639,6 +639,19 @@ public sealed class PlayerSession
         }
     }
 
+    /// <summary>
+    /// Closes the Manifest's Devices list, back at the Manifest, as Esc would
+    /// but not by a key (the game unable to draw it; in a story pause a key
+    /// would be the talk's).
+    /// </summary>
+    public void CloseDevices()
+    {
+        if (OrbitMenu?.DeviceList is null)
+            return;
+        OrbitMenu.CloseDevices();
+        OrbitMessage = "";
+    }
+
     private void CloseTrade()
     {
         Trade = null;

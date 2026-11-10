@@ -300,5 +300,6 @@ public class OrbitMenuTests
         menu.CloseDevices();
         Assert.Null(menu.DeviceList);
         Assert.Equal(OrbitMenuItem.Devices, menu.Selected);
+        Assert.Equal(OrbitMenu.MenuPage.Manifest, menu.Page);
     }
 }
