@@ -499,35 +499,51 @@ public sealed partial class Battle
     /// frame), or null: UQM's follows every ship, one a side; here one ship
     /// a side, the side's first in its fleet still fighting (its element a
     /// ship's, with crew, not running away; for side 0 the battle's first
-    /// player still in it), or with none fighting, the first whose element
-    /// is still a ship's (UQM's camera follows a ship exploding or warping
-    /// out). With one ship a side, that ship's element.
+    /// player still in it), or with none fighting, one whose element is
+    /// still a ship's and stays one this frame (UQM's camera follows a ship
+    /// exploding or warping out until cleanup_dead_ship): the one followed
+    /// last frame while it is one, else the first. With none, null. With one
+    /// ship a side, that ship's element, or none in the frame its element
+    /// stops being a ship's (as UQM's, which then follows nothing of it).
     /// </summary>
     public Element? FollowedElement(int side)
     {
         Element? fallback = null;
+        bool lastStill = false;
         foreach (var s in _fleets[side])
         {
             var e = s.Ship;
-            if (e == null || (e.StateFlags & ElementFlags.PlayerShip) == 0)
+            if (e == null || (e.StateFlags & ElementFlags.PlayerShip) == 0 || LeavesThisFrame(e))
                 continue;
             if (s.RaceDesc is { CrewLevel: > 0 } && e.MassPoints <= MaxShipMass + 1)
                 return e;
             fallback ??= e;
+            lastStill |= e == _lastFollowed[side];
         }
-        return fallback;
+        return lastStill ? _lastFollowed[side] : fallback;
     }
+
+    // The element each side's camera followed last frame.
+    private readonly Element?[] _lastFollowed = new Element?[NumSides];
+
+    // A ship's element whose explosion or warp-out ends as this frame
+    // starts (cleanup_dead_ship, in PreProcess): it stops being a ship's.
+    internal bool LeavesThisFrame(Element e) =>
+        e.LifeSpan == 0 && e.DeathFunc == (ElementProcess)CleanupDeadShip;
 
     /// <summary>
     /// Whether the camera follows a ship's element now: it is its side's
     /// <see cref="FollowedElement"/>, or the side has none (then every one
     /// of its ships is followed, as UQM's are). <see cref="PreProcessQueue"/>
     /// takes each side's element once, as the frame starts, so a ship dying
-    /// during the frame is followed to its end, as UQM's is, and a side never
-    /// goes without one for a frame.
+    /// during the frame is followed to its end, as UQM's is, and while any
+    /// ship of a side stays a ship's for the frame, one is followed.
     /// </summary>
     public bool Followed(Element ship) =>
         ship.PlayerNr is < 0 or >= NumSides || Followed(ship, FollowedElement(ship.PlayerNr));
+
+    /// <summary>The ships the camera followed in the last frame (PreProcessQueue's ships_alive).</summary>
+    internal int ShipsFollowed { get; private set; }
 
     private static bool Followed(Element ship, Element? followed) => followed == null || followed == ship;
 
@@ -545,6 +561,8 @@ public sealed partial class Battle
         short originX = (short)(Size.Width >> 1), originY = (short)(Size.Height >> 1);
         // The ships the camera follows this frame (one a side), taken before any element steps.
         Element? followed0 = FollowedElement(0), followed1 = FollowedElement(1);
+        _lastFollowed[0] = followed0;
+        _lastFollowed[1] = followed1;
         int shipsAlive = 0;
         var element = List.Head;
         while (element != null)
@@ -617,6 +635,7 @@ public sealed partial class Battle
             }
         }
 
+        ShipsFollowed = shipsAlive;
         return CalcView(originX, originY, minReduction, shipsAlive, out scrollX, out scrollY);
     }
 

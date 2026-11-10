@@ -337,12 +337,26 @@ public class SeveralShipsTests
     [Fact]
     public void NoneJoinsABattleDecided()
     {
-        // The enemy has no ship left able to fight (its last exploding): the battle is decided.
+        // The enemy has no ship left able to fight (its last exploding): the
+        // battle is decided, and no player may join, changing nothing.
         var (battle, _, ilwrath) = Fought(1);
         battle.DoDamage(ilwrath.Ship!, (short)ilwrath.Ship!.CrewLevel);
         battle.Step(None);
         Assert.True(battle.InBattle);
-        Assert.Throws<InvalidOperationException>(() => battle.Join(Player()));
+        uint seed = battle.Random.Seed;
+        int count = battle.List.Count;
+        var late = Player();
+        Assert.Throws<InvalidOperationException>(() => battle.Join(late));
+        Assert.Equal((1, (byte)1, (byte)0, seed, count),
+            (battle.Fleet(0).Count, battle.BattleCounter[0], battle.BattleCounter[1], battle.Random.Seed, battle.List.Count));
+        Assert.Null(late.RaceDesc);
+
+        // Nor an enemy ship, the players having none left.
+        var (lost, players, _) = Fought(1);
+        lost.DoDamage(players[0].Ship!, (short)players[0].Ship!.CrewLevel);
+        lost.Step(None);
+        Assert.Throws<InvalidOperationException>(() => lost.Join(Avenger()));
+        Assert.Single(lost.Fleet(1));
     }
 
     [Fact]
@@ -453,16 +467,77 @@ public class SeveralShipsTests
     }
 
     [Fact]
+    public void TheCameraStaysOnALastPlayerDyingAndLeavesOneGone()
+    {
+        // The first player dies, then the second as the first explodes: the
+        // camera stays on the second (the one it followed), not back to the
+        // first, and follows a player every frame until the second's explosion
+        // ends; the first, once gone (its element no longer a ship's, waiting
+        // for the enemy's victory ditty), is never followed again.
+        var (battle, players, ilwrath) = Fought(2, ArenaSize.Scaled(1.5));
+        Cleared(battle, players[0], ilwrath);
+        var (first, second) = (players[0], players[1]);
+        battle.DoDamage(first.Ship!, (short)first.Ship!.CrewLevel);
+        battle.Step(None);
+        battle.Step(None);
+        Assert.Same(second.Ship, battle.FollowedElement(0));
+        var element = second.Ship!;
+        battle.DoDamage(element, (short)element.CrewLevel);
+        int frames = 0;
+        for (; frames < 300 && !battle.LeavesThisFrame(element); ++frames)
+        {
+            Assert.Same(element, battle.FollowedElement(0));
+            battle.Step(None);
+            Assert.Equal(2, battle.ShipsFollowed);
+        }
+        Assert.True(frames >= Battle.NumExplosionFrames * 3, $"followed through its explosion, not {frames} frames");
+        // Its last frame as a ship: none of the side's followed, as UQM's.
+        Assert.Null(battle.FollowedElement(0));
+        Assert.True(first.Ship == null || (first.Ship.StateFlags & ElementFlags.PlayerShip) == 0);
+    }
+
+    [Fact]
+    public void TheCameraLeavesAPlayerGoneForOneRetreating()
+    {
+        // The first player dies and its explosion ends (its element waits on,
+        // no longer a ship's); then the second retreats: the camera follows
+        // the second every frame, not the first's element.
+        var (battle, players, ilwrath) = Fought(2, ArenaSize.Scaled(1.5), runAwayAllowed: true);
+        Cleared(battle, players[0], ilwrath);
+        var (first, second) = (players[0], players[1]);
+        battle.DoDamage(first.Ship!, (short)first.Ship!.CrewLevel);
+        for (int frame = 0; frame < 100 && (first.Ship!.StateFlags & ElementFlags.PlayerShip) != 0; ++frame)
+            battle.Step(None);
+        Assert.NotNull(first.Ship);
+        Assert.Equal((ElementFlags)0, first.Ship!.StateFlags & ElementFlags.PlayerShip);
+        battle.Step(ship => ship == second ? BattleInput.Escape : BattleInput.None);
+        var element = second.Ship!;
+        // (The side has no ship left able to fight, so the battle ends as the
+        // first's element is done with, the second still flashing.)
+        int frames = 0;
+        for (; frames < 300 && battle.InBattle && !battle.LeavesThisFrame(element); ++frames)
+        {
+            Assert.Same(element, battle.FollowedElement(0));
+            battle.Step(None);
+            Assert.Equal(2, battle.ShipsFollowed);
+        }
+        Assert.True(frames > 30, "followed while it flashed");
+    }
+
+    [Fact]
     public void AnArenaThreeTimesUqmsRuns()
     {
         // The biggest arena: ships flying and firing about it, the AI after
         // them, every place within it (lines may end past an edge for a frame).
         var size = ArenaSize.Scaled(ArenaSize.MaxScale);
+        int shots = 0, crewLost = 0;
         foreach (uint seed in new uint[] { 3, 31 })
         {
             var battle = NewBattle(seed, size, maxElements: 300);
             for (int i = 0; i < 2; ++i)
                 Assert.True(battle.Join(Player()));
+            var ships = battle.Fleet(0).Concat(battle.Fleet(1)).ToList();
+            int crew = ships.Sum(s => s.RaceDesc!.CrewLevel);
             for (int frame = 0; frame < 600 && battle.InBattle; ++frame)
             {
                 battle.Step(ship => ship.PlayerNr == 1 ? battle.ComputerIntelligence(ship)
@@ -473,8 +548,13 @@ public class SeveralShipsTests
                     Assert.InRange(e.Current.X, -slack, size.Width - 1 + slack);
                     Assert.InRange(e.Current.Y, -slack, size.Height - 1 + slack);
                 }
+                shots += battle.List.Elements.Count(e => e.Parent != null && (e.StateFlags & ElementFlags.PlayerShip) == 0
+                                                          && e.Prim == PrimType.Stamp);
             }
+            crewLost += crew - ships.Sum(s => s.RaceDesc?.CrewLevel ?? s.CrewLevel);
         }
+        Assert.True(shots > 50, $"only {shots} frames of shots");
+        Assert.True(crewLost > 0, "nothing was hit");
     }
 
     [Fact]
