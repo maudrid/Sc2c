@@ -74,9 +74,9 @@
  * fleet0 and fleet1 are how many of its ship each side has: when
  * one dies, the next takes over its element (GetNextStarShip). An event at
  * a frame calls AbandonShip (misc.c) on side's ship in the battle towards
- * target's, for crew, before that frame; the program refuses one from a
- * ship without crew, or from or towards one an earlier event emptied (see
- * DoInput).
+ * target's, for crew, before that frame; the program refuses one from or
+ * towards a ship gone (dead or warped out), from one without crew, or
+ * towards one an earlier event emptied (see DoInput).
  *
  * Output: one JSON object per battle: its stars (InitGalaxy's
  * log_star_array, [x, y] each), and its frames: the first after the
@@ -689,24 +689,31 @@ DoInput (void *pInputState, BOOLEAN resetInput)
 				STARSHIP *ts = side_ship (event_target[k]);
 				LockElement (s->hShip, &ship);
 				LockElement (ts->hShip, &target);
-				/* UQM's one caller, the Syreen's song, leaves the ship one
-				 * crew at least. An event emptying a ship takes UQM where
-				 * it never goes, and its code can crash there (floating
-				 * crew whose ship is freed under them, crew_preprocess
-				 * reading its RACE_DESC); item 2's crew-floating empties
-				 * one and records, so it isn't refused (golden_uqm.py's
-				 * clamp_events keeps random events from it). Refused: an
-				 * event from a ship without crew, or from or towards one
-				 * an earlier event emptied, where it has crashed. */
+				/* UQM's one caller, the Syreen's song, sings from a ship
+				 * alive at one alive, and leaves it one crew at least.
+				 * Refused, as UQM's code crashes there: an event from or
+				 * towards a ship that has died or warped out but not yet
+				 * picked its next (cleanup_dead_ship has cleared its
+				 * element's STARSHIP; AbandonShip reads it), from a ship
+				 * without crew, or towards one an earlier event emptied
+				 * (crew whose ship is freed under them: crew_preprocess
+				 * reads its RACE_DESC). An event emptying a ship isn't
+				 * refused (item 2's crew-floating does, and records), but
+				 * it can still crash later (golden_uqm.py's clamp_events
+				 * keeps random events from it). */
+				STARSHIP *from, *to;
 				int e;
+				GetElementStarShip (ship, &from);
+				GetElementStarShip (target, &to);
 				for (e = 0; e < num_emptied; ++e)
-					if (emptied[e] == s || emptied[e] == ts)
+					if (emptied[e] == ts)
 						break;
-				if (ship->crew_level == 0 || e < num_emptied)
+				if (from == NULL || to == NULL || ship->crew_level == 0
+						|| e < num_emptied)
 				{
-					fprintf (stderr, "frame %d: AbandonShip from a ship with "
-							"%u crew, or from or towards one an event "
-							"emptied\n", frame_no, ship->crew_level);
+					fprintf (stderr, "frame %d: AbandonShip from or towards "
+							"a ship gone, from one without crew, or towards "
+							"one an event emptied\n", frame_no);
 					exit (1);
 				}
 				AbandonShip (ship, target, event_crew[k]);

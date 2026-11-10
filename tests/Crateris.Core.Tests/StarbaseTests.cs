@@ -333,6 +333,11 @@ public class StarbaseTests
         Assert.Equal(host.Ship.Modules.Save(), ship.Modules.Save());
         Assert.Equal((Activity.InnerSystem, host.Ship.Flight.FuelCapacity, host.Ship.Ip!.MaxSpeed),
             (ship.Activity, ship.Flight.FuelCapacity, ship.Ip!.MaxSpeed));
+        // A flagship's slots saved with crew beside its pods: refused.
+        var kit = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
+        var hostModules = kit["players"]!.AsArray().First(p => p!["kind"]!.GetValue<string>() == "flagship")!["modules"]!;
+        hostModules["kit_crew"] = 10;
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(kit.ToJsonString(), Systems, TestContent.Shapes));
         // An older save's ship has its loadout's slots.
         var old = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
         old["version"] = 8;

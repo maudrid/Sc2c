@@ -1973,8 +1973,9 @@ class BattleProgram:
             # UQM's own code crashing: AbandonShip events emptying a ship (the
             # Syreen's song, UQM's one caller, leaves one crew) can leave
             # floating crew whose ship is freed under them (crew_preprocess).
-            raise RuntimeError(f"the battle program crashed (signal {-res.returncode}): an AbandonShip "
-                               "event emptying a ship? (clamp_events keeps one crew aboard)")
+            raise RuntimeError(f"the battle program crashed (signal {-res.returncode}); possibly an "
+                               "AbandonShip event emptying a ship (clamp_events keeps one crew aboard). "
+                               f"{res.stderr.strip()}")
         if res.returncode:
             raise RuntimeError(f"the battle program refused a battle: {res.stderr.strip()}")
         out = res.stdout
@@ -2830,14 +2831,16 @@ def check_ship_battles(scenarios, battles):
         fail("sis-unarmed", "the unarmed flagship fired, or didn't die")
     if any(f[F_SHIPS][0][0] and f[F_SHIPS][0][0][4] not in (0, 1, 2) for f in frames("sis-unarmed")[2:]):
         fail("sis-unarmed", "the weapon's counter isn't held at 2")
-    # The retreats: the battle over, the flagship gone with its crew (not
-    # ~0), and once hit while it flashed (a filled stamp) on its way out.
+    # The retreats: the flagship flashed (a filled stamp) and is gone with
+    # its crew (not ~0), the Ilwrath still fighting; the battle over.
     for name in ("sis-retreat", "sis-retreat-hit"):
         c = [x for x in crew(name, 0) if x is not None]
+        last = frames(name)[-1]
         if not by_name[name]["ended"] or by_name[name]["crew_enlisted"] in (0xFFFF, scenario[name]["ships"][0]["crew"]) \
-                or by_name[name]["crew_enlisted"] != c[-1] - 1 \
+                or by_name[name]["crew_enlisted"] != c[-1] - 1 or not c[-1] \
+                or ship_of(last, 0) or not (fighting(last, 1) and fighting(last, 1)[0]) \
                 or not any(ship_of(f, 0) and ship_of(f, 0)[E_PRIM] == STAMPFILL_PRIM for f in frames(name)):
-            fail(name, "the flagship didn't retreat with its crew, hit before")
+            fail(name, "the flagship didn't retreat with its crew")
     fr = frames("sis-retreat-hit")
     if not any(ship_of(a, 0) and ship_of(b, 0) and ship_of(a, 0)[E_PRIM] == STAMPFILL_PRIM
                and fighting(a, 0) and fighting(b, 0) and fighting(b, 0)[0] < fighting(a, 0)[0]
