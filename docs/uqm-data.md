@@ -26,7 +26,7 @@ python3 -m unittest discover -s tools/extract -v
 UQM_SC2=../uqm-0.8.0/sc2 python3 -m unittest discover -s tools/extract -v
 ```
 
-The first checks the committed files (counts, known values, notices): 27 checks, three of which need the UQM source and are skipped. The second runs those three too: one re-runs the extractor and confirms the committed files match the source exactly, and the other two check that the extractor takes only integer constants and that the new game's events are `gameev.c`'s.
+The first checks the committed files (counts, known values, notices): 27 checks, three of which need the UQM source and are skipped. The second runs those three too: one re-runs the extractor and confirms the committed files match the source exactly, and the other two check that the `#define`s the extractor keeps are only integer constants and that the new game's events are `gameev.c`'s.
 
 ## Reference traces from UQM's own code
 
