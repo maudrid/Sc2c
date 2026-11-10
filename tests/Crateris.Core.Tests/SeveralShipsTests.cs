@@ -799,6 +799,26 @@ public class SeveralShipsTests
     }
 
     [Fact]
+    public void PlotInterceptStartsTheSecondShapeTheShorterWay()
+    {
+        // A shot 48 units west of the Ilwrath, flying east at 16 a frame:
+        // it hits in the first turn, mid-arena and across the seam alike (its
+        // shape starting there where it is the shorter way, not swept in from
+        // the far side of the arena).
+        var size = ArenaSize.Scaled(1.5);
+        var (battle, players, ilwrath) = Fought(1, size);
+        var (cx, cy) = Cleared(battle, players[0], ilwrath);
+        foreach (int x in new[] { cx, size.Width - 20 })
+        {
+            Put(battle, ilwrath.Ship!, x + 48, cy);
+            var shot = Steady(battle, Missile(battle, players[0], x, cy, East, 16, life: 200), x, cy);
+            Assert.Equal(1, battle.PlotIntercept(shot, ilwrath.Ship!, 200, 0));
+            battle.List.Remove(shot);
+            battle.List.Free(shot);
+        }
+    }
+
+    [Fact]
     public void GravityHomingAndCrewMeasureTheBiggerArenasWayRound()
     {
         // In an arena 1.5 times UQM's (12,288 wide) the shorter way round is

@@ -216,6 +216,17 @@ public class HoldTests
             NewGameData.Load(DataDir), "host", "Host"));
     }
 
+    [Fact]
+    public void ASaveWithoutAnEscortsKitOrNameTakesTheDefaults()
+    {
+        var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
+        node["settings"]!["escort_loadout"] = null;
+        node["settings"]!["escort_ship_name"] = null;
+        var defaults = new GameSettings();
+        var settings = HostSave.FromJson(node.ToJsonString()).Settings;
+        Assert.Equal((defaults.EscortLoadout, defaults.EscortShipName), (settings.EscortLoadout, settings.EscortShipName));
+    }
+
     [Theory]
     [InlineData("battle_arena_scale", 0.9)]
     [InlineData("battle_arena_scale", 3.5)]

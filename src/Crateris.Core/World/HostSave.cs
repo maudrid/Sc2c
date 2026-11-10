@@ -159,6 +159,8 @@ public static class HostSave
         var settings = save.Settings ?? throw new InvalidDataException("The save has no settings.");
         if (settings.EscortShipName is null)
             settings = settings with { EscortShipName = new GameSettings().EscortShipName };
+        if (settings.EscortLoadout is null)
+            settings = settings with { EscortLoadout = new GameSettings().EscortLoadout };
         if (save.Version < 8 && settings.EscortLoadout is { } kit)
             settings = settings with { EscortLoadout = kit with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity } };
 
