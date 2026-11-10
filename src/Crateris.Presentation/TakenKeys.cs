@@ -10,10 +10,10 @@ namespace Crateris.Presentation;
 
 /// <summary>
 /// The keys that went down into a screen that takes them (the about screen,
-/// the lander report, the minerals' count-down, the line a name is typed
-/// in), every one but F1 held as the minerals' count-down starts or the
-/// giving screen closes, and the Enter or Esc held as the name line is put
-/// away: the game's own keys ignore each until it comes up, so an Esc that
+/// the lander report, the minerals' count-down; a key held from before the
+/// about screen or the report still the game's), every one but F1 held as
+/// the minerals' count-down starts or the giving screen closes, and the
+/// Enter or Esc held as the line a name is typed in is put away: the game's own keys ignore each until it comes up, so an Esc that
 /// closed the about screen, held, doesn't then take the lander off, nor its
 /// repeats leave orbit. A key that goes down again
 /// without having been seen coming up (lost with the window's focus) is
