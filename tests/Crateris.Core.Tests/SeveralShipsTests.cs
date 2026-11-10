@@ -497,31 +497,58 @@ public class SeveralShipsTests
     }
 
     [Fact]
-    public void TheCameraLeavesAPlayerGoneForOneRetreating()
+    public void TheCameraKeepsToASideThroughItsFollowedShipsLastFrame()
     {
-        // The first player dies and its explosion ends (its element waits on,
-        // no longer a ship's); then the second retreats: the camera follows
-        // the second every frame, not the first's element.
+        // A second player retreats; the first, followed, is killed. In the
+        // frame its explosion ends (its element stops being a ship's), the
+        // camera follows the second, still flashing, not nothing of the side.
         var (battle, players, ilwrath) = Fought(2, ArenaSize.Scaled(1.5), runAwayAllowed: true);
         Cleared(battle, players[0], ilwrath);
         var (first, second) = (players[0], players[1]);
+        battle.Step(ship => ship == second ? BattleInput.Escape : BattleInput.None);
+        battle.DoDamage(first.Ship!, (short)first.Ship!.CrewLevel);
+        var element = first.Ship!;
+        for (int frame = 0; frame < 100 && !battle.LeavesThisFrame(element); ++frame)
+        {
+            battle.Step(None);
+            Assert.Equal(2, battle.ShipsFollowed);
+        }
+        Assert.True(battle.LeavesThisFrame(element));
+        Assert.Same(second.Ship, battle.FollowedElement(0));
+        battle.Step(None);
+        Assert.Equal(2, battle.ShipsFollowed);
+        Assert.Equal((ElementFlags)0, element.StateFlags & ElementFlags.PlayerShip);
+        Assert.True(battle.InBattle);
+    }
+
+    [Fact]
+    public void TheCameraNeverFollowsAShipsElementDoneWith()
+    {
+        // Three players. The first dies and its explosion ends (its element
+        // waits on for the enemy's victory ditty, no longer a ship's); the
+        // third retreats; the second, followed, dies. In the frame its
+        // explosion ends, the camera follows the third, not the first's element.
+        var (battle, players, ilwrath) = Fought(3, ArenaSize.Scaled(1.5), runAwayAllowed: true);
+        Cleared(battle, players[0], ilwrath);
+        var (first, second, third) = (players[0], players[1], players[2]);
         battle.DoDamage(first.Ship!, (short)first.Ship!.CrewLevel);
         for (int frame = 0; frame < 100 && (first.Ship!.StateFlags & ElementFlags.PlayerShip) != 0; ++frame)
             battle.Step(None);
         Assert.NotNull(first.Ship);
         Assert.Equal((ElementFlags)0, first.Ship!.StateFlags & ElementFlags.PlayerShip);
-        battle.Step(ship => ship == second ? BattleInput.Escape : BattleInput.None);
+        battle.Step(ship => ship == third ? BattleInput.Escape : BattleInput.None);
+        Assert.Same(second.Ship, battle.FollowedElement(0));
         var element = second.Ship!;
-        // (The side has no ship left able to fight, so the battle ends as the
-        // first's element is done with, the second still flashing.)
-        int frames = 0;
-        for (; frames < 300 && battle.InBattle && !battle.LeavesThisFrame(element); ++frames)
+        battle.DoDamage(element, (short)element.CrewLevel);
+        for (int frame = 0; frame < 100 && !battle.LeavesThisFrame(element); ++frame)
         {
-            Assert.Same(element, battle.FollowedElement(0));
             battle.Step(None);
             Assert.Equal(2, battle.ShipsFollowed);
         }
-        Assert.True(frames > 30, "followed while it flashed");
+        Assert.NotNull(first.Ship);
+        Assert.Same(third.Ship, battle.FollowedElement(0));
+        battle.Step(None);
+        Assert.Equal(2, battle.ShipsFollowed);
     }
 
     [Fact]
