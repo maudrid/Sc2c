@@ -2149,8 +2149,9 @@ def clamp_events(program, scenario):
     least, as the Syreen's song (UQM's only caller) does: each event's crew
     cut to the ship's crew then, less one, and dropped if none can go, or
     if either ship's element has no crew (dead, or warped out: the
-    battle program refuses those, as UQM's code crashes on one towards a
-    ship whose RACE_DESC new_ship then frees)."""
+    battle program refuses those; towards one, the crew after the first
+    belong to that ship, whose RACE_DESC new_ship frees, and UQM's
+    crew_preprocess can crash reading it)."""
     events = []
     for frame, side, target, crew in scenario["events"]:
         steps, left = [], frame

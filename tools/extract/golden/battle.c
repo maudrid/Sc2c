@@ -690,8 +690,11 @@ DoInput (void *pInputState, BOOLEAN resetInput)
 				 * at least. Refused: an event from a ship without crew
 				 * (AbandonShip would make crew from nothing, DeltaCrew
 				 * stopping at 0), or towards one (dead, warped out, or
-				 * emptied: the crew then head for a ship whose RACE_DESC
-				 * new_ship frees, and crew_preprocess crashes reading it).
+				 * emptied: AbandonShip reuses StarShipPtr, so every crew
+				 * after the first belongs to the target's STARSHIP; once
+				 * the target's cleanup_dead_ship has passed, new_ship
+				 * frees its RACE_DESC and crew_preprocess can read it,
+				 * which has crashed).
 				 * An event emptying a ship isn't refused (item 2's
 				 * crew-floating does, and records; the ship stays in the
 				 * battle without crew, as nothing in UQM leaves one);
