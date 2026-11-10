@@ -83,7 +83,8 @@ public sealed class ShipModules
     }
 
     /// <summary>
-    /// The slots a loadout says a ship has. A new game's flagship has them
+    /// The slots a loadout says a ship has (a flagship's crew in crew pods
+    /// only: its capacity a multiple of theirs). A new game's flagship has them
     /// in InitGameStructures' places (data/new-game.json: thrusters in
     /// drive slots 5 and 6, jets in 0 and 6, a fuel tank in module slot 1,
     /// a crew pod in 2, a storage bay in 8 and the gun in 15); more of a
@@ -114,9 +115,13 @@ public sealed class ShipModules
         int pods = 0, kitCrew = loadout.CrewCapacity;
         if (kind == ShipKind.Flagship)
         {
+            // A flagship holds crew in crew pods only, as UQM's does.
+            if (loadout.CrewCapacity % ShipLoadout.CrewPodCapacity != 0)
+                throw new ArgumentException($"a flagship's crew is held in crew pods of {ShipLoadout.CrewPodCapacity}, "
+                                            + $"not {loadout.CrewCapacity}");
             Put(modules, EmptyModule, GunWeapon, 1, 15);
             pods = loadout.CrewCapacity / ShipLoadout.CrewPodCapacity;
-            kitCrew = loadout.CrewCapacity - pods * ShipLoadout.CrewPodCapacity;
+            kitCrew = 0;
         }
         Put(modules, EmptyModule, FuelTank, loadout.FuelTanks, 1);
         Put(modules, EmptyModule, HighEfficiencyFuelSystem, loadout.HighEfficiencyTanks, 1);

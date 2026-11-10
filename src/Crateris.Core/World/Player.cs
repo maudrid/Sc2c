@@ -116,6 +116,10 @@ public sealed class PlayerShip
         Kind = kind;
         Loadout = loadout;
         Modules = modules ?? ShipModules.FromLoadout(kind, loadout);
+        // A flagship holds crew in its crew pods only, as UQM's does (its
+        // battle description counts nothing else, SisLoadout.From).
+        if (kind == ShipKind.Flagship && Modules.KitCrew != 0)
+            throw new ArgumentException($"a flagship holds crew in crew pods only, not {Modules.KitCrew} beside them");
         Hold = new ShipHold(loadout, Modules);
         Flight = new HyperFlight(ShipDrive.ForHyperspace(Modules.Thrusters, Modules.Jets), Modules.FuelCapacity)
         {

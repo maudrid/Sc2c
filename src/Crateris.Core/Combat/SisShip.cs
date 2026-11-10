@@ -53,9 +53,19 @@ public sealed class SisLoadout
         CarriesBomb = carriesBomb;
     }
 
-    /// <summary>A ship's slots and the crew it has aboard.</summary>
-    public static SisLoadout From(ShipModules modules, int crew, bool carriesBomb = false) =>
-        new(modules.DriveSlots, modules.JetSlots, modules.ModuleSlots, crew, modules.KitCrew, carriesBomb);
+    /// <summary>
+    /// A player ship's slots and the crew it has aboard. A flagship holds
+    /// crew in its crew pods only, as UQM's does (no kit crew); the bomb is
+    /// only ever the flagship's.
+    /// </summary>
+    public static SisLoadout From(ShipKind kind, ShipModules modules, int crew, bool carriesBomb = false)
+    {
+        if (kind == ShipKind.Flagship && modules.KitCrew != 0)
+            throw new ArgumentException($"a flagship holds crew in crew pods only, not {modules.KitCrew} beside them");
+        if (kind != ShipKind.Flagship && carriesBomb)
+            throw new ArgumentException("only the flagship carries the bomb");
+        return new(modules.DriveSlots, modules.JetSlots, modules.ModuleSlots, crew, modules.KitCrew, carriesBomb);
+    }
 
     public IReadOnlyList<byte> DriveSlots { get; }
     public IReadOnlyList<byte> JetSlots { get; }
@@ -169,9 +179,20 @@ public sealed class SisShip : IShipCode
         return new SisDescription(rd, blasters, trackers);
     }
 
-    /// <summary>load_ship: init_sis's description with this ship's sheets and sis_ship.c's battle code.</summary>
+    /// <summary>
+    /// load_ship: init_sis's description with this ship's sheets and
+    /// sis_ship.c's battle code. The ship's <see cref="Starship"/> must be
+    /// made with no crew (as UQM's flagship's STARSHIP is): its crew is the
+    /// loadout's with the captain on top, and spawn_ship would put a
+    /// Starship's own crew in its place, without the captain. After the
+    /// battle, the crew left is <see cref="Result"/>'s; the Starship's
+    /// (cleanup_dead_ship's record) counts the captain.
+    /// </summary>
     public RaceDesc Load(Battle battle, Starship starship)
     {
+        if (starship.CrewLevel != 0)
+            throw new InvalidOperationException(
+                $"a player ship's Starship has no crew of its own ({starship.CrewLevel}): its crew is its loadout's");
         var (rd, described, trackers) = Describe(_description, Loadout);
         int blasterSpeed = _description.Define("BLASTER_SPEED");
         var blasters = described.Select(b =>

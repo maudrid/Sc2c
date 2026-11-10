@@ -1967,8 +1967,17 @@ class BattleProgram:
         """The battles, their elements without their colour (item 2's
         traces don't keep it) unless colours."""
         lines = [battle_line(s, self.numbers) for s in scenarios]
-        out = subprocess.run([self.exe, self.sheets_file, self.masks], input="\n".join(lines) + "\n",
-                             capture_output=True, text=True, check=True).stdout
+        res = subprocess.run([self.exe, self.sheets_file, self.masks], input="\n".join(lines) + "\n",
+                             capture_output=True, text=True)
+        if res.returncode < 0:
+            # UQM's own code crashing: AbandonShip events emptying a ship (the
+            # Syreen's song, UQM's one caller, leaves one crew) can leave
+            # floating crew whose ship is freed under them (crew_preprocess).
+            raise RuntimeError(f"the battle program crashed (signal {-res.returncode}): an AbandonShip "
+                               "event emptying a ship? (clamp_events keeps one crew aboard)")
+        if res.returncode:
+            raise RuntimeError(f"the battle program refused a battle: {res.stderr.strip()}")
+        out = res.stdout
         battles = json.loads("[" + out.replace("}\n{", "},\n{") + "]")
         if len(battles) != len(scenarios):
             raise RuntimeError("the battle program lost a battle")
@@ -2687,6 +2696,37 @@ def ship_battle_scenarios(program):
                     ships=[sis(50, {**START_MODULES, **{i: M_BOMB_0 + i % 6 for i in range(3, 13) if i != 8}},
                                bomb=3), ilwrath()],
                     steps=[(20, 0, 0), (30, B_ESCAPE, 0), (100, B_ESCAPE | B_THRUST, B_THRUST)], full=150))
+    # Retreating: the flagship, shot at, warps out (flee_preprocess) and
+    # keeps its crew; freed by new_ship, uninit_sis writes it back. Once
+    # from afar, once with the Ilwrath close and firing, so it's hit while
+    # it flashes.
+    def retreat_after(t0, keep_off):
+        return lambda f, side, t: B_ESCAPE if t >= t0 else steer(f, side, the_ship(1), fire=True, keep_off=keep_off)
+    s = dict(name="sis-retreat", seed=7012, planet="planet.water", runaway=True,
+             ships=[sis(40, {**START_MODULES, 9: M_DEFENSE}), ilwrath()], steps=[(20, 0, 0)], full=60)
+    out.append(piloted(program, s, 700, [retreat_after(320, 900), shoot(400)]))
+    def flee_close(f, side, t):
+        ship, them = ship_of(f, 0), ship_of(f, 1)
+        if ship and them and distance(ship, them) < 450:
+            return B_ESCAPE
+        return 0
+    def shoot_while_seen(stop_after):
+        """The Ilwrath's pilot: shooting until the flagship has flashed
+        stop_after frames."""
+        flashing = []
+        def pilot(f, side, t):
+            ship = ship_of(f, 0)
+            if ship and ship[E_PRIM] == STAMPFILL_PRIM:
+                flashing.append(t)
+            return steer(f, side, the_ship(0), fire=len(flashing) < stop_after, keep_off=100)
+        return pilot
+    s = dict(name="sis-retreat-hit", seed=7013, planet="planet.chondrite", runaway=True,
+             ships=[sis(30), ilwrath()], steps=[(20, 0, 0)], full=60)
+    out.append(piloted(program, s, 700, [flee_close, shoot_while_seen(3)], chunk=2))
+    # Shot down while it flees: destroyed, ~0.
+    s = dict(name="sis-retreat-shot-down", seed=7013, planet="planet.chondrite", runaway=True,
+             ships=[sis(30), ilwrath()], steps=[(20, 0, 0)], full=60)
+    out.append(piloted(program, s, 700, [flee_close, shoot(100)], chunk=2))
     # The Ilwrath's cloak, scripted: on, thrusting and turning cloaked (no
     # ion trail), Special again (uncloaking), on again, firing (uncloaking,
     # turned towards the flagship ahead of it), fading in and out.
@@ -2790,6 +2830,23 @@ def check_ship_battles(scenarios, battles):
         fail("sis-unarmed", "the unarmed flagship fired, or didn't die")
     if any(f[F_SHIPS][0][0] and f[F_SHIPS][0][0][4] not in (0, 1, 2) for f in frames("sis-unarmed")[2:]):
         fail("sis-unarmed", "the weapon's counter isn't held at 2")
+    # The retreats: the battle over, the flagship gone with its crew (not
+    # ~0), and once hit while it flashed (a filled stamp) on its way out.
+    for name in ("sis-retreat", "sis-retreat-hit"):
+        c = [x for x in crew(name, 0) if x is not None]
+        if not by_name[name]["ended"] or by_name[name]["crew_enlisted"] in (0xFFFF, scenario[name]["ships"][0]["crew"]) \
+                or by_name[name]["crew_enlisted"] != c[-1] - 1 \
+                or not any(ship_of(f, 0) and ship_of(f, 0)[E_PRIM] == STAMPFILL_PRIM for f in frames(name)):
+            fail(name, "the flagship didn't retreat with its crew, hit before")
+    fr = frames("sis-retreat-hit")
+    if not any(ship_of(a, 0) and ship_of(b, 0) and ship_of(a, 0)[E_PRIM] == STAMPFILL_PRIM
+               and fighting(a, 0) and fighting(b, 0) and fighting(b, 0)[0] < fighting(a, 0)[0]
+               for a, b in zip(fr, fr[1:])):
+        fail("sis-retreat-hit", "the flagship wasn't hit while it fled")
+    fr = frames("sis-retreat-shot-down")
+    if by_name["sis-retreat-shot-down"]["crew_enlisted"] != 0xFFFF \
+            or not any(ship_of(f, 0) and ship_of(f, 0)[E_PRIM] == STAMPFILL_PRIM for f in fr):
+        fail("sis-retreat-shot-down", "the flagship wasn't destroyed while it fled")
     if not by_name["sis-bomb"]["bomb_carrier"] or by_name["sis-bomb"]["ended"]:
         fail("sis-bomb", "the bomb's carrier retreated, or wasn't one")
     if max(len(new_shots(f)) for f in frames("sis-full")) != 6 or \

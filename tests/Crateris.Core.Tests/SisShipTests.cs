@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using Crateris.Core.Combat;
+using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Uqm;
 using Crateris.Core.World;
@@ -53,7 +54,7 @@ public class SisShipTests
     {
         var settings = new GameSettings();
         var modules = EscortWithGun();
-        var (rd, blasters, trackers) = SisShip.Describe(Sis, SisLoadout.From(modules, settings.EscortLoadout.Crew));
+        var (rd, blasters, trackers) = SisShip.Describe(Sis, SisLoadout.From(ShipKind.Escort, modules, settings.EscortLoadout.Crew));
 
         // Its crew: the kit's 10, all aboard, and the captain.
         Assert.Equal((11, 11), (rd.CrewLevel, rd.MaxCrew));
@@ -71,7 +72,7 @@ public class SisShipTests
 
         // And it flies, fires, and dies, on sheets of its own.
         var escort = new SisShip(Sis, Three(Solid("hull", 16, 20)), Three(Solid("blaster", 27, 4)),
-            SisLoadout.From(modules, settings.EscortLoadout.Crew));
+            SisLoadout.From(ShipKind.Escort, modules, settings.EscortLoadout.Crew));
         var battle = NewBattle(escort);
         var ship = battle.Fleet(0)[0];
         for (int i = 0; i < 30; ++i)
@@ -94,14 +95,15 @@ public class SisShipTests
     [Fact]
     public void ADeadShipsResultIsntASentinel()
     {
-        var escort = new SisShip(Sis, null, null, SisLoadout.From(EscortWithGun(), 4));
-        var rd = escort.Load(null!, null!);
+        var escort = new SisShip(Sis, null, null, SisLoadout.From(ShipKind.Escort, EscortWithGun(), 4));
+        var starship = new Starship(escort, 0, 0, 0);
+        var rd = escort.Load(null!, starship);
         rd.CrewLevel = 0;
         rd.Uninit!(rd);
         Assert.Equal(new SisBattleResult(0, true), escort.Result);
 
         // Alive: the crew left less the captain.
-        rd = escort.Load(null!, null!);
+        rd = escort.Load(null!, starship);
         Assert.Null(escort.Result);
         rd.CrewLevel = 3;
         rd.Uninit!(rd);
@@ -109,6 +111,70 @@ public class SisShipTests
         rd.CrewLevel = 1;   // the captain alone
         rd.Uninit!(rd);
         Assert.Equal(new SisBattleResult(0, false), escort.Result);
+    }
+
+    [Fact]
+    public void AFlagshipHoldsCrewInPodsOnly()
+    {
+        // A new game's flagship: its crew pod's 50, no kit crew.
+        var start = NewGameData.Load(Path.Combine(AppContext.BaseDirectory, "data")).Flagship;
+        var flagship = new PlayerShip(ShipKind.Flagship, start);
+        Assert.Equal(0, flagship.Modules.KitCrew);
+        var (rd, _, _) = SisShip.Describe(Sis, SisLoadout.From(ShipKind.Flagship, flagship.Modules, start.Crew));
+        Assert.Equal((start.Crew + 1, flagship.Modules.CrewCapacity + 1), (rd.CrewLevel, rd.MaxCrew));
+
+        // Crew beside the pods is refused for a flagship: its loadout, its
+        // saved slots, and its battle description.
+        Assert.Throws<ArgumentException>(() => ShipModules.FromLoadout(ShipKind.Flagship, start with { CrewCapacity = 60 }));
+        var withKit = new ShipModules(flagship.Modules.DriveSlots, flagship.Modules.JetSlots, flagship.Modules.ModuleSlots, 10);
+        Assert.Throws<ArgumentException>(() => new PlayerShip(ShipKind.Flagship, start, withKit));
+        Assert.Throws<ArgumentException>(() => SisLoadout.From(ShipKind.Flagship, withKit, 10));
+        // An escort's kit holds its own.
+        Assert.Equal(10, SisLoadout.From(ShipKind.Escort, withKit, 10).KitCrew);
+    }
+
+    [Fact]
+    public void APlayerShipsStarshipHasNoCrewOfItsOwn()
+    {
+        // spawn_ship would put a Starship's crew in place of the loadout's,
+        // without the captain: refused.
+        var escort = new SisShip(Sis, null, null, SisLoadout.From(ShipKind.Escort, EscortWithGun(), 10));
+        Assert.Throws<InvalidOperationException>(() => escort.Load(null!, new Starship(escort, 0, 10, 0)));
+        Assert.Equal(11, escort.Load(null!, new Starship(escort, 0, 0, 0)).CrewLevel);
+    }
+
+    [Fact]
+    public void TwoPlayerShipsEachHaveTheirOwnResult()
+    {
+        // An escort's kit and a new game's flagship, one after the other on
+        // one side: each built from its own slots, each with its own result.
+        var start = NewGameData.Load(Path.Combine(AppContext.BaseDirectory, "data")).Flagship;
+        var flagshipModules = ShipModules.FromLoadout(ShipKind.Flagship, start);
+        var escort = new SisShip(Sis, Three(Solid("hull", 16, 20)), Three(Solid("blaster", 27, 4)),
+            SisLoadout.From(ShipKind.Escort, EscortWithGun(), 10));
+        var flagship = new SisShip(Sis, Three(Solid("hull", 16, 20)), Three(Solid("blaster", 27, 4)),
+            SisLoadout.From(ShipKind.Flagship, flagshipModules, start.Crew));
+        var battle = NewBattle(escort, flagship);
+        var (first, second) = (battle.Fleet(0)[0], battle.Fleet(0)[1]);
+        Assert.Equal((11, 11), (first.RaceDesc!.CrewLevel, first.RaceDesc.MaxCrew));
+        Assert.Null(second.RaceDesc);
+
+        for (int i = 0; i < 30; ++i)   // warped in
+            battle.Step(new[] { BattleInput.None, BattleInput.None });
+        battle.DoDamage(first.Ship!, 11);
+        for (int i = 0; i < 200 && second.RaceDesc == null; ++i)
+            battle.Step(new[] { BattleInput.None, BattleInput.None });
+        Assert.Equal(new SisBattleResult(0, Destroyed: true), escort.Result);
+        Assert.Null(flagship.Result);
+        Assert.Equal((start.Crew + 1, flagshipModules.CrewCapacity + 1), (second.RaceDesc!.CrewLevel, second.RaceDesc.MaxCrew));
+
+        // The flagship hit, then freed as the battle's end frees the ships left (UninitShips).
+        for (int i = 0; i < 30; ++i)
+            battle.Step(new[] { BattleInput.None, BattleInput.None });
+        battle.DoDamage(second.Ship!, 5);
+        second.RaceDesc.Uninit!(second.RaceDesc);
+        Assert.Equal(new SisBattleResult(start.Crew - 5, Destroyed: false), flagship.Result);
+        Assert.Equal(new SisBattleResult(0, Destroyed: true), escort.Result);
     }
 
     [Fact]
@@ -176,7 +242,8 @@ public class SisShipTests
     {
         var loadout = new SisLoadout(Drives(2), Jets(2), Modules((15, ShipModules.GunWeapon)), 10, carriesBomb: true);
         Assert.True(new SisShip(Sis, null, null, loadout).BombCarrier);
-        Assert.False(new SisShip(Sis, null, null, SisLoadout.From(EscortWithGun(), 10)).BombCarrier);
+        Assert.False(new SisShip(Sis, null, null, SisLoadout.From(ShipKind.Escort, EscortWithGun(), 10)).BombCarrier);
+        Assert.Throws<ArgumentException>(() => SisLoadout.From(ShipKind.Escort, EscortWithGun(), 10, carriesBomb: true));
         Assert.Throws<ArgumentException>(() => new SisShip(Ships[ShipDescriptions.Ilwrath], null, null, loadout));
         Assert.Throws<ArgumentException>(() => new SisLoadout(Drives(2), Jets(2), new byte[3], 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new SisLoadout(Drives(2), Jets(2), Modules(), -1));
@@ -188,7 +255,7 @@ public class SisShipTests
     }
 
     // A battle on sheets of our own (solid squares): the ship against the Ilwrath.
-    private static Battle NewBattle(SisShip ship)
+    private static Battle NewBattle(params SisShip[] ships)
     {
         var arena = new BattleArena(new Views(Solid("stars", 3, 1)), Three(Solid("asteroid", 21, 10)),
             Three(Solid("blast", 8, 5)), Three(Solid("boom", 9, 3)), Three(Solid("planet", 1, 60)));
@@ -196,7 +263,7 @@ public class SisShipTests
             Three(Solid("fire", 8, 4)), noCloak: true);
         return new Battle(arena, new[]
         {
-            (IReadOnlyList<Starship>)new[] { new Starship(ship, 0, 0, 0) },
+            (IReadOnlyList<Starship>)ships.Select(ship => new Starship(ship, 0, 0, 0)).ToList(),
             new[] { new Starship(ilwrath, 1, 7, 0) { CaptainsNameIndex = 5 } },
         }, 4242);
     }
