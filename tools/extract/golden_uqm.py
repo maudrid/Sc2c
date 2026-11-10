@@ -1737,6 +1737,7 @@ def record_battle_masks(uqm, strings_exe, images_exe, package):
                         "src/libs/graphics/tfb_draw.c",
                         "src/libs/graphics/sdl/sdl_common.c",
                         "src/libs/graphics/sdl/sdl1_common.c",
+                        "src/libs/graphics/sdl/sdl2_common.c",
                         "src/libs/graphics/sdl/pure.c",
                         "src/libs/graphics/sdl/sdl2_pure.c",
                         "src/libs/graphics/sdl/opengl.c",
@@ -1843,6 +1844,7 @@ def record_contact(uqm, systems_exe, strings_exe, images_exe, package):
                         "src/libs/graphics/tfb_draw.c",
                         "src/libs/graphics/sdl/sdl_common.c",
                         "src/libs/graphics/sdl/sdl1_common.c",
+                        "src/libs/graphics/sdl/sdl2_common.c",
                         "src/libs/graphics/sdl/pure.c",
                         "src/libs/graphics/sdl/sdl2_pure.c",
                         "src/libs/graphics/sdl/opengl.c"], [

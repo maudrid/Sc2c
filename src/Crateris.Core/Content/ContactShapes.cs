@@ -173,9 +173,11 @@ public sealed class ContactShapes
     /// converted to the screen's format (TFB_DrawImage_New), 32 bits
     /// without alpha, which keeps each pixel's colour and the key's: a
     /// pixel touches if its colour isn't the key's, black when there's
-    /// none (for an unkeyed frame, SDL's blit leaves the unused byte 0, and
-    /// the intersection compares all 32 bits; the screens are 32 bits
-    /// without alpha with SDL 1.2 or 2: pure.c, sdl2_pure.c). Null (unknown) only for an image of another kind, which UQM's
+    /// none. The intersection compares all 32 bits, so this rests on the
+    /// unused byte being 0: SDL 1.2's blit writes 0 there and remaps the key
+    /// with SDL_MapRGB, keyed or not; newer SDL 2 converts the key with the
+    /// pixels, so only an unkeyed frame needs it. The screens are 32 bits
+    /// without alpha with SDL 1.2 or 2 (pure.c, opengl.c, sdl2_pure.c). Null (unknown) only for an image of another kind, which UQM's
     /// content doesn't have.
     /// </summary>
     public static IntersectFrame Frame(AnimationFrame frame, Png png)
