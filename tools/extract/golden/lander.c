@@ -205,19 +205,14 @@ TFB_DrawImage_Intersect (TFB_Image *img1, POINT img1org,
 		{
 			int b1 = m1->bits[(y + img1org.y) * m1->w + x + img1org.x];
 			int b2 = m2->bits[(y + img2org.y) * m2->w + x + img2org.x];
-			if (b1 == 2 || b2 == 2)
-			{
-				fprintf (stderr, "a frame with an unknown mask was tested\n");
-				exit (1);
-			}
 			if (b1 && b2)
 				return TRUE;
 		}
 	return FALSE;
 }
 
-/* MASKS/SHEET.INDEX.mask: "width height hotx hoty", then a 0, 1 or 2
- * (unknown) for each pixel, row by row. */
+/* MASKS/SHEET.INDEX.mask: "width height hotx hoty", then a 0 or 1
+ * for each pixel, row by row. */
 static void
 load_masks (const char *dir)
 {
@@ -251,7 +246,7 @@ load_masks (const char *dir)
 				do
 					c = fgetc (f);
 				while (c == '\n' || c == ' ');
-				if (c < '0' || c > '2')
+				if (c < '0' || c > '1')
 				{
 					fprintf (stderr, "bad mask %s\n", path);
 					exit (1);
