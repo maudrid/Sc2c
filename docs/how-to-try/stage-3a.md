@@ -38,7 +38,7 @@ Keys, as in stage 2 and 2b: arrows fly (left and right turn, up thrusts); in men
 
 ## Play it: the opening at Earth
 
-1. **The commander hails.** Fly onto Sol, in to Earth (the third planet), and into the starbase beside it in Earth's inner system. The communication screen opens: the commander, animated, his words paged a line at a time, 80 milliseconds a character. When he's done the replies show below; your ship's and captain's names are in them. The guest's screen shows the same talk at once: their status says "The story's talk: Host replies; the game waits.", their keys do nothing, and their screen follows the host's (lines skipped, played again, the summary). The date stops while it goes on, and so does every ship, every lander on a surface and every orbit menu. Press T meanwhile: "The game waits while the story's talk goes on."
+1. **The commander hails.** Fly onto Sol, in to Earth (the third planet), and into the starbase beside it in Earth's inner system. The communication screen opens: the commander, animated, his words paged a line at a time, 80 milliseconds a character. When he's done the replies show below; your ship's and captain's names are in them. The guest's screen shows the same talk at once: their status says "The story's talk: Host replies; the game waits.", their keys don't move the talk, and their screen follows the host's (lines skipped, played again, the summary). The date stops while it goes on, and so does every ship, every lander on a surface and every orbit menu. Press T meanwhile: "The game waits while the story's talk goes on."
 2. **Who replies.** Whoever flew in replies. If the guest flies into the starbase first, the guest replies and the host watches. If the replier quits, the replies pass to the next player in join order, the host first, and the talk stays the starter's (their names, their ship). A player who joins during a talk watches it.
 3. **Mercury.** The commander asks for radioactives. Fly out to Mercury (the first planet) and into orbit; Scan, Auto scan: two of its deposits are uranium, a radioactive. Dispatch the lander, drive onto them, take off (Esc). Back at Earth's starbase the talk goes on. As in UQM he doesn't take them out of the hold. If you've run short of fuel, or have no lander, he gives you fuel or a lander with crew, as UQM's commander does.
 4. **The Lunar base.** He warns of the base on Luna (Earth's second moon). Orbit Luna and scan: the energy scan shows the base as Luna's one energy node. Land and drive onto it. The lander report is typed into the scan map's area, a letter at a time, in UQM's lander font; a key while it types shows the rest of the page at once, and at the end of a page it waits for a key. The lander takes off by itself with its crew. The base is aboard: the Manifest's Devices list shows "Moon Base". Any other player's lander on Luna stays down, and they get a notice saying who found the base, with the report's text a page at a time.
@@ -93,7 +93,7 @@ In orbit, Manifest, then Devices: the group's devices as UQM's `devices.c` lists
 
 ## Save and load
 
-The host saves every minute and as it quits, to `host-save.json` in Godot's user folder or the `--save` file; Save game at the starbase saves at once. Start the host again to load it: `godot --path game -- --host` for `host-save.json`, or `--host --load FILE --save FILE` for a file of your own (with `--load` alone it goes on saving to `host-save.json`; with `--save` alone it starts a new game over the file). The story state comes back (the alliance, the starbase, what the commander knows, the devices), and each player's wallet, cargo, names and ship's slots. A save made while docked loads with the ship in flight by the starbase: fly into it again to dock. A save made during the opening's visit is of the game before that visit began.
+The host saves every minute and as it quits, to `host-save.json` in Godot's user folder or the `--save` file; Save game at the starbase saves at once. Start the host again to load it: `godot --path game -- --host` for `host-save.json`, or `godot --path game -- --host --load FILE --save FILE` for a file of your own (with `--load` alone it goes on saving to `host-save.json`; with `--save` alone it starts a new game over the file). The story state comes back (the alliance, the starbase, what the commander knows, the devices), and each player's wallet, cargo, names and ship's slots. A save made while docked loads with the ship in flight by the starbase: fly into it again to dock. A save made during the opening's visit is of the game before that visit began.
 
 ## Shortcuts for testing
 
@@ -124,7 +124,7 @@ What should happen with each (each was run this way):
 - `--start-orbit 82:2:1 --start-devices LUNAR_BASE_DEVICE,ROSY_SPHERE_DEVICE --script "none:10,down:1,none:3,down:1,none:3,select:1,none:5,down:1,none:3,select:1,none:100"`: Manifest, Devices: the Rosy Sphere and the Moon Base.
 - `--start-orbit 82:2:1 --show-report text.moonbase`: the Lunar base's report typed over Luna's scan map.
 - `--start-orbit 82:0 --script "none:10,select:1,none:5,select:1,none:350"`: Mercury auto-scanned, 19 mineral deposits.
-- Save and load: quit a `--start-docked` game after selling (`--quit-after 900 --save FILE`), then `--host --load FILE`: the ship is in flight by the starbase with its 259 resource units, and the story has the starbase available.
+- Save and load: quit a `--start-docked` game after selling (`--quit-after 900 --save FILE`), then `--host --load FILE --save FILE`: the ship is in flight by the starbase with its 259 resource units, and the story has the starbase available.
 
 ## The parts, and what checks them
 
@@ -170,7 +170,7 @@ Each is a row of `docs/differences.md`:
 - **No sound:** no music, voices or the report's typing sound, as in every stage so far. The lines are paged at UQM's pace without voices.
 - **No combat:** the Ilwrath fight, buying fleet ships and the Arilou's gift wait for stage 4.
 - **No other races:** every other conversation, the drone, the Slylandro probes and the Melnorme come with ships in space in stage 3b (which comes after stage 4).
-- **No story events:** the event calendar keeps its dates and is saved, but apart from the one a new game runs at once (the Slylandro's ramp-up, which only changes the story) no event runs until stage 3c, nor do the devices do anything, the other energy nodes' stories (Fwiffo on Pluto among them) or the other time skips.
+- **No story events:** the event calendar keeps its dates and is saved, but apart from the one a new game runs at once (the Slylandro's ramp-up, which only changes the story state) no event runs until stage 3c, nor do the devices do anything, the other energy nodes' stories (Fwiffo on Pluto among them) or the other time skips.
 - **The status panel** still stands for most of UQM's status area (the flagship's picture, crew, fuel, names, landers), and still says "stage 2" at the top.
 
 ## Bugs
