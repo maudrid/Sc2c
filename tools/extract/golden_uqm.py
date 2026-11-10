@@ -3115,32 +3115,36 @@ def ai_battle_scenarios(program):
     # The AI's paths only other ships take (4b's), with test ships flown by
     # it (their cyborg_control set, ship_intelligence their AI): an enemy
     # whose homing missiles are seeking weapons (dodged by enticing, and
-    # fired at:
-    # PlotIntercept between two short-lived elements), against an
+    # fired at: PlotIntercept between two short-lived elements), against an
     # ultra-manoeuvrable ship (thrust as its top speed) and against the
-    # flagship without point defence (sis_intelligence keeping after the
-    # missile); an enemy with an immediate weapon (a laser: ship_weapons
-    # from the enemy), two ships a side; and a ship with no turn or thrust
-    # wait (InitCyborg's other branch).
+    # flagship without point defence (sis_intelligence's test of keeping
+    # after a heavy missile, which it never passes whole: the enemy is never
+    # far enough off as one comes two frames away); an enemy with an
+    # immediate weapon (a laser: ship_weapons from the enemy), a fleet of
+    # two against the Ilwrath; and a ship with no turn or thrust wait
+    # (InitCyborg's other branch).
     _, flag_values = battle_ships()
     seeking, immediate, fore = (flag_values[f] for f in ("SEEKING_WEAPON", "IMMEDIATE_WEAPON", "FIRES_FORE"))
 
     def homing_enemy():
         t = test_ship("ilwrath", crew=30, weapons=W_HOMING | W_MISSILE, weapon_wait=3, weapon_energy_cost=0)
-        t.update(flags=seeking | fore, hits=4, life=60, speed=30, weapon_range=2000)
+        # Heavy (damage 4: sis_intelligence keeps after one that heavy) and
+        # long-ranged (LONG_RANGE_WEAPON: an enemy the AI pursues).
+        t.update(flags=seeking | fore, hits=4, damage=4, life=60, speed=30, weapon_range=4000)
         return t
     ultra = test_ship("ilwrath", crew=30, max_thrust=40, weapons=W_MISSILE)
     ultra["characteristics"]["thrust_increment"] = 40
-    ultra.update(weapon_range=2000, maneuverability=100)
+    ultra.update(crew=60, max_crew=60, weapon_range=2000, maneuverability=100)
+    volleys = lambda f, side, t: steer(f, side, the_ship(1 - side), fire=t % 40 < 4, keep_off=900)
     # (The stock ship_intelligence never fires a seeking weapon, which the
     # ships' own AIs fire: the missiles' ship flies by keys.)
     s = dict(name="ai-seeking-ultra", seed=8016, planet="planet.water", ships=[ultra, homing_enemy()],
              ai=["awesome", None], steps=[(20, 0, 0)], full=100)
-    out.append(piloted(program, s, 1200, [None, shoot(900)]))
+    out.append(piloted(program, s, 1200, [None, volleys]))
     s = dict(name="ai-seeking-sis", seed=8017, planet="planet.chondrite",
              ships=[sis(150, {**START_MODULES, 3: M_CREW_POD, 4: M_CREW_POD}, thrusters=(), jets=()), homing_enemy()],
              ai=["good", None], steps=[(20, 0, 0)], full=100)
-    out.append(piloted(program, s, 1200, [None, shoot(900)]))
+    out.append(piloted(program, s, 1200, [None, volleys]))
     laser = test_ship("sis_ship", crew=30, weapons=W_LASER, weapon_wait=4)
     laser.update(flags=immediate | fore, weapon_range=400)
     out.append(dict(name="ai-immediate", seed=8018, planet="planet.water", ships=[laser, ilwrath(22)],
@@ -3219,11 +3223,14 @@ def check_ai_battles(scenarios, battles):
         if not flames(name, 1):
             fail(name, "the seeking missiles were never fired")
     fr = frames("ai-immediate")
-    if not any(e[E_PRIM] == LINE_PRIM and e[E_PLAYER] == 0 for f in fr for e in f[F_ELEMENTS]) \
-            or not any(f[F_SHIPS][0][1] and f[F_SHIPS][0][1][7] for f in fr):
-        fail("ai-immediate", "no laser, or side 0's second ship never fought")
-    if scenario_by_name["ai-zero-wait"]["ships"][1]["characteristics"]["turn_wait"] != 0:
-        fail("ai-zero-wait", "the ship has a turn wait")
+    if not any(f[F_SHIPS][0][1] and f[F_SHIPS][0][1][7]
+               and any(e[E_PRIM] == LINE_PRIM and e[E_PLAYER] == 0 for e in f[F_ELEMENTS]) for f in fr):
+        fail("ai-immediate", "side 0's second ship never fired its laser")
+    # No waits: the AI turning on consecutive frames.
+    still = scenario_by_name["ai-zero-wait"]["ships"][1]["characteristics"]
+    turns = [bool(i[1] >= 0 and i[1] & (B_LEFT | B_RIGHT)) for i in by_name["ai-zero-wait"]["inputs"]]
+    if still["turn_wait"] or still["thrust_wait"] or not any(a and b for a, b in zip(turns, turns[1:])):
+        fail("ai-zero-wait", "the ship has a wait, or never turned two frames running")
     draws = {d for b in battles for f in b["frames"] for d in f[F_DRAWS]}
     for place in ("TurnShip", "Entice"):
         if place not in draws:
@@ -3274,7 +3281,11 @@ def record_battle_ai(uqm, battle_exe, strings_exe, images_exe, package):
         "GOOD_RATING, awesome AWESOME_RATING, the story's enemy's, restart.c; "
         "side 1 COMPUTER_CONTROL, side 0 CYBORG_CONTROL as UQM's Cyborg option "
         "makes it); earth: PROBE_ILWRATH_ENCOUNTER set, with IN_ENCOUNTER the "
-        "Earth fight's rule, in which ilwrath_intelligence doesn't cloak.",
+        "Earth fight's rule, in which ilwrath_intelligence doesn't cloak. "
+        "A test ship (battle.json's) has its cyborg_control too, weapon_range "
+        "and maneuverability (WeaponRange, ManeuverabilityIndex; absent, 0), "
+        "and UQM's stock ship_intelligence as its intelligence_func, so the "
+        "AI can fly it.",
         "inputs: each frame's BATTLE_INPUT_STATE for each side as its "
         "frameInput returned it (1 left, 2 right, 4 thrust, 8 weapon, 16 "
         "special), -1 where it wasn't called (no ship with an element; the "

@@ -159,22 +159,25 @@ public class CyborgTests
         // The flagship made a SEEKING_SPECIAL ship (as the Spathi's BUTT, 4b),
         // the Ilwrath's AI looking at one of its shots 300 units off and
         // coming at it: one taking the special's own sheets (RaceDesc.Special)
-        // is enticed, at its distance in frames (300 >> 6); one with sheets
-        // equal but not the same is an unseeking shot, which the awesome AI
-        // dodges, as it would hit (cyborg.c compares the farray's address).
+        // is enticed, at its distance in frames (300 >> 6); one whose Views
+        // holds the same sheets but isn't the same Views is an unseeking
+        // shot, which the awesome AI dodges, as it would hit (cyborg.c
+        // compares the farray's address, not its frames).
         var (battle, flagship, ilwrath) = Fought();
         var ai = ilwrath.Ship!;
         Put(flagship.Ship!, ai, 2400, 0);
         var rd = flagship.RaceDesc!;
         rd.ShipFlags |= ShipFlags.SeekingSpecial;
-        rd.Special = Shot;
+        var special = rd.Special = Three(Solid("special", 16, 4));
 
-        var shot = Shoot(battle, flagship, ai, rd.Special);
+        var shot = Shoot(battle, flagship, ai, special);
         var weapon = Concern(battle, ilwrath, Battle.EnemyWeaponIndex);
         Assert.Same(shot, weapon.Object);
         Assert.Equal((MoveState.Entice, (ushort)(300 >> 6)), (weapon.MoveState, weapon.WhichTurn));
 
-        shot.Current.FrameArray = shot.Next.FrameArray = Three(Solid("shot", 16, 4));
+        var same = new Views(special[0].Sheet!, special[1].Sheet!, special[2].Sheet!);
+        Assert.Equal(special[0], same[0]);
+        shot.Current.FrameArray = shot.Next.FrameArray = same;
         weapon = Concern(battle, ilwrath, Battle.EnemyWeaponIndex);
         Assert.Same(shot, weapon.Object);
         Assert.Equal(MoveState.Avoid, weapon.MoveState);

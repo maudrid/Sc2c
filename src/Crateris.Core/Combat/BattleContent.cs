@@ -182,9 +182,13 @@ public sealed class BattleSheets
         if (ShipGraphics.Sheets(resources) is not { } sheets)
             return null;
         string key = string.Join("\n", sheets);
-        if (!_views.TryGetValue(key, out var views))
-            _views[key] = views = new Views(sheets.Select(s => this[s]).ToArray());
-        return views;
+        // Asked from several threads at once (the tests replaying battles in parallel).
+        lock (_views)
+        {
+            if (!_views.TryGetValue(key, out var views))
+                _views[key] = views = new Views(sheets.Select(s => this[s]).ToArray());
+            return views;
+        }
     }
 
     /// <summary>The arena's sheets (InitSpace's), with a planet's battle sprites (load_gravity_well).</summary>
