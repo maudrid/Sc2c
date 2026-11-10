@@ -26,7 +26,7 @@ python3 -m unittest discover -s tools/extract -v
 UQM_SC2=../uqm-0.8.0/sc2 python3 -m unittest discover -s tools/extract -v
 ```
 
-The first runs 22 checks on the committed files (counts, known values, notices). The second also re-runs the extractor and confirms the committed files match the source exactly.
+The first runs 27 checks on the committed files (counts, known values, notices); three of them need the UQM source and are skipped without it. The second runs those three too: it re-runs the extractor and confirms the committed files match the source exactly.
 
 ## Reference traces from UQM's own code
 
@@ -176,9 +176,9 @@ From `races.h`: the `*_SHIP` enum (the order of `avail_race_q`, one `FLEET_INFO`
 
 From the `ADD_GAME_STATE` list in `src/uqm/globdata.h`. 447 named flags and counters packed into 1,238 bits: `name`, `bits`, `start_bit`, and its source comment where there is one. The source doesn't group the flags (it has only two section headings, near the top); the name prefix usually says which race or topic a flag belongs to. UQM reads them with `GET_GAME_STATE` / `SET_GAME_STATE`.
 
-In Crateris these are world state, read and written by name, not by bit position. The bit layout is kept only for importing UQM saves, if that's ever done.
+In Crateris these are world state, read and written by name. The story state (`src/Crateris.Core/Story/StoryState.cs`, stage 3a) keeps UQM's bit layout: fields are packed and read as `getGameState` and `setGameState` do, so a value too big for its field runs into the next bits as in UQM, and clients are sent the bytes that changed. Saves write the fields by name.
 
-**Used by:** conversations, story events, generators (stage 3), and anything else that checks the story.
+**Used by:** the story state, read by the conversation scripts (stage 3a) and the system generator's story inputs; story events (stage 3c) and anything else that checks the story.
 
 ### `events.json` and the clock
 
@@ -198,11 +198,13 @@ From `InitGameStructures` (`globdata.c`), `InitGameClock` (`clock.c`) and `AddIn
 
 The start date and events are read from `InitGameClock` and `AddInitialGameEvents` and evaluated by the compiler, not copied by hand.
 
+**Used by:** a new game: the start date and the flagship (stage 1 on), and since stage 3a the story state's prices, element worths and event queue (`Story/StoryRules.cs`, with `races.json`, `events.json`, `modules.json` and `constants.json`'s `CREW_EXPENSE_THRESHOLD`).
+
 ### `modules.json`: flagship modules
 
 The module enum from `sis.h`: lander, thruster, jets, crew pod, storage bay, fuel tank, high-efficiency fuel system, dynamo, Shiva furnace, gun, blaster, cannon, tracking system, point defence, and the 6 bomb parts. `start_cost` is the price at the start (0 means not for sale yet; the rest become available through the story).
 
-**Used by:** outfitting, and choosing the escort module set (an open item).
+**Used by:** the story state's module prices and outfitting (stage 3a), and choosing the escort module set (an open item).
 
 ### `conversations.json`: the conversation scripts
 
@@ -222,6 +224,8 @@ The description is the new game's. Where an init function reads the story it may
 ### `devices.json`: the group inventory
 
 The devices in `globdata.h`'s order (the order the Manifest lists them), from `planets/devices.c`'s `InventoryDevices`: each device's number, the story field that says it's aboard (aboard when it isn't 0, or with `value` when it's that value: the Ultron's four repairs share `ULTRON_CONDITION`), and whether it's ever listed (the three data plates have no case, and the destruct code's is compiled out under `NEVER`). These fields are the group inventory: things the group carries, in the one shared story state. A device's name is the game strings' `DEVICE_STRING_BASE + 1 + id` (two words, a line each), its icon `MiscDataFrame`'s `77 + id`.
+
+**Used by:** the Manifest's Devices list (`Story/Devices.cs`, stage 3a) and `--start-devices`; using the devices is stage 3c.
 
 ### `constants.json`: limits and rates
 
@@ -276,6 +280,5 @@ The content package (CC BY-NC-SA 2.5) is downloaded on first run and read in pla
 ## Not extracted yet
 
 - **Scripted battle groups (`DEFGRP_*`) and per-race encounter makeup:** built in code (`grpinfo.c`, `build.c`, generators); stage 2 and 3.
-- **Device list (`*_DEVICE`):** these are story flags, already in `game-state.json`; their effects are code in `planets/devices.c`.
-- **Melnorme prices and sales:** in `comm/melnorm/melnorm.c`, ported with the conversation.
+- **Melnorme prices and sales:** in `comm/melnorm/melnorm.c`, ported with the conversation (stage 3b).
 - **Sun data (`sundata.h`):** star size and energy constants, small enough to port with the generator.
