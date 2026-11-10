@@ -247,7 +247,7 @@ Each item ends with tests that run headless, each test class in a topic (`tests/
     - Check: what UQM draws, recorded as in 2b's item 10. The communication screen's animations run on time, so the recording program steps a clock of its own. Screenshots too.
 12. **Docs.**
     - `docs/how-to-try/stage-3a.md`.
-    - Update the design, porting inventory (the commander's talk is story only before the alliance), differences (row 3's new time skip, row 27, the drone's absence until 3b, decision 3's battle) and data docs.
+    - Update the design, porting inventory (which of the commander's talks are story), differences (row 3's new time skip, row 27, the drone's absence until 3b, decision 3's battle) and data docs.
 
 Rough size:
 - **The large ones:** items 4, 8 and 11 (the engine and its recording program; `starbas.c` is 1,961 lines and outfitting 795; the communication screen's drawing).
