@@ -19,7 +19,8 @@ namespace Crateris.Core.Tests;
 /// cyborg.c, ilwrath.c and sis_ship.c): the Ilwrath flown by the AI
 /// against a scripted flagship, at Earth (no cloak,
 /// <see cref="IlwrathShip.NoCloak"/>) and elsewhere, at each rating; the
-/// flagship flown by the AI; each battle replayed with every side's input
+/// flagship flown by the AI; test ships flown by the AI (ship_intelligence)
+/// for the paths only other ships take; each battle replayed with every side's input
 /// asked in ProcessInput's order, and every frame and each side's input
 /// compared, the AI's random draws among them.
 /// </summary>
@@ -48,18 +49,28 @@ public class BattleAiTests
             }).ToList();
         Assert.Contains(ai, a => a != null);
 
+        // Each side's fleet of its ship, as the recording made it: the
+        // flagship, the Ilwrath, or a test ship (BattleEngineTests'), which
+        // the AI flies with the stock ship_intelligence.
         var ships = input.GetProperty("ships").EnumerateArray().ToList();
+        int[] fleetSizes = input.TryGetProperty("fleet", out var fleet) ? fleet.Ints() : new[] { 1, 1 };
         var sis = new List<SisShip>();
-        var fleets = ships.Select((s, side) =>
+        var fleets = ships.Select((s, side) => (IReadOnlyList<Starship>)Enumerable.Range(0, fleetSizes[side]).Select(_ =>
         {
-            var (code, crew) = ShipBattleTests.Ship(s, noCloak: earth);
-            if (code is SisShip flagship)
-                sis.Add(flagship);
-            return (IReadOnlyList<Starship>)new[]
+            Starship starship;
+            if (!s.TryGetProperty("kind", out var kind) || kind.GetString() == "test")
+                starship = new Starship(new BattleEngineTests.TestShip(s), (short)side, (ushort)s.GetProperty("crew").GetInt32(),
+                    (ushort)s.GetProperty("max_crew").GetInt32());
+            else
             {
-                new Starship(code, (short)side, crew, 0) { CaptainsNameIndex = (byte)(side == 0 ? 0 : 5) },
-            };
-        }).ToList();
+                var (code, crew) = ShipBattleTests.Ship(s, noCloak: earth);
+                if (code is SisShip flagship)
+                    sis.Add(flagship);
+                starship = new Starship(code, (short)side, crew, 0);
+            }
+            starship.CaptainsNameIndex = (byte)(side == 0 ? 0 : 5);
+            return starship;
+        }).ToList()).ToList();
 
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !sis.Any(s => s.BombCarrier);
         var battle = BattleReplay.Run(Reference.Value, name, fleets, runaway, colours: true, ai);

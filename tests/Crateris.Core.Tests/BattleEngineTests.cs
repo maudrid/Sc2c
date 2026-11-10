@@ -44,9 +44,10 @@ public class BattleEngineTests
     /// <summary>
     /// The recording's test ship (battle.c's load_ship and test_weapons): a
     /// RACE_DESC with the stock ship code and plain weapons, flying a
-    /// ship's sheets with its numbers.
+    /// ship's sheets with its numbers; with a cyborg_control (weapon_range,
+    /// maneuverability) when the AI flies it, with the stock ship_intelligence.
     /// </summary>
-    private sealed class TestShip : IShipCode
+    internal sealed class TestShip : IShipCode
     {
         private const int Missile = 1, Homing = 2, Laser = 4, Spray = 8;
         private readonly JsonElement _input;
@@ -78,6 +79,11 @@ public class BattleEngineTests
                 Ship = _hull, Weapon = _weapon,
             };
             rd.InitWeapon = ship => Weapons(battle, ship);
+            if (_input.TryGetProperty("weapon_range", out var range))
+                rd.WeaponRange = (ushort)range.GetInt32();
+            if (_input.TryGetProperty("maneuverability", out var maneuverability))
+                rd.ManeuverabilityIndex = (ushort)maneuverability.GetInt32();
+            rd.Intelligence = battle.ShipIntelligence;
             return rd;
         }
 

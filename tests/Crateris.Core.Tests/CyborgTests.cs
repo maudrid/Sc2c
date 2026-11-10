@@ -154,6 +154,33 @@ public class CyborgTests
     }
 
     [Fact]
+    public void ASeekingSpecialShotIsTakenForOneByItsSheets()
+    {
+        // The flagship made a SEEKING_SPECIAL ship (as the Spathi's BUTT, 4b),
+        // the Ilwrath's AI looking at one of its shots 300 units off and
+        // coming at it: one taking the special's own sheets (RaceDesc.Special)
+        // is enticed, at its distance in frames (300 >> 6); one with sheets
+        // equal but not the same is an unseeking shot, which the awesome AI
+        // dodges, as it would hit (cyborg.c compares the farray's address).
+        var (battle, flagship, ilwrath) = Fought();
+        var ai = ilwrath.Ship!;
+        Put(flagship.Ship!, ai, 2400, 0);
+        var rd = flagship.RaceDesc!;
+        rd.ShipFlags |= ShipFlags.SeekingSpecial;
+        rd.Special = Shot;
+
+        var shot = Shoot(battle, flagship, ai, rd.Special);
+        var weapon = Concern(battle, ilwrath, Battle.EnemyWeaponIndex);
+        Assert.Same(shot, weapon.Object);
+        Assert.Equal((MoveState.Entice, (ushort)(300 >> 6)), (weapon.MoveState, weapon.WhichTurn));
+
+        shot.Current.FrameArray = shot.Next.FrameArray = Three(Solid("shot", 16, 4));
+        weapon = Concern(battle, ilwrath, Battle.EnemyWeaponIndex);
+        Assert.Same(shot, weapon.Object);
+        Assert.Equal(MoveState.Avoid, weapon.MoveState);
+    }
+
+    [Fact]
     public void TheAiDoesntFlyInTheLastBattle()
     {
         var (battle, _, ilwrath) = Fought();
@@ -212,14 +239,17 @@ public class CyborgTests
     }
 
     // The enemy ship the AI chose this frame (ENEMY_SHIP_INDEX), its input otherwise not used.
-    private static Element? Chosen(Battle battle, Starship ai)
+    private static Element? Chosen(Battle battle, Starship ai) => Concern(battle, ai, Battle.EnemyShipIndex).Object;
+
+    // What tactical_intelligence found for one of the objects of concern this frame.
+    private static EvaluateDesc Concern(Battle battle, Starship ai, int index)
     {
         var rd = ai.RaceDesc!;
         var own = rd.Intelligence!;
-        Element? chosen = null;
+        EvaluateDesc found = default;
         rd.Intelligence = (ship, concerns, count) =>
         {
-            chosen = concerns[Battle.EnemyShipIndex].Object;
+            found = concerns[index];
             own(ship, concerns, count);
         };
         try
@@ -230,7 +260,26 @@ public class CyborgTests
         {
             rd.Intelligence = own;
         }
-        return chosen;
+        return found;
+    }
+
+    // A shot of a ship's 300 units above another element, coming straight at it.
+    private static Element Shoot(Battle battle, Starship from, Element at, Views sheets)
+    {
+        var e = battle.List.Alloc()!;
+        e.StateFlags = ElementFlags.FiniteLife | ElementFlags.IgnoreSimilar;
+        e.PlayerNr = from.PlayerNr;
+        e.Parent = from;
+        e.LifeSpan = 30;
+        e.HitPoints = 1;
+        e.MassPoints = 1;
+        e.Prim = PrimType.Stamp;
+        e.Current.FrameArray = e.Next.FrameArray = sheets;
+        e.Current.Frame = e.Next.Frame = sheets[0];
+        Put(e, at, 0, -300);
+        e.Velocity.SetVector(Battle.DisplayToWorld(4), UqmMath.AngleToFacing(UqmMath.HalfCircle));
+        battle.List.Put(e);
+        return e;
     }
 
     // An element placed (dx, dy) world units from another, still.

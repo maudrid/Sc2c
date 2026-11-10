@@ -58,6 +58,7 @@
  *   weapon_energy_cost special_energy_cost energy_wait turn_wait
  *   thrust_wait weapon_wait special_wait ship_mass
  *   weapons life speed hits damage offset track_wait laser_range
+ *   weapon_range maneuverability
  * its sheets (ship_data.ship and .weapon), its SHIP_INFO and
  * CHARACTERISTIC_STUFF, and its weapons (init_weapon_func): 1 a missile
  * ahead (initialize_missile from its weapon sheet, at the ship's facing),
@@ -65,7 +66,10 @@
  * TrackShip every track_wait + 1 frames), 4 a laser ahead (initialize_laser,
  * laser_range pixels), 8 six missiles round the ship (instead of the
  * others); life, speed, hits, damage and offset are the missiles'
- * MISSILE_BLOCK's (offset also the laser's pixoffs); 1 the flagship (side
+ * MISSILE_BLOCK's (offset also the laser's pixoffs); weapon_range and
+ * maneuverability are its cyborg_control's (WeaponRange,
+ * ManeuverabilityIndex), with UQM's stock ship_intelligence as its
+ * intelligence_func, for the AI to fly it; 1 the flagship (side
  * 0 only), "crew bomb drive0..10 jet0..7 module0..15": GLOBAL_SIS's
  * CrewEnlisted and slots (sis.h's module numbers), and CHMMR_BOMB_STATE;
  * 2 the Ilwrath, "crew": its STARSHIP's crew_level (its RACE_DESC's 22
@@ -824,6 +828,16 @@ read_ship (int side)
 	t->track_wait = v[28];
 	if (scanf ("%d", &t->laser_range) != 1)
 		return 0;
+	{	/* its cyborg_control, so the AI can fly it with the stock
+		 * ship_intelligence (item 4's traces of the AI's paths only other
+		 * ships take); ManeuverabilityIndex 0 is InitCyborg's to work out */
+		int range, maneuverability;
+		if (scanf ("%d %d", &range, &maneuverability) != 2)
+			return 0;
+		rd->cyborg_control.WeaponRange = range;
+		rd->cyborg_control.ManeuverabilityIndex = maneuverability;
+		rd->cyborg_control.intelligence_func = ship_intelligence;
+	}
 	rd->init_weapon_func = test_weapons;
 	ship_crew[side] = rd->ship_info.crew_level;
 	return 1;

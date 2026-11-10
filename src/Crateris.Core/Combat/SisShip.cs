@@ -208,6 +208,8 @@ public sealed class SisShip : IShipCode
         }).ToArray();
         rd.Ship = _hull;
         rd.Weapon = _blaster;
+        // No Special: sis_desc's special sheets are NULL_RESOURCE, and
+        // point defence's lasers take none (RaceDesc.Special).
         rd.Preprocess = BattlePreprocess;
         int laserRange = _description.Define("LASER_RANGE");
         rd.Postprocess = e => BattlePostprocess(battle, e, laserRange);

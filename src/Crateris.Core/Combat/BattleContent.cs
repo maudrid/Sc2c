@@ -150,6 +150,7 @@ public sealed class BattleSheets
     private readonly AnimationSheets _decoded;
     private readonly BattleShapes _shapes;
     private readonly Dictionary<string, Sheet> _sheets = new();
+    private readonly Dictionary<string, Views> _views = new();
 
     public BattleSheets(AnimationSheets decoded, BattleShapes shapes)
     {
@@ -169,9 +170,22 @@ public sealed class BattleSheets
         }
     }
 
-    /// <summary>A farray: the sheets load_animation loads for a RACE_DESC's three sizes (<see cref="ShipGraphics.Sheets"/>), or null for none.</summary>
-    public Views? Views(IReadOnlyList<string?> resources) =>
-        ShipGraphics.Sheets(resources) is { } sheets ? new Views(sheets.Select(s => this[s]).ToArray()) : null;
+    /// <summary>
+    /// A farray: the sheets load_animation loads for a RACE_DESC's three
+    /// sizes (<see cref="ShipGraphics.Sheets"/>), or null for none. The same
+    /// sheets give the same <see cref="Combat.Views"/>, as UQM's farray is
+    /// the one array in the RACE_DESC (the AI tells a ship's special shots
+    /// by it: <see cref="RaceDesc.Special"/>).
+    /// </summary>
+    public Views? Views(IReadOnlyList<string?> resources)
+    {
+        if (ShipGraphics.Sheets(resources) is not { } sheets)
+            return null;
+        string key = string.Join("\n", sheets);
+        if (!_views.TryGetValue(key, out var views))
+            _views[key] = views = new Views(sheets.Select(s => this[s]).ToArray());
+        return views;
+    }
 
     /// <summary>The arena's sheets (InitSpace's), with a planet's battle sprites (load_gravity_well).</summary>
     public BattleArena Arena(IReadOnlyList<string> planet) => new(

@@ -1940,6 +1940,8 @@ def battle_line(scenario, numbers):
         parts += [ship["characteristics"][c] for c in CHARACTERISTICS]
         parts += [ship[k] for k in ("weapons", "life", "speed", "hits", "damage", "offset",
                                     "track_wait", "laser_range")]
+        # Its cyborg_control, for the AI to fly it (ship_intelligence).
+        parts += [ship.get("weapon_range", 0), ship.get("maneuverability", 0)]
     parts += scenario.get("fleet", [1, 1])
     parts.append(len(scenario["steps"]))
     for step in scenario["steps"]:
@@ -3110,6 +3112,43 @@ def ai_battle_scenarios(program):
     # Two Ilwraths flown by the AI, both cloaking (elsewhere).
     out.append(dict(name="ai-duel", seed=8015, planet="planet.chondrite", ships=[ilwrath(22), ilwrath(22)],
                     ai=["awesome", "awesome"], steps=[(1500, 0, 0)], full=100))
+    # The AI's paths only other ships take (4b's), with test ships flown by
+    # it (their cyborg_control set, ship_intelligence their AI): an enemy
+    # whose homing missiles are seeking weapons (dodged by enticing, and
+    # fired at:
+    # PlotIntercept between two short-lived elements), against an
+    # ultra-manoeuvrable ship (thrust as its top speed) and against the
+    # flagship without point defence (sis_intelligence keeping after the
+    # missile); an enemy with an immediate weapon (a laser: ship_weapons
+    # from the enemy), two ships a side; and a ship with no turn or thrust
+    # wait (InitCyborg's other branch).
+    _, flag_values = battle_ships()
+    seeking, immediate, fore = (flag_values[f] for f in ("SEEKING_WEAPON", "IMMEDIATE_WEAPON", "FIRES_FORE"))
+
+    def homing_enemy():
+        t = test_ship("ilwrath", crew=30, weapons=W_HOMING | W_MISSILE, weapon_wait=3, weapon_energy_cost=0)
+        t.update(flags=seeking | fore, hits=4, life=60, speed=30, weapon_range=2000)
+        return t
+    ultra = test_ship("ilwrath", crew=30, max_thrust=40, weapons=W_MISSILE)
+    ultra["characteristics"]["thrust_increment"] = 40
+    ultra.update(weapon_range=2000, maneuverability=100)
+    # (The stock ship_intelligence never fires a seeking weapon, which the
+    # ships' own AIs fire: the missiles' ship flies by keys.)
+    s = dict(name="ai-seeking-ultra", seed=8016, planet="planet.water", ships=[ultra, homing_enemy()],
+             ai=["awesome", None], steps=[(20, 0, 0)], full=100)
+    out.append(piloted(program, s, 1200, [None, shoot(900)]))
+    s = dict(name="ai-seeking-sis", seed=8017, planet="planet.chondrite",
+             ships=[sis(150, {**START_MODULES, 3: M_CREW_POD, 4: M_CREW_POD}, thrusters=(), jets=()), homing_enemy()],
+             ai=["good", None], steps=[(20, 0, 0)], full=100)
+    out.append(piloted(program, s, 1200, [None, shoot(900)]))
+    laser = test_ship("sis_ship", crew=30, weapons=W_LASER, weapon_wait=4)
+    laser.update(flags=immediate | fore, weapon_range=400)
+    out.append(dict(name="ai-immediate", seed=8018, planet="planet.water", ships=[laser, ilwrath(22)],
+                    fleet=[2, 1], ai=["good", "awesome"], steps=[(1500, 0, 0)], full=100))
+    still = test_ship("ilwrath", crew=20, turn_wait=0, thrust_wait=0, weapons=W_MISSILE)
+    still.update(weapon_range=800)
+    out.append(dict(name="ai-zero-wait", seed=8019, planet="planet.chondrite", ships=[sis(50), still],
+                    ai=[None, "standard"], steps=random_steps(8190, 1000), full=100))
     rng = __import__("random").Random(4444)
     out += [random_ai_battle(f"ai-random-{i}", rng) for i in range(RANDOM_AI_BATTLES)]
     return out
@@ -3118,6 +3157,7 @@ def ai_battle_scenarios(program):
 def check_ai_battles(scenarios, battles):
     """Each battle flown by the AI shows what it's for."""
     by_name = {b["name"]: b for b in battles}
+    scenario_by_name = {sc["name"]: sc for sc in scenarios}
 
     def frames(name):
         return by_name[name]["frames"]
@@ -3172,6 +3212,18 @@ def check_ai_battles(scenarios, battles):
     if not any(e[E_PRIM] == LINE_PRIM and e[E_PLAYER] == 0 for f in fr for e in f[F_ELEMENTS]) \
             or not flames("ai-sis-vs-ai", 0):
         fail("ai-sis-vs-ai", "the flagship's AI never used its point defence and guns")
+    # The paths only other ships take: seeking missiles fired at the AI's
+    # ship, lasers (an immediate weapon) at the Ilwrath by both ships of
+    # side 0's fleet in turn, and a ship with no waits flown.
+    for name in ("ai-seeking-ultra", "ai-seeking-sis"):
+        if not flames(name, 1):
+            fail(name, "the seeking missiles were never fired")
+    fr = frames("ai-immediate")
+    if not any(e[E_PRIM] == LINE_PRIM and e[E_PLAYER] == 0 for f in fr for e in f[F_ELEMENTS]) \
+            or not any(f[F_SHIPS][0][1] and f[F_SHIPS][0][1][7] for f in fr):
+        fail("ai-immediate", "no laser, or side 0's second ship never fought")
+    if scenario_by_name["ai-zero-wait"]["ships"][1]["characteristics"]["turn_wait"] != 0:
+        fail("ai-zero-wait", "the ship has a turn wait")
     draws = {d for b in battles for f in b["frames"] for d in f[F_DRAWS]}
     for place in ("TurnShip", "Entice"):
         if place not in draws:

@@ -77,6 +77,7 @@ public sealed class IlwrathShip : IShipCode
             EnergyLevel = (byte)d.Energy, MaxEnergy = (byte)d.MaxEnergy,
             Characteristics = Characteristics.From(d.Characteristics),
             Ship = _hull, Weapon = _fire,
+            // No Special: ilwrath_desc's special sheets are NULL_RESOURCE (the cloak draws none).
         };
         var flame = new MissileBlock
         {

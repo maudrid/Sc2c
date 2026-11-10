@@ -77,8 +77,24 @@ public sealed class RaceDesc
     public byte EnergyLevel, MaxEnergy;
     public Characteristics Characteristics = new();
 
-    /// <summary>ship_data.ship, .weapon and .special: the sheets at three sizes (null where the ship has none).</summary>
-    public Views? Ship, Weapon, Special;
+    /// <summary>ship_data.ship and .weapon: the sheets at three sizes (null where the ship has none).</summary>
+    public Views? Ship, Weapon;
+
+    /// <summary>
+    /// ship_data.special: the special's sheets at three sizes, null where the
+    /// ship has none (the flagship's and the Ilwrath's: their specials,
+    /// point defence's lasers and the cloak, draw no sheets). The AI tells a
+    /// ship's special shots from its weapon's by this instance (cyborg.c
+    /// compares an element's farray with the RACE_DESC's special array, for
+    /// SEEKING_SPECIAL ships): a ship's special elements must take their
+    /// <see cref="ElementState.FrameArray"/> from here, the same
+    /// <see cref="Views"/>, not one made again from the same sheets
+    /// (<see cref="BattleSheets.Views"/> gives the same instance for the
+    /// same sheets). UQM's array is never NULL, so a ship of 4b whose special
+    /// elements take it without sheets of their own needs one here all the
+    /// same.
+    /// </summary>
+    public Views? Special;
 
     /// <summary>preprocess_func and postprocess_func: the ship's own steps, before ship.c's.</summary>
     public ElementProcess? Preprocess, Postprocess;
