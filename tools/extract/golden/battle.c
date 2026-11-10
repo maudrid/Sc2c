@@ -451,8 +451,9 @@ free_ship (RACE_DESC *RaceDescPtr, BOOLEAN FreeIconData, BOOLEAN FreeBattleData)
 	free (RaceDescPtr);
 }
 
-/* pickship.c's GetEncounterStarShip: the side's first ship still able to
- * fight (the player picks from a menu; here there is one ship a side). */
+/* pickship.c's GetEncounterStarShip: here the side's first ship still able
+ * to fight, in its queue's order. UQM's player picks from a menu, and the
+ * computer takes the ship after the last; the port's choice is item 6's. */
 HSTARSHIP
 GetEncounterStarShip (STARSHIP *LastStarShipPtr, COUNT which_side)
 {

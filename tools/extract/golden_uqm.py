@@ -2162,14 +2162,15 @@ def battle_scenarios(program):
                     ships=[test_ship(flagship), test_ship(ilwrath)],
                     steps=[(10, B_ESCAPE, 0), (30, B_THRUST, B_THRUST), (2, B_ESCAPE, 0), (400, 0, B_WEAPON)],
                     full=100))
-    # Fleets of two ships a side, shooting: two ships die together (the
-    # second while the first explodes), and each side's next ship warps in
-    # in its element (GetNextStarShip), until a side is out of ships.
-    s = dict(name="fleets", seed=301, planet="planet.water", fleet=[2, 2],
+    # Fleets, three ships against two, shooting: two ships die together
+    # (the second while the first explodes; the winner picks last), and
+    # each side's next ship warps in in the dead one's element
+    # (GetNextStarShip), until a side is out of ships.
+    s = dict(name="fleets", seed=301, planet="planet.water", fleet=[3, 2],
              ships=[test_ship(ilwrath, crew=3, weapons=W_MISSILE | W_HOMING),
                     test_ship(ilwrath, crew=3, weapons=W_MISSILE | W_HOMING)],
              steps=[(20, 0, 0)], full=300)
-    out.append(piloted(program, s, 700, [lambda f, side, t: steer(f, side, the_ship(1), fire=True, keep_off=300),
+    out.append(piloted(program, s, 900, [lambda f, side, t: steer(f, side, the_ship(1), fire=True, keep_off=300),
                                          lambda f, side, t: steer(f, side, the_ship(0), fire=True, keep_off=300)],
                        chunk=6))
     # Jostling: two quick-turning ships at random, without weapons, which
@@ -2345,16 +2346,18 @@ def check_battles(scenarios, battles):
         fail("ramming", "the ships never bumped")
     if not by_name["shooting"]["ended"] or "explosion_preprocess" not in draws("shooting"):
         fail("shooting", "nobody died")
-    # The homing missiles (side 0's, the flagship's blaster) turn in flight.
-    turned = set()
-    for f in frames("homing")[1:]:
-        for e in f[F_ELEMENTS]:
-            if e[E_PLAYER] == 0 and e[E_MASS] == 2 and e[E_FLAGS] & FINITE_LIFE_FLAG:
-                turned.add((e[24], e[6]))
-    slots = {}
-    for slot, angle in turned:
-        slots.setdefault(slot, set()).add(angle)
-    if not any(len(a) > 1 for a in slots.values()) or not lost("homing", 1):
+    # The homing missiles (side 0's, the flagship's blaster) turn in flight:
+    # the same missile (its slot, its life a frame less) heading another way.
+    fr = frames("homing")
+    turns = 0
+    for a, b in zip(fr[1:], fr[2:]):
+        shots = {e[24]: e for e in a[F_ELEMENTS] if e[E_PLAYER] == 0 and e[E_MASS] == 2
+                 and e[E_FLAGS] & FINITE_LIFE_FLAG}
+        for e in b[F_ELEMENTS]:
+            was = shots.get(e[24])
+            if was and e[E_MASS] == 2 and e[E_LIFE] == was[E_LIFE] - 1 and e[6] != was[6]:
+                turns += 1
+    if not turns or not lost("homing", 1):
         fail("homing", "the homing missiles never turned and hit")
     if "spawn_asteroid" not in draws("asteroids"):
         fail("asteroids", "no asteroid came back")
@@ -2371,6 +2374,9 @@ def check_battles(scenarios, battles):
     if not any(e[E_FLAGS] & CREW_OBJECT_FLAG and e[25] not in (0, dead_slot) for f in fr for e in f[F_ELEMENTS]) \
             or not by_name["crew-orphans"]["ended"]:
         fail("crew-orphans", "no crew turned to another ship after theirs died")
+    # The crew-immune ship's AbandonShip (event at 24, so in frame 25) does nothing.
+    if "AbandonShip" in fr[25][F_DRAWS] or crew("crew-orphans", 0)[24] != crew("crew-orphans", 0)[25]:
+        fail("crew-orphans", "the crew-immune ship lost crew")
     if turns_taken_back("scrape", 0, scenario["scrape"]["ships"][0]["characteristics"]["turn_wait"]) == 0:
         fail("scrape", "no turn taken back")
     # Seed 13's two asteroids on each other break up on the first frame.
@@ -2386,12 +2392,14 @@ def check_battles(scenarios, battles):
     zooms = {f[F_ZOOM] for f in frames("step-zoom")}
     if not zooms <= {0, 1, 2, 3} or len(zooms) < 3:
         fail("step-zoom", f"zooms {sorted(zooms)}")
-    # Fleets: both die at once (the second while the first explodes), and
-    # each side's next ship takes over its element.
+    # Fleets: two die at once (both with an element and no crew), and on
+    # each side a later ship flies in the first one's element (slot).
     fr = frames("fleets")
     both = any(all(s and s[0] == 0 and s[7] for s in (fighting(f, 0), fighting(f, 1))) for f in fr)
-    second = [any(s and s[7] for s in f[F_SHIPS][side][1:]) for f in fr for side in (0, 1)]
-    if not both or not any(second):
+    taken_over = all(any(any(s and s[7] for s in f[F_SHIPS][side][1:]) and ship_of(f, side)
+                         and ship_of(f, side)[24] == ship_of(fr[0], side)[24] for f in fr)
+                     for side in (0, 1))
+    if not both or not taken_over or not by_name["fleets"]["ended"]:
         fail("fleets", "no ships dying together, or no next ship")
 
 
