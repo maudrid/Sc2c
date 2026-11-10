@@ -89,7 +89,7 @@ T opens the giving screen (T, Esc or Backspace closes it), in the status area ov
 
 In orbit, Manifest, then Devices: the group's devices as UQM's `devices.c` lists and draws them, each with its icon and its name a word a line, five rows at a time. Up and left go back, down and right on, Page Up and Page Down a screen at a time; Enter says "Using devices comes in a later stage (3c)."; Esc goes back. With nothing aboard it doesn't open. The devices are story fields, so every player's list shows the group's, and follows while it's open.
 
-![The Devices list with the Rosy Sphere and the Moon Base](../screenshots/stage-3a-devices.png)
+![The Devices list in orbit round Luna, its first five rows, the Aqua Helix lit](../screenshots/stage-3a-devices.png)
 
 ## Save and load
 
