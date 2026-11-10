@@ -372,7 +372,9 @@ public sealed class SisShip : IShipCode
     // spawn_point_defense: from the ship, an element that dies at once
     // (after the ship has moved); dying, it fires a laser at every element
     // near the ship that can collide and isn't cloaked, the ship's own
-    // shots too but not the ship, paying for them all once.
+    // shots too but not the ship, paying for them all once. Not at a
+    // teammate's ship or shots (decision 2), and near across the seam
+    // where contact is tested so (decision 5).
     private static void SpawnPointDefense(Battle battle, Element e, int laserRange)
     {
         var starShip = e.Parent!;
@@ -401,10 +403,11 @@ public sealed class SisShip : IShipCode
         for (Element? o = battle.List.Tail, next; o != null; o = next)
         {
             next = o.Predecessor;
-            if (o == ship || !Battle.Colliding(o) || Battle.ObjectCloaked(o))
+            if (o == ship || !Battle.Colliding(o) || Battle.ObjectCloaked(o) || Battle.Teammates(o, ship))
                 continue;
-            short dx = (short)(o.Next.X - ship.Next.X);
-            short dy = (short)(o.Next.Y - ship.Next.Y);
+            // Across the seam where contact is tested so (decision 5).
+            short ox = battle.SeamDeltaX(o.Next.X - ship.Next.X), oy = battle.SeamDeltaY(o.Next.Y - ship.Next.Y);
+            short dx = ox, dy = oy;
             if (dx < 0)
                 dx = (short)-dx;
             if (dy < 0)
@@ -427,7 +430,7 @@ public sealed class SisShip : IShipCode
             var block = new LaserBlock
             {
                 Cx = ship.Next.X, Cy = ship.Next.Y, Face = 0,
-                Ex = (short)(o.Next.X - ship.Next.X), Ey = (short)(o.Next.Y - ship.Next.Y),
+                Ex = ox, Ey = oy,
                 Sender = ship.PlayerNr, Flags = ElementFlags.IgnoreSimilar, PixOffs = 0, Color = laserColor,
             };
             var laser = battle.InitializeLaser(block);
@@ -567,9 +570,9 @@ public sealed class SisShip : IShipCode
             && enemy.Object != null
             && enemy.WhichTurn <= 16)
         {
-            // Not across the seam, as UQM's.
-            short deltaX = (short)(enemy.Object.Current.X - ship.Current.X);
-            short deltaY = (short)(enemy.Object.Current.Y - ship.Current.Y);
+            // Not across the seam, as UQM's; across it where contact is tested so.
+            short deltaX = battle.SeamDeltaX(enemy.Object.Current.X - ship.Current.X);
+            short deltaY = battle.SeamDeltaY(enemy.Object.Current.Y - ship.Current.Y);
             int directionFacing = UqmMath.NormalizeFacing(UqmMath.AngleToFacing(UqmMath.ArcTan(deltaX, deltaY)));
 
             var shipFlags = rd.ShipFlags;

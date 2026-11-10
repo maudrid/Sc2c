@@ -33,11 +33,84 @@ public sealed partial class Battle
     /// <summary>CollidingElement: neither non-solid nor gone.</summary>
     public static bool Colliding(Element e) => (e.StateFlags & SkipCollision) == 0;
 
+    // UQM's, and teammates' elements never (decision 2).
     private static bool CollisionPossible(Element e0, Element e1) =>
         Colliding(e0)
         && (e1.StateFlags & e0.StateFlags & ElementFlags.Collision) == 0
         && ((e1.StateFlags & e0.StateFlags & ElementFlags.IgnoreSimilar) == 0 || e1.Parent != e0.Parent)
-        && (e1.MassPoints != 0 || e0.MassPoints != 0);
+        && (e1.MassPoints != 0 || e0.MassPoints != 0)
+        && !Teammates(e0, e1);
+
+    /// <summary>
+    /// Whether two elements are teammates' (decision 2, no friendly fire):
+    /// of one side, but different ships'. They pass through each other, so
+    /// a ship's shots pass through its teammates and their shots, and
+    /// teammates' ships through each other; point defence leaves them be,
+    /// and the AI doesn't see them (it looks only at what its ship can
+    /// collide with). A ship's own elements aren't teammates' (UQM's rules
+    /// hold between them, IGNORE_SIMILAR's), nor are neutral ones (the
+    /// planet, asteroids, crew floating, explosions). With one ship a side
+    /// at a time, as in UQM, no two elements are teammates': a side's next
+    /// ship warps in once the last one's elements are gone
+    /// (cleanup_dead_ship), but for its crew, which are neutral.
+    /// </summary>
+    public static bool Teammates(Element e0, Element e1) =>
+        e0.PlayerNr == e1.PlayerNr && e0.PlayerNr != NeutralPlayerNum && e0.Parent != e1.Parent;
+
+    /// <summary>
+    /// Whether contact is tested across the seam (decision 5): in an arena
+    /// bigger than UQM's, collisions, the point defence's reach and the AI's
+    /// plotting of them measure the shorter way round, as gravity, homing and
+    /// the AI's distances do in UQM. In UQM's own arena they don't, as
+    /// UQM's don't (its camera keeps the seam off the screen): elements
+    /// either side of the seam pass through each other.
+    /// </summary>
+    public bool AcrossSeam { get; }
+
+    /// <summary>
+    /// A difference of two places (world units) as contact measures it: the
+    /// shorter way round where contact is tested across the seam
+    /// (<see cref="AcrossSeam"/>), as it is in UQM's arena.
+    /// </summary>
+    public short SeamDeltaX(int dx) => AcrossSeam ? WrapDeltaX(dx) : (short)dx;
+
+    /// <inheritdoc cref="SeamDeltaX"/>
+    public short SeamDeltaY(int dy) => AcrossSeam ? WrapDeltaY(dy) : (short)dy;
+
+    // What to add to a place (to) to bring it within half the arena of
+    // another (from), where contact is tested across the seam; nothing
+    // otherwise. In world units, or display units with shift OneShift.
+    private (short X, short Y) SeamShift(int fromX, int fromY, int toX, int toY, int shift = 0)
+    {
+        if (!AcrossSeam)
+            return default;
+        return (Shift(toX - fromX, Size.Width >> shift), Shift(toY - fromY, Size.Height >> shift));
+
+        static short Shift(int d, int w) => (short)(d > w >> 1 ? -w : -d > w >> 1 ? w : 0);
+    }
+
+    private static void Move(IntersectControl c, short dx, short dy)
+    {
+        c.OriginX += dx;
+        c.OriginY += dy;
+        c.EndX += dx;
+        c.EndY += dy;
+    }
+
+    // DrawablesIntersect, across the seam where contact is tested so: the
+    // second control moved by the arena's size to within half the arena
+    // of the first for the test, and back (its contact point too, so each
+    // control's end is in its own element's places).
+    private ushort Intersect(IntersectControl c0, IntersectControl c1, ushort maxTime)
+    {
+        var (dx, dy) = SeamShift(c0.OriginX, c0.OriginY, c1.OriginX, c1.OriginY, OneShift);
+        if (dx == 0 && dy == 0)
+            return Intersection.DrawablesIntersect(c0, c1, maxTime);
+        Move(c1, dx, dy);
+        ushort time = Intersection.DrawablesIntersect(c0, c1, maxTime);
+        Move(c1, (short)-dx, (short)-dy);
+        return time;
+    }
 
     private static void InitIntersectStartPoint(Element e)
     {
@@ -197,8 +270,10 @@ public sealed partial class Battle
     // CalcView: the scroll that centres the camera, and the zoom.
     private int CalcView(short originX, short originY, short nextReduction, int shipsAlive, out short pdx, out short pdy)
     {
-        short dx = (short)((short)(LogSpaceWidth >> 1) - originX);
-        short dy = (short)((short)(LogSpaceHeight >> 1) - originY);
+        // The view's centre is the arena's; its size, UQM's.
+        int centreX = Size.Width >> 1, centreY = Size.Height >> 1;
+        short dx = (short)((short)centreX - originX);
+        short dy = (short)((short)centreY - originY);
         dx = WrapDeltaX(dx);
         dy = WrapDeltaY(dy);
         if (shipsAlive == 1)
@@ -220,8 +295,8 @@ public sealed partial class Battle
         {
             if (Zoom == BattleZoom.Step)
             {
-                SpaceOrgX = (short)((LogSpaceWidth >> 1) - (LogSpaceWidth >> (MaxReduction + 1 - nextReduction)));
-                SpaceOrgY = (short)((LogSpaceHeight >> 1) - (LogSpaceHeight >> (MaxReduction + 1 - nextReduction)));
+                SpaceOrgX = (short)(centreX - (LogSpaceWidth >> (MaxReduction + 1 - nextReduction)));
+                SpaceOrgY = (short)(centreY - (LogSpaceHeight >> (MaxReduction + 1 - nextReduction)));
             }
             else
             {
@@ -230,8 +305,8 @@ public sealed partial class Battle
                     && ZoomOut - nextReduction > zoomJump)
                     nextReduction = (short)(ZoomOut - zoomJump);
                 // Always on a whole pixel, to reduce the jitter.
-                SpaceOrgX = DisplayAlign((LogSpaceWidth >> 1) - LogSpaceWidth * nextReduction / (MaxZoomOut << 2));
-                SpaceOrgY = DisplayAlign((LogSpaceHeight >> 1) - LogSpaceHeight * nextReduction / (MaxZoomOut << 2));
+                SpaceOrgX = DisplayAlign(centreX - LogSpaceWidth * nextReduction / (MaxZoomOut << 2));
+                SpaceOrgY = DisplayAlign(centreY - LogSpaceHeight * nextReduction / (MaxZoomOut << 2));
             }
             ZoomOut = nextReduction;
             viewState = 2;   // VIEW_CHANGE
@@ -269,7 +344,7 @@ public sealed partial class Battle
                 timeVal = 0;
             else
             {
-                while ((timeVal = Intersection.DrawablesIntersect(e.Intersect, test.Intersect, minTime)) == 1
+                while ((timeVal = Intersect(e.Intersect, test.Intersect, minTime)) == 1
                        && ((stateFlags | testStateFlags) & ElementFlags.FiniteLife) == 0)
                 {
                     if ((stateFlags & ElementFlags.Collision) != 0)
@@ -277,7 +352,7 @@ public sealed partial class Battle
                         InitIntersectEndPoint(test);
                         test.Intersect.OriginX = test.Intersect.EndX;
                         test.Intersect.OriginY = test.Intersect.EndY;
-                        timeVal = Intersection.DrawablesIntersect(e.Intersect, test.Intersect, 1);
+                        timeVal = Intersect(e.Intersect, test.Intersect, 1);
                         InitIntersectStartPoint(test);
                     }
 
@@ -419,8 +494,29 @@ public sealed partial class Battle
         return e.StateFlags & ElementFlags.Collision;
     }
 
+    /// <summary>
+    /// Whether the camera follows this ship's element (decision 5's moving
+    /// frame): UQM's follows every ship, one a side; here one ship a side,
+    /// the side's first in its fleet still fighting (with crew; for side 0,
+    /// the battle's first player still in it), or with none fighting, the
+    /// first still with an element (UQM's camera follows a ship exploding).
+    /// An element of a ship that isn't in a fleet, or no longer has a ship
+    /// (one whose side had no next ship, gone at the frame's end), is
+    /// followed, as UQM's is. With one ship a side, every ship is followed.
+    /// </summary>
+    public bool Followed(Element ship)
+    {
+        var owner = ship.Parent;
+        if (owner == null || owner.PlayerNr is < 0 or >= NumSides || !_fleets[owner.PlayerNr].Contains(owner))
+            return true;
+        var fleet = _fleets[owner.PlayerNr];
+        var followed = fleet.FirstOrDefault(s => s.Ship != null && s.RaceDesc is { CrewLevel: > 0 })
+                       ?? fleet.FirstOrDefault(s => s.Ship != null);
+        return followed == owner;
+    }
+
     // PreProcessQueue: every element's step before moving and its
-    // collisions, and the camera from the ships.
+    // collisions, and the camera from the ships it follows.
     private int PreProcessQueue(out short scrollX, out short scrollY)
     {
         int sidesActive = (BattleCounter[0] != 0 ? 1 : 0) + (BattleCounter[1] != 0 ? 1 : 0);
@@ -430,7 +526,7 @@ public sealed partial class Battle
         else
             minReduction = maxReduction = MaxZoomOut + (1 << ZoomShift);
 
-        short originX = LogSpaceWidth >> 1, originY = LogSpaceHeight >> 1;
+        short originX = (short)(Size.Width >> 1), originY = (short)(Size.Height >> 1);
         int shipsAlive = 0;
         var element = List.Head;
         while (element != null)
@@ -443,7 +539,7 @@ public sealed partial class Battle
             if (Colliding(e) && (e.StateFlags & ElementFlags.Collision) == 0)
                 ProcessCollisions(nextElement, e, MaxTimeValue, ElementFlags.PreProcess);
 
-            if ((e.StateFlags & ElementFlags.PlayerShip) != 0)
+            if ((e.StateFlags & ElementFlags.PlayerShip) != 0 && Followed(e))
             {
                 shipsAlive++;
                 if (maxReduction > _optMaxZoomOut && minReduction > _optMaxZoomOut)

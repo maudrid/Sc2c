@@ -26,6 +26,51 @@ public sealed record BattleArena(Views Stars, Views Asteroid, Views Blast, Views
     public Frame StarsInSpace => Stars[0];
 }
 
+/// <summary>
+/// The arena's size in world units (decision 4): UQM's, LOG_SPACE_WIDTH by
+/// LOG_SPACE_HEIGHT (8,192 by 7,680), or bigger, UQM's times a scale
+/// (<see cref="Scaled"/>; the game's is <c>GameSettings.BattleArenaScale</c>).
+/// Only the arena grows: the camera's zoom stays UQM's, out to its 4x,
+/// which shows half UQM's arena each way. Places are 16-bit, as UQM's
+/// COORDs: an arena of at most <see cref="MaxScale"/> times UQM's keeps
+/// every place and every difference of two places in range, with room for
+/// the elements past an edge before they're wrapped. Each side is a
+/// multiple of 8, so the arena's centre is on a whole pixel, as UQM's is.
+/// </summary>
+public sealed record ArenaSize
+{
+    /// <summary>The most the arena may be scaled each way.</summary>
+    public const double MaxScale = 3;
+
+    /// <summary>UQM's arena: LOG_SPACE_WIDTH by LOG_SPACE_HEIGHT.</summary>
+    public static readonly ArenaSize Uqm = new(Units.LogSpaceWidth, Units.LogSpaceHeight);
+
+    public ArenaSize(int width, int height)
+    {
+        if (width < Units.LogSpaceWidth || height < Units.LogSpaceHeight)
+            throw new ArgumentOutOfRangeException(nameof(width), $"the arena {width} by {height} is smaller than UQM's");
+        if (width > Units.LogSpaceWidth * MaxScale || height > Units.LogSpaceHeight * MaxScale)
+            throw new ArgumentOutOfRangeException(nameof(width), $"the arena {width} by {height} is more than {MaxScale} times UQM's");
+        if (width % 8 != 0 || height % 8 != 0)
+            throw new ArgumentException($"the arena {width} by {height} isn't a multiple of 8 each way");
+        Width = width;
+        Height = height;
+    }
+
+    public int Width { get; }
+    public int Height { get; }
+
+    /// <summary>UQM's arena times <paramref name="scale"/> each way (1 to <see cref="MaxScale"/>), each side rounded to a multiple of 8.</summary>
+    public static ArenaSize Scaled(double scale)
+    {
+        if (!(scale >= 1 && scale <= MaxScale))
+            throw new ArgumentOutOfRangeException(nameof(scale), $"the arena's scale {scale} isn't from 1 to {MaxScale}");
+        return new ArenaSize(Round(Units.LogSpaceWidth * scale), Round(Units.LogSpaceHeight * scale));
+    }
+
+    private static int Round(double v) => (int)Math.Round(v / 8) * 8;
+}
+
 /// <summary>How the battle's view zooms (optMeleeScale): UQM's steps of 1x, 2x and 4x, or its smooth zoom (the default).</summary>
 public enum BattleZoom
 {
@@ -68,10 +113,23 @@ public sealed class BattleRandom
 /// arena's (<see cref="ScrollX"/>, <see cref="ScrollY"/>). Nothing here
 /// draws: what UQM draws from inside the simulation (the status panel's
 /// crew and energy) is kept as state on the ships.
+/// <para>
+/// Co-op (stage 4a item 5): side 0 is the players', any number of ships
+/// fighting at once, each joining when it will (<see cref="Join"/>); side 1
+/// the enemy's. Teammates don't hurt or bump each other
+/// (<see cref="Teammates"/>, decision 2). The arena may be bigger than UQM's
+/// (<see cref="ArenaSize"/>, decision 4), and then contact is tested across
+/// the seam (<see cref="AcrossSeam"/>, decision 5). The camera, UQM's moving
+/// frame, follows one ship a side (<see cref="Followed"/>). With one ship a
+/// side and UQM's arena, the battle is UQM's, frame for frame.
+/// </para>
 /// </summary>
 public sealed partial class Battle
 {
+    /// <summary>LOG_SPACE_WIDTH: UQM's arena, which the camera's zoom is scaled to (the arena's own size is <see cref="Size"/>).</summary>
     public const int LogSpaceWidth = Units.LogSpaceWidth;
+
+    /// <inheritdoc cref="LogSpaceWidth"/>
     public const int LogSpaceHeight = Units.LogSpaceHeight;
     public const int NormalLife = 1;
     public const int HyperjumpLife = 15;
@@ -94,19 +152,19 @@ public sealed partial class Battle
 
     public static short DisplayAlign(int x) => (short)((short)x & ~(ScaledOne - 1));
 
-    private static short DisplayAlignX(uint x) => (short)((short)((ushort)x % LogSpaceWidth) & ~(ScaledOne - 1));
+    private short DisplayAlignX(uint x) => (short)((short)((ushort)x % Size.Width) & ~(ScaledOne - 1));
 
-    private static short DisplayAlignY(uint y) => (short)((short)((ushort)y % LogSpaceHeight) & ~(ScaledOne - 1));
+    private short DisplayAlignY(uint y) => (short)((short)((ushort)y % Size.Height) & ~(ScaledOne - 1));
 
     /// <summary>
     /// WRAP_X (DISPLAY_ALIGN_X (TFB_Random ())): a random place across the
     /// arena. WRAP_X is a macro that reads its argument up to three times,
     /// and each read draws a number: UQM draws three and keeps the last.
     /// </summary>
-    private short RandomX(string place) => WrapRandom(() => DisplayAlignX(Random.Next(place)), LogSpaceWidth);
+    private short RandomX(string place) => WrapRandom(() => DisplayAlignX(Random.Next(place)), Size.Width);
 
     /// <summary>WRAP_Y (DISPLAY_ALIGN_Y (TFB_Random ())), drawing as <see cref="RandomX"/> does.</summary>
-    private short RandomY(string place) => WrapRandom(() => DisplayAlignY(Random.Next(place)), LogSpaceHeight);
+    private short RandomY(string place) => WrapRandom(() => DisplayAlignY(Random.Next(place)), Size.Height);
 
     // WRAP_VAL (v, w) with v read afresh each time.
     private static short WrapRandom(Func<short> v, int w)
@@ -118,13 +176,21 @@ public sealed partial class Battle
         return (short)(ushort)v();
     }
 
-    public static ushort WrapX(int x) => (ushort)(x < 0 ? x + LogSpaceWidth : x >= LogSpaceWidth ? x - LogSpaceWidth : x);
+    /// <summary>WRAP_X: a place taken round the arena (once).</summary>
+    public ushort WrapX(int x) => (ushort)(x < 0 ? x + Size.Width : x >= Size.Width ? x - Size.Width : x);
 
-    public static ushort WrapY(int y) => (ushort)(y < 0 ? y + LogSpaceHeight : y >= LogSpaceHeight ? y - LogSpaceHeight : y);
+    /// <summary>WRAP_Y.</summary>
+    public ushort WrapY(int y) => (ushort)(y < 0 ? y + Size.Height : y >= Size.Height ? y - Size.Height : y);
 
-    public static short WrapDeltaX(int dx) => (short)Units.WrapDeltaX(dx);
+    /// <summary>WRAP_DELTA_X: the shorter way between two places, across the seam or not.</summary>
+    public short WrapDeltaX(int dx) => (short)WrapDelta(dx, Size.Width);
 
-    public static short WrapDeltaY(int dy) => (short)Units.WrapDeltaY(dy);
+    /// <summary>WRAP_DELTA_Y.</summary>
+    public short WrapDeltaY(int dy) => (short)WrapDelta(dy, Size.Height);
+
+    private static int WrapDelta(int d, int w) => d < 0
+        ? (-d <= w >> 1 ? d : w + d)
+        : (d <= w >> 1 ? d : d - w);
 
     private static short Sine(int angle, int magnitude) => UqmMath.Sine(angle, magnitude);
 
@@ -132,6 +198,9 @@ public sealed partial class Battle
 
     private readonly List<Starship>[] _fleets;
     private readonly bool _runAwayAllowed;
+
+    // Whether a frame is being stepped: ships join between frames.
+    private bool _stepping;
 
     /// <summary>
     /// Battle: the generator seeded (UQM seeds it from the clock), the arena
@@ -144,13 +213,19 @@ public sealed partial class Battle
     /// <param name="zoom">How the view zooms.</param>
     /// <param name="runAwayAllowed">Whether side 0 can retreat (RunAwayAllowed: an encounter after the starbase is available, without the bomb).</param>
     /// <param name="randomPlaces">Where to note each random number's place, or null.</param>
+    /// <param name="size">The arena's size: UQM's (the default), or bigger (decision 4).</param>
+    /// <param name="maxElements">The most elements the list holds: UQM's 150 (MAX_DISPLAY_ELEMENTS) by default, more for more players.</param>
     public Battle(BattleArena arena, IReadOnlyList<IReadOnlyList<Starship>> fleets, uint seed,
-        BattleZoom zoom = BattleZoom.Smooth, bool runAwayAllowed = false, List<string>? randomPlaces = null)
+        BattleZoom zoom = BattleZoom.Smooth, bool runAwayAllowed = false, List<string>? randomPlaces = null,
+        ArenaSize? size = null, int maxElements = DisplayList.MaxDisplayElements)
     {
         if (fleets.Count != NumSides)
             throw new ArgumentException("a battle has two sides");
         Arena = arena;
         Zoom = zoom;
+        Size = size ?? ArenaSize.Uqm;
+        AcrossSeam = Size != ArenaSize.Uqm;
+        List = new DisplayList(maxElements);
         _runAwayAllowed = runAwayAllowed;
         _fleets = fleets.Select(f => f.ToList()).ToArray();
         for (int side = 0; side < NumSides; ++side)
@@ -170,7 +245,11 @@ public sealed partial class Battle
 
     public BattleArena Arena { get; }
     public BattleZoom Zoom { get; }
-    public DisplayList List { get; } = new();
+
+    /// <summary>The arena's size: where places wrap, the random places, the asteroids' seam.</summary>
+    public ArenaSize Size { get; }
+
+    public DisplayList List { get; }
     public BattleRandom Random { get; }
 
     /// <summary>Each side's ships (race_q), in the order they're picked.</summary>
@@ -233,9 +312,52 @@ public sealed partial class Battle
     {
         if (!InBattle)
             throw new InvalidOperationException("the battle is over");
-        ProcessInput(input);
-        RedrawQueue();
+        if (_stepping)
+            throw new InvalidOperationException("a frame is being stepped");
+        _stepping = true;
+        try
+        {
+            ProcessInput(input);
+            RedrawQueue();
+        }
+        finally
+        {
+            _stepping = false;
+        }
         return InBattle;
+    }
+
+    /// <summary>
+    /// A ship joining the battle (decision 6), between frames: it's added to
+    /// its side's fleet, counted among the side's ships able to fight
+    /// (battle_counter), and warps in as UQM's spawn_ship brings in a ship,
+    /// at a random place clear of the planet and of everything solid and
+    /// every ship, facing a random way, its element at the list's head,
+    /// drawing from the battle's random numbers. Returns false, changing
+    /// nothing, when the list is full (no element for it). A ship already in
+    /// a battle, or spent by one (no longer available), is refused, as is
+    /// joining a battle that's over or during a frame (from a ship's input).
+    /// </summary>
+    public bool Join(Starship ship)
+    {
+        if (_stepping)
+            throw new InvalidOperationException("a ship joins between frames");
+        if (!InBattle)
+            throw new InvalidOperationException("the battle is over");
+        if (ship.PlayerNr is < 0 or >= NumSides)
+            throw new ArgumentException($"a ship of side {ship.PlayerNr} can't join");
+        if (_fleets.Any(f => f.Contains(ship)))
+            throw new ArgumentException("the ship is already in the battle");
+        if (!ship.Available || ship.Ship != null || ship.RaceDesc != null)
+            throw new ArgumentException("the ship isn't free to fight: in a battle or spent by one");
+        if (BattleCounter[ship.PlayerNr] == byte.MaxValue)
+            throw new InvalidOperationException("the side has as many ships as it can count");
+        if (List.Full)
+            return false;
+        _fleets[ship.PlayerNr].Add(ship);
+        BattleCounter[ship.PlayerNr]++;
+        SpawnShip(ship);   // with a slot free, it can't fail
+        return true;
     }
 
     // battle.c's ProcessInput.
@@ -329,10 +451,12 @@ public sealed partial class Battle
 
     // ship.c's GetNextStarShip: the side's next ship warps in, taking the
     // last one's element. pickship.c's GetEncounterStarShip is a menu for
-    // the player; here each side takes its first ship still able to fight.
+    // the player; here each side takes its first ship still able to fight
+    // and not fighting already (with several ships of a side at once, a
+    // teammate in the battle isn't the next ship).
     private bool GetNextStarShip(Starship? last, int side)
     {
-        var next = _fleets[side].FirstOrDefault(s => s.Available);
+        var next = _fleets[side].FirstOrDefault(s => s.Available && (s.Ship == null || s == last));
         if (next != null)
         {
             if (last != null)

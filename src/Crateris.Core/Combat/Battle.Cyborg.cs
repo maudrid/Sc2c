@@ -349,7 +349,9 @@ public sealed partial class Battle
     /// (and the life left of a short-lived one), the two elements will
     /// meet flying on as they go, within <paramref name="margin"/> world
     /// units, or, with no margin, their shapes touching; 0 if they won't.
-    /// Measured from their places as they are, not across the seam.
+    /// Measured from their places as they are, not across the seam, as
+    /// UQM's; across it where contact is tested so (<see cref="AcrossSeam"/>),
+    /// as the collisions it foresees are.
     /// </summary>
     public ushort PlotIntercept(Element e0, Element e1, ushort maxTurns, ushort margin)
     {
@@ -379,7 +381,9 @@ public sealed partial class Battle
         dx0 = (short)Velocity.VelocityToWorld((int)((long)dx0 * maxTurns));
         dy0 = (short)Velocity.VelocityToWorld((int)((long)dy0 * maxTurns));
 
-        short dst1X = e1.Current.X, dst1Y = e1.Current.Y;
+        // The second element the shorter way round, where contact is tested across the seam.
+        var (seamX, seamY) = SeamShift(e0.Current.X, e0.Current.Y, e1.Current.X, e1.Current.Y);
+        short dst1X = (short)(e1.Current.X + seamX), dst1Y = (short)(e1.Current.Y + seamY);
         var (dx1, dy1) = e1.Velocity.Current();
         dx1 = (short)Velocity.VelocityToWorld((int)((long)dx1 * maxTurns));
         dy1 = (short)Velocity.VelocityToWorld((int)((long)dy1 * maxTurns));
@@ -514,9 +518,10 @@ public sealed partial class Battle
                     short pt0X = e0.Current.X, pt0Y = e0.Current.Y;
                     var velocity0 = e0.Velocity;
                     var control0 = e0.Intersect.Copy();
-                    short pt1X = e1.Current.X, pt1Y = e1.Current.Y;
+                    short pt1X = (short)(e1.Current.X + seamX), pt1Y = (short)(e1.Current.Y + seamY);
                     var velocity1 = e1.Velocity;
                     var control1 = e1.Intersect.Copy();
+                    Move(control1, (short)(seamX >> OneShift), (short)(seamY >> OneShift));
 
                     if (timeY0 != 0)
                     {

@@ -179,6 +179,7 @@ public sealed class GameWorld
         if ((systems is null) != (shapes is null))
             throw new ArgumentException("systems and the sprites' shapes go together");
         ShipHold.Check(settings.EscortLoadout);   // a guest's escort is made from it
+        settings.CheckBattle();
         Settings = settings;
         Clock = clock;
         Frame = frame;

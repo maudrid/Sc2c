@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using System.Text.Json.Nodes;
+using Crateris.Core.Combat;
 using Crateris.Core.Data;
 using Crateris.Core.Net;
 using Crateris.Core.World;
@@ -213,5 +214,32 @@ public class HoldTests
         Assert.Throws<ArgumentOutOfRangeException>(() => GameWorld.NewGame(
             new GameSettings { EscortLoadout = new GameSettings().EscortLoadout with { Landers = 11 } },
             NewGameData.Load(DataDir), "host", "Host"));
+    }
+
+    [Theory]
+    [InlineData("battle_arena_scale", 0.9)]
+    [InlineData("battle_arena_scale", 3.5)]
+    [InlineData("battle_max_elements", 149)]
+    [InlineData("battle_max_elements", 1001)]
+    public void BadBattleSettingsAreRefused(string field, double value)
+    {
+        // The defaults: an arena 1.5 times UQM's, twice UQM's list. A save
+        // from before them has them as the defaults.
+        var defaults = new GameSettings();
+        Assert.Equal((1.5, 300), (defaults.BattleArenaScale, defaults.BattleMaxElements));
+        Assert.Equal(new ArenaSize(12288, 11520), ArenaSize.Scaled(defaults.BattleArenaScale));
+        var node = JsonNode.Parse(HostSave.ToJson(NewWorld()))!;
+        Assert.Equal(1.5, node["settings"]!["battle_arena_scale"]!.GetValue<double>());
+        ((JsonObject)node["settings"]!).Remove("battle_arena_scale");
+        ((JsonObject)node["settings"]!).Remove("battle_max_elements");
+        Assert.Equal(defaults, HostSave.FromJson(node.ToJsonString()).Settings);
+
+        node["settings"]![field] = field == "battle_max_elements" ? JsonValue.Create((int)value) : JsonValue.Create(value);
+        var e = Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString()));
+        Assert.Contains("battle", e.Message);
+        var settings = field == "battle_max_elements"
+            ? new GameSettings { BattleMaxElements = (int)value }
+            : new GameSettings { BattleArenaScale = value };
+        Assert.Throws<ArgumentOutOfRangeException>(() => GameWorld.NewGame(settings, NewGameData.Load(DataDir), "host", "Host"));
     }
 }

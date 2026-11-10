@@ -172,16 +172,22 @@ public sealed partial class Battle
         } while (--i != 0);
     }
 
-    // FindAliveStarShip: the other ship, if it's alive and not running away.
+    // FindAliveStarShip: the other side's ship, if it's alive and not
+    // running away. UQM's takes the first ship but the dead one (which with
+    // one ship a side is the other side's) and has none if it's dead too;
+    // with several ships a side at once (item 5) a teammate isn't the
+    // winner, and the winner is the first of the other side's ships alive.
+    // A ship whose element has no ship (its side had no next ship, gone at
+    // the frame's end) isn't one (UQM's would crash on it).
     private Starship? FindAliveStarShip(Element deadShip)
     {
         for (var e = List.Head; e != null; e = e.Succ)
         {
-            if ((e.StateFlags & ElementFlags.PlayerShip) != 0 && e != deadShip && e.MassPoints <= MaxShipMass + 1)
+            if ((e.StateFlags & ElementFlags.PlayerShip) != 0 && e != deadShip && e.MassPoints <= MaxShipMass + 1
+                && e.Parent is { } alive && alive.PlayerNr != deadShip.Parent!.PlayerNr)
             {
-                var alive = e.Parent!;
                 if (alive.RaceDesc!.CrewLevel == 0 && e.MassPoints != MaxShipMass + 1)
-                    alive = null;   // dead too (a reincarnating Pkunk isn't)
+                    continue;   // dead too (a reincarnating Pkunk isn't)
                 return alive;
             }
         }

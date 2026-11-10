@@ -58,6 +58,9 @@ public sealed class DisplayList
 
     public int Count => Elements.Count();
 
+    /// <summary>Whether every slot is taken (<see cref="Alloc"/> would fail).</summary>
+    public bool Full => _free.Count == 0;
+
     /// <summary>ReinitQueue: empty, every slot free, the first slot handed out first.</summary>
     public void Reinit()
     {

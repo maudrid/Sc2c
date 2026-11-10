@@ -20,11 +20,12 @@ public sealed partial class Battle
     private const int CollisionThrustWait = 3;
     private const int GravityThreshold = 255;
 
-    // collide: two solid elements bounce off each other by their masses.
-    private static void Collide(Element e0, Element e1)
+    // collide: two solid elements bounce off each other by their masses
+    // (the angle between them across the seam where contact is tested so).
+    private void Collide(Element e0, Element e1)
     {
-        short dxRel = (short)(e0.Next.X - e1.Next.X);
-        short dyRel = (short)(e0.Next.Y - e1.Next.Y);
+        short dxRel = SeamDeltaX(e0.Next.X - e1.Next.X);
+        short dyRel = SeamDeltaY(e0.Next.Y - e1.Next.Y);
         short impactAngle0 = (short)UqmMath.ArcTan(dxRel, dyRel);
         short impactAngle1 = (short)UqmMath.NormalizeAngle(impactAngle0 + UqmMath.HalfCircle);
 
@@ -151,14 +152,18 @@ public sealed partial class Battle
         return false;
     }
 
-    /// <summary>TimeSpaceMatterConflict: whether the element, where it is now, overlaps anything solid or a ship.</summary>
-    private bool TimeSpaceMatterConflict(Element e)
+    /// <summary>
+    /// TimeSpaceMatterConflict: whether the element, where it is now,
+    /// overlaps anything solid or a ship (across the seam where contact is
+    /// tested so).
+    /// </summary>
+    internal bool TimeSpaceMatterConflict(Element e)
     {
         var control = StillControl(e);
         for (var test = List.Head; test != null; test = test.Succ)
         {
             if (test != e && (Colliding(test) || (test.StateFlags & ElementFlags.PlayerShip) != 0)
-                && Intersection.DrawablesIntersect(control, StillControl(test), MaxTimeValue) != 0)
+                && Intersect(control, StillControl(test), MaxTimeValue) != 0)
                 return true;
         }
         return false;

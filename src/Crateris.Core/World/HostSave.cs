@@ -155,6 +155,14 @@ public static class HostSave
         {
             FramesIntoDay = save.Clock.FramesIntoDay,
         };
+        try
+        {
+            settings.CheckBattle();
+        }
+        catch (ArgumentOutOfRangeException e)
+        {
+            throw new InvalidDataException($"Bad settings: battle: {e.Message}", e);
+        }
         GameWorld world;
         try
         {

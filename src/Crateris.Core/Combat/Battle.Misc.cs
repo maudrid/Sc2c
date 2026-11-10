@@ -108,13 +108,13 @@ public sealed partial class Battle
         ushort val = (ushort)Random.Next("spawn_asteroid");
         if ((val & (1 << 0)) != 0)
         {
-            asteroid.Current.X = (short)((val & (1 << 1)) == 0 ? 0 : LogSpaceWidth);
+            asteroid.Current.X = (short)((val & (1 << 1)) == 0 ? 0 : Size.Width);
             asteroid.Current.Y = RandomY("spawn_asteroid");
         }
         else
         {
             asteroid.Current.X = RandomX("spawn_asteroid");
-            asteroid.Current.Y = (short)((val & (1 << 1)) == 0 ? 0 : LogSpaceHeight);
+            asteroid.Current.Y = (short)((val & (1 << 1)) == 0 ? 0 : Size.Height);
         }
 
         short magnitude = DisplayToWorld(((short)Random.Next("spawn_asteroid") & 7) + 4);
@@ -263,8 +263,11 @@ public sealed partial class Battle
             {
                 crewIntersect.EndX += (short)(w - (r.Width >> 1));
                 crewIntersect.EndY += (short)(h - (r.Height >> 1));
-                crewIntersect.OriginX = target.Intersect.EndX;
-                crewIntersect.OriginY = target.Intersect.EndY;
+                // From the target, the shorter way round where contact is tested across the seam.
+                var (sx, sy) = SeamShift(shipIntersect.EndX, shipIntersect.EndY, target.Intersect.EndX,
+                    target.Intersect.EndY, OneShift);
+                crewIntersect.OriginX = (short)(target.Intersect.EndX + sx);
+                crewIntersect.OriginY = (short)(target.Intersect.EndY + sy);
             }
             else
             {

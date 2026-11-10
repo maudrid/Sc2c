@@ -285,11 +285,11 @@ public class CyborgTests
         return e;
     }
 
-    // An element placed (dx, dy) world units from another, still.
+    // An element placed (dx, dy) world units from another, still, in UQM's arena.
     private static void Put(Element e, Element from, int dx, int dy)
     {
-        e.Current.X = e.Next.X = (short)Battle.WrapX(from.Next.X + dx);
-        e.Current.Y = e.Next.Y = (short)Battle.WrapY(from.Next.Y + dy);
+        e.Current.X = e.Next.X = (short)Wrap(from.Next.X + dx, Battle.LogSpaceWidth);
+        e.Current.Y = e.Next.Y = (short)Wrap(from.Next.Y + dy, Battle.LogSpaceHeight);
         e.Velocity.Zero();
     }
 
@@ -323,6 +323,8 @@ public class CyborgTests
         battle.List.Put(e);
         return e;
     }
+
+    private static int Wrap(int v, int size) => v < 0 ? v + size : v >= size ? v - size : v;
 
     private static Sheet Solid(string id, int count, int size) => new(id, count,
         Enumerable.Range(0, count).Select(_ => new IntersectFrame(size, size, size / 2, size / 2,
