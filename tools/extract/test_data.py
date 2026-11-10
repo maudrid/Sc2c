@@ -309,7 +309,11 @@ class MatchesSource(unittest.TestCase):
             self.assertEqual(uqm.eval_ints(["DISPLAY_TO_WORLD (30)"],
                                            ["uqm/units.h"], constant=True),
                              [120])
-            for bad in ['"text"', "1.5", "&uqm_dummy_var"]:
+            # A string, a float and an address (of printf, which run_c's
+            # <stdio.h> declares) all compile as ordinary values, so the
+            # refusal is the constant check's, not a compile error of its own.
+            for bad in ['"text"', "1.5", "&printf"]:
+                self.assertEqual(len(uqm.eval_ints([bad], [])), 1, bad)
                 with self.assertRaises(RuntimeError, msg=bad):
                     uqm.eval_ints([bad], [], constant=True)
 
