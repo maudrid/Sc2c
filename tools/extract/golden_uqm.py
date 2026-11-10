@@ -1970,12 +1970,11 @@ class BattleProgram:
         res = subprocess.run([self.exe, self.sheets_file, self.masks], input="\n".join(lines) + "\n",
                              capture_output=True, text=True)
         if res.returncode < 0:
-            # UQM's own code crashing. The one cause seen: AbandonShip events
-            # emptying a ship (the Syreen's song, UQM's one caller, leaves one
-            # crew), leaving floating crew whose ship is freed under them.
+            # UQM's own code crashing. The cause seen was AbandonShip events
+            # towards a ship without crew, which the program now refuses.
             raise RuntimeError(" ".join(filter(None, [
                 f"the battle program crashed (signal {-res.returncode}); possibly an AbandonShip event "
-                "emptying a ship (clamp_events keeps one crew aboard).", res.stderr.strip()])))
+                "UQM never makes.", res.stderr.strip()])))
         if res.returncode:
             raise RuntimeError(f"the battle program refused a battle: {res.stderr.strip()}")
         out = res.stdout
@@ -2148,7 +2147,10 @@ def random_battle(name, rng):
 def clamp_events(program, scenario):
     """The scenario's AbandonShip events holding the ship to one crew at
     least, as the Syreen's song (UQM's only caller) does: each event's crew
-    cut to the ship's crew then, less one, and dropped if none can go."""
+    cut to the ship's crew then, less one, and dropped if none can go, or
+    if either ship's element has no crew (dead, or warped out: the
+    battle program refuses those, as UQM's code crashes on one towards a
+    ship whose RACE_DESC new_ship then frees)."""
     events = []
     for frame, side, target, crew in scenario["events"]:
         steps, left = [], frame
@@ -2163,7 +2165,9 @@ def clamp_events(program, scenario):
         ship = fighting(battle["frames"][frame], side)
         # Events accepted at this frame haven't run in the battle above.
         left = ship[0] - sum(e[3] for e in events if e[0] == frame and e[1] == side) if ship else 0
-        if ship and fighting(battle["frames"][frame], target) and left > 1:
+        alive = [e and e[E_CREW] for e in (ship_of(battle["frames"][frame], side),
+                                           ship_of(battle["frames"][frame], target))]
+        if ship and fighting(battle["frames"][frame], target) and left > 1 and all(alive):
             events.append((frame, side, target, min(crew, left - 1)))
     return dict(scenario, events=events)
 

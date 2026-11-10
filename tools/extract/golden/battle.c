@@ -74,9 +74,8 @@
  * fleet0 and fleet1 are how many of its ship each side has: when
  * one dies, the next takes over its element (GetNextStarShip). An event at
  * a frame calls AbandonShip (misc.c) on side's ship in the battle towards
- * target's, for crew, before that frame; the program refuses one from a
- * ship without crew, or towards one an earlier event emptied (see
- * DoInput).
+ * target's, for crew, before that frame; the program refuses one from or
+ * towards a ship without crew (dead, warped out or emptied; see DoInput).
  *
  * Output: one JSON object per battle: its stars (InitGalaxy's
  * log_star_array, [x, y] each), and its frames: the first after the
@@ -661,8 +660,6 @@ side_ship (int side)
 
 /* battle.c's one DoInput: DoBattle until it stops or the steps run out. */
 static int ended;
-static STARSHIP *emptied[NUM_SIDES * MAX_SHIPS_PER_SIDE];   /* by an event */
-static int num_emptied;
 
 void
 DoInput (void *pInputState, BOOLEAN resetInput)
@@ -676,7 +673,6 @@ DoInput (void *pInputState, BOOLEAN resetInput)
 		printf ("%s[%d, %d]", i ? ", " : "", log_star_array[i].x,
 				log_star_array[i].y);
 	printf ("], \"frames\": [");
-	num_emptied = 0;
 	record (1);
 	for (frame_no = 0; frame_no < total_frames; ++frame_no)
 	{
@@ -689,29 +685,25 @@ DoInput (void *pInputState, BOOLEAN resetInput)
 				STARSHIP *ts = side_ship (event_target[k]);
 				LockElement (s->hShip, &ship);
 				LockElement (ts->hShip, &target);
-				/* UQM's one caller, the Syreen's song, leaves the ship one
-				 * crew at least. Refused, as UQM's code has crashed there
-				 * (crew whose ship is freed under them: crew_preprocess
-				 * reads its RACE_DESC): an event from a ship without crew,
-				 * or towards one an earlier event emptied. An event
-				 * emptying a ship isn't refused (item 2's crew-floating
-				 * does, and records), but it can still crash later
-				 * (golden_uqm.py's clamp_events keeps random events from
-				 * it). */
-				int e;
-				for (e = 0; e < num_emptied; ++e)
-					if (emptied[e] == ts)
-						break;
-				if (ship->crew_level == 0 || e < num_emptied)
+				/* UQM's one caller, the Syreen's song, takes crew from a
+				 * ship with crew towards the Syreen singing, leaving one
+				 * at least. Refused: an event from a ship without crew
+				 * (AbandonShip would make crew from nothing, DeltaCrew
+				 * stopping at 0), or towards one (dead, warped out, or
+				 * emptied: the crew then head for a ship whose RACE_DESC
+				 * new_ship frees, and crew_preprocess crashes reading it).
+				 * An event emptying a ship isn't refused (item 2's
+				 * crew-floating does, and records; the ship stays in the
+				 * battle without crew, as nothing in UQM leaves one);
+				 * golden_uqm.py's clamp_events keeps random events from
+				 * all three. */
+				if (ship->crew_level == 0 || target->crew_level == 0)
 				{
-					fprintf (stderr, "frame %d: AbandonShip from a ship "
-							"without crew, or towards one an event emptied\n",
-							frame_no);
+					fprintf (stderr, "frame %d: AbandonShip from or towards "
+							"a ship without crew\n", frame_no);
 					exit (1);
 				}
 				AbandonShip (ship, target, event_crew[k]);
-				if (ship->crew_level == 0 && num_emptied < NUM_SIDES * MAX_SHIPS_PER_SIDE)
-					emptied[num_emptied++] = s;
 			}
 		more = (*bs->InputFunc) (bs);
 		record (0);

@@ -220,7 +220,7 @@
   "tests/golden/star-systems.json": "8df8ef17035f2037",
   "tests/golden/planetside-colors.json": "ace4c4b8348ac8aa",
   "tests/golden/planet-spheres.json": "f145b05659dfe868",
-  "tests/golden/battle.json": "54afd22fe1bf3c91",
+  "tests/golden/battle.json": "c467ca95076a0c2e",
   "tests/golden/commtext.json": "dd358710b654be5e",
   "tests/golden/sprite-masks.json": "87e105ff015f29b2",
   "tests/golden/comm-graphics.json": "5e3c480426dfe379",
