@@ -2136,8 +2136,10 @@ def clamp_events(program, scenario):
         if len(battle["frames"]) <= frame:
             continue   # the battle was over by then
         ship = fighting(battle["frames"][frame], side)
-        if ship and fighting(battle["frames"][frame], target) and ship[0] > 1:
-            events.append((frame, side, target, min(crew, ship[0] - 1)))
+        # Events accepted at this frame haven't run in the battle above.
+        left = ship[0] - sum(e[3] for e in events if e[0] == frame and e[1] == side) if ship else 0
+        if ship and fighting(battle["frames"][frame], target) and left > 1:
+            events.append((frame, side, target, min(crew, left - 1)))
     return dict(scenario, events=events)
 
 
@@ -2497,16 +2499,22 @@ def check_battles(scenarios, battles):
     skiffs = [(n, side) for n in randoms for side in (0, 1)
               if ships_input(n, side)["characteristics"]["thrust_increment"]
               == ships_input(n, side)["characteristics"]["max_thrust"]]
-    if not any(fighting(f, side) and fighting(f, side)[6] & B_THRUST
+    # inertial_thrust ran: the key held, at the top speed, the thrust wait just set.
+    if not any(fighting(f, side) and fighting(f, side)[6] & B_THRUST and fighting(f, side)[6] & (1 << 7)
+               and ship_of(f, side)[5] == ships_input(n, side)["characteristics"]["thrust_wait"]
                for n, side in skiffs for f in frames(n)):
         fail("random-*", "no Skiff thrusting")
-    if not any(f[1] == (8192 // 75) & ~3 for n in randoms for f in frames(n)):
-        fail("random-*", "the camera's scroll never clamped to the right")
+    org_jump_x = (8192 // 75) & ~3
+    if not any(f[1] == org_jump_x for n in randoms for f in frames(n)) \
+            or not any(f[1] == -org_jump_x for n in randoms for f in frames(n)):
+        fail("random-*", "the camera's scroll never clamped both ways")
     down = 0
     for n in randoms:
         for frame, side, target, crew in scenario[n]["events"]:
             ship = ship_of(frames(n)[frame], side)
-            if ship and 17 <= ship[6] <= 47:   # its TravelAngle: moving downwards
+            # Its TravelAngle moving downwards, and not crew-immune (AbandonShip returns at once).
+            if ship and 17 <= ship[6] <= 47 and not ships_input(n, side)["flags"] & 64 \
+                    and frame < len(frames(n)) - 1:
                 down += 1
     if not down:
         fail("random-*", "no AbandonShip from a ship moving downwards")
