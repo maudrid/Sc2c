@@ -1843,6 +1843,9 @@ BATTLE_STUBS = os.path.join(HERE, "golden", "battle_stubs.c")
 # The planets the battles have (load_gravity_well's battle sprites).
 BATTLE_PLANETS = ["planet.water", "planet.chondrite"]
 
+# How many battles random_battle makes.
+RANDOM_BATTLES = 8
+
 # BATTLE_INPUT_STATE.
 B_LEFT, B_RIGHT, B_THRUST, B_WEAPON, B_SPECIAL, B_ESCAPE = 1, 2, 4, 8, 16, 32
 # The test ships' weapons (battle.c): a missile, a homing missile, a laser,
@@ -2078,6 +2081,45 @@ def random_steps(seed, frames, sides=2, choices=None, longest=30):
     return steps
 
 
+def random_battle(name, rng):
+    """A battle with everything at random, from rng: each side's ship
+    (either sheet, any weapons, sometimes the Skiff's thrust (its
+    increment its most), a light or nimble hull, free shots, short or long
+    lives, crew above its most, crew-immune), fleets of one to three,
+    either zoom, retreat allowed or not, keys at random (Escape among
+    them) and AbandonShip at random frames."""
+    ships = []
+    for side in range(2):
+        t = test_ship(rng.choice(["sis_ship", "ilwrath"]), crew=rng.choice([None, 3, 5, 12, 50]),
+                      weapons=rng.choice([0, W_MISSILE, W_HOMING, W_MISSILE | W_HOMING, W_LASER,
+                                          W_MISSILE | W_LASER, W_HOMING | W_LASER, W_SPRAY]))
+        c = t["characteristics"]
+        if rng.random() < 0.3:
+            c["thrust_increment"] = c["max_thrust"]   # the Skiff's inertialess thrust
+        if rng.random() < 0.3:
+            c["ship_mass"] = rng.choice([1, 2, 6, 10])
+        if rng.random() < 0.3:
+            c["turn_wait"] = 0
+        if rng.random() < 0.3:
+            c["weapon_energy_cost"] = 0
+        if rng.random() < 0.2:
+            t["flags"] |= 64   # CREW_IMMUNE
+        if rng.random() < 0.3:
+            t["life"] = rng.choice([2, 40, 90])
+        ships.append(t)
+    frames = rng.choice([1200, 2000])
+    keys = [0, B_THRUST, B_THRUST, B_LEFT, B_RIGHT, B_THRUST | B_LEFT, B_THRUST | B_RIGHT, B_WEAPON,
+            B_WEAPON | B_THRUST, B_WEAPON | B_LEFT, B_WEAPON | B_RIGHT | B_THRUST, B_LEFT | B_RIGHT,
+            B_SPECIAL | B_THRUST, B_ESCAPE, B_ESCAPE | B_THRUST]
+    steps = random_steps(rng.randrange(1 << 30), frames, choices=keys, longest=rng.choice([5, 15, 30]))
+    events = sorted((rng.randrange(60, frames), rng.randrange(2), rng.randrange(2), rng.randrange(1, 12))
+                    for _ in range(rng.choice([1, 3, 5])))
+    return dict(name=name, seed=rng.randrange(1 << 31), planet=rng.choice(BATTLE_PLANETS),
+                zoom=rng.choice(["smooth", "smooth", "step"]), runaway=rng.random() < 0.4,
+                fleet=[rng.choice([1, 2, 3]), rng.choice([1, 2, 3])],
+                ships=ships, steps=steps, events=events, full=60)
+
+
 def battle_scenarios(program):
     """The traces: each a battle UQM runs from a seed with scripted keys
     (some flown by a pilot steering at a goal; the keys are recorded)."""
@@ -2180,6 +2222,24 @@ def battle_scenarios(program):
     out.append(dict(name="jostle", seed=13, planet="planet.water",
                     ships=[test_ship(ilwrath, weapons=0), test_ship(ilwrath, weapons=0)],
                     steps=random_steps(1300, 2500, choices=list(range(8)), longest=7), full=60))
+    # The winner dying after the loser's explosion, while its element waits
+    # to pick the next ship: no other ship's element is left
+    # (FindAliveStarShip finds none). Side 1 shoots side 0, then flies
+    # into the planet with its one crew.
+    def shoot_then_crash(f, side, t):
+        other = fighting(f, 0)
+        if other and other[0] > 0:
+            return steer(f, side, the_ship(0), fire=True, keep_off=600)
+        return steer(f, side, the_planet)
+    s = dict(name="lonely-death", seed=500, planet="planet.water",
+             ships=[test_ship(ilwrath, crew=1), test_ship(ilwrath, crew=1)], steps=[(20, 0, 0)], full=360)
+    out.append(piloted(program, s, 600, [None, shoot_then_crash]))
+    # Battles with everything at random (random_battle): they reach the
+    # Skiff's thrust, crew held to its most, the camera's scroll clamped
+    # both ways, AbandonShip from ships moving every way and a dying ship
+    # with no other ship's element left, among others.
+    rng = __import__("random").Random(4242)
+    out += [random_battle(f"random-{i}", rng) for i in range(RANDOM_BATTLES)]
     # The step zoom (TFB_SCALE_STEP) and long battles at random.
     out.append(dict(name="step-zoom", seed=101, planet="planet.chondrite", zoom="step",
                     ships=[test_ship(flagship, weapons=W_MISSILE | W_HOMING), test_ship(ilwrath)],
@@ -2393,6 +2453,15 @@ def check_battles(scenarios, battles):
     zooms = {f[F_ZOOM] for f in frames("step-zoom")}
     if not zooms <= {0, 1, 2, 3} or len(zooms) < 3:
         fail("step-zoom", f"zooms {sorted(zooms)}")
+    # A ship dying with no other ship's element in the list.
+    lonely = 0
+    for f in frames("lonely-death")[1:]:
+        for e in f[F_ELEMENTS]:
+            if e[E_FLAGS] & PLAYER_SHIP_FLAG and e[E_FLAGS] & FINITE_LIFE_FLAG and e[E_LIFE] == 35 and e[E_CREW] == 0 \
+                    and not any(x[E_FLAGS] & PLAYER_SHIP_FLAG and x[24] != e[24] for x in f[F_ELEMENTS]):
+                lonely += 1
+    if not lonely or not by_name["lonely-death"]["ended"]:
+        fail("lonely-death", "no ship died alone")
     # Fleets: two die at once (both with an element and no crew), and on
     # each side a later ship flies in the first one's element (slot).
     fr = frames("fleets")
