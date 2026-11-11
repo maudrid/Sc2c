@@ -43,13 +43,29 @@ public sealed partial class GameWorld
     public IReadOnlyList<WorldBattle> Battles => _battles;
 
     /// <summary>
-    /// The flagship was destroyed (decision 12): the game is over for the
-    /// group, and the world stops. The host's save is no longer written
-    /// (<see cref="Session.HostSession.SaveJson"/>), so loading it goes back
-    /// to before the battle. Item 7 shows it to every player and ends the
-    /// host's game.
+    /// The flagship was lost (decision 12): the game is over for the group,
+    /// and the world stops (nothing steps, joins or changes any more: a
+    /// guest is refused, <see cref="JoinResult.GameOver"/>). As UQM's: its
+    /// crew run out, it explodes, and as its explosion ends new_ship asks
+    /// for the player's next ship, finds the flagship was the last
+    /// (CrewEnlisted = ~0, pickship.c) and the battle stops (CHECK_ABORT),
+    /// whoever else is still fighting in it; or at its battle's end, if
+    /// that comes first. Item 11 tells every player; item 12 shows UQM's
+    /// game over and ends the host's game. From the frame its crew ran out
+    /// (<see cref="FlagshipLost"/>) no save is made, so the host's save is
+    /// kept as it was before the battle.
     /// </summary>
     public bool GameOver { get; private set; }
+
+    /// <summary>
+    /// The flagship's crew has run out in a battle (it's exploding, or the
+    /// game is over): from this frame no save is made
+    /// (<see cref="Session.HostSession.SaveJson"/>; <see cref="HostSave.ToJson"/>
+    /// refuses), so loading the host's save goes back to before the battle
+    /// (decision 12), not to the flagship as it joined the battle it's
+    /// lost in (decision 14).
+    /// </summary>
+    public bool FlagshipLost { get; private set; }
 
     /// <summary>
     /// The battles whose markers a player is shown (and may fly into): those
@@ -141,7 +157,11 @@ public sealed partial class GameWorld
         // Retreat is the world's to allow, per player and frame (RetreatAllowed): the battle lets side 0 run.
         var battle = new Battle(kit.Graphics.Arena(battlePlanet), new[] { new[] { fighter.Starship }, new[] { enemyShip } },
             seed, runAwayAllowed: true, size: ArenaSize.Scaled(Settings.BattleArenaScale), maxElements: Settings.BattleMaxElements);
-        var wb = new WorldBattle(number, place, battlePlanet, battle, enemyShip, description, start, id, Frame);
+        var wb = new WorldBattle(number, place, battlePlanet, battle, enemyShip, description, start, id, Frame)
+        {
+            PlaceIp = ship.Ip is { } at ? IpFlight.AtRest(at.Save()) : null,
+            PlaceStarJustLeft = ship.Ip is null ? ship.Flight.StarJustLeft : null,
+        };
         wb.Add(fighter);
         // Those there already join only once they've been out of its reach and come back (JoinBattles).
         _battles.Add(wb);
@@ -302,6 +322,8 @@ public sealed partial class GameWorld
     {
         foreach (var wb in _battles.ToList())
         {
+            if (GameOver)
+                break;   // the world stops at once
             var battle = wb.Battle;
             if (battle.InBattle)
                 battle.Step(ship => ship.PlayerNr == 0 ? PlayerBattleInput(wb, ship) : battle.ComputerIntelligence(ship));
@@ -345,18 +367,45 @@ public sealed partial class GameWorld
         {
             var starship = fighter.Starship;
             if (starship.RaceDesc is { CrewLevel: 0 })
-                fighter.Exit = BattleExit.Destroyed;   // out once its crew is 0, watching on
+                FighterDestroyed(fighter);   // out once its crew is 0, watching on
             else if (starship.RaceDesc is null && fighter.Code.Result is { } freed)
             {
                 // Warped out: new_ship freed it with its crew.
                 if (freed.Destroyed)
-                    fighter.Exit = BattleExit.Destroyed;
+                    FighterDestroyed(fighter);
                 else
                     LeaveBattle(wb, fighter, BattleExit.Retreated, freed.CrewLeft);
             }
         }
+        // The flagship's explosion over: new_ship found it the player's last
+        // ship (CrewEnlisted = ~0) and the battle stops, the game over.
+        if (wb.Fighters.FirstOrDefault(f => f.Exit == BattleExit.Destroyed && f.Player.Ship.Kind == ShipKind.Flagship
+                && f.Starship.RaceDesc is null && f.Player.Ship.Battle == wb) is { } flagship && wb.Battle.InBattle)
+        {
+            EndGame(flagship);
+            return;
+        }
         if (!wb.Battle.InBattle)
             EndBattle(wb);
+    }
+
+    // A player's ship whose crew has run out: it watches the battle on, and
+    // a wreck at its end (item 7); the flagship's is the game lost.
+    private void FighterDestroyed(BattleFighter fighter)
+    {
+        fighter.Exit = BattleExit.Destroyed;
+        if (fighter.Player.Ship.Kind == ShipKind.Flagship)
+            FlagshipLost = true;
+    }
+
+    // The game over (decision 12): the flagship lost, with no crew; the world stops.
+    private void EndGame(BattleFighter flagship)
+    {
+        flagship.CrewLeft = 0;
+        flagship.Player.Ship.Hold.SetCrew(0);
+        flagship.Player.Ship.Destroyed = true;
+        FlagshipLost = true;
+        GameOver = true;
     }
 
     // A player's ship leaving a battle mid-battle with its crew (a retreat,
@@ -405,9 +454,10 @@ public sealed partial class GameWorld
     /// <summary>
     /// A battle over (one side has no ship left able to fight): UninitShips
     /// (the floating crew to the ships left, each ship freed), then each
-    /// player's ship still in it: destroyed (its crew 0; the flagship's is
-    /// the game over), still running away (cut short: retreated, its fuel
-    /// paid, item 5's rule), or alive, its crew back aboard. Won if the
+    /// player's ship still in it: destroyed (its crew 0: a wreck at the
+    /// battle's place, item 7; the flagship's is the game over), still
+    /// running away (cut short: retreated, its fuel paid, item 5's rule),
+    /// or alive, its crew back aboard. Won if the
     /// enemy is out and a player's ship still in it (decision 9), and a
     /// battle that pays salvage pays RACE_SHIP_COST / 8 for each enemy ship,
     /// split equally between those ships, the remainder to the one that
@@ -426,13 +476,13 @@ public sealed partial class GameWorld
             var freed = fighter.Code.Result ?? throw new InvalidOperationException("a ship in the battle wasn't freed");
             if (fighter.Exit == BattleExit.Destroyed || freed.Destroyed)
             {
-                fighter.Exit = BattleExit.Destroyed;
+                FighterDestroyed(fighter);
                 fighter.CrewLeft = 0;
-                ship.Hold.SetCrew(0);
-                ship.Destroyed = true;
                 ship.Battle = null;
                 if (ship.Kind == ShipKind.Flagship)
-                    GameOver = true;
+                    EndGame(fighter);
+                else
+                    Wreck(wb, ship);
             }
             else if (runningAway.Contains(fighter))
                 LeaveBattle(wb, fighter, BattleExit.Retreated, freed.CrewLeft);

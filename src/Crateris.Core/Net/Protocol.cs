@@ -116,6 +116,7 @@ public static class Protocol
         JoinResult.Rejoined => "Welcome back. Your ship is where you left it.",
         JoinResult.AlreadyPresent => "That player is already connected.",
         JoinResult.Full => "The game is full (4 players).",
+        JoinResult.GameOver => "The game is over: the flagship was lost.",
         _ => result.ToString(),
     };
 

@@ -61,11 +61,13 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// The game as the host's save, or null once the game is over (decision
-    /// 12: the save is kept as it was, so loading it goes back to before the
-    /// battle the flagship was lost in).
+    /// The game as the host's save, or null once the flagship is lost (from
+    /// the frame its crew ran out, through the game over: decision 12, the
+    /// save is kept as it was, so loading it goes back to before the battle
+    /// the flagship was lost in), so neither the autosave nor quitting
+    /// writes one.
     /// </summary>
-    public string? SaveJson() => World.GameOver ? null : HostSave.ToJson(World);
+    public string? SaveJson() => World.FlagshipLost ? null : HostSave.ToJson(World);
 
     /// <summary>
     /// --start-at: the host's ship in hyperspace at universe coordinates, at
@@ -294,6 +296,23 @@ public sealed class HostSession
         return refusal;
     }
 
+    /// <summary>
+    /// A guest gives a wreck crew (item 7; item 11 sends it, from item 12's
+    /// rescue screen): refused with a reason, or None. Its rescuer is the
+    /// guest, whatever the message says.
+    /// </summary>
+    public RescueRefusal GuestRevive(long peer, string wreck, int crew) =>
+        _peers.TryGetValue(peer, out var id) ? Revive(id, wreck, crew) : RescueRefusal.NoOne;
+
+    /// <summary>A player gives a wreck crew (the host's own through here too), logged.</summary>
+    public RescueRefusal Revive(string rescuer, string wreck, int crew)
+    {
+        var refusal = World.Revive(rescuer, wreck, crew);
+        Logged?.Invoke(refusal == RescueRefusal.None ? $"{rescuer} revived {wreck} with {crew} crew"
+            : $"{rescuer}'s rescue of {wreck} refused: {refusal}");
+        return refusal;
+    }
+
     /// <summary>A guest drops a unit of cargo overboard (anything wrong is ignored).</summary>
     public void GuestDiscard(long peer, int category)
     {
@@ -515,6 +534,9 @@ public sealed class HostSession
         }
     }
 
+    private bool _gameOverLogged;
+    private WorldSnapshot? _lastSnapshot;
+
     /// <summary>One world frame: the host's input (with the game's input delay), the step, and the snapshot for everyone.</summary>
     public WorldSnapshot Step(ShipInput hostInput)
     {
@@ -527,8 +549,24 @@ public sealed class HostSession
                 + string.Join(", ", ended.Fighters.Select(f => $"{f.Player.Id} {f.Exit?.ToString().ToLowerInvariant()}")));
         foreach (var (player, text) in World.TakeBattleNotices())
             Logged?.Invoke($"{player}: {text}");
+        // Wrecks flown into and revived, and the game over: only logged
+        // until item 11 sends them (and item 12 shows the rescue and the
+        // game over screens), but taken so none is kept.
+        foreach (var (rescuer, wreck) in World.TakeRescueOffers())
+            Logged?.Invoke($"{rescuer} is at {wreck}'s wreck");
+        World.TakeRevivals();   // Revive logs each
+        if (World.GameOver && !_gameOverLogged)
+        {
+            _gameOverLogged = true;
+            Logged?.Invoke("Game over: the flagship was lost");
+        }
+        // Once the game is over the world has stopped (decision 12): its
+        // frame no longer moves on, and the last snapshot stands.
+        if (_lastSnapshot is { } last && last.Frame == World.Frame)
+            return last;
         var snapshot = World.Snapshot();
         _snapshots.Record(snapshot);
+        _lastSnapshot = snapshot;
         return snapshot;
     }
 

@@ -105,12 +105,24 @@ public sealed class PlayerShip
     public WorldBattle? Battle { get; internal set; }
 
     /// <summary>
-    /// Destroyed in a battle (stage 4a item 6): it has no crew, and doesn't
-    /// fly or join battles. Item 7 makes it a wreck that a friend can
-    /// revive, saved as one; until then it isn't saved (a game loaded has
-    /// the ship with the crew it was saved with).
+    /// Destroyed in a battle: its crew ran out. While the battle goes on
+    /// its player watches it (<see cref="Battle"/> still set); once it's
+    /// over the ship is a wreck at the battle's place (stage 4a item 7,
+    /// decision 7) with no crew, which doesn't fly, land, talk, join
+    /// battles, give or take gifts or drop cargo, and keeps its cargo, fuel
+    /// and modules until a friend revives it (<see cref="GameWorld.Revive"/>).
+    /// Saved as a wreck (<see cref="HostSave"/>, version 10), as is a ship
+    /// destroyed in a battle still running. Its activity is its flight's
+    /// (the snapshot says it's a wreck, <see cref="ShipSnapshot.Wrecked"/>).
+    /// The flagship destroyed is the game over (<see cref="GameWorld.GameOver"/>).
     /// </summary>
     public bool Destroyed { get; internal set; }
+
+    /// <summary>
+    /// A wreck (stage 4a item 7): destroyed in a battle that's over. Never
+    /// the flagship, whose loss is the game over.
+    /// </summary>
+    public bool Wreck => Destroyed && Battle is null && Kind != ShipKind.Flagship;
 
     public Activity Activity => Battle is not null ? Activity.Battle : Visit is { AtMenu: true } ? Activity.Starbase : Visit is not null ? Activity.Talk : Ip switch
     {

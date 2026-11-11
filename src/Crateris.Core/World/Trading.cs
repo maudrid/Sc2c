@@ -38,6 +38,12 @@ public enum TradeRefusal : byte
 
     /// <summary>The giver or the receiver is in a battle.</summary>
     InBattle,
+
+    /// <summary>The giver or the receiver is a wreck (stage 4a item 7): no one is aboard.</summary>
+    Wrecked,
+
+    /// <summary>The game is over (the flagship lost).</summary>
+    GameOver,
 }
 
 /// <summary>
@@ -119,6 +125,8 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         TradeRefusal.Paused => "The game waits while the story's talk goes on.",
         TradeRefusal.TooMuch => "Their wallet can't hold that much.",
         TradeRefusal.InBattle => "Not while in a battle.",
+        TradeRefusal.Wrecked => "No one is aboard a wreck to give or take it.",
+        TradeRefusal.GameOver => "The game is over.",
         _ => "",
     };
 }

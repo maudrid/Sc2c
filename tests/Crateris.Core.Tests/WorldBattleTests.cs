@@ -27,10 +27,10 @@ namespace Crateris.Core.Tests;
 [Trait("Topic", "combat")]
 public class WorldBattleTests
 {
-    private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
+    internal static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
     private static readonly ShipDescriptions Ships = ShipDescriptions.Load(DataDir);
     private static readonly StoryRules Rules = StoryRules.Load(DataDir);
-    private const string Ilwrath = ShipDescriptions.Ilwrath;
+    internal const string Ilwrath = ShipDescriptions.Ilwrath;
 
     /// <summary>The battle's sheets: solid squares, ships' hulls 20 pixels, everything else smaller.</summary>
     internal sealed class SolidGraphics : IBattleGraphics
@@ -61,7 +61,7 @@ public class WorldBattleTests
     internal static BattleKit Kit() => new(Ships, new SolidGraphics(), BattleKit.LoadShipCosts(DataDir));
 
     // A world of hyperspace only, the host and guests g1, g2 ... together at the start.
-    private static GameWorld NewWorld(int players = 1, GameSettings? settings = null)
+    internal static GameWorld NewWorld(int players = 1, GameSettings? settings = null)
     {
         var world = GameWorld.NewGame(settings ?? new GameSettings(), NewGameData.Load(DataDir), "host", "Host");
         world.BattleKit = Kit();
@@ -73,7 +73,7 @@ public class WorldBattleTests
         return world;
     }
 
-    private static void Run(GameWorld world, int frames, Func<string, ShipInput>? keys = null)
+    internal static void Run(GameWorld world, int frames, Func<string, ShipInput>? keys = null)
     {
         for (int i = 0; i < frames; ++i)
         {
@@ -84,7 +84,7 @@ public class WorldBattleTests
     }
 
     // Frames with the enemy unable to fire or cloak (its weapon and special waiting), so nothing it does decides a test.
-    private static void RunDisarmed(GameWorld world, WorldBattle wb, int frames, Func<string, ShipInput>? keys = null)
+    internal static void RunDisarmed(GameWorld world, WorldBattle wb, int frames, Func<string, ShipInput>? keys = null)
     {
         for (int i = 0; i < frames && wb.Outcome is null; ++i)
         {
@@ -94,7 +94,7 @@ public class WorldBattleTests
     }
 
     // Until the battle is over, or 600 frames.
-    private static void RunOut(GameWorld world, WorldBattle wb, Func<string, ShipInput>? keys = null)
+    internal static void RunOut(GameWorld world, WorldBattle wb, Func<string, ShipInput>? keys = null)
     {
         for (int i = 0; i < 600 && wb.Outcome is null; ++i)
             Run(world, 1, keys);
@@ -103,7 +103,7 @@ public class WorldBattleTests
 
     // Ships flying into the marker in hyperspace: out of its reach for a
     // frame, then back where they were (a frame each way).
-    private static void FlyIn(GameWorld world, params string[] ids)
+    internal static void FlyIn(GameWorld world, params string[] ids)
     {
         foreach (var id in ids)
             world.Find(id)!.Ship.Flight.LogX += 1000;
@@ -115,7 +115,7 @@ public class WorldBattleTests
 
     // Started by the host, every other player flying into its marker,
     // everyone warped in (the battle's frames up to 60).
-    private static WorldBattle Started(GameWorld world, BattleStart? start = null)
+    internal static WorldBattle Started(GameWorld world, BattleStart? start = null)
     {
         var wb = world.StartBattle("host", Ilwrath, start);
         FlyIn(world, world.Players.Where(p => !p.IsHost).Select(p => p.Id).ToArray());
@@ -127,13 +127,13 @@ public class WorldBattleTests
     }
 
     // Every ship in, warped in (the Ilwrath may be cloaking: its stamp filled).
-    private static bool Warped(Battle battle) => battle.Fleet(0).Concat(battle.Fleet(1)).Where(s => s.Ship != null)
+    internal static bool Warped(Battle battle) => battle.Fleet(0).Concat(battle.Fleet(1)).Where(s => s.Ship != null)
         .All(s => s.Ship!.Prim is PrimType.Stamp or PrimType.StampFill
                   && (s.Ship.StateFlags & (ElementFlags.Appearing | ElementFlags.NonSolid)) == 0);
 
-    private static void Kill(Battle battle, Starship ship) => battle.DoDamage(ship.Ship!, (short)ship.RaceDesc!.CrewLevel);
+    internal static void Kill(Battle battle, Starship ship) => battle.DoDamage(ship.Ship!, (short)ship.RaceDesc!.CrewLevel);
 
-    private static BattleFighter Fighter(WorldBattle wb, string id) => wb.FighterOf(id)!;
+    internal static BattleFighter Fighter(WorldBattle wb, string id) => wb.FighterOf(id)!;
 
     [Fact]
     public void ABattleStartsWhereTheShipIsWithItsMarker()
@@ -542,7 +542,9 @@ public class WorldBattleTests
         Assert.Equal((50, 1000u, 0), (loaded.Host.Ship.Hold.Crew, loaded.Host.Ship.Flight.Fuel, loaded.Host.Ship.Hold.Minerals[0]));
         Assert.Equal((world.Host.Ship.Flight.LogX, world.Host.Ship.Flight.LogY),
             (loaded.Host.Ship.Flight.LogX, loaded.Host.Ship.Flight.LogY));
-        Assert.Equal((10, Fighter(wb, "g1").JoinedFuel), (loaded.Find("g1")!.Ship.Hold.Crew, loaded.Find("g1")!.Ship.Flight.Fuel));
+        // The guest destroyed in it is saved as the wreck it will be (item 7), its fuel as it joined.
+        Assert.Equal((0, Fighter(wb, "g1").JoinedFuel, true),
+            (loaded.Find("g1")!.Ship.Hold.Crew, loaded.Find("g1")!.Ship.Flight.Fuel, loaded.Find("g1")!.Ship.Destroyed));
         Assert.All(loaded.Players, p => Assert.Equal(Activity.Hyperspace, p.Ship.Activity));
 
         // Nothing goes in or out of a hold meanwhile.
@@ -636,11 +638,11 @@ public class WorldBattleTests
 
     // ------------------------------------------------------------ with the content
 
-    private const int Sol = 82, Earth = 2, Luna = 1;
+    internal const int Sol = 82, Earth = 2, Luna = 1;
 
-    private static readonly Lazy<SystemCatalog> Systems = new(() => SystemCatalog.Load(DataDir));
+    internal static readonly Lazy<SystemCatalog> Systems = new(() => SystemCatalog.Load(DataDir));
 
-    private static GameWorld InSol(int players = 1)
+    internal static GameWorld InSol(int players = 1)
     {
         var systems = Systems.Value;
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host",

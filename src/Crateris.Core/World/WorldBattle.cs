@@ -226,6 +226,18 @@ public sealed class WorldBattle
     /// <summary>The world frame it started in.</summary>
     public long StartFrame { get; }
 
+    /// <summary>
+    /// The starter's flight at its place as the battle started, at rest: in
+    /// a system its system flight (null in hyperspace), and in hyperspace
+    /// the star it had just left there; a wreck is put there (stage 4a
+    /// item 7, <see cref="GameWorld.Revive"/>), as a guest is put at the
+    /// host's place.
+    /// </summary>
+    internal Systems.IpFlightState? PlaceIp { get; init; }
+
+    /// <inheritdoc cref="PlaceIp"/>
+    internal int? PlaceStarJustLeft { get; init; }
+
     /// <summary>Every player's ship that has been in it, in the order they joined.</summary>
     public IReadOnlyList<BattleFighter> Fighters => _fighters;
 

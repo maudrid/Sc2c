@@ -28,6 +28,8 @@ public enum JoinResult
     AlreadyPresent,
     /// <summary>The game already has the most players allowed.</summary>
     Full,
+    /// <summary>The game is over: the flagship was lost (stage 4 decision 12), and the world has stopped.</summary>
+    GameOver,
 }
 
 /// <summary>
@@ -41,7 +43,10 @@ public enum JoinResult
 /// thrusting (in hyperspace) or thrust last frame (in a system); the views
 /// don't draw it, as UQM shows thrust only in battle (ion trails). ViewX and
 /// ViewY are the ship's place in its hyperspace view, which lags the ship at
-/// speed.
+/// speed. Wrecked is a ship destroyed in a battle that's over, a wreck
+/// (stage 4a item 7; <see cref="PlayerShip.Destroyed"/>): the snapshot's
+/// codec doesn't carry it yet (item 11 widens the ship flags for it), so
+/// only the host's own snapshot has it.
 /// Clients generate systems themselves from the star number.
 /// </summary>
 public sealed record ShipSnapshot(
@@ -55,7 +60,7 @@ public sealed record ShipSnapshot(
     int? OrbitPlanet = null, int? OrbitMoon = null, int IpVelocityX = 0, int IpVelocityY = 0,
     short ViewX = Crateris.Core.Hyperspace.HyperFlight.CenterX, short ViewY = Crateris.Core.Hyperspace.HyperFlight.CenterY,
     StarEntryState? Entry = null, HoldSnapshot? Hold = null,
-    string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null);
+    string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null, bool Wrecked = false);
 
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
@@ -227,6 +232,8 @@ public sealed partial class GameWorld
         var existing = Find(id);
         if (existing is { Present: true })
             return JoinResult.AlreadyPresent;
+        if (GameOver)
+            return JoinResult.GameOver;   // decision 12: the world has stopped
         if (_players.Count(p => p.Present) >= Settings.MaxPlayers)
             return JoinResult.Full;
 
@@ -277,6 +284,14 @@ public sealed partial class GameWorld
         var player = Find(id);
         if (player == null)
             return;
+        if (GameOver)
+        {
+            // The world has stopped (decision 12): the player only goes.
+            player.Present = false;
+            _inputs[id].Clear();
+            _actionHeld.Remove(id);
+            return;
+        }
         Withdraw(player);   // decision 5: its lander takes off at once, with its crew and cargo
         DisconnectFromBattle(player);   // decision 10: a retreat at once
         DialogueLocks?.ReleaseAll(id);
@@ -382,7 +397,7 @@ public sealed partial class GameWorld
             else
                 _actionHeld.Remove(p.Id);
             if (p.Ship.Destroyed && p.Ship.Battle is null)
-                continue;   // a destroyed ship doesn't fly (item 7 makes it a wreck)
+                continue;   // a wreck doesn't fly (decision 7)
             switch (p.Ship.Activity)
             {
                 case Activity.Hyperspace:
@@ -427,6 +442,7 @@ public sealed partial class GameWorld
             }
         }
         JoinBattles();
+        FlyIntoWrecks();
         StepBattles();
         StepSurfaces();
         Clock.Tick(Settings.SecondsPerGameDay);
@@ -596,7 +612,7 @@ public sealed partial class GameWorld
     /// </summary>
     public bool ChooseReply(string id, int index, int? round = null)
     {
-        if (Find(id) is not { Present: true } player)
+        if (GameOver || Find(id) is not { Present: true } player)
             return false;
         var visit = Visit is { } story && story.Replier == player ? story
             : !StoryPaused && player.Ship.Visit is { Step: VisitStep.MenuTalk } own ? own
@@ -620,7 +636,7 @@ public sealed partial class GameWorld
     /// </summary>
     public bool PageTalk(string id, int round, int lines, TalkPage page)
     {
-        if (Visit is not { Story: true } visit || visit.Replier.Id != id || round != visit.Round
+        if (GameOver || Visit is not { Story: true } visit || visit.Replier.Id != id || round != visit.Round
                 || !Enum.IsDefined(page) || TalkView.Of(visit) is not { } view || view.LinesHash != lines)
             return false;
         if (visit.Paging?.Key != view.LinesKey)
@@ -653,7 +669,7 @@ public sealed partial class GameWorld
     public CommanderTalk TalkToCommander(string id, out string? holder)
     {
         holder = null;
-        if (StoryPaused || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true } visit })
+        if (StoryPaused || GameOver || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true } visit })
             return CommanderTalk.NotAtMenu;
         if (DialogueLocks is { } locks && !locks.TryTake("COMMANDER_CONVERSATION", id, out holder))
             return CommanderTalk.Busy;
@@ -665,7 +681,7 @@ public sealed partial class GameWorld
     /// <summary>The starbase menu's Leave: the ship is back in flight by the starbase. False if not docked at the menu.</summary>
     public bool Depart(string id)
     {
-        if (StoryPaused || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true } visit } || !visit.Depart())
+        if (StoryPaused || GameOver || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true } visit } || !visit.Depart())
             return false;
         AfterVisit(visit);
         return true;
@@ -678,7 +694,7 @@ public sealed partial class GameWorld
     /// </summary>
     public bool Outfit(string id, Starbase.OutfitAction action)
     {
-        if (StoryPaused || Story is null || Find(id) is not { Present: true, Ship.Visit.AtMenu: true } player)
+        if (StoryPaused || GameOver || Story is null || Find(id) is not { Present: true, Ship.Visit.AtMenu: true } player)
             return false;
         if (!new Starbase.Outfitting(new OutfitShip(player.Ship), Story).Apply(action))
             return false;
@@ -695,7 +711,7 @@ public sealed partial class GameWorld
     public Starbase.OutfitOutcome StarbaseKey(string id, Crateris.Core.Systems.MenuKey key, out bool save)
     {
         save = false;
-        if (StoryPaused || Story is null || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true, Menu: { } m } visit } player)
+        if (StoryPaused || GameOver || Story is null || Find(id) is not { Present: true, Ship.Visit: { AtMenu: true, Menu: { } m } visit } player)
             return Starbase.OutfitOutcome.None;
         var outcome = Starbase.OutfitOutcome.None;
         m.Noticed(StarbaseShipOf(player));   // what others changed, drawn before the key's own drawing
@@ -916,6 +932,8 @@ public sealed partial class GameWorld
 
         if (player.Ship.Battle is not null)
             throw new InvalidOperationException($"{id} is in a battle");
+        if (player.Ship.Destroyed || GameOver)
+            throw new InvalidOperationException(GameOver ? "the game is over" : $"{id}'s ship is a wreck");
         Withdraw(player);
         PlayerShip ship = player.Ship;
         // Put straight there: no entry plays, so no input is held for one.
@@ -951,7 +969,7 @@ public sealed partial class GameWorld
         PlayerShip ship = player.Ship;
         if (StoryPaused)
             return DispatchRefusal.StoryPause;
-        if (!player.Present || ship.Orbit is not { Entered: true } orbit || ship.Entry is not null)
+        if (GameOver || !player.Present || ship.Orbit is not { Entered: true } orbit || ship.Entry is not null)
             return DispatchRefusal.NotInOrbit;
         if (ship.Lander is not null || ship.Hold.LanderOut is not null)
             return DispatchRefusal.LanderOut;
@@ -1021,13 +1039,16 @@ public sealed partial class GameWorld
     /// A player gives another resource units, anywhere, and minerals and
     /// bio data within a solar system, the minerals up to the receiver's
     /// room (stage 3a, item 9). Both must be in the game; not while the
-    /// game waits for a story talk. Given, the gift goes on the list the
+    /// game waits for a story talk or is over, nor to or from a ship in a
+    /// battle or a wreck. Given, the gift goes on the list the
     /// receivers are told of (<see cref="TakeGifts"/>).
     /// </summary>
     public TradeRefusal Give(Gift gift)
     {
         // The opening's starter's hold can be taken back (StarbaseVisit.Undo,
         // and a save is of it as before): no gifts to or from them meanwhile.
+        if (GameOver)
+            return TradeRefusal.GameOver;
         if (StoryPaused || (Visit is { Opening: true } opening && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To)))
             return TradeRefusal.Paused;
         if (gift.From == gift.To || Find(gift.From) is not { Present: true } giver || Find(gift.To) is not { Present: true } taker)
@@ -1035,6 +1056,9 @@ public sealed partial class GameWorld
         // A save during a battle keeps the hold as it joined (decision 14): nothing in or out meanwhile.
         if (giver.Ship.Battle is not null || taker.Ship.Battle is not null)
             return TradeRefusal.InBattle;
+        // A wreck has no one aboard to give or take anything (item 7); it keeps its hold for its revival.
+        if (giver.Ship.Destroyed || taker.Ship.Destroyed)
+            return TradeRefusal.Wrecked;
         if (gift.Minerals.Count != ShipHold.Categories || gift.Minerals.Any(m => m < 0) || gift.BioData < 0
                 || (gift.ResourceUnits == 0 && !gift.Cargo))
             return TradeRefusal.Nothing;
@@ -1082,10 +1106,11 @@ public sealed partial class GameWorld
     /// <summary>
     /// A present player drops a unit of an element category overboard (the
     /// Manifest's cargo display); false, changing nothing, if there's none
-    /// or no such category.
+    /// or no such category, or the ship is in a battle, a talk or a wreck.
     /// </summary>
     public bool DiscardCargo(string id, int category) =>
-        !StoryPaused && Find(id) is { Present: true, Ship: { Visit: null, Battle: null } } player && player.Ship.Hold.Discard(category);
+        !StoryPaused && !GameOver && Find(id) is { Present: true, Ship: { Visit: null, Battle: null, Destroyed: false } } player
+        && player.Ship.Hold.Discard(category);
 
     // A player's ship as outfitting sees it.
     private sealed class OutfitShip : Starbase.IOutfitShip
@@ -1128,11 +1153,11 @@ public sealed partial class GameWorld
     /// <summary>
     /// Renames a player's ship or captain, or both (UQM's NameCaptainOrShip,
     /// from the starbase's outfitting): each cut to UQM's 15 bytes; null
-    /// leaves it as it is. False if there's no such player.
+    /// leaves it as it is. False if there's no such player, or the game is over.
     /// </summary>
     public bool Rename(string id, string? shipName, string? captainName)
     {
-        if (Find(id) is not { } player)
+        if (GameOver || Find(id) is not { } player)
             return false;
         if (shipName is not null)
             player.Ship.Name = ShipNames.Fit(shipName);
@@ -1163,7 +1188,7 @@ public sealed partial class GameWorld
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
                 ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy, f.ViewX, f.ViewY,
                 p.Ship.Entry is { } e && e.PlayingAt(Frame) ? e : null, p.Ship.Hold.Snapshot(),
-                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save());
+                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save(), p.Ship.Wreck);
         }).ToList();
 
         // Worlds being orbited, with what has been taken from them, so an

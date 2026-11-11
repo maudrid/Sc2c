@@ -54,9 +54,17 @@ public static class HostSave
     /// decision 14): a ship in one is saved as it joined it, where it
     /// joined it, and a loaded game has none (stage 4a item 6; the battle
     /// settings, Settings.BattleArenaScale and the like, take their
-    /// defaults in a save without them).
+    /// defaults in a save without them). 10 added wrecks
+    /// (PlayerState.Wrecked, stage 4a item 7): a ship destroyed in a
+    /// battle, over or still running, is saved as a wreck at the battle's
+    /// place (decision 14) with no crew, its hold and fuel otherwise as it
+    /// joined the battle; it loads as a wreck. An older save has no wrecks
+    /// (a version 9 ship destroyed loads flying with no crew, as it was
+    /// saved), and an older save with one is refused, as is a wreck that's
+    /// the flagship, has crew or is in orbit. No save is made once the
+    /// flagship is lost (GameWorld.FlagshipLost, decision 12).
     /// </summary>
-    public const int Version = 9;
+    public const int Version = 10;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -87,10 +95,17 @@ public static class HostSave
     public sealed record PlayerState(
         string Id, string Name, bool IsHost, ShipKind Kind, ShipLoadout Loadout, bool UndockPending,
         FlightState Flight, int? SystemStar = null, IpFlightState? System = null, HoldState? Hold = null,
-        string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null);
+        string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null, bool Wrecked = false);
 
+    /// <summary>
+    /// The world as a save. Refused (<see cref="InvalidOperationException"/>)
+    /// once the flagship is lost (<see cref="GameWorld.FlagshipLost"/>):
+    /// the host's save is kept as it was (decision 12).
+    /// </summary>
     public static string ToJson(GameWorld world)
     {
+        if (world.FlagshipLost)
+            throw new InvalidOperationException("the flagship is lost: the game isn't saved (its save is kept as it was)");
         // A visit going on is saved as not begun.
         var visit = world.Visit;
         var players = world.Players.Select(p =>
@@ -99,21 +114,29 @@ public static class HostSave
             bool starter = visit?.Starter == p;
             // A battle isn't saved (stage 4, decision 14): a ship in one is
             // saved as it joined it, where it joined it (it waits there).
-            var joined = p.Ship.Battle?.FighterOf(p.Id);
+            var wb = p.Ship.Battle;
+            var joined = wb?.FighterOf(p.Id);
+            // A ship destroyed in a battle still running is saved as the
+            // wreck it will be (decision 14): at the battle's place.
+            bool wreck = p.Ship.Destroyed || joined?.Exit == BattleExit.Destroyed;
+            bool inHyperspace = joined?.Exit == BattleExit.Destroyed && wb!.Place.InHyperspace;
+            bool inSystem = joined?.Exit == BattleExit.Destroyed && !wb!.Place.InHyperspace;
             var v = f.Velocity;
+            var hold =
+                starter ? visit!.HoldBefore
+                : joined is not null ? joined.JoinedHold
+                // A lander on a surface is saved as back aboard with its crew and cargo.
+                : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save();
             return new PlayerState(p.Id, p.Name, p.IsHost, p.Ship.Kind, p.Ship.Loadout, p.UndockPending,
-                new FlightState(f.LogX, f.LogY, f.Facing, starter ? visit!.FuelBefore : joined?.JoinedFuel ?? f.Fuel,
-                    f.Status, f.TurnWait, f.ThrustWait,
+                new FlightState(inHyperspace ? wb!.Place.X : f.LogX, inHyperspace ? wb!.Place.Y : f.LogY, f.Facing,
+                    starter ? visit!.FuelBefore : joined?.JoinedFuel ?? f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
                     f.ViewX, f.ViewY, f.FuelDistX, f.FuelDistY, f.FuelDistExtra, f.FuelTicks,
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
-                    f.StarJustLeft),
-                p.Ship.SystemStar, p.Ship.Ip?.Save(),
-                // A lander on a surface is saved as back aboard with its crew and cargo.
-                starter ? visit!.HoldBefore
-                : joined is not null ? joined.JoinedHold
-                : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save(),
-                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save());
+                    inHyperspace ? wb!.PlaceStarJustLeft : f.StarJustLeft),
+                p.Ship.SystemStar, inSystem ? wb!.PlaceIp : p.Ship.Ip?.Save(),
+                wreck ? hold with { Crew = 0 } : hold,
+                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save(), wreck);
         }).ToList();
         var c = world.Clock;
         var worlds = world.Planets.Worlds
@@ -162,6 +185,8 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have resource units or have met the commander.");
         if (save.Version < 9 && (save.Players ?? new()).Any(p => p.Modules is not null))
             throw new InvalidDataException($"A version {save.Version} save can't have ship slots.");
+        if (save.Version < 10 && (save.Players ?? new()).Any(p => p.Wrecked))
+            throw new InvalidDataException($"A version {save.Version} save can't have wrecks.");
         // A setting a save leaves out is the default, and so is the ship's
         // name or the escort's kit given as null; a number given as null
         // isn't a number, and the save is refused (above).
@@ -260,6 +285,17 @@ public static class HostSave
                 throw new InvalidDataException($"Player {ps.Id}: a name isn't one UQM could hold (at most {ShipNames.MaxBytes} bytes, printable).");
             // An escort from before names were kept gets the settings' name.
             ship.Name = ps.ShipName ?? (ps.Kind == ShipKind.Escort ? ShipNames.Fit(settings.EscortShipName) : null);
+            if (ps.Wrecked)
+            {
+                // A wreck (stage 4a item 7): an escort with no crew, out of orbit.
+                if (ps.Kind == ShipKind.Flagship)
+                    throw new InvalidDataException($"Player {ps.Id}: the flagship can't be a wreck (its loss is the game over).");
+                if (ship.Hold.Crew != 0)
+                    throw new InvalidDataException($"Player {ps.Id}: a wreck with {ship.Hold.Crew} crew.");
+                if (ship.Ip?.Orbit is not null)
+                    throw new InvalidDataException($"Player {ps.Id}: a wreck in orbit.");
+                ship.Destroyed = true;
+            }
             world.AddPlayer(new Player(ps.Id, ps.Name, ps.IsHost, ship)
             {
                 Present = false,

@@ -218,11 +218,17 @@ public sealed class IpFlight
     /// undocking from the host in a system. It keeps this ship's contact,
     /// so it doesn't drop into the world the host is touching.
     /// </summary>
-    public IpFlight JoinAt(int thrusters, int jets) =>
-        Restore(System, Save() with
-        {
-            Velocity = new Velocity().ToArray(), OrbitPlanet = null, OrbitMoon = null, TurnCounter = 0, ThrustCounter = 0,
-        }, thrusters, jets, _shapes);
+    public IpFlight JoinAt(int thrusters, int jets) => Restore(System, AtRest(Save()), thrusters, jets, _shapes);
+
+    /// <summary>
+    /// A flight's state at rest where it is, out of orbit: what a ship put
+    /// at another's place takes (<see cref="JoinAt"/>; a wreck at its
+    /// battle's place, stage 4a item 7).
+    /// </summary>
+    public static IpFlightState AtRest(IpFlightState s) => s with
+    {
+        Velocity = new Velocity().ToArray(), OrbitPlanet = null, OrbitMoon = null, TurnCounter = 0, ThrustCounter = 0,
+    };
 
     /// <summary>Comes to a stop where it is (a player leaving the game).</summary>
     public void Stop() => Velocity.Zero();
