@@ -351,9 +351,10 @@ public class WorldBattleTests
         var g1 = world.Find("g1")!.Ship;
         Assert.True(g1.Destroyed);
         Assert.False(world.GameOver);
-        int x = g1.Flight.LogX;
-        Run(world, 10, _ => ShipInput.Thrust);
-        Assert.Equal(x, g1.Flight.LogX);
+        var at = (g1.Flight.LogX, g1.Flight.LogY, g1.Flight.Facing);
+        Run(world, 10, _ => ShipInput.Thrust | ShipInput.Left);
+        Assert.Equal(at, (g1.Flight.LogX, g1.Flight.LogY, g1.Flight.Facing));
+        Assert.True(g1.Flight.Velocity.IsZero);
         // Nor joins a battle.
         var next = world.StartBattle("host", Ilwrath);
         Assert.Empty(world.MarkersFor("g1"));
@@ -574,6 +575,58 @@ public class WorldBattleTests
         Assert.Equal(StatusFlags.Right, host.ShipInputState & StatusFlags.Keys);
     }
 
+    [Fact]
+    public void OverlappingMarkersAreJoinedOneAtATime()
+    {
+        // Two battles started in one frame at one place: each seeded apart,
+        // and a ship flying in joins one of them only (the first).
+        var world = NewWorld(3);
+        var first = world.StartBattle("host", Ilwrath);
+        var second = world.StartBattle("g1", Ilwrath);
+        Assert.Equal(first.Place, second.Place);
+        Assert.Equal(first.StartFrame, second.StartFrame);
+        Assert.NotEqual(first.Battle.Random.Seed, second.Battle.Random.Seed);
+        FlyIn(world, "g2");
+        Assert.Equal((true, false), (first.FighterOf("g2") is not null, second.FighterOf("g2") is not null));
+        Assert.Equal(1, second.Battle.BattleCounter[0]);
+        // Flying out of both and back, it still can't join the other: it's in a battle.
+        FlyIn(world, "g2");
+        Assert.Null(second.FighterOf("g2"));
+    }
+
+    [Fact]
+    public void AHyperspaceBattlesPlanetIsRandom()
+    {
+        var planets = new HashSet<byte>();
+        for (int frames = 0; frames < 12; ++frames)
+        {
+            var world = NewWorld();
+            Run(world, frames);
+            var wb = world.StartBattle("host", Ilwrath);
+            Assert.InRange(wb.BattlePlanet, 0, WorldTypes.NumberOfPlanetTypes - 1);
+            planets.Add(wb.BattlePlanet);
+        }
+        Assert.True(planets.Count > 3, $"planets {string.Join(", ", planets)}");
+    }
+
+    [Fact]
+    public void GiftsToOrFromAShipInABattleAreRefused()
+    {
+        // The host and g1 in a battle, g2 and g3 out of it.
+        var world = NewWorld(4);
+        foreach (var p in world.Players)
+            p.Ship.Hold.ResourceUnits = 10;
+        var wb = world.StartBattle("host", Ilwrath);
+        FlyIn(world, "g1");
+        Assert.Equal(2, wb.Fighters.Count);
+        Gift Units(string from, string to) => new(from, to, 1, new int[ShipHold.Categories], 0);
+        Assert.Equal(TradeRefusal.InBattle, world.Give(Units("g1", "g2")));   // from one in a battle
+        Assert.Equal(TradeRefusal.InBattle, world.Give(Units("g2", "g1")));   // to one
+        Assert.Equal(TradeRefusal.InBattle, world.Give(Units("host", "g1")));
+        Assert.Equal(TradeRefusal.None, world.Give(Units("g2", "g3")));       // between two out of it
+        Assert.Equal(new uint[] { 10, 10, 9, 11 }, world.Players.Select(p => p.Ship.Hold.ResourceUnits));
+    }
+
     // ------------------------------------------------------------ with the content
 
     private const int Sol = 82, Earth = 2, Luna = 1;
@@ -626,10 +679,15 @@ public class WorldBattleTests
         // Back in flight, each can't touch anything for 110 frames of flight.
         foreach (var p in world.Players)
             Assert.Equal((Activity.InnerSystem, IpFlight.EscapeFrames), (p.Ship.Activity, p.Ship.Ip!.EscapeCounter));
-        // 24 world frames are 30 of flight, and the counter goes down with each.
+        // UQM's ESCAPE_COUNTER, 110 frames of flight; 24 world frames are
+        // 30 of flight, and the counter goes down with each: 88 world frames
+        // are its 110.
+        Assert.Equal(110, IpFlight.EscapeFrames);
         Run(world, 24);
-        Assert.Equal(IpFlight.EscapeFrames - 30, host.Ip!.EscapeCounter);
-        Run(world, 100);
+        Assert.Equal(110 - 30, host.Ip!.EscapeCounter);
+        Run(world, 87 - 24);
+        Assert.InRange(host.Ip!.EscapeCounter, 1, 2);
+        Run(world, 1);
         Assert.Equal(0, host.Ip!.EscapeCounter);
     }
 
@@ -650,6 +708,32 @@ public class WorldBattleTests
         Assert.Equal(new BattlePlace(Sol, null, guest.Ip!.Location.X, guest.Ip.Location.Y), other.Place);
         Assert.Equal(world.Systems![Sol].Planets[Earth].DataIndex, other.BattlePlanet);
         Assert.Single(wb.Fighters);
+        // The marker's reach is measured on the outer view at the ship's zoom (zoomed in here).
+        Assert.True(guest.Ip.ZoomRadius < IpGeometry.MaxZoomRadius);
+        Assert.True(world.InReach(other.Place, guest));
+        // ip units a pixel at this zoom
+        int unit = IpGeometry.DisplayToLocation(new IpPoint((short)(IpGeometry.ScreenWidth / 2 + 100), 0), guest.Ip.ZoomRadius).X / 100;
+        Assert.True(world.InReach(other.Place with { X = other.Place.X + 7 * unit }, guest));
+        Assert.False(world.InReach(other.Place with { X = other.Place.X + 10 * unit }, guest));
+    }
+
+    [ContentFact]
+    public void APlayerInABattleStartsNoTalkAndIsntPutInOrbit()
+    {
+        var world = InSol(2);
+        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        world.CommanderMet = true;
+        world.StartBattle("host", Ilwrath);
+        // The allied starbase: a guest touching it docks; the host in a battle doesn't.
+        world.VisitStarbase(world.Find("g1")!);
+        Assert.Equal(Activity.Starbase, world.Find("g1")!.Ship.Activity);
+        world.VisitStarbase(world.Host);
+        Assert.Null(world.Host.Ship.Visit);
+        Assert.Equal(Activity.Battle, world.Host.Ship.Activity);
+        Assert.Throws<InvalidOperationException>(() => world.PutInOrbit("host", Sol, Earth, Luna));
+        Assert.Equal(Activity.Battle, world.Host.Ship.Activity);
+        Assert.Null(world.Host.Ship.Ip!.Orbit);
     }
 
     [ContentFact]

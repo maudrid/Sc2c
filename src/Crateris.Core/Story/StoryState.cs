@@ -53,7 +53,7 @@ public sealed class StoryState
         ["GLOBAL_FLAGS_AND_DATA"] = "where a talk is happening (at the starbase, a homeworld, a broadcaster): each talk's own",
         ["BATTLE_SEGUE"] = "how a talk ends: each talk's own",
         ["STARBASE_VISITED"] = "before the alliance, whether the group has met the commander (GameWorld.CommanderMet); at the allied starbase, whether he has greeted this player on this visit: each player's own",
-        ["ESCAPE_COUNTER"] = "a battle's escape count: each battle's own",
+        ["ESCAPE_COUNTER"] = "the escape counter after a battle or an alien's talk: each ship's own (IpFlight.EscapeCounter)",
         ["BATTLE_PLANET"] = "the planet a battle is fought by: each battle's own",
         ["IMPROVED_LANDER_SPEED"] = "a lander upgrade: each ship's own (ShipHold.Upgrades, stage 2b)",
         ["IMPROVED_LANDER_CARGO"] = "a lander upgrade: each ship's own (ShipHold.Upgrades, stage 2b)",

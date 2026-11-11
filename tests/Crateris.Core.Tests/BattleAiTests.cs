@@ -74,6 +74,6 @@ public class BattleAiTests
 
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !sis.Any(s => s.BombCarrier);
         var battle = BattleReplay.Run(Reference.Value, name, fleets, runaway, colours: true, ai);
-        ShipBattleTests.CheckFreed(recorded, battle, sis);
+        ShipBattleTests.CheckFreed(Reference.Value, name, battle, sis);
     }
 }

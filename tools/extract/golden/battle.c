@@ -115,7 +115,12 @@
  * "crew_enlisted" is GLOBAL_SIS (CrewEnlisted) after it: uninit_sis writes
  * crew_level - 1 there when free_ship frees the flagship's description
  * (new_ship if it died, UninitShips at the battle's end if not), 65535
- * for none left; "bomb_carrier" is BOMB_CARRIER (init_sis sets it).
+ * for none left; "bomb_carrier" is BOMB_CARRIER (init_sis sets it);
+ * "crew_floating" the crew floating in space as the battle stopped
+ * (CountCrewElements), and "freed" each side's STARSHIPs' crew_level, in
+ * its queue's order, after Battle's UninitShips gave the floating crew to
+ * the ships left and recorded each ship's crew (a ship never picked keeps
+ * the crew it came with).
  */
 
 #include "uqm/battle.c"
@@ -699,6 +704,26 @@ side_ship (int side)
 /* battle.c's one DoInput: DoBattle until it stops or the steps run out. */
 static int ended;
 
+/* The crew floating in space as the battle stops (CountCrewElements), which
+ * UninitShips then hands out. */
+static int crew_floating;
+
+static void
+count_crew_floating (void)
+{
+	HELEMENT h, next;
+	crew_floating = 0;
+	for (h = GetHeadElement (); h; h = next)
+	{
+		ELEMENT *e;
+		LockElement (h, &e);
+		next = GetSuccElement (e);
+		if (e->state_flags & CREW_OBJECT)
+			++crew_floating;
+		UnlockElement (h);
+	}
+}
+
 void
 DoInput (void *pInputState, BOOLEAN resetInput)
 {
@@ -751,9 +776,11 @@ DoInput (void *pInputState, BOOLEAN resetInput)
 		if (!more)
 		{
 			ended = !(GLOBAL (CurrentActivity) & IN_BATTLE);
+			count_crew_floating ();
 			return;
 		}
 	}
+	count_crew_floating ();
 }
 
 /* ---- A battle ---- */
@@ -903,9 +930,24 @@ fight (const char *name, int scale, int runaway)
 	frame_view = -1;
 	printf ("{\"name\": \"%s\", \"stars\": ", name);
 	Battle (NULL);
-	printf ("\n], \"ended\": %s, \"crew_enlisted\": %u, \"bomb_carrier\": %d}\n",
+	printf ("\n], \"ended\": %s, \"crew_enlisted\": %u, \"bomb_carrier\": %d"
+			", \"crew_floating\": %d, \"freed\": [",
 			ended ? "true" : "false", GLOBAL_SIS (CrewEnlisted),
-			GET_GAME_STATE (BOMB_CARRIER));
+			GET_GAME_STATE (BOMB_CARRIER), crew_floating);
+	for (i = 0; i < NUM_SIDES; ++i)
+	{
+		HSTARSHIP h, next;
+		int any = 0;
+		printf ("%s[", i ? ", " : "");
+		for (h = GetHeadLink (&race_q[i]); h; h = next)
+		{
+			STARSHIP *s = LockStarShip (&race_q[i], h);
+			next = _GetSuccLink (s);
+			printf ("%s%u", any++ ? ", " : "", s->crew_level);
+		}
+		printf ("]");
+	}
+	printf ("]}\n");
 	for (i = 0; i < NUM_SIDES; ++i)
 		UninitQueue (&race_q[i]);
 	fflush (stdout);

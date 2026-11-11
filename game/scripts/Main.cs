@@ -44,6 +44,7 @@ public partial class Main : Node2D
     private string _playerId = "";
     private string _name = "";
     private string _savePath = "";
+    private bool _keepDefaultSave;
     private string _dataDir = "";
     private readonly List<string> _log = new();
     private long _frames;
@@ -391,7 +392,9 @@ public partial class Main : Node2D
 
     private void StartHost()
     {
-        string? load = _options.LoadPath ?? (File.Exists(_savePath) && _options.SavePath == null ? _savePath : null);
+        // A testing start (--start-battle and the like) is a new game, and leaves the default save alone.
+        _keepDefaultSave = _options.StartsNewGame && _options.SavePath == null;
+        string? load = _options.LoadPath ?? (File.Exists(_savePath) && _options.SavePath == null && !_options.StartsNewGame ? _savePath : null);
         if (load != null && File.Exists(load))
         {
             _host = HostSession.Load(File.ReadAllText(load), _name, _systems, _shapes);
@@ -409,7 +412,7 @@ public partial class Main : Node2D
         _host.Logged += Log;
         _host.SaveRequested += () =>
         {
-            _player?.Notify(SaveGame() ? "Game saved." : "The game is over: it isn't saved.");
+            _player?.Notify(SaveGame() ? "Game saved." : "This game isn't saved.");
         };
         _host.World.TalkLibrary = _talks;
         _host.World.BattleKit = _battleKit;
@@ -606,10 +609,11 @@ public partial class Main : Node2D
     private void ShowReport(string resource, string foundBy) =>
         _player?.ShowReport(new Crateris.Core.Planetside.LanderReport(resource, foundBy == "" ? null : foundBy));
 
-    // The host's save; none once the game is over (the save before it is kept, decision 12).
+    // The host's save; none once the game is over (the save before it is kept,
+    // decision 12), nor over the default save from a testing start.
     private bool SaveGame()
     {
-        if (_host?.SaveJson() is not { } json)
+        if (_keepDefaultSave || _host?.SaveJson() is not { } json)
             return false;
         Directory.CreateDirectory(Path.GetDirectoryName(_savePath)!);
         File.WriteAllText(_savePath, json);

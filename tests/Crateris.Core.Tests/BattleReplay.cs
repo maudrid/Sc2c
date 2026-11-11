@@ -120,6 +120,37 @@ internal static class BattleReplay
         return battle;
     }
 
+    /// <summary>
+    /// The battle's end as UQM's Battle ends it, UninitShips: the crew
+    /// floating as it stopped, then each ship's crew recorded as UQM
+    /// recorded it, after the floating crew went to the ships left. A
+    /// ship never picked keeps the crew it came with, which for a player
+    /// ship is the port's own (none: SisShip.Load), not the recording's.
+    /// </summary>
+    public static void End(JsonElement reference, string name, Battle battle)
+    {
+        var recorded = Recorded(reference, name);
+        Assert.Equal(recorded.GetProperty("crew_floating").GetInt32(),
+            battle.List.Elements.Count(e => (e.StateFlags & ElementFlags.CrewObject) != 0));
+        var fought = Enumerable.Range(0, Battle.NumSides)
+            .Select(side => battle.Fleet(side).Select(s => s.RaceDesc != null || !s.Available).ToArray()).ToArray();
+        battle.UninitShips();
+        var freed = recorded.GetProperty("freed");
+        for (int side = 0; side < Battle.NumSides; ++side)
+        {
+            var want = freed[side].Ints();
+            var fleet = battle.Fleet(side);
+            Assert.Equal(want.Length, fleet.Count);
+            for (int i = 0; i < fleet.Count; ++i)
+            {
+                Assert.Null(fleet[i].RaceDesc);
+                if (fought[side][i] || fleet[i].Code is not SisShip)
+                    Assert.True(want[i] == fleet[i].CrewLevel,
+                        $"{name}: side {side} ship {i} freed with {fleet[i].CrewLevel} crew, UQM {want[i]}");
+            }
+        }
+    }
+
     private static void Check(string name, int n, JsonElement want, Battle battle, List<string> places,
         IReadOnlyDictionary<string, int> sheetNumbers, bool colours)
     {

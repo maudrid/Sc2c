@@ -174,10 +174,10 @@ public sealed partial class GameWorld
         return best?.DataIndex ?? RandomPlanetType(seed);
     }
 
-    // BuildBattle in hyperspace: TFB_Random () % NUMBER_OF_PLANET_TYPES,
+    // BuildBattle in hyperspace: (COUNT)TFB_Random () % NUMBER_OF_PLANET_TYPES,
     // drawn here from a generator of the battle's own.
     private static byte RandomPlanetType(uint seed) =>
-        (byte)(new TfbRandom(~seed).Next() % WorldTypes.NumberOfPlanetTypes);
+        (byte)((ushort)new TfbRandom(~seed).Next() % WorldTypes.NumberOfPlanetTypes);
 
     // A player's ship for a battle: the flagship's battle code with this
     // ship's slots and crew (decision 3), the bomb aboard the flagship from
@@ -265,8 +265,9 @@ public sealed partial class GameWorld
 
     // Whether a ship is within reach of a battle's marker, on its screen:
     // in hyperspace a pixel is 4 logical units (WORLD_TO_DISPLAY, at 1x);
-    // in a system, the view's own at its zoom.
-    private bool InReach(BattlePlace place, PlayerShip ship)
+    // in a system, the view's own at its zoom. The ship must be in the
+    // battle's place (InPlace).
+    internal bool InReach(BattlePlace place, PlayerShip ship)
     {
         long reach = Settings.BattleMarkerReach;
         long dx, dy;

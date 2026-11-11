@@ -39,6 +39,8 @@ namespace Crateris.Game;
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
 /// --first-run-tick FILE[,FILE] (the first-run screen ticks these add-ons, by file name, before --first-run-use),
 /// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
+/// --start-at, --start-orbit, --start-visit, --start-docked and --start-battle start a new game, without
+/// loading the default save or writing over it (--load and --save name a save to use all the same).
 /// With no options the game starts as a solo host.
 /// </summary>
 public sealed class Options
@@ -102,6 +104,14 @@ public sealed class Options
 
     /// <summary>--start-at X:Y: the host starts in hyperspace at these universe coordinates (testing and debugging).</summary>
     public (short X, short Y)? StartAt { get; private set; }
+
+    /// <summary>
+    /// Whether an option starts a new game where the host is put (--start-at,
+    /// --start-orbit, --start-visit, --start-docked, --start-battle): the
+    /// default save isn't loaded for it, nor written over by it (testing);
+    /// --load and --save name a save to use all the same.
+    /// </summary>
+    public bool StartsNewGame => StartAt != null || StartOrbit != null || StartVisit || StartDocked || StartBattle != null;
 
     public static Options Parse(string[] args)
     {

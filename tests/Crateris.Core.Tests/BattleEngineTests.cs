@@ -38,7 +38,8 @@ public class BattleEngineTests
             new Starship(new TestShip(s), (short)side, (ushort)s.GetProperty("crew").GetInt32(),
                 (ushort)s.GetProperty("max_crew").GetInt32()) { CaptainsNameIndex = (byte)(side == 0 ? 0 : 5) }).ToList()).ToList();
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean();
-        BattleReplay.Run(Reference.Value, name, fleets, runaway, colours: false);
+        var battle = BattleReplay.Run(Reference.Value, name, fleets, runaway, colours: false);
+        BattleReplay.End(Reference.Value, name, battle);
     }
 
     /// <summary>

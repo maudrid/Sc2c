@@ -520,6 +520,13 @@ public sealed class HostSession
     {
         World.SubmitInput(HostId, World.Frame + World.Settings.InputDelayFrames, hostInput);
         World.Step();
+        // Battles ended and notices about them: only logged until item 11
+        // sends them to the players, but taken so none is kept.
+        foreach (var ended in World.TakeEndedBattles())
+            Logged?.Invoke($"Battle {ended.Id} against the {ended.EnemyShip.Id} {ended.Outcome?.ToString().ToLowerInvariant()}: "
+                + string.Join(", ", ended.Fighters.Select(f => $"{f.Player.Id} {f.Exit?.ToString().ToLowerInvariant()}")));
+        foreach (var (player, text) in World.TakeBattleNotices())
+            Logged?.Invoke($"{player}: {text}");
         var snapshot = World.Snapshot();
         _snapshots.Record(snapshot);
         return snapshot;

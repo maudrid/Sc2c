@@ -2347,7 +2347,8 @@ def record_battle(uqm, battle_exe, strings_exe, images_exe, package):
                   for i, f in enumerate(battle["frames"])]
         inputs = {k: v for k, v in scenario.items() if k not in ("name", "full")}
         out.append({"name": scenario["name"], "input": inputs, "full": full,
-                    "ended": battle["ended"], "stars": battle["stars"], "frames": frames})
+                    "ended": battle["ended"], "stars": battle["stars"], "frames": frames,
+                    "crew_floating": battle["crew_floating"], "freed": battle["freed"]})
     data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
                   + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
                                                          "src/libs/math/random.c"], [
@@ -2413,6 +2414,11 @@ def record_battle(uqm, battle_exe, strings_exe, images_exe, package):
         "first 16 hex digits of the SHA-256 of [ships, elements, draws] as "
         "compact JSON (no spaces)]. ended: whether the battle ended (a side "
         "out of ships) before the steps did.",
+        "crew_floating: the crew floating in space as the battle stopped "
+        "(CountCrewElements); freed: each side's STARSHIPs' crew_level, in "
+        "its queue's order, after Battle's UninitShips gave that crew to the "
+        "ships left with crew and recorded each ship's crew (a ship never "
+        "picked keeps the crew it came with). Added later, at the end.",
     ])
     data["sheets"] = ids
     data["battles"] = out
@@ -2940,7 +2946,8 @@ def record_battle_ships(uqm, battle_exe, strings_exe, images_exe, package):
         inputs = {k: v for k, v in scenario.items() if k not in ("name", "full")}
         out.append({"name": scenario["name"], "input": inputs, "full": full, "ended": battle["ended"],
                     "crew_enlisted": battle["crew_enlisted"], "bomb_carrier": battle["bomb_carrier"],
-                    "stars": battle["stars"], "frames": frames})
+                    "stars": battle["stars"], "frames": frames,
+                    "crew_floating": battle["crew_floating"], "freed": battle["freed"]})
     data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
                   + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
                                                          "src/libs/math/random.c"], [
@@ -2973,6 +2980,11 @@ def record_battle_ships(uqm, battle_exe, strings_exe, images_exe, package):
         "battle's end if not (its crew held to its most when it warped in, "
         "spawn_ship's clamp), 65535 for none left, UQM's game over; bomb_carrier: "
         "BOMB_CARRIER after it (init_sis sets it when CHMMR_BOMB_STATE is 3).",
+        "crew_floating: the crew floating in space as the battle stopped "
+        "(CountCrewElements); freed: each side's STARSHIPs' crew_level, in "
+        "its queue's order, after Battle's UninitShips gave that crew to the "
+        "ships left with crew and recorded each ship's crew (a ship never "
+        "picked keeps the crew it came with). Added later, at the end.",
     ])
     data["sheets"] = ids
     data["battles"] = out
@@ -3266,7 +3278,8 @@ def record_battle_ai(uqm, battle_exe, strings_exe, images_exe, package):
         inputs = {k: v for k, v in scenario.items() if k not in ("name", "full")}
         out.append({"name": scenario["name"], "input": inputs, "full": full, "ended": battle["ended"],
                     "crew_enlisted": battle["crew_enlisted"], "bomb_carrier": battle["bomb_carrier"],
-                    "stars": battle["stars"], "inputs": battle["inputs"], "frames": frames})
+                    "stars": battle["stars"], "inputs": battle["inputs"], "frames": frames,
+                    "crew_floating": battle["crew_floating"], "freed": battle["freed"]})
     data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
                   + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
                                                          "src/libs/math/random.c"], [
@@ -3299,6 +3312,11 @@ def record_battle_ai(uqm, battle_exe, strings_exe, images_exe, package):
         "AI's random draws (TurnShip turning a half circle, Entice dodging) "
         "are among each frame's draws, named by UQM's function. "
         "crew_enlisted and bomb_carrier: as battle-ships.json's.",
+        "crew_floating: the crew floating in space as the battle stopped "
+        "(CountCrewElements); freed: each side's STARSHIPs' crew_level, in "
+        "its queue's order, after Battle's UninitShips gave that crew to the "
+        "ships left with crew and recorded each ship's crew (a ship never "
+        "picked keeps the crew it came with). Added later, at the end.",
     ])
     data["sheets"] = ids
     data["battles"] = out

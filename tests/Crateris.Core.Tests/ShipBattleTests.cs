@@ -49,20 +49,21 @@ public class ShipBattleTests
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !bombCarrier;
         var battle = BattleReplay.Run(Reference.Value, name, fleets, runaway, colours: true);
         Assert.Equal(recorded.GetProperty("bomb_carrier").GetInt32() != 0, bombCarrier);
-        CheckFreed(recorded, battle, sis);
+        CheckFreed(Reference.Value, name, battle, sis);
     }
 
     /// <summary>
     /// The battle's end, UninitShips (the crew still floating to the ship
     /// left with crew, then the ships still in the battle freed, as UQM's
-    /// Battle ends), and the flagship's crew left against what uninit_sis
-    /// wrote: the recording program's CrewEnlisted is UQM's after its
-    /// UninitShips, floating crew taken.
+    /// Battle ends: <see cref="BattleReplay.End"/>, each ship's crew against
+    /// UQM's), and the flagship's crew left against what uninit_sis wrote:
+    /// the recording program's CrewEnlisted is UQM's after its UninitShips,
+    /// floating crew taken.
     /// </summary>
-    internal static void CheckFreed(JsonElement recorded, Battle battle, IReadOnlyList<SisShip> sis)
+    internal static void CheckFreed(JsonElement reference, string name, Battle battle, IReadOnlyList<SisShip> sis)
     {
-        battle.UninitShips();
-        Assert.All(battle.Fleet(0).Concat(battle.Fleet(1)), s => Assert.Null(s.RaceDesc));
+        BattleReplay.End(reference, name, battle);
+        var recorded = BattleReplay.Recorded(reference, name);
 
         // uninit_sis's CrewEnlisted: the crew left, ~0 when it died (UQM's
         // game over); the port gives the crew left and whether it died.
