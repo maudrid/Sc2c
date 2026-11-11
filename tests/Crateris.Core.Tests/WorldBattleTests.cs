@@ -356,6 +356,8 @@ public class WorldBattleTests
         Assert.Equal(x, g1.Flight.LogX);
         // Nor joins a battle.
         var next = world.StartBattle("host", Ilwrath);
+        Assert.Empty(world.MarkersFor("g1"));
+        Assert.Equal(new[] { next }, world.MarkersFor("g2"));
         FlyIn(world, "g1");
         Assert.Null(next.FighterOf("g1"));
     }
@@ -457,6 +459,7 @@ public class WorldBattleTests
         var wb = Started(world);
         var g1 = world.Find("g1")!;
         world.Leave("g1");
+        Assert.Empty(world.MarkersFor("g1"));   // away
         var f = Fighter(wb, "g1");
         Assert.Equal(BattleExit.Disconnected, f.Exit);
         Assert.InRange(f.CrewLeft, 1, 10);

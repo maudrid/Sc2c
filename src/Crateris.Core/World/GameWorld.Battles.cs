@@ -54,9 +54,10 @@ public sealed partial class GameWorld
     /// <summary>
     /// The battles whose markers a player is shown (and may fly into): those
     /// where the player's ship is flying, in hyperspace or the same part
-    /// (outer or inner) of the same system: those it may fly into. None for a
-    /// player away, in no flight (in orbit, a talk, docked, entering a star),
-    /// in a battle, or destroyed.
+    /// (outer or inner) of the same system (joining one also needs it open to
+    /// the player: not left by them, not decided, <see cref="JoinBattles"/>).
+    /// None for a player away, in no flight (in orbit, a talk, docked,
+    /// entering a star), in a battle, or destroyed.
     /// </summary>
     public IReadOnlyList<WorldBattle> MarkersFor(string id)
     {
