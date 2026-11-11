@@ -392,7 +392,8 @@ public partial class Main : Node2D
 
     private void StartHost()
     {
-        // A testing start (--start-battle and the like) is a new game, and leaves the default save alone.
+        // A testing start (--start-battle and the like) is a new game unless --load names one, and never
+        // loads or writes over the default save.
         _keepDefaultSave = _options.StartsNewGame && _options.SavePath == null;
         string? load = _options.LoadPath ?? (File.Exists(_savePath) && _options.SavePath == null && !_options.StartsNewGame ? _savePath : null);
         if (load != null && File.Exists(load))
