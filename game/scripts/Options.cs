@@ -39,8 +39,8 @@ namespace Crateris.Game;
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
 /// --first-run-tick FILE[,FILE] (the first-run screen ticks these add-ons, by file name, before --first-run-use),
 /// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
-/// --start-at, --start-orbit, --start-visit, --start-docked and --start-battle start a new game, without
-/// loading the default save or writing over it (--load and --save name a save to use all the same);
+/// --start-at, --start-orbit, --start-visit, --start-docked and --start-battle never load the default save
+/// nor write over it: a new game unless --load names one (then they apply to it), saved only to a --save file;
 /// --start-minerals, --start-units and --start-devices alone change whatever game is loaded, and are saved with it.
 /// With no options the game starts as a solo host.
 /// </summary>
@@ -107,10 +107,10 @@ public sealed class Options
     public (short X, short Y)? StartAt { get; private set; }
 
     /// <summary>
-    /// Whether an option starts a new game where the host is put (--start-at,
-    /// --start-orbit, --start-visit, --start-docked, --start-battle): the
-    /// default save isn't loaded for it, nor written over by it (testing);
-    /// --load and --save name a save to use all the same.
+    /// Whether an option puts the host somewhere (--start-at, --start-orbit,
+    /// --start-visit, --start-docked, --start-battle): a testing start, which
+    /// never loads the default save nor writes over it; a new game unless
+    /// --load names one, saved only to a --save file.
     /// </summary>
     public bool StartsNewGame => StartAt != null || StartOrbit != null || StartVisit || StartDocked || StartBattle != null;
 
