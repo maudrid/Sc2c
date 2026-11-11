@@ -536,6 +536,7 @@ public sealed class HostSession
 
     private bool _gameOverLogged;
     private WorldSnapshot? _lastSnapshot;
+    private bool _gameOverSnapshot;
 
     /// <summary>One world frame: the host's input (with the game's input delay), the step, and the snapshot for everyone.</summary>
     public WorldSnapshot Step(ShipInput hostInput)
@@ -561,10 +562,17 @@ public sealed class HostSession
             Logged?.Invoke("Game over: the flagship was lost");
         }
         // Once the game is over the world has stopped (decision 12): its
-        // frame no longer moves on, and the last snapshot stands.
-        if (_lastSnapshot is { } last && last.Frame == World.Frame)
+        // frame no longer moves on, and the snapshot of the world as it
+        // stopped stands. That is taken once, the first step the game is
+        // seen over, though the world stopped between steps (the last guest
+        // leaving the flagship's battle as it explodes ends it): numbered
+        // after the last sent then, so the guests take it.
+        if (World.GameOver && _gameOverSnapshot && _lastSnapshot is { } last)
             return last;
         var snapshot = World.Snapshot();
+        if (_lastSnapshot is { } previous && snapshot.Frame <= previous.Frame)
+            snapshot = snapshot with { Frame = previous.Frame + 1 };
+        _gameOverSnapshot = World.GameOver;
         _snapshots.Record(snapshot);
         _lastSnapshot = snapshot;
         return snapshot;

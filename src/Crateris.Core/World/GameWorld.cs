@@ -574,6 +574,8 @@ public sealed partial class GameWorld
     {
         if (TalkLibrary is null || Story is null || player.Ship.Visit is not null || player.Ship.Battle is not null)
             return;   // a player in a battle starts no talk (decision 11)
+        if (FlagshipLost)
+            return;   // the game is lost: no talk (a story pause would hold off the game over)
         bool opening = Story.Get("STARBASE_AVAILABLE") == 0 || Story.Get("MOONBASE_ON_SHIP") != 0
             || Story.Get("CHMMR_BOMB_STATE") == 2;
         if (opening)

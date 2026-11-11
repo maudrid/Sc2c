@@ -170,7 +170,7 @@ public sealed partial class GameWorld
         }
         foreach (var player in _players)
         {
-            bool flying = Flying(player);
+            bool flying = Flying(player), offered = false;
             foreach (var wreck in wrecks)
             {
                 if (wreck == player)
@@ -187,12 +187,13 @@ public sealed partial class GameWorld
                     _seenOutOfWreck.Add(key);
                     continue;
                 }
-                if (!_seenOutOfWreck.Remove(key) || player.Ship.Hold.Crew < 2)
+                // Into several at once (a battle's wrecks lie together): offered the first only.
+                if (!_seenOutOfWreck.Remove(key) || offered || player.Ship.Hold.Crew < 2)
                     continue;
                 player.Ship.Flight.Stop();
                 player.Ship.Ip?.Stop();
                 _rescueOffers.Add(key);
-                break;
+                offered = true;
             }
         }
         _seenOutOfWreck.RemoveWhere(t => !wrecks.Any(w => w.Id == t.Wreck));

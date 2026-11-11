@@ -46,11 +46,17 @@ public sealed partial class GameWorld
     /// The flagship was lost (decision 12): the game is over for the group,
     /// and the world stops (nothing steps, joins or changes any more: a
     /// guest is refused, <see cref="JoinResult.GameOver"/>). As UQM's: its
-    /// crew run out, it explodes, and as its explosion ends new_ship asks
-    /// for the player's next ship, finds the flagship was the last
-    /// (CrewEnlisted = ~0, pickship.c) and the battle stops (CHECK_ABORT),
-    /// whoever else is still fighting in it; or at its battle's end, if
-    /// that comes first. Item 11 tells every player; item 12 shows UQM's
+    /// crew run out, it explodes, and once the explosion is over (and the
+    /// enemy's victory ditty has played at least MIN_DITTY_FRAME_COUNT's 72
+    /// frames: UQM waits for the ditty to end too, the engine here for no
+    /// music) new_ship finds its side out of ships (the flagship picked
+    /// leaves battle_counter at 1, pickship.c; IN_BATTLE cleared,
+    /// tactrans.c) and the battle ends, the game over (CrewEnlisted = ~0:
+    /// UninitEncounter skipped, starcon.c's loop left). That the other
+    /// players' battle stops with it, unfinished, whoever is still
+    /// fighting, and every other battle with the world, is this port's
+    /// (UQM has only the one ship); at its battle's end if that comes
+    /// first. Item 11 tells every player; item 12 shows UQM's
     /// game over and ends the host's game. From the frame its crew ran out
     /// (<see cref="FlagshipLost"/>) no save is made, so the host's save is
     /// kept as it was before the battle.
@@ -59,7 +65,8 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// The flagship's crew has run out in a battle (it's exploding, or the
-    /// game is over): from this frame no save is made
+    /// game is over): from this frame no talk starts (a story talk's pause
+    /// would hold off the game over) and no save is made
     /// (<see cref="Session.HostSession.SaveJson"/>; <see cref="HostSave.ToJson"/>
     /// refuses), so loading the host's save goes back to before the battle
     /// (decision 12), not to the flagship as it joined the battle it's
@@ -377,8 +384,10 @@ public sealed partial class GameWorld
                     LeaveBattle(wb, fighter, BattleExit.Retreated, freed.CrewLeft);
             }
         }
-        // The flagship's explosion over: new_ship found it the player's last
-        // ship (CrewEnlisted = ~0) and the battle stops, the game over.
+        // The flagship's explosion over, new_ship has freed it: in UQM its
+        // side would be out of ships (the flagship its last, CrewEnlisted =
+        // ~0) and the battle over; here others may still fight in it, and
+        // the battle stops with the world, unfinished (this port's).
         if (wb.Fighters.FirstOrDefault(f => f.Exit == BattleExit.Destroyed && f.Player.Ship.Kind == ShipKind.Flagship
                 && f.Starship.RaceDesc is null && f.Player.Ship.Battle == wb) is { } flagship && wb.Battle.InBattle)
         {

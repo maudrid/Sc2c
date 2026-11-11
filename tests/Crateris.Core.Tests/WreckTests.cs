@@ -181,6 +181,8 @@ public class WreckTests
         // Both at the battle's place: the rescuer is offered one at a time (the first), and may revive either.
         FlyOutAndBack(world, "host");
         Assert.Equal(new[] { ("host", "g1") }, world.TakeRescueOffers());
+        Run(world, 2);
+        Assert.Empty(world.TakeRescueOffers());   // nor the other on the frames after
         Assert.Equal(new[] { "g1", "g2" }, world.RescuesFor("host").Select(p => p.Id));
         Assert.Equal(RescueRefusal.None, world.Revive("host", "g2", 2));
         Assert.Equal(RescueRefusal.None, world.Revive("host", "g1", 2));
@@ -389,13 +391,65 @@ public class WreckTests
         Assert.Equal((frame, elements), (world.Frame, string.Join(" ", wb.Battle.List.Elements.Select(e => $"{e.Current.X},{e.Current.Y}"))));
         Assert.Equal(JoinResult.GameOver, world.Join("g9", "Late"));
         Assert.Null(world.Find("g9"));
+        // A guest leaving now only goes: not out of the stopped battle, no fuel paid.
+        var g2 = world.Find("g2")!.Ship;
+        uint g2Fuel = g2.Flight.Fuel;
         world.Leave("g2");
+        Assert.Equal((false, (BattleExit?)null, wb, g2Fuel), (world.Find("g2")!.Present, Fighter(wb, "g2").Exit, g2.Battle, g2.Flight.Fuel));
         Assert.Equal(JoinResult.GameOver, world.Join("g2", "Guest 2"));
         Assert.Equal(TradeRefusal.GameOver, world.Give(new Gift("g1", "host", 1, NoMinerals, 0)));
         Assert.Equal(RescueRefusal.GameOver, world.Revive("g1", "host", 1));
         Assert.False(world.DiscardCargo("g1", 0));
         Assert.Throws<InvalidOperationException>(() => world.StartBattle("g1", Ilwrath));
         Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(world));
+    }
+
+    [Fact]
+    public void TheWreckLiesOnTheStarItsBattlesStarterHadJustLeft()
+    {
+        // Off Sol, the starter just out of another star (7) as it starts the battle; the guest's own isn't 7.
+        var world = NewWorld(2);
+        foreach (var p in world.Players)
+            p.Ship.Flight.LogX += 20000;
+        world.Host.Ship.Flight.StarJustLeft = 7;
+        var wb = world.StartBattle("host", Ilwrath);
+        FlyIn(world, "g1");
+        var g1 = world.Find("g1")!.Ship;
+        Assert.NotEqual(7, g1.Flight.StarJustLeft);
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            Run(world, 1);
+        Kill(wb.Battle, Fighter(wb, "g1").Starship);
+        Run(world, 1);
+        // Saved mid-battle, and once the battle is won: a wreck on the star.
+        Assert.Equal(7, HostSave.FromJson(HostSave.ToJson(world)).Find("g1")!.Ship.Flight.StarJustLeft);
+        Kill(wb.Battle, wb.Enemy);
+        RunOut(world, wb);
+        Assert.Equal((true, 7), (g1.Wreck, g1.Flight.StarJustLeft));
+    }
+
+    [Fact]
+    public void TheGameOverStopsEveryBattleAtOnce()
+    {
+        // The host's battle, and the guest's own far off, started after it.
+        var world = NewWorld(2);
+        world.Find("g1")!.Ship.Flight.LogX += 20000;
+        var first = world.StartBattle("host", Ilwrath);
+        var other = world.StartBattle("g1", Ilwrath);
+        for (int i = 0; i < 60 && !(Warped(first.Battle) && Warped(other.Battle)); ++i)
+            Run(world, 1);
+        string State(Battle b) => b.Random.Seed + " " + string.Join(" ", b.List.Elements.Select(e => $"{e.Current.X},{e.Current.Y},{e.LifeSpan}"));
+        Kill(first.Battle, Fighter(first, "host").Starship);
+        for (int i = 0; i < 300 && !world.GameOver; ++i)
+        {
+            string before = State(other.Battle);
+            Run(world, 1);
+            if (world.GameOver)
+                Assert.Equal(before, State(other.Battle));   // not stepped in the frame the game ended
+            else
+                Assert.NotEqual(before, State(other.Battle));
+        }
+        Assert.True(world.GameOver);
+        Assert.Null(other.Outcome);
     }
 
     [Fact]
@@ -456,8 +510,17 @@ public class WreckTests
         Assert.Equal((true, Activity.InnerSystem), (guest.Destroyed, guest.Activity));
         Assert.Equal((wb.Place.X, wb.Place.Y), ((int)guest.Ip!.Location.X, (int)guest.Ip.Location.Y));
         Assert.Equal((place.ScreenX, place.ScreenY, place.ZoomRadius), ((int)guest.Ip.Screen.X, (int)guest.Ip.Screen.Y, (int)guest.Ip.ZoomRadius));
-        var loaded = HostSave.FromJson(HostSave.ToJson(world), WorldBattleTests.Systems.Value, TestContent.Shapes).Find("g1")!.Ship;
+        var json = HostSave.ToJson(world);
+        var loaded = HostSave.FromJson(json, WorldBattleTests.Systems.Value, TestContent.Shapes).Find("g1")!.Ship;
         Assert.Equal((true, wb.Place.X, wb.Place.Y), (loaded.Destroyed, (int)loaded.Ip!.Location.X, (int)loaded.Ip.Location.Y));
+        // A save with the wreck in orbit round Luna: refused.
+        var node = JsonNode.Parse(json)!;
+        var system = node["players"]!.AsArray().Single(p => (string)p!["id"]! == "g1")!["system"]!;
+        Assert.Equal(Earth, (int)system["inner_planet"]!);
+        system["orbit_planet"] = Earth;
+        system["orbit_moon"] = Luna;
+        Assert.Contains("orbit", Assert.Throws<InvalidDataException>(
+            () => HostSave.FromJson(node.ToJsonString(), WorldBattleTests.Systems.Value, TestContent.Shapes)).Message);
         // Not put in orbit, nor flying.
         Assert.Throws<InvalidOperationException>(() => world.PutInOrbit("g1", Sol, Earth, Luna));
         Run(world, 10, _ => ShipInput.Thrust);
@@ -496,6 +559,89 @@ public class WreckTests
     }
 
     [ContentFact]
+    public void NoStoryTalkStartsAsTheFlagshipExplodes()
+    {
+        // A guest with the Lunar base aboard reaching the starbase then would pause the game, and the game over with it.
+        var world = InSol(2);
+        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
+        var wb = world.StartBattle("host", Ilwrath);
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            Run(world, 1);
+        Kill(wb.Battle, Fighter(wb, "host").Starship);
+        Run(world, 1);
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        world.Story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(world.Find("g1")!);
+        Assert.Equal((false, (StarbaseVisit?)null), (world.StoryPaused, world.Find("g1")!.Ship.Visit));
+        for (int i = 0; i < 300 && !world.GameOver; ++i)
+            Run(world, 1);
+        Assert.True(world.GameOver);
+    }
+
+    [ContentFact]
+    public void AfterTheGameOverNothingChanges()
+    {
+        // g1 talking to the commander, g3 docked at the starbase's menu, g2 in orbit round Luna.
+        var world = InSol(4);
+        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
+        world.DialogueLocks = Comm.DialogueLocks.Load(DataDir);
+        var story = world.Story!;
+        foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED" })
+            story.Set(f, 1);
+        story.Set32("STARBASE_BULLETS0", 0xFFFFFFFF);
+        world.CommanderMet = true;
+        world.VisitStarbase(world.Find("g1")!);
+        world.VisitStarbase(world.Find("g3")!);
+        Assert.Equal(GameWorld.CommanderTalk.Started, world.TalkToCommander("g1", out _));
+        Assert.NotEmpty(world.TalkFor("g1")!.Replies);
+        var g3 = world.Find("g3")!;
+        Assert.Equal(Activity.Starbase, g3.Ship.Activity);
+        world.PutInOrbit("g2", Sol, Earth, Luna);
+        var wb = world.StartBattle("host", Ilwrath);
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            Run(world, 1);
+        Kill(wb.Battle, Fighter(wb, "host").Starship);
+        for (int i = 0; i < 300 && !world.GameOver; ++i)
+            Run(world, 1);
+        Assert.True(world.GameOver);
+
+        Assert.Equal(DispatchRefusal.NotInOrbit, world.Dispatch("g2", 100, 100));
+        Assert.Null(world.Find("g2")!.Ship.Lander);
+        Assert.False(world.ChooseReply("g1", 0));
+        Assert.False(world.Rename("g3", "Renamed", "Someone"));
+        Assert.NotEqual("Renamed", g3.Ship.Name);
+        byte state = g3.Ship.Visit!.Menu!.State;
+        Assert.Equal(Starbase.OutfitOutcome.None, world.StarbaseKey("g3", MenuKey.Down, out _));
+        Assert.Equal(state, g3.Ship.Visit.Menu.State);
+        Assert.Equal(GameWorld.CommanderTalk.NotAtMenu, world.TalkToCommander("g3", out _));
+        Assert.False(world.Depart("g3"));
+        Assert.Equal(Activity.Starbase, g3.Ship.Activity);
+        Assert.Throws<InvalidOperationException>(() => world.PutInOrbit("g1", Sol, Earth, Luna));
+    }
+
+    [ContentFact]
+    public void TheLastGuestLeavingAsTheFlagshipExplodesEndsTheGameAndTheHostSaysSo()
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
+            WorldBattleTests.Systems.Value, TestContent.Shapes);
+        host.World.BattleKit = Kit();
+        host.StartBattle(Ilwrath);
+        host.Hello(1, "g1", "Guest 1", Protocol.Version);
+        var wb = JoinedInSol(host, "g1");
+        Kill(wb.Battle, wb.FighterOf("host")!.Starship);
+        var before = host.Step(ShipInput.None);
+        Assert.Equal(2, before.Ships.Count);
+        host.GuestLeft(1);
+        Assert.True(host.World.GameOver);   // the battle ended with no one left, the flagship destroyed
+        // The next step's snapshot is the world as it stopped, after the last one sent.
+        var after = host.Step(ShipInput.None);
+        Assert.True(after.Frame > before.Frame);
+        Assert.Equal(new[] { "host" }, after.Ships.Select(s => s.Id));
+        Assert.NotEqual(Activity.Battle, after.Ships[0].Activity);
+        Assert.Same(after, host.Step(ShipInput.None));
+    }
+
+    [ContentFact]
     public void TheHostsSaveIsKeptFromTheFlagshipsDeathAndLateGuestsAreRefused()
     {
         var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
@@ -526,6 +672,33 @@ public class WreckTests
         Assert.False(host.InGame(2));
     }
 
+    // The host's battle by Earth, the guests (there as it started, at the
+    // host's place) flying off and back into its marker, everyone warped in.
+    private static WorldBattle JoinedInSol(HostSession host, params string[] guests)
+    {
+        var world = host.World;
+        var wb = world.Battles.Single();
+        foreach (var id in guests)
+            world.Find(id)!.Ship.Ip!.EscapeCounter = 250;
+        void Fly(Func<string, ShipInput> keys)
+        {
+            foreach (var id in guests)
+                world.SubmitInput(id, world.Frame + 1, keys(id));
+            host.Step(ShipInput.None);
+        }
+        for (int i = 0; i < 12; ++i)
+            Fly(_ => ShipInput.Thrust);
+        int back = (world.Find(guests[0])!.Ship.Ip!.Facing + 8) % 16;
+        for (int i = 0; i < 300 && world.Find(guests[0])!.Ship.Ip!.Facing != back; ++i)
+            Fly(_ => ShipInput.Left);
+        for (int i = 0; i < 400 && guests.Any(id => world.Find(id)!.Ship.Battle is null); ++i)
+            Fly(id => world.Find(id)!.Ship.Battle is null ? ShipInput.Thrust : ShipInput.None);
+        Assert.All(guests, id => Assert.NotNull(wb.FighterOf(id)));
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            host.Step(ShipInput.None);
+        return wb;
+    }
+
     [ContentFact]
     public void TheHostLogsRescuesUntilTheWireSendsThem()
     {
@@ -538,25 +711,8 @@ public class WreckTests
         host.Hello(1, "g1", "Guest 1", Protocol.Version);
         host.Hello(2, "g2", "Guest 2", Protocol.Version);
         var world = host.World;
-        var wb = world.Battles.Single();
-        // The guests fly off and back into the marker; g1 is destroyed and the battle won.
-        foreach (var id in new[] { "g1", "g2" })
-            world.Find(id)!.Ship.Ip!.EscapeCounter = 250;
-        void Fly(Func<string, ShipInput> keys)
-        {
-            foreach (var id in new[] { "g1", "g2" })
-                world.SubmitInput(id, world.Frame + 1, keys(id));
-            host.Step(ShipInput.None);
-        }
-        for (int i = 0; i < 12; ++i)
-            Fly(_ => ShipInput.Thrust);
-        int back = (world.Find("g1")!.Ship.Ip!.Facing + 8) % 16;
-        for (int i = 0; i < 300 && world.Find("g1")!.Ship.Ip!.Facing != back; ++i)
-            Fly(_ => ShipInput.Left);
-        for (int i = 0; i < 400 && (world.Find("g1")!.Ship.Battle is null || world.Find("g2")!.Ship.Battle is null); ++i)
-            Fly(id => world.Find(id)!.Ship.Battle is null ? ShipInput.Thrust : ShipInput.None);
-        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
-            host.Step(ShipInput.None);
+        var wb = JoinedInSol(host, "g1", "g2");
+        // g1 is destroyed and the battle won.
         Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
         host.Step(ShipInput.None);
         Kill(wb.Battle, wb.Enemy);

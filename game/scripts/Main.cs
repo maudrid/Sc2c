@@ -610,8 +610,8 @@ public partial class Main : Node2D
     private void ShowReport(string resource, string foundBy) =>
         _player?.ShowReport(new Crateris.Core.Planetside.LanderReport(resource, foundBy == "" ? null : foundBy));
 
-    // The host's save; none once the game is over (the save before it is kept,
-    // decision 12), nor over the default save from a testing start.
+    // The host's save; none once the flagship is lost (the save before its
+    // battle is kept, decision 12), nor over the default save from a testing start.
     private bool SaveGame()
     {
         if (_keepDefaultSave || _host?.SaveJson() is not { } json)
