@@ -607,6 +607,13 @@ public class WorldBattleTests
             planets.Add(wb.BattlePlanet);
         }
         Assert.True(planets.Count > 3, $"planets {string.Join(", ", planets)}");
+
+        // BuildBattle's (COUNT)TFB_Random () % NUMBER_OF_PLANET_TYPES, from the
+        // battle's own generator: the first battle of frame 0 is seeded 7919.
+        var first = NewWorld().StartBattle("host", Ilwrath);
+        uint draw = new Uqm.TfbRandom(~7919u).Next();
+        Assert.NotEqual(draw % WorldTypes.NumberOfPlanetTypes, (uint)(ushort)draw % WorldTypes.NumberOfPlanetTypes);
+        Assert.Equal((ushort)draw % WorldTypes.NumberOfPlanetTypes, first.BattlePlanet);
     }
 
     [Fact]
@@ -771,6 +778,47 @@ public class WorldBattleTests
         Assert.NotEqual(Earth, closest);
         var wb = world.StartBattle("host", Ilwrath);
         Assert.Equal(planets[closest].DataIndex, wb.BattlePlanet);
+    }
+
+    [ContentFact]
+    public void TheHostsStepTakesEndedBattlesAndNotices()
+    {
+        // Until item 11 sends them, they're logged and not kept.
+        var host = Session.HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Value.Map), "host", "Host",
+            Systems.Value, TestContent.Shapes);
+        host.World.BattleKit = Kit();
+        var log = new List<string>();
+        host.Logged += log.Add;
+        host.StartBattle(Ilwrath);
+        Assert.Equal(JoinResult.Joined, host.World.Join("g1", "Guest 1"));
+        var wb = host.World.Battles.Single();
+        var guest = host.World.Find("g1")!.Ship;
+        // The guest, flying off and back into it with the list full, is told so.
+        var taken = new List<Element>();
+        while (wb.Battle.List.Alloc() is { } e)
+            taken.Add(e);
+        void Fly(ShipInput keys)
+        {
+            host.World.SubmitInput("g1", host.World.Frame + 1, keys);
+            host.Step(ShipInput.None);
+        }
+        guest.Ip!.EscapeCounter = 250;
+        for (int i = 0; i < 12; ++i)
+            Fly(ShipInput.Thrust);
+        int back = (guest.Ip.Facing + 8) % 16;
+        for (int i = 0; i < 300 && guest.Ip.Facing != back; ++i)
+            Fly(ShipInput.Left);
+        for (int i = 0; i < 400 && !log.Any(l => l.Contains("too crowded")); ++i)
+            Fly(ShipInput.Thrust);
+        Assert.Contains(log, l => l == "g1: The battle is too crowded to join just now.");
+        Assert.Empty(host.World.TakeBattleNotices());
+        foreach (var e in taken)
+            wb.Battle.List.Free(e);
+        Kill(wb.Battle, wb.Enemy);
+        for (int i = 0; i < 600 && wb.Outcome is null; ++i)
+            host.Step(ShipInput.None);
+        Assert.Contains(log, l => l.StartsWith($"Battle {wb.Id} against the ilwrath won: host fought"));
+        Assert.Empty(host.World.TakeEndedBattles());
     }
 
     [ContentFact]

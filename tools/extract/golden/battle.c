@@ -925,6 +925,7 @@ fight (const char *name, int scale, int runaway)
 		frame_input[i] = -1;
 	}
 	ended = 0;
+	crew_floating = 0;
 	num_draws = 0;
 	frame_scroll_x = frame_scroll_y = 0;
 	frame_view = -1;

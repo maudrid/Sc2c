@@ -40,7 +40,8 @@ namespace Crateris.Game;
 /// --first-run-tick FILE[,FILE] (the first-run screen ticks these add-ons, by file name, before --first-run-use),
 /// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
 /// --start-at, --start-orbit, --start-visit, --start-docked and --start-battle start a new game, without
-/// loading the default save or writing over it (--load and --save name a save to use all the same).
+/// loading the default save or writing over it (--load and --save name a save to use all the same);
+/// --start-minerals, --start-units and --start-devices alone change whatever game is loaded, and are saved with it.
 /// With no options the game starts as a solo host.
 /// </summary>
 public sealed class Options
