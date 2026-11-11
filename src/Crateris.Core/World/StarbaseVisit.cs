@@ -12,6 +12,7 @@
 
 using Crateris.Core.Comm;
 using Crateris.Core.Story;
+using Crateris.Core.Systems;
 
 namespace Crateris.Core.World;
 
@@ -232,7 +233,13 @@ public sealed class StarbaseVisit
                 if (story.Get("PROBE_ILWRATH_ENCOUNTER") == 0)
                     Finish();
                 else
+                {
+                    // BuildBattle, before a talk with a ship in a system:
+                    // ESCAPE_COUNTER, the starter's ship's own (stage 4a item 6).
+                    if (Starter.Ship.Ip is { } ip)
+                        ip.EscapeCounter = IpFlight.EscapeFrames;
                     StartTalk(VisitStep.Ilwrath, "ilwrath", new());
+                }
                 break;
             case VisitStep.Ilwrath:
                 // Its battle counts as won (decision 3): on to the commander.
@@ -386,6 +393,8 @@ public sealed class StarbaseVisit
             _world.Story!.Set(field, value);
         Starter.Ship.Hold.Restore(HoldBefore);
         Starter.Ship.Flight.Fuel = FuelBefore;
+        if (Starter.Ship.Ip is { } ip)
+            ip.EscapeCounter = 0;   // none before the visit: a ship with one can't touch the starbase
         _world.CommanderMet = MetBefore;
         var (y, m, d) = DateWithout();
         (_world.Clock.Year, _world.Clock.Month, _world.Clock.Day) = (y, m, d);

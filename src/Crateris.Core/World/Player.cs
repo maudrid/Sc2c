@@ -38,6 +38,13 @@ public enum Activity
     Talk,
     /// <summary>Docked at the allied starbase, at its menu (outfitting and the shipyard are the player's own screens there).</summary>
     Starbase,
+    /// <summary>
+    /// In a battle (stage 4a item 6), 24 frames a second: fighting, running
+    /// away, or, its ship destroyed, watching it to its end. The ship waits
+    /// stopped where it joined, in hyperspace or its system (the battle's
+    /// marker), and is back there when it leaves.
+    /// </summary>
+    Battle,
 }
 
 /// <summary>A player's ship. The host flies the flagship; guests captain escorts.</summary>
@@ -94,7 +101,18 @@ public sealed class PlayerShip
     /// <summary>The visit to Earth's starbase this ship is on, while it's on one (not saved).</summary>
     public StarbaseVisit? Visit { get; internal set; }
 
-    public Activity Activity => Visit is { AtMenu: true } ? Activity.Starbase : Visit is not null ? Activity.Talk : Ip switch
+    /// <summary>The battle this ship is in, fighting or watching (not saved: decision 14).</summary>
+    public WorldBattle? Battle { get; internal set; }
+
+    /// <summary>
+    /// Destroyed in a battle (stage 4a item 6): it has no crew, and doesn't
+    /// fly or join battles. Item 7 makes it a wreck that a friend can
+    /// revive, saved as one; until then it isn't saved (a game loaded has
+    /// the ship with the crew it was saved with).
+    /// </summary>
+    public bool Destroyed { get; internal set; }
+
+    public Activity Activity => Battle is not null ? Activity.Battle : Visit is { AtMenu: true } ? Activity.Starbase : Visit is not null ? Activity.Talk : Ip switch
     {
         null => Activity.Hyperspace,
         { Orbit: not null } when Lander is not null => Activity.Planetside,

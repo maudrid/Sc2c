@@ -50,7 +50,11 @@ public static class HostSave
     /// each ship's slots (PlayerState.Modules: the drive, jet and module
     /// slots outfitting changes, and the crew its kit holds); a ship from
     /// an older save has its loadout's (ShipModules.FromLoadout), and an
-    /// older save with slots is refused.
+    /// older save with slots is refused. Battles aren't saved (stage 4,
+    /// decision 14): a ship in one is saved as it joined it, where it
+    /// joined it, and a loaded game has none (stage 4a item 6; the battle
+    /// settings, Settings.BattleArenaScale and the like, take their
+    /// defaults in a save without them).
     /// </summary>
     public const int Version = 9;
     public const int OldestReadableVersion = 1;
@@ -93,9 +97,13 @@ public static class HostSave
         {
             var f = p.Ship.Flight;
             bool starter = visit?.Starter == p;
+            // A battle isn't saved (stage 4, decision 14): a ship in one is
+            // saved as it joined it, where it joined it (it waits there).
+            var joined = p.Ship.Battle?.FighterOf(p.Id);
             var v = f.Velocity;
             return new PlayerState(p.Id, p.Name, p.IsHost, p.Ship.Kind, p.Ship.Loadout, p.UndockPending,
-                new FlightState(f.LogX, f.LogY, f.Facing, starter ? visit!.FuelBefore : f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
+                new FlightState(f.LogX, f.LogY, f.Facing, starter ? visit!.FuelBefore : joined?.JoinedFuel ?? f.Fuel,
+                    f.Status, f.TurnWait, f.ThrustWait,
                     f.ViewX, f.ViewY, f.FuelDistX, f.FuelDistY, f.FuelDistExtra, f.FuelTicks,
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
@@ -103,6 +111,7 @@ public static class HostSave
                 p.Ship.SystemStar, p.Ship.Ip?.Save(),
                 // A lander on a surface is saved as back aboard with its crew and cargo.
                 starter ? visit!.HoldBefore
+                : joined is not null ? joined.JoinedHold
                 : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save(),
                 p.Ship.Name, p.CaptainName, p.Ship.Modules.Save());
         }).ToList();
@@ -185,7 +194,7 @@ public static class HostSave
         {
             throw new InvalidDataException($"Bad settings: escort loadout: {e.Message}", e);
         }
-        foreach (var ps in save.Players)
+        foreach (var ps in save.Players ?? throw new InvalidDataException("The save has no players."))
         {
             PlayerShip ship;
             try

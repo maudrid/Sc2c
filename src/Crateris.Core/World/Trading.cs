@@ -35,6 +35,9 @@ public enum TradeRefusal : byte
 
     /// <summary>The receiver's wallet would overflow.</summary>
     TooMuch,
+
+    /// <summary>The giver or the receiver is in a battle.</summary>
+    InBattle,
 }
 
 /// <summary>
@@ -115,6 +118,7 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         TradeRefusal.NoRoom => "Their storage bays haven't the room.",
         TradeRefusal.Paused => "The game waits while the story's talk goes on.",
         TradeRefusal.TooMuch => "Their wallet can't hold that much.",
+        TradeRefusal.InBattle => "Not while in a battle.",
         _ => "",
     };
 }

@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Crateris.Core.Combat;
 using Crateris.Core.Comm;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
@@ -78,6 +79,8 @@ public partial class Main : Node2D
     // official one), and the screens that get it on first run and show its notice.
     private Names _names = null!;
     private ContactShapes _shapes = null!;
+    private ShipDescriptions _ships = null!;
+    private BattleKit _battleKit = null!;
     private TalkLibrary? _talks;
     private readonly Dictionary<string, IReadOnlyList<string>> _reportTexts = new();
     private FirstRunScreen? _firstRun;
@@ -105,6 +108,7 @@ public partial class Main : Node2D
         _running = true;
         _dataDir = DataDirectory();
         _systems = SystemCatalog.Load(_dataDir);
+        _ships = ShipDescriptions.Load(_dataDir);
         AddChild(new ColorRect { Color = new Color(0.03f, 0.03f, 0.05f), Size = new Vector2(1024, 768) });
         // The system screen sits on the right; the status and menus on the left.
         var systemScreenAt = new Vector2(1024 - SisScreen.Size.X - 12, (768 - SisScreen.Size.Y) / 2);
@@ -301,6 +305,11 @@ public partial class Main : Node2D
             var sheets = new AnimationSheets(content);   // decoded once, for the shapes and the sprites
             _names = Names.Load(content);
             _shapes = ContactShapes.Load(sheets);
+            // The battle's shapes, for the ported ships and every planet, headless too (stage 4a item 6).
+            var planetTypes = _systems.Generator.Types;
+            var battleShapes = BattleShapes.Load(sheets, BattleKit.Ported(_ships), planetTypes);
+            _battleKit = BattleKit.Load(_dataDir, _ships,
+                new ContentBattleGraphics(new BattleSheets(sheets, battleShapes), planetTypes));
             var scripts = ConversationScripts.Load(_dataDir);
             _talks = TalkLibrary.Load(content, scripts);
             var reports = Crateris.Core.Story.StoryWorlds.Reports.ToList();
@@ -404,6 +413,7 @@ public partial class Main : Node2D
             _player?.Notify("Game saved.");
         };
         _host.World.TalkLibrary = _talks;
+        _host.World.BattleKit = _battleKit;
         _host.World.DialogueLocks = DialogueLocks.Load(_dataDir);
         ApplyStartOptions(_host);
         _inputDelay = _host.World.Settings.InputDelayFrames;
@@ -442,6 +452,8 @@ public partial class Main : Node2D
                 Log(host.StartWithDevices(devices));
             if (_options.StartDocked)
                 Log(host.StartDocked());
+            if (_options.StartBattle is { } race)
+                Log(host.StartBattle(race));
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
         }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
@@ -686,7 +698,7 @@ public partial class Main : Node2D
             // No ship keys while the about screen is up (its Esc mustn't take off).
             // Nor while the lander report has them (UQM waits for its keys).
             var keys = _about.Visible || ReportHasKeys || SellingHasKeys ? ShipInput.None
-                : ReadKeys(_player.Screen == PlayerScreen.Planetside);
+                : ReadKeys(_player.Screen == PlayerScreen.Planetside, _player.Me?.Activity == Activity.Battle);
             var input = inGame ? _player.NextInput(keys) : ShipInput.None;
             var landing = inGame ? _player.TakeLandingRequest() : null;
             var discards = inGame ? _player.TakeDiscards() : Array.Empty<int>();
@@ -794,9 +806,11 @@ public partial class Main : Node2D
 
     /// <summary>The ship keys held (the session ignores them when a script plays, or in orbit).</summary>
     // The keys held. On a planet's surface, as UQM's: Space, Enter or Ctrl
-    // fires, Esc takes off (a key of its own, never leaving orbit); elsewhere
-    // Space and Enter are the action key.
-    private ShipInput ReadKeys(bool onSurface)
+    // fires, Esc takes off (a key of its own, never leaving orbit); in a
+    // battle the same, Esc retreating where allowed, and Shift the special
+    // (the guests' Special key is item 11's); elsewhere Space and Enter are
+    // the action key.
+    private ShipInput ReadKeys(bool onSurface, bool inBattle)
     {
         var input = ShipInput.None;
         if (Held(Key.Left))
@@ -806,12 +820,14 @@ public partial class Main : Node2D
         if (Held(Key.Up))
             input |= ShipInput.Thrust;
         bool select = Held(Key.Enter) || Held(Key.Space);
-        if (onSurface)
+        if (onSurface || inBattle)
         {
             if (select || Held(Key.Ctrl))
                 input |= ShipInput.Fire;
             if (Held(Key.Escape))
                 input |= ShipInput.TakeOff;
+            if (inBattle && Held(Key.Shift))
+                input |= ShipInput.Special;
         }
         else if (select)
             input |= ShipInput.Action;

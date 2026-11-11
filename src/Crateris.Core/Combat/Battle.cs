@@ -370,6 +370,143 @@ public sealed partial class Battle
         return true;
     }
 
+    /// <summary>
+    /// Whether a ship is running away (DoRunAway): flashing red, warping
+    /// out, or gone and waiting for new_ship, with its crew. A ship running
+    /// away has been counted out of its side's ships able to fight; it can
+    /// still be hit until it's gone, and dies if its crew runs out.
+    /// </summary>
+    public bool RunningAway(Starship ship) =>
+        ship.RaceDesc is { CrewLevel: > 0 } && ship.Ship is { } e && e.MassPoints == MaxShipMass * 10;
+
+    /// <summary>
+    /// Whether a ship is fighting: its element in the battle, with crew,
+    /// not running away.
+    /// </summary>
+    public bool Fighting(Starship ship) =>
+        ship.RaceDesc is { CrewLevel: > 0 } && ship.Ship is { } e && e.MassPoints != MaxShipMass * 10;
+
+    /// <summary>
+    /// A ship leaving the battle at once, between frames, with the crew it
+    /// has (a disconnect, stage 4 decision 10: no red flashes, no warp-out,
+    /// so it can't be hit on the way out): what cleanup_dead_ship and
+    /// new_ship do for a ship that has warped out, done now. Every element
+    /// it owns goes but its floating crew (which stay, as cleanup_dead_ship
+    /// leaves them), nothing homes in on it any more, its description is
+    /// freed (<see cref="RaceDesc.Uninit"/>: the flagship's crew left), and
+    /// it can't fight again in this battle. Its side's count goes down unless
+    /// it was running away (already counted out), and its side's next ship
+    /// comes in, if it has one; with none, a side with no ship left able to
+    /// fight ends the battle, as new_ship ends it. A ship dying (no crew) or
+    /// gone already, or not in the battle, is refused: its death stands.
+    /// </summary>
+    public void Leave(Starship ship)
+    {
+        if (_stepping)
+            throw new InvalidOperationException("a ship leaves between frames");
+        if (!InBattle)
+            throw new InvalidOperationException("the battle is over");
+        if (ship.PlayerNr is < 0 or >= NumSides || !_fleets[ship.PlayerNr].Contains(ship))
+            throw new ArgumentException("the ship isn't in the battle");
+        if (ship.Ship is not { } element || ship.RaceDesc is not { CrewLevel: > 0 } rd)
+            throw new InvalidOperationException("the ship isn't in the battle with crew: dying, or gone");
+
+        if (element.MassPoints != MaxShipMass * 10)
+            BattleCounter[ship.PlayerNr]--;   // a ship running away was counted when it ran
+        ship.CrewLevel = rd.CrewLevel;   // cleanup_dead_ship: the crew left after the battle
+        Untarget(element);
+        for (var e = List.Head; e != null; e = e.Succ)
+        {
+            if (e.Parent != ship)
+                continue;
+            e.Parent = null;
+            if ((e.StateFlags & ElementFlags.CrewObject) == 0 || e.PreprocessFunc != (ElementProcess)CrewPreprocess)
+            {
+                e.Prim = PrimType.None;
+                e.LifeSpan = 0;
+                e.StateFlags = ElementFlags.NonSolid | ElementFlags.Disappearing | ElementFlags.FiniteLife;
+                e.PreprocessFunc = e.PostprocessFunc = e.DeathFunc = null;
+                e.CollisionFunc = null;
+            }
+        }
+        ship.CurStatusFlags &= ~StatusFlags.PlayVictoryDitty;
+        if (_winner == ship)
+            _winner = null;
+
+        // new_ship, without the element: it goes with the rest.
+        rd.Uninit?.Invoke(rd);
+        ship.RaceDesc = null;
+        ship.Available = false;
+        ship.Ship = null;
+        if (!GetNextStarShip(null, ship.PlayerNr) && (BattleCounter[0] == 0 || BattleCounter[1] == 0))
+            InBattle = false;
+    }
+
+    /// <summary>
+    /// init.c's UninitShips, once the battle is over (or given up): the crew
+    /// still floating in space goes to the ships left with crew, each ship's
+    /// crew is recorded to its <see cref="Starship.CrewLevel"/>, and each
+    /// ship still in the battle (fighting, running away, or dead and waiting
+    /// for new_ship) is freed (<see cref="RaceDesc.Uninit"/>, as new_ship
+    /// frees a dead one: the flagship's crew left). UQM gives all the
+    /// floating crew to every ship with crew, up to its most, assuming one
+    /// is left ("There should only be one ship left in battle"); with
+    /// several ships left with crew (stage 4a's players), each crew goes to
+    /// one ship only: they're dealt out one at a time, in turn, to those with
+    /// room, side 0's first, each side's in its fleet's order (the order
+    /// the players joined), so they're shared equally and the first to join
+    /// takes what doesn't share out. With one ship left that's UQM's.
+    /// UpdateShipFragCrew (the enemy's crew left, for its encounter) is the
+    /// world's, from each Starship's crew. The battle is over after it.
+    /// </summary>
+    public void UninitShips()
+    {
+        if (_stepping)
+            throw new InvalidOperationException("the ships are freed between frames");
+        int crewRetrieved = List.Elements.Count(e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+
+        // Every ship still in the battle, in the list's order, as UQM goes through them.
+        var left = new List<Starship>();
+        foreach (var e in List.Elements)
+        {
+            if (((e.StateFlags & ElementFlags.PlayerShip) != 0 || e.DeathFunc == (ElementProcess)NewShip)
+                && e.Parent is { RaceDesc: not null } s && !left.Contains(s))
+                left.Add(s);
+        }
+
+        // The floating crew to those with crew, in turn, each up to its most.
+        var takers = _fleets.SelectMany(f => f).Where(s => left.Contains(s) && s.RaceDesc!.CrewLevel != 0).ToList();
+        if (takers.Count == 1)
+        {
+            var rd = takers[0].RaceDesc!;
+            rd.CrewLevel = crewRetrieved >= rd.MaxCrew - rd.CrewLevel ? rd.MaxCrew : (ushort)(rd.CrewLevel + crewRetrieved);
+        }
+        else
+        {
+            while (crewRetrieved > 0 && takers.Any(s => s.RaceDesc!.CrewLevel < s.RaceDesc.MaxCrew))
+            {
+                foreach (var s in takers)
+                {
+                    if (crewRetrieved == 0)
+                        break;
+                    if (s.RaceDesc!.CrewLevel >= s.RaceDesc.MaxCrew)
+                        continue;
+                    s.RaceDesc.CrewLevel++;
+                    crewRetrieved--;
+                }
+            }
+        }
+
+        foreach (var s in left)
+        {
+            var rd = s.RaceDesc!;
+            s.CrewLevel = rd.CrewLevel;   // the crew left after the battle
+            rd.Uninit?.Invoke(rd);   // free_ship
+            s.RaceDesc = null;
+        }
+        InBattle = false;
+    }
+
     // battle.c's ProcessInput.
     private void ProcessInput(Func<Starship, BattleInput> keys)
     {

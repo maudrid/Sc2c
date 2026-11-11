@@ -29,6 +29,8 @@ namespace Crateris.Game;
 /// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],
 /// --start-visit (host: a new game starts in the commander's talk at Earth's starbase),
 /// --start-docked (host: a new game starts docked at Earth's starbase's menu, the opening over),
+/// --start-battle RACE (host: a new game starts after the opening, the host's ship in flight by Earth in a battle against
+/// a ported race's ship, by data/ships.json's id: ilwrath; Escape retreats),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
@@ -79,6 +81,9 @@ public sealed class Options
 
     /// <summary>--start-docked: a new game starts docked at Earth's starbase's menu, as after the opening (testing).</summary>
     public bool StartDocked { get; private set; }
+
+    /// <summary>--start-battle RACE: a new game starts after the opening, in a battle by Earth against that race's ship (testing).</summary>
+    public string? StartBattle { get; private set; }
 
     /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>
     public int[]? StartMinerals { get; private set; }
@@ -142,6 +147,7 @@ public sealed class Options
                 case "--script": o.Script = InputScript.Parse(Next()); break;
                 case "--start-visit": o.StartVisit = true; break;
                 case "--start-docked": o.StartDocked = true; break;
+                case "--start-battle": o.StartBattle = Next(); break;
                 case "--start-minerals":
                     o.StartMinerals = Array.ConvertAll(Next().Split(','), int.Parse);
                     break;
@@ -165,6 +171,8 @@ public sealed class Options
         }
         if (o.StartAt != null && o.StartOrbit != null)
             throw new ArgumentException("--start-at and --start-orbit can't be used together");
+        if (o.StartBattle != null && (o.StartAt != null || o.StartOrbit != null || o.StartVisit || o.StartDocked))
+            throw new ArgumentException("--start-battle can't be used with --start-at, --start-orbit, --start-visit or --start-docked");
         return o;
     }
 }

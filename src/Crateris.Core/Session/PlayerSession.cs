@@ -905,7 +905,9 @@ public sealed class PlayerSession
             if (TalkShown)
                 return PlayerScreen.Comm;
             var me = Me;
-            if (me == null || me.Activity == Activity.Hyperspace || Entering)
+            // In a battle, until item 12 draws it: the place it's in, its marker's.
+            if (me == null || me.Activity == Activity.Hyperspace || Entering
+                || me.Activity == Activity.Battle && me.SystemStar is null)
                 return PlayerScreen.Hyperspace;
             if (me.Activity == Activity.Starbase && Starbase is { Screen: not StarbaseScreen.Talk })
                 return PlayerScreen.Starbase;

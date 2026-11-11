@@ -161,19 +161,47 @@ public sealed class HostSession
     /// </summary>
     public string StartDocked()
     {
-        if (World.TalkLibrary is null || World.Systems is null || World.Story is not { } story)
+        if (World.TalkLibrary is null || World.Systems is null || World.Story is null)
             throw new InvalidOperationException("the starbase needs the content");
+        AfterTheOpening();
+        World.VisitStarbase(World.Host);
+        return World.Host.Ship.Visit is { AtMenu: true } ? "Starting docked at Earth's starbase" : "Couldn't dock at Earth's starbase";
+    }
+
+    // The opening over (the starbase ready and the commander met, with no
+    // news), the host's ship in flight in Earth's inner system, by Luna.
+    private void AfterTheOpening()
+    {
+        var story = World.Story!;
         foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED" })
             story.Set(f, 1);
         story.Set("STARBASE_MONTH", World.Clock.Month);
         story.Set("STARBASE_DAY", World.Clock.Day);
         story.Set32("STARBASE_BULLETS0", 0xFFFFFFFF);   // no news
         World.CommanderMet = true;
-        int sol = World.Systems.Map.Stars.Single(s => s.Special == "SOL_DEFINED").Number;
+        int sol = World.Systems!.Map.Stars.Single(s => s.Special == "SOL_DEFINED").Number;
         World.PutInOrbit(HostId, sol, 2, 1);
         World.Host.Ship.Ip!.ReturnFromOrbit();
-        World.VisitStarbase(World.Host);
-        return World.Host.Ship.Visit is { AtMenu: true } ? "Starting docked at Earth's starbase" : "Couldn't dock at Earth's starbase";
+    }
+
+    /// <summary>
+    /// --start-battle RACE (testing): a game after the opening, as
+    /// --start-docked leaves it (so a retreat is allowed), with the host's
+    /// ship in flight in Earth's inner system, in a battle against a ported
+    /// race's ship (<see cref="BattleKit.Enemies"/>: the Ilwrath, which
+    /// cloaks here, as everywhere but in the Earth fight), whose marker the
+    /// others may fly into. Needs the content (InvalidOperationException);
+    /// a race not ported is an ArgumentException.
+    /// </summary>
+    public string StartBattle(string race)
+    {
+        if (World.BattleKit is null || World.Systems is null || World.Story is null)
+            throw new InvalidOperationException("a battle needs the content");
+        if (!BattleKit.Enemies.Contains(race))
+            throw new ArgumentException($"{race} isn't a ship that can be fought (ported: {string.Join(", ", BattleKit.Enemies)})");
+        AfterTheOpening();
+        var battle = World.StartBattle(HostId, race);
+        return $"Starting in a battle against the {battle.EnemyShip.Id} by Earth";
     }
 
     /// <summary>

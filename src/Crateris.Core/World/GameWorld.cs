@@ -82,7 +82,7 @@ public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IRe
 /// takes 35 surface frames a second, one or two a world frame. Not
 /// thread-safe; the server calls it from one thread.
 /// </summary>
-public sealed class GameWorld
+public sealed partial class GameWorld
 {
     private readonly List<Player> _players = new();
     private readonly Dictionary<string, InputBuffer> _inputs = new();
@@ -278,6 +278,7 @@ public sealed class GameWorld
         if (player == null)
             return;
         Withdraw(player);   // decision 5: its lander takes off at once, with its crew and cargo
+        DisconnectFromBattle(player);   // decision 10: a retreat at once
         DialogueLocks?.ReleaseAll(id);
         // The replier of a story talk leaving hands the replies on to the
         // next player in join order, the host first, so the story isn't
@@ -342,6 +343,8 @@ public sealed class GameWorld
     /// <summary>Advance the whole game one world frame.</summary>
     public void Step()
     {
+        if (GameOver)
+            return;   // the world stops (decision 12)
         Frame++;
         if (_wasPaused && !StoryPaused)
         {
@@ -378,10 +381,17 @@ public sealed class GameWorld
                 _actionHeld.Add(p.Id);
             else
                 _actionHeld.Remove(p.Id);
+            if (p.Ship.Destroyed && p.Ship.Battle is null)
+                continue;   // a destroyed ship doesn't fly (item 7 makes it a wreck)
             switch (p.Ship.Activity)
             {
                 case Activity.Hyperspace:
                     StepHyperspace(p.Ship, input);
+                    JoinBattles(p, input);
+                    break;
+                case Activity.Battle:
+                    // The battles step after everyone's flight (StepBattles).
+                    _battleInput[p.Id] = input;
                     break;
                 case Activity.Orbit:
                     if (actionPressed)
@@ -414,9 +424,11 @@ public sealed class GameWorld
                     }
                     for (int i = 0; i < systemFrames && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem; ++i)
                         StepSystem(p.Ship, input);
+                    JoinBattles(p, input);
                     break;
             }
         }
+        StepBattles();
         StepSurfaces();
         Clock.Tick(Settings.SecondsPerGameDay);
     }
@@ -545,8 +557,8 @@ public sealed class GameWorld
     /// </summary>
     internal void VisitStarbase(Player player)
     {
-        if (TalkLibrary is null || Story is null || player.Ship.Visit is not null)
-            return;
+        if (TalkLibrary is null || Story is null || player.Ship.Visit is not null || player.Ship.Battle is not null)
+            return;   // a player in a battle starts no talk (decision 11)
         bool opening = Story.Get("STARBASE_AVAILABLE") == 0 || Story.Get("MOONBASE_ON_SHIP") != 0
             || Story.Get("CHMMR_BOMB_STATE") == 2;
         if (opening)
@@ -903,6 +915,8 @@ public sealed class GameWorld
         if (!Systems[star].EnterOrbit(planet, moon).Entered)
             throw new ArgumentException($"star {star} planet {planet} moon {moon}: that world can't be orbited");
 
+        if (player.Ship.Battle is not null)
+            throw new InvalidOperationException($"{id} is in a battle");
         Withdraw(player);
         PlayerShip ship = player.Ship;
         // Put straight there: no entry plays, so no input is held for one.
@@ -1019,6 +1033,9 @@ public sealed class GameWorld
             return TradeRefusal.Paused;
         if (gift.From == gift.To || Find(gift.From) is not { Present: true } giver || Find(gift.To) is not { Present: true } taker)
             return TradeRefusal.NoOne;
+        // A save during a battle keeps the hold as it joined (decision 14): nothing in or out meanwhile.
+        if (giver.Ship.Battle is not null || taker.Ship.Battle is not null)
+            return TradeRefusal.InBattle;
         if (gift.Minerals.Count != ShipHold.Categories || gift.Minerals.Any(m => m < 0) || gift.BioData < 0
                 || (gift.ResourceUnits == 0 && !gift.Cargo))
             return TradeRefusal.Nothing;
@@ -1069,7 +1086,7 @@ public sealed class GameWorld
     /// or no such category.
     /// </summary>
     public bool DiscardCargo(string id, int category) =>
-        !StoryPaused && Find(id) is { Present: true, Ship.Visit: null } player && player.Ship.Hold.Discard(category);
+        !StoryPaused && Find(id) is { Present: true, Ship: { Visit: null, Battle: null } } player && player.Ship.Hold.Discard(category);
 
     // A player's ship as outfitting sees it.
     private sealed class OutfitShip : Starbase.IOutfitShip

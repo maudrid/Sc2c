@@ -96,6 +96,18 @@ public sealed class IpFlight
     public byte MaxSpeed { get; private set; }
     public byte TurnWait { get; private set; }
 
+    /// <summary>
+    /// ESCAPE_COUNTER: frames of flight left in which the ship can't touch
+    /// anything (<see cref="EscapeFrames"/> after a battle, and from the
+    /// start of the Ilwrath's talk, as BuildBattle sets it before a talk with
+    /// a ship in a system). Each of the ship's own, where UQM's is the game's
+    /// (stage 3, decision 11). Not saved: a game loaded has none.
+    /// </summary>
+    public byte EscapeCounter { get; internal set; }
+
+    /// <summary>The escape counter BuildBattle sets in a system (110).</summary>
+    public const byte EscapeFrames = 110;
+
     /// <summary>The ship's thrusters and jets changed (outfitting): its top speed and turning.</summary>
     public void Refit(int thrusters, int jets)
     {
@@ -267,6 +279,18 @@ public sealed class IpFlight
 
         Thrusting = (input & ShipInput.Thrust) != 0;
         ProcessShipControls(input);
+
+        // ESCAPE_COUNTER (flag_ship_preprocess, each frame of flight): after
+        // a battle the ship flies through everything for a while (stage 4
+        // item 6: the worlds and the starbase too, where UQM's makes it
+        // NONSOLID to the ships in the system only; UQM's worlds are tested
+        // apart), then touches nothing it's still on until it's clear of
+        // everything, as after leaving an inner system.
+        if (EscapeCounter > 0)
+        {
+            --EscapeCounter;
+            WaitIntersect = AllCollisionsOff;
+        }
 
         IpEvent ev = CheckShipLocation(out bool locChange, out short newRadius);
         if (ev == IpEvent.LeftSystem)

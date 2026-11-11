@@ -64,15 +64,28 @@ public sealed record GameSettings
     /// </summary>
     public int BattleMaxElements { get; init; } = 2 * Combat.DisplayList.MaxDisplayElements;
 
+    /// <summary>
+    /// How near a battle's marker a ship must fly to join the battle (stage
+    /// 4, decision 6), in pixels of the screen it's on: hyperspace's, or its
+    /// system's view at the zoom it's at. Placeholder.
+    /// </summary>
+    public int BattleMarkerReach { get; init; } = 8;
+
     /// <summary>The most <see cref="BattleMaxElements"/> may be.</summary>
     public const int MostBattleElements = 1000;
 
-    /// <summary>Refuses battle settings out of range (the arena's scale, the list's size).</summary>
+    /// <summary>Refuses battle settings out of range (the arena's scale, the list's size, the markers' reach).</summary>
     public void CheckBattle()
     {
         _ = Combat.ArenaSize.Scaled(BattleArenaScale);
         if (BattleMaxElements < Combat.DisplayList.MaxDisplayElements || BattleMaxElements > MostBattleElements)
             throw new ArgumentOutOfRangeException(nameof(BattleMaxElements),
                 $"a battle's list of {BattleMaxElements} elements isn't from UQM's {Combat.DisplayList.MaxDisplayElements} to {MostBattleElements}");
+        if (BattleMarkerReach is < 1 or > MostBattleMarkerReach)
+            throw new ArgumentOutOfRangeException(nameof(BattleMarkerReach),
+                $"a battle marker's reach of {BattleMarkerReach} pixels isn't from 1 to {MostBattleMarkerReach}");
     }
+
+    /// <summary>The most <see cref="BattleMarkerReach"/> may be.</summary>
+    public const int MostBattleMarkerReach = 64;
 }

@@ -34,6 +34,13 @@ public enum ShipInput : byte
     /// so a press that reaches the host after the lander is back can't leave orbit.
     /// </summary>
     TakeOff = 32,
+
+    /// <summary>
+    /// The special key: in a battle, the ship's special (stage 4a item 6;
+    /// the guests' key, their input mask and the script's step are item
+    /// 11's). Ignored elsewhere.
+    /// </summary>
+    Special = 64,
 }
 
 /// <summary>

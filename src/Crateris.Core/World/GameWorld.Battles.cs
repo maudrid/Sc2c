@@ -1,0 +1,437 @@
+// Attack on Crateris
+// Copyright (C) 2026 Attack on Crateris contributors.
+// Follows The Ur-Quan Masters 0.8.0 (src/uqm/encount.c: BuildBattle,
+// EncounterBattle, UninitEncounter; src/uqm/comm.c: InitCommunication's
+// BuildBattle; src/uqm/battle.c: RunAwayAllowed; src/uqm/pickship.c: the
+// retreat's fuel; src/uqm/planets/solarsys.c: BATTLE_PLANET by the closest
+// planet), Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc.
+// 1992-2002, and the UQM contributors.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+
+using Crateris.Core.Combat;
+using Crateris.Core.Hyperspace;
+using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
+
+namespace Crateris.Core.World;
+
+// Battles in the world (stage 4a item 6).
+public sealed partial class GameWorld
+{
+    /// <summary>RUN_AWAY_FUEL_COST: 5 units of fuel, in hundredths.</summary>
+    public const uint RetreatFuelCost = 5 * 100;
+
+    private readonly List<WorldBattle> _battles = new();
+    private readonly List<WorldBattle> _endedBattles = new();
+    private readonly Dictionary<string, ShipInput> _battleInput = new();
+    private readonly List<(string PlayerId, string Text)> _battleNotices = new();
+    private readonly HashSet<(string PlayerId, int Battle)> _toldFull = new();
+    private int _battleIds;
+
+    /// <summary>
+    /// The ships' descriptions and the battle's sheets, without which no
+    /// battle can start (the game gives them as the content is opened; some
+    /// tests give sheets of their own, some none).
+    /// </summary>
+    public BattleKit? BattleKit { get; set; }
+
+    /// <summary>The battles going on, in the order they started; each has a marker where it started.</summary>
+    public IReadOnlyList<WorldBattle> Battles => _battles;
+
+    /// <summary>
+    /// The flagship was destroyed (decision 12): the game is over for the
+    /// group, and the world stops. Item 7 shows it to every player and ends
+    /// the host's game; loading the save goes back to before the battle.
+    /// </summary>
+    public bool GameOver { get; private set; }
+
+    /// <summary>
+    /// The battles whose markers a player is shown (and may fly into): those
+    /// where the player's ship is, in hyperspace or the same part (outer or
+    /// inner) of the same system. None for a player in no flight.
+    /// </summary>
+    public IReadOnlyList<WorldBattle> MarkersFor(string id)
+    {
+        if (Find(id) is not { } player)
+            return Array.Empty<WorldBattle>();
+        var ship = player.Ship;
+        return _battles.Where(b => b.Place.InHyperspace
+            ? ship.Ip is null
+            : ship.SystemStar == b.Place.Star && ship.Ip is { } ip && ip.InnerPlanet == b.Place.InnerPlanet).ToList();
+    }
+
+    /// <summary>The battles that ended since the last call, each with its outcome and how each ship came out.</summary>
+    public List<WorldBattle> TakeEndedBattles()
+    {
+        var all = _endedBattles.ToList();
+        _endedBattles.Clear();
+        return all;
+    }
+
+    /// <summary>What players are to be told about battles since the last call (a battle too full to join).</summary>
+    public List<(string PlayerId, string Text)> TakeBattleNotices()
+    {
+        var all = _battleNotices.ToList();
+        _battleNotices.Clear();
+        return all;
+    }
+
+    /// <summary>
+    /// A player's ship starts a battle where it is, in flight, against an
+    /// enemy ship of a ported race (<see cref="BattleKit.Enemies"/>), as
+    /// UQM's EncounterBattle does after a talk that ends hostile (3b's
+    /// talks and item 9's Ilwrath call it; --start-battle does now). The
+    /// ship stops where it is, which is the battle's marker; the arena's
+    /// planet is BATTLE_PLANET's (the inner system's planet, or in the outer
+    /// system the planet closest on the screen, as UQM names the place of
+    /// an encounter), in hyperspace a random type's, as BuildBattle's; the
+    /// arena's size and the list's cap are the settings'. The ship warps in
+    /// as the enemy does, the enemy first. Each battle is seeded by its
+    /// frame and number (UQM seeds from the clock). Refused (an
+    /// <see cref="InvalidOperationException"/>) without the battle's content,
+    /// during a story talk, after the game is over, or for a ship not
+    /// present and in flight, or already in a battle, or destroyed.
+    /// </summary>
+    public WorldBattle StartBattle(string id, string enemy, BattleStart? start = null)
+    {
+        start ??= new BattleStart();
+        var kit = BattleKit ?? throw new InvalidOperationException("battles need the battle's content");
+        if (!BattleKit.Enemies.Contains(enemy))
+            throw new ArgumentException($"{enemy} isn't a ship that can be fought (ported: {string.Join(", ", BattleKit.Enemies)})");
+        var player = Find(id) ?? throw new ArgumentException($"no player {id}");
+        var ship = player.Ship;
+        if (GameOver || StoryPaused)
+            throw new InvalidOperationException("the game is paused or over");
+        if (!player.Present || ship.Destroyed || ship.Battle is not null || ship.Entry is not null
+            || ship.Activity is not (Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem))
+            throw new InvalidOperationException($"{id}'s ship isn't in flight, free to fight ({ship.Activity})");
+        var description = kit.Ships[enemy];
+        int crew = start.EnemyCrew ?? description.Crew;
+        if (crew < 1 || crew > description.MaxCrew)
+            throw new ArgumentOutOfRangeException(nameof(start), $"{crew} crew for a ship of {description.MaxCrew}");
+
+        int number = ++_battleIds;
+        uint seed = unchecked((uint)(Frame * 1_000_003 + number * 7919));
+        BattlePlace place;
+        byte battlePlanet;
+        if (ship.Ip is { } ip)
+        {
+            ip.Stop();
+            place = new BattlePlace(ship.SystemStar, ip.InnerPlanet, ip.Location.X, ip.Location.Y);
+            battlePlanet = BattlePlanetAt(ship, seed);
+        }
+        else
+        {
+            ship.Flight.Stop();
+            place = new BattlePlace(null, null, ship.Flight.LogX, ship.Flight.LogY);
+            battlePlanet = RandomPlanetType(seed);
+        }
+
+        var enemyShip = new Starship(new IlwrathShip(description, kit.Graphics.Views(description.Graphics.Ship),
+            kit.Graphics.Views(description.Graphics.Weapon), start.NoCloak), 1, (ushort)crew, (ushort)description.MaxCrew);
+        var fighter = NewFighter(player);
+        // Retreat is the world's to allow, per player and frame (RetreatAllowed): the battle lets side 0 run.
+        var battle = new Battle(kit.Graphics.Arena(battlePlanet), new[] { new[] { fighter.Starship }, new[] { enemyShip } },
+            seed, runAwayAllowed: true, size: ArenaSize.Scaled(Settings.BattleArenaScale), maxElements: Settings.BattleMaxElements);
+        var wb = new WorldBattle(number, place, battlePlanet, battle, enemyShip, description, start, id, Frame);
+        wb.Add(fighter);
+        _battles.Add(wb);
+        ship.Battle = wb;
+        return wb;
+    }
+
+    // BATTLE_PLANET in a system: the inner system's planet, or in the
+    // outer system the planet whose image is closest to the ship on the
+    // screen (closestPlanetInterPlanetary); a system without planets (UQM
+    // keeps the last BATTLE_PLANET) takes a random type.
+    private byte BattlePlanetAt(PlayerShip ship, uint seed)
+    {
+        var ip = ship.Ip!;
+        var system = Systems![ship.SystemStar!.Value];
+        if (ip.InnerPlanet is int inner)
+            return system.Planets[inner].DataIndex;
+        WorldDesc? best = null;
+        long bestDistance = long.MaxValue;
+        foreach (var planet in system.Planets)
+        {
+            var at = SystemLayout.OuterPlanet(planet, ip.ZoomRadius);
+            long dx = ip.Screen.X - at.X, dy = ip.Screen.Y - at.Y;
+            if (dx * dx + dy * dy < bestDistance)
+            {
+                bestDistance = dx * dx + dy * dy;
+                best = planet;
+            }
+        }
+        return best?.DataIndex ?? RandomPlanetType(seed);
+    }
+
+    // BuildBattle in hyperspace: TFB_Random () % NUMBER_OF_PLANET_TYPES,
+    // drawn here from a generator of the battle's own.
+    private static byte RandomPlanetType(uint seed) =>
+        (byte)(new TfbRandom(~seed).Next() % WorldTypes.NumberOfPlanetTypes);
+
+    // A player's ship for a battle: the flagship's battle code with this
+    // ship's slots and crew (decision 3), the bomb aboard the flagship from
+    // CHMMR_BOMB_STATE 3, and a Starship with no crew of its own, new for
+    // each battle (SisShip.Load); what it had as it joined, for a save.
+    private BattleFighter NewFighter(Player player)
+    {
+        var kit = BattleKit!;
+        var ship = player.Ship;
+        var sis = kit.Ships[ShipDescriptions.Flagship];
+        bool bomb = ship.Kind == ShipKind.Flagship && Story?.Get("CHMMR_BOMB_STATE") == 3;
+        var code = new SisShip(sis, kit.Graphics.Views(sis.Graphics.Ship), kit.Graphics.Views(sis.Graphics.Weapon),
+            SisLoadout.From(ship.Kind, ship.Modules, ship.Hold.Crew, bomb));
+        return new BattleFighter(player, code, new Starship(code, 0, 0, 0), ship.Hold.Save(), ship.Flight.Fuel, Frame);
+    }
+
+    /// <summary>
+    /// After a ship's flight this frame: if it flew into the marker of a
+    /// battle there (decision 6: moving or steering, within the settings'
+    /// reach of it on its screen), not one it has left, it joins, warping
+    /// in where UQM's spawn_ship puts a ship, and waits stopped there. A
+    /// battle decided (the enemy has no ship left able to fight) or over
+    /// can't be joined; one whose list is full can't now, which its player
+    /// is told once, and is tried again while the ship stays in the marker.
+    /// </summary>
+    private void JoinBattles(Player player, ShipInput input)
+    {
+        var ship = player.Ship;
+        if (_battles.Count == 0 || BattleKit is null || ship.Destroyed || ship.Battle is not null || ship.Entry is not null
+            || ship.Activity is not (Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem))
+            return;
+        bool steering = (input & (ShipInput.Left | ShipInput.Right | ShipInput.Thrust)) != 0;
+        bool moving = ship.Ip is { } ip ? !ip.Velocity.IsZero : !ship.Flight.Velocity.IsZero;
+        if (!steering && !moving)
+            return;
+        foreach (var wb in _battles)
+        {
+            var battle = wb.Battle;
+            if (wb.Left.Contains(player.Id) || !battle.InBattle || battle.BattleCounter[1] == 0
+                || battle.BattleCounter[0] == byte.MaxValue || !InReach(wb.Place, ship))
+                continue;
+            var fighter = NewFighter(player);
+            if (!battle.Join(fighter.Starship))
+            {
+                if (_toldFull.Add((player.Id, wb.Id)))
+                    _battleNotices.Add((player.Id, "The battle is too crowded to join just now."));
+                continue;
+            }
+            wb.Add(fighter);
+            ship.Battle = wb;
+            ship.Flight.Stop();
+            ship.Ip?.Stop();
+            return;
+        }
+    }
+
+    // Whether a ship is within reach of a battle's marker, on its screen:
+    // in hyperspace a pixel is 4 logical units (WORLD_TO_DISPLAY, at 1x);
+    // in a system, the view's own at its zoom.
+    private bool InReach(BattlePlace place, PlayerShip ship)
+    {
+        long reach = Settings.BattleMarkerReach;
+        long dx, dy;
+        if (place.InHyperspace)
+        {
+            if (ship.Ip is not null)
+                return false;
+            var (x, y) = StarContact.SpritePosition(ship.Flight);
+            dx = (x - place.X) >> Units.OneShift;
+            dy = (y - place.Y) >> Units.OneShift;
+        }
+        else
+        {
+            if (ship.SystemStar != place.Star || ship.Ip is not { } ip || ip.InnerPlanet != place.InnerPlanet)
+                return false;
+            int radius = ip.InnerPlanet is null ? ip.ZoomRadius : IpGeometry.MaxZoomRadius;
+            var at = IpGeometry.LocationToDisplay(new IpPoint((short)place.X, (short)place.Y), radius);
+            dx = ip.Screen.X - at.X;
+            dy = ip.Screen.Y - at.Y;
+        }
+        return dx * dx + dy * dy <= reach * reach;
+    }
+
+    /// <summary>
+    /// Each battle's frame, after every ship's flight (so ships join between
+    /// battle frames): each player's ship takes its player's keys (Fire the
+    /// weapon, Special the special, Escape, the key taking off uses, a
+    /// retreat where allowed), the enemy UQM's AI at its full-game rating
+    /// (COMPUTER_CONTROL | AWESOME_RATING). Then who is out: a ship whose
+    /// crew has run out is destroyed (its player watches the battle on, to
+    /// its end), one that has warped out has retreated and is back in
+    /// flight; and a battle over ends.
+    /// </summary>
+    private void StepBattles()
+    {
+        foreach (var wb in _battles.ToList())
+        {
+            var battle = wb.Battle;
+            if (battle.InBattle)
+                battle.Step(ship => ship.PlayerNr == 0 ? PlayerBattleInput(wb, ship) : battle.ComputerIntelligence(ship));
+            AfterBattleFrame(wb);
+        }
+        _battleInput.Clear();
+    }
+
+    private BattleInput PlayerBattleInput(WorldBattle wb, Starship ship)
+    {
+        var fighter = wb.Fighters.First(f => f.Starship == ship);
+        if (!fighter.Player.Present || !_battleInput.TryGetValue(fighter.Player.Id, out var input))
+            return BattleInput.None;
+        return ToBattleInput(input, RetreatAllowed(wb, fighter));
+    }
+
+    /// <summary>
+    /// RunAwayAllowed, for one player's ship (read each frame, as UQM's is):
+    /// a battle that allows it (an encounter: the Earth Ilwrath's doesn't),
+    /// once the starbase is available (a world without a story, some
+    /// tests', has no rule against it), and not the bomb's carrier. UQM's
+    /// BOMB_CARRIER is the game's, and stops the one ship there is from
+    /// running; here it stops only the flagship carrying the bomb, so the
+    /// flagship joining doesn't keep its teammates from retreating
+    /// (stage 4a item 6). A disconnect leaves all the same (decision 10).
+    /// </summary>
+    private bool RetreatAllowed(WorldBattle wb, BattleFighter fighter) =>
+        wb.Start.RetreatAllowed && (Story is null || Story.Get("STARBASE_AVAILABLE") != 0) && !fighter.Code.BombCarrier;
+
+    // The keys in battle: turn, thrust, the weapon (Fire), the special,
+    // and Escape (the key taking off uses) where a retreat is allowed.
+    private static BattleInput ToBattleInput(ShipInput input, bool retreat) =>
+        (BattleInput)(int)(input & (ShipInput.Left | ShipInput.Right | ShipInput.Thrust))
+        | ((input & ShipInput.Fire) != 0 ? BattleInput.Weapon : 0)
+        | ((input & ShipInput.Special) != 0 ? BattleInput.Special : 0)
+        | (retreat && (input & ShipInput.TakeOff) != 0 ? BattleInput.Escape : 0);
+
+    private void AfterBattleFrame(WorldBattle wb)
+    {
+        foreach (var fighter in wb.Fighters.Where(f => f.Exit is null).ToList())
+        {
+            var starship = fighter.Starship;
+            if (starship.RaceDesc is { CrewLevel: 0 })
+                fighter.Exit = BattleExit.Destroyed;   // out once its crew is 0, watching on
+            else if (starship.RaceDesc is null && fighter.Code.Result is { } freed)
+            {
+                // Warped out: new_ship freed it with its crew.
+                if (freed.Destroyed)
+                    fighter.Exit = BattleExit.Destroyed;
+                else
+                    LeaveBattle(wb, fighter, BattleExit.Retreated, freed.CrewLeft);
+            }
+        }
+        if (!wb.Battle.InBattle)
+            EndBattle(wb);
+    }
+
+    // A player's ship leaving a battle mid-battle with its crew (a retreat,
+    // or a disconnect): its crew back aboard, 5 units of fuel paid (its
+    // last ship: in 4a, its only one), and back in flight where it joined.
+    private void LeaveBattle(WorldBattle wb, BattleFighter fighter, BattleExit exit, int crew)
+    {
+        fighter.Exit = exit;
+        fighter.CrewLeft = crew;
+        wb.Leaves(fighter.Player.Id);
+        var ship = fighter.Player.Ship;
+        ship.Hold.SetCrew(crew);
+        // pickship.c: down by RUN_AWAY_FUEL_COST, to no lower than 0.
+        ship.Flight.Fuel = ship.Flight.Fuel > RetreatFuelCost ? ship.Flight.Fuel - RetreatFuelCost : 0;
+        BackInFlight(ship);
+    }
+
+    // Out of a battle, alive: in flight where it joined, and in a system
+    // unable to touch anything for ESCAPE_COUNTER's 110 frames, so it can
+    // fly clear (UQM sets it as the battle is built; here every ship
+    // leaving a battle in a system has it, joiners too).
+    private static void BackInFlight(PlayerShip ship)
+    {
+        ship.Battle = null;
+        if (ship.Ip is { } ip)
+            ip.EscapeCounter = IpFlight.EscapeFrames;
+    }
+
+    /// <summary>
+    /// A player disconnecting mid-battle (decision 10): their ship leaves at
+    /// once, keeping its crew, paying the retreat's fuel even where a
+    /// retreat isn't allowed, and is back in flight; a ship already
+    /// destroyed stays destroyed (its player's back watching if they return
+    /// before the battle ends). The battle ends if no one is left in it.
+    /// </summary>
+    private void DisconnectFromBattle(Player player)
+    {
+        if (player.Ship.Battle is not { } wb || wb.FighterOf(player.Id) is not { Exit: null } fighter)
+            return;
+        wb.Battle.Leave(fighter.Starship);
+        LeaveBattle(wb, fighter, BattleExit.Disconnected, fighter.Code.Result!.Value.CrewLeft);
+        if (!wb.Battle.InBattle)
+            EndBattle(wb);
+    }
+
+    /// <summary>
+    /// A battle over (one side has no ship left able to fight): UninitShips
+    /// (the floating crew to the ships left, each ship freed), then each
+    /// player's ship still in it: destroyed (its crew 0; the flagship's is
+    /// the game over), still running away (cut short: retreated, its fuel
+    /// paid, item 5's rule), or alive, its crew back aboard. Won if the
+    /// enemy is out and a player's ship still in it (decision 9), and a
+    /// battle that pays salvage pays RACE_SHIP_COST / 8 for each enemy ship,
+    /// split equally between those ships, the remainder to the one that
+    /// joined first, as stage 3's decision 5 split the starbase's gift.
+    /// The marker goes, and those still in it are back in flight.
+    /// </summary>
+    private void EndBattle(WorldBattle wb)
+    {
+        var battle = wb.Battle;
+        var runningAway = wb.Fighters.Where(f => f.Exit is null && battle.RunningAway(f.Starship)).ToList();
+        battle.UninitShips();
+        var survivors = new List<BattleFighter>();
+        foreach (var fighter in wb.Fighters.Where(f => f.Exit is null || f.Exit == BattleExit.Destroyed && f.Player.Ship.Battle == wb).ToList())
+        {
+            var ship = fighter.Player.Ship;
+            var freed = fighter.Code.Result ?? throw new InvalidOperationException("a ship in the battle wasn't freed");
+            if (fighter.Exit == BattleExit.Destroyed || freed.Destroyed)
+            {
+                fighter.Exit = BattleExit.Destroyed;
+                fighter.CrewLeft = 0;
+                ship.Hold.SetCrew(0);
+                ship.Destroyed = true;
+                ship.Battle = null;
+                if (ship.Kind == ShipKind.Flagship)
+                    GameOver = true;
+            }
+            else if (runningAway.Contains(fighter))
+                LeaveBattle(wb, fighter, BattleExit.Retreated, freed.CrewLeft);
+            else
+            {
+                fighter.Exit = BattleExit.Fought;
+                fighter.CrewLeft = freed.CrewLeft;
+                ship.Hold.SetCrew(freed.CrewLeft);
+                BackInFlight(ship);
+                survivors.Add(fighter);
+            }
+        }
+
+        bool won = survivors.Count > 0 && battle.BattleCounter[1] == 0;
+        wb.Outcome = won ? BattleOutcome.Won : BattleOutcome.Lost;
+        if (won && wb.Start.PaysSalvage)
+        {
+            // Every enemy ship counts on a victory (UninitEncounter): the enemy's one.
+            uint salvage = (uint)(battle.Fleet(1).Count * BattleKit!.Salvage(wb.EnemyShip));
+            wb.SalvagePaid = salvage;
+            uint share = salvage / (uint)survivors.Count, remainder = salvage % (uint)survivors.Count;
+            for (int i = 0; i < survivors.Count; ++i)
+            {
+                var fighter = survivors[i];
+                fighter.Salvage = share + (i == 0 ? remainder : 0);
+                var hold = fighter.Player.Ship.Hold;
+                hold.ResourceUnits = (uint)Math.Min(uint.MaxValue, (ulong)hold.ResourceUnits + fighter.Salvage);
+            }
+        }
+        _battles.Remove(wb);
+        _toldFull.RemoveWhere(t => t.Battle == wb.Id);
+        _endedBattles.Add(wb);
+    }
+}

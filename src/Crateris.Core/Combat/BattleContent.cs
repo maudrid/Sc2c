@@ -12,6 +12,7 @@
 
 using Crateris.Core.Content;
 using Crateris.Core.Data;
+using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
 
 namespace Crateris.Core.Combat;
@@ -201,4 +202,43 @@ public sealed class BattleSheets
     public BattleArena Arena(IReadOnlyList<string> planet) => new(
         new Views(this[BattleResources.Stars]), Views(BattleResources.Asteroid)!, Views(BattleResources.Blast)!,
         Views(BattleResources.Explosion)!, Views(planet)!);
+}
+
+/// <summary>
+/// The sheets a battle in the world flies with: a ship's (its RACE_DESC's
+/// three sizes, <see cref="BattleSheets.Views"/>) and the arena's, with the
+/// planet a battle is fought by (BATTLE_PLANET, load_gravity_well). The
+/// game's come from the content (<see cref="ContentBattleGraphics"/>); tests
+/// may give sheets of their own.
+/// </summary>
+public interface IBattleGraphics
+{
+    /// <summary>A farray for a RACE_DESC's three sizes (<see cref="ShipGraphics.Ship"/> and the like), or null for none.</summary>
+    Views? Views(IReadOnlyList<string?> resources);
+
+    /// <summary>
+    /// The arena, its planet by <paramref name="battlePlanet"/>, a world's
+    /// data_index as BATTLE_PLANET holds it (load_gravity_well: a shielded
+    /// world's shield, or its planet type's sprites).
+    /// </summary>
+    BattleArena Arena(byte battlePlanet);
+}
+
+/// <summary>A battle's sheets from the content (<see cref="BattleSheets"/>) and the planets' types.</summary>
+public sealed class ContentBattleGraphics : IBattleGraphics
+{
+    private readonly BattleSheets _sheets;
+    private readonly PlanetTypes _planets;
+
+    public ContentBattleGraphics(BattleSheets sheets, PlanetTypes planets)
+    {
+        _sheets = sheets;
+        _planets = planets;
+    }
+
+    public Views? Views(IReadOnlyList<string?> resources) => _sheets.Views(resources);
+
+    public BattleArena Arena(byte battlePlanet) => _sheets.Arena(WorldTypes.IsShielded(battlePlanet)
+        ? _planets.ShieldedBattleSprites
+        : _planets[WorldTypes.PlanetType(battlePlanet)].BattleSprites);
 }

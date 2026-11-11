@@ -74,8 +74,6 @@ public class BattleAiTests
 
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !sis.Any(s => s.BombCarrier);
         var battle = BattleReplay.Run(Reference.Value, name, fleets, runaway, colours: true, ai);
-        // No crew floats at the end (UninitShips' handing it out is item 6's).
-        Assert.DoesNotContain(battle.List.Elements, x => (x.StateFlags & ElementFlags.CrewObject) != 0);
-        ShipBattleTests.CheckFreed(recorded, fleets, sis);
+        ShipBattleTests.CheckFreed(recorded, battle, sis);
     }
 }

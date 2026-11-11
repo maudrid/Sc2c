@@ -43,6 +43,10 @@ internal static class BattleReplay
         return sheets;
     }));
 
+    /// <summary>A world's battle kit with the content's sheets (stage 4a item 6).</summary>
+    public static readonly Lazy<World.BattleKit> Kit = new(() =>
+        new World.BattleKit(Ships, new ContentBattleGraphics(Sheets.Value, Planets), World.BattleKit.LoadShipCosts(Data)));
+
     /// <summary>A ship's sheets at three sizes (ship_data.ship or .weapon).</summary>
     public static Views ViewsOf(IReadOnlyList<string?> resources) => Sheets.Value.Views(resources)!;
 
