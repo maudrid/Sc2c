@@ -222,10 +222,11 @@ public partial class SystemView : Control
                 HorizontalAlignment.Left, -1, 13, Colors.Gray);
         }
 
-        // Ships in this same view: the flagship's image by facing, with the
-        // player's name. As in UQM, no thrust shows outside battle.
+        // Ships in this same view (flying or in a battle; or in the same
+        // activity): the flagship's image by facing, with the player's name. As in UQM, no thrust shows outside battle.
         // A ship whose entry into the star still plays is shown in hyperspace until it ends.
-        foreach (var s in _snapshot.Ships.Where(s => s.Activity == me.Activity && s.SystemStar == star
+        foreach (var s in _snapshot.Ships.Where(s => Flying(s.Activity) == Flying(me.Activity) && (Flying(s.Activity) || s.Activity == me.Activity)
+                     && s.SystemStar == star
                      && s.InnerPlanet == me.InnerPlanet && s.Entry is null))
         {
             var (x, y) = _motion.TryGetValue(s.Id, out var m) ? m.AtTime(_clock.Time) : (s.ScreenX, s.ScreenY);
@@ -234,6 +235,10 @@ public partial class SystemView : Control
                 HorizontalAlignment.Left, -1, 14, SisScreen.ShipColor(s, _me));
         }
     }
+
+    // Flying in the system, or waiting in a battle there at its marker (until item 12 draws the battle):
+    // ships flying and ships in a battle see each other.
+    private static bool Flying(Activity a) => a is Activity.OuterSystem or Activity.InnerSystem or Activity.Battle;
 
     /// <summary>Markers for players orbiting a world, beside its image.</summary>
     private void Markers(IEnumerable<ShipSnapshot> ships, SystemStamp world)

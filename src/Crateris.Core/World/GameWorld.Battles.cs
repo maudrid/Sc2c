@@ -54,17 +54,17 @@ public sealed partial class GameWorld
     /// <summary>
     /// The battles whose markers a player is shown (and may fly into): those
     /// where the player's ship is flying, in hyperspace or the same part
-    /// (outer or inner) of the same system. None for a player in no flight
-    /// (in orbit, a talk, docked) or in a battle.
+    /// (outer or inner) of the same system: those it may fly into. None for a
+    /// player away, in no flight (in orbit, a talk, docked, entering a star),
+    /// in a battle, or destroyed.
     /// </summary>
     public IReadOnlyList<WorldBattle> MarkersFor(string id)
     {
         if (Find(id) is not { } player)
             return Array.Empty<WorldBattle>();
-        var ship = player.Ship;
-        if (ship.Battle is not null || ship.Activity is not (Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem))
+        if (!Flying(player))
             return Array.Empty<WorldBattle>();
-        return _battles.Where(b => InPlace(b.Place, ship)).ToList();
+        return _battles.Where(b => InPlace(b.Place, player.Ship)).ToList();
     }
 
     /// <summary>The battles that ended since the last call, each with its outcome and how each ship came out.</summary>
@@ -142,7 +142,7 @@ public sealed partial class GameWorld
             seed, runAwayAllowed: true, size: ArenaSize.Scaled(Settings.BattleArenaScale), maxElements: Settings.BattleMaxElements);
         var wb = new WorldBattle(number, place, battlePlanet, battle, enemyShip, description, start, id, Frame);
         wb.Add(fighter);
-        // Those there already are outside it until they've flown out of its reach (JoinBattles).
+        // Those there already join only once they've been out of its reach and come back (JoinBattles).
         _battles.Add(wb);
         ship.Battle = wb;
         return wb;
@@ -201,8 +201,9 @@ public sealed partial class GameWorld
     /// spawn_ship puts a ship, and waits stopped there. Only entering
     /// counts: a ship first seen inside the reach (there as the battle
     /// started, a new guest put by the host there, row 14, or a ship back in
-    /// flight there from a talk, a dock or an entry) is outside the battle
-    /// until it has been out of the reach and comes back, so it can fly away.
+    /// flight there from a talk, a dock or an entry) doesn't join until it
+    /// has been out of the reach and comes back, so it can fly away (one
+    /// without fuel, in hyperspace, can't come back: as a star just left).
     /// A battle it has left (retreated or disconnected), a destroyed ship, a
     /// battle decided (the enemy has no ship left able to fight) or over
     /// can't be joined; one whose list is full can't now, which its player
@@ -215,34 +216,33 @@ public sealed partial class GameWorld
         foreach (var player in _players)
         {
             var ship = player.Ship;
-            bool flying = player.Present && !ship.Destroyed && ship.Battle is null && ship.Entry is null
-                && ship.Activity is Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem;
+            bool flying = Flying(player);
             foreach (var wb in _battles)
             {
-                // Out of flight or out of the place: not known to be outside.
+                // Out of flight or out of the place: not known to have been out of its reach.
                 if (!flying || !InPlace(wb.Place, ship))
                 {
-                    wb.Outside.Remove(player.Id);
+                    wb.SeenOutOfReach.Remove(player.Id);
                     continue;
                 }
                 if (!InReach(wb.Place, ship))
                 {
-                    wb.Outside.Add(player.Id);
+                    wb.SeenOutOfReach.Add(player.Id);
                     continue;
                 }
                 var battle = wb.Battle;
-                if (!wb.Outside.Contains(player.Id) || wb.Left.Contains(player.Id) || !battle.InBattle
+                if (!wb.SeenOutOfReach.Contains(player.Id) || wb.Left.Contains(player.Id) || !battle.InBattle
                     || battle.BattleCounter[1] == 0 || battle.BattleCounter[0] == byte.MaxValue)
                     continue;
                 var fighter = NewFighter(player);
                 if (!battle.Join(fighter.Starship))
                 {
-                    // Still outside it: tried again next frame.
+                    // Still seen out of its reach: tried again next frame.
                     if (_toldFull.Add((player.Id, wb.Id)))
                         _battleNotices.Add((player.Id, "The battle is too crowded to join just now."));
                     continue;
                 }
-                wb.Outside.Remove(player.Id);
+                wb.SeenOutOfReach.Remove(player.Id);
                 wb.Add(fighter);
                 ship.Battle = wb;
                 ship.Flight.Stop();
@@ -251,6 +251,11 @@ public sealed partial class GameWorld
             }
         }
     }
+
+    // A present player's ship flying (in hyperspace or a system, not entering
+    // a star, not in a battle, not destroyed): one that may fly into a marker.
+    private static bool Flying(Player player) => player.Present && !player.Ship.Destroyed && player.Ship.Battle is null
+        && player.Ship.Entry is null && player.Ship.Activity is Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem;
 
     // Whether a ship is in a battle's place: hyperspace, or the same part of the same system.
     private static bool InPlace(BattlePlace place, PlayerShip ship) => place.InHyperspace

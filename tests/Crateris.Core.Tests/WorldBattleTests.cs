@@ -227,7 +227,7 @@ public class WorldBattleTests
     [Fact]
     public void TwoBattlesAtOnce()
     {
-        var world = NewWorld(2);
+        var world = NewWorld(3);
         var first = world.StartBattle("host", Ilwrath);
         var g1 = world.Find("g1")!.Ship;
         g1.Flight.LogX += 20000;
@@ -235,6 +235,14 @@ public class WorldBattleTests
         var second = world.StartBattle("g1", Ilwrath);
         Assert.Equal(new[] { first, second }, world.Battles);
         Assert.NotEqual(first.Battle.Random.Seed, second.Battle.Random.Seed);
+        Assert.Equal(new[] { first, second }, world.MarkersFor("g2"));
+        // Flying into the second's marker joins that one only.
+        var g2 = world.Find("g2")!.Ship;
+        g2.Flight.LogX += 10000;
+        Run(world, 1);
+        (g2.Flight.LogX, g2.Flight.LogY) = (second.Place.X, second.Place.Y);
+        Run(world, 1);
+        Assert.Equal((null, "g2"), (first.FighterOf("g2")?.Player.Id, second.FighterOf("g2")?.Player.Id));
         for (int i = 0; i < 60 && !(Warped(first.Battle) && Warped(second.Battle)); ++i)
             Run(world, 1);
         Kill(first.Battle, first.Enemy);
@@ -242,7 +250,7 @@ public class WorldBattleTests
         RunOut(world, first);
         RunOut(world, second);
         Assert.Equal((BattleOutcome.Won, BattleOutcome.Won), (first.Outcome!.Value, second.Outcome!.Value));
-        Assert.Equal((125u, 125u), (world.Host.Ship.Hold.ResourceUnits, g1.Hold.ResourceUnits));
+        Assert.Equal((125u, 63u, 62u), (world.Host.Ship.Hold.ResourceUnits, g1.Hold.ResourceUnits, g2.Hold.ResourceUnits));
         Assert.Empty(world.Battles);
     }
 
@@ -639,6 +647,61 @@ public class WorldBattleTests
         Assert.Equal(new BattlePlace(Sol, null, guest.Ip!.Location.X, guest.Ip.Location.Y), other.Place);
         Assert.Equal(world.Systems![Sol].Planets[Earth].DataIndex, other.BattlePlanet);
         Assert.Single(wb.Fighters);
+    }
+
+    [ContentFact]
+    public void TheOuterSystemsBattlePlanetIsTheOneClosestOnTheScreen()
+    {
+        // From Earth's inner system out and on towards the sun, touching
+        // nothing, until another planet's image is closest: the battle's planet is that one's.
+        var world = InSol();
+        var host = world.Host.Ship;
+        var planets = world.Systems![Sol].Planets;
+        int Closest()
+        {
+            var ip = host.Ip!;
+            return Enumerable.Range(0, planets.Count).MinBy(p =>
+            {
+                var at = SystemLayout.OuterPlanet(planets[p], ip.ZoomRadius);
+                return (long)(ip.Screen.X - at.X) * (ip.Screen.X - at.X) + (long)(ip.Screen.Y - at.Y) * (ip.Screen.Y - at.Y);
+            });
+        }
+        for (int i = 0; i < 2000 && host.Activity != Activity.OuterSystem; ++i)
+        {
+            host.Ip!.EscapeCounter = 250;
+            Run(world, 1, _ => ShipInput.Thrust);
+        }
+        Assert.Equal(Activity.OuterSystem, host.Activity);
+        int sun = Uqm.UqmMath.AngleToFacing(Uqm.UqmMath.ArcTan(
+            (short)(SystemLayout.CenterX - host.Ip!.Screen.X), (short)(SystemLayout.CenterY - host.Ip.Screen.Y)));
+        for (int i = 0; i < 2000 && (host.Ip!.Facing != sun || Closest() == Earth) && host.Activity == Activity.OuterSystem; ++i)
+        {
+            host.Ip.EscapeCounter = 250;
+            Run(world, 1, _ => host.Ip!.Facing != sun ? ShipInput.Left : ShipInput.Thrust);
+        }
+        Assert.Equal(Activity.OuterSystem, host.Activity);
+        int closest = Closest();
+        Assert.NotEqual(Earth, closest);
+        var wb = world.StartBattle("host", Ilwrath);
+        Assert.Equal(planets[closest].DataIndex, wb.BattlePlanet);
+    }
+
+    [ContentFact]
+    public void NoSaveIsMadeOnceTheGameIsOver()
+    {
+        var host = Session.HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Value.Map), "host", "Host",
+            Systems.Value, TestContent.Shapes);
+        host.World.BattleKit = Kit();
+        host.StartBattle(Ilwrath);
+        var wb = host.World.Battles.Single();
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            host.Step(ShipInput.None);
+        Assert.NotNull(host.SaveJson());
+        Kill(wb.Battle, wb.FighterOf("host")!.Starship);
+        for (int i = 0; i < 600 && wb.Outcome is null; ++i)
+            host.Step(ShipInput.None);
+        Assert.True(host.World.GameOver);
+        Assert.Null(host.SaveJson());
     }
 
     [ContentFact]
