@@ -60,7 +60,12 @@ public sealed class HostSession
         return new HostSession(world);
     }
 
-    public string SaveJson() => HostSave.ToJson(World);
+    /// <summary>
+    /// The game as the host's save, or null once the game is over (decision
+    /// 12: the save is kept as it was, so loading it goes back to before the
+    /// battle the flagship was lost in).
+    /// </summary>
+    public string? SaveJson() => World.GameOver ? null : HostSave.ToJson(World);
 
     /// <summary>
     /// --start-at: the host's ship in hyperspace at universe coordinates, at

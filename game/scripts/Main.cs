@@ -409,8 +409,7 @@ public partial class Main : Node2D
         _host.Logged += Log;
         _host.SaveRequested += () =>
         {
-            SaveGame();
-            _player?.Notify("Game saved.");
+            _player?.Notify(SaveGame() ? "Game saved." : "The game is over: it isn't saved.");
         };
         _host.World.TalkLibrary = _talks;
         _host.World.BattleKit = _battleKit;
@@ -607,12 +606,14 @@ public partial class Main : Node2D
     private void ShowReport(string resource, string foundBy) =>
         _player?.ShowReport(new Crateris.Core.Planetside.LanderReport(resource, foundBy == "" ? null : foundBy));
 
-    private void SaveGame()
+    // The host's save; none once the game is over (the save before it is kept, decision 12).
+    private bool SaveGame()
     {
-        if (_host == null)
-            return;
+        if (_host?.SaveJson() is not { } json)
+            return false;
         Directory.CreateDirectory(Path.GetDirectoryName(_savePath)!);
-        File.WriteAllText(_savePath, _host.SaveJson());
+        File.WriteAllText(_savePath, json);
+        return true;
     }
 
     // ----------------------------------------------------------- client

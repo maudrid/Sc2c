@@ -68,13 +68,22 @@ public class BattleEndTests
         battle.UninitShips();
         Assert.Equal(new[] { 50, 43, 42 }, players.Select(p => Sis(p).Result!.Value.CrewLeft));
 
-        // The enemy left with crew among them takes its turn after the players.
+        // The enemy left with crew too is given all of it, as UQM gives each
+        // ship left all of it: each side its own, the players sharing theirs.
         (battle, players, enemy) = Fought(2);
         battle.DeltaCrew(enemy.Ship!, -5);
         battle.AbandonShip(players[1].Ship!, enemy.Ship!, 3);
         battle.UninitShips();
-        Assert.Equal(new[] { 31, 28 }, players.Select(p => Sis(p).Result!.Value.CrewLeft));
-        Assert.Equal((ushort)18, enemy.CrewLevel);
+        Assert.Equal(new[] { 32, 28 }, players.Select(p => Sis(p).Result!.Value.CrewLeft));
+        Assert.Equal((ushort)20, enemy.CrewLevel);
+
+        // One ship a side left, both with crew: each takes all of it, as UQM's.
+        (battle, players, enemy) = Fought(1);
+        battle.DeltaCrew(enemy.Ship!, -5);
+        battle.AbandonShip(players[0].Ship!, enemy.Ship!, 4);
+        battle.UninitShips();
+        Assert.Equal(30, Sis(players[0]).Result!.Value.CrewLeft);
+        Assert.Equal((ushort)21, enemy.CrewLevel);
     }
 
     [Fact]
@@ -130,6 +139,39 @@ public class BattleEndTests
         battle.Leave(late);
         Assert.Equal(1, battle.BattleCounter[0]);
         Assert.Null(late.Ship);
+    }
+
+    [Fact]
+    public void AShipWarpedOutOrWinningLeavesToo()
+    {
+        // How long a retreat takes, to the frame its ship is freed (the same battle each time).
+        int frames = 0;
+        var (battle, players, enemy) = Fought(2, runAwayAllowed: true);
+        battle.Step(s => s == players[1] ? BattleInput.Escape : BattleInput.None);
+        for (; players[1].RaceDesc != null; ++frames)
+            battle.Step(_ => BattleInput.None);
+
+        // Warped out and waiting for new_ship, the frame before: it leaves, counted once.
+        (battle, players, enemy) = Fought(2, runAwayAllowed: true);
+        battle.Step(s => s == players[1] ? BattleInput.Escape : BattleInput.None);
+        for (int i = 0; i < frames - 1; ++i)
+            battle.Step(_ => BattleInput.None);
+        Assert.True(battle.RunningAway(players[1]));
+        Assert.Equal((PrimType.None, 1), (players[1].Ship!.Prim, (int)battle.BattleCounter[0]));
+        battle.Leave(players[1]);
+        Assert.Equal((1, true), ((int)battle.BattleCounter[0], battle.InBattle));
+        Assert.Equal(new SisBattleResult(30, false), Sis(players[1]).Result);
+
+        // The winner, its enemy exploding, leaving: no one is left, and it's over.
+        (battle, players, enemy) = Fought(1);
+        battle.DoDamage(enemy.Ship!, (short)enemy.RaceDesc!.CrewLevel);
+        battle.Step(_ => BattleInput.None);
+        Assert.True((players[0].CurStatusFlags & StatusFlags.PlayVictoryDitty) != 0);
+        battle.Leave(players[0]);
+        Assert.Equal((false, (byte)0, (byte)0), (battle.InBattle, battle.BattleCounter[0], battle.BattleCounter[1]));
+        battle.UninitShips();
+        Assert.Equal((ushort)0, enemy.CrewLevel);
+        Assert.Equal(new SisBattleResult(30, false), Sis(players[0]).Result);
     }
 
     [Fact]

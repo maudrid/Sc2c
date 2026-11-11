@@ -387,7 +387,6 @@ public sealed partial class GameWorld
             {
                 case Activity.Hyperspace:
                     StepHyperspace(p.Ship, input);
-                    JoinBattles(p, input);
                     break;
                 case Activity.Battle:
                     // The battles step after everyone's flight (StepBattles).
@@ -424,10 +423,10 @@ public sealed partial class GameWorld
                     }
                     for (int i = 0; i < systemFrames && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem; ++i)
                         StepSystem(p.Ship, input);
-                    JoinBattles(p, input);
                     break;
             }
         }
+        JoinBattles();
         StepBattles();
         StepSurfaces();
         Clock.Tick(Settings.SecondsPerGameDay);

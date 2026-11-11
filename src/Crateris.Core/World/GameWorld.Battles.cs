@@ -44,24 +44,27 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// The flagship was destroyed (decision 12): the game is over for the
-    /// group, and the world stops. Item 7 shows it to every player and ends
-    /// the host's game; loading the save goes back to before the battle.
+    /// group, and the world stops. The host's save is no longer written
+    /// (<see cref="Session.HostSession.SaveJson"/>), so loading it goes back
+    /// to before the battle. Item 7 shows it to every player and ends the
+    /// host's game.
     /// </summary>
     public bool GameOver { get; private set; }
 
     /// <summary>
     /// The battles whose markers a player is shown (and may fly into): those
-    /// where the player's ship is, in hyperspace or the same part (outer or
-    /// inner) of the same system. None for a player in no flight.
+    /// where the player's ship is flying, in hyperspace or the same part
+    /// (outer or inner) of the same system. None for a player in no flight
+    /// (in orbit, a talk, docked) or in a battle.
     /// </summary>
     public IReadOnlyList<WorldBattle> MarkersFor(string id)
     {
         if (Find(id) is not { } player)
             return Array.Empty<WorldBattle>();
         var ship = player.Ship;
-        return _battles.Where(b => b.Place.InHyperspace
-            ? ship.Ip is null
-            : ship.SystemStar == b.Place.Star && ship.Ip is { } ip && ip.InnerPlanet == b.Place.InnerPlanet).ToList();
+        if (ship.Battle is not null || ship.Activity is not (Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem))
+            return Array.Empty<WorldBattle>();
+        return _battles.Where(b => InPlace(b.Place, ship)).ToList();
     }
 
     /// <summary>The battles that ended since the last call, each with its outcome and how each ship came out.</summary>
@@ -139,6 +142,7 @@ public sealed partial class GameWorld
             seed, runAwayAllowed: true, size: ArenaSize.Scaled(Settings.BattleArenaScale), maxElements: Settings.BattleMaxElements);
         var wb = new WorldBattle(number, place, battlePlanet, battle, enemyShip, description, start, id, Frame);
         wb.Add(fighter);
+        // Those there already are outside it until they've flown out of its reach (JoinBattles).
         _battles.Add(wb);
         ship.Battle = wb;
         return wb;
@@ -190,44 +194,68 @@ public sealed partial class GameWorld
     }
 
     /// <summary>
-    /// After a ship's flight this frame: if it flew into the marker of a
-    /// battle there (decision 6: moving or steering, within the settings'
-    /// reach of it on its screen), not one it has left, it joins, warping
-    /// in where UQM's spawn_ship puts a ship, and waits stopped there. A
+    /// After every ship's flight this frame, before the battles step (so
+    /// ships join between battle frames): a ship that flies into the marker
+    /// of a battle in its place (decision 6: from outside the settings'
+    /// reach of it on its screen to inside) joins, warping in where UQM's
+    /// spawn_ship puts a ship, and waits stopped there. Only entering
+    /// counts: a ship first seen inside the reach (there as the battle
+    /// started, a new guest put by the host there, row 14, or a ship back in
+    /// flight there from a talk, a dock or an entry) is outside the battle
+    /// until it has been out of the reach and comes back, so it can fly away.
+    /// A battle it has left (retreated or disconnected), a destroyed ship, a
     /// battle decided (the enemy has no ship left able to fight) or over
     /// can't be joined; one whose list is full can't now, which its player
-    /// is told once, and is tried again while the ship stays in the marker.
+    /// is told once, and is tried again while the ship stays in it.
     /// </summary>
-    private void JoinBattles(Player player, ShipInput input)
+    private void JoinBattles()
     {
-        var ship = player.Ship;
-        if (_battles.Count == 0 || BattleKit is null || ship.Destroyed || ship.Battle is not null || ship.Entry is not null
-            || ship.Activity is not (Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem))
+        if (_battles.Count == 0 || BattleKit is null)
             return;
-        bool steering = (input & (ShipInput.Left | ShipInput.Right | ShipInput.Thrust)) != 0;
-        bool moving = ship.Ip is { } ip ? !ip.Velocity.IsZero : !ship.Flight.Velocity.IsZero;
-        if (!steering && !moving)
-            return;
-        foreach (var wb in _battles)
+        foreach (var player in _players)
         {
-            var battle = wb.Battle;
-            if (wb.Left.Contains(player.Id) || !battle.InBattle || battle.BattleCounter[1] == 0
-                || battle.BattleCounter[0] == byte.MaxValue || !InReach(wb.Place, ship))
-                continue;
-            var fighter = NewFighter(player);
-            if (!battle.Join(fighter.Starship))
+            var ship = player.Ship;
+            bool flying = player.Present && !ship.Destroyed && ship.Battle is null && ship.Entry is null
+                && ship.Activity is Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem;
+            foreach (var wb in _battles)
             {
-                if (_toldFull.Add((player.Id, wb.Id)))
-                    _battleNotices.Add((player.Id, "The battle is too crowded to join just now."));
-                continue;
+                // Out of flight or out of the place: not known to be outside.
+                if (!flying || !InPlace(wb.Place, ship))
+                {
+                    wb.Outside.Remove(player.Id);
+                    continue;
+                }
+                if (!InReach(wb.Place, ship))
+                {
+                    wb.Outside.Add(player.Id);
+                    continue;
+                }
+                var battle = wb.Battle;
+                if (!wb.Outside.Contains(player.Id) || wb.Left.Contains(player.Id) || !battle.InBattle
+                    || battle.BattleCounter[1] == 0 || battle.BattleCounter[0] == byte.MaxValue)
+                    continue;
+                var fighter = NewFighter(player);
+                if (!battle.Join(fighter.Starship))
+                {
+                    // Still outside it: tried again next frame.
+                    if (_toldFull.Add((player.Id, wb.Id)))
+                        _battleNotices.Add((player.Id, "The battle is too crowded to join just now."));
+                    continue;
+                }
+                wb.Outside.Remove(player.Id);
+                wb.Add(fighter);
+                ship.Battle = wb;
+                ship.Flight.Stop();
+                ship.Ip?.Stop();
+                break;
             }
-            wb.Add(fighter);
-            ship.Battle = wb;
-            ship.Flight.Stop();
-            ship.Ip?.Stop();
-            return;
         }
     }
+
+    // Whether a ship is in a battle's place: hyperspace, or the same part of the same system.
+    private static bool InPlace(BattlePlace place, PlayerShip ship) => place.InHyperspace
+        ? ship.Ip is null
+        : ship.SystemStar == place.Star && ship.Ip is { } ip && ip.InnerPlanet == place.InnerPlanet;
 
     // Whether a ship is within reach of a battle's marker, on its screen:
     // in hyperspace a pixel is 4 logical units (WORLD_TO_DISPLAY, at 1x);
@@ -238,16 +266,13 @@ public sealed partial class GameWorld
         long dx, dy;
         if (place.InHyperspace)
         {
-            if (ship.Ip is not null)
-                return false;
             var (x, y) = StarContact.SpritePosition(ship.Flight);
             dx = (x - place.X) >> Units.OneShift;
             dy = (y - place.Y) >> Units.OneShift;
         }
         else
         {
-            if (ship.SystemStar != place.Star || ship.Ip is not { } ip || ip.InnerPlanet != place.InnerPlanet)
-                return false;
+            var ip = ship.Ip!;
             int radius = ip.InnerPlanet is null ? ip.ZoomRadius : IpGeometry.MaxZoomRadius;
             var at = IpGeometry.LocationToDisplay(new IpPoint((short)place.X, (short)place.Y), radius);
             dx = ip.Screen.X - at.X;

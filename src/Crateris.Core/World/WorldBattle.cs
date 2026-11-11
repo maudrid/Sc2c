@@ -243,5 +243,12 @@ public sealed class WorldBattle
 
     internal void Add(BattleFighter fighter) => _fighters.Add(fighter);
 
+    /// <summary>
+    /// The players whose ships were last seen flying in its place outside
+    /// its marker's reach: only they join by coming into it (a ship first
+    /// seen inside it is outside the battle until it has left the reach).
+    /// </summary>
+    internal HashSet<string> Outside { get; } = new();
+
     internal void Leaves(string id) => _left.Add(id);
 }

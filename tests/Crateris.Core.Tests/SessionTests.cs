@@ -117,7 +117,7 @@ public class SessionTests
     public void ALoadedGameIsTheSavesHosts()
     {
         var host = NewHost("original");
-        var loaded = HostSession.Load(host.SaveJson(), "Renamed", Systems, TestContent.Shapes);
+        var loaded = HostSession.Load(host.SaveJson()!, "Renamed", Systems, TestContent.Shapes);
         Assert.Equal("original", loaded.HostId);
         Assert.True(loaded.World.Host.Present);
         Assert.Equal("Renamed", loaded.World.Host.Name);

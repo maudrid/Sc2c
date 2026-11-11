@@ -63,6 +63,10 @@ public partial class HyperspaceView : Control
         QueueRedraw();
     }
 
+    // Flying in hyperspace, or in a battle there, waiting at its marker (until item 12 draws the battle).
+    private static bool InHyperspace(ShipSnapshot s) =>
+        s.Activity == Activity.Hyperspace || s.Activity == Activity.Battle && s.SystemStar is null;
+
     public override void _Draw()
     {
         DrawRect(new Rect2(Vector2.Zero, Size), Background);
@@ -75,7 +79,7 @@ public partial class HyperspaceView : Control
         int logX = me.LogX, logY = me.LogY;
         if (_entries.Of(me.Id) is { } mine)
             (logX, logY) = (mine.State.LogX, mine.State.LogY);
-        else if (me.Activity != Activity.Hyperspace)
+        else if (!InHyperspace(me))
             return;
         int ux = Units.LogXToUniverse(logX), uy = Units.LogYToUniverse(logY);
 
@@ -91,7 +95,7 @@ public partial class HyperspaceView : Control
         // only those near enough to be on the screen. As in UQM, a ship
         // shows no thrust outside battle (ion trails are battle only).
         var font = ThemeDB.FallbackFont;
-        foreach (var ship in _snapshot!.Ships.Where(s => s.Activity == Activity.Hyperspace
+        foreach (var ship in _snapshot!.Ships.Where(s => InHyperspace(s)
                      && StarContact.InReach(s.UniverseX, s.UniverseY, ux, uy)))
         {
             var (x, y) = HyperScreen.Ship(ship.LogX, ship.LogY, ship.ViewX, ship.ViewY, logX, logY);

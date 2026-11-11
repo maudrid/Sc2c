@@ -752,13 +752,13 @@ public class OpeningTests
         Assert.True(host.ChooseReply("guest", host.World.Visit!.Round, IndexOf(host, "guest", "yes_this_is_supply_ship")));
         var said = TalkView.Decode(host.TalkUpdates().Single(u => u.Peer == 2).Data)!;
         Assert.Contains("supply", said.Said, StringComparison.OrdinalIgnoreCase);   // watchers see the reply chosen
-        var save = HostSave.FromJson(host.SaveJson(), Systems, TestContent.Shapes);
+        var save = HostSave.FromJson(host.SaveJson()!, Systems, TestContent.Shapes);
         host.GuestLeft(1);
         var view = TalkView.Decode(Assert.Single(host.TalkUpdates()).Data)!;   // the third player's
         Assert.Equal("host", view.Replier);
         Assert.Equal("host", host.TalkFor("host")!.Replier);
         // A save while the replies are the host's is still of the game without the visit.
-        var saved = HostSave.FromJson(host.SaveJson(), Systems, TestContent.Shapes);
+        var saved = HostSave.FromJson(host.SaveJson()!, Systems, TestContent.Shapes);
         Assert.False(saved.CommanderMet);
         Assert.Equal(save.Story!.Get("STARBASE_AVAILABLE"), saved.Story!.Get("STARBASE_AVAILABLE"));
         // The starter comes back: they watch, and can't reply.

@@ -450,12 +450,13 @@ public sealed partial class Battle
     /// for new_ship) is freed (<see cref="RaceDesc.Uninit"/>, as new_ship
     /// frees a dead one: the flagship's crew left). UQM gives all the
     /// floating crew to every ship with crew, up to its most, assuming one
-    /// is left ("There should only be one ship left in battle"); with
-    /// several ships left with crew (stage 4a's players), each crew goes to
-    /// one ship only: they're dealt out one at a time, in turn, to those with
-    /// room, side 0's first, each side's in its fleet's order (the order
-    /// the players joined), so they're shared equally and the first to join
-    /// takes what doesn't share out. With one ship left that's UQM's.
+    /// is left ("There should only be one ship left in battle"), which with
+    /// one ship a side gives each side all of it. Here each side is given
+    /// all of it, as UQM's: one ship of a side left with crew takes it as
+    /// UQM's does; several (stage 4a's players) share it, each crew going to
+    /// one ship only, dealt one at a time, in turn, in the fleet's order (the
+    /// order the players joined), to those with room, so the first to join
+    /// takes what doesn't share out. With one ship a side that's UQM's.
     /// UpdateShipFragCrew (the enemy's crew left, for its encounter) is the
     /// world's, from each Starship's crew. The battle is over after it.
     /// </summary>
@@ -474,25 +475,29 @@ public sealed partial class Battle
                 left.Add(s);
         }
 
-        // The floating crew to those with crew, in turn, each up to its most.
-        var takers = _fleets.SelectMany(f => f).Where(s => left.Contains(s) && s.RaceDesc!.CrewLevel != 0).ToList();
-        if (takers.Count == 1)
+        // The floating crew to those with crew: all of it to each side, as
+        // UQM gives it to each ship left (one a side in UQM), shared between
+        // a side's ships in turn, each up to its most.
+        foreach (var fleet in _fleets)
         {
-            var rd = takers[0].RaceDesc!;
-            rd.CrewLevel = crewRetrieved >= rd.MaxCrew - rd.CrewLevel ? rd.MaxCrew : (ushort)(rd.CrewLevel + crewRetrieved);
-        }
-        else
-        {
-            while (crewRetrieved > 0 && takers.Any(s => s.RaceDesc!.CrewLevel < s.RaceDesc.MaxCrew))
+            var takers = fleet.Where(s => left.Contains(s) && s.RaceDesc!.CrewLevel != 0).ToList();
+            if (takers.Count == 1)
+            {
+                var rd = takers[0].RaceDesc!;
+                rd.CrewLevel = crewRetrieved >= rd.MaxCrew - rd.CrewLevel ? rd.MaxCrew : (ushort)(rd.CrewLevel + crewRetrieved);
+                continue;
+            }
+            int crew = crewRetrieved;
+            while (crew > 0 && takers.Any(s => s.RaceDesc!.CrewLevel < s.RaceDesc.MaxCrew))
             {
                 foreach (var s in takers)
                 {
-                    if (crewRetrieved == 0)
+                    if (crew == 0)
                         break;
                     if (s.RaceDesc!.CrewLevel >= s.RaceDesc.MaxCrew)
                         continue;
                     s.RaceDesc.CrewLevel++;
-                    crewRetrieved--;
+                    crew--;
                 }
             }
         }

@@ -101,12 +101,24 @@ public class WorldBattleTests
         Assert.NotNull(wb.Outcome);
     }
 
-    // Started by the host, every other player joining by steering into its
-    // marker, everyone warped in (the battle's frames up to 60).
+    // Ships flying into the marker in hyperspace: out of its reach for a
+    // frame, then back where they were (a frame each way).
+    private static void FlyIn(GameWorld world, params string[] ids)
+    {
+        foreach (var id in ids)
+            world.Find(id)!.Ship.Flight.LogX += 1000;
+        Run(world, 1);
+        foreach (var id in ids)
+            world.Find(id)!.Ship.Flight.LogX -= 1000;
+        Run(world, 1);
+    }
+
+    // Started by the host, every other player flying into its marker,
+    // everyone warped in (the battle's frames up to 60).
     private static WorldBattle Started(GameWorld world, BattleStart? start = null)
     {
         var wb = world.StartBattle("host", Ilwrath, start);
-        Run(world, 1, id => id == "host" ? ShipInput.None : ShipInput.Left);
+        FlyIn(world, world.Players.Where(p => !p.IsHost).Select(p => p.Id).ToArray());
         Assert.Equal(world.Players.Select(p => p.Id), wb.Fighters.Select(f => f.Player.Id));
         for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
             Run(world, 1);
@@ -114,8 +126,10 @@ public class WorldBattleTests
         return wb;
     }
 
+    // Every ship in, warped in (the Ilwrath may be cloaking: its stamp filled).
     private static bool Warped(Battle battle) => battle.Fleet(0).Concat(battle.Fleet(1)).Where(s => s.Ship != null)
-        .All(s => s.Ship!.Prim == PrimType.Stamp && (s.Ship.StateFlags & (ElementFlags.Appearing | ElementFlags.NonSolid)) == 0);
+        .All(s => s.Ship!.Prim is PrimType.Stamp or PrimType.StampFill
+                  && (s.Ship.StateFlags & (ElementFlags.Appearing | ElementFlags.NonSolid)) == 0);
 
     private static void Kill(Battle battle, Starship ship) => battle.DoDamage(ship.Ship!, (short)ship.RaceDesc!.CrewLevel);
 
@@ -133,10 +147,13 @@ public class WorldBattleTests
         Assert.Equal(new BattlePlace(null, null, host.Flight.LogX, host.Flight.LogY), wb.Place);
         Assert.Equal(new[] { wb }, world.Battles);
         Assert.Equal(new[] { wb }, world.MarkersFor("g1"));
-        Assert.Equal(new[] { wb }, world.MarkersFor("host"));
+        Assert.Empty(world.MarkersFor("host"));   // in it
 
-        // The settings' arena and list; the Ilwrath of 22 crew, which cloaks; the flagship with its crew.
+        // The settings' arena and list, the planet a random type's (in hyperspace); the Ilwrath of 22 crew,
+        // which cloaks; the flagship with its crew.
         var battle = wb.Battle;
+        Assert.InRange(wb.BattlePlanet, 0, WorldTypes.NumberOfPlanetTypes - 1);
+        Assert.Equal($"planet{wb.BattlePlanet}", battle.Arena.Planet[0].Sheet!.Id);
         Assert.Equal(ArenaSize.Scaled(1.5), battle.Size);
         Assert.Equal(300, battle.List.Capacity);
         Assert.Equal((ushort)22, wb.Enemy.RaceDesc!.CrewLevel);
@@ -164,24 +181,69 @@ public class WorldBattleTests
     {
         var world = NewWorld(3);
         var wb = world.StartBattle("host", Ilwrath);
-        // Waiting in the marker doesn't join; steering or moving there does.
-        Run(world, 5);
+        // Those there as it starts are outside it: waiting, steering or
+        // flying off, they don't join.
+        Run(world, 5, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        Run(world, 2, id => id == "g2" ? ShipInput.Thrust : ShipInput.None);
         Assert.Single(wb.Fighters);
-        Run(world, 1, id => id == "g1" ? ShipInput.Thrust : ShipInput.None);
+        // Out of its reach and back in, they do.
+        FlyIn(world, "g1");
         Assert.Equal(new[] { "host", "g1" }, wb.Fighters.Select(f => f.Player.Id));
         var g1 = world.Find("g1")!.Ship;
         Assert.Equal((Activity.Battle, true), (g1.Activity, g1.Flight.Velocity.IsZero));
         Assert.Same(wb.Battle.Fleet(0)[1], Fighter(wb, "g1").Starship);
         Assert.Equal(2, wb.Battle.BattleCounter[0]);
 
-        // A ship far off doesn't.
+        // A ship just beyond its reach doesn't; coming within it does.
         var g2 = world.Find("g2")!.Ship;
-        g2.Flight.LogX += world.Settings.BattleMarkerReach * 4 + 4;
-        Run(world, 1, _ => ShipInput.Left);
+        g2.Flight.Stop();
+        g2.Flight.LogX = wb.Place.X + world.Settings.BattleMarkerReach * 4 + 4;
+        g2.Flight.LogY = wb.Place.Y;
+        Run(world, 2);
         Assert.Equal(2, wb.Fighters.Count);
         g2.Flight.LogX -= 8;
-        Run(world, 1, _ => ShipInput.Left);
+        Run(world, 1);
         Assert.Equal(3, wb.Fighters.Count);
+    }
+
+    [Fact]
+    public void ANewGuestStartsByTheMarkerOutsideIt()
+    {
+        // Row 14: a guest joining the game for the first time while the host
+        // is in a battle is put at the host's place, its marker, outside it.
+        var world = NewWorld();
+        var wb = world.StartBattle("host", Ilwrath);
+        Assert.Equal(JoinResult.Joined, world.Join("g1", "Guest 1"));
+        world.UndockShown("g1");
+        var g1 = world.Find("g1")!.Ship;
+        Assert.Equal((wb.Place.X, wb.Place.Y), (g1.Flight.LogX, g1.Flight.LogY));
+        Run(world, 3, id => id == "g1" ? ShipInput.Left | ShipInput.Thrust : ShipInput.None);
+        Assert.Equal(Activity.Hyperspace, g1.Activity);
+        Assert.Single(wb.Fighters);
+        FlyIn(world, "g1");
+        Assert.Equal(Activity.Battle, g1.Activity);
+    }
+
+    [Fact]
+    public void TwoBattlesAtOnce()
+    {
+        var world = NewWorld(2);
+        var first = world.StartBattle("host", Ilwrath);
+        var g1 = world.Find("g1")!.Ship;
+        g1.Flight.LogX += 20000;
+        Run(world, 1);
+        var second = world.StartBattle("g1", Ilwrath);
+        Assert.Equal(new[] { first, second }, world.Battles);
+        Assert.NotEqual(first.Battle.Random.Seed, second.Battle.Random.Seed);
+        for (int i = 0; i < 60 && !(Warped(first.Battle) && Warped(second.Battle)); ++i)
+            Run(world, 1);
+        Kill(first.Battle, first.Enemy);
+        Kill(second.Battle, second.Enemy);
+        RunOut(world, first);
+        RunOut(world, second);
+        Assert.Equal((BattleOutcome.Won, BattleOutcome.Won), (first.Outcome!.Value, second.Outcome!.Value));
+        Assert.Equal((125u, 125u), (world.Host.Ship.Hold.ResourceUnits, g1.Hold.ResourceUnits));
+        Assert.Empty(world.Battles);
     }
 
     [Fact]
@@ -192,12 +254,13 @@ public class WorldBattleTests
         var taken = new List<Element>();
         while (wb.Battle.List.Alloc() is { } e)
             taken.Add(e);
-        Run(world, 3, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        FlyIn(world, "g1");
+        Run(world, 2);
         Assert.Single(wb.Fighters);
         Assert.Equal(new[] { ("g1", "The battle is too crowded to join just now.") }, world.TakeBattleNotices());
         foreach (var e in taken)
             wb.Battle.List.Free(e);
-        Run(world, 1, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        Run(world, 1);   // still in the marker: tried again
         Assert.Equal(2, wb.Fighters.Count);
         Assert.Empty(world.TakeBattleNotices());
     }
@@ -285,7 +348,7 @@ public class WorldBattleTests
         Assert.Equal(x, g1.Flight.LogX);
         // Nor joins a battle.
         var next = world.StartBattle("host", Ilwrath);
-        Run(world, 2, _ => ShipInput.Left);
+        FlyIn(world, "g1");
         Assert.Null(next.FighterOf("g1"));
     }
 
@@ -308,7 +371,8 @@ public class WorldBattleTests
         Assert.Contains("g1", wb.Left);
 
         // It can't join again.
-        RunDisarmed(world, wb, 3, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        wb.Enemy.WeaponCounter = wb.Enemy.SpecialCounter = 2;
+        FlyIn(world, "g1");
         Assert.Equal(BattleExit.Retreated, Fighter(wb, "g1").Exit);
         Assert.Equal(2, wb.Fighters.Count);
 
@@ -396,7 +460,7 @@ public class WorldBattleTests
 
         // Back in the game, it can't join that battle again.
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
-        Run(world, 2, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        FlyIn(world, "g1");
         Assert.Equal(BattleExit.Disconnected, Fighter(wb, "g1").Exit);
         Assert.Equal(Activity.Hyperspace, g1.Ship.Activity);
 
@@ -419,7 +483,7 @@ public class WorldBattleTests
     {
         var world = NewWorld(2);
         var wb = world.StartBattle("host", Ilwrath);
-        Run(world, 1, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        FlyIn(world, "g1");
         var f = Fighter(wb, "g1");
         var element = f.Starship.Ship!;
         Assert.False(Warped(wb.Battle), "still warping in");
@@ -441,9 +505,9 @@ public class WorldBattleTests
         Kill(wb.Battle, wb.Enemy);
         Run(world, 1);
         Assert.Equal(0, wb.Battle.BattleCounter[1]);
-        Run(world, 5, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        FlyIn(world, "g1");
         Assert.Null(wb.FighterOf("g1"));
-        RunOut(world, wb, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        RunOut(world, wb);
         Assert.Equal(new uint[] { 125 }, wb.Fighters.Select(f => f.Salvage));
         Assert.Equal(0u, world.Find("g1")!.Ship.Hold.ResourceUnits);
     }
@@ -456,19 +520,23 @@ public class WorldBattleTests
         wb.Battle.DeltaCrew(Fighter(wb, "host").Starship.Ship!, -20);
         Kill(wb.Battle, Fighter(wb, "g1").Starship);
         Run(world, 1);
+        // The ships' holds and fuel changed meanwhile, as nothing in 4a changes them: saved as they joined.
+        world.Host.Ship.Hold.SetCrew(3);
+        world.Host.Ship.Hold.MoveCargo(new[] { 2, 0, 0, 0, 0, 0, 0, 0 }, 0, +1);
+        world.Host.Ship.Flight.Fuel = 7;
+        world.Find("g1")!.Ship.Flight.Fuel = 9;
         var loaded = HostSave.FromJson(HostSave.ToJson(world));
         Assert.Empty(loaded.Battles);
-        Assert.Equal((50, 1000u), (loaded.Host.Ship.Hold.Crew, loaded.Host.Ship.Flight.Fuel));
+        Assert.Equal((50, 1000u, 0), (loaded.Host.Ship.Hold.Crew, loaded.Host.Ship.Flight.Fuel, loaded.Host.Ship.Hold.Minerals[0]));
         Assert.Equal((world.Host.Ship.Flight.LogX, world.Host.Ship.Flight.LogY),
             (loaded.Host.Ship.Flight.LogX, loaded.Host.Ship.Flight.LogY));
-        Assert.Equal(10, loaded.Find("g1")!.Ship.Hold.Crew);
+        Assert.Equal((10, Fighter(wb, "g1").JoinedFuel), (loaded.Find("g1")!.Ship.Hold.Crew, loaded.Find("g1")!.Ship.Flight.Fuel));
         Assert.All(loaded.Players, p => Assert.Equal(Activity.Hyperspace, p.Ship.Activity));
 
         // Nothing goes in or out of a hold meanwhile.
         Assert.Equal(TradeRefusal.InBattle, world.Give(new Gift("host", "g1", 1, new int[ShipHold.Categories], 0)));
-        world.Host.Ship.Hold.MoveCargo(new[] { 1, 0, 0, 0, 0, 0, 0, 0 }, 0, +1);
         Assert.False(world.DiscardCargo("host", 0));
-        Assert.Equal(1, world.Host.Ship.Hold.Minerals[0]);
+        Assert.Equal(2, world.Host.Ship.Hold.Minerals[0]);
     }
 
     [Fact]
@@ -488,7 +556,6 @@ public class WorldBattleTests
         var world = NewWorld(1);
         var wb = Started(world);
         var host = Fighter(wb, "host").Starship;
-        var asked = new List<StatusFlags>();
         Run(world, 1, _ => ShipInput.Left | ShipInput.Thrust | ShipInput.Fire | ShipInput.Special);
         Assert.Equal(StatusFlags.Left | StatusFlags.Thrust | StatusFlags.Weapon | StatusFlags.Special,
             host.ShipInputState & StatusFlags.Keys);
@@ -523,15 +590,23 @@ public class WorldBattleTests
     {
         var world = InSol(2);
         var host = world.Host.Ship;
+        var guest = world.Find("g1")!.Ship;
+        // The guest flies off a little (touching nothing on its way) ...
+        guest.Ip!.EscapeCounter = 250;
+        Run(world, 12, id => id == "g1" ? ShipInput.Thrust : ShipInput.None);
         var wb = world.StartBattle("host", Ilwrath);
         var ip = host.Ip!;
         Assert.Equal(new BattlePlace(Sol, Earth, ip.Location.X, ip.Location.Y), wb.Place);
         Assert.Equal(world.Systems![Sol].Planets[Earth].DataIndex, wb.BattlePlanet);
         Assert.Equal(new[] { wb }, world.MarkersFor("g1"));
 
-        // The guest flies into it in Earth's inner system.
-        Run(world, 1, id => id == "g1" ? ShipInput.Left : ShipInput.None);
-        Assert.Equal(Activity.Battle, world.Find("g1")!.Ship.Activity);
+        // ... and back into the marker, in Earth's inner system: it joins.
+        int back = (guest.Ip!.Facing + 8) % 16;
+        for (int i = 0; i < 300 && guest.Ip!.Facing != back; ++i)
+            Run(world, 1, id => id == "g1" ? ShipInput.Left : ShipInput.None);
+        for (int i = 0; i < 400 && guest.Battle is null; ++i)
+            Run(world, 1, id => id == "g1" ? ShipInput.Thrust : ShipInput.None);
+        Assert.Equal(Activity.Battle, guest.Activity);
         for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
             Run(world, 1);
         Kill(wb.Battle, wb.Enemy);
@@ -545,6 +620,25 @@ public class WorldBattleTests
         Assert.Equal(IpFlight.EscapeFrames - 30, host.Ip!.EscapeCounter);
         Run(world, 100);
         Assert.Equal(0, host.Ip!.EscapeCounter);
+    }
+
+    [ContentFact]
+    public void InTheOuterSystemTheBattlesPlanetIsTheClosest()
+    {
+        // The guest flies out of Earth's inner system: the host's battle
+        // there is in another part, not shown to it.
+        var world = InSol(2);
+        var guest = world.Find("g1")!.Ship;
+        var wb = world.StartBattle("host", Ilwrath);
+        for (int i = 0; i < 2000 && guest.Activity != Activity.OuterSystem; ++i)
+            Run(world, 1, id => id == "g1" ? ShipInput.Thrust : ShipInput.None);
+        Assert.Equal(Activity.OuterSystem, guest.Activity);
+        Assert.Empty(world.MarkersFor("g1"));
+        // Its battle there is by the planet closest on its screen: Earth, just left.
+        var other = world.StartBattle("g1", Ilwrath);
+        Assert.Equal(new BattlePlace(Sol, null, guest.Ip!.Location.X, guest.Ip.Location.Y), other.Place);
+        Assert.Equal(world.Systems![Sol].Planets[Earth].DataIndex, other.BattlePlanet);
+        Assert.Single(wb.Fighters);
     }
 
     [ContentFact]
