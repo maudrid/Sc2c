@@ -219,10 +219,13 @@ internal sealed class TalkChanges
     /// <summary>A hold and fuel without these changes (each no lower than 0, the crew and landers no more than the ship holds).</summary>
     /// <param name="landersAtLeast">The fewest landers to leave: 1 for a ship whose lander is out and saved as back aboard
     /// (as <see cref="TakeBackFrom"/> keeps it), else 0.</param>
-    public (HoldState Hold, uint Fuel) Without(HoldState hold, uint fuel, int crewCapacity, int landersAtLeast = 0) =>
+    /// <param name="crewOut">The crew of a lander that is out, counted in the hold: the talks' crew is taken from those
+    /// aboard only, as <see cref="TakeBackFrom"/> takes it.</param>
+    public (HoldState Hold, uint Fuel) Without(HoldState hold, uint fuel, int crewCapacity, int landersAtLeast = 0, int crewOut = 0) =>
         (hold with
         {
-            Crew = Math.Clamp(hold.Crew - Crew, 0, Math.Max(crewCapacity, hold.Crew)),
+            Crew = Crew == 0 ? hold.Crew
+                : Math.Clamp(hold.Crew - crewOut - Crew, 0, Math.Max(crewCapacity, hold.Crew - crewOut)) + crewOut,
             Landers = Math.Clamp(hold.Landers - Landers, Math.Min(landersAtLeast, hold.Landers), ShipHold.MaxLanders),
             ResourceUnits = (uint)Math.Clamp(hold.ResourceUnits - ResourceUnits, 0, uint.MaxValue),
             Minerals = hold.Minerals?.Select((m, i) => Math.Max(0, m - Minerals[i])).ToArray(),

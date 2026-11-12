@@ -470,7 +470,9 @@ public sealed class StarbaseVisit
         _ship?.Changes.GetValueOrDefault(player) is { } changes
             // A lander out, saved as back aboard, stays the ship's, as Undo leaves it (TalkChanges.TakeBackFrom).
             ? changes.Without(hold, fuel, player.Ship.Hold.CrewCapacity,
-                player.Ship.Hold.LanderOut is not null && player.Ship.Lander is not { Crew: <= 0 } ? 1 : 0)
+                player.Ship.Hold.LanderOut is not null && player.Ship.Lander is not { Crew: <= 0 } ? 1 : 0,
+                // The lander's crew in the saved hold (as back aboard), not those the talks' crew comes from.
+                player.Ship.Hold.LanderOut is not null && player.Ship.Battle is null ? Math.Max(0, hold.Crew - player.Ship.Hold.Crew) : 0)
             : (hold, fuel);
 
     /// <summary>

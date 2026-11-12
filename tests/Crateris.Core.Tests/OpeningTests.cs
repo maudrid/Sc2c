@@ -1287,6 +1287,40 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void ASaveDuringTheOpeningKeepsALanderThatIsOutAsUndoWould()
+    {
+        // The guest starts the story and leaves; the host answers, and the talks give its ship a lander and 4 crew
+        // (as the commander's NewLander would); the host has only those 4 aboard, and sends the lander out with them.
+        var world = WithTalks(guest: true);
+        var guest = world.Find("guest")!;
+        world.PutInOrbit("guest", Sol, Earth, Luna);
+        guest.Ship.Ip!.ReturnFromOrbit();
+        var story = world.Story!;
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(guest);
+        var visit = world.Visit!;
+        Run(world, StarbaseVisit.TimePassingFrames);
+        world.Leave("guest");
+        var hold = world.Host.Ship.Hold;
+        hold.SetLanders(0);
+        hold.SetCrew(0);
+        var ship = visit.Talk!.Ship;
+        ship.Landers++;
+        ship.Crew += 4;
+        hold.LanderLeaves();
+        Assert.Equal((0, 1), (hold.Crew, hold.Landers));
+        // Saved without the talks: the lander that is out stays (as Undo leaves it, till it's back), and its crew
+        // with it (Undo takes the talks' 4 from none aboard: none; the lander brings its 4 back).
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Host.Ship.Hold;
+        Assert.Equal((4, 1), (saved.Crew, saved.Landers));
+        // Back aboard, the talks' lander and crew are taken off.
+        hold.LanderReturns(4, new int[ShipHold.Categories], 0);
+        saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Host.Ship.Hold;
+        Assert.Equal((0, 0), (saved.Crew, saved.Landers));
+    }
+
+    [ContentFact]
     public void TheAnswerersMineralSaleIsItsOwn()
     {
         var world = WithTalks(guest: true);
