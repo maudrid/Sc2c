@@ -18,9 +18,15 @@ namespace Crateris.Core.Data;
 /// saves from before stage 2b load with them. CrewCapacity is the crew it
 /// can hold (GetCrewPodCapacity: 50 a crew pod; an escort's kit holds 10,
 /// stage 3, decision 10); 50, a new flagship's one pod, if not given.
+/// Guns is an escort's kit's guns (GUN_WEAPON, stage 4, decision 3), in
+/// the weapon slots in the order UQM's flagship fires from them (module
+/// slots 15, 14, 13, then 0; at most 4); none if not given, as in saves
+/// from before stage 4a item 8. A flagship's one gun is UQM's own
+/// (InitGameStructures' in slot 15), not its loadout's: a flagship's
+/// loadout has none.
 /// </summary>
 public sealed record ShipLoadout(int Thrusters, int Jets, int FuelTanks, int HighEfficiencyTanks, int Crew, uint Fuel,
-    int Landers = 1, int StorageBays = 1, int CrewCapacity = ShipLoadout.CrewPodCapacity)
+    int Landers = 1, int StorageBays = 1, int CrewCapacity = ShipLoadout.CrewPodCapacity, int Guns = 0)
 {
     /// <summary>CREW_POD_CAPACITY (sis.h).</summary>
     public const int CrewPodCapacity = 50;

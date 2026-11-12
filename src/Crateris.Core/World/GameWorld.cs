@@ -183,7 +183,16 @@ public sealed partial class GameWorld
     {
         if ((systems is null) != (shapes is null))
             throw new ArgumentException("systems and the sprites' shapes go together");
-        ShipHold.Check(settings.EscortLoadout);   // a guest's escort is made from it
+        // A guest's escort is made from it: its hold, and its slots with room for everything.
+        ShipHold.Check(settings.EscortLoadout);
+        try
+        {
+            _ = ShipModules.FromLoadout(ShipKind.Escort, settings.EscortLoadout);
+        }
+        catch (ArgumentException e) when (e is not ArgumentOutOfRangeException)
+        {
+            throw new ArgumentOutOfRangeException(nameof(settings), e.Message);
+        }
         settings.CheckBattle();
         Settings = settings;
         Clock = clock;

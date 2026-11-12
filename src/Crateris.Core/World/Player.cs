@@ -145,6 +145,9 @@ public sealed class PlayerShip
     {
         Kind = kind;
         Loadout = loadout;
+        // A flagship's gun is UQM's own, in its slots, not its loadout's.
+        if (kind == ShipKind.Flagship && loadout.Guns != 0)
+            throw new ArgumentException($"a flagship's gun is UQM's own, not {loadout.Guns} of its loadout's");
         Modules = modules ?? ShipModules.FromLoadout(kind, loadout);
         // A flagship holds crew in its crew pods only, as UQM's does (its
         // battle description counts nothing else, SisLoadout.From).

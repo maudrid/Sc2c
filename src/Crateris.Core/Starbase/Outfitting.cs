@@ -79,8 +79,14 @@ public sealed record DismissCrew : OutfitAction;
 /// MENU_SOUND_FAILURE.
 /// <para>
 /// Escorts (decision 10) buy fuel, crew and landers within their kit, and
-/// storage bays: the rest of their modules are their kit's, until the
-/// escort module set is decided. The crew bought counts for the whole
+/// storage bays; and (stage 4, decision 3) the combat modules: guns,
+/// blasters and cannons (in the weapon slots, as the flagship's), tracking,
+/// point defence, dynamos and furnaces, at the flagship's prices, and sell
+/// them back as the flagship does (<see cref="EscortMayHold"/>). The rest
+/// of their modules are their kit's (its thrusters, jets, fuel tank and
+/// crew); the flagship keeps its unique ones: crew pods, fuel tanks and
+/// high-efficiency fuel systems, thrusters and jets, and the bomb's parts
+/// (which outfitting never sells). The crew bought counts for the whole
 /// group (decision 5): it raises the crew price for everyone.
 /// </para>
 /// </summary>
@@ -174,18 +180,29 @@ public sealed class Outfitting
     }
 
     /// <summary>
+    /// What an escort may buy and sell (stage 3, decision 10; stage 4,
+    /// decision 3): landers, storage bays, and the combat modules (dynamos,
+    /// furnaces, guns, blasters, cannons, tracking, point defence). Not the
+    /// flagship's unique ones: crew pods, fuel tanks, high-efficiency fuel
+    /// systems, thrusters and jets (an escort's are its kit's), nor the
+    /// bomb's parts.
+    /// </summary>
+    public static bool EscortMayHold(byte piece) => piece is ShipModules.PlanetLander or ShipModules.StorageBay
+        or (>= ShipModules.DynamoUnit and <= ShipModules.AntimissileDefense);
+
+    /// <summary>
     /// Whether a module may go in a slot, as DoInstallModule's choices
     /// allow: a lander, a thruster or jets in their own rows; a module
     /// (CREW_POD to ANTIMISSILE_DEFENSE) in a module slot, weapons only in
     /// the front and back slots (0 and 13 to 15); one that's for sale; not
     /// in the bomb's slots, and no landers, once the bomb is in. An
-    /// escort's only landers and storage bays (decision 10).
+    /// escort's only those it may hold (<see cref="EscortMayHold"/>).
     /// </summary>
     public bool CanHold(SlotKind kind, int slot, byte piece)
     {
         if (slot < 0 || slot >= Slots(kind) || piece >= ShipModules.EmptySlot || Cost(piece) == 0)
             return false;
-        if (Ship.Kind == ShipKind.Escort && piece != ShipModules.PlanetLander && piece != ShipModules.StorageBay)
+        if (Ship.Kind == ShipKind.Escort && !EscortMayHold(piece))
             return false;
         return kind switch
         {
@@ -193,7 +210,7 @@ public sealed class Outfitting
             SlotKind.Drive => piece == ShipModules.FusionThruster,
             SlotKind.Jet => piece == ShipModules.TurningJets,
             _ => piece >= ShipModules.CrewPod && piece < ShipModules.PurchaseModules
-                && !(piece >= ShipModules.GunWeapon && piece <= ShipModules.CannonWeapon && slot > 0 && slot < 13)
+                && !(ShipModules.IsWeapon(piece) && slot > 0 && slot < 13)
                 && !(BombInstalled && slot < ShipModules.BombModules),
         };
     }
@@ -228,7 +245,7 @@ public sealed class Outfitting
     /// Whether a slot's module may be sold: one is there; not a bomb's slot;
     /// a crew pod not needed for the crew, a fuel tank not for the fuel
     /// (beyond the reserve) and a storage bay not for the minerals. An
-    /// escort sells only landers and storage bays.
+    /// escort sells only those it may hold (<see cref="EscortMayHold"/>).
     /// </summary>
     public bool CanRemove(SlotKind kind, int slot)
     {
@@ -237,7 +254,7 @@ public sealed class Outfitting
         byte old = Piece(kind, slot);
         if (old >= ShipModules.EmptySlot)
             return false;
-        if (Ship.Kind == ShipKind.Escort && old != ShipModules.PlanetLander && old != ShipModules.StorageBay)
+        if (Ship.Kind == ShipKind.Escort && !EscortMayHold(old))
             return false;
         if (kind == SlotKind.Lander && BombInstalled)
             return false;

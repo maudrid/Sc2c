@@ -25,8 +25,10 @@ namespace Crateris.Core.Tests;
 /// 1 (decision 8); wrecks are saved, among them a ship destroyed in a
 /// battle still running (save version 10, decision 14); the flagship's
 /// death ends the game for everyone (decision 12). Most run in a world of
-/// hyperspace only, on sheets of our own; those in Earth's system need the
-/// content.
+/// hyperspace only, on sheets of our own; those that need the content are
+/// those in Earth's system, those through a player's screens
+/// (<c>PlayerSession</c>, which takes the content's shapes) or the host's
+/// session, and those with a story talk.
 /// </summary>
 [Trait("Topic", "combat")]
 public class WreckTests
@@ -385,7 +387,7 @@ public class WreckTests
         var world = NewWorld(2);
         Wrecked(world);
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
-        Assert.Equal(10, (int)node["version"]!);
+        Assert.Equal(11, (int)node["version"]!);
         JsonNode G1(JsonNode n) => n["players"]!.AsArray().Single(p => (string)p!["id"]! == "g1")!;
         Assert.True((bool)G1(node)["wrecked"]!);
 
@@ -405,6 +407,33 @@ public class WreckTests
         host["wrecked"] = true;
         host["hold"]!["crew"] = 0;
         Assert.Contains("flagship", Assert.Throws<InvalidDataException>(() => HostSave.FromJson(flagship.ToJsonString())).Message);
+    }
+
+    [Fact]
+    public void AWreckSavedWithoutAGunIsGivenTheKitsAndRevivedFliesWithIt()
+    {
+        // Stage 4a item 8: a version 10 wreck (its escort's slots without a gun) loads a wreck with the kit's gun in the nose.
+        var world = NewWorld(3);
+        Wrecked(world);
+        var node = OutfittingTests.Older(HostSave.ToJson(world), 10);
+        var loaded = HostSave.FromJson(node.ToJsonString());
+        loaded.BattleKit = Kit();
+        var g1 = loaded.Find("g1")!.Ship;
+        Assert.True(g1.Destroyed);
+        Assert.Equal(ShipModules.GunWeapon, g1.Modules.ModuleSlots[15]);
+        Assert.Equal(1, g1.Modules.Count(ShipModules.GunWeapon));
+        // Revived, it fights with it: its battle description fires ahead, and its shots fly.
+        Assert.Equal(JoinResult.Rejoined, loaded.Join("g1", "Guest 1"));
+        Assert.Equal(JoinResult.Rejoined, loaded.Join("g2", "Guest 2"));
+        Assert.Equal(RescueRefusal.None, loaded.Revive("g2", "g1", 3));
+        var wb = loaded.StartBattle("g1", Ilwrath);
+        Run(loaded, 60);
+        var starship = Fighter(wb, "g1").Starship;
+        Assert.True((starship.RaceDesc!.ShipFlags & ShipFlags.FiresFore) != 0);
+        Assert.Equal(1 + 2, starship.RaceDesc.Characteristics.WeaponEnergyCost);
+        wb.Enemy.WeaponCounter = wb.Enemy.SpecialCounter = 2;
+        Run(loaded, 1, id => id == "g1" ? ShipInput.Fire : ShipInput.None);
+        Assert.Contains(wb.Battle.List.Elements, e => e.Parent == starship && (e.StateFlags & ElementFlags.FiniteLife) != 0);
     }
 
     [Fact]

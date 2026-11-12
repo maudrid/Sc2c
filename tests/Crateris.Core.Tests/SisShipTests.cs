@@ -41,11 +41,11 @@ public class SisShipTests
     private static byte[] Jets(int count) => Enumerable.Range(0, ShipModules.JetSlotCount)
         .Select(i => i < count ? ShipModules.TurningJets : ShipModules.EmptyJet).ToArray();
 
-    // The escort's kit as a new guest gets it, with a gun in the nose (item 8 gives it one).
+    // The escort's kit as a new guest gets it, with its gun in the nose (stage 4a item 8).
     private static ShipModules EscortWithGun()
     {
         var modules = ShipModules.FromLoadout(ShipKind.Escort, new GameSettings().EscortLoadout);
-        modules.SetModule(15, ShipModules.GunWeapon);
+        Assert.Equal(ShipModules.GunWeapon, modules.ModuleSlots[15]);
         return modules;
     }
 

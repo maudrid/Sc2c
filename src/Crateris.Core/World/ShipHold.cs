@@ -109,9 +109,15 @@ public sealed class ShipHold
     /// <summary>The ship's slots changed: the snapshot is made again.</summary>
     internal void Refitted() => _snapshot = null;
 
-    /// <summary>A loadout a hold can start from: 0 to 10 landers, no negative crew or storage bays (ArgumentException).</summary>
+    /// <summary>
+    /// A loadout a hold can start from: 0 to 10 landers, no negative crew or
+    /// storage bays, and guns that fit the weapon slots, 0 to 4
+    /// (ArgumentException).
+    /// </summary>
     public static void Check(ShipLoadout loadout)
     {
+        if (loadout.Guns < 0 || loadout.Guns > ShipModules.WeaponSlots.Count)
+            throw new ArgumentOutOfRangeException(nameof(loadout), $"{loadout.Guns} guns (0 to {ShipModules.WeaponSlots.Count})");
         if (loadout.Landers < 0 || loadout.Landers > MaxLanders)
             throw new ArgumentOutOfRangeException(nameof(loadout), $"{loadout.Landers} landers (0 to {MaxLanders})");
         if (loadout.StorageBays < 0)

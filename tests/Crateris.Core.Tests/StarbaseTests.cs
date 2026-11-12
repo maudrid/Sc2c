@@ -254,7 +254,7 @@ public class StarbaseTests
     }
 
     [ContentFact]
-    public void AnEscortBuysOnlyFuelCrewLandersAndStorageBays()
+    public void AnEscortBuysOnlyFuelCrewLandersStorageBaysAndCombatModules()
     {
         var world = Allied(guest: true);
         var guest = Docked(world, "guest");
@@ -267,6 +267,12 @@ public class StarbaseTests
         Assert.True(world.Outfit("guest", new Install(SlotKind.Lander, 1, ShipModules.PlanetLander)));
         Assert.False(world.Outfit("guest", new Remove(SlotKind.Module, guest.Ship.Modules.ModuleSlots.ToList().IndexOf(ShipModules.FuelTank))));
         Assert.True(world.Outfit("guest", new Remove(SlotKind.Module, slot)));
+        // The combat modules for sale (stage 4a item 8): a gun in a weapon slot, a dynamo anywhere; sent with the ship.
+        Assert.False(world.Outfit("guest", new Install(SlotKind.Module, 5, ShipModules.GunWeapon)));
+        Assert.True(world.Outfit("guest", new Install(SlotKind.Module, 14, ShipModules.GunWeapon)));
+        Assert.True(world.Outfit("guest", new Install(SlotKind.Module, 5, ShipModules.DynamoUnit)));
+        Assert.Equal(100000u - 750 - 500 + 750 - 2000 - 2000, guest.Ship.Hold.ResourceUnits);
+        Assert.Equal(guest.Ship.Modules.Save(), world.Snapshot().Ships.Single(s => s.Id == "guest").Modules);
         // A flagship may buy them all.
         Docked(world);
         world.Host.Ship.Hold.ResourceUnits = 100000;
@@ -359,7 +365,7 @@ public class StarbaseTests
         Assert.Equal(new[] { 22, 5, 3, 22, 22, 22, 22, 22, 4, 22, 22, 22, 22, 22, 22, 9 }, m.ModuleSlots.Select(x => (int)x));
         Assert.Equal((50, 500, 6000u), (m.CrewCapacity, m.StorageCapacity, m.FuelCapacity));
         var escort = ShipModules.FromLoadout(ShipKind.Escort, new GameSettings().EscortLoadout);
-        Assert.Equal((10, 0), (escort.CrewCapacity, escort.Count(ShipModules.GunWeapon)));
+        Assert.Equal((10, 1, ShipModules.GunWeapon), (escort.CrewCapacity, escort.Count(ShipModules.GunWeapon), escort.ModuleSlots[15]));
         Assert.Throws<InvalidDataException>(() => ShipModules.Restore(m.Save() with { Modules = new byte[3] }));
         Assert.Throws<InvalidDataException>(() => ShipModules.Restore(m.Save() with { Drives = Enumerable.Repeat((byte)2, 11).ToArray() }));
     }

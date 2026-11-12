@@ -88,14 +88,21 @@ public sealed class ShipModules
     /// in InitGameStructures' places (data/new-game.json: thrusters in
     /// drive slots 5 and 6, jets in 0 and 6, a fuel tank in module slot 1,
     /// a crew pod in 2, a storage bay in 8 and the gun in 15); more of a
-    /// kind go in the empty slots after. An escort's kit has no gun, and
-    /// holds its crew itself.
+    /// kind go in the empty slots after. An escort's kit holds its crew
+    /// itself, and has its own guns (<see cref="ShipLoadout.Guns"/>, stage
+    /// 4, decision 3), put first, in the weapon slots in the order UQM
+    /// fires from them (<see cref="WeaponSlots"/>: the first in the nose);
+    /// a flagship's loadout has none (its gun is UQM's own, in 15).
     /// </summary>
     public static ShipModules FromLoadout(ShipKind kind, ShipLoadout loadout)
     {
         var drives = Enumerable.Repeat(EmptyDrive, DriveSlotCount).ToArray();
         var jets = Enumerable.Repeat(EmptyJet, JetSlotCount).ToArray();
         var modules = Enumerable.Repeat(EmptyModule, ModuleSlotCount).ToArray();
+        if (kind == ShipKind.Flagship && loadout.Guns != 0)
+            throw new ArgumentException($"a flagship's gun is UQM's own, not {loadout.Guns} of its loadout's");
+        if (loadout.Guns < 0 || PutGuns(modules, loadout.Guns) != loadout.Guns)
+            throw new ArgumentException($"no room for {loadout.Guns} guns in the {WeaponSlots.Count} weapon slots");
 
         static void Put(byte[] slots, byte empty, byte piece, int count, int first)
         {
@@ -128,6 +135,53 @@ public sealed class ShipModules
         Put(modules, EmptyModule, CrewPod, pods, 2);
         Put(modules, EmptyModule, StorageBay, loadout.StorageBays, 8);
         return new ShipModules(drives, jets, modules, kitCrew);
+    }
+
+    /// <summary>
+    /// The module slots UQM's flagship fires weapons from, in the order
+    /// InitWeaponSlots reads them (sis_ship.c): 15 the nose, 14 a spread
+    /// pair, 13 a pair to both sides, 0 the tail. Outfitting puts guns,
+    /// blasters and cannons only there (DoInstallModule).
+    /// </summary>
+    public static readonly IReadOnlyList<int> WeaponSlots = new[] { ModuleSlotCount - 1, ModuleSlotCount - 2, ModuleSlotCount - 3, 0 };
+
+    /// <summary>A gun, blaster or cannon (GUN_WEAPON to CANNON_WEAPON).</summary>
+    public static bool IsWeapon(byte piece) => piece is >= GunWeapon and <= CannonWeapon;
+
+    /// <summary>Whether a weapon is in a slot it fires from (<see cref="WeaponSlots"/>): what the ship fires in battle.</summary>
+    public bool HasWeapon => WeaponSlots.Any(s => IsWeapon(_modules[s]));
+
+    // Guns in the free weapon slots in firing order, as many as fit of count: how many went in.
+    private static int PutGuns(byte[] modules, int count)
+    {
+        int put = 0;
+        foreach (int slot in WeaponSlots)
+            if (put < count && modules[slot] == EmptyModule)
+            {
+                modules[slot] = GunWeapon;
+                ++put;
+            }
+        return put;
+    }
+
+    /// <summary>
+    /// Gives an escort saved before it had guns its kit's (stage 4a item 8):
+    /// unless it has a weapon (<see cref="HasWeapon"/>), up to
+    /// <paramref name="count"/> guns in its free weapon slots, in the order
+    /// UQM fires from them (15, 14, 13, then 0); none where every weapon
+    /// slot is full. How many it was given.
+    /// </summary>
+    internal int GiveKitGuns(int count)
+    {
+        if (HasWeapon || count <= 0)
+            return 0;
+        int given = PutGuns(_modules, count);
+        if (given > 0)
+        {
+            ++Version;
+            _saved = null;
+        }
+        return given;
     }
 
     public IReadOnlyList<byte> DriveSlots => _drives;

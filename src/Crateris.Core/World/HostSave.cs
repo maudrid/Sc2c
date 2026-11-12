@@ -62,9 +62,20 @@ public static class HostSave
     /// (a version 9 ship destroyed loads flying with no crew, as it was
     /// saved), and an older save with one is refused, as is a wreck that's
     /// the flagship, has crew or is in orbit. No save is made once the
-    /// flagship is lost (GameWorld.FlagshipLost, decision 12).
+    /// flagship is lost (GameWorld.FlagshipLost, decision 12). 11 gave
+    /// escorts guns (stage 4a item 8: the escort's kit's,
+    /// ShipLoadout.Guns, and the combat modules outfitting sells them): an
+    /// escort from an older save, a wreck too, is given the kit's guns on
+    /// load (the settings' kit's; an older save's kit takes the default's),
+    /// in its free weapon slots in the order UQM fires from them (15, 14,
+    /// 13, then 0), none where every weapon slot is full, unless it already
+    /// has a weapon there (ShipModules.GiveKitGuns); its loadout stays the
+    /// one it was made from, without guns. Guns in an older save's
+    /// loadouts, which it can't have had, are taken as none. Keyed on the
+    /// version, not on an escort having no weapon: one that sold its guns
+    /// keeps none.
     /// </summary>
-    public const int Version = 10;
+    public const int Version = 11;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -209,6 +220,9 @@ public static class HostSave
             settings = settings with { EscortLoadout = new GameSettings().EscortLoadout };
         if (save.Version < 8 && settings.EscortLoadout is { } kit)
             settings = settings with { EscortLoadout = kit with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity } };
+        // Before version 11 the kit had no guns: it has the default's.
+        if (save.Version < 11)
+            settings = settings with { EscortLoadout = settings.EscortLoadout with { Guns = new GameSettings().EscortLoadout.Guns } };
 
         var clock = new GameClock(save.Clock.Year, save.Clock.Month, save.Clock.Day)
         {
@@ -241,7 +255,13 @@ public static class HostSave
                 var loadout = save.Version < 8 && ps.Kind == ShipKind.Escort
                     ? ps.Loadout with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity }
                     : ps.Loadout;
-                ship = new PlayerShip(ps.Kind, loadout, ps.Modules is { } m ? ShipModules.Restore(m) : null);
+                // Before version 11 no loadout had guns; an escort is given the kit's.
+                if (save.Version < 11)
+                    loadout = loadout with { Guns = 0 };
+                var modules = ps.Modules is { } m ? ShipModules.Restore(m) : ShipModules.FromLoadout(ps.Kind, loadout);
+                if (save.Version < 11 && ps.Kind == ShipKind.Escort)
+                    modules.GiveKitGuns(settings.EscortLoadout.Guns);
+                ship = new PlayerShip(ps.Kind, loadout, modules);
                 if (ps.Hold is { } h)
                     ship.Hold.Restore(h);
             }
