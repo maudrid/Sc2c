@@ -2,18 +2,18 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-12, after item 9's independent review's four open items were fixed (review round in progress).
+**Last updated:** 2026-11-12, after item 9's independent review's four open items were fixed and reviewed (three rounds, the last finding nothing).
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4.md`, stage 4a (combat), approved by the owner with all fifteen decisions accepted.
 - **Stage 4a items 1 to 9 are built.** Each has a Built row in the plan's Progress section and notes under the later items for what they must honour. Items 10 to 13 are left: 10 the host's pause, 11 the wire, 12 client views, 13 docs.
-- **Last checks** (on item 9's last commit): all topics 1,396 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~976, `game/scripts/ReportView.cs` 78); data checks OK; `tools/test_network.py` passed.
+- **Last checks:** on the open items' fixes (e5d97f6), all topics 1,399 passed, 0 failed, 0 skipped with the content set. The game build, data checks and `tools/test_network.py` were last run on item 9's last commit (only the two long-standing build warnings, `game/scripts/Main.cs` ~976 and `game/scripts/ReportView.cs` 78; the rest OK); the fixes touch only Core and docs.
 
 ## Open items
 
-Item 9's independent review left four items; the owner confirmed decision 13 as reworded (a starter disconnecting from the Ilwrath fight keeps the crew it left with), and the other three are fixed: an away starter has no share of the starbase's gift (`StarbaseVisit.ShareTheGift`, tests `AStarterAwayFromTheFightHasNoShareOfTheGift`, `AWreckedStarterKeepsItsShareOfTheGift`), gifts to or from the starter mid-fight are refused as `InBattle` (`GameWorld.Give`), a mineral sale in the gift's talk is no longer split with the gift, and `StarbaseVisit`'s stale comments are updated. Their review loop (`CLAUDE.md`) is under way.
+Item 9's independent review left four items; the owner confirmed decision 13 as reworded (a starter disconnecting from the Ilwrath fight keeps the crew it left with), and the other three are fixed: an away starter has no share of the starbase's gift (`StarbaseVisit.ShareTheGift`, tests `AStarterAwayFromTheFightHasNoShareOfTheGift`, `AWreckedStarterKeepsItsShareOfTheGift`), gifts to or from the starter mid-fight are refused as `InBattle` (`GameWorld.Give`), a mineral sale in the gift's talk is no longer split with the gift, and `StarbaseVisit`'s stale comments are updated. Three review rounds: the first found the gift split also shared a mineral sale in the same talk (fixed: only the gift is split); the second found doc gaps and a missing test (fixed); the third found nothing.
 
 **For the owner (not changed):** with the starter away from the Ilwrath fight, the replier in the "starbase is ready" talk is offered the starter's `have_minerals` and may sell the away starter's minerals (the units at UQM's worth go to the starter's hold). This follows stage 3's decision 7 (the talk stays the starter's ship's); the alternative is to offer the sale only to the starter itself.
 
@@ -21,7 +21,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Finish the fixes' review loop and report. Then item 10, the host's pause, only when the owner says to start it.
+Item 10, the host's pause, only when the owner says to start it.
 
 ## Working agreements
 
