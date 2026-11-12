@@ -93,7 +93,9 @@ internal sealed class AnswererTalkShip : ITalkShip
         {
             var p = Answerer;
             int before = p.Ship.Hold.Landers;
-            p.Ship.Hold.SetLanders(value);
+            // UQM offers a lander only to a ship short of them; a reply
+            // offered before the answerer changed may find this ship full.
+            p.Ship.Hold.SetLanders(Math.Clamp(value, 0, ShipHold.MaxLanders));
             Of(p).Landers += p.Ship.Hold.Landers - before;
         }
     }
@@ -182,27 +184,33 @@ internal sealed class TalkChanges
     public long Fuel, ResourceUnits;
     public int[] Minerals = new int[ShipHold.Categories];
 
-    /// <summary>Takes these changes back from a ship (a wreck keeping no crew).</summary>
+    /// <summary>
+    /// Takes these changes back from a ship, each that changed only (a
+    /// wreck keeping no crew): from what's aboard, a lander that is out
+    /// keeping its own crew and cargo.
+    /// </summary>
     public void TakeBackFrom(PlayerShip ship)
     {
         var hold = ship.Hold;
-        var (without, fuel) = Without(hold.Save(), ship.Flight.Fuel, hold.CrewCapacity);
-        hold.SetCrew(ship.Destroyed ? 0 : without.Crew);
-        hold.SetLanders(without.Landers);
-        hold.ResourceUnits = without.ResourceUnits;
+        if (Crew != 0 || ship.Destroyed)
+            hold.SetCrew(ship.Destroyed ? 0 : Math.Clamp(hold.Crew - Crew, 0, Math.Max(hold.CrewCapacity, hold.Crew)));
+        if (Landers != 0)
+            hold.SetLanders(Math.Clamp(hold.Landers - Landers, 0, ShipHold.MaxLanders));
+        if (ResourceUnits != 0)
+            hold.ResourceUnits = (uint)Math.Clamp(hold.ResourceUnits - ResourceUnits, 0, uint.MaxValue);
         // Minerals sold come back aboard (MoveCargo adds; SetMineral only lowers).
         var back = new int[Minerals.Length];
         for (int i = 0; i < Minerals.Length; ++i)
         {
-            int now = hold.Minerals[i], then = without.Minerals![i];
-            if (then < now)
-                hold.SetMineral(i, then);
+            if (Minerals[i] > 0)
+                hold.SetMineral(i, Math.Max(0, hold.Minerals[i] - Minerals[i]));
             else
-                back[i] = then - now;
+                back[i] = -Minerals[i];
         }
         if (back.Any(m => m > 0))
             hold.MoveCargo(back, 0, +1);
-        ship.Flight.Fuel = fuel;
+        if (Fuel != 0)
+            ship.Flight.Fuel = (uint)Math.Clamp(ship.Flight.Fuel - Fuel, 0, uint.MaxValue);
     }
 
     /// <summary>A hold and fuel without these changes (each no lower than 0, the crew and landers no more than the ship holds).</summary>

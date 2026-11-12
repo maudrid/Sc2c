@@ -35,7 +35,7 @@ The group plays UQM's opening together:
    - an Ilwrath ship answers the Ur-Quan probe's call and attacks;
    - the commander, impressed, makes the alliance, and the starter names it;
    - two weeks pass for everyone;
-   - the starbase opens, with 2,500 resource units for the group.
+   - the starbase opens, with 2,500 resource units for whoever answers (changed by the owner on 2026-11-12: not split).
 
 From then on each player can dock at the starbase on their own. There they can talk to the commander, one player at a time, sell their minerals for resource units, and buy fuel, crew, landers and modules for their own ship. Players can also give each other resource units, and cargo within one system.
 

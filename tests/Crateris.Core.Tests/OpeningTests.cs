@@ -1146,6 +1146,8 @@ public class OpeningTests
         var minerals = new int[ShipHold.Categories];
         minerals[0] = 10;
         world.Host.Ship.Hold.MoveCargo(minerals, 0, +1);
+        world.Host.Ship.Hold.LanderLeaves();   // its lander out, its crew with it
+        int hostAboard = world.Host.Ship.Hold.Crew;
         var hostHold = world.Host.Ship.Hold.Save();
         uint hostFuel = world.Host.Ship.Flight.Fuel;
         var story = world.Story!;
@@ -1174,8 +1176,94 @@ public class OpeningTests
         world.Leave("host");
         Assert.True(visit.Undone);
         Assert.Equivalent(hostHold, world.Host.Ship.Hold.Save(), strict: true);
-        Assert.Equal(hostFuel, world.Host.Ship.Flight.Fuel);
+        Assert.Equal((hostFuel, hostAboard), (world.Host.Ship.Flight.Fuel, world.Host.Ship.Hold.Crew));   // the lander's crew not counted aboard
         Assert.Equal(0u, guest.Ship.Hold.ResourceUnits);
+    }
+
+    [ContentFact]
+    public void AStarterBackDocksAndAnswersItsOwnMenuTalks()
+    {
+        var world = WithTalks(guest: true);
+        var guest = world.Find("guest")!;
+        world.PutInOrbit("guest", Sol, Earth, Luna);
+        guest.Ship.Ip!.ReturnFromOrbit();
+        Assert.True(world.Rename("guest", null, "Quinlan"));
+        var story = world.Story!;
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(guest);
+        var visit = world.Visit!;
+        Run(world, StarbaseVisit.TimePassingFrames);
+        // The guest leaves and comes back while the host answers: the host ends the talk, and the guest docks.
+        world.Leave("guest");
+        Assert.Equal(JoinResult.Rejoined, world.Join("guest", "Guest"));
+        Assert.Same(world.Host, visit.Replier);
+        Say(world, "starbas", "goodbye_commander");
+        Assert.Equal(VisitStep.Menu, guest.Ship.Visit!.Step);
+        Assert.Same(guest, visit.Replier);
+        Assert.Equal(2500u, guest.Ship.Hold.ResourceUnits);   // given as it answered, not split
+        // Its own talk with the commander: its names, its ship.
+        Assert.Equal(GameWorld.CommanderTalk.Started, world.TalkToCommander("guest", out _));
+        var own = guest.Ship.Visit!;
+        Assert.Equal((VisitStep.MenuTalk, "guest", "Quinlan"), (own.Step, TalkView.Of(own)!.Replier, own.Talk!.Ship.CaptainName));
+    }
+
+    [ContentFact]
+    public void ASettledStartersLaterTalksAreTakenBackWithTheVisit()
+    {
+        // The starter g1 leaves the fight (settled) and comes back; the host wins it and answers, then leaves as
+        // two weeks pass: g1 answers the starbase's readiness, then leaves too, and the visit is taken back.
+        var world = Reported(2);
+        var g1 = world.Find("g1")!;
+        g1.Ship.Flight.Fuel = 1200;
+        var wb = ToTheFight(world, "g1");
+        var visit = world.Visit!;
+        FlyIn(world, wb, "host");
+        world.Leave("g1");
+        Assert.True(visit.StarterSettled);
+        Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
+        var settled = g1.Ship.Hold.Save();
+        KillTheIlwrath(world, wb);
+        Say(world, "comandr", "cook_their_butts");
+        Say(world, "comandr", "name_2");
+        world.Leave("host");
+        Assert.Same(g1, visit.Replier);
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal((VisitStep.StarbaseReady, settled.ResourceUnits + 2500), (visit.Step, g1.Ship.Hold.ResourceUnits));
+        world.Leave("g1");
+        Assert.True(visit.Undone);
+        Assert.Equivalent(settled, g1.Ship.Hold.Save(), strict: true);
+    }
+
+    [ContentFact]
+    public void RepliesOfferedForTheLastAnswerersShipDoNothingOddOnTheNext()
+    {
+        // The guest, carrying minerals, is offered the sale, then leaves: the host, with none, chooses it.
+        var world = WithTalks(guest: true);
+        var guest = world.Find("guest")!;
+        world.PutInOrbit("guest", Sol, Earth, Luna);
+        guest.Ship.Ip!.ReturnFromOrbit();
+        var minerals = new int[ShipHold.Categories];
+        minerals[0] = 10;
+        guest.Ship.Hold.MoveCargo(minerals, 0, +1);
+        var story = world.Story!;
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(guest);
+        var visit = world.Visit!;
+        Run(world, StarbaseVisit.TimePassingFrames);
+        world.Leave("guest");
+        Say(world, "starbas", "have_minerals");
+        // Nothing sold, no load counted, no sale shown; the guest's minerals untouched.
+        Assert.Equal((0u, 0, 10), (world.Host.Ship.Hold.ResourceUnits, story.Get("LIGHT_MINERAL_LOAD"), guest.Ship.Hold.Minerals[0]));
+        Assert.Null(TalkView.Of(visit)!.Sale);
+        Assert.Empty(visit.Talk!.Sales);
+
+        // A lander given to a ship already full (offered for one short of them) leaves it full.
+        world.Host.Ship.Hold.SetLanders(ShipHold.MaxLanders);
+        var ship = new AnswererTalkShip(() => world.Host, Library.Value.Strings, world.Host.Ship);
+        ship.Landers++;
+        Assert.Equal(ShipHold.MaxLanders, world.Host.Ship.Hold.Landers);
     }
 
     [ContentFact]

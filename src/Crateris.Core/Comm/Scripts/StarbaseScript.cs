@@ -859,6 +859,15 @@ public sealed class StarbaseScript : CommScript
 
     private void SellMinerals(int r)
     {
+        // Co-op: the sale was offered for a ship with minerals, and the
+        // replies passed to another player whose hold has none (the talk is
+        // the answerer's ship's). UQM never sells an empty hold: nothing is
+        // sold, and no load counted.
+        if (Sis.Minerals.Sum() == 0)
+        {
+            NormalStarbase(r);
+            return;
+        }
         // COUNT: what the load is worth, in 16 bits.
         ushort total = 0;
         var worth = T.Story.ElementWorth;

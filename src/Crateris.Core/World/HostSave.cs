@@ -150,7 +150,11 @@ public static class HostSave
                 : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save();
             uint fuel = starter ? visit!.FuelBefore : joined?.JoinedFuel ?? f.Fuel;
             // Any other ship the visit's talks used (its answerers'): saved
-            // without what the talks changed on it.
+            // without what the talks changed on it. (A ship in a battle is
+            // saved as it joined: this assumes the talks changed it before it
+            // joined, as they do now, the opening's one battle, the Ilwrath's,
+            // ending before anyone but the starter answers. Encounters during
+            // a talk, 3b's, must keep the two apart.)
             if (visit is not null && !starter)
                 (hold, fuel) = visit.WithoutTalks(p, hold, fuel);
             return new PlayerState(p.Id, p.Name, p.IsHost, p.Ship.Kind, p.Ship.Loadout, p.UndockPending,

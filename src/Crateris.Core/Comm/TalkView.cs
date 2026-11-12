@@ -26,8 +26,8 @@ namespace Crateris.Core.Comm;
 /// <see cref="Sale"/> is the replier's minerals, if that reply sold them
 /// (SellMinerals): the replier's client counts the hold down before the
 /// lines play; everyone else's shows nothing of it. A talk sells its
-/// starter's hold, so once a story talk's replies pass to another player
-/// the sale is nobody's to count.
+/// answerer's hold, so once the replies pass to another player the sale
+/// is nobody's to count.
 /// Sent to them by the host when it changes, as a reliable message;
 /// <see cref="Protocol.NoView"/> means no talk.
 /// </summary>

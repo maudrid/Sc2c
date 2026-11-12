@@ -30,6 +30,7 @@ Finish the review loop of the owner's rules, then item 10, the host's pause, whe
 ## Working agreements
 
 - **One item per go-ahead.** "Start item N" (or "push and start item N without me") covers that one item. When it's done, report and wait; don't push further items or start the next one unasked.
+- **The owner's go of 2026-11-12:** finish the review rounds of the owner's rules on talks, then build item 10 (the host's pause) with its review rounds, report, and stop: don't start item 11 unasked.
 - **Push freely.** The owner said (2026-11-12) to push whenever; commit and push as work goes.
 - **Mind the usage budget.** Each item has cost a builder subagent, up to five review rounds and an independent review (mutation testing and probes), often an hour or more of agents. Keep rounds short when they're only finding wording, and say what's running.
 - **Subagents get cut off.** Builders sometimes hand back mid-loop; their reviewer may still be running and leave a mutated file in the tree. Check `git status` and running agents before going on, and have the reviewer finish and restore rather than reverting its files yourself.

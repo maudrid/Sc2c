@@ -370,6 +370,9 @@ public sealed class StarbaseVisit
     private void Dock()
     {
         Step = VisitStep.Menu;
+        // Docked, the starter answers its own menu's talks (its replies may
+        // have passed to another player while it was away, and it came back).
+        Replier = Starter;
         Talk = null;
         Menu ??= new Starbase.StarbaseMenu();
         Menu.Screen = Starbase.StarbaseScreen.Menu;
@@ -485,7 +488,7 @@ public sealed class StarbaseVisit
             return;
         Starter.Ship.Hold.Restore(HoldBefore with { Crew = Starter.Ship.Hold.Crew });
         Starter.Ship.Flight.Fuel = FuelBefore > GameWorld.RetreatFuelCost ? FuelBefore - GameWorld.RetreatFuelCost : 0;
-        _ship?.Forget(Starter);   // put back already, the talks' changes with the rest
+        _ship?.Forget(Starter);   // put back already (but the crew it left with), not to be taken back again
         StarterSettled = true;
     }
 
