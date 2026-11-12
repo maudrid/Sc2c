@@ -182,9 +182,13 @@ public static class HostSave
         // Parts that can't be missing: refused, not a NullReferenceException.
         if ((save.Players ?? new()).Any(p => p is null))
             throw new InvalidDataException("The save has a player that is null.");
-        if ((save.Players ?? new()).FirstOrDefault(p => p.Id is null || p.Name is null || p.Loadout is null
-                || p.Flight is null || p.Flight.Velocity is null) is { } missing)
-            throw new InvalidDataException($"Player {missing.Id ?? "(no id)"}: no id, name, loadout, flight or velocity.");
+        foreach (var p in save.Players ?? new())
+        {
+            string? lacking = p.Id is null ? "id" : p.Name is null ? "name" : p.Loadout is null ? "loadout"
+                : p.Flight is null ? "flight" : p.Flight.Velocity is null ? "velocity" : null;
+            if (lacking is not null)
+                throw new InvalidDataException($"Player {p.Id ?? "(no id)"} has no {lacking}.");
+        }
         if (save.Clock is null)
             throw new InvalidDataException("The save has no clock.");
         if (save.Version < 7 && (save.Players ?? new()).Any(p => p.ShipName is not null || p.CaptainName is not null))

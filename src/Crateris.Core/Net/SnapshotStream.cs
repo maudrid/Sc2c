@@ -18,7 +18,9 @@ namespace Crateris.Core.Net;
 /// holds) gets a full snapshot. A lost message costs nothing: the next
 /// delta is from the same base, so it covers the lost one too. Guests say
 /// which snapshot they have with the input they send every frame. Guests
-/// on the same base get the same message, encoded once.
+/// on the same base get the same message, encoded once. A guest known to
+/// have the latest is sent nothing (<see cref="HasLatest"/>): the latest
+/// stands only once the game is over and the world has stopped.
 /// </summary>
 public sealed class SnapshotSender
 {

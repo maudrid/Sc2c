@@ -66,7 +66,7 @@ public sealed record ShipSnapshot(
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
 
 /// <summary>
-/// The game at a frame: the date, the ships of the players present, the
+/// The game at a frame: the date, the ships of the players present (and every wreck, an away player's too), the
 /// worlds being orbited (with their taken nodes) and the surfaces with
 /// landers on them, and the story state (made again only when it changes);
 /// while the game is paused for a story talk, who replies in it
@@ -1190,7 +1190,8 @@ public sealed partial class GameWorld
     public WorldSnapshot Snapshot()
     {
         var present = _players.Where(p => p.Present).ToList();
-        var ships = present.Select(p =>
+        // The ships in space: the present players', and every wreck, an away player's too (stage 4a item 7).
+        var ships = _players.Where(p => p.Present || p.Ship.Wreck).Select(p =>
         {
             var f = p.Ship.Flight;
             var ip = p.Ship.Ip;

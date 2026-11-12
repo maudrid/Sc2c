@@ -15,7 +15,7 @@ public enum RescueRefusal : byte
 {
     None,
 
-    /// <summary>No such player in the game now (or the rescuer themself).</summary>
+    /// <summary>No such player, a rescuer away, or the rescuer themself (a wreck's player may be away).</summary>
     NoOne,
 
     /// <summary>The ship isn't a wreck: never destroyed, revived already, or still in the battle it was destroyed in.</summary>
@@ -55,15 +55,18 @@ public sealed partial class GameWorld
     private readonly HashSet<(string Rescuer, string Wreck)> _seenOutOfWreck = new();
 
     /// <summary>
-    /// The wrecks in space (decision 7): every present player's ship
-    /// destroyed in a battle that's over, at that battle's place. A wreck
-    /// doesn't fly, land, talk, join battles, give or take gifts or drop
-    /// cargo; it keeps its cargo, fuel and modules, and is saved. An away
-    /// player's wreck waits in the save, as any away ship does.
+    /// The wrecks in space (decision 7): every player's ship destroyed in a
+    /// battle that's over, at that battle's place, whether its player is
+    /// here or away. A wreck doesn't fly, land, talk, join battles, give or
+    /// take gifts or drop cargo; it keeps its cargo, fuel and modules, and
+    /// is saved. Unlike an away player's ship, which vanishes until they
+    /// rejoin, an away player's wreck stays in space (design.md's
+    /// Disconnect row: "a dead player's wreck stays"), shown and revived as
+    /// any wreck; revived, it waits as an away ship until they rejoin.
     /// </summary>
     public IReadOnlyList<Player> Wrecks => _players.Where(IsWreck).ToList();
 
-    private static bool IsWreck(Player p) => p.Present && p.Ship.Wreck;
+    private static bool IsWreck(Player p) => p.Ship.Wreck;
 
     /// <summary>
     /// The wrecks a player could revive now (<see cref="Revive"/>): their
@@ -107,7 +110,9 @@ public sealed partial class GameWorld
     /// <see cref="ShipHold.CrewCapacity"/>) and keeping at least 1 of their
     /// own. The wreck flies on with that crew, from its place, with its
     /// cargo, fuel and modules, and in a system the escape counter, as a
-    /// ship leaving a battle has. Refused with a reason, changing nothing.
+    /// ship leaving a battle has; a wreck whose player is away is revived
+    /// all the same, and waits there, stopped and out of space as an away
+    /// ship does, until they rejoin. Refused with a reason, changing nothing.
     /// </summary>
     public RescueRefusal Revive(string rescuerId, string wreckId, int crew)
     {
@@ -115,7 +120,7 @@ public sealed partial class GameWorld
             return RescueRefusal.GameOver;
         if (StoryPaused)
             return RescueRefusal.Paused;
-        if (rescuerId == wreckId || Find(rescuerId) is not { Present: true } rescuer || Find(wreckId) is not { Present: true } wreck)
+        if (rescuerId == wreckId || Find(rescuerId) is not { Present: true } rescuer || Find(wreckId) is not { } wreck)
             return RescueRefusal.NoOne;
         if (!IsWreck(wreck))
             return RescueRefusal.NotAWreck;

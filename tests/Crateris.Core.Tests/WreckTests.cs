@@ -227,20 +227,54 @@ public class WreckTests
     }
 
     [Fact]
-    public void AWrecksPlayerLeavesAndRejoinsAWreck()
+    public void AnAwayPlayersWreckStaysAndRejoinsAWreck()
     {
+        // design.md's Disconnect row: an away ship vanishes, but a dead player's wreck stays.
         var world = NewWorld(3);
         var wb = Wrecked(world);
         var g1 = world.Find("g1")!.Ship;
         world.Leave("g1");
-        // Away, it waits in the save, out of space: not revived meanwhile.
-        Assert.Empty(world.Wrecks);
-        Assert.Equal(RescueRefusal.NoOne, world.Revive("host", "g1", 1));
+        Assert.Equal(new[] { "g1" }, world.Wrecks.Select(p => p.Id));
+        var shown = world.Snapshot().Ships.Single(s => s.Id == "g1");
+        Assert.Equal((true, wb.Place.X, wb.Place.Y), (shown.Wrecked, shown.LogX, shown.LogY));
+        Assert.Equal(new[] { "g1" }, world.RescuesFor("host").Select(p => p.Id));
         Run(world, 5);
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
         Assert.Equal((true, 0, wb.Place.X, wb.Place.Y), (g1.Destroyed, g1.Hold.Crew, g1.Flight.LogX, g1.Flight.LogY));
         Assert.True(world.Snapshot().Ships.Single(s => s.Id == "g1").Wrecked);
         Assert.Equal(RescueRefusal.None, world.Revive("host", "g1", 5));
+    }
+
+    [Fact]
+    public void AnAwayPlayersWreckIsRevivedAndWaitsForThemToRejoin()
+    {
+        var world = NewWorld(3);
+        var wb = Wrecked(world);
+        var g1 = world.Find("g1")!.Ship;
+        world.Leave("g1");
+        Assert.Equal(RescueRefusal.None, world.Revive("host", "g1", 4));
+        Assert.Equal((46, 4, false), (world.Host.Ship.Hold.Crew, g1.Hold.Crew, g1.Destroyed));
+        Assert.Equal(new[] { new Revival("host", "g1", 4) }, world.TakeRevivals());
+        // Revived, it's an away ship: out of space, stopped where it lay, until its player rejoins.
+        Assert.Empty(world.Wrecks);
+        Assert.DoesNotContain(world.Snapshot().Ships, s => s.Id == "g1");
+        Assert.Equal(RescueRefusal.NotAWreck, world.Revive("g2", "g1", 1));
+        Run(world, 5);
+        Assert.Equal((wb.Place.X, wb.Place.Y), (g1.Flight.LogX, g1.Flight.LogY));
+        // Saved and loaded meanwhile: an away ship with its crew.
+        var loaded = HostSave.FromJson(HostSave.ToJson(world));
+        var ship = loaded.Find("g1")!.Ship;
+        Assert.Equal((false, 4, wb.Place.X, wb.Place.Y), (ship.Destroyed, ship.Hold.Crew, ship.Flight.LogX, ship.Flight.LogY));
+        Assert.Empty(loaded.Wrecks);
+        // Back where it lay, revived, flying on.
+        foreach (var w in new[] { world, loaded })
+        {
+            Assert.Equal(JoinResult.Rejoined, w.Join("g1", "Guest 1"));
+            var back = w.Find("g1")!.Ship;
+            Assert.Equal((false, 4, wb.Place.X, wb.Place.Y), (back.Wreck, back.Hold.Crew, back.Flight.LogX, back.Flight.LogY));
+            Run(w, 10, id => id == "g1" ? ShipInput.Thrust : ShipInput.None);
+            Assert.NotEqual((wb.Place.X, wb.Place.Y), (back.Flight.LogX, back.Flight.LogY));
+        }
     }
 
     [Fact]
@@ -301,7 +335,8 @@ public class WreckTests
         Assert.Equal((true, 0, wb.Place.X, wb.Place.Y), (ship.Destroyed, ship.Hold.Crew, ship.Flight.LogX, ship.Flight.LogY));
         Assert.Equal((3, 40u), (ship.Hold.Minerals[0], ship.Hold.ResourceUnits));
         Assert.False(loaded.Find("g2")!.Ship.Destroyed);
-        // Saved again with its player still away: still a wreck.
+        // In space though its player is away; saved again so: still a wreck.
+        Assert.Equal(new[] { "g1" }, loaded.Wrecks.Select(p => p.Id));
         var again = HostSave.FromJson(HostSave.ToJson(loaded)).Find("g1")!.Ship;
         Assert.Equal((true, 0), (again.Destroyed, again.Hold.Crew));
         Assert.Equal(JoinResult.Rejoined, loaded.Join("g1", "Guest 1"));
@@ -386,10 +421,11 @@ public class WreckTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void AWreckWhosePlayerWasAwayIsOfferedOnlyOnFlyingInAgain(bool another)
+    public void AWrecksPlayerBeingAwayChangesNothingAboutItsOffers(bool another)
     {
-        // The host seen out of g1's reach, then g1 away while the host comes back by it: on g1's return the host,
-        // already there, isn't offered it until it flies out and back (with another wreck there meanwhile, or none).
+        // The host flies out of g1's reach; g1 goes away; the host flies back in: offered g1's wreck, which
+        // stays (the first wreck there, with another or alone). On g1's return the host, already there, isn't
+        // offered it again until it flies out and back.
         var world = NewWorld(3);
         if (another)
             Wrecked(world, "g2");
@@ -398,16 +434,17 @@ public class WreckTests
         var host = world.Host.Ship;
         host.Flight.LogX += 1000;
         Run(world, 1);
+        Assert.Empty(world.TakeRescueOffers());
         world.Leave("g1");
         Run(world, 1);
         host.Flight.LogX -= 1000;
         Run(world, 1);
-        world.TakeRescueOffers();
+        Assert.Equal(new[] { ("host", "g1") }, world.TakeRescueOffers());
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
         Run(world, 2);
-        Assert.DoesNotContain(("host", "g1"), world.TakeRescueOffers());
+        Assert.Empty(world.TakeRescueOffers());
         FlyOutAndBack(world, "host");
-        Assert.Contains(("host", "g1"), world.TakeRescueOffers());
+        Assert.Equal(new[] { ("host", "g1") }, world.TakeRescueOffers());
     }
 
     [Fact]
@@ -424,9 +461,11 @@ public class WreckTests
         }
         JsonNode G1(JsonNode n) => n["players"]!.AsArray().Single(p => (string)p!["id"]! == "g1")!;
         Assert.Contains("null", Broken(n => n["players"]!.AsArray().Add(null)));
-        Assert.Contains("flight", Broken(n => G1(n)["flight"] = null));
-        Assert.Contains("loadout", Broken(n => G1(n)["loadout"] = null));
-        Assert.Contains("velocity", Broken(n => G1(n)["flight"]!["velocity"] = null));
+        Assert.Contains("has no id", Broken(n => G1(n)["id"] = null));
+        Assert.Contains("has no name", Broken(n => G1(n)["name"] = null));
+        Assert.Contains("has no flight", Broken(n => G1(n)["flight"] = null));
+        Assert.Contains("has no loadout", Broken(n => G1(n)["loadout"] = null));
+        Assert.Contains("has no velocity", Broken(n => G1(n)["flight"]!["velocity"] = null));
         Assert.Contains("clock", Broken(n => n["clock"] = null));
         Assert.Contains("without its hold", Broken(n => G1(n)["hold"] = null));
     }
@@ -744,12 +783,27 @@ public class WreckTests
         for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
             Run(world, 1);
         Kill(wb.Battle, Fighter(wb, "host").Starship);
+        Run(world, 1);
+        // g2's lander goes down on Luna as the flagship explodes: its surface steps until the game over, not in its frame.
+        Assert.Equal(DispatchRefusal.None, world.Dispatch("g2", 100, 100));
+        var lander = world.Find("g2")!.Ship.Lander!;
+        var surface = world.Surfaces.Single().Surface;
+        string Surface() => $"{surface.Random.Seed} {lander.X},{lander.Y},{lander.Phase},{lander.Height}";
+        bool moved = false;
         for (int i = 0; i < 300 && !world.GameOver; ++i)
+        {
+            string before = Surface();
             Run(world, 1);
+            if (world.GameOver)
+                Assert.Equal(before, Surface());
+            else
+                moved |= before != Surface();
+        }
         Assert.True(world.GameOver);
+        Assert.True(moved);
 
         Assert.Equal(DispatchRefusal.NotInOrbit, world.Dispatch("g2", 100, 100));
-        Assert.Null(world.Find("g2")!.Ship.Lander);
+        Assert.Same(lander, world.Find("g2")!.Ship.Lander);
         Assert.False(world.ChooseReply("g1", 0));
         Assert.False(world.Rename("g3", "Renamed", "Someone"));
         Assert.NotEqual("Renamed", g3.Ship.Name);
@@ -800,6 +854,10 @@ public class WreckTests
         Assert.False(full);
         Assert.Equal((after.Frame, "host g2"), (shownAfter!.Frame, string.Join(" ", shownAfter.Ships.Select(s => s.Id))));
         Assert.Same(after, host.Step(ShipInput.None));
+        // Until g2 says it has it, it's sent again, a delta from what g2 had.
+        var again = host.SnapshotFor(2);
+        Assert.NotNull(again);
+        Assert.Equal(before.Frame, SnapshotCodec.Peek(again).Base);
         // Once g2 has said it has it, nothing more is sent, step after step.
         host.GuestInput(2, host.World.Frame + 1, 0, after.Frame);
         for (int i = 0; i < 5; ++i)

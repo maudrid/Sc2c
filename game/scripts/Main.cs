@@ -732,7 +732,8 @@ public partial class Main : Node2D
                 _player.ShowTalk(_host.TalkFor(_host.HostId));
                 _starbaseView.Receive(_host.HostStarbaseDrawing());
                 _player.ShowStarbase(_host.StarbaseFor(_host.HostId));
-                // Each guest gets its own: a delta from what it has, or in full.
+                // Each guest gets its own: a delta from what it has, or in
+                // full; nothing once it has the latest (after the game over).
                 if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
                 {
                     foreach (long peer in _host.GuestPeers)
