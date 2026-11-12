@@ -24,7 +24,7 @@ namespace Crateris.Game;
 /// not the game's own downloaded copy.
 /// Testing options: --id ID (player id instead of the saved one),
 /// --script "thrust:40,right:10,none:20" (scripted input instead of keys;
-/// up, down, select, cancel, pageup and pagedown press an orbit menu key once as their step starts, give opens or closes the giving screen),
+/// up, down, select, cancel, pageup and pagedown press an orbit menu key once as their step starts, give opens or closes the giving screen, pause is the host's pause key),
 /// --first-run-use FILE (the first-run screen acts as if the player chose
 /// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
 /// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],

@@ -74,7 +74,7 @@ public class SnapshotCodecTests
         r.Next(3) == 0 ? null : Enumerable.Range(0, r.Next(4)).Select(_ => new OrbitedWorldSnapshot(AnyInt(r), AnyInt(r),
             AnyOptional(r), (uint)r.NextInt64(0, uint.MaxValue + 1L), (uint)r.NextInt64(0, uint.MaxValue + 1L),
             (uint)r.NextInt64(0, uint.MaxValue + 1L))).ToArray())
-        with { StoryPause = r.Next(3) == 0 ? AnyText(r) : null };
+        with { StoryPause = r.Next(3) == 0 ? AnyText(r) : null, HostPaused = r.Next(3) == 0 };
 
     // A snapshot a little on from another: most ships move a little, some
     // change something else, ships come and go now and then.
@@ -94,7 +94,8 @@ public class SnapshotCodecTests
             ships.Insert(r.Next(ships.Count + 1), AnyShip(r, "new" + frame));
         return new WorldSnapshot(frame, s.Year, r.Next(20) == 0 ? s.Month + 1 : s.Month, s.Day, ships,
             r.Next(10) == 0 ? AnySnapshot(r, 0).OrbitedWorlds : s.OrbitedWorlds,
-            StoryPause: r.Next(8) switch { 0 => null, 1 => "p" + r.Next(6), _ => s.StoryPause });
+            StoryPause: r.Next(8) switch { 0 => null, 1 => "p" + r.Next(6), _ => s.StoryPause },
+            HostPaused: r.Next(8) == 0 ? !s.HostPaused : s.HostPaused);
     }
 
     private static void AssertSame(WorldSnapshot want, WorldSnapshot got)
@@ -102,6 +103,7 @@ public class SnapshotCodecTests
         Assert.Equal((want.Frame, want.Year, want.Month, want.Day), (got.Frame, got.Year, got.Month, got.Day));
         Assert.Equal(want.Ships, got.Ships);
         Assert.Equal(want.StoryPause, got.StoryPause);
+        Assert.Equal(want.HostPaused, got.HostPaused);
         if (want.OrbitedWorlds is null)
             Assert.Null(got.OrbitedWorlds);
         else
@@ -232,6 +234,12 @@ public class SnapshotCodecTests
         // Two ships with one id.
         var twice = b with { Ships = new[] { AnyShip(r, "a"), AnyShip(r, "a") } };
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Encode(twice)));
+        // The host's pause is a byte, 0 or 1: anything else is refused.
+        var paused = Encode(new WorldSnapshot(1, 2026, 1, 1, Array.Empty<ShipSnapshot>(), HostPaused: true));
+        Assert.True(SnapshotCodec.Decode(paused).HostPaused);
+        Assert.Equal((1, 0), (paused[^2], paused[^1]));   // the pause's byte, then the ships' count
+        paused[^2] = 2;
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(paused));
     }
 
     // ---- The stream: the host's history and acknowledgements ----

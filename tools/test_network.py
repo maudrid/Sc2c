@@ -425,6 +425,26 @@ def main():
     g_host = ship(rg["snapshot"], "host")
     check(g_host is not None and g_host["Activity"] == 5, "G saw the host's ship in its talk")
 
+    # Stage 4a, item 10: the host flies, then presses its pause key; guest
+    # P joins and is shown the pause; the host's ship stays where it
+    # stopped, in the host's last snapshot and in P's.
+    host8 = start(out, "host8", "--host", "--no-upnp", "--port", PORT,
+                  "--name", "Host", "--id", "host", "--save", os.path.join(out, "save8.json"),
+                  "--script", "thrust:60,pause:1,thrust:500", "--quit-after", "300")
+    time.sleep(1)
+    gp = start(out, "p", "--join", f"127.0.0.1:{PORT}", "--name", "P",
+               "--id", "guest-p", "--script", "thrust:500", "--quit-after", "200")
+    for proc in (gp, host8):
+        proc.wait(timeout=90)
+    h8, rp = report(out, "host8"), report(out, "p")
+    hl8 = [line.split("] ", 1)[1] for line in h8["log"]]
+    check("The host paused the game" in hl8, "the host's pause key paused the game")
+    check(h8.get("host_paused") is True and rp.get("host_paused") is True, "the host and guest P were shown the pause")
+    p_host = ship(rp["snapshot"], "host")
+    h_host = ship(h8["snapshot"], "host")
+    check(p_host is not None and h_host is not None and (p_host["LogX"], p_host["LogY"]) == (h_host["LogX"], h_host["LogY"]),
+          "the host's ship stayed where it stopped, for P as for the host")
+
     print(f"\nlogs and reports in {out}")
     if failures:
         print(f"{len(failures)} check(s) failed")

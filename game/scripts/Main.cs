@@ -73,6 +73,7 @@ public partial class Main : Node2D
     private DevicesView _devicesView = null!;
     private StarbaseScreenView _starbaseView = null!;
     private Label _hud = null!;
+    private Label _paused = null!;
     private BoxNoticeView _boxNotice = null!;   // the notice, below the cargo display or the Devices list (the panel hidden)
     private SystemCatalog _systems = null!;
 
@@ -188,6 +189,22 @@ public partial class Main : Node2D
         };
         _hud.AddThemeColorOverride("font_color", Colors.White);
         layer.AddChild(_hud);
+        // The host's pause (stage 4a item 10), shown to every player over every screen.
+        var pauseLayer = new CanvasLayer { Layer = 100 };
+        AddChild(pauseLayer);
+        _paused = new Label
+        {
+            Text = "PAUSED",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Visible = false,
+        };
+        _paused.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _paused.AddThemeFontSizeOverride("font_size", 48);
+        _paused.AddThemeColorOverride("font_color", Colors.White);
+        _paused.AddThemeColorOverride("font_outline_color", Colors.Black);
+        _paused.AddThemeConstantOverride("outline_size", 12);
+        pauseLayer.AddChild(_paused);
         // While the Manifest's cargo display or Devices list covers the status area (its panel hidden), the
         // notice (a gift, another player's report) is shown below the box, as the giving screen shows it: eight
         // lines fit above the orbit menu, which hold every page of the content's lander reports.
@@ -706,6 +723,8 @@ public partial class Main : Node2D
             var keys = _about.Visible || ReportHasKeys || SellingHasKeys ? ShipInput.None
                 : ReadKeys(_player.Screen == PlayerScreen.Planetside, _player.Me?.Activity == Activity.Battle);
             var input = inGame ? _player.NextInput(keys) : ShipInput.None;
+            if (_player.TakePauseKey() && _host != null)
+                _host.TogglePause();   // a script's pause key (a guest's does nothing)
             var landing = inGame ? _player.TakeLandingRequest() : null;
             var discards = inGame ? _player.TakeDiscards() : Array.Empty<int>();
             if (_host != null)
@@ -927,6 +946,13 @@ public partial class Main : Node2D
             GetViewport().SetInputAsHandled();
             return;
         }
+        // P or Pause: the host pauses the game, or lifts the pause (stage 4a item 10); a guest's does nothing.
+        if (k.Keycode is Key.P or Key.Pause && !k.Echo && _host != null)
+        {
+            _host.TogglePause();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         // T opens and closes the giving screen (item 9).
         if (k.Keycode == Key.T && !k.Echo && (_host != null || _connected))
         {
@@ -1107,6 +1133,8 @@ public partial class Main : Node2D
         if (_player != null)
             _player.Status = _status;
         _hud.Text = _player == null ? _status : string.Join("\n", _player.StatusLines());
+        _paused.Visible = _player?.HostPaused == true && _firstRun == null && _contentError == null;
+        _paused.Text = _player?.HostPaused == true && _host == null ? "PAUSED by the host" : "PAUSED";
         // Those screens stand alone; the cargo display covers the status area, as UQM's does (the
         // Manifest's, and the minerals' count-down's), and the giving screen, laid out after it, and the
         // Manifest's Devices list.
@@ -1166,6 +1194,7 @@ public partial class Main : Node2D
                 notice = _player?.Notice ?? "",
                 talk = _player?.Talk,
                 story_pause = _player?.Snapshot?.StoryPause,
+                host_paused = _player?.Snapshot?.HostPaused,
                 log = _log,
                 snapshot = _player?.Snapshot,
                 snapshots = new

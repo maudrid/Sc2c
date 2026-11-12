@@ -44,6 +44,9 @@ public enum TradeRefusal : byte
 
     /// <summary>The game is over (the flagship lost).</summary>
     GameOver,
+
+    /// <summary>The host has paused the game (<see cref="GameWorld.HostPaused"/>).</summary>
+    HostPaused,
 }
 
 /// <summary>
@@ -127,6 +130,7 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         TradeRefusal.InBattle => "Not while in a battle.",
         TradeRefusal.Wrecked => "No one is aboard a wreck to give or take it.",
         TradeRefusal.GameOver => "The game is over.",
+        TradeRefusal.HostPaused => "The host has paused the game.",
         _ => "",
     };
 }

@@ -83,8 +83,12 @@ public static class Protocol
     /// 19: a ship's hold says the room its lander that is out keeps
     /// (HoldSnapshot.LanderRoom), so the giving screen shows the room the
     /// host would take for a gift of minerals.
+    /// 20: the snapshot says whether the host has paused the game
+    /// (WorldSnapshot.HostPaused, stage 4a item 10); gifts, landings and
+    /// revivals may be refused for it (TradeRefusal.HostPaused,
+    /// DispatchRefusal.HostPaused, RescueRefusal.HostPaused).
     /// </summary>
-    public const int Version = 19;
+    public const int Version = 20;
     public const int DefaultPort = 24642;
 
     /// <summary>

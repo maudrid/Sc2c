@@ -442,6 +442,20 @@ public sealed class HostSession
         return outcome;
     }
 
+    /// <summary>
+    /// The host's pause key (stage 4a item 10, decision 15): pauses the
+    /// game, or lifts the pause; only the host has it (guests have no
+    /// message for it). Every player is shown it through the snapshot
+    /// (<see cref="WorldSnapshot.HostPaused"/>). False once the game is over.
+    /// </summary>
+    public bool TogglePause()
+    {
+        if (!World.SetHostPause(!World.HostPaused))
+            return false;
+        Logged?.Invoke(World.HostPaused ? "The host paused the game" : "The host lifted the pause");
+        return true;
+    }
+
     /// <summary>The host chose Save game at the starbase.</summary>
     public event Action? SaveRequested;
 

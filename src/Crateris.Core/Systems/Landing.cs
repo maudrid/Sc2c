@@ -37,6 +37,9 @@ public enum DispatchRefusal
     OffTheMap,
     /// <summary>The game is paused for a story talk (stage 3a, item 6).</summary>
     StoryPause,
+
+    /// <summary>The host has paused the game (stage 4a item 10).</summary>
+    HostPaused,
 }
 
 /// <summary>

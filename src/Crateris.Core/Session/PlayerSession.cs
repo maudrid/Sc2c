@@ -371,7 +371,8 @@ public sealed class PlayerSession
         ShipInput input;
         if (_script != null)
         {
-            input = _script.Next(out var press, out bool give);
+            input = _script.Next(out var press, out bool give, out bool pause);
+            _pausePressed |= pause;
             if (give)
                 ToggleTrade();
             if (press is MenuKey key)
@@ -391,8 +392,8 @@ public sealed class PlayerSession
         }
         if (Entering)
             return ShipInput.None;
-        // A Navigate chosen just before a story pause leaves orbit after it.
-        if (StoryPaused)
+        // A Navigate chosen just before a story pause, or the host's, leaves orbit after it.
+        if (StoryPaused || HostPaused)
             return ShipInput.None;
         if (_leaveFrames > 0)
         {
@@ -410,6 +411,19 @@ public sealed class PlayerSession
 
     /// <summary>Whether the game is paused for a story talk (the host's last snapshot says so).</summary>
     public bool StoryPaused => Snapshot?.StoryPause is not null;
+
+    private bool _pausePressed;
+
+    /// <summary>Whether the script pressed the pause key since last asked (the host's session acts on it; a guest's is dropped).</summary>
+    public bool TakePauseKey()
+    {
+        bool pressed = _pausePressed;
+        _pausePressed = false;
+        return pressed;
+    }
+
+    /// <summary>Whether the host has paused the game (the host's last snapshot says so): nothing moves till it lifts.</summary>
+    public bool HostPaused => Snapshot?.HostPaused == true;
 
     /// <summary>
     /// Whether the communication screen shows a talk: this player's own
@@ -785,6 +799,7 @@ public sealed class PlayerSession
         DispatchRefusal.NotInOrbit => "The ship isn't in orbit.",
         DispatchRefusal.LanderOut => "The lander is already down.",
         DispatchRefusal.StoryPause => "The game waits while the story's talk goes on.",
+        DispatchRefusal.HostPaused => "The host has paused the game.",
         DispatchRefusal.OffTheMap => "That site is off the map.",
         _ => "",
     };
@@ -936,6 +951,8 @@ public sealed class PlayerSession
     public IReadOnlyList<string> StatusLines()
     {
         var lines = new List<string> { "Attack on Crateris - stage 3a", Status, Notice };
+        if (HostPaused)
+            lines.Add(Me?.IsHost == true ? "PAUSED - P or Pause: go on" : "PAUSED by the host");
         if (Snapshot != null)
         {
             lines.Add($"Date {Snapshot.Year:D4}-{Snapshot.Month:D2}-{Snapshot.Day:D2}");
@@ -988,6 +1005,8 @@ public sealed class PlayerSession
         // The giving screen is drawn in the status area, which hides this panel while it's open.
         if (Trade is null && Me?.Wrecked != true && TradeScreen.Others(Snapshot, PlayerId).Count > 0 && !StoryPaused && !TalkShown)   // giving waits while a talk goes on
             lines.Add("T: give another player something");
+        if (Me?.IsHost == true && !HostPaused)
+            lines.Add("P or Pause: pause the game");
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();
     }

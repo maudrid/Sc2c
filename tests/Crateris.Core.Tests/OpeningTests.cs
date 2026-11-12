@@ -1321,6 +1321,35 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void TheHostsPauseHoldsAStoryTalkADisconnectStartsInIt()
+    {
+        // g1 alone fights the Ilwrath, whose crew has just run out; the host pauses; g1 disconnects: the fight
+        // ends (a retreat at once) and the alliance talk starts, the host to answer, inside the host's pause.
+        var world = Reported(2);
+        var wb = ToTheFight(world, "g1");
+        var visit = world.Visit!;
+        wb.Battle.DoDamage(wb.Enemy.Ship!, (short)wb.Enemy.Ship!.CrewLevel);
+        Assert.True(world.SetHostPause(true));
+        world.Leave("g1");
+        Assert.NotNull(wb.Outcome);   // nobody left in it, but the Ilwrath dead: the alliance follows
+        Assert.Equal((VisitStep.Alliance, world.Host), (visit.Step, visit.Replier));
+        Assert.True(world.StoryPaused && world.HostPaused);
+        // Shown meanwhile, its replies waiting for the pause to lift.
+        var view = TalkView.Of(visit)!;
+        Assert.Equal(("comandr", "host"), (view.Script, view.Replier));
+        Assert.NotEmpty(view.Replies);
+        Assert.False(world.ChooseReply("host", 0));
+        int round = visit.Round;
+        Run(world, 24);
+        Assert.Equal((VisitStep.Alliance, round), (visit.Step, visit.Round));
+        // Lifted: the story pause goes on, and the host answers.
+        Assert.True(world.SetHostPause(false));
+        Assert.True(world.StoryPaused);
+        Say(world, "comandr", "cook_their_butts");
+        Assert.True(visit.Round > round);
+    }
+
+    [ContentFact]
     public void TheAnswerersMineralSaleIsItsOwn()
     {
         var world = WithTalks(guest: true);

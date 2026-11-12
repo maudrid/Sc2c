@@ -41,6 +41,9 @@ public enum RescueRefusal : byte
 
     /// <summary>The game is over.</summary>
     GameOver,
+
+    /// <summary>The host has paused the game (<see cref="GameWorld.HostPaused"/>).</summary>
+    HostPaused,
 }
 
 /// <summary>A wreck revived: who gave it how much crew (<see cref="GameWorld.TakeRevivals"/>).</summary>
@@ -118,6 +121,8 @@ public sealed partial class GameWorld
     {
         if (GameOver)
             return RescueRefusal.GameOver;
+        if (HostPaused)
+            return RescueRefusal.HostPaused;
         if (StoryPaused)
             return RescueRefusal.Paused;
         if (rescuerId == wreckId || Find(rescuerId) is not { Present: true } rescuer || Find(wreckId) is not { } wreck)
