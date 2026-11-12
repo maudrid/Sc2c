@@ -604,6 +604,7 @@ public class OpeningTests
         Assert.Equal(date, (saved.Clock.Year, saved.Clock.Month, saved.Clock.Day));
         Assert.Equal((0u, 0, 0), (saved.Host.Ship.Hold.ResourceUnits, saved.Story!.Get("STARBASE_MONTH"), saved.Story.Get("STARBASE_DAY")));
         world.Leave("host");
+        Assert.Equal(date, (world.Clock.Year, world.Clock.Month, world.Clock.Day));
         Assert.Equal((0u, 1), (world.Host.Ship.Hold.ResourceUnits, story.Get("MOONBASE_ON_SHIP")));
     }
 
@@ -973,6 +974,14 @@ public class OpeningTests
         Disarmed(world, wb, 30, id => id == "host" ? ShipInput.TakeOff : ShipInput.None);
         Assert.Equal(7, wb.Enemy.RaceDesc!.CrewLevel);
         Assert.True(wb.Battle.Fighting(wb.FighterOf("host")!.Starship));
+        // A save meanwhile: the game without the visit, the starter's hold and fuel as before it, whatever they are now.
+        host.Ship.Flight.Fuel += 300;
+        host.Ship.Hold.ResourceUnits += 77;
+        var midFight = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(visit.FuelBefore, midFight.Host.Ship.Flight.Fuel);
+        Assert.Equivalent(visit.HoldBefore, midFight.Host.Ship.Hold.Save(), strict: true);
+        Assert.Equal(0, midFight.Story!.Get("PROBE_ILWRATH_ENCOUNTER"));
+        Assert.Empty(midFight.Battles);
         // No other opening meanwhile: the guest touching the starbase stays in flight.
         world.VisitStarbase(world.Find("g1")!);
         Assert.Same(visit, world.Visit);
@@ -1041,6 +1050,8 @@ public class OpeningTests
         Assert.Same(visit, world.VisitOf("g1"));
         Assert.False(world.ChooseReply("g1", 0));
         ToTheStarbaseReady(world);
+        Assert.True(visit.Done);
+        Assert.False(visit.Undone);
         // Nobody docked; the wreck stays by Earth for a friend to revive, and saw the story's end.
         Assert.Equal((Activity.InnerSystem, Activity.InnerSystem), (world.Host.Ship.Activity, g1.Ship.Activity));
         Assert.Null(g1.Ship.Visit);
@@ -1056,27 +1067,92 @@ public class OpeningTests
         var g1 = world.Find("g1")!;
         g1.Ship.Flight.Fuel = 1200;
         var wb = ToTheFight(world, "g1");
+        var visit = world.Visit!;
         FlyIn(world, wb, "host");
-        // The starter disconnects: a retreat at once, paying its fuel, though the fight can't be retreated from.
+        // The starter disconnects: a retreat at once, paying its fuel, though the fight can't be retreated from;
+        // its part of the visit settled there and then, its hold as before the visit.
+        g1.Ship.Hold.ResourceUnits += 50;
         world.Leave("g1");
         Assert.Equal(BattleExit.Disconnected, wb.FighterOf("g1")!.Exit);
+        Assert.True(visit.StarterSettled);
         Assert.Equal(700u, g1.Ship.Flight.Fuel);
-        Assert.Equal(VisitStep.IlwrathFight, world.Visit!.Step);   // the fight goes on: not taken back
+        Assert.Equivalent(visit.HoldBefore, g1.Ship.Hold.Save(), strict: true);
+        Assert.Equal(VisitStep.IlwrathFight, visit.Step);   // the fight goes on: not taken back
         // A save meanwhile: the game without the visit, the starter's disconnect paid.
         var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
         Assert.Equal((700u, 0), (saved.Find("g1")!.Ship.Flight.Fuel, saved.Story!.Get("PROBE_ILWRATH_ENCOUNTER")));
 
-        // The starter back, flying by the starbase, outside the fight (it left it), and not refuelled.
+        // The starter back, flying by the starbase, outside the fight (it left it), its ship its own again.
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
         Assert.Equal(Activity.InnerSystem, g1.Ship.Activity);
+        g1.Ship.Flight.Fuel = 650;
         KillTheIlwrath(world, wb);
         Assert.Equal(BattleOutcome.Won, wb.Outcome);
-        Assert.Equal((VisitStep.Alliance, world.Host), (world.Visit!.Step, world.Visit.Replier));
+        Assert.Equal((VisitStep.Alliance, world.Host), (visit.Step, visit.Replier));
         Assert.Null(g1.Ship.Visit);
-        Assert.Same(world.Visit, world.VisitOf("g1"));   // watching the story with the others
+        Assert.Same(visit, world.VisitOf("g1"));   // watching the story with the others
         ToTheStarbaseReady(world);
+        Assert.True(visit.Done);
+        Assert.False(visit.Undone);
         Assert.Equal((Activity.InnerSystem, Activity.InnerSystem), (world.Host.Ship.Activity, g1.Ship.Activity));
+        Assert.Equal(650u, g1.Ship.Flight.Fuel);
+    }
+
+    [ContentFact]
+    public void AStarterBackFromTheFightKeepsWhatItDidWhenTheVisitIsTakenBack()
+    {
+        var world = Reported(3);
+        var g1 = world.Find("g1")!;
+        g1.Ship.Flight.Fuel = 1200;
+        var wb = ToTheFight(world, "g1");
+        var visit = world.Visit!;
+        FlyIn(world, wb, "g2");
+        world.Host.Ship.Hold.ResourceUnits = 100;
+        var gift = new Gift("host", "g1", 10, new int[8], 0);
+        Assert.Equal(TradeRefusal.Paused, world.Give(gift));   // its hold may be taken back
+        world.Leave("g1");
+        Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
         Assert.Equal(700u, g1.Ship.Flight.Fuel);
+        Assert.Equal(TradeRefusal.None, world.Give(gift));   // settled: its own again
+        Assert.Equal(visit.HoldBefore.ResourceUnits + 10, g1.Ship.Hold.ResourceUnits);
+        // Back in the game, it flies and takes on resource units: kept in a save meanwhile ...
+        g1.Ship.Flight.Fuel = 100;
+        g1.Ship.Hold.ResourceUnits += 40;
+        var held = g1.Ship.Hold.Save();
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Find("g1")!.Ship;
+        Assert.Equal(100u, saved.Flight.Fuel);
+        Assert.Equivalent(held, saved.Hold.Save(), strict: true);
+        // ... and when the visit is taken back (g2 destroyed, the Ilwrath alive).
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g2")!.Starship);
+        for (int i = 0; i < 300 && wb.Outcome is null; ++i)
+            Run(world, 1);
+        Assert.Equal(BattleOutcome.Lost, wb.Outcome);
+        Assert.True(visit.Undone);
+        Assert.Null(world.Visit);
+        Assert.Equal(100u, g1.Ship.Flight.Fuel);
+        Assert.Equivalent(held, g1.Ship.Hold.Save(), strict: true);
+        Assert.True(world.Find("g2")!.Ship.Wreck);
+    }
+
+    [ContentFact]
+    public void TheStarterWreckedWithOthersInTheFightPassesTheRepliesToTheHost()
+    {
+        // Three players, the starter g1 and g2 fighting, the host never in it: g1 wrecked, g2 wins.
+        var world = Reported(3);
+        var wb = ToTheFight(world, "g1");
+        FlyIn(world, wb, "g2");
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
+        Run(world, 1);
+        KillTheIlwrath(world, wb);
+        Assert.Equal(BattleOutcome.Won, wb.Outcome);
+        Assert.Equal(BattleExit.Fought, wb.FighterOf("g2")!.Exit);
+        var visit = world.Visit!;
+        Assert.Equal((VisitStep.Alliance, world.Host), (visit.Step, visit.Replier));
+        Assert.False(world.ChooseReply("g2", 0));
+        ToTheStarbaseReady(world);
+        Assert.True(visit.Done);
+        Assert.All(world.Players, p => Assert.Null(p.Ship.Visit));
+        Assert.Equal(Activity.InnerSystem, world.Find("g2")!.Ship.Activity);
     }
 
     [ContentFact]
@@ -1128,6 +1204,7 @@ public class OpeningTests
         var visit = world.Visit!;
         var before = visit.HoldBefore;
         WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
+        g1.Ship.Flight.Fuel += 250;   // whatever the visit changed is put back
         for (int i = 0; i < 300 && wb.Outcome is null; ++i)
             Run(world, 1);
         Assert.Equal(BattleOutcome.Lost, wb.Outcome);
@@ -1141,6 +1218,7 @@ public class OpeningTests
         Assert.True(world.CommanderMet);
         Assert.True(g1.Ship.Wreck);
         Assert.Equivalent(before with { Crew = 0 }, g1.Ship.Hold.Save(), strict: true);
+        Assert.Equal(visit.FuelBefore, g1.Ship.Flight.Fuel);
         Assert.Null(world.VisitOf("g1"));
         Assert.Null(world.VisitOf("host"));
         Assert.Null(world.TalkFor("host"));
@@ -1226,6 +1304,7 @@ public class OpeningTests
         var world = host.World;
         Assert.Equal(VisitStep.Commander, world.Visit!.Step);
         Assert.True(world.CommanderMet);
+        Assert.Equal((1, 1, 1), (world.Story!.Get("RADIOACTIVES_PROVIDED"), world.Story.Get("MOONBASE_DESTROYED"), world.Story.Get("MOONBASE_ON_SHIP")));
         Say(world, "comandr", "base_was_abandoned");
         Assert.Equal(VisitStep.Ilwrath, world.Visit!.Step);
         Say(world, "ilwrath", "surrender");

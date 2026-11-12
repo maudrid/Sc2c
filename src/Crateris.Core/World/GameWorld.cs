@@ -1091,10 +1091,12 @@ public sealed partial class GameWorld
     public TradeRefusal Give(Gift gift)
     {
         // The opening's starter's hold can be taken back (StarbaseVisit.Undo,
-        // and a save is of it as before): no gifts to or from them meanwhile.
+        // and a save is of it as before): no gifts to or from them meanwhile,
+        // unless their part of it is settled (they left the Ilwrath's fight).
         if (GameOver)
             return TradeRefusal.GameOver;
-        if (StoryPaused || (Visit is { Opening: true } opening && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To)))
+        if (StoryPaused || (Visit is { Opening: true, StarterSettled: false } opening
+                && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To)))
             return TradeRefusal.Paused;
         if (gift.From == gift.To || Find(gift.From) is not { Present: true } giver || Find(gift.To) is not { Present: true } taker)
             return TradeRefusal.NoOne;

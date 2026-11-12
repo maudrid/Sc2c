@@ -193,8 +193,23 @@ public sealed class StarbaseVisit
     /// <summary>Whether any of its talks was story, or time passed: everyone was shown it (decision 6).</summary>
     public bool WasStory { get; private set; }
 
-    /// <summary>Whether it was undone (its replier left with no one to take the replies).</summary>
+    /// <summary>
+    /// Whether it was undone: its replier left with no one to take the
+    /// replies; every player left the Ilwrath's fight with the Ilwrath alive
+    /// (destroyed or disconnected); or its starter was gone as that fight
+    /// was to start.
+    /// </summary>
     public bool Undone { get; private set; }
+
+    /// <summary>
+    /// Whether the starter's part of the visit is settled: it disconnected
+    /// from the Ilwrath's fight, and its hold and fuel were put back as
+    /// they were before the visit, less the retreat's fuel, there and then
+    /// (<see cref="SettleStarter"/>). From then on its ship is its own again:
+    /// what it does after (back in the game, outside the fight) is neither
+    /// taken back with the visit nor left out of a save.
+    /// </summary>
+    public bool StarterSettled { get; private set; }
 
     /// <summary>The starter chooses a reply in the talk going on. False if none is offered.</summary>
     internal bool Choose(int index)
@@ -432,25 +447,32 @@ public sealed class StarbaseVisit
     }
 
     /// <summary>
-    /// The starter's fuel without the visit: as it started, less the
-    /// retreat's 5 units (to no lower than 0) if the starter disconnected
-    /// from the Ilwrath's fight, which a disconnect pays even where a
-    /// retreat isn't allowed (decision 10) and which taking the visit back
-    /// doesn't give back (decision 13).
+    /// The starter disconnected from the Ilwrath's fight (a retreat at once,
+    /// decision 10): its part of the visit is taken back now rather than
+    /// when the visit is: its hold as before the visit, and its fuel as
+    /// before it less the retreat's 5 units (to no lower than 0), which
+    /// taking the visit back doesn't give back (decision 13). It's settled
+    /// (<see cref="StarterSettled"/>): neither <see cref="Undo"/> nor a save
+    /// puts its hold or fuel back again, so what it does once back in the
+    /// game, outside the fight, stays done. The visit itself goes on with
+    /// the fight.
     /// </summary>
-    public uint FuelWithout()
+    internal void SettleStarter()
     {
-        if (Fight?.FighterOf(Starter.Id) is not { Exit: BattleExit.Disconnected })
-            return FuelBefore;
-        return FuelBefore > GameWorld.RetreatFuelCost ? FuelBefore - GameWorld.RetreatFuelCost : 0;
+        if (StarterSettled)
+            return;
+        Starter.Ship.Hold.Restore(HoldBefore);
+        Starter.Ship.Flight.Fuel = FuelBefore > GameWorld.RetreatFuelCost ? FuelBefore - GameWorld.RetreatFuelCost : 0;
+        StarterSettled = true;
     }
 
     /// <summary>
     /// The opening is undone: what its talks wrote, the starter's ship and
     /// the two weeks put back. A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
-    /// crew; one that disconnected from it pays its fuel after
-    /// (<see cref="FuelWithout"/>).
+    /// crew; one that disconnected from it was settled as it left
+    /// (<see cref="SettleStarter"/>), its fuel paid after its hold and fuel
+    /// were put back, and isn't put back again.
     /// </summary>
     internal void Undo()
     {
@@ -458,10 +480,13 @@ public sealed class StarbaseVisit
             throw new InvalidOperationException("only the opening is taken back");
         foreach (var (field, value) in WrittenBefore())
             _world.Story!.Set(field, value);
-        Starter.Ship.Hold.Restore(HoldBefore);
-        if (Starter.Ship.Destroyed)
-            Starter.Ship.Hold.SetCrew(0);
-        Starter.Ship.Flight.Fuel = FuelWithout();
+        if (!StarterSettled)
+        {
+            Starter.Ship.Hold.Restore(HoldBefore);
+            if (Starter.Ship.Destroyed)
+                Starter.Ship.Hold.SetCrew(0);
+            Starter.Ship.Flight.Fuel = FuelBefore;
+        }
         if (Starter.Ship.Ip is { } ip)
             ip.EscapeCounter = 0;   // none before the visit: a ship with one can't touch the starbase
         _world.CommanderMet = MetBefore;

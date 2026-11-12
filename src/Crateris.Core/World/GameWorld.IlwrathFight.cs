@@ -74,8 +74,9 @@ public sealed partial class GameWorld
     /// The Ilwrath alive with every player out of it (destroyed or
     /// disconnected; it can't be retreated from), the visit is taken back
     /// (<see cref="StarbaseVisit.Undo"/>): what its talks wrote, the
-    /// starter's hold and fuel from before it (a wreck staying a wreck), a
-    /// starter's disconnect paying its 5 units of fuel after; the Ilwrath
+    /// starter's hold and fuel from before it (a wreck staying a wreck; a
+    /// starter that disconnected was put back so as it left, its 5 units of
+    /// fuel paid after, and isn't again: StarbaseVisit.SettleStarter); the Ilwrath
     /// comes again, whole, on the next report to the commander.
     /// </para>
     /// </summary>

@@ -78,9 +78,11 @@ public static class HostSave
     /// keeps none. A save during the Ilwrath's fight in the opening (stage
     /// 4a item 9) is of the game without the visit, as during its talks:
     /// the starter's hold and fuel as before the visit (no crew if it was
-    /// destroyed in the fight: a wreck, as the visit taken back keeps it;
-    /// the retreat's 5 units of fuel taken if it disconnected from the
-    /// fight, StarbaseVisit.FuelWithout), the others as they joined it.
+    /// destroyed in the fight: a wreck, as the visit taken back keeps it),
+    /// the others as they joined it; a starter that disconnected from the
+    /// fight was settled as it left (StarbaseVisit.SettleStarter: its hold
+    /// and fuel as before the visit, less the retreat's 5 units of fuel)
+    /// and is saved as it is from then on.
     /// </summary>
     public const int Version = 11;
     public const int OldestReadableVersion = 1;
@@ -129,7 +131,8 @@ public static class HostSave
         var players = world.Players.Select(p =>
         {
             var f = p.Ship.Flight;
-            bool starter = visit?.Starter == p;
+            // The visit's starter as before it, unless settled (it left the Ilwrath's fight): then as it is.
+            bool starter = visit?.Starter == p && !visit.StarterSettled;
             // A battle isn't saved (stage 4, decision 14): a ship in one is
             // saved as it joined it, where it joined it (it waits there).
             var wb = p.Ship.Battle;
@@ -147,7 +150,7 @@ public static class HostSave
                 : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save();
             return new PlayerState(p.Id, p.Name, p.IsHost, p.Ship.Kind, p.Ship.Loadout, p.UndockPending,
                 new FlightState(inHyperspace ? wb!.Place.X : f.LogX, inHyperspace ? wb!.Place.Y : f.LogY, f.Facing,
-                    starter ? visit!.FuelWithout() : joined?.JoinedFuel ?? f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
+                    starter ? visit!.FuelBefore : joined?.JoinedFuel ?? f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
                     f.ViewX, f.ViewY, f.FuelDistX, f.FuelDistY, f.FuelDistExtra, f.FuelTicks,
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
