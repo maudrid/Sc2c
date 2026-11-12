@@ -1267,6 +1267,23 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void TakingTheTalksBackLeavesALanderThatIsOutItsCrewAndItsPlace()
+    {
+        // The talks give the host a lander with 4 crew (the commander's NewLander); it sends the lander out, then the
+        // talks are taken back: the crew from those aboard, and the lander that is out stays counted till it's back.
+        var world = WithTalks();
+        var hold = world.Host.Ship.Hold;
+        hold.SetLanders(0);
+        var ship = new AnswererTalkShip(() => world.Host, Library.Value.Strings, world.Host.Ship);
+        ship.Landers++;
+        ship.Crew += 4;
+        hold.LanderLeaves();
+        int aboard = hold.Crew;
+        ship.Changes[world.Host].TakeBackFrom(world.Host.Ship);
+        Assert.Equal((aboard - 4, 1), (hold.Crew, hold.Landers));
+    }
+
+    [ContentFact]
     public void TheAnswerersMineralSaleIsItsOwn()
     {
         var world = WithTalks(guest: true);

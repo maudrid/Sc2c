@@ -194,8 +194,11 @@ internal sealed class TalkChanges
         var hold = ship.Hold;
         if (Crew != 0 || ship.Destroyed)
             hold.SetCrew(ship.Destroyed ? 0 : Math.Clamp(hold.Crew - Crew, 0, Math.Max(hold.CrewCapacity, hold.Crew)));
+        // A lander that is out stays counted aboard till it's back or lost
+        // (LanderReturns counts it off): a lander the talks gave and the ship
+        // sent out stays the ship's.
         if (Landers != 0)
-            hold.SetLanders(Math.Clamp(hold.Landers - Landers, 0, ShipHold.MaxLanders));
+            hold.SetLanders(Math.Clamp(hold.Landers - Landers, hold.LanderOut is null ? 0 : 1, ShipHold.MaxLanders));
         if (ResourceUnits != 0)
             hold.ResourceUnits = (uint)Math.Clamp(hold.ResourceUnits - ResourceUnits, 0, uint.MaxValue);
         // Minerals sold come back aboard (MoveCargo adds; SetMineral only lowers).
