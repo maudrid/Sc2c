@@ -8,6 +8,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
 using Crateris.Core.Session;
@@ -27,7 +28,8 @@ namespace Crateris.Game;
 /// --first-run-use FILE (the first-run screen acts as if the player chose
 /// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
 /// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],
-/// --start-visit (host: a new game starts in the commander's talk at Earth's starbase),
+/// --start-visit [STEP] (host: a new game starts in the commander's talk at Earth's starbase: his first, or with base-report
+/// the one where the Lunar base is reported, the errands done, whose replies bring the Ilwrath and its fight),
 /// --start-docked (host: a new game starts docked at Earth's starbase's menu, the opening over),
 /// --start-battle RACE (host: a new game starts after the opening, the host's ship in flight by Earth in a battle against
 /// a ported race's ship, by data/ships.json's id: ilwrath; Escape retreats),
@@ -81,6 +83,9 @@ public sealed class Options
 
     /// <summary>--start-visit: a new game starts at Earth's starbase, in the commander's talk (testing).</summary>
     public bool StartVisit { get; private set; }
+
+    /// <summary>--start-visit STEP: the talk it starts in (<see cref="HostSession.VisitSteps"/>: base-report); null for his first.</summary>
+    public string? StartVisitStep { get; private set; }
 
     /// <summary>--start-docked: a new game starts docked at Earth's starbase's menu, as after the opening (testing).</summary>
     public bool StartDocked { get; private set; }
@@ -156,7 +161,16 @@ public sealed class Options
                     o.SecondsPerDay = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
                     break;
                 case "--script": o.Script = InputScript.Parse(Next()); break;
-                case "--start-visit": o.StartVisit = true; break;
+                case "--start-visit":
+                    o.StartVisit = true;
+                    // An optional step: the next argument, unless it's an option.
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                    {
+                        o.StartVisitStep = args[++i];
+                        if (!HostSession.VisitSteps.Contains(o.StartVisitStep))
+                            throw new ArgumentException($"--start-visit has no step {o.StartVisitStep} (steps: {string.Join(", ", HostSession.VisitSteps)})");
+                    }
+                    break;
                 case "--start-docked": o.StartDocked = true; break;
                 case "--start-battle": o.StartBattle = Next(); break;
                 case "--start-minerals":

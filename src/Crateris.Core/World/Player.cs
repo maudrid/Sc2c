@@ -98,7 +98,11 @@ public sealed class PlayerShip
     /// <summary>The ship's lander on the orbited world's surface, while it's there (not saved: a save keeps it in orbit).</summary>
     public Planetside.Lander? Lander { get; internal set; }
 
-    /// <summary>The visit to Earth's starbase this ship is on, while it's on one (not saved).</summary>
+    /// <summary>
+    /// The visit to Earth's starbase this ship is on, while it's on one (not
+    /// saved): not during the Ilwrath's fight, which its starter's ship
+    /// fights in flight, nor after it unless that ship fought it to the end.
+    /// </summary>
     public StarbaseVisit? Visit { get; internal set; }
 
     /// <summary>The battle this ship is in, fighting or watching (not saved: decision 14).</summary>

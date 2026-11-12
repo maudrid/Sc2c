@@ -75,7 +75,12 @@ public static class HostSave
     /// made from, without guns. Guns in an older save's
     /// loadouts, which it can't have had, are taken as none. Keyed on the
     /// version, not on an escort having no weapon: one that sold its guns
-    /// keeps none.
+    /// keeps none. A save during the Ilwrath's fight in the opening (stage
+    /// 4a item 9) is of the game without the visit, as during its talks:
+    /// the starter's hold and fuel as before the visit (no crew if it was
+    /// destroyed in the fight: a wreck, as the visit taken back keeps it;
+    /// the retreat's 5 units of fuel taken if it disconnected from the
+    /// fight, StarbaseVisit.FuelWithout), the others as they joined it.
     /// </summary>
     public const int Version = 11;
     public const int OldestReadableVersion = 1;
@@ -142,7 +147,7 @@ public static class HostSave
                 : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save();
             return new PlayerState(p.Id, p.Name, p.IsHost, p.Ship.Kind, p.Ship.Loadout, p.UndockPending,
                 new FlightState(inHyperspace ? wb!.Place.X : f.LogX, inHyperspace ? wb!.Place.Y : f.LogY, f.Facing,
-                    starter ? visit!.FuelBefore : joined?.JoinedFuel ?? f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
+                    starter ? visit!.FuelWithout() : joined?.JoinedFuel ?? f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
                     f.ViewX, f.ViewY, f.FuelDistX, f.FuelDistY, f.FuelDistExtra, f.FuelTicks,
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },

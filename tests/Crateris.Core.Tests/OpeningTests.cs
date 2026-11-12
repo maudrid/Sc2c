@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using Crateris.Core.Comm;
+using Crateris.Core.Combat;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
@@ -21,7 +22,8 @@ namespace Crateris.Core.Tests;
 /// <summary>
 /// UQM's opening at Earth (docs/plans/stage-3.md, item 5): the Lunar base
 /// on Luna (gensol.c), and the visit to the starbase that runs the
-/// commander, the Ilwrath and the alliance (starbase.c's VisitStarBase).
+/// commander, the Ilwrath and the alliance (starbase.c's VisitStarBase),
+/// with the Ilwrath's fight by Earth (docs/plans/stage-4.md, item 9).
 /// </summary>
 [Trait("Topic", "opening")]
 public class OpeningTests
@@ -239,7 +241,7 @@ public class OpeningTests
         Say(world, "comandr", "base_was_abandoned");
         Assert.Equal(VisitStep.Ilwrath, visit.Step);       // HERE_COMES_ILWRATH
         Say(world, "ilwrath", "surrender");
-        Assert.Equal(Segue.Hostile, visit.Talks[1].Segue);  // its battle counts as won (decision 3)
+        Assert.Equal(Segue.Hostile, visit.Talks[1].Segue);  // without the battle's content its battle counts as won
         Assert.Equal(VisitStep.Alliance, visit.Step);
         Say(world, "comandr", "cook_their_butts");
         Say(world, "comandr", "name_2");
@@ -602,7 +604,6 @@ public class OpeningTests
         Assert.Equal(date, (saved.Clock.Year, saved.Clock.Month, saved.Clock.Day));
         Assert.Equal((0u, 0, 0), (saved.Host.Ship.Hold.ResourceUnits, saved.Story!.Get("STARBASE_MONTH"), saved.Story.Get("STARBASE_DAY")));
         world.Leave("host");
-        Assert.Equal(date, (world.Clock.Year, world.Clock.Month, world.Clock.Day));
         Assert.Equal((0u, 1), (world.Host.Ship.Hold.ResourceUnits, story.Get("MOONBASE_ON_SHIP")));
     }
 
@@ -855,5 +856,381 @@ public class OpeningTests
         for (int i = 2; i < TalkView.MostPaging; ++i)
             Assert.True(world.PageTalk("guest", world.Visit.Round, lines, TalkPage.Replay));
         Assert.False(world.PageTalk("guest", world.Visit.Round, lines, TalkPage.Replay));
+    }
+
+    // ------------------------------------------------------------ the Ilwrath's fight (stage 4a item 9)
+
+    // The errands done (the radioactives given, the Lunar base taken and
+    // aboard, the commander met), with the talks and the battle's kit; the
+    // host and guests g1 ... in Earth's inner system, by the starbase.
+    private static GameWorld Reported(int players = 1)
+    {
+        var world = WorldBattleTests.InSol(players);
+        world.TalkLibrary = Library.Value;
+        foreach (var f in new[] { "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED", "MOONBASE_ON_SHIP" })
+            world.Story!.Set(f, 1);
+        world.CommanderMet = true;
+        return world;
+    }
+
+    // The starter reports the base and answers the Ilwrath: its fight
+    // starts, the starter warping in.
+    private static WorldBattle ToTheFight(GameWorld world, string starter)
+    {
+        world.VisitStarbase(world.Find(starter)!);
+        Say(world, "comandr", "base_was_abandoned");
+        Say(world, "ilwrath", "surrender");
+        var wb = world.Visit!.Fight!;
+        for (int i = 0; i < 60 && !WorldBattleTests.Warped(wb.Battle); ++i)
+            Disarmed(world, wb, 1);
+        Assert.True(WorldBattleTests.Warped(wb.Battle));
+        return wb;
+    }
+
+    // Frames with the Ilwrath unable to fire or cloak, so nothing it does decides a test.
+    private static void Disarmed(GameWorld world, WorldBattle wb, int frames, Func<string, ShipInput>? keys = null)
+    {
+        for (int i = 0; i < frames; ++i)
+        {
+            if (wb.Outcome is null)
+                wb.Enemy.WeaponCounter = wb.Enemy.SpecialCounter = 2;
+            WorldBattleTests.Run(world, 1, keys);
+        }
+    }
+
+    // Players by the starbase, there as the fight started, fly off and
+    // back into its marker: they join, and warp in.
+    private static void FlyIn(GameWorld world, WorldBattle wb, params string[] ids)
+    {
+        foreach (var id in ids)
+            world.Find(id)!.Ship.Ip!.EscapeCounter = 250;
+        Disarmed(world, wb, 12, id => ids.Contains(id) ? ShipInput.Thrust : ShipInput.None);
+        int back = (world.Find(ids[0])!.Ship.Ip!.Facing + 8) % 16;
+        for (int i = 0; i < 300 && world.Find(ids[0])!.Ship.Ip!.Facing != back; ++i)
+            Disarmed(world, wb, 1, id => ids.Contains(id) ? ShipInput.Left : ShipInput.None);
+        for (int i = 0; i < 400 && ids.Any(id => world.Find(id)!.Ship.Battle is null); ++i)
+            Disarmed(world, wb, 1, id => ids.Contains(id) && world.Find(id)!.Ship.Battle is null ? ShipInput.Thrust : ShipInput.None);
+        Assert.All(ids, id => Assert.Same(wb, world.Find(id)!.Ship.Battle));
+        for (int i = 0; i < 60 && !WorldBattleTests.Warped(wb.Battle); ++i)
+            Disarmed(world, wb, 1);
+        Assert.True(WorldBattleTests.Warped(wb.Battle));
+    }
+
+    // The Ilwrath killed, and its explosion over: the fight ends.
+    private static void KillTheIlwrath(GameWorld world, WorldBattle wb)
+    {
+        WorldBattleTests.Kill(wb.Battle, wb.Enemy);
+        for (int i = 0; i < 600 && wb.Outcome is null; ++i)
+            Run(world, 1);
+        Assert.NotNull(wb.Outcome);
+    }
+
+    // The alliance and the starbase's opening, answered by whoever replies.
+    private static void ToTheStarbaseReady(GameWorld world)
+    {
+        Say(world, "comandr", "cook_their_butts");
+        Say(world, "comandr", "name_2");
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Say(world, "starbas", "goodbye_commander");
+        Assert.Null(world.Visit);
+        Assert.Equal(1, world.Story!.Get("STARBASE_AVAILABLE"));
+    }
+
+    [ContentFact]
+    public void TheIlwrathsTalkEndsInItsFightByEarthAndWinningItGoesOnToTheAlliance()
+    {
+        var world = Reported(2);
+        var host = world.Host;
+        var story = world.Story!;
+        world.VisitStarbase(host);
+        var visit = world.Visit!;
+        Say(world, "comandr", "base_was_abandoned");
+        Assert.Equal(1, story.Get("PROBE_ILWRATH_ENCOUNTER"));
+        Say(world, "ilwrath", "surrender");
+
+        // The talk hands over: no pause, the starter's ship in its battle where it was, by the starbase.
+        Assert.Equal(VisitStep.IlwrathFight, visit.Step);
+        Assert.Same(visit, world.Visit);
+        Assert.False(world.StoryPaused);
+        var wb = visit.Fight!;
+        Assert.Same(wb, Assert.Single(world.Battles));
+        Assert.Null(host.Ship.Visit);
+        Assert.Equal((Activity.Battle, "host"), (host.Ship.Activity, wb.StartedBy));
+        Assert.Equal(new BattlePlace(Sol, Earth, host.Ship.Ip!.Location.X, host.Ship.Ip.Location.Y), wb.Place);
+        // UQM's Earth Ilwrath: 7 crew, no cloak, no salvage, no retreat.
+        Assert.Equal(new BattleStart(EnemyCrew: 7, NoCloak: true, PaysSalvage: false, RetreatAllowed: false), wb.Start);
+        Assert.Equal((ShipDescriptions.Ilwrath, 7), (wb.EnemyShip.Id, (int)wb.Enemy.CrewLevel));
+        // Everyone is shown the Ilwrath's closing lines, as a talk over; the guest sees its marker.
+        foreach (var id in new[] { "host", "g1" })
+        {
+            var view = world.TalkFor(id)!;
+            Assert.Equal((VisitStep.Done, "ilwrath"), (view.Step, view.Script));
+            Assert.NotEmpty(view.Lines);
+            Assert.Empty(view.Replies);
+        }
+        Assert.Same(wb, Assert.Single(world.MarkersFor("g1")));
+        // Its warp-in done, its first frames run: the Ilwrath has its 7 crew, and Escape doesn't retreat.
+        Disarmed(world, wb, 30, id => id == "host" ? ShipInput.TakeOff : ShipInput.None);
+        Assert.Equal(7, wb.Enemy.RaceDesc!.CrewLevel);
+        Assert.True(wb.Battle.Fighting(wb.FighterOf("host")!.Starship));
+        // No other opening meanwhile: the guest touching the starbase stays in flight.
+        world.VisitStarbase(world.Find("g1")!);
+        Assert.Same(visit, world.Visit);
+        Assert.Null(world.Find("g1")!.Ship.Visit);
+
+        KillTheIlwrath(world, wb);
+        Assert.Equal((BattleOutcome.Won, 0u), (wb.Outcome, wb.SalvagePaid));
+        Assert.Empty(world.Battles);
+        // The commander's alliance talk follows, the starter talking again and replying.
+        Assert.Equal((VisitStep.Alliance, host), (visit.Step, visit.Replier));
+        Assert.True(world.StoryPaused);
+        Assert.Same(visit, host.Ship.Visit);
+        Assert.Equal(Activity.Talk, host.Ship.Activity);
+        Assert.Contains("comandr", world.TalkFor("g1")!.Script);
+        ToTheStarbaseReady(world);
+        Assert.Equal((0, 1), (story.Get("PROBE_ILWRATH_ENCOUNTER"), story.Get("NEW_ALLIANCE_NAME")));
+        // The starter docks, as the opening ends.
+        Assert.Equal((Activity.Starbase, VisitStep.Menu), (host.Ship.Activity, host.Ship.Visit!.Step));
+    }
+
+    [ContentFact]
+    public void AnotherPlayerInTheFightWinsItWithTheStarterWhoGoesOnAndDocks()
+    {
+        var world = Reported(2);
+        var wb = ToTheFight(world, "g1");
+        var g1 = world.Find("g1")!;
+        Assert.Equal(Activity.Battle, g1.Ship.Activity);
+        FlyIn(world, wb, "host");
+        Assert.Equal(new[] { "g1", "host" }, wb.Fighters.Select(f => f.Player.Id));
+        KillTheIlwrath(world, wb);
+        Assert.Equal(BattleOutcome.Won, wb.Outcome);
+        Assert.Equal((VisitStep.Alliance, g1), (world.Visit!.Step, world.Visit.Replier));
+        Assert.Same(world.Visit, g1.Ship.Visit);
+        ToTheStarbaseReady(world);
+        Assert.Equal(Activity.Starbase, g1.Ship.Activity);
+        Assert.Equal(Activity.InnerSystem, world.Host.Ship.Activity);
+    }
+
+    [ContentFact]
+    public void TheStarterWreckedPassesTheRepliesOnAndNobodyDocks()
+    {
+        var world = Reported(2);
+        var wb = ToTheFight(world, "g1");
+        var g1 = world.Find("g1")!;
+        var holdBefore = world.Visit!.HoldBefore;
+        FlyIn(world, wb, "host");
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
+        Run(world, 1);
+        // A save meanwhile: the game without the visit, the starter a wreck with its hold from before it.
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.True(saved.Find("g1")!.Ship.Wreck);
+        Assert.Equivalent(holdBefore with { Crew = 0 }, saved.Find("g1")!.Ship.Hold.Save(), strict: true);
+        Assert.Equal(0, saved.Story!.Get("PROBE_ILWRATH_ENCOUNTER"));
+        Assert.Null(saved.Visit);
+
+        KillTheIlwrath(world, wb);
+        Assert.Equal(BattleOutcome.Won, wb.Outcome);
+        Assert.True(g1.Ship.Wreck);
+        Assert.Equal((wb.Place.X, wb.Place.Y), ((int)g1.Ship.Ip!.Location.X, (int)g1.Ship.Ip.Location.Y));
+        // The replies pass to the next player in join order, the host; the wreck watches.
+        var visit = world.Visit!;
+        Assert.Equal((VisitStep.Alliance, world.Host), (visit.Step, visit.Replier));
+        Assert.Same(g1, visit.Starter);
+        Assert.Null(g1.Ship.Visit);
+        Assert.Null(world.Host.Ship.Visit);
+        Assert.Same(visit, world.VisitOf("g1"));
+        Assert.False(world.ChooseReply("g1", 0));
+        ToTheStarbaseReady(world);
+        // Nobody docked; the wreck stays by Earth for a friend to revive, and saw the story's end.
+        Assert.Equal((Activity.InnerSystem, Activity.InnerSystem), (world.Host.Ship.Activity, g1.Ship.Activity));
+        Assert.Null(g1.Ship.Visit);
+        Assert.True(g1.Ship.Wreck);
+        Assert.Equal(VisitStep.Done, world.TalkFor("g1")!.Step);
+        Assert.Equal("starbas", world.TalkFor("g1")!.Script);
+    }
+
+    [ContentFact]
+    public void TheStarterGoneAndAnotherWinningPassesTheRepliesOnAndNobodyDocks()
+    {
+        var world = Reported(2);
+        var g1 = world.Find("g1")!;
+        g1.Ship.Flight.Fuel = 1200;
+        var wb = ToTheFight(world, "g1");
+        FlyIn(world, wb, "host");
+        // The starter disconnects: a retreat at once, paying its fuel, though the fight can't be retreated from.
+        world.Leave("g1");
+        Assert.Equal(BattleExit.Disconnected, wb.FighterOf("g1")!.Exit);
+        Assert.Equal(700u, g1.Ship.Flight.Fuel);
+        Assert.Equal(VisitStep.IlwrathFight, world.Visit!.Step);   // the fight goes on: not taken back
+        // A save meanwhile: the game without the visit, the starter's disconnect paid.
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal((700u, 0), (saved.Find("g1")!.Ship.Flight.Fuel, saved.Story!.Get("PROBE_ILWRATH_ENCOUNTER")));
+
+        // The starter back, flying by the starbase, outside the fight (it left it), and not refuelled.
+        Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
+        Assert.Equal(Activity.InnerSystem, g1.Ship.Activity);
+        KillTheIlwrath(world, wb);
+        Assert.Equal(BattleOutcome.Won, wb.Outcome);
+        Assert.Equal((VisitStep.Alliance, world.Host), (world.Visit!.Step, world.Visit.Replier));
+        Assert.Null(g1.Ship.Visit);
+        Assert.Same(world.Visit, world.VisitOf("g1"));   // watching the story with the others
+        ToTheStarbaseReady(world);
+        Assert.Equal((Activity.InnerSystem, Activity.InnerSystem), (world.Host.Ship.Activity, g1.Ship.Activity));
+        Assert.Equal(700u, g1.Ship.Flight.Fuel);
+    }
+
+    [ContentFact]
+    public void LosingTheFlagshipInTheFightEndsTheGameAndNothingActsOnIt()
+    {
+        var world = Reported(2);
+        var story = world.Story!;
+        var wb = ToTheFight(world, "host");
+        var visit = world.Visit!;
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("host")!.Starship);
+        Run(world, 1);
+        Assert.True(world.FlagshipLost);
+        Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(world));   // the save from before the visit is kept
+        for (int i = 0; i < 300 && !world.GameOver; ++i)
+            Run(world, 1);
+        Assert.True(world.GameOver);
+        Assert.Equal(BattleOutcome.Lost, wb.Outcome);
+        Assert.Same(wb, Assert.Single(world.TakeEndedBattles()));
+        // The visit isn't taken back, nor goes on: the game is over.
+        Assert.Same(visit, world.Visit);
+        Assert.Equal((VisitStep.IlwrathFight, false), (visit.Step, visit.Undone));
+        Assert.Equal(1, story.Get("PROBE_ILWRATH_ENCOUNTER"));
+        Assert.False(world.StoryPaused);
+    }
+
+    [ContentFact]
+    public void TheFlagshipLostWithAnotherStillFightingEndsTheGameUnfinished()
+    {
+        var world = Reported(2);
+        var wb = ToTheFight(world, "g1");
+        FlyIn(world, wb, "host");
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("host")!.Starship);
+        for (int i = 0; i < 300 && !world.GameOver; ++i)
+            Disarmed(world, wb, 1);
+        Assert.True(world.GameOver);
+        Assert.Null(wb.Outcome);
+        Assert.True(wb.Battle.Fighting(wb.FighterOf("g1")!.Starship));
+        Assert.Equal(VisitStep.IlwrathFight, world.Visit!.Step);
+        Assert.False(world.Visit.Undone);
+    }
+
+    [ContentFact]
+    public void EveryPlayerOutOfTheFightTakesTheVisitBackAWreckStayingAWreck()
+    {
+        var world = Reported(2);
+        var story = world.Story!;
+        var g1 = world.Find("g1")!;
+        var wb = ToTheFight(world, "g1");
+        var visit = world.Visit!;
+        var before = visit.HoldBefore;
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
+        for (int i = 0; i < 300 && wb.Outcome is null; ++i)
+            Run(world, 1);
+        Assert.Equal(BattleOutcome.Lost, wb.Outcome);
+        Assert.Equal(7, (int)wb.Enemy.CrewLevel);   // the Ilwrath alive
+        // Taken back: what its talks wrote, the commander's meeting as it was; the starter a wreck, its hold from before.
+        Assert.Null(world.Visit);
+        Assert.True(visit.Undone);
+        Assert.False(world.StoryPaused);
+        Assert.Equal((0, 1, 1), (story.Get("PROBE_ILWRATH_ENCOUNTER"), story.Get("MOONBASE_ON_SHIP"), story.Get("RADIOACTIVES_PROVIDED")));
+        Assert.Equal(0, story.Get("STARBASE_AVAILABLE"));
+        Assert.True(world.CommanderMet);
+        Assert.True(g1.Ship.Wreck);
+        Assert.Equivalent(before with { Crew = 0 }, g1.Ship.Hold.Save(), strict: true);
+        Assert.Null(world.VisitOf("g1"));
+        Assert.Null(world.VisitOf("host"));
+        Assert.Null(world.TalkFor("host"));
+        // It saves and loads a wreck.
+        Assert.True(HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Find("g1")!.Ship.Wreck);
+
+        // The Ilwrath comes again, whole, on the next report to the commander.
+        var again = ToTheFight(world, "host");
+        Assert.NotSame(wb, again);
+        Assert.Equal(7, again.Enemy.RaceDesc!.CrewLevel);
+    }
+
+    [ContentFact]
+    public void TheStartersDisconnectAloneTakesTheVisitBackAndPaysItsFuelAfter()
+    {
+        var world = Reported(2);
+        var g1 = world.Find("g1")!;
+        g1.Ship.Flight.Fuel = 1200;
+        var wb = ToTheFight(world, "g1");
+        int crew = g1.Ship.Hold.Crew;
+        world.Leave("g1");
+        Assert.Equal((BattleOutcome.Lost, BattleExit.Disconnected), (wb.Outcome, wb.FighterOf("g1")!.Exit));
+        Assert.Null(world.Visit);
+        Assert.Equal(0, world.Story!.Get("PROBE_ILWRATH_ENCOUNTER"));
+        // As before the visit, then the retreat's 5 units: not given back by taking the visit back.
+        Assert.Equal((700u, crew, false), (g1.Ship.Flight.Fuel, g1.Ship.Hold.Crew, g1.Ship.Destroyed));
+        Assert.Equal(0, (int)g1.Ship.Ip!.EscapeCounter);
+        // With less than 5 units, down to none.
+        var other = Reported(2);
+        other.Find("g1")!.Ship.Flight.Fuel = 300;
+        ToTheFight(other, "g1");
+        other.Leave("g1");
+        Assert.Null(other.Visit);
+        Assert.Equal(0u, other.Find("g1")!.Ship.Flight.Fuel);
+    }
+
+    [ContentFact]
+    public void TheLastPlayerLeavingAsTheIlwrathExplodesGoesOnToTheAlliance()
+    {
+        var world = Reported(2);
+        var g1 = world.Find("g1")!;
+        g1.Ship.Flight.Fuel = 1200;
+        var wb = ToTheFight(world, "g1");
+        WorldBattleTests.Kill(wb.Battle, wb.Enemy);
+        Run(world, 1);
+        Assert.Null(wb.Outcome);   // exploding
+        world.Leave("g1");
+        // The battle ends at once, lost (no ship of the players' left in it), but the Ilwrath is dead.
+        Assert.Equal((BattleOutcome.Lost, 0), (wb.Outcome, (int)wb.Enemy.CrewLevel));
+        var visit = world.Visit!;
+        Assert.Equal((VisitStep.Alliance, world.Host), (visit.Step, visit.Replier));
+        Assert.Equal(700u, g1.Ship.Flight.Fuel);
+        ToTheStarbaseReady(world);
+        Assert.Equal(Activity.InnerSystem, world.Host.Ship.Activity);
+        Assert.Null(g1.Ship.Visit);
+    }
+
+    [ContentFact]
+    public void AStarterGoneBeforeTheFightCantFightItAndTheVisitIsTakenBack()
+    {
+        var world = Reported(2);
+        world.VisitStarbase(world.Find("g1")!);
+        Say(world, "comandr", "base_was_abandoned");
+        world.Leave("g1");
+        Assert.Equal(world.Host, world.Visit!.Replier);
+        Say(world, "ilwrath", "surrender");
+        Assert.Null(world.Visit);
+        Assert.Empty(world.Battles);
+        Assert.Equal(0, world.Story!.Get("PROBE_ILWRATH_ENCOUNTER"));
+        Assert.Null(world.TalkFor("host"));
+    }
+
+    [ContentFact]
+    public void StartVisitBaseReportStartsAtTheCommandersTalkBeforeTheIlwrath()
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Zelnick",
+            Systems, TestContent.Shapes);
+        host.World.TalkLibrary = Library.Value;
+        host.World.BattleKit = WorldBattleTests.Kit();
+        Assert.Throws<ArgumentException>(() => host.StartVisit("ilwrath"));
+        Assert.Null(host.World.Visit);
+        Assert.Equal("Starting in the Commander talk at Earth's starbase", host.StartVisit("base-report"));
+        var world = host.World;
+        Assert.Equal(VisitStep.Commander, world.Visit!.Step);
+        Assert.True(world.CommanderMet);
+        Say(world, "comandr", "base_was_abandoned");
+        Assert.Equal(VisitStep.Ilwrath, world.Visit!.Step);
+        Say(world, "ilwrath", "surrender");
+        Assert.Equal(VisitStep.IlwrathFight, world.Visit!.Step);
+        Assert.Equal(Activity.Battle, world.Host.Ship.Activity);
+        Assert.Equal(new[] { "base-report" }, HostSession.VisitSteps);
     }
 }

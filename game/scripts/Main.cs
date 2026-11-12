@@ -446,7 +446,7 @@ public partial class Main : Node2D
             if (_options.StartOrbit is { } o)
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
             if (_options.StartVisit)
-                Log(host.StartVisit());
+                Log(host.StartVisit(_options.StartVisitStep));
             if (_options.StartMinerals is { } minerals)
                 Log(host.StartWithMinerals(minerals));
             if (_options.StartUnits is { } units)

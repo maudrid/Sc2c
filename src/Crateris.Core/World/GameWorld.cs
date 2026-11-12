@@ -142,8 +142,10 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// The visit to Earth's starbase in its opening, if any (before the
-    /// starbase's menu): a story visit, one at a time. Docked players'
-    /// visits are their ships' own (<see cref="PlayerShip.Visit"/>).
+    /// starbase's menu): a story visit, one at a time (during the Ilwrath's
+    /// fight, <see cref="VisitStep.IlwrathFight"/>, it pauses nothing, and
+    /// its starter's ship isn't in it). Docked players' visits are their
+    /// ships' own (<see cref="PlayerShip.Visit"/>).
     /// </summary>
     public StarbaseVisit? Visit { get; private set; }
 
@@ -308,8 +310,10 @@ public sealed partial class GameWorld
         // The replier of a story talk leaving hands the replies on to the
         // next player in join order, the host first, so the story isn't
         // left half told (decision 7); with no one to take them, or for a
-        // visit that isn't story, it's undone.
-        if (Visit is { } visit && visit.Replier == player)
+        // visit that isn't story, it's undone. During the Ilwrath's fight
+        // its battle decides (AfterTheFight, below): a disconnect is a
+        // retreat from it (above), and the replier is chosen as it ends.
+        if (Visit is { Step: not VisitStep.IlwrathFight } visit && visit.Replier == player)
         {
             var next = visit.Story ? _players.FirstOrDefault(p => p.Present && p != player) : null;
             if (next is not null)
@@ -333,6 +337,7 @@ public sealed partial class GameWorld
         _actionHeld.Remove(id);
         player.Ship.Flight.Stop();
         player.Ship.Ip?.Stop();   // in orbit it stays in orbit
+        AfterTheFight();   // the Ilwrath's fight ended by the disconnect: settled with the player gone
     }
 
     /// <summary>The client has shown the undocking scene.</summary>
@@ -462,6 +467,7 @@ public sealed partial class GameWorld
         JoinBattles();
         FlyIntoWrecks();
         StepBattles();
+        AfterTheFight();
         if (GameOver)
             return;   // the world stops at once (decision 12): no surface's frame, no clock
         StepSurfaces();
@@ -863,25 +869,39 @@ public sealed partial class GameWorld
         _rounds = Math.Max(_rounds, v.Round);
         if (v.Step != VisitStep.MenuTalk)
             DialogueLocks?.Release("COMMANDER_CONVERSATION", v.Starter.Id);
+        if (v == Visit && v.Step == VisitStep.IlwrathFight && v.Fight is null)
+            StartTheFight(v);
+        // Whether the starter's ship is in the visit: not once it has gone
+        // to the Ilwrath's fight and didn't fight it to the end (AfterTheFight).
+        bool aboard = v.Starter.Ship.Visit == v;
         if (v == Visit && !v.Opening)
         {
             Visit = null;
             // Those who watched the story see its closing lines, as they
             // were: not the starter's own talks after it.
             if (!v.Undone && v.WasStory && TalkView.Of(v) is { } closing)
-                foreach (var p in _players.Where(p => p.Present && p != v.Starter))
+                foreach (var p in _players.Where(p => p.Present && (p != v.Starter || !aboard)))
                     _ended[p.Id] = (v, closing with { Step = VisitStep.Done });
         }
-        // An opening whose starter went away (the replies passed on) ends
-        // as it docks: they come back in flight by the starbase.
-        if (v.AtMenu && !v.Starter.Present)
+        // An opening whose starter went away (the replies passed on), or
+        // whose ship didn't fight the Ilwrath to the end (wrecked, or gone),
+        // ends as it docks, nobody docked (decision 13): a starter back
+        // comes back in flight by the starbase.
+        if (v.AtMenu && (!v.Starter.Present || !aboard))
             v.Abandon();
         if (v.Done)
         {
-            v.Starter.Ship.Visit = null;
+            if (aboard)
+                v.Starter.Ship.Visit = null;
+            if (v.Undone)
+            {
+                // Nothing to show of a visit taken back (the Ilwrath's closing lines, shown as its fight began, go).
+                foreach (var id in _ended.Where(e => e.Value.Visit == v).Select(e => e.Key).ToList())
+                    _ended.Remove(id);
+            }
             // Once docked, the starter was shown its talks' closing lines on
             // the menu: leaving shows none again.
-            if (!v.Undone)
+            else if (aboard)
                 _ended[v.Starter.Id] = (v, v.Menu is null ? null
                     : TalkView.Of(v) is { } last ? last with { Step = VisitStep.Done, Lines = Array.Empty<string>() } : null);
         }

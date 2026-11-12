@@ -7,7 +7,8 @@
 // (at your option) any later version.
 //
 // Follows The Ur-Quan Masters 0.8.0 (src/uqm/starbase.c's VisitStarBase
-// and DoTimePassage), Copyright Paul Reiche, Fred Ford and Toys for Bob,
+// and DoTimePassage; src/uqm/comm.c's InitCommunication, which ends a
+// hostile talk in EncounterBattle), Copyright Paul Reiche, Fred Ford and Toys for Bob,
 // Inc. 1992-2002, and the UQM contributors, under the GNU GPL 2 or later.
 
 using Crateris.Core.Comm;
@@ -22,7 +23,7 @@ public enum VisitStep
     /// <summary>The commander's talk before the alliance (comandr.c).</summary>
     Commander,
 
-    /// <summary>The Ilwrath ship that answers the probe's call (ilwrathc.c); its battle counts as won (decision 3).</summary>
+    /// <summary>The Ilwrath ship that answers the probe's call (ilwrathc.c), whose talk ends in its battle (<see cref="IlwrathFight"/>).</summary>
     Ilwrath,
 
     /// <summary>The commander again, impressed: the alliance and its name.</summary>
@@ -42,14 +43,27 @@ public enum VisitStep
 
     /// <summary>Over: the ship has left the starbase (or never docked: before the alliance).</summary>
     Done,
+
+    /// <summary>
+    /// The Ilwrath's battle by Earth, after its talk (stage 4a item 9): no
+    /// talk, no story pause; the starter fights it in the world
+    /// (<see cref="StarbaseVisit.Fight"/>) and the visit waits for its end.
+    /// Part of the opening, between <see cref="Ilwrath"/> and
+    /// <see cref="Alliance"/>; numbered last so the steps a talk's view
+    /// carries keep their numbers on the wire (it's never sent: a player is
+    /// shown the Ilwrath's closing lines meanwhile).
+    /// </summary>
+    IlwrathFight,
 }
 
 /// <summary>
 /// One player's visit to Earth's starbase, as VisitStarBase runs it
 /// (stage 3a, items 5 and 8). Before the alliance, the commander talks;
-/// if he warns of the Ilwrath, their ship talks next and its battle counts
-/// as won (decision 3, until stage 4), and the commander talks again and
-/// makes the alliance. With the Lunar base aboard, two weeks pass and the
+/// if he warns of the Ilwrath, their ship talks next, and its talk ends
+/// in a battle by Earth that the starter fights (stage 4a item 9, stage 4
+/// decision 13: <see cref="VisitStep.IlwrathFight"/>, which the world
+/// runs); the Ilwrath killed, the commander talks again and makes the
+/// alliance. With the Lunar base aboard, two weeks pass and the
 /// allied commander says the starbase is ready, with 2,500 resource
 /// units, which are split between the players in the game (decision 5).
 /// Then, once allied, the ship is docked at the starbase's menu
@@ -62,7 +76,9 @@ public enum VisitStep
 /// fields its talks wrote (only those: another player's lander may take
 /// the Lunar base meanwhile), the starter's ship and the two weeks. A save
 /// made during it is of the game without it, as UQM can't save in the
-/// middle of one; and if the starter leaves, it's undone. Once docked,
+/// middle of one; and if the starter leaves with no one to take the
+/// replies, or every player leaves the Ilwrath's fight with the Ilwrath
+/// alive (<see cref="GameWorld"/>'s AfterTheFight), it's undone. Once docked,
 /// nothing is taken back: leaving ends the visit, as departing does.
 /// </para>
 /// </summary>
@@ -116,8 +132,15 @@ public sealed class StarbaseVisit
     /// <summary>How the replier has paged the current lines (decision 7): what watchers follow; null before any.</summary>
     public Comm.TalkPaging? Paging { get; internal set; }
 
-    /// <summary>Whether the visit is still in the opening (before the menu): one at a time, taken back if its starter leaves.</summary>
-    public bool Opening => Step < VisitStep.Menu;
+    /// <summary>Whether the visit is still in the opening (before the menu, the Ilwrath's fight too): one at a time, taken back if its starter leaves.</summary>
+    public bool Opening => Step < VisitStep.Menu || Step == VisitStep.IlwrathFight;
+
+    /// <summary>
+    /// The Ilwrath's battle by Earth, once its talk has ended in it
+    /// (<see cref="VisitStep.IlwrathFight"/>; the world starts it and
+    /// settles the visit as it ends); null before.
+    /// </summary>
+    public WorldBattle? Fight { get; internal set; }
 
     /// <summary>Docked at the menu, not talking: the ship may be outfitted, crew hired, a talk started, or the starbase left.</summary>
     public bool AtMenu => Step == VisitStep.Menu;
@@ -242,8 +265,21 @@ public sealed class StarbaseVisit
                 }
                 break;
             case VisitStep.Ilwrath:
-                // Its battle counts as won (decision 3): on to the commander.
-                StartTalk(VisitStep.Alliance, "comandr", new() { ["STARBASE_VISITED"] = _world.CommanderMet ? 1 : 0 });
+                // InitCommunication: a hostile ending (every reply at Earth
+                // is) builds the player's side and fights (EncounterBattle):
+                // the world starts the battle (GameWorld.AfterVisit) and
+                // the visit waits for it. Without the battle's content (a
+                // world of the talks alone, some tests') it counts as won,
+                // as stage 3a had it; a peaceful ending goes on at once,
+                // as VisitStarBase does after any talk that doesn't kill
+                // the flagship.
+                if (talk.Segue == Segue.Hostile && _world.BattleKit is not null)
+                {
+                    Step = VisitStep.IlwrathFight;
+                    Talk = null;
+                }
+                else
+                    AfterTheFight(Replier);
                 break;
             case VisitStep.Alliance:
                 _world.CommanderMet = talk.OwnFields.GetValueOrDefault("STARBASE_VISITED") != 0;
@@ -262,6 +298,17 @@ public sealed class StarbaseVisit
                 Dock();
                 break;
         }
+    }
+
+    /// <summary>
+    /// The Ilwrath killed (VisitStarBase after its battle): the commander's
+    /// alliance talk, answered by <paramref name="replier"/> (the starter, or
+    /// the next player if the starter can't, decision 13).
+    /// </summary>
+    internal void AfterTheFight(Player replier)
+    {
+        Replier = replier;
+        StartTalk(VisitStep.Alliance, "comandr", new() { ["STARBASE_VISITED"] = _world.CommanderMet ? 1 : 0 });
     }
 
     // With the Lunar base aboard (or the Chmmr's bomb just installed, in
@@ -384,7 +431,27 @@ public sealed class StarbaseVisit
         return (d.Year, d.Month, d.Day);
     }
 
-    /// <summary>The opening is undone: what its talks wrote, the starter's ship and the two weeks put back.</summary>
+    /// <summary>
+    /// The starter's fuel without the visit: as it started, less the
+    /// retreat's 5 units (to no lower than 0) if the starter disconnected
+    /// from the Ilwrath's fight, which a disconnect pays even where a
+    /// retreat isn't allowed (decision 10) and which taking the visit back
+    /// doesn't give back (decision 13).
+    /// </summary>
+    public uint FuelWithout()
+    {
+        if (Fight?.FighterOf(Starter.Id) is not { Exit: BattleExit.Disconnected })
+            return FuelBefore;
+        return FuelBefore > GameWorld.RetreatFuelCost ? FuelBefore - GameWorld.RetreatFuelCost : 0;
+    }
+
+    /// <summary>
+    /// The opening is undone: what its talks wrote, the starter's ship and
+    /// the two weeks put back. A starter wrecked in the Ilwrath's fight
+    /// stays a wreck (decision 13): its hold as before the visit, but no
+    /// crew; one that disconnected from it pays its fuel after
+    /// (<see cref="FuelWithout"/>).
+    /// </summary>
     internal void Undo()
     {
         if (!Opening)
@@ -392,7 +459,9 @@ public sealed class StarbaseVisit
         foreach (var (field, value) in WrittenBefore())
             _world.Story!.Set(field, value);
         Starter.Ship.Hold.Restore(HoldBefore);
-        Starter.Ship.Flight.Fuel = FuelBefore;
+        if (Starter.Ship.Destroyed)
+            Starter.Ship.Hold.SetCrew(0);
+        Starter.Ship.Flight.Fuel = FuelWithout();
         if (Starter.Ship.Ip is { } ip)
             ip.EscapeCounter = 0;   // none before the visit: a ship with one can't touch the starbase
         _world.CommanderMet = MetBefore;

@@ -145,14 +145,34 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// --start-visit (testing): the host's ship by Earth's starbase, in the
-    /// visit's first talk, as if it had just flown into it. Needs the talks'
-    /// content (InvalidOperationException).
+    /// The steps --start-visit takes (testing): <c>base-report</c>, the
+    /// commander's talk where the Lunar base is reported, before the
+    /// Ilwrath's (<see cref="StartVisit"/>).
     /// </summary>
-    public string StartVisit()
+    public static readonly IReadOnlyList<string> VisitSteps = new[] { "base-report" };
+
+    /// <summary>
+    /// --start-visit [STEP] (testing): the host's ship by Earth's starbase,
+    /// in the visit's first talk, as if it had just flown into it: with no
+    /// step the commander's first talk; <c>base-report</c> the commander's
+    /// talk where the Lunar base is reported (<see cref="VisitStep.Commander"/>
+    /// with the errands done: the radioactives given, the base taken and
+    /// aboard, the commander met), whose replies bring the Ilwrath and its
+    /// fight (stage 4a item 9). Needs the talks' content
+    /// (InvalidOperationException); an unknown step is an ArgumentException.
+    /// </summary>
+    public string StartVisit(string? step = null)
     {
-        if (World.TalkLibrary is null || World.Systems is null)
+        if (step is not null && !VisitSteps.Contains(step))
+            throw new ArgumentException($"no visit step {step} (steps: {string.Join(", ", VisitSteps)})");
+        if (World.TalkLibrary is null || World.Systems is null || World.Story is null)
             throw new InvalidOperationException("the talks need the content");
+        if (step == "base-report")
+        {
+            foreach (var f in new[] { "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED", "MOONBASE_ON_SHIP" })
+                World.Story.Set(f, 1);
+            World.CommanderMet = true;
+        }
         int sol = World.Systems.Map.Stars.Single(s => s.Special == "SOL_DEFINED").Number;
         World.PutInOrbit(HostId, sol, 2, 1);
         World.Host.Ship.Ip!.ReturnFromOrbit();   // in Earth's inner system, by the starbase
