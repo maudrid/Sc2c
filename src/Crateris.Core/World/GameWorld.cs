@@ -1105,8 +1105,9 @@ public sealed partial class GameWorld
         // The opening's starter's hold can be taken back (StarbaseVisit.Undo,
         // and a save is of it as before): no gifts to or from them meanwhile,
         // unless their part of it is settled (they left the Ilwrath's fight).
-        // In the fight, they're in its battle or a wreck, refused as such
-        // above; outside it, the opening's talks pause the game.
+        // In the fight, they're in its battle (destroyed or not, till it
+        // ends), refused as such above; outside it, the opening's talks
+        // pause the game.
         if (Visit is { Opening: true, StarterSettled: false } opening
                 && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To))
             return TradeRefusal.Paused;

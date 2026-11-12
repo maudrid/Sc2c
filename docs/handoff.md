@@ -13,7 +13,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 ## Open items
 
-Item 9's independent review left four items; the owner confirmed decision 13 as reworded (a starter disconnecting from the Ilwrath fight keeps the crew it left with), and the other three are fixed: an away starter has no share of the starbase's gift (`StarbaseVisit.ShareTheGift`, tests `AStarterAwayFromTheFightHasNoShareOfTheGift`, `AWreckedStarterKeepsItsShareOfTheGift`), gifts to or from the starter mid-fight are refused as `InBattle` or `Wrecked` (`GameWorld.Give`), and `StarbaseVisit`'s stale comments are updated. Their review loop (`CLAUDE.md`) is under way.
+Item 9's independent review left four items; the owner confirmed decision 13 as reworded (a starter disconnecting from the Ilwrath fight keeps the crew it left with), and the other three are fixed: an away starter has no share of the starbase's gift (`StarbaseVisit.ShareTheGift`, tests `AStarterAwayFromTheFightHasNoShareOfTheGift`, `AWreckedStarterKeepsItsShareOfTheGift`), gifts to or from the starter mid-fight are refused as `InBattle` (`GameWorld.Give`), a mineral sale in the gift's talk is no longer split with the gift, and `StarbaseVisit`'s stale comments are updated. Their review loop (`CLAUDE.md`) is under way.
 
 Smaller items left by earlier work are recorded in the plan as notes under the item that owns them (items 10 to 13, 3b, 3c, 4b).
 

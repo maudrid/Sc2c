@@ -78,8 +78,9 @@ public enum VisitStep
 /// made during it is of the game without it, as UQM can't save in the
 /// middle of one; and if the starter leaves with no one to take the
 /// replies, or every player leaves the Ilwrath's fight with the Ilwrath
-/// alive (<see cref="GameWorld"/>'s AfterTheFight), or the starter is gone
-/// as that fight would start, it's undone. Once docked,
+/// alive (<see cref="GameWorld"/>'s AfterTheFight), or the Ilwrath is
+/// killed with nobody in the game to answer the commander, or the starter
+/// is gone as that fight would start, it's undone. Once docked,
 /// nothing is taken back: leaving ends the visit, as departing does.
 /// </para>
 /// </summary>
@@ -97,6 +98,11 @@ public sealed class StarbaseVisit
     private readonly GameWorld _world;
     private int _fadeLeft;
     private uint _unitsBefore;
+
+    // The starbase's gift: what the "starbase is ready" talk's opening gave
+    // the starter (its 2,500 RU), before any reply (a mineral sale's
+    // proceeds, later in the talk, are the seller's own, row 11).
+    private uint _gift;
     private int _talks;
     private bool _skipped;
 
@@ -265,6 +271,8 @@ public sealed class StarbaseVisit
             new PlayerTalkShip(Starter, _world.TalkLibrary.Strings, _world.Host.Ship), _world.Clock, seed);
         Talks.Add(Talk);
         Talk.Start();
+        if (step == VisitStep.StarbaseReady)
+            _gift = Starter.Ship.Hold.ResourceUnits - _unitsBefore;
         if (Talk.Ended)
             TalkEnded();
     }
@@ -407,7 +415,8 @@ public sealed class StarbaseVisit
         Finish();
     }
 
-    // The starbase's resource units are the group's: split equally between
+    // The starbase's resource units (its gift alone, not a mineral sale's
+    // proceeds in the same talk) are the group's: split equally between
     // the players in the game (stage 3, decision 5), the starter keeping
     // what doesn't divide. A starter away (it left the Ilwrath's fight and
     // hasn't come back) has no share: the talk put the units in its hold,
@@ -416,7 +425,7 @@ public sealed class StarbaseVisit
     // game and keeps its share.
     private void ShareTheGift()
     {
-        uint gained = Starter.Ship.Hold.ResourceUnits - _unitsBefore;
+        uint gained = _gift;
         var sharers = _world.Players.Where(p => p.Present).ToList();
         if (gained == 0 || sharers.Count == 0 || (sharers.Count == 1 && sharers[0] == Starter))
             return;

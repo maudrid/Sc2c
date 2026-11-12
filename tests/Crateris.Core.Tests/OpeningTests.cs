@@ -1106,18 +1106,31 @@ public class OpeningTests
     [ContentFact]
     public void AStarterAwayFromTheFightHasNoShareOfTheGift()
     {
-        // Four players: the starter g1 disconnects from the fight and stays away; the host wins it.
+        // Four players: the starter g1, carrying 10 units of common minerals, disconnects from the fight and stays
+        // away; the host wins it.
         var world = Reported(4);
         var g1 = world.Find("g1")!;
         g1.Ship.Flight.Fuel = 1200;
+        var minerals = new int[ShipHold.Categories];
+        minerals[0] = 10;
+        g1.Ship.Hold.MoveCargo(minerals, 0, +1);
         var wb = ToTheFight(world, "g1");
         FlyIn(world, wb, "host");
         world.Leave("g1");
+        Assert.Equal(10, g1.Ship.Hold.Minerals[0]);   // settled: its hold as before the visit
         uint[] before = world.Players.Select(p => p.Ship.Hold.ResourceUnits).ToArray();
         KillTheIlwrath(world, wb);
-        ToTheStarbaseReady(world);
+        Say(world, "comandr", "cook_their_butts");
+        Say(world, "comandr", "name_2");
+        Run(world, StarbaseVisit.TimePassingFrames);
+        // The talk is still the starter's ship's: the replier may sell its minerals, whose worth stays in its hold.
+        Say(world, "starbas", "have_minerals");
+        Say(world, "starbas", "goodbye_commander");
+        Assert.Null(world.Visit);
+        uint worth = (uint)(10 * world.Story!.ElementWorth[0]);
+        Assert.Equal(0, g1.Ship.Hold.Minerals[0]);
         // 2,500 between the three in the game: 833 each, the host, first in join order, keeping the one left.
-        Assert.Equal(new uint[] { 834, 0, 833, 833 },
+        Assert.Equal(new uint[] { 834, worth, 833, 833 },
             world.Players.Select((p, i) => p.Ship.Hold.ResourceUnits - before[i]).ToArray());
     }
 
@@ -1130,6 +1143,12 @@ public class OpeningTests
         FlyIn(world, wb, "g2");
         WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
         Run(world, 1);
+        // A gift to it mid-fight: refused as its battle's (a destroyed ship is in its battle till the battle ends),
+        // not as the story's pause.
+        var gift = new Gift("host", "g1", 1, new int[ShipHold.Categories], 0);
+        Disarmed(world, wb, 200);
+        Assert.Null(wb.Outcome);
+        Assert.Equal(TradeRefusal.InBattle, world.Give(gift));
         uint[] before = world.Players.Select(p => p.Ship.Hold.ResourceUnits).ToArray();
         KillTheIlwrath(world, wb);
         ToTheStarbaseReady(world);
