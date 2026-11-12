@@ -84,8 +84,10 @@ public sealed class TradeScreen
         return null;
     }
 
-    private static List<string> Others(WorldSnapshot? snapshot, string me) =>
-        snapshot?.Ships.Where(s => s.Id != me).Select(s => s.Id).ToList() ?? new List<string>();
+    // The others who can take a gift: not wrecks (no one is aboard; an
+    // away player's stays in the snapshot, stage 4a item 7).
+    internal static List<string> Others(WorldSnapshot? snapshot, string me) =>
+        snapshot?.Ships.Where(s => s.Id != me && !s.Wrecked).Select(s => s.Id).ToList() ?? new List<string>();
 
     // The screen follows the game: the receiver is one of the others in it
     // (the first, until one is chosen, or if theirs has left), and no

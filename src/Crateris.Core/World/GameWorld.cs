@@ -66,9 +66,9 @@ public sealed record ShipSnapshot(
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
 
 /// <summary>
-/// The game at a frame: the date, the ships of the players present (and every wreck, an away player's too), the
-/// worlds being orbited (with their taken nodes) and the surfaces with
-/// landers on them, and the story state (made again only when it changes);
+/// The game at a frame: the date, the ships of the players present (and
+/// every wreck, an away player's too), the worlds being orbited (with
+/// their taken nodes) and the surfaces with landers on them, and the story state (made again only when it changes);
 /// while the game is paused for a story talk, who replies in it
 /// (<see cref="StoryPause"/>). A guest is sent only its own lander's surface.
 /// </summary>
@@ -277,7 +277,8 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// Leave or disconnect: the ship vanishes and waits, stopped, in the save
-    /// until the player rejoins.
+    /// until the player rejoins; a wreck stays in space, for friends to
+    /// revive meanwhile (stage 4a item 7).
     /// </summary>
     public void Leave(string id)
     {

@@ -179,7 +179,10 @@ public sealed class Player
     public bool IsHost { get; }
     public PlayerShip Ship { get; }
 
-    /// <summary>Connected and flying. Absent players' ships wait in the save, not in space.</summary>
+    /// <summary>
+    /// Connected and flying. Absent players' ships wait in the save, not in
+    /// space, but for a wreck, which stays in space (stage 4a item 7).
+    /// </summary>
     public bool Present { get; set; }
 
     /// <summary>

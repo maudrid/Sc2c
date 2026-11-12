@@ -238,6 +238,8 @@ public class WreckTests
         var shown = world.Snapshot().Ships.Single(s => s.Id == "g1");
         Assert.Equal((true, wb.Place.X, wb.Place.Y), (shown.Wrecked, shown.LogX, shown.LogY));
         Assert.Equal(new[] { "g1" }, world.RescuesFor("host").Select(p => p.Id));
+        // No one to give a gift to there: the giving screen leaves wrecks out.
+        Assert.Equal(new[] { "g2" }, Session.TradeScreen.Others(world.Snapshot(), "host"));
         Run(world, 5);
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
         Assert.Equal((true, 0, wb.Place.X, wb.Place.Y), (g1.Destroyed, g1.Hold.Crew, g1.Flight.LogX, g1.Flight.LogY));
@@ -292,8 +294,11 @@ public class WreckTests
         Assert.Equal(Activity.Battle, g1.Activity);
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));   // back watching
         world.Leave("g1");
+        // Away and destroyed while the battle runs on: out of space, as any away ship, until it's a wreck.
+        Assert.DoesNotContain(world.Snapshot().Ships, s => s.Id == "g1");
         Kill(wb.Battle, wb.Enemy);
         RunOut(world, wb);
+        Assert.True(world.Snapshot().Ships.Single(s => s.Id == "g1").Wrecked);
         Assert.Equal((true, Activity.Hyperspace, wb.Place.X), (g1.Destroyed, g1.Activity, g1.Flight.LogX));
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
         Assert.Equal(new[] { "g1" }, world.Wrecks.Select(p => p.Id));
@@ -655,6 +660,35 @@ public class WreckTests
         Assert.Equal(Activity.InnerSystem, guest.Activity);
         Assert.NotEqual((wb.Place.X, wb.Place.Y), ((int)guest.Ip!.Location.X, (int)guest.Ip.Location.Y));
         Assert.Equal(44, host.Hold.Crew);
+    }
+
+    [ContentFact]
+    public void AShipRevivedWhileAwayInASystemHasTheEscapeCounterUntilASave()
+    {
+        // g1's own battle by Earth, lost: a wreck there; g1 away; the host revives it.
+        (GameWorld World, Player G1) Revived()
+        {
+            var world = InSol(2);
+            var wb = world.StartBattle("g1", Ilwrath);
+            for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+                Run(world, 1);
+            Kill(wb.Battle, Fighter(wb, "g1").Starship);
+            RunOut(world, wb);
+            world.Leave("g1");
+            Assert.Equal(RescueRefusal.None, world.Revive("host", "g1", 3));
+            return (world, world.Find("g1")!);
+        }
+        // Rejoining without a save between: the counter is still its revival's (away ships don't fly).
+        var (world, g1) = Revived();
+        Run(world, 30);
+        Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
+        Assert.Equal(IpFlight.EscapeFrames, g1.Ship.Ip!.EscapeCounter);
+        // Saved and loaded first: none, as any loaded ship has none (the counter isn't saved).
+        var (other, _) = Revived();
+        var loaded = HostSave.FromJson(HostSave.ToJson(other), WorldBattleTests.Systems.Value, TestContent.Shapes);
+        Assert.Equal(JoinResult.Rejoined, loaded.Join("g1", "Guest 1"));
+        var ship = loaded.Find("g1")!.Ship;
+        Assert.Equal((false, 3, 0), (ship.Wreck, ship.Hold.Crew, (int)ship.Ip!.EscapeCounter));
     }
 
     [ContentFact]

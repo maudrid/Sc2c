@@ -630,7 +630,7 @@ public sealed class PlayerSession
             Notify("Close the cargo display first.");
         else if (OrbitMenu?.DeviceList is not null)
             Notify("Close the Devices list first.");
-        else if (Snapshot is null || Snapshot.Ships.Count < 2)
+        else if (TradeScreen.Others(Snapshot, PlayerId).Count == 0)
             Notify(Gift.Why(TradeRefusal.NoOne));
         else
         {
@@ -942,9 +942,10 @@ public sealed class PlayerSession
                 if (MyLander is { } l)
                     lines.Add($"Lander: {l.Phase.ToString().ToLowerInvariant()}, crew {l.Crew}, minerals {l.MineralMass}, bio {l.BioData}");
             }
-            lines.Add($"Players ({Snapshot.Ships.Count}):");
+            // The ships in space: the players here, and the wrecks, whose players may be away (stage 4a item 7).
+            lines.Add($"Ships ({Snapshot.Ships.Count}):");
             foreach (var s in Snapshot.Ships)
-                lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}  {Where(s)}");
+                lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}{(s.Wrecked ? " (wreck)" : "")}  {Where(s)}");
         }
         if (Undocking)
         {
@@ -979,7 +980,7 @@ public sealed class PlayerSession
             lines.Add("Arrows: turn and thrust");
         // The Manifest's Devices list is drawn in the status area (DevicesDisplay), which hides this panel while it's open.
         // The giving screen is drawn in the status area, which hides this panel while it's open.
-        if (Trade is null && Snapshot?.Ships.Count > 1 && !StoryPaused && !TalkShown)   // giving waits while a talk goes on
+        if (Trade is null && TradeScreen.Others(Snapshot, PlayerId).Count > 0 && !StoryPaused && !TalkShown)   // giving waits while a talk goes on
             lines.Add("T: give another player something");
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();
