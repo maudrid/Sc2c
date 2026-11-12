@@ -2,18 +2,18 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-12, after the owner's rules on talks and gifts were built (review in progress).
+**Last updated:** 2026-11-12, after the owner's rules on talks were built and reviewed (five rounds, the last finding nothing); item 10 starting.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4.md`, stage 4a (combat), approved by the owner with all fifteen decisions accepted.
 - **Stage 4a items 1 to 9 are built.** Each has a Built row in the plan's Progress section and notes under the later items for what they must honour. Items 10 to 13 are left: 10 the host's pause, 11 the wire, 12 client views, 13 docs.
-- **Last checks:** on the owner's rules (talks are the answerer's ship's), all topics 1,400 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~976, `game/scripts/ReportView.cs` 78). Data checks and `tools/test_network.py` were last run on item 9's last commit; the changes since touch Core and docs only.
+- **Last checks:** on 2421b5e, all topics 1,405 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~976, `game/scripts/ReportView.cs` 78). Data checks and `tools/test_network.py` were last run on item 9's last commit.
 
 ## Open items
 
-None from item 9's review: its four items are fixed, and the owner's rules below are built (`World/AnswererTalkShip.cs`), in review per `CLAUDE.md`.
+None open. The owner's rules below are built (`World/AnswererTalkShip.cs`) and reviewed in five rounds: the replier reset on docking, a lander's crew counted twice, replies offered for the last answerer's ship, a lander out taken back, and saves agreeing with Undo were found and fixed; the fifth found nothing.
 
 Smaller items left by earlier work are recorded in the plan as notes under the item that owns them (items 10 to 13, 3b, 3c, 4b).
 
@@ -25,7 +25,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Finish the review loop of the owner's rules, then item 10, the host's pause, when the owner says to start it.
+Item 10, the host's pause (`docs/plans/stage-4.md`): build it with its review rounds, report, and stop; don't start item 11 unasked.
 
 ## Working agreements
 
