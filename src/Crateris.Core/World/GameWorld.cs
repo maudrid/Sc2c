@@ -165,8 +165,11 @@ public sealed partial class GameWorld
     /// player is shown it. Nothing changes the world meanwhile but players
     /// coming and going (a disconnect leaves a battle at once, decision 10,
     /// and a story talk it starts is shown, waiting for the pause to lift
-    /// for its replies); the talks' lines may still be paged. Not saved: a
-    /// game loaded runs.
+    /// for its replies, which are kept as they come and chosen as it
+    /// lifts); the talks' lines may still be paged. A star's entry already
+    /// playing finishes on the screens, as in a story pause (it's timed by
+    /// the frames, which go on). Not saved: a game loaded runs. The game's
+    /// end lifts it.
     /// </summary>
     public bool HostPaused { get; private set; }
 
@@ -176,8 +179,23 @@ public sealed partial class GameWorld
         if (GameOver)
             return false;
         HostPaused = paused;
+        if (!paused)
+        {
+            // The replies chosen meanwhile, in the order they came: each
+            // chosen now as it would have been (one that no longer fits, as
+            // none would have, is dropped).
+            var held = _heldReplies.ToList();
+            _heldReplies.Clear();
+            foreach (var (id, index, round) in held)
+                ChooseReply(id, index, round);
+        }
         return true;
     }
+
+    // Replies chosen during the host's pause, kept for when it lifts: the
+    // replier's client counts a reply sent as said (one a set), so one
+    // refused would leave its talk waiting for good.
+    private readonly List<(string Id, int Index, int? Round)> _heldReplies = new();
 
     // The world can't be changed now: the host's pause or the game's end.
     private bool Held => HostPaused || GameOver;
@@ -682,8 +700,13 @@ public sealed partial class GameWorld
     /// </summary>
     public bool ChooseReply(string id, int index, int? round = null)
     {
-        if (Held || Find(id) is not { Present: true } player)
+        if (GameOver || Find(id) is not { Present: true } player)
             return false;
+        if (HostPaused)
+        {
+            _heldReplies.Add((id, index, round));   // chosen as the pause lifts
+            return true;
+        }
         var visit = Visit is { } story && story.Replier == player ? story
             : !StoryPaused && player.Ship.Visit is { Step: VisitStep.MenuTalk } own ? own
             : null;

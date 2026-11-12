@@ -53,13 +53,40 @@ public class HostPauseTests
         Assert.True(paused.HostPaused);
         Assert.False(before.HostPaused);
         Assert.Equal(before.Ships.Select(s => (s.LogX, s.LogY, s.Facing, s.Fuel)), paused.Ships.Select(s => (s.LogX, s.LogY, s.Facing, s.Fuel)));
-        world.SubmitInput("host", world.Frame, ShipInput.Fire);   // stamped for a paused frame, arriving late
         // Lifted: the world goes on.
         Assert.True(world.SetHostPause(false));
         WorldBattleTests.RunDisarmed(world, wb, 12, _ => ShipInput.Thrust);
         Assert.NotEqual(at, (ship.Current.X, ship.Current.Y, ship.Velocity.TravelAngle));
         Assert.False(world.Snapshot().HostPaused);
         Assert.Same(guest, world.Find("g2"));
+    }
+
+    [ContentFact]
+    public void InputForThePausedFramesIsDroppedThoughItCameLate()
+    {
+        var world = WorldBattleTests.NewWorld();
+        var flight = world.Host.Ship.Flight;
+        var before = (flight.LogX, flight.LogY, flight.Velocity.VectorWidth, flight.Velocity.VectorHeight);
+        Assert.True(world.SetHostPause(true));
+        WorldBattleTests.Run(world, 5);
+        world.SubmitInput("host", world.Frame, ShipInput.Thrust);   // stamped for the last paused frame, arriving after it
+        Assert.True(world.SetHostPause(false));
+        world.Step();   // no input for this frame: the late thrust isn't taken for it
+        Assert.Equal(before, (flight.LogX, flight.LogY, flight.Velocity.VectorWidth, flight.Velocity.VectorHeight));
+    }
+
+    [ContentFact]
+    public void DiscardingCargoWaitsForThePause()
+    {
+        var world = WorldBattleTests.NewWorld();
+        var minerals = new int[ShipHold.Categories];
+        minerals[0] = 3;
+        world.Host.Ship.Hold.MoveCargo(minerals, 0, +1);
+        Assert.True(world.SetHostPause(true));
+        Assert.False(world.DiscardCargo("host", 0));
+        Assert.Equal(3, world.Host.Ship.Hold.Minerals[0]);
+        Assert.True(world.SetHostPause(false));
+        Assert.True(world.DiscardCargo("host", 0));
     }
 
     [ContentFact]
@@ -72,11 +99,7 @@ public class HostPauseTests
         Assert.Equal(DispatchRefusal.HostPaused, world.Dispatch("host", 10, 10));
         Assert.Equal(RescueRefusal.HostPaused, world.Revive("host", "g1", 1));
         Assert.Equal(GameWorld.CommanderTalk.Paused, world.TalkToCommander("host", out _));
-        Assert.False(world.ChooseReply("host", 0));
-        Assert.False(world.DiscardCargo("host", 0));
         Assert.False(world.Rename("host", "Paused", null));
-        Assert.False(world.Depart("host"));
-        Assert.Equal(Starbase.OutfitOutcome.None, world.StarbaseKey("host", MenuKey.Select, out _));
         Assert.Equal(100u, world.Host.Ship.Hold.ResourceUnits);
         // Players still come and go.
         Assert.Equal(JoinResult.Joined, world.Join("g2", "Guest 2"));

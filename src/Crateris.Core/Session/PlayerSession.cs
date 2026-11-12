@@ -637,7 +637,9 @@ public sealed class PlayerSession
             CloseTrade();
             return;
         }
-        if (StoryPaused)
+        if (HostPaused)
+            Notify(Gift.Why(TradeRefusal.HostPaused));
+        else if (StoryPaused)
             Notify(Gift.Why(TradeRefusal.Paused));
         else if (TalkShown)
             Notify("Not during a talk.");
@@ -742,6 +744,8 @@ public sealed class PlayerSession
         }
         if (OrbitMenu == null || Me?.Activity == Activity.Planetside || _landingAsked)
             return;   // the keys drive the lander then (or will soon); the menu waits for its return
+        if (HostPaused)
+            return;   // the menu waits for the host's pause to lift, as the world does
         OrbitMenuItem item = OrbitMenu.Selected;
         MenuOutcome outcome = OrbitMenu.Press(key, Taken, Kit);
         OrbitMessage = outcome switch
@@ -830,8 +834,8 @@ public sealed class PlayerSession
         _time += seconds;
         if (Trade is not null)
             held = HeldKeys.None;   // the arrows are the giving screen's then, not the landing site's
-        if (OrbitMenu == null || StoryPaused)
-            return;   // the scans wait for the story too
+        if (OrbitMenu == null || StoryPaused || HostPaused)
+            return;   // the scans wait for the story too, and for the host's pause
         OrbitMenu.Advance(seconds, held);
         NoteScanEnd();
     }

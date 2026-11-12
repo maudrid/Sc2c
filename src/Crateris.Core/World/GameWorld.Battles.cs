@@ -427,6 +427,7 @@ public sealed partial class GameWorld
         flagship.Player.Ship.Destroyed = true;
         FlagshipLost = true;
         GameOver = true;
+        HostPaused = false;   // the game has stopped for good: no pause to lift (decision 12)
     }
 
     // A player's ship leaving a battle mid-battle with its crew (a retreat,

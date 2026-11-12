@@ -1338,15 +1338,63 @@ public class OpeningTests
         var view = TalkView.Of(visit)!;
         Assert.Equal(("comandr", "host"), (view.Script, view.Replier));
         Assert.NotEmpty(view.Replies);
-        Assert.False(world.ChooseReply("host", 0));
+        // A reply chosen meanwhile (the key, or one sent as the host paused) is kept, and chosen as the pause lifts:
+        // the replier's client counts it said.
         int round = visit.Round;
+        int first = Scripts["comandr"].PhraseNumber("cook_their_butts");
+        Assert.True(world.ChooseReply("host", visit.Talk!.Replies.Select(r => r.Phrase).ToList().IndexOf(first), round));
         Run(world, 24);
         Assert.Equal((VisitStep.Alliance, round), (visit.Step, visit.Round));
-        // Lifted: the story pause goes on, and the host answers.
+        // Lifted: the reply is said, and the story pause goes on, the host answering.
         Assert.True(world.SetHostPause(false));
         Assert.True(world.StoryPaused);
-        Say(world, "comandr", "cook_their_butts");
         Assert.True(visit.Round > round);
+        Say(world, "comandr", "name_2");
+    }
+
+    [ContentFact]
+    public void NothingDockedChangesWhileTheHostHasPaused()
+    {
+        // Docked at the starbase's menu (the alliance made, nothing to tell), minerals aboard.
+        var world = WithTalks();
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        world.CommanderMet = true;
+        world.VisitStarbase(world.Host);
+        var docked = world.Host.Ship.Visit!;
+        Assert.Equal(VisitStep.Menu, docked.Step);
+        world.Host.Ship.Hold.ResourceUnits = 1000;
+        Assert.True(world.SetHostPause(true));
+        int state = docked.Menu!.State;
+        Assert.Equal(Starbase.OutfitOutcome.None, world.StarbaseKey("host", MenuKey.Down, out _));
+        Assert.Equal(state, docked.Menu.State);
+        Assert.False(world.Outfit("host", new Starbase.HireCrew()));
+        Assert.False(world.Depart("host"));
+        Assert.False(world.Rename("host", "Paused", null));
+        Assert.Same(docked, world.Host.Ship.Visit);
+        Assert.Equal(1000u, world.Host.Ship.Hold.ResourceUnits);
+        // Lifted: the same keys act.
+        Assert.True(world.SetHostPause(false));
+        world.StarbaseKey("host", MenuKey.Down, out _);
+        Assert.NotEqual(state, docked.Menu.State);
+        Assert.True(world.Depart("host"));
+    }
+
+    [ContentFact]
+    public void TheGamesEndLiftsTheHostsPause()
+    {
+        // The host's flagship dies in the fight with g1 still in it; the host pauses; g1 disconnects: the battle
+        // ends with the flagship lost, the game over, and the pause gone with it.
+        var world = Reported(2);
+        var wb = ToTheFight(world, "host");
+        FlyIn(world, wb, "g1");
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("host")!.Starship);
+        Run(world, 1);
+        Assert.True(world.SetHostPause(true));
+        world.Leave("g1");
+        Assert.True(world.GameOver);
+        Assert.False(world.HostPaused);
+        Assert.False(world.Snapshot().HostPaused);
+        Assert.False(world.SetHostPause(true));
     }
 
     [ContentFact]

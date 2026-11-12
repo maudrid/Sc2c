@@ -84,9 +84,12 @@ public static class Protocol
     /// (HoldSnapshot.LanderRoom), so the giving screen shows the room the
     /// host would take for a gift of minerals.
     /// 20: the snapshot says whether the host has paused the game
-    /// (WorldSnapshot.HostPaused, stage 4a item 10); gifts, landings and
-    /// revivals may be refused for it (TradeRefusal.HostPaused,
-    /// DispatchRefusal.HostPaused, RescueRefusal.HostPaused).
+    /// (WorldSnapshot.HostPaused, stage 4a item 10); gifts and landings may
+    /// be refused for it (TradeRefusal.HostPaused, DispatchRefusal.HostPaused;
+    /// RescueRefusal.HostPaused once revivals are sent). Also new since 19,
+    /// from stage 4a item 7: the welcome may be JoinResult.GameOver (a guest
+    /// joining or coming back after the game over, its connection closed),
+    /// and a gift may be refused as TradeRefusal.Wrecked or GameOver.
     /// </summary>
     public const int Version = 20;
     public const int DefaultPort = 24642;
