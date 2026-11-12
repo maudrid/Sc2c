@@ -90,6 +90,14 @@ public sealed class SnapshotSender
             g.Acknowledged = frame;
     }
 
+    /// <summary>
+    /// Whether a guest is known to have the latest snapshot (it said so),
+    /// so there's nothing new to send it: once the game is over the latest
+    /// stands for good (stage 4a item 7).
+    /// </summary>
+    public bool HasLatest(long peer) =>
+        _latest is { } latest && _guests.TryGetValue(peer, out var g) && g.Acknowledged >= latest.Frame;
+
     /// <summary>A guest has gone: a returning one starts with a full snapshot.</summary>
     public void Forget(long peer) => _guests.Remove(peer);
 

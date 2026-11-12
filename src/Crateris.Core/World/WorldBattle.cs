@@ -230,9 +230,8 @@ public sealed class WorldBattle
     /// <summary>
     /// The starter's flight at its place as the battle started, at rest: in
     /// a system its system flight (null in hyperspace), and in hyperspace
-    /// the star it had just left there; a wreck is put there (stage 4a
-    /// item 7, <see cref="GameWorld.Revive"/>), as a guest is put at the
-    /// host's place.
+    /// the star it had just left there; a wreck is put there as the battle
+    /// ends (stage 4a item 7), as a guest is put at the host's place.
     /// </summary>
     internal Systems.IpFlightState? PlaceIp { get; init; }
 

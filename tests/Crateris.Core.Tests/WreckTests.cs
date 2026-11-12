@@ -71,6 +71,7 @@ public class WreckTests
         // Joined a little way from the marker, within its reach: it waits there.
         var wb = world.StartBattle("host", Ilwrath);
         g1.Flight.LogX += 12;
+        g1.Flight.LogY -= 8;
         FlyIn(world, "g1", "g2");
         for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
             Run(world, 1);
@@ -195,6 +196,10 @@ public class WreckTests
     {
         var world = NewWorld(4);
         Wrecked(world, "g2");
+        // A rescuer away: no one.
+        world.Leave("g3");
+        Assert.Equal(RescueRefusal.NoOne, world.Revive("g3", "g1", 1));
+        Assert.Equal(JoinResult.Rejoined, world.Join("g3", "Guest 3"));
         Assert.Equal(RescueRefusal.NoOne, world.Revive("host", "host", 1));
         Assert.Equal(RescueRefusal.NoOne, world.Revive("host", "nobody", 1));
         Assert.Equal(RescueRefusal.NotAWreck, world.Revive("host", "g3", 1));
@@ -296,6 +301,9 @@ public class WreckTests
         Assert.Equal((true, 0, wb.Place.X, wb.Place.Y), (ship.Destroyed, ship.Hold.Crew, ship.Flight.LogX, ship.Flight.LogY));
         Assert.Equal((3, 40u), (ship.Hold.Minerals[0], ship.Hold.ResourceUnits));
         Assert.False(loaded.Find("g2")!.Ship.Destroyed);
+        // Saved again with its player still away: still a wreck.
+        var again = HostSave.FromJson(HostSave.ToJson(loaded)).Find("g1")!.Ship;
+        Assert.Equal((true, 0), (again.Destroyed, again.Hold.Crew));
         Assert.Equal(JoinResult.Rejoined, loaded.Join("g1", "Guest 1"));
         Assert.Equal(JoinResult.Rejoined, loaded.Join("g2", "Guest 2"));
         Assert.Equal(new[] { "g1" }, loaded.Wrecks.Select(p => p.Id));
@@ -313,6 +321,7 @@ public class WreckTests
         g1.Hold.MoveCargo(new[] { 0, 2, 0, 0, 0, 0, 0, 0 }, 0, +1);
         var wb = Started(world);
         g1.Flight.LogX += 8;   // it waits a little way from the marker
+        g1.Flight.LogY += 4;
         uint fuel = g1.Flight.Fuel;
         Kill(wb.Battle, Fighter(wb, "g1").Starship);
         Run(world, 1);
@@ -359,6 +368,70 @@ public class WreckTests
     }
 
     [Fact]
+    public void AShipAliveInABattleIsSavedWhereItWaits()
+    {
+        // Only a destroyed ship is saved at the marker: one alive waits where it joined, as it joined.
+        var world = NewWorld(2);
+        var wb = Started(world);
+        var g1 = world.Find("g1")!.Ship;
+        g1.Flight.LogX += 12;
+        g1.Flight.LogY -= 8;
+        g1.Flight.StarJustLeft = null;
+        var saved = HostSave.FromJson(HostSave.ToJson(world)).Find("g1")!.Ship;
+        Assert.Equal((false, wb.Place.X + 12, wb.Place.Y - 8, (int?)null),
+            (saved.Destroyed, saved.Flight.LogX, saved.Flight.LogY, saved.Flight.StarJustLeft));
+        Assert.NotNull(wb.PlaceStarJustLeft);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AWreckWhosePlayerWasAwayIsOfferedOnlyOnFlyingInAgain(bool another)
+    {
+        // The host seen out of g1's reach, then g1 away while the host comes back by it: on g1's return the host,
+        // already there, isn't offered it until it flies out and back (with another wreck there meanwhile, or none).
+        var world = NewWorld(3);
+        if (another)
+            Wrecked(world, "g2");
+        else
+            Wrecked(world);
+        var host = world.Host.Ship;
+        host.Flight.LogX += 1000;
+        Run(world, 1);
+        world.Leave("g1");
+        Run(world, 1);
+        host.Flight.LogX -= 1000;
+        Run(world, 1);
+        world.TakeRescueOffers();
+        Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
+        Run(world, 2);
+        Assert.DoesNotContain(("host", "g1"), world.TakeRescueOffers());
+        FlyOutAndBack(world, "host");
+        Assert.Contains(("host", "g1"), world.TakeRescueOffers());
+    }
+
+    [Fact]
+    public void ABrokenSaveIsRefusedNotThrown()
+    {
+        var world = NewWorld(2);
+        Wrecked(world);
+        string json = HostSave.ToJson(world);
+        string Broken(Action<JsonNode> change)
+        {
+            var node = JsonNode.Parse(json)!;
+            change(node);
+            return Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString())).Message;
+        }
+        JsonNode G1(JsonNode n) => n["players"]!.AsArray().Single(p => (string)p!["id"]! == "g1")!;
+        Assert.Contains("null", Broken(n => n["players"]!.AsArray().Add(null)));
+        Assert.Contains("flight", Broken(n => G1(n)["flight"] = null));
+        Assert.Contains("loadout", Broken(n => G1(n)["loadout"] = null));
+        Assert.Contains("velocity", Broken(n => G1(n)["flight"]!["velocity"] = null));
+        Assert.Contains("clock", Broken(n => n["clock"] = null));
+        Assert.Contains("without its hold", Broken(n => G1(n)["hold"] = null));
+    }
+
+    [Fact]
     public void TheFlagshipsDeathEndsTheGameAsItsExplosionEnds()
     {
         var world = NewWorld(3);
@@ -370,12 +443,16 @@ public class WreckTests
         Assert.Equal((true, false), (world.FlagshipLost, world.GameOver));
         Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(world));
         int frames = 1;
+        var clock = (0, 0, 0, 0);
         while (!world.GameOver && frames < 300)
         {
             Assert.True(wb.Battle.InBattle);
+            clock = (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay);
             Run(world, 1);
             ++frames;
         }
+        // Not even the clock moves in the frame the game ends.
+        Assert.Equal(clock, (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay));
         // UQM's: the explosion's 36 frames and the enemy's victory ditty's
         // 72, then new_ship finds no ship left to pick (CrewEnlisted ~0).
         Assert.Equal(36 + 72 + 2, frames);
@@ -464,6 +541,7 @@ public class WreckTests
         Assert.Equal(BattleOutcome.Lost, wb.Outcome);
         Assert.Equal((true, true), (world.GameOver, world.FlagshipLost));
         Assert.Empty(world.Wrecks);   // the flagship is never a wreck
+        Assert.False(world.Snapshot().Ships.Single().Wrecked);
     }
 
     [Fact]
@@ -497,6 +575,9 @@ public class WreckTests
         Assert.NotEqual((wb.Place.X, wb.Place.Y), ((int)guest.Ip!.Location.X, (int)guest.Ip.Location.Y));
         for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
             Run(world, 1);
+        // Saved alive in it: where it waits, not at the marker.
+        var alive = HostSave.FromJson(HostSave.ToJson(world), WorldBattleTests.Systems.Value, TestContent.Shapes).Find("g1")!.Ship;
+        Assert.Equal((false, guest.Ip!.Location), (alive.Destroyed, alive.Ip!.Location));
         Kill(wb.Battle, Fighter(wb, "g1").Starship);
         Run(world, 1);
 
@@ -634,6 +715,10 @@ public class WreckTests
         Assert.Equal((true, true), (world.GameOver, world.StoryPaused));
         Assert.Equal(36 + 72 + 2, frames);
         Assert.Equal(otherAt, State(other.Battle));
+        // Nor is the story talk's replier's paging kept.
+        var visit = world.Visit!;
+        var view = Comm.TalkView.Of(visit)!;
+        Assert.False(world.PageTalk(visit.Replier.Id, visit.Round, view.LinesHash, Comm.TalkPage.Skip));
     }
 
     [ContentFact]
@@ -674,6 +759,10 @@ public class WreckTests
         Assert.Equal(GameWorld.CommanderTalk.NotAtMenu, world.TalkToCommander("g3", out _));
         Assert.False(world.Depart("g3"));
         Assert.Equal(Activity.Starbase, g3.Ship.Activity);
+        int crew = g3.Ship.Hold.Crew;
+        Assert.True(crew > 0);
+        Assert.False(world.Outfit("g3", new Starbase.DismissCrew()));
+        Assert.Equal(crew, g3.Ship.Hold.Crew);
         Assert.Throws<InvalidOperationException>(() => world.PutInOrbit("g1", Sol, Earth, Luna));
     }
 
@@ -711,6 +800,13 @@ public class WreckTests
         Assert.False(full);
         Assert.Equal((after.Frame, "host g2"), (shownAfter!.Frame, string.Join(" ", shownAfter.Ships.Select(s => s.Id))));
         Assert.Same(after, host.Step(ShipInput.None));
+        // Once g2 has said it has it, nothing more is sent, step after step.
+        host.GuestInput(2, host.World.Frame + 1, 0, after.Frame);
+        for (int i = 0; i < 5; ++i)
+        {
+            host.Step(ShipInput.None);
+            Assert.Null(host.SnapshotFor(2));
+        }
     }
 
     [ContentFact]
@@ -791,6 +887,22 @@ public class WreckTests
         for (int i = 0; i < 600 && wb.Outcome is null; ++i)
             host.Step(ShipInput.None);
         Assert.Equal(BattleOutcome.Won, wb.Outcome);
+        // g2, back in flight by the wreck, flies off and back into it: offered it, which the host logs.
+        void Fly(ShipInput keys)
+        {
+            world.SubmitInput("g2", world.Frame + 1, keys);
+            host.Step(ShipInput.None);
+        }
+        var g2 = world.Find("g2")!.Ship;
+        for (int i = 0; i < 12; ++i)
+            Fly(ShipInput.Thrust);
+        int back = (g2.Ip!.Facing + 8) % 16;
+        for (int i = 0; i < 300 && g2.Ip!.Facing != back; ++i)
+            Fly(ShipInput.Left);
+        for (int i = 0; i < 400 && !log.Contains("g2 is at g1's wreck"); ++i)
+            Fly(ShipInput.Thrust);
+        Assert.Contains("g2 is at g1's wreck", log);
+        Assert.Empty(world.TakeRescueOffers());
         Assert.Equal(RescueRefusal.NoOne, host.GuestRevive(9, "g1", 1));
         Assert.Equal(RescueRefusal.None, host.GuestRevive(2, "g1", 2));
         Assert.Contains("g2 revived g1 with 2 crew", log);

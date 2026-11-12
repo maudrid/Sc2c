@@ -580,7 +580,11 @@ public sealed class HostSession
 
     /// <summary>
     /// The latest snapshot as the message for one guest: a delta from the
-    /// newest one it's known to have, or in full (<see cref="SnapshotSender"/>).
+    /// newest one it's known to have, or in full (<see cref="SnapshotSender"/>);
+    /// null, nothing to send, if it has said it has the latest (as after the
+    /// game over, when the latest stands for good: not sent again in full
+    /// every frame).
     /// </summary>
-    public byte[] SnapshotFor(long peer) => _snapshots.For(peer, _peers.GetValueOrDefault(peer));
+    public byte[]? SnapshotFor(long peer) =>
+        _snapshots.HasLatest(peer) ? null : _snapshots.For(peer, _peers.GetValueOrDefault(peer));
 }

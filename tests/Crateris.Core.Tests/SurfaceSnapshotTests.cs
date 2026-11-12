@@ -203,7 +203,7 @@ public class SurfaceSnapshotTests
             var input = keys[frame / 30 % keys.Length];
             host.World.SubmitInput("guest", host.World.Frame + 1, input);
             var snap = host.Step(input);
-            var bytes = host.SnapshotFor(1);
+            var bytes = host.SnapshotFor(1)!;
             var got = receiver.Receive(bytes)!;
             AssertSameSurface(SnapshotCodec.SurfaceSeen(snap, "guest"), got.Surfaces, $"frame {snap.Frame}");
             host.GuestInput(1, host.World.Frame + 1, (int)input, got.Frame);
@@ -244,7 +244,7 @@ public class SurfaceSnapshotTests
             var input = (frame / 20 % 3) switch { 0 => ShipInput.Thrust, 1 => ShipInput.Right, _ => ShipInput.Thrust | ShipInput.Fire };
             host.World.SubmitInput("guest", host.World.Frame + 1, input);
             var snap = host.Step(ShipInput.None);
-            var bytes = host.SnapshotFor(1);
+            var bytes = host.SnapshotFor(1)!;
             var got = receiver.Receive(bytes)!;
             host.GuestInput(1, host.World.Frame + 1, (int)input, got.Frame);
             if (SnapshotCodec.SurfaceSeen(snap, "guest") is not { } surface)
@@ -280,9 +280,9 @@ public class SurfaceSnapshotTests
         Assert.Equal(DispatchRefusal.None, host.Dispatch("host", 300, 148));
         host.Step(ShipInput.None);
         // Guests 1 and 2 on Luna share one message; 3, on Mars, has its own.
-        var a = host.SnapshotFor(1);
-        var b = host.SnapshotFor(2);
-        var c = host.SnapshotFor(3);
+        var a = host.SnapshotFor(1)!;
+        var b = host.SnapshotFor(2)!;
+        var c = host.SnapshotFor(3)!;
         Assert.Same(a, b);
         Assert.NotSame(a, c);
         Assert.Equal(new WorldId(82, 3), Assert.Single(SnapshotCodec.Decode(c).Surfaces!).World);

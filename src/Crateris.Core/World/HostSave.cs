@@ -179,6 +179,14 @@ public static class HostSave
         if (save.Version < OldestReadableVersion || save.Version > Version)
             throw new InvalidDataException(
                 $"Save version {save.Version} is not supported (expected {OldestReadableVersion} to {Version}).");
+        // Parts that can't be missing: refused, not a NullReferenceException.
+        if ((save.Players ?? new()).Any(p => p is null))
+            throw new InvalidDataException("The save has a player that is null.");
+        if ((save.Players ?? new()).FirstOrDefault(p => p.Id is null || p.Name is null || p.Loadout is null
+                || p.Flight is null || p.Flight.Velocity is null) is { } missing)
+            throw new InvalidDataException($"Player {missing.Id ?? "(no id)"}: no id, name, loadout, flight or velocity.");
+        if (save.Clock is null)
+            throw new InvalidDataException("The save has no clock.");
         if (save.Version < 7 && (save.Players ?? new()).Any(p => p.ShipName is not null || p.CaptainName is not null))
             throw new InvalidDataException($"A version {save.Version} save can't have ship or captain names.");
         if (save.Version < 8 && (save.CommanderMet || (save.Players ?? new()).Any(p => p.Hold?.ResourceUnits > 0)))
@@ -288,6 +296,8 @@ public static class HostSave
             if (ps.Wrecked)
             {
                 // A wreck (stage 4a item 7): an escort with no crew, out of orbit.
+                if (ps.Hold is null)
+                    throw new InvalidDataException($"Player {ps.Id}: a wreck without its hold.");
                 if (ps.Kind == ShipKind.Flagship)
                     throw new InvalidDataException($"Player {ps.Id}: the flagship can't be a wreck (its loss is the game over).");
                 if (ship.Hold.Crew != 0)

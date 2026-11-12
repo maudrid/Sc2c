@@ -736,7 +736,8 @@ public partial class Main : Node2D
                 if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
                 {
                     foreach (long peer in _host.GuestPeers)
-                        RpcId(peer, MethodName.ReceiveSnapshot, _host.SnapshotFor(peer));
+                        if (_host.SnapshotFor(peer) is { } message)   // none once it has the latest
+                            RpcId(peer, MethodName.ReceiveSnapshot, message);
                     foreach (var (peer, talk) in _host.TalkUpdates())
                         RpcId(peer, MethodName.ShowTalk, talk);
                     // The drawing before the screen it's for (both reliable, in order).

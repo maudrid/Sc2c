@@ -452,6 +452,8 @@ public sealed partial class GameWorld
         JoinBattles();
         FlyIntoWrecks();
         StepBattles();
+        if (GameOver)
+            return;   // the world stops at once (decision 12): no surface's frame, no clock
         StepSurfaces();
         Clock.Tick(Settings.SecondsPerGameDay);
     }
