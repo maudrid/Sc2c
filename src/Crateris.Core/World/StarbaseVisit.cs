@@ -206,9 +206,10 @@ public sealed class StarbaseVisit
     /// Whether the starter's part of the visit is settled: it disconnected
     /// from the Ilwrath's fight, and its hold and fuel were put back as
     /// they were before the visit, but for the crew it left with and less
-    /// the retreat's fuel, there and then (<see cref="SettleStarter"/>). From then on its ship is its own again:
-    /// what it does after (back in the game, outside the fight) is neither
-    /// taken back with the visit nor left out of a save.
+    /// the retreat's fuel, there and then (<see cref="SettleStarter"/>).
+    /// From then on its ship is its own again: what it does after (back in
+    /// the game, outside the fight) is neither taken back with the visit
+    /// nor left out of a save.
     /// </summary>
     public bool StarterSettled { get; private set; }
 
@@ -474,8 +475,9 @@ public sealed class StarbaseVisit
     /// the two weeks put back. A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
     /// crew; one that disconnected from it was settled as it left
-    /// (<see cref="SettleStarter"/>), its fuel paid after its hold and fuel
-    /// were put back, and isn't put back again.
+    /// (<see cref="SettleStarter"/>: its hold as before the visit with the
+    /// crew it left with, its fuel as before it less the retreat's 5
+    /// units), and isn't put back again.
     /// </summary>
     internal void Undo()
     {

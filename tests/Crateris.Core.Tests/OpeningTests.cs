@@ -1075,6 +1075,7 @@ public class OpeningTests
         var starship = wb.FighterOf("g1")!.Starship;
         wb.Battle.DoDamage(starship.Ship!, (short)(starship.RaceDesc!.CrewLevel - 2));
         g1.Ship.Hold.ResourceUnits += 50;
+        g1.Ship.Flight.Fuel = 900;   // whatever it is as it leaves: put back as before the visit, less 5 units
         world.Leave("g1");
         var left = wb.FighterOf("g1")!;
         Assert.Equal((BattleExit.Disconnected, 1), (left.Exit, left.CrewLeft));
