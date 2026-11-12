@@ -15,13 +15,20 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 Item 9's independent review left four items; the owner confirmed decision 13 as reworded (a starter disconnecting from the Ilwrath fight keeps the crew it left with), and the other three are fixed: an away starter has no share of the starbase's gift (`StarbaseVisit.ShareTheGift`, tests `AStarterAwayFromTheFightHasNoShareOfTheGift`, `AWreckedStarterKeepsItsShareOfTheGift`), gifts to or from the starter mid-fight are refused as `InBattle` (`GameWorld.Give`), a mineral sale in the gift's talk is no longer split with the gift, and `StarbaseVisit`'s stale comments are updated. Three review rounds: the first found the gift split also shared a mineral sale in the same talk (fixed: only the gift is split); the second found doc gaps and a missing test (fixed); the third found nothing.
 
-**For the owner (not changed):** with the starter away from the Ilwrath fight, the replier in the "starbase is ready" talk is offered the starter's `have_minerals` and may sell the away starter's minerals (the units at UQM's worth go to the starter's hold). This follows stage 3's decision 7 (the talk stays the starter's ship's); the alternative is to offer the sale only to the starter itself.
-
 Smaller items left by earlier work are recorded in the plan as notes under the item that owns them (items 10 to 13, 3b, 3c, 4b).
 
 ## Next step
 
 Item 10, the host's pause, only when the owner says to start it.
+
+## Owner's rules (2026-11-12)
+
+- **Splits go to players online only.** Anything split between players (the starbase's gift, battle salvage, anything later) is split only between the players online when it's given (`design.md`). Both splits today already do: the gift counts `Present` players, and salvage goes to the ships still in the won battle, which a disconnect leaves at once.
+- **No ranks.** The owner considered calling guests "Commander" and the host "Captain" and dropped it: UQM's lines and voices say "Captain".
+
+## Waiting on the owner
+
+- **Talks act on the answerer's ship?** The owner said the talk should be the talker's ship, not the starter's (the group as a whole is the starter). Proposed: the talk uses the answerer's ship (names, hold, crew, fuel), switching when the replies pass on; the gift lands in the answerer's hold and is split; a mineral sale sells the answerer's own; an opening taken back puts back every ship its talks changed, saves likewise. Not started: waiting for the owner's go.
 
 ## Working agreements
 
