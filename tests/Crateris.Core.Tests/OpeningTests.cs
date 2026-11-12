@@ -1135,6 +1135,25 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void AStartersMineralSaleIsItsOwnAndOnlyTheGiftIsSplit()
+    {
+        var world = WithTalks(guest: true);
+        var minerals = new int[ShipHold.Categories];
+        minerals[0] = 10;
+        world.Host.Ship.Hold.MoveCargo(minerals, 0, +1);
+        var story = world.Story!;
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(world.Host);
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Say(world, "starbas", "have_minerals");
+        Say(world, "starbas", "goodbye_commander");
+        uint worth = (uint)(10 * story.ElementWorth[0]);
+        Assert.True(worth > 0);
+        Assert.Equal((1250u + worth, 1250u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
+    }
+
+    [ContentFact]
     public void AWreckedStarterKeepsItsShareOfTheGift()
     {
         // Three players: the starter g1 wrecked in the fight, g2 wins it.

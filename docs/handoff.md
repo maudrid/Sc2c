@@ -15,6 +15,8 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 Item 9's independent review left four items; the owner confirmed decision 13 as reworded (a starter disconnecting from the Ilwrath fight keeps the crew it left with), and the other three are fixed: an away starter has no share of the starbase's gift (`StarbaseVisit.ShareTheGift`, tests `AStarterAwayFromTheFightHasNoShareOfTheGift`, `AWreckedStarterKeepsItsShareOfTheGift`), gifts to or from the starter mid-fight are refused as `InBattle` (`GameWorld.Give`), a mineral sale in the gift's talk is no longer split with the gift, and `StarbaseVisit`'s stale comments are updated. Their review loop (`CLAUDE.md`) is under way.
 
+**For the owner (not changed):** with the starter away from the Ilwrath fight, the replier in the "starbase is ready" talk is offered the starter's `have_minerals` and may sell the away starter's minerals (the units at UQM's worth go to the starter's hold). This follows stage 3's decision 7 (the talk stays the starter's ship's); the alternative is to offer the sale only to the starter itself.
+
 Smaller items left by earlier work are recorded in the plan as notes under the item that owns them (items 10 to 13, 3b, 3c, 4b).
 
 ## Next step
