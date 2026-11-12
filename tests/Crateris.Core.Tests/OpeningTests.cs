@@ -1346,13 +1346,17 @@ public class OpeningTests
         Assert.False(world.ChooseReply("host", 0, round - 1));
         Assert.False(world.ChooseReply("host", visit.Talk!.Replies.Count, round));
         Assert.False(world.ChooseReply("g1", 0, round));
-        Assert.True(world.ChooseReply("host", visit.Talk!.Replies.Select(r => r.Phrase).ToList().IndexOf(first), round));
+        // Two for the set: the last is the one kept (name_2, below, follows only cook_their_butts).
+        var phrases = visit.Talk!.Replies.Select(r => r.Phrase).ToList();
+        Assert.True(world.ChooseReply("host", phrases.FindIndex(p => p != first), round));
+        Assert.True(world.ChooseReply("host", phrases.IndexOf(first), round));
         Run(world, 24);
         Assert.Equal((VisitStep.Alliance, round), (visit.Step, visit.Round));
         // Lifted: the reply is said, and the story pause goes on, the host answering.
         Assert.True(world.SetHostPause(false));
         Assert.True(world.StoryPaused);
         Assert.True(visit.Round > round);
+        Assert.Equal(phrases.IndexOf(first), visit.Talk!.Events.OfType<ReplyChosen>().Last().Index);   // the last kept
         Say(world, "comandr", "name_2");
     }
 
