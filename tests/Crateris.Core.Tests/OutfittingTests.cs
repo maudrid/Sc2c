@@ -341,8 +341,13 @@ public class OutfittingTests
         var kit = new GameSettings().EscortLoadout with { StorageBays = bays, Guns = 0 };
         var world = GameWorld.NewGame(new GameSettings { EscortLoadout = kit }, NewGameData.Load(DataDir), "host", "Host");
         world.Join("guest", "Guest");
-        var loaded = HostSave.FromJson(Older(HostSave.ToJson(world), 10).ToJsonString());
+        world.Join("sold", "Sold");
+        var node10 = Older(HostSave.ToJson(world), 10);
+        SetSlots(Player(node10, "sold"), m => m[14] = ShipModules.EmptyModule);   // a bay sold since
+        var loaded = HostSave.FromJson(node10.ToJsonString());
         Assert.Equal(kit with { Guns = guns }, loaded.Settings.EscortLoadout);
+        // One with a weapon slot free is given the default kit's gun there, whatever room its kit had.
+        Assert.Equal(new[] { 14 }, Slots(loaded.Find("sold")!.Ship.Modules, ShipModules.GunWeapon));
         // Its escort's storage bays, put from slot 8 round, fill every weapon slot: it's given none.
         var old = loaded.Find("guest")!.Ship.Modules;
         Assert.All(ShipModules.WeaponSlots, slot => Assert.Equal(ShipModules.StorageBay, old.ModuleSlots[slot]));
@@ -398,8 +403,10 @@ public class OutfittingTests
     {
         var story = AllForSale();
         // In a weapon slot (0) the escort is offered the storage bay first, then the combat modules; never a crew pod or a tank.
-        Assert.Equal(new[] { ShipModules.StorageBay }.Concat(CombatModules),
-            Offers(InModules(Ship(ShipKind.Escort), story, 0)));
+        var first = InModules(Ship(ShipKind.Escort), story, 0);
+        first.TakeOps();
+        Assert.Equal(new[] { ShipModules.StorageBay }.Concat(CombatModules), Offers(first));
+        Assert.Equal(new ScreenOp(ScreenOpKind.ModuleStrings, ShipModules.StorageBay), first.TakeOps()[0]);   // the radar shows it
         // Elsewhere (slot 2), no weapons; going left round too.
         var menu = InModules(Ship(ShipKind.Escort), story, 2);
         Assert.Equal(new[] { ShipModules.StorageBay, ShipModules.DynamoUnit, ShipModules.ShivaFurnace,
@@ -448,7 +455,10 @@ public class OutfittingTests
             menu.Key(MenuKey.Up);                     // the drives
             Assert.Equal(ShipModules.EmptyDrive, menu.State);
             Assert.Equal(ShipModules.EmptyDrive, ship.Modules.DriveSlots[0]);
+            menu.TakeOps();
             Assert.Equal(kind == ShipKind.Escort ? OutfitOutcome.Refused : OutfitOutcome.None, menu.Key(MenuKey.Select));
+            if (kind == ShipKind.Escort)
+                Assert.Equal((false, ShipModules.EmptyDrive, 0, 0), (menu.Choosing, menu.State, menu.Item, menu.TakeOps().Count));
             if (kind == ShipKind.Flagship)
                 menu.Key(MenuKey.Cancel);
             // Landers: both may choose one.
@@ -458,6 +468,24 @@ public class OutfittingTests
             Assert.Equal(OutfitOutcome.None, menu.Key(MenuKey.Select));
             Assert.Equal(ShipModules.PlanetLander, menu.State);
         }
+    }
+
+    [Fact]
+    public void TheMenuOpensNoChoiceForAnEscortWithNothingOnOffer()
+    {
+        // Prices UQM never sets (the storage bay, the dynamo and the gun off sale): nothing for an escort in slot 2.
+        var story = StoryState.NewGame(Rules, new GameClock(2155, 3, 4));
+        foreach (var module in new[] { "STORAGE_BAY", "DYNAMO_UNIT", "GUN_WEAPON" })
+            story.SetModuleCost(module, 0);
+        var menu = InModules(Ship(ShipKind.Escort), story, 2);
+        menu.TakeOps();
+        Assert.Equal(OutfitOutcome.Refused, menu.Key(MenuKey.Select));
+        Assert.Equal((false, ShipModules.EmptyModule, 2), (menu.Choosing, menu.State, menu.Item));
+        Assert.Empty(menu.TakeOps());
+        // The flagship's opens on the crew pod, as UQM's.
+        var flagship = InModules(Ship(ShipKind.Flagship), story, 3);
+        Assert.Equal(OutfitOutcome.None, flagship.Key(MenuKey.Select));
+        Assert.Equal((true, ShipModules.CrewPod), (flagship.Choosing, flagship.State));
     }
 
     [Fact]

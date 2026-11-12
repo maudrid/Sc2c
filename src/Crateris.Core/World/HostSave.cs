@@ -65,11 +65,12 @@ public static class HostSave
     /// flagship is lost (GameWorld.FlagshipLost, decision 12). 11 gave
     /// escorts guns (stage 4a item 8: the escort's kit's,
     /// ShipLoadout.Guns, and the combat modules outfitting sells them): an
-    /// escort from an older save, a wreck too, is given the kit's guns on
-    /// load (the settings' kit's; an older save's kit takes the default's,
-    /// as many as its slots have room for),
-    /// in its free weapon slots in the order UQM fires from them (15, 14,
-    /// 13, then 0), none where every weapon slot is full, unless it already
+    /// escort from an older save, a wreck too, is given the default kit's
+    /// guns on load, as many as its own free weapon slots hold, in the
+    /// order UQM fires from them (15, 14, 13, then 0), none where every
+    /// weapon slot is full (an older save's kit takes the default's guns
+    /// too, as many as its slots have room for, for new guests; an escort
+    /// with room is given them even where the kit had none), unless it already
     /// has a weapon there (ShipModules.GiveKitGuns); its loadout stays the
     /// one it was made from, without guns. Guns in an older save's
     /// loadouts, which it can't have had, are taken as none. Keyed on the
@@ -276,12 +277,13 @@ public static class HostSave
                 var loadout = save.Version < 8 && ps.Kind == ShipKind.Escort
                     ? ps.Loadout with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity }
                     : ps.Loadout;
-                // Before version 11 no loadout had guns; an escort is given the kit's.
+                // Before version 11 no loadout had guns; an escort is given the
+                // default kit's, as many as its own weapon slots have room for.
                 if (save.Version < 11)
                     loadout = loadout with { Guns = 0 };
                 var modules = ps.Modules is { } m ? ShipModules.Restore(m) : ShipModules.FromLoadout(ps.Kind, loadout);
                 if (save.Version < 11 && ps.Kind == ShipKind.Escort)
-                    modules.GiveKitGuns(settings.EscortLoadout.Guns);
+                    modules.GiveKitGuns(new GameSettings().EscortLoadout.Guns);
                 ship = new PlayerShip(ps.Kind, loadout, modules);
                 if (ps.Hold is { } h)
                     ship.Hold.Restore(h);

@@ -313,7 +313,9 @@ public sealed class OutfitMenu
                         newPiece = ShipModules.PlanetLander;
                     // An escort is offered only what it may hold (stage 4a item 8): in the
                     // modules' row the first of them on offer; in a row with none (the
-                    // drives, the jets), nothing, refused as buying it would be.
+                    // drives, the jets), or with none on offer (only with prices UQM
+                    // never sets: the dynamo is always for sale), nothing, refused as
+                    // buying it would be.
                     if (Escort && !Outfitting.EscortMayHold(newPiece))
                     {
                         if (row != SlotKind.Module)
@@ -371,7 +373,7 @@ public sealed class OutfitMenu
 
         int newItem = newState < ShipModules.EmptySlot ? State : Item;
         // A row whose modules are all off sale would turn forever in UQM:
-        // here it stops after a turn.
+        // here it stops after more than a module's count of steps.
         for (int turns = 0; ; ++turns)
         {
             if (newState >= ShipModules.EmptySlot && (up || down))
