@@ -1342,6 +1342,10 @@ public class OpeningTests
         // the replier's client counts it said.
         int round = visit.Round;
         int first = Scripts["comandr"].PhraseNumber("cook_their_butts");
+        // Only one that fits now is kept: not one for another set, nor past the replies, nor from a watcher.
+        Assert.False(world.ChooseReply("host", 0, round - 1));
+        Assert.False(world.ChooseReply("host", visit.Talk!.Replies.Count, round));
+        Assert.False(world.ChooseReply("g1", 0, round));
         Assert.True(world.ChooseReply("host", visit.Talk!.Replies.Select(r => r.Phrase).ToList().IndexOf(first), round));
         Run(world, 24);
         Assert.Equal((VisitStep.Alliance, round), (visit.Step, visit.Round));

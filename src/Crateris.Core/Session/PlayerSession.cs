@@ -1007,7 +1007,7 @@ public sealed class PlayerSession
             lines.Add("Arrows: turn and thrust");
         // The Manifest's Devices list is drawn in the status area (DevicesDisplay), which hides this panel while it's open.
         // The giving screen is drawn in the status area, which hides this panel while it's open.
-        if (Trade is null && Me?.Wrecked != true && TradeScreen.Others(Snapshot, PlayerId).Count > 0 && !StoryPaused && !TalkShown)   // giving waits while a talk goes on
+        if (Trade is null && Me?.Wrecked != true && TradeScreen.Others(Snapshot, PlayerId).Count > 0 && !StoryPaused && !HostPaused && !TalkShown)   // giving waits while a talk goes on
             lines.Add("T: give another player something");
         if (Me?.IsHost == true && !HostPaused)
             lines.Add("P or Pause: pause the game");

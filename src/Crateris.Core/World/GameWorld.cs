@@ -696,22 +696,27 @@ public sealed partial class GameWorld
     /// whatever is offered now): the replier of the story talk, or a docked
     /// player in their talk with the commander. False, changing nothing, if
     /// they're in none, it's no reply offered, or it was for a set already
-    /// answered.
+    /// answered. During the host's pause one that fits now is kept (the
+    /// player's last), and chosen as the pause lifts if it still fits
+    /// (<see cref="SetHostPause"/>).
     /// </summary>
     public bool ChooseReply(string id, int index, int? round = null)
     {
         if (GameOver || Find(id) is not { Present: true } player)
             return false;
-        if (HostPaused)
-        {
-            _heldReplies.Add((id, index, round));   // chosen as the pause lifts
-            return true;
-        }
         var visit = Visit is { } story && story.Replier == player ? story
             : !StoryPaused && player.Ship.Visit is { Step: VisitStep.MenuTalk } own ? own
             : null;
         if (visit is null || round is int r && r != visit.Round)
             return false;
+        if (HostPaused)
+        {
+            if (visit.Talk is not { Ended: false } talk || index < 0 || index >= talk.Replies.Count)
+                return false;
+            _heldReplies.RemoveAll(h => h.Id == id);
+            _heldReplies.Add((id, index, visit.Round));   // chosen as the pause lifts
+            return true;
+        }
         bool chosen = visit.Choose(index);
         AfterVisit(visit);
         return chosen;

@@ -140,4 +140,42 @@ public class HostPauseTests
         var pressed = Enumerable.Range(0, 4).Select(_ => { scripted.NextInput(ShipInput.None); return scripted.TakePauseKey(); }).ToList();
         Assert.Equal(new[] { false, false, true, false }, pressed);
     }
+
+    [ContentFact]
+    public void AGuestsScreensWaitForThePause()
+    {
+        // The guest in orbit, its orbit menu up, the host in the game to give to.
+        var systems = SystemCatalog.Load(DataDir);
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host",
+            systems, TestContent.Shapes);
+        Assert.Equal(JoinResult.Joined, world.Join("guest", "Guest"));
+        world.UndockShown("guest");
+        world.PutInOrbit("guest", 82, 2, null);
+        var names = TestContent.With(p => Names.Load(p));
+        var me = new PlayerSession(systems, names, "guest", TestContent.Shapes.HyperFlagship.Count);
+        me.Observe(world.Snapshot());
+        me.NextInput(ShipInput.None);
+        Assert.Contains("T: give another player something", me.StatusLines());
+        var selected = me.OrbitMenu!.Selected;
+
+        world.SetHostPause(true);
+        world.Step();   // a later frame's snapshot (one for the same frame is ignored)
+        me.Observe(world.Snapshot());
+        Assert.True(me.HostPaused);
+        // The orbit menu's keys wait, the giving screen doesn't open (saying why), and T isn't offered.
+        me.PressMenu(MenuKey.Down);
+        Assert.Equal(selected, me.OrbitMenu.Selected);
+        me.ToggleTrade();
+        Assert.Null(me.Trade);
+        Assert.Equal("The host has paused the game.", me.Notice);
+        Assert.DoesNotContain("T: give another player something", me.StatusLines());
+
+        world.SetHostPause(false);
+        world.Step();
+        me.Observe(world.Snapshot());
+        me.PressMenu(MenuKey.Down);
+        Assert.NotEqual(selected, me.OrbitMenu.Selected);
+        me.ToggleTrade();
+        Assert.NotNull(me.Trade);
+    }
 }
