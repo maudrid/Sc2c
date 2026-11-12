@@ -591,7 +591,9 @@ public class WreckTests
             world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
             world.Story!.Set("STARBASE_AVAILABLE", 1);
             world.Story.Set("MOONBASE_ON_SHIP", 1);
-            return (world, world.StartBattle("host", Ilwrath), world.StartBattle("g2", Ilwrath));
+            // g2's first, so a dying guest's battle would be found before the host's.
+            var other = world.StartBattle("g2", Ilwrath);
+            return (world, world.StartBattle("host", Ilwrath), other);
         }
         // Steering g1 at the starbase (Earth's first moon), as OpeningTests does.
         static void Fly(GameWorld world)
@@ -618,11 +620,13 @@ public class WreckTests
             Fly(world);
         Assert.False(world.StoryPaused);
         Kill(wb.Battle, Fighter(wb, "host").Starship);
+        Kill(other.Battle, Fighter(other, "g2").Starship);   // a guest dying then: its battle still waits
         Fly(world);
         Assert.Equal((true, true, BattleExit.Destroyed), (world.StoryPaused, world.FlagshipLost, Fighter(wb, "host").Exit));
         Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(world));
         // The flagship's battle runs on through the pause to the game over; g2's waits, as the pause has it.
         string State(Battle b) => b.Random.Seed + " " + string.Join(" ", b.List.Elements.Select(e => $"{e.Current.X},{e.Current.Y},{e.LifeSpan}"));
+        Assert.Equal((true, (BattleOutcome?)null), (other.Battle.InBattle, other.Outcome));
         string otherAt = State(other.Battle);
         int frames = 1;
         for (; frames < 300 && !world.GameOver; ++frames)
