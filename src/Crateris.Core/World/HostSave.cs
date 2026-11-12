@@ -66,13 +66,13 @@ public static class HostSave
     /// escorts guns (stage 4a item 8: the escort's kit's,
     /// ShipLoadout.Guns, and the combat modules outfitting sells them): an
     /// escort from an older save, a wreck too, is given the default kit's
-    /// guns on load, as many as its own free weapon slots hold, in the
-    /// order UQM fires from them (15, 14, 13, then 0), none where every
-    /// weapon slot is full (an older save's kit takes the default's guns
-    /// too, as many as its slots have room for, for new guests; an escort
-    /// with room is given them even where the kit had none), unless it already
-    /// has a weapon there (ShipModules.GiveKitGuns); its loadout stays the
-    /// one it was made from, without guns. Guns in an older save's
+    /// guns on load (ShipModules.GiveKitGuns), unless it has a weapon in a
+    /// slot it fires from: as many as its own free weapon slots hold, in
+    /// the order UQM fires from them (15, 14, 13, then 0), even where its
+    /// kit had no room for them (it may have sold bays since). An older
+    /// save's kit, for new guests, takes the default's guns too, as many as
+    /// its slots have room for. Each ship's loadout stays the one it was
+    /// made from, without guns. Guns in an older save's
     /// loadouts, which it can't have had, are taken as none. Keyed on the
     /// version, not on an escort having no weapon: one that sold its guns
     /// keeps none.
