@@ -81,8 +81,8 @@ public static class HostSave
     /// destroyed in the fight: a wreck, as the visit taken back keeps it),
     /// the others as they joined it; a starter that disconnected from the
     /// fight was settled as it left (StarbaseVisit.SettleStarter: its hold
-    /// and fuel as before the visit, less the retreat's 5 units of fuel)
-    /// and is saved as it is from then on.
+    /// as before the visit with the crew it left with, its fuel as before
+    /// it less the retreat's 5 units) and is saved as it is from then on.
     /// </summary>
     public const int Version = 11;
     public const int OldestReadableVersion = 1;

@@ -205,8 +205,8 @@ public sealed class StarbaseVisit
     /// <summary>
     /// Whether the starter's part of the visit is settled: it disconnected
     /// from the Ilwrath's fight, and its hold and fuel were put back as
-    /// they were before the visit, less the retreat's fuel, there and then
-    /// (<see cref="SettleStarter"/>). From then on its ship is its own again:
+    /// they were before the visit, but for the crew it left with and less
+    /// the retreat's fuel, there and then (<see cref="SettleStarter"/>). From then on its ship is its own again:
     /// what it does after (back in the game, outside the fight) is neither
     /// taken back with the visit nor left out of a save.
     /// </summary>

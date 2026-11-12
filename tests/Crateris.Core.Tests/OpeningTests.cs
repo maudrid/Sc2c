@@ -1069,7 +1069,7 @@ public class OpeningTests
         var wb = ToTheFight(world, "g1");
         var visit = world.Visit!;
         FlyIn(world, wb, "host");
-        // The starter, hurt down to 2 crew, disconnects: a retreat at once, paying its fuel, though the fight
+        // The starter, hurt down to its captain and 1 crew, disconnects: a retreat at once, paying its fuel, though the fight
         // can't be retreated from; its part of the visit settled there and then: its hold as before the
         // visit, but with the crew it left with (not refunded, though the fight is then won).
         var starship = wb.FighterOf("g1")!.Starship;
@@ -1126,10 +1126,12 @@ public class OpeningTests
         var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Find("g1")!.Ship;
         Assert.Equal(100u, saved.Flight.Fuel);
         Assert.Equivalent(held, saved.Hold.Save(), strict: true);
-        // ... and when the visit is taken back (g2 destroyed, the Ilwrath alive).
+        // ... and when the visit is taken back (g2 destroyed, the Ilwrath alive), its escape counter running on.
+        g1.Ship.Ip!.EscapeCounter = 255;
         WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g2")!.Starship);
         for (int i = 0; i < 300 && wb.Outcome is null; ++i)
             Run(world, 1);
+        Assert.InRange((int)g1.Ship.Ip!.EscapeCounter, 1, 254);
         Assert.Equal(BattleOutcome.Lost, wb.Outcome);
         Assert.True(visit.Undone);
         Assert.Null(world.Visit);

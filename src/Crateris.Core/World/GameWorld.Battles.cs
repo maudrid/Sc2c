@@ -469,8 +469,9 @@ public sealed partial class GameWorld
         wb.Battle.Leave(fighter.Starship);
         LeaveBattle(wb, fighter, BattleExit.Disconnected, fighter.Code.Result!.Value.CrewLeft);
         // The Ilwrath's fight's starter: its part of the visit settled now,
-        // its hold and fuel as before the visit, the fuel paid after (stage
-        // 4a item 9), so what it does once back isn't taken back later.
+        // its hold as before the visit with the crew it left with, its fuel
+        // as before it, the fuel paid after (stage 4a item 9), so what it
+        // does once back isn't taken back later.
         if (Visit is { Step: VisitStep.IlwrathFight } visit && visit.Fight == wb && visit.Starter == player)
             visit.SettleStarter();
         if (!wb.Battle.InBattle)
