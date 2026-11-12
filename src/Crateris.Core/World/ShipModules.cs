@@ -165,7 +165,7 @@ public sealed class ShipModules
     }
 
     /// <summary>
-    /// Gives an escort saved before it had guns its kit's (stage 4a item 8):
+    /// Gives an escort saved before it had guns the default kit's (stage 4a item 8):
     /// unless it has a weapon (<see cref="HasWeapon"/>), up to
     /// <paramref name="count"/> guns in its free weapon slots, in the order
     /// UQM fires from them (15, 14, 13, then 0); none where every weapon
