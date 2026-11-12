@@ -14,7 +14,7 @@ namespace Crateris.Core.Session;
 /// <summary>
 /// What the giving screen shows (<see cref="TradeScreen.Follow"/>): the row
 /// the cursor is on; the player to give to (their id and name, null and ""
-/// with no one else in the game); whether they're in the giver's solar
+/// with no one else in the game but wrecks); whether they're in the giver's solar
 /// system, where alone cargo can go; the room in their storage bays for
 /// minerals, as the host takes it (null if the snapshot hasn't their hold);
 /// and, by <see cref="TradeScreen"/>'s rows, what the giver has and the

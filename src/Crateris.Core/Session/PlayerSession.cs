@@ -612,8 +612,9 @@ public sealed class PlayerSession
     /// waits for a story talk (nothing can be given then, and the replier's
     /// keys are the talk's), in a talk (the communication screen has the
     /// keys, and the minerals' count-down the status area), over the cargo
-    /// display or the Devices list, or with no one else in the game; and it
-    /// closes when a talk is shown (<see cref="FollowTalk"/>).
+    /// display or the Devices list, for a wreck (no one is aboard), or with no
+    /// one else in the game but wrecks; and it closes when a talk is shown
+    /// (<see cref="FollowTalk"/>).
     /// </summary>
     public void ToggleTrade()
     {
@@ -630,6 +631,8 @@ public sealed class PlayerSession
             Notify("Close the cargo display first.");
         else if (OrbitMenu?.DeviceList is not null)
             Notify("Close the Devices list first.");
+        else if (Me?.Wrecked == true)
+            Notify(Gift.Why(TradeRefusal.Wrecked));
         else if (TradeScreen.Others(Snapshot, PlayerId).Count == 0)
             Notify(Gift.Why(TradeRefusal.NoOne));
         else
@@ -976,11 +979,11 @@ public sealed class PlayerSession
             lines.AddRange(StarbaseLines(sb));
         else if (Me?.Activity == Activity.Planetside)
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
-        else if (Me?.Activity != Activity.Orbit && !Entering)
+        else if (Me?.Activity != Activity.Orbit && !Entering && Me?.Wrecked != true)
             lines.Add("Arrows: turn and thrust");
         // The Manifest's Devices list is drawn in the status area (DevicesDisplay), which hides this panel while it's open.
         // The giving screen is drawn in the status area, which hides this panel while it's open.
-        if (Trade is null && TradeScreen.Others(Snapshot, PlayerId).Count > 0 && !StoryPaused && !TalkShown)   // giving waits while a talk goes on
+        if (Trade is null && Me?.Wrecked != true && TradeScreen.Others(Snapshot, PlayerId).Count > 0 && !StoryPaused && !TalkShown)   // giving waits while a talk goes on
             lines.Add("T: give another player something");
         lines.Add("F1: about and credits");
         return lines.Where(l => !string.IsNullOrEmpty(l)).ToList();

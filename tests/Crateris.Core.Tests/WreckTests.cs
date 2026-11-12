@@ -238,7 +238,7 @@ public class WreckTests
         var shown = world.Snapshot().Ships.Single(s => s.Id == "g1");
         Assert.Equal((true, wb.Place.X, wb.Place.Y), (shown.Wrecked, shown.LogX, shown.LogY));
         Assert.Equal(new[] { "g1" }, world.RescuesFor("host").Select(p => p.Id));
-        // No one to give a gift to there: the giving screen leaves wrecks out.
+        // The wreck isn't one to give to: the giving screen leaves wrecks out.
         Assert.Equal(new[] { "g2" }, Session.TradeScreen.Others(world.Snapshot(), "host"));
         Run(world, 5);
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
@@ -663,7 +663,7 @@ public class WreckTests
     }
 
     [ContentFact]
-    public void AShipRevivedWhileAwayInASystemHasTheEscapeCounterUntilASave()
+    public void AShipRevivedWhileAwayInASystemHasTheEscapeCounterUnlessReloaded()
     {
         // g1's own battle by Earth, lost: a wreck there; g1 away; the host revives it.
         (GameWorld World, Player G1) Revived()
@@ -689,6 +689,32 @@ public class WreckTests
         Assert.Equal(JoinResult.Rejoined, loaded.Join("g1", "Guest 1"));
         var ship = loaded.Find("g1")!.Ship;
         Assert.Equal((false, 3, 0), (ship.Wreck, ship.Hold.Crew, (int)ship.Ip!.EscapeCounter));
+    }
+
+    [ContentFact]
+    public void ThePlayersScreensLeaveWrecksOutOfGiving()
+    {
+        // The host and g1's wreck: nothing to give, the wreck listed as one; g1's own screen offers it nothing.
+        var world = NewWorld(2);
+        Wrecked(world);
+        var host = new PlayerSession(WorldBattleTests.Systems.Value, null, "host", TestContent.Shapes.HyperFlagship.Count);
+        host.Observe(world.Snapshot());
+        host.ToggleTrade();
+        Assert.Equal((null, Gift.Why(TradeRefusal.NoOne)), (host.Trade, host.Notice));
+        var lines = host.StatusLines();
+        Assert.DoesNotContain("T: give another player something", lines);
+        Assert.Contains("Ships (2):", lines);
+        Assert.Contains(lines, l => l.Contains("(escort) (wreck)"));
+        var wreck = new PlayerSession(WorldBattleTests.Systems.Value, null, "g1", TestContent.Shapes.HyperFlagship.Count);
+        wreck.Observe(world.Snapshot());
+        wreck.ToggleTrade();
+        Assert.Equal((null, Gift.Why(TradeRefusal.Wrecked)), (wreck.Trade, wreck.Notice));
+        Assert.DoesNotContain("T: give another player something", wreck.StatusLines());
+        Assert.DoesNotContain("Arrows: turn and thrust", wreck.StatusLines());
+        // Revived, both may give again.
+        Assert.Equal(RescueRefusal.None, world.Revive("host", "g1", 2));
+        host.Observe(world.Snapshot() with { Frame = world.Frame + 1 });
+        Assert.Contains("T: give another player something", host.StatusLines());
     }
 
     [ContentFact]
