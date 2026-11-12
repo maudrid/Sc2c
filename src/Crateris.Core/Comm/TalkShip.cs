@@ -10,7 +10,8 @@ namespace Crateris.Core.Comm;
 
 /// <summary>
 /// The ship a talk reads and changes, where UQM's scripts use the
-/// flagship's (GLOBAL_SIS): the talk's starter's ship (decision 4). Its
+/// flagship's (GLOBAL_SIS): the ship of whoever answers the talk (decision 4,
+/// and the owner's rule of 2026-11-12). Its
 /// names are the talk's to speak; the rest the scripts may change, as the
 /// commander's gifts do.
 /// </summary>

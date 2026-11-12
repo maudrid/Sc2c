@@ -2,33 +2,30 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-12, after item 9's independent review's four open items were fixed and reviewed (three rounds, the last finding nothing).
+**Last updated:** 2026-11-12, after the owner's rules on talks and gifts were built (review in progress).
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4.md`, stage 4a (combat), approved by the owner with all fifteen decisions accepted.
 - **Stage 4a items 1 to 9 are built.** Each has a Built row in the plan's Progress section and notes under the later items for what they must honour. Items 10 to 13 are left: 10 the host's pause, 11 the wire, 12 client views, 13 docs.
-- **Last checks:** on the open items' fixes (e5d97f6), all topics 1,399 passed, 0 failed, 0 skipped with the content set. The game build, data checks and `tools/test_network.py` were last run on item 9's last commit (only the two long-standing build warnings, `game/scripts/Main.cs` ~976 and `game/scripts/ReportView.cs` 78; the rest OK); the fixes touch only Core and docs.
+- **Last checks:** on the owner's rules (talks are the answerer's ship's), all topics 1,400 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~976, `game/scripts/ReportView.cs` 78). Data checks and `tools/test_network.py` were last run on item 9's last commit; the changes since touch Core and docs only.
 
 ## Open items
 
-Item 9's independent review left four items; the owner confirmed decision 13 as reworded (a starter disconnecting from the Ilwrath fight keeps the crew it left with), and the other three are fixed: an away starter has no share of the starbase's gift (`StarbaseVisit.ShareTheGift`, tests `AStarterAwayFromTheFightHasNoShareOfTheGift`, `AWreckedStarterKeepsItsShareOfTheGift`), gifts to or from the starter mid-fight are refused as `InBattle` (`GameWorld.Give`), a mineral sale in the gift's talk is no longer split with the gift, and `StarbaseVisit`'s stale comments are updated. Three review rounds: the first found the gift split also shared a mineral sale in the same talk (fixed: only the gift is split); the second found doc gaps and a missing test (fixed); the third found nothing.
+None from item 9's review: its four items are fixed, and the owner's rules below are built (`World/AnswererTalkShip.cs`), in review per `CLAUDE.md`.
 
 Smaller items left by earlier work are recorded in the plan as notes under the item that owns them (items 10 to 13, 3b, 3c, 4b).
 
-## Next step
-
-Item 10, the host's pause, only when the owner says to start it.
-
 ## Owner's rules (2026-11-12)
 
-- **Splits go to players online only.** Anything split between players (the starbase's gift, battle salvage, anything later) is split only between the players online when it's given (`design.md`). Both splits today already do: the gift counts `Present` players, and salvage goes to the ships still in the won battle, which a disconnect leaves at once.
-- **No ranks.** The owner considered calling guests "Commander" and the host "Captain" and dropped it: UQM's lines and voices say "Captain".
+- **A talk is the answerer's ship's.** The group as a whole starts the story; whoever answers speaks for it with their own ship (names, hold, crew, fuel), and when the replies pass on, the talk goes on with the new answerer's ship. An opening taken back takes back what the talks changed on each ship; a save during it is without them.
+- **Only battle salvage is split**, between the players in the battle when it's won (online: a disconnect leaves the battle). The starbase's 2,500 RU go to the answerer; players can give units to each other.
+- **No ranks.** Guests as "Commander" was considered and dropped: UQM's lines and voices say "Captain".
 
-## Waiting on the owner
+## Next step
 
-- **Talks act on the answerer's ship?** The owner said the talk should be the talker's ship, not the starter's (the group as a whole is the starter). Proposed: the talk uses the answerer's ship (names, hold, crew, fuel), switching when the replies pass on; the gift lands in the answerer's hold and is split; a mineral sale sells the answerer's own; an opening taken back puts back every ship its talks changed, saves likewise. Not started: waiting for the owner's go.
+Finish the review loop of the owner's rules, then item 10, the host's pause, when the owner says to start it.
 
 ## Working agreements
 

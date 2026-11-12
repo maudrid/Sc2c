@@ -287,12 +287,14 @@ All thirteen recommendations were accepted on 2026-11-06. Recommendations first.
    - Keep the opening short of the alliance until stage 4. The starbase would stay unavailable through 3a.
 4. **Whose ship and names a conversation uses,** where UQM's scripts use the flagship's.
    - **The starter's ship and names, except where the story is the flagship's (recommended).**
+     - *Changed by the owner on 2026-11-12:* the talk is the answerer's ship's, changing when the replies pass on (`World/AnswererTalkShip.cs`; `differences.md` row 2).
      - The starter's: they reply, so their names are spoken, the commander's fuel and lander go to their ship if it has run short, and their minerals are sold.
      - The flagship's: the mission talk's grading of the ship's modules, since the flagship carries the mission and its upgrades.
      - In a story talk the others watch, and their ships are untouched.
    - The host's flagship always: the story is the flagship's, but a guest's minerals couldn't be sold.
 5. **Gifts to the group, and the counters a script keeps.** These are the starbase's 2,500 resource units; the counters that pick the commander's "again" lines (`GIVEN_FUEL_BEFORE`, `LANDERS_LOST`) and the sale lines (`*_MINERAL_LOAD`); and the crew bought, which raises the crew price.
-   - **The 2,500 units are split equally between the players in the game, as battle salvage is; the counters are shared, as in UQM (recommended).** One starbase's supplies and crew are the group's, so a second player gets the "again" lines and the smaller fuel gift, and the crew price rises with what the group has bought: the group pays what a solo player would.
+   - **The 2,500 units are split equally between the players in the game, as battle salvage is; the counters are shared, as in UQM (recommended).**
+     - *Changed by the owner on 2026-11-12:* the 2,500 units go to whoever answers, not split; only battle salvage is split (`differences.md` row 37). The counters stay shared. One starbase's supplies and crew are the group's, so a second player gets the "again" lines and the smaller fuel gift, and the crew price rises with what the group has bought: the group pays what a solo player would.
    - Everything to the starter, and the counters per player: each player has UQM's own talk and prices, but the group gets more from Earth than a solo player does.
 6. **Which conversations are story** (an open item in `docs/design.md`).
    - **For 3a, by what they do (recommended).**

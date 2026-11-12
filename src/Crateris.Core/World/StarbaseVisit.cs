@@ -65,7 +65,8 @@ public enum VisitStep
 /// runs); the Ilwrath killed, the commander talks again and makes the
 /// alliance. With the Lunar base aboard, two weeks pass and the
 /// allied commander says the starbase is ready, with 2,500 resource
-/// units, which are split between the players in the game (decision 5).
+/// units, which go to whoever answers, not split (the owner's rule, 2026-11-12;
+/// the players may give them on).
 /// Then, once allied, the ship is docked at the starbase's menu
 /// (<see cref="VisitStep.Menu"/>, DoStarBase) until it leaves: from there
 /// its player talks to the commander (an ordinary talk, under the dialogue
@@ -74,7 +75,8 @@ public enum VisitStep
 /// <para>
 /// The opening (the steps before the menu) can be taken back: the story
 /// fields its talks wrote (only those: another player's lander may take
-/// the Lunar base meanwhile), the starter's ship and the two weeks. A save
+/// the Lunar base meanwhile), the starter's ship, what the talks changed
+/// on any other answerer's ship and the two weeks. A save
 /// made during it is of the game without it, as UQM can't save in the
 /// middle of one; and if the starter leaves with no one to take the
 /// replies, or every player leaves the Ilwrath's fight with the Ilwrath
@@ -97,12 +99,13 @@ public sealed class StarbaseVisit
 
     private readonly GameWorld _world;
     private int _fadeLeft;
-    private uint _unitsBefore;
 
-    // The starbase's gift: what the "starbase is ready" talk's opening gave
-    // the starter (its 2,500 RU), before any reply (a mineral sale's
-    // proceeds, later in the talk, are the seller's own, row 11).
-    private uint _gift;
+    // The talks' ship: the answerer's (AnswererTalkShip), made with the
+    // first talk.
+    private AnswererTalkShip? _ship;
+
+    // Who sold the minerals in each sale, by talk and the sale's event.
+    private readonly Dictionary<(int Talk, int At), Player> _sellers = new();
     private int _talks;
     private bool _skipped;
 
@@ -131,8 +134,10 @@ public sealed class StarbaseVisit
 
     /// <summary>
     /// Who replies: the starter, or, once they've left, the next player in
-    /// join order, the host first (decision 7). The talk is still the
-    /// starter's: their ship and names.
+    /// join order, the host first (decision 7). The talks are the
+    /// answerer's ship's (the owner's rule, 2026-11-12: the group as a whole
+    /// starts the story): its names, its hold, crew and fuel, the ship
+    /// changing with the answerer (<see cref="AnswererTalkShip"/>).
     /// </summary>
     public Player Replier { get; internal set; }
 
@@ -231,7 +236,11 @@ public sealed class StarbaseVisit
     {
         if (Talk is not { Ended: false } talk || index < 0 || index >= talk.Replies.Count)
             return false;
+        int sales = talk.Sales.Count;
+        var seller = Replier;
         talk.Choose(index);
+        foreach (var (at, _) in talk.Sales.Skip(sales))
+            _sellers[(Talks.Count - 1, at)] = seller;
         if (talk.Ended)
             TalkEnded();
         return true;
@@ -253,7 +262,6 @@ public sealed class StarbaseVisit
         // The allied commander, at the starbase (GLOBAL_FLAGS_AND_DATA ~0);
         // whether he has greeted this player on this visit is theirs, and
         // the visit is new.
-        _unitsBefore = Starter.Ship.Hold.ResourceUnits;
         StartTalk(VisitStep.StarbaseReady, "starbas", new() { ["GLOBAL_FLAGS_AND_DATA"] = 0xFF });
     }
 
@@ -267,12 +275,11 @@ public sealed class StarbaseVisit
             seed = unchecked(seed * 31 + c);
         _talkIsStory = Comm.TalkRules.IsStory(script, _world.Story!);
         WasStory |= _talkIsStory;
-        Talk = _world.TalkLibrary!.Create(script, _world.Story!, own,
-            new PlayerTalkShip(Starter, _world.TalkLibrary.Strings, _world.Host.Ship), _world.Clock, seed);
+        var library = _world.TalkLibrary!;
+        _ship ??= new AnswererTalkShip(() => Replier, library.Strings, _world.Host.Ship);
+        Talk = library.Create(script, _world.Story!, own, _ship, _world.Clock, seed);
         Talks.Add(Talk);
         Talk.Start();
-        if (step == VisitStep.StarbaseReady)
-            _gift = Starter.Ship.Hold.ResourceUnits - _unitsBefore;
         if (Talk.Ended)
             TalkEnded();
     }
@@ -321,7 +328,6 @@ public sealed class StarbaseVisit
                 AfterAlliance();
                 break;
             case VisitStep.StarbaseReady:
-                ShareTheGift();
                 _greeted = talk.OwnFields.GetValueOrDefault("STARBASE_VISITED");
                 Dock();
                 break;
@@ -415,28 +421,6 @@ public sealed class StarbaseVisit
         Finish();
     }
 
-    // The starbase's resource units (its gift alone, not a mineral sale's
-    // proceeds in the same talk) are the group's: split equally between
-    // the players in the game (stage 3, decision 5), the starter keeping
-    // what doesn't divide. A starter away (it left the Ilwrath's fight and
-    // hasn't come back) has no share: the talk put the units in its hold,
-    // and they all go to those in the game, the first in join order (the
-    // host first) keeping what doesn't divide. A wrecked starter is in the
-    // game and keeps its share.
-    private void ShareTheGift()
-    {
-        uint gained = _gift;
-        var sharers = _world.Players.Where(p => p.Present).ToList();
-        if (gained == 0 || sharers.Count == 0 || (sharers.Count == 1 && sharers[0] == Starter))
-            return;
-        Starter.Ship.Hold.ResourceUnits -= gained;
-        uint share = gained / (uint)sharers.Count;
-        foreach (var p in sharers)
-            p.Ship.Hold.ResourceUnits += share;
-        var keeper = Starter.Present ? Starter : sharers[0];
-        keeper.Ship.Hold.ResourceUnits += gained - share * (uint)sharers.Count;
-    }
-
     private void Finish()
     {
         Step = VisitStep.Done;
@@ -471,6 +455,17 @@ public sealed class StarbaseVisit
         return (d.Year, d.Month, d.Day);
     }
 
+    /// <summary>Who sold the minerals in a talk's sale (its talk's index in <see cref="Talks"/>, the sale's event), or null.</summary>
+    public Player? SellerOf(int talk, int at) => _sellers.GetValueOrDefault((talk, at));
+
+    /// <summary>
+    /// A player's hold and fuel as they'd be without the visit's talks:
+    /// what the talks changed on its ship taken back (the starter's, until
+    /// settled, is put back whole instead: <see cref="HoldBefore"/>).
+    /// </summary>
+    internal (HoldState Hold, uint Fuel) WithoutTalks(Player player, HoldState hold, uint fuel) =>
+        _ship?.Changes.GetValueOrDefault(player) is { } changes ? changes.Without(hold, fuel, player.Ship.Hold.CrewCapacity) : (hold, fuel);
+
     /// <summary>
     /// The starter disconnected from the Ilwrath's fight (a retreat at once,
     /// decision 10): its part of the visit is taken back now rather than
@@ -490,12 +485,14 @@ public sealed class StarbaseVisit
             return;
         Starter.Ship.Hold.Restore(HoldBefore with { Crew = Starter.Ship.Hold.Crew });
         Starter.Ship.Flight.Fuel = FuelBefore > GameWorld.RetreatFuelCost ? FuelBefore - GameWorld.RetreatFuelCost : 0;
+        _ship?.Forget(Starter);   // put back already, the talks' changes with the rest
         StarterSettled = true;
     }
 
     /// <summary>
-    /// The opening is undone: what its talks wrote, the starter's ship and
-    /// the two weeks put back. A starter wrecked in the Ilwrath's fight
+    /// The opening is undone: what its talks wrote, the starter's ship,
+    /// what the talks changed on any other answerer's ship, and the two
+    /// weeks put back. A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
     /// crew; one that disconnected from it was settled as it left
     /// (<see cref="SettleStarter"/>: its hold as before the visit with the
@@ -515,6 +512,12 @@ public sealed class StarbaseVisit
                 Starter.Ship.Hold.SetCrew(0);
             Starter.Ship.Flight.Fuel = FuelBefore;
         }
+        // Every other ship the talks used (they answered after the starter
+        // left, or the starter once settled): what the talks changed on it
+        // taken back, and nothing else it did meanwhile.
+        foreach (var (player, changes) in _ship?.Changes ?? new Dictionary<Player, TalkChanges>())
+            if (player != Starter || StarterSettled)
+                changes.TakeBackFrom(player.Ship);
         if (!StarterSettled && Starter.Ship.Ip is { } ip)
             ip.EscapeCounter = 0;   // none before the visit: a ship with one can't touch the starbase (a settled one's is its own, from leaving the fight)
         _world.CommanderMet = MetBefore;

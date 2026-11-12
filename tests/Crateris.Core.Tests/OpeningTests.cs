@@ -260,8 +260,8 @@ public class OpeningTests
         Say(world, "starbas", "goodbye_commander");
         Assert.Null(world.Visit);
         Assert.Equal(0, story.Get("MOONBASE_ON_SHIP"));     // post_starbase_enc
-        // The 2,500 resource units, split between the two players (decision 5).
-        Assert.Equal((1250u, 1250u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
+        // The 2,500 resource units, the answerer's: not split (the owner's rule; the players may give them on).
+        Assert.Equal((2500u, 0u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
         // Then the starter is docked at the starbase's menu (item 8), and
         // the guest is shown the story's closing lines, as they were.
         Assert.Equal((Activity.Starbase, VisitStep.Menu), (world.Host.Ship.Activity, world.Host.Ship.Visit!.Step));
@@ -567,13 +567,11 @@ public class OpeningTests
     }
 
     [ContentFact]
-    public void TheGiftIsSplitBetweenThePlayersInTheGameTheStarterKeepingTheRest()
+    public void TheGiftIsTheAnswerersAlone()
     {
         var world = WithTalks(guest: true);
         Assert.Equal(JoinResult.Joined, world.Join("third", "Third"));
         world.UndockShown("third");
-        Assert.Equal(JoinResult.Joined, world.Join("away", "Away"));
-        world.Leave("away");
         var story = world.Story!;
         story.Set("STARBASE_AVAILABLE", 1);
         story.Set("MOONBASE_ON_SHIP", 1);
@@ -583,9 +581,8 @@ public class OpeningTests
         Run(world, StarbaseVisit.TimePassingFrames);
         Assert.Equal(0, world.Clock.FramesIntoDay);   // MoveGameClockDays: the day starts afresh (and the clock waits for the story)
         Say(world, "starbas", "goodbye_commander");
-        // 2,500 between three: 833 each, the starter keeping the one left.
-        Assert.Equal((834u, 833u, 833u, 0u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits,
-            world.Find("third")!.Ship.Hold.ResourceUnits, world.Find("away")!.Ship.Hold.ResourceUnits));
+        Assert.Equal((2500u, 0u, 0u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits,
+            world.Find("third")!.Ship.Hold.ResourceUnits));
     }
 
     [ContentFact]
@@ -1104,38 +1101,85 @@ public class OpeningTests
     }
 
     [ContentFact]
-    public void AStarterAwayFromTheFightHasNoShareOfTheGift()
+    public void TheTalksAfterTheStarterLeftAreTheAnswerersShips()
     {
-        // Four players: the starter g1, carrying 10 units of common minerals, disconnects from the fight and stays
-        // away; the host wins it.
-        var world = Reported(4);
+        // The starter g1, carrying 10 units of common minerals, disconnects from the fight and stays away; the host
+        // wins it and answers the talks after: its ship's name in them, the gift its own, and g1's minerals not
+        // offered for sale (the host has none).
+        var world = Reported(3);
         var g1 = world.Find("g1")!;
         g1.Ship.Flight.Fuel = 1200;
+        Assert.True(world.Rename("g1", "Wanderer", null));
+        Assert.True(world.Rename("host", "Lodestar", null));
         var minerals = new int[ShipHold.Categories];
         minerals[0] = 10;
         g1.Ship.Hold.MoveCargo(minerals, 0, +1);
         var wb = ToTheFight(world, "g1");
         FlyIn(world, wb, "host");
         world.Leave("g1");
-        Assert.Equal(10, g1.Ship.Hold.Minerals[0]);   // settled: its hold as before the visit
         uint[] before = world.Players.Select(p => p.Ship.Hold.ResourceUnits).ToArray();
         KillTheIlwrath(world, wb);
         Say(world, "comandr", "cook_their_butts");
         Say(world, "comandr", "name_2");
         Run(world, StarbaseVisit.TimePassingFrames);
-        // The talk is still the starter's ship's: the replier may sell its minerals, whose worth stays in its hold.
-        Say(world, "starbas", "have_minerals");
+        var view = TalkView.Of(world.Visit)!;
+        Assert.Equal((VisitStep.StarbaseReady, "host"), (view.Step, view.Replier));
+        string lines = string.Join(" ", view.Lines);
+        Assert.Contains("Lodestar", lines);
+        Assert.DoesNotContain("Wanderer", lines);
+        var talk = world.Visit!.Talk!;
+        Assert.DoesNotContain(Scripts["starbas"].PhraseNumber("have_minerals"), talk.Replies.Select(r => r.Phrase));
         Say(world, "starbas", "goodbye_commander");
         Assert.Null(world.Visit);
-        uint worth = (uint)(10 * world.Story!.ElementWorth[0]);
-        Assert.Equal(0, g1.Ship.Hold.Minerals[0]);
-        // 2,500 between the three in the game: 833 each, the host, first in join order, keeping the one left.
-        Assert.Equal(new uint[] { 834, worth, 833, 833 },
-            world.Players.Select((p, i) => p.Ship.Hold.ResourceUnits - before[i]).ToArray());
+        Assert.Equal(10, g1.Ship.Hold.Minerals[0]);
+        Assert.Equal(new uint[] { 2500, 0, 0 }, world.Players.Select((p, i) => p.Ship.Hold.ResourceUnits - before[i]).ToArray());
     }
 
     [ContentFact]
-    public void AStartersMineralSaleIsItsOwnAndOnlyTheGiftIsSplit()
+    public void TheRepliesPassedOnTheTalkIsTheNewAnswerersAndTakingItBackPutsBackEachShip()
+    {
+        // The guest starts the story; the host carries 10 units of common minerals.
+        var world = WithTalks(guest: true);
+        var guest = world.Find("guest")!;
+        world.PutInOrbit("guest", Sol, Earth, Luna);
+        guest.Ship.Ip!.ReturnFromOrbit();
+        var minerals = new int[ShipHold.Categories];
+        minerals[0] = 10;
+        world.Host.Ship.Hold.MoveCargo(minerals, 0, +1);
+        var hostHold = world.Host.Ship.Hold.Save();
+        uint hostFuel = world.Host.Ship.Flight.Fuel;
+        var story = world.Story!;
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(guest);
+        var visit = world.Visit!;
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal((VisitStep.StarbaseReady, 2500u), (visit.Step, guest.Ship.Hold.ResourceUnits));
+        // The guest leaves: the replies pass to the host, and the talk goes on with the host's ship.
+        world.Leave("guest");
+        Assert.Same(world.Host, visit.Replier);
+        // The replies offered stay as they were offered (for the guest's ship: no sale); the next set is for the host's.
+        Assert.DoesNotContain(Scripts["starbas"].PhraseNumber("have_minerals"), visit.Talk!.Replies.Select(r => r.Phrase));
+        Say(world, "starbas", "need_info");
+        Say(world, "starbas", "no_need_info");
+        Say(world, "starbas", "have_minerals");
+        uint worth = (uint)(10 * story.ElementWorth[0]);
+        Assert.Equal((0, worth), (world.Host.Ship.Hold.Minerals[0], world.Host.Ship.Hold.ResourceUnits));
+        Assert.NotNull(TalkView.Of(visit)!.Sale);   // the host's sale, counted down on its screen
+        // A save meanwhile is of the game without the visit: the host's minerals aboard, unsold.
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equivalent(hostHold, saved.Host.Ship.Hold.Save(), strict: true);
+        Assert.Equal(0u, saved.Find("guest")!.Ship.Hold.ResourceUnits);
+        // The host gone too, nobody left to answer: taken back, each ship as before its talks.
+        world.Leave("host");
+        Assert.True(visit.Undone);
+        Assert.Equivalent(hostHold, world.Host.Ship.Hold.Save(), strict: true);
+        Assert.Equal(hostFuel, world.Host.Ship.Flight.Fuel);
+        Assert.Equal(0u, guest.Ship.Hold.ResourceUnits);
+    }
+
+    [ContentFact]
+    public void TheAnswerersMineralSaleIsItsOwn()
     {
         var world = WithTalks(guest: true);
         var minerals = new int[ShipHold.Categories];
@@ -1150,11 +1194,11 @@ public class OpeningTests
         Say(world, "starbas", "goodbye_commander");
         uint worth = (uint)(10 * story.ElementWorth[0]);
         Assert.True(worth > 0);
-        Assert.Equal((1250u + worth, 1250u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
+        Assert.Equal((2500u + worth, 0u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
     }
 
     [ContentFact]
-    public void AWreckedStarterKeepsItsShareOfTheGift()
+    public void AWreckedStartersGiftGoesToItsAnswerer()
     {
         // Three players: the starter g1 wrecked in the fight, g2 wins it.
         var world = Reported(3);
@@ -1172,7 +1216,8 @@ public class OpeningTests
         KillTheIlwrath(world, wb);
         ToTheStarbaseReady(world);
         Assert.True(world.Find("g1")!.Ship.Wreck);
-        Assert.Equal(new uint[] { 833, 834, 833 },
+        // The host answers the talks after the fight (the starter wrecked): the gift is the host's.
+        Assert.Equal(new uint[] { 2500, 0, 0 },
             world.Players.Select((p, i) => p.Ship.Hold.ResourceUnits - before[i]).ToArray());
     }
 

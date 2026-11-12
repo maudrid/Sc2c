@@ -39,7 +39,7 @@ Keys, as in stage 2 and 2b: arrows fly (left and right turn, up thrusts); in men
 ## Play it: the opening at Earth
 
 1. **The commander hails.** Fly onto Sol, in to Earth (the third planet), and into the starbase beside it in Earth's inner system. The communication screen opens: the commander, animated, his words paged as UQM pages them, 80 milliseconds a character. When he's done the replies show below; your ship's and captain's names are in them. The guest's screen shows the same talk at once: their status says "The story's talk: Host replies; the game waits.", their keys don't move the talk, and their screen follows the host's (lines skipped, played again, the summary). The date stops while it goes on, and so does every ship, every lander on a surface and every orbit menu. Press T meanwhile: "The game waits while the story's talk goes on."
-2. **Who replies.** Whoever flew in replies. If the guest flies into the starbase first, the guest replies and the host watches. If the replier quits, the replies pass to the next player in join order, the host first, and the talk stays the starter's (their names, their ship). A player who joins during a talk watches it.
+2. **Who replies.** Whoever flew in replies. If the guest flies into the starbase first, the guest replies and the host watches. If the replier quits, the replies pass to the next player in join order, the host first, and the talk goes on with the new answerer's ship (their names, their hold): a talk is always the answerer's ship's. A player who joins during a talk watches it.
 3. **Mercury.** The commander asks for radioactives. Fly out to Mercury (the first planet) and into orbit; Scan, Auto scan: two of its deposits are uranium, a radioactive. Dispatch the lander, drive onto them, take off (Esc). Back at Earth's starbase the talk goes on. As in UQM he doesn't take them out of the hold. If you've run short of fuel, or have no lander, he gives you fuel or a lander with crew, as UQM's commander does.
 4. **The Lunar base.** He warns of the base on Luna (Earth's second moon). Orbit Luna and scan: the energy scan shows the base as Luna's one energy node. Land and drive onto it. The lander report is typed into the scan map's area, a letter at a time, in UQM's lander font; a key while it types shows the rest of the page at once, and at the end of a page it waits for a key. The lander takes off by itself with its crew. The base is aboard: the Manifest's Devices list shows "Moon Base". Any other player's lander on Luna stays down, and they get a notice saying who found the base, with the report's text a page at a time.
 
@@ -49,7 +49,7 @@ Keys, as in stage 2 and 2b: arrows fly (left and right turn, up thrusts); in men
    - the commander warns of the Ilwrath, and an Ilwrath ship hails: its replies all lead to the battle, which counts as won (there's no combat before stage 4);
    - the commander again: "What a beautiful sight", the alliance, and you name it from four choices, one of them using your captain's name;
    - the screen fades to black over two seconds and two weeks pass: the date jumps 14 days for everyone;
-   - the commander says the starbase is ready and gives 2,500 resource units, split equally between the players in the game (the starter keeps what doesn't divide: 1,250 each with two players);
+   - the commander says the starbase is ready and gives 2,500 resource units to whoever answers (not split: players may give them on);
    - the starbase's menu opens for the player who flew in.
 
 UQM's own scripts decide every line and reply: what he says depends on what you bring and how often you've been. A save made during one of these visits is of the game before it, as UQM can't save in a talk.
@@ -146,7 +146,7 @@ As in 2b, UQM's own code is recorded and the port must do the same: the scripts 
 | The lander report and the minerals' count-down | `report.json`, `selling.json` | `DiscoveryReportTests`, `MineralSellingTests` |
 | The giving screen (our own, laid out after the cargo display) | | `GivingScreenTests` |
 
-The co-op rules UQM can't show are checked by tests of our own: story pauses and the replies passing on (`OpeningTests`), the gift split (`OpeningTests`), a second player at the commander (`StarbaseTests`, `DialogueLockTests`), gifts between players (`TradingTests`).
+The co-op rules UQM can't show are checked by tests of our own: story pauses and the replies passing on (`OpeningTests`), the gift going to the answerer (`OpeningTests`), a second player at the commander (`StarbaseTests`, `DialogueLockTests`), gifts between players (`TradingTests`).
 
 The recordings can be made again from the UQM source, as for 2b (`docs/how-to-try/stage-2b.md`): `python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 --content ~/Downloads/uqm-0.8.0-content.uqm`, then `git diff --stat tests/golden` shows no changes.
 
@@ -158,7 +158,7 @@ Each is a row of `docs/differences.md`:
 - The story's talks and the two weeks passing are shown to every player while the game waits; whoever started replies (rows 2, 3 and 42).
 - The Ilwrath's battle counts as won until combat comes in stage 4 (row 39).
 - The Ur-Quan drone isn't at Earth until ships in space come in stage 3b, so the commander can't be asked about "the red thing" (row 40).
-- The starbase's 2,500 resource units are split between the players (row 37); each player has their own wallet and can give units and cargo (rows 11 and 22).
+- The starbase's 2,500 resource units go to whoever answers, not split (row 37); each player has their own wallet and can give units and cargo (rows 11 and 22).
 - The Lunar base with several landers on Luna (row 38); the devices are the group's (row 10).
 - One player talks to the commander at a time; several players dock at once, each with their own screens; only the host saves (rows 17 and 46).
 - Of UQM's status area, outside outfitting and the shipyard (which draw UQM's whole screen, its status area with the names, fuel, crew, resource units and landers among it), only the cargo display, the minerals' count-down and the Devices list are drawn, with the giving screen, our own, laid out after the cargo display; the status panel's text stands for the rest (rows 11, 45 and 47). The shipyard crews each player's own ship only, and the Arilou's gift of ships waits for fleets (rows 43 and 44).

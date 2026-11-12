@@ -488,7 +488,7 @@ public sealed partial class GameWorld
     /// enemy is out and a player's ship still in it (decision 9), and a
     /// battle that pays salvage pays RACE_SHIP_COST / 8 for each enemy ship,
     /// split equally between those ships, the remainder to the one that
-    /// joined first, as stage 3's decision 5 split the starbase's gift.
+    /// joined first.
     /// The marker goes, and those still in it are back in flight.
     /// </summary>
     private void EndBattle(WorldBattle wb)

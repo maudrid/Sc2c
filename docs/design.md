@@ -72,7 +72,8 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Resource units | Separate wallets, transfers allowed | |
 | Cargo trading | Players can trade cargo (minerals and bio data) when both are in the same solar system | Not across hyperspace or between systems. The receiver's free storage limits the minerals (less what their lander that is out may still bring up); bio data has no limit, as in UQM |
 | Melnorme credits | Separate per player, like resource units; transferable at any time, including during conversations | A player trading with the Melnorme can be topped up by others mid-talk |
-| Splitting rewards | Anything split between players (resource units, salvage, any later gift to the group) is split only between the players online when it's given | A player away gets no share; the owner's rule (2026-11-12) |
+| Splitting rewards | Only battle salvage is split, between the players in the battle when it's won (online: a disconnect leaves the battle). Gifts in talks, such as the starbase's 2,500 resource units, go to whoever answers | The owner's rules (2026-11-12); players can give units to each other |
+| Talks | A talk is the ship of whoever answers it: their names, hold, crew and fuel. If the replies pass to another player, the talk goes on with that player's ship | The group as a whole starts the story; the owner's rule (2026-11-12) |
 | Battle salvage | Fungible rewards split equally between the players in the battle when it's won. In UQM salvage is only resource units, paid per enemy ship destroyed | Retreated and disconnected players get none, as in UQM, where fleeing earns nothing |
 | Targeting | Enemy ships, weapons and specials target the nearest opponent | Matches UQM's `TrackShip`, so most ship code ports unchanged |
 | Planet landing | Players on the same planet share one landing screen, each with their own lander | Each mineral, bio or energy node can be taken once |

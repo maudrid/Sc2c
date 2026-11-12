@@ -31,8 +31,8 @@ namespace Crateris.Core.Comm;
 /// story state, and for the fields that aren't shared (decision 11) the
 /// talk's own values (<see cref="OwnFields"/>: where the talk is and how it
 /// ends, and the starter's own fields, such as whether the allied commander
-/// has greeted them). It changes the starter's ship (<see cref="Ship"/>,
-/// decision 4). Its random numbers come from a generator of its own,
+/// has greeted them). It changes the answerer's ship (<see cref="Ship"/>,
+/// decision 4, and the owner's rule of 2026-11-12). Its random numbers come from a generator of its own,
 /// seeded per talk (decision 12). Lines are as UQM gives them without
 /// voices (usingSpeech false).
 /// </para>
@@ -74,7 +74,7 @@ public sealed class Talk
     /// <param name="colorMapCount">How many colour maps its colour table has.</param>
     /// <param name="story">The group's story state.</param>
     /// <param name="ownFields">The fields that aren't shared, as they stand for this talk (0 if not given); changed as the talk writes them.</param>
-    /// <param name="ship">The starter's ship.</param>
+    /// <param name="ship">The answerer's ship.</param>
     /// <param name="clock">The game's clock, which the scripts read the date from (GameClock).</param>
     /// <param name="seed">The scripts' random seed for this talk.</param>
     /// <param name="musicLoads">Whether a music resource loads (the content has it): the alternate song is played only if it does.</param>

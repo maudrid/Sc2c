@@ -91,11 +91,12 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         }
         var lines = new List<string>();
         MineralSale? sale = null;
+        World.Player? seller = null;
         for (int t = talkFrom; t < visit.Talks.Count; ++t)
         {
             foreach (var (at, sold) in visit.Talks[t].Sales)
                 if (t > talkFrom || at >= eventFrom)
-                    sale = sold;
+                    (sale, seller) = (sold, visit.SellerOf(t, at));
             foreach (var e in visit.Talks[t].Events.Skip(t == talkFrom ? eventFrom : 0))
             {
                 switch (e)
@@ -116,9 +117,9 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
         var view = new TalkView(visit.Step, script, lines, talk?.Replies.Select(r => r.Text).ToList() ?? new List<string>(), round,
             visit.Replier.Id, said,
-            // The talk sells its starter's hold: counted down on their screen while they reply (a story
-            // talk's replies passed on to another player, nobody's).
-            Sale: visit.Replier == visit.Starter ? sale : null);
+            // The talk sells its answerer's hold: counted down on their screen while they reply (the
+            // replies passed on to another player since, nobody's).
+            Sale: seller is not null && seller == visit.Replier ? sale : null);
         return visit.Paging is { } paging && paging.Key == view.LinesKey ? view with { Paging = paging.Pages.ToList() } : view;
     }
 

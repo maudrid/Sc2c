@@ -131,7 +131,7 @@ public static class HostSave
         var players = world.Players.Select(p =>
         {
             var f = p.Ship.Flight;
-            // The visit's starter as before it, unless settled (it left the Ilwrath's fight): then as it is.
+            // The visit's starter as before it, unless settled (it left the Ilwrath's fight): then as it is, less what later talks changed.
             bool starter = visit?.Starter == p && !visit.StarterSettled;
             // A battle isn't saved (stage 4, decision 14): a ship in one is
             // saved as it joined it, where it joined it (it waits there).
@@ -148,9 +148,14 @@ public static class HostSave
                 : joined is not null ? joined.JoinedHold
                 // A lander on a surface is saved as back aboard with its crew and cargo.
                 : p.Ship.Lander is { } l ? p.Ship.Hold.SaveWithLanderBack(l.Crew, l.Minerals, l.BioData) : p.Ship.Hold.Save();
+            uint fuel = starter ? visit!.FuelBefore : joined?.JoinedFuel ?? f.Fuel;
+            // Any other ship the visit's talks used (its answerers'): saved
+            // without what the talks changed on it.
+            if (visit is not null && !starter)
+                (hold, fuel) = visit.WithoutTalks(p, hold, fuel);
             return new PlayerState(p.Id, p.Name, p.IsHost, p.Ship.Kind, p.Ship.Loadout, p.UndockPending,
                 new FlightState(inHyperspace ? wb!.Place.X : f.LogX, inHyperspace ? wb!.Place.Y : f.LogY, f.Facing,
-                    starter ? visit!.FuelBefore : joined?.JoinedFuel ?? f.Fuel, f.Status, f.TurnWait, f.ThrustWait,
+                    fuel, f.Status, f.TurnWait, f.ThrustWait,
                     f.ViewX, f.ViewY, f.FuelDistX, f.FuelDistY, f.FuelDistExtra, f.FuelTicks,
                     new int[] { v.TravelAngle, v.VectorWidth, v.VectorHeight, v.FractWidth, v.FractHeight,
                         v.ErrorWidth, v.ErrorHeight, v.IncrWidth, v.IncrHeight },
