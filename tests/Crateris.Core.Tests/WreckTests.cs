@@ -678,7 +678,7 @@ public class WreckTests
             Assert.Equal(RescueRefusal.None, world.Revive("host", "g1", 3));
             return (world, world.Find("g1")!);
         }
-        // Rejoining without a save between: the counter is still its revival's (away ships don't fly).
+        // Rejoining without loading a save between: the counter is still its revival's (away ships don't fly).
         var (world, g1) = Revived();
         Run(world, 30);
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
@@ -711,10 +711,35 @@ public class WreckTests
         Assert.Equal((null, Gift.Why(TradeRefusal.Wrecked)), (wreck.Trade, wreck.Notice));
         Assert.DoesNotContain("T: give another player something", wreck.StatusLines());
         Assert.DoesNotContain("Arrows: turn and thrust", wreck.StatusLines());
-        // Revived, both may give again.
+        // Revived, both may give again, and g1 fly.
         Assert.Equal(RescueRefusal.None, world.Revive("host", "g1", 2));
-        host.Observe(world.Snapshot() with { Frame = world.Frame + 1 });
+        Run(world, 1);
+        host.Observe(world.Snapshot());
+        wreck.Observe(world.Snapshot());
         Assert.Contains("T: give another player something", host.StatusLines());
+        Assert.Contains("T: give another player something", wreck.StatusLines());
+        Assert.Contains("Arrows: turn and thrust", wreck.StatusLines());
+        wreck.ToggleTrade();
+        Assert.NotNull(wreck.Trade);
+    }
+
+    [ContentFact]
+    public void AGivingScreenOpenAsTheShipBecomesAWreckCloses()
+    {
+        // g1 opens it watching its battle, its ship destroyed; the battle won, its ship a wreck: it closes.
+        var world = NewWorld(2);
+        var wb = Started(world);
+        var g1 = new PlayerSession(WorldBattleTests.Systems.Value, null, "g1", TestContent.Shapes.HyperFlagship.Count);
+        Kill(wb.Battle, Fighter(wb, "g1").Starship);
+        Run(world, 1);
+        g1.Observe(world.Snapshot());
+        g1.ToggleTrade();
+        Assert.NotNull(g1.Trade);
+        Kill(wb.Battle, wb.Enemy);
+        RunOut(world, wb);
+        g1.Observe(world.Snapshot());
+        Assert.True(g1.Me!.Wrecked);
+        Assert.Null(g1.Trade);
     }
 
     [ContentFact]

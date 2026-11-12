@@ -613,8 +613,8 @@ public sealed class PlayerSession
     /// keys are the talk's), in a talk (the communication screen has the
     /// keys, and the minerals' count-down the status area), over the cargo
     /// display or the Devices list, for a wreck (no one is aboard), or with no
-    /// one else in the game but wrecks; and it closes when a talk is shown
-    /// (<see cref="FollowTalk"/>).
+    /// one else in the game but wrecks; and it closes when a talk is shown,
+    /// or the player's ship becomes a wreck (<see cref="FollowTalk"/>).
     /// </summary>
     public void ToggleTrade()
     {
@@ -675,7 +675,8 @@ public sealed class PlayerSession
     // status area the minerals' count-down's.
     private void FollowTalk()
     {
-        if (Trade is not null && (StoryPaused || TalkShown))
+        // A talk shown, or the player's ship a wreck (opened during its battle): nothing can be given now.
+        if (Trade is not null && (StoryPaused || TalkShown || Me?.Wrecked == true))
             CloseTrade();
     }
 
