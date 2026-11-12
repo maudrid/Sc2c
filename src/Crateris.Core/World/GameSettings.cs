@@ -38,7 +38,7 @@ public sealed record GameSettings
     /// (stage 3, decision 10); and for battle a gun in the nose, as a new
     /// flagship has (stage 4, decision 3: <see cref="ShipLoadout.Guns"/>,
     /// in the weapon slots in UQM's firing order). An escort saved before
-    /// it had guns (save version 11) is given the kit's on load.
+    /// it had guns (before save version 11) is given the kit's on load.
     /// </summary>
     public ShipLoadout EscortLoadout { get; init; } = new(Thrusters: 2, Jets: 2, FuelTanks: 1,
         HighEfficiencyTanks: 0, Crew: 10, Fuel: 1000, Landers: 1, StorageBays: 1, CrewCapacity: 10, Guns: 1);

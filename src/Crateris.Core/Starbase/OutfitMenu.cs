@@ -44,7 +44,9 @@ public enum OutfitOutcome
 /// the jets, the modules, the landers) and left and right the slot; on an
 /// empty slot, select opens the modules that may go there (left and right
 /// to choose, only those for sale, weapons only at the front and back),
-/// and select buys one; on a full one, select sells it.
+/// and select buys one; on a full one, select sells it. An escort is
+/// offered only what it may buy (stage 4a item 8): its choice opens on the
+/// first, and on an empty drive or jet slot doesn't open.
 /// <para>
 /// It runs on the host, from the keys the player's client sends (each
 /// docked player has their own: <see cref="StarbaseMenu"/>); each purchase
@@ -156,6 +158,18 @@ public sealed class OutfitMenu
 
     /// <summary>Choosing a module to buy (CurState below EMPTY_SLOT in Modules).</summary>
     public bool Choosing => _installing && State < ShipModules.EmptySlot;
+
+    private bool Escort => _rules.Ship.Kind == ShipKind.Escort;
+
+    /// <summary>
+    /// Whether choosing a module for the slot the cursor is on offers this
+    /// one (DoInstallModule's skip): for sale, a weapon only in a weapon
+    /// slot (0 and 13 to 15), and for an escort only what it may hold
+    /// (<see cref="Outfitting.EscortMayHold"/>, stage 4a item 8).
+    /// </summary>
+    private bool Offered(byte item) => _rules.Cost(item) != 0
+        && !(ShipModules.IsWeapon(item) && Item > 0 && Item < 13)
+        && !(Escort && !Outfitting.EscortMayHold(item));
 
     /// <summary>DoOutfit, as it opens: the fuel rounded, the cursor on Fuel.</summary>
     public void Open()
@@ -297,6 +311,19 @@ public sealed class OutfitMenu
                     newPiece = (byte)(newPiece - (ShipModules.EmptySlot - 1));
                     if (newPiece > ShipModules.CrewPod)
                         newPiece = ShipModules.PlanetLander;
+                    // An escort is offered only what it may hold (stage 4a item 8): in the
+                    // modules' row the first of them on offer; in a row with none (the
+                    // drives, the jets), nothing, refused as buying it would be.
+                    if (Escort && !Outfitting.EscortMayHold(newPiece))
+                    {
+                        if (row != SlotKind.Module)
+                            return OutfitOutcome.Refused;
+                        int first = Enumerable.Range(newPiece, ShipModules.PurchaseModules - newPiece)
+                            .FirstOrDefault(i => Offered((byte)i), -1);
+                        if (first < 0)
+                            return OutfitOutcome.Refused;
+                        newPiece = (byte)first;
+                    }
                 }
                 if (acted)
                 {
@@ -376,9 +403,7 @@ public sealed class OutfitMenu
                 if (newItem++ == lastItem)
                     newItem = firstItem;
             }
-            bool skip = newState < ShipModules.EmptySlot
-                && (_rules.Cost((byte)newItem) == 0
-                    || (newItem >= ShipModules.GunWeapon && newItem <= ShipModules.CannonWeapon && Item > 0 && Item < 13));
+            bool skip = newState < ShipModules.EmptySlot && !Offered((byte)newItem);
             if (!skip || turns > ShipModules.Modules)
                 break;
         }

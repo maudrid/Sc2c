@@ -66,7 +66,8 @@ public static class HostSave
     /// escorts guns (stage 4a item 8: the escort's kit's,
     /// ShipLoadout.Guns, and the combat modules outfitting sells them): an
     /// escort from an older save, a wreck too, is given the kit's guns on
-    /// load (the settings' kit's; an older save's kit takes the default's),
+    /// load (the settings' kit's; an older save's kit takes the default's,
+    /// as many as its slots have room for),
     /// in its free weapon slots in the order UQM fires from them (15, 14,
     /// 13, then 0), none where every weapon slot is full, unless it already
     /// has a weapon there (ShipModules.GiveKitGuns); its loadout stays the
@@ -162,6 +163,25 @@ public static class HostSave
         return JsonSerializer.Serialize(save, Options);
     }
 
+    // An older save's kit's guns: the default kit's, fewer if its other
+    // modules leave less room, down to none (a kit that doesn't fit even
+    // without guns is refused with the settings, as before).
+    private static int KitGuns(ShipLoadout kit)
+    {
+        for (int guns = new GameSettings().EscortLoadout.Guns; guns > 0; --guns)
+        {
+            try
+            {
+                _ = ShipModules.FromLoadout(ShipKind.Escort, kit with { Guns = guns });
+                return guns;
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
+        return 0;
+    }
+
     /// <summary>Loads a save without systems (tests). A bad save is an <see cref="InvalidDataException"/>.</summary>
     public static GameWorld FromJson(string json) => Load(json, null, null);
 
@@ -220,9 +240,10 @@ public static class HostSave
             settings = settings with { EscortLoadout = new GameSettings().EscortLoadout };
         if (save.Version < 8 && settings.EscortLoadout is { } kit)
             settings = settings with { EscortLoadout = kit with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity } };
-        // Before version 11 the kit had no guns: it has the default's.
+        // Before version 11 the kit had no guns: it has the default's, as
+        // many as its slots have room for (a kit that filled them has none).
         if (save.Version < 11)
-            settings = settings with { EscortLoadout = settings.EscortLoadout with { Guns = new GameSettings().EscortLoadout.Guns } };
+            settings = settings with { EscortLoadout = settings.EscortLoadout with { Guns = KitGuns(settings.EscortLoadout) } };
 
         var clock = new GameClock(save.Clock.Year, save.Clock.Month, save.Clock.Day)
         {
