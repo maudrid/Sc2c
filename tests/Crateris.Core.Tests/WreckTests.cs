@@ -743,6 +743,35 @@ public class WreckTests
     }
 
     [ContentFact]
+    public void AnotherPlayersShipBecomingAWreckLeavesTheGivingScreenOpen()
+    {
+        // g2 stays out of the host's battle with its screen open on g1; g1 destroyed in it, a wreck once it's won:
+        // g2's screen stays open, giving to the host now.
+        var world = NewWorld(3);
+        var wb = world.StartBattle("host", Ilwrath);
+        FlyIn(world, "g1");
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            Run(world, 1);
+        Assert.Equal(new[] { "host", "g1" }, wb.Fighters.Select(f => f.Player.Id));
+        var g2 = new PlayerSession(WorldBattleTests.Systems.Value, null, "g2", TestContent.Shapes.HyperFlagship.Count);
+        g2.Observe(world.Snapshot());
+        g2.ToggleTrade();
+        Assert.NotNull(g2.Trade);
+        g2.Trade!.Press(MenuKey.Up, world.Snapshot(), "g2");          // the player row
+        g2.Trade.Press(MenuKey.Right, world.Snapshot(), "g2");        // host, then g1
+        Assert.Equal("g1", g2.Trade.To);
+        Kill(wb.Battle, Fighter(wb, "g1").Starship);
+        Kill(wb.Battle, wb.Enemy);
+        RunOut(world, wb);
+        g2.Observe(world.Snapshot());
+        Assert.True(world.Find("g1")!.Ship.Wreck);
+        Assert.NotNull(g2.Trade);
+        Assert.Equal(new[] { "host" }, TradeScreen.Others(world.Snapshot(), "g2"));
+        g2.Trade!.Press(MenuKey.Down, world.Snapshot(), "g2");
+        Assert.Equal("host", g2.Trade.To);
+    }
+
+    [ContentFact]
     public void ARevivalWaitsForAStoryTalk()
     {
         // g1's own battle, lost: a wreck where it undocked, by the host.

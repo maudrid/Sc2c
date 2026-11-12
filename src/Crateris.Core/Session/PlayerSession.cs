@@ -664,7 +664,8 @@ public sealed class PlayerSession
 
     /// <summary>
     /// The giving screen closed (a key or a script's <c>give</c>, a talk
-    /// shown, the story pausing the game, the game unable to draw it), as it
+    /// shown, the story pausing the game, the player's own ship becoming a
+    /// wreck, the game unable to draw it), as it
     /// closes: the keys held then aren't the game's till they've
     /// come up, before another key's repeat can reach what's under it.
     /// </summary>
@@ -672,7 +673,8 @@ public sealed class PlayerSession
 
     // A talk shown (the player's own, or the story's, which pauses the
     // game) closes the giving screen: its keys are the talk's, and the
-    // status area the minerals' count-down's.
+    // status area the minerals' count-down's. So does the player's own ship
+    // becoming a wreck (no one aboard to give); another's leaves it open.
     private void FollowTalk()
     {
         // A talk shown, or the player's ship a wreck (opened during its battle): nothing can be given now.
