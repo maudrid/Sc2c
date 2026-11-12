@@ -133,7 +133,13 @@ public sealed class StarbaseVisit
     /// <summary>How the replier has paged the current lines (decision 7): what watchers follow; null before any.</summary>
     public Comm.TalkPaging? Paging { get; internal set; }
 
-    /// <summary>Whether the visit is still in the opening (before the menu, the Ilwrath's fight too): one at a time, taken back if its starter leaves.</summary>
+    /// <summary>
+    /// Whether the visit is still in the opening (before the menu, the
+    /// Ilwrath's fight too): one at a time, and taken back if it's left
+    /// unfinished (<see cref="Undone"/>). A starter leaving the fight isn't
+    /// that: it settles its own part (<see cref="StarterSettled"/>) and the
+    /// fight goes on.
+    /// </summary>
     public bool Opening => Step < VisitStep.Menu || Step == VisitStep.IlwrathFight;
 
     /// <summary>
@@ -197,8 +203,9 @@ public sealed class StarbaseVisit
     /// <summary>
     /// Whether it was undone: its replier left with no one to take the
     /// replies; every player left the Ilwrath's fight with the Ilwrath alive
-    /// (destroyed or disconnected); or its starter was gone as that fight
-    /// was to start.
+    /// (destroyed or disconnected); the Ilwrath was killed with nobody in
+    /// the game to answer the commander; or its starter was gone as that
+    /// fight was to start.
     /// </summary>
     public bool Undone { get; private set; }
 
@@ -401,17 +408,24 @@ public sealed class StarbaseVisit
     }
 
     // The starbase's resource units are the group's: split equally between
-    // the players in the game, the starter keeping what doesn't divide.
+    // the players in the game (stage 3, decision 5), the starter keeping
+    // what doesn't divide. A starter away (it left the Ilwrath's fight and
+    // hasn't come back) has no share: the talk put the units in its hold,
+    // and they all go to those in the game, the first in join order (the
+    // host first) keeping what doesn't divide. A wrecked starter is in the
+    // game and keeps its share.
     private void ShareTheGift()
     {
         uint gained = Starter.Ship.Hold.ResourceUnits - _unitsBefore;
-        var others = _world.Players.Where(p => p.Present && p != Starter).ToList();
-        if (others.Count == 0 || gained == 0)
+        var sharers = _world.Players.Where(p => p.Present).ToList();
+        if (gained == 0 || sharers.Count == 0 || (sharers.Count == 1 && sharers[0] == Starter))
             return;
-        uint share = gained / (uint)(others.Count + 1);
-        foreach (var p in others)
+        Starter.Ship.Hold.ResourceUnits -= gained;
+        uint share = gained / (uint)sharers.Count;
+        foreach (var p in sharers)
             p.Ship.Hold.ResourceUnits += share;
-        Starter.Ship.Hold.ResourceUnits -= share * (uint)others.Count;
+        var keeper = Starter.Present ? Starter : sharers[0];
+        keeper.Ship.Hold.ResourceUnits += gained - share * (uint)sharers.Count;
     }
 
     private void Finish()

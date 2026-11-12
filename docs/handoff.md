@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-12, after stage 4a item 9 was built and independently reviewed.
+**Last updated:** 2026-11-12, after item 9's independent review's four open items were fixed (review round in progress).
 
 ## Where things are
 
@@ -13,21 +13,13 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 ## Open items
 
-Item 9's independent review (after its five review rounds) found no bug in the fight's rules but left these, none fixed yet:
-
-1. **The starbase's 2,500 RU go to an away starter.** `StarbaseVisit.ShareTheGift` (`src/Crateris.Core/World/StarbaseVisit.cs`) always counts the starter. If the starter disconnects from the Ilwrath fight and another player wins, the away starter takes a share (host 1,250, away starter 1,250). Stage 3's rule (decision 5, `differences.md` row 37) splits it between the players in the game, and its own test leaves an away player out. Fix: count the starter only while present (a wrecked starter is present and keeps its share); give the remainder by join order; add the test.
-2. **Wrong refusal reason for gifts during the fight.** `GameWorld.cs` (~1098) checks the unsettled starter before the in-battle and wreck checks, so a gift to or from the starter mid-fight is refused as `TradeRefusal.Paused` ("The game waits while the story's talk goes on"), though nothing is paused. It should be `InBattle` or `Wrecked`. `OpeningTests.cs` (~1117, ~1159) asserts `Paused` and must change with it.
-3. **Decision 13 was reworded without the owner's confirmation.** Commit 5ad8d69 changed it so a starter who disconnects from the Ilwrath fight keeps the crew it left with (decision 10) instead of being put back fully as before the visit. **The owner must confirm or reverse this.** Two notes still say it's for the owner to confirm: `docs/plans/stage-4.md` item 9's note on the starter disconnecting (~line 200) and item 13's note (~line 222). Update them once the owner decides.
-4. **Stale comments in `StarbaseVisit.cs`:** `Opening` (~137) still says the visit is taken back if its starter leaves (during the fight, leaving settles the starter instead); `Undone` (~203) doesn't list the Ilwrath killed with nobody present to answer.
+Item 9's independent review left four items; the owner confirmed decision 13 as reworded (a starter disconnecting from the Ilwrath fight keeps the crew it left with), and the other three are fixed: an away starter has no share of the starbase's gift (`StarbaseVisit.ShareTheGift`, tests `AStarterAwayFromTheFightHasNoShareOfTheGift`, `AWreckedStarterKeepsItsShareOfTheGift`), gifts to or from the starter mid-fight are refused as `InBattle` or `Wrecked` (`GameWorld.Give`), and `StarbaseVisit`'s stale comments are updated. Their review loop (`CLAUDE.md`) is under way.
 
 Smaller items left by earlier work are recorded in the plan as notes under the item that owns them (items 10 to 13, 3b, 3c, 4b).
 
 ## Next step
 
-Ask the owner first. Then, as they choose:
-
-1. Fix the four open items above (owner's answer on item 3 first), with the review loop in `CLAUDE.md`.
-2. Then item 10, the host's pause, only when the owner says to start it.
+Finish the fixes' review loop and report. Then item 10, the host's pause, only when the owner says to start it.
 
 ## Working agreements
 

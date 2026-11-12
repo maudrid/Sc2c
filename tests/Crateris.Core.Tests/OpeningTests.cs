@@ -1104,6 +1104,41 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void AStarterAwayFromTheFightHasNoShareOfTheGift()
+    {
+        // Four players: the starter g1 disconnects from the fight and stays away; the host wins it.
+        var world = Reported(4);
+        var g1 = world.Find("g1")!;
+        g1.Ship.Flight.Fuel = 1200;
+        var wb = ToTheFight(world, "g1");
+        FlyIn(world, wb, "host");
+        world.Leave("g1");
+        uint[] before = world.Players.Select(p => p.Ship.Hold.ResourceUnits).ToArray();
+        KillTheIlwrath(world, wb);
+        ToTheStarbaseReady(world);
+        // 2,500 between the three in the game: 833 each, the host, first in join order, keeping the one left.
+        Assert.Equal(new uint[] { 834, 0, 833, 833 },
+            world.Players.Select((p, i) => p.Ship.Hold.ResourceUnits - before[i]).ToArray());
+    }
+
+    [ContentFact]
+    public void AWreckedStarterKeepsItsShareOfTheGift()
+    {
+        // Three players: the starter g1 wrecked in the fight, g2 wins it.
+        var world = Reported(3);
+        var wb = ToTheFight(world, "g1");
+        FlyIn(world, wb, "g2");
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
+        Run(world, 1);
+        uint[] before = world.Players.Select(p => p.Ship.Hold.ResourceUnits).ToArray();
+        KillTheIlwrath(world, wb);
+        ToTheStarbaseReady(world);
+        Assert.True(world.Find("g1")!.Ship.Wreck);
+        Assert.Equal(new uint[] { 833, 834, 833 },
+            world.Players.Select((p, i) => p.Ship.Hold.ResourceUnits - before[i]).ToArray());
+    }
+
+    [ContentFact]
     public void AStarterBackFromTheFightKeepsWhatItDidWhenTheVisitIsTakenBack()
     {
         var world = Reported(3);
@@ -1114,7 +1149,7 @@ public class OpeningTests
         FlyIn(world, wb, "g2");
         world.Host.Ship.Hold.ResourceUnits = 100;
         var gift = new Gift("host", "g1", 10, new int[8], 0);
-        Assert.Equal(TradeRefusal.Paused, world.Give(gift));   // its hold may be taken back
+        Assert.Equal(TradeRefusal.InBattle, world.Give(gift));   // in the fight (and its hold may be taken back)
         world.Leave("g1");
         Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
         Assert.Equal(700u, g1.Ship.Flight.Fuel);
@@ -1156,7 +1191,7 @@ public class OpeningTests
         Assert.False(visit.StarterSettled);
         Assert.Equal(1200u, g1.Ship.Flight.Fuel);
         Assert.True(wb.Battle.Fighting(wb.FighterOf("g1")!.Starship));
-        Assert.Equal(TradeRefusal.Paused, world.Give(new Gift("host", "g1", 10, new int[8], 0)));
+        Assert.Equal(TradeRefusal.InBattle, world.Give(new Gift("host", "g1", 10, new int[8], 0)));
     }
 
     [ContentFact]

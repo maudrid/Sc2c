@@ -1090,13 +1090,9 @@ public sealed partial class GameWorld
     /// </summary>
     public TradeRefusal Give(Gift gift)
     {
-        // The opening's starter's hold can be taken back (StarbaseVisit.Undo,
-        // and a save is of it as before): no gifts to or from them meanwhile,
-        // unless their part of it is settled (they left the Ilwrath's fight).
         if (GameOver)
             return TradeRefusal.GameOver;
-        if (StoryPaused || (Visit is { Opening: true, StarterSettled: false } opening
-                && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To)))
+        if (StoryPaused)
             return TradeRefusal.Paused;
         if (gift.From == gift.To || Find(gift.From) is not { Present: true } giver || Find(gift.To) is not { Present: true } taker)
             return TradeRefusal.NoOne;
@@ -1106,6 +1102,14 @@ public sealed partial class GameWorld
         // A wreck has no one aboard to give or take anything (item 7); it keeps its hold for its revival.
         if (giver.Ship.Destroyed || taker.Ship.Destroyed)
             return TradeRefusal.Wrecked;
+        // The opening's starter's hold can be taken back (StarbaseVisit.Undo,
+        // and a save is of it as before): no gifts to or from them meanwhile,
+        // unless their part of it is settled (they left the Ilwrath's fight).
+        // In the fight, they're in its battle or a wreck, refused as such
+        // above; outside it, the opening's talks pause the game.
+        if (Visit is { Opening: true, StarterSettled: false } opening
+                && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To))
+            return TradeRefusal.Paused;
         if (gift.Minerals.Count != ShipHold.Categories || gift.Minerals.Any(m => m < 0) || gift.BioData < 0
                 || (gift.ResourceUnits == 0 && !gift.Cargo))
             return TradeRefusal.Nothing;
