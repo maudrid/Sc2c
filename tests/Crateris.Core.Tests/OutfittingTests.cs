@@ -25,8 +25,9 @@ namespace Crateris.Core.Tests;
 /// flagship's prices, and refusing them the flagship's unique ones (crew
 /// pods, fuel tanks, thrusters, jets, the bomb's parts); what they bought
 /// flown in battle; and escorts saved before they had guns (save versions
-/// up to 10) given the kit's gun on load, in the first free weapon slot UQM
-/// fires from (15, 14, 13, then 0), or none if all are full.
+/// up to 10) given the default kit's gun on load, in the first free weapon
+/// slot UQM fires from (15, 14, 13, then 0), unless they already have a
+/// weapon where it fires, or none if all are full.
 /// </summary>
 [Trait("Topic", "starbase")]
 public class OutfittingTests
