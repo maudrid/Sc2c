@@ -380,6 +380,13 @@ public sealed partial class GameWorld
             }
             Visit!.Frame();
             AfterVisit(Visit);
+            // The flagship's crew run out as a story talk started (its
+            // starter touching the starbase in the same frame): the game is
+            // lost all the same, and its battle runs on, unflown, to the
+            // game over, which the pause would otherwise hold off.
+            if (!GameOver && FlagshipDying() is { } lost)
+                StepBattle(lost);
+            _battleInput.Clear();
             return;
         }
         int systemFrames = SystemFramesIn(Frame);
@@ -568,14 +575,16 @@ public sealed partial class GameWorld
     /// menu (docked). One opening goes on at a time: while another does, or
     /// without the talks' content, the ship stays in flight (docs/differences.md
     /// row 27); and it waits while another player talks to the commander
-    /// from the menu (row 17).
+    /// from the menu (row 17). Once the flagship is lost (its crew run out,
+    /// <see cref="FlagshipLost"/>) no ship docks or starts a visit, so no
+    /// story pause can start before the game over (stage 4a item 7).
     /// </summary>
     internal void VisitStarbase(Player player)
     {
         if (TalkLibrary is null || Story is null || player.Ship.Visit is not null || player.Ship.Battle is not null)
             return;   // a player in a battle starts no talk (decision 11)
         if (FlagshipLost)
-            return;   // the game is lost: no talk (a story pause would hold off the game over)
+            return;   // the game is lost: no visit (a story pause would hold off the game over)
         bool opening = Story.Get("STARBASE_AVAILABLE") == 0 || Story.Get("MOONBASE_ON_SHIP") != 0
             || Story.Get("CHMMR_BOMB_STATE") == 2;
         if (opening)

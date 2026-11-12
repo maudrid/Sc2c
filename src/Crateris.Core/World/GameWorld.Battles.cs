@@ -65,8 +65,10 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// The flagship's crew has run out in a battle (it's exploding, or the
-    /// game is over): from this frame no talk starts (a story talk's pause
-    /// would hold off the game over) and no save is made
+    /// game is over): from this frame no ship docks at the starbase or
+    /// starts a visit there, so no story pause starts (it would hold off the
+    /// game over; one started in the same frame doesn't: the flagship's
+    /// battle runs on through it to the game over), and no save is made
     /// (<see cref="Session.HostSession.SaveJson"/>; <see cref="HostSave.ToJson"/>
     /// refuses), so loading the host's save goes back to before the battle
     /// (decision 12), not to the flagship as it joined the battle it's
@@ -331,13 +333,23 @@ public sealed partial class GameWorld
         {
             if (GameOver)
                 break;   // the world stops at once
-            var battle = wb.Battle;
-            if (battle.InBattle)
-                battle.Step(ship => ship.PlayerNr == 0 ? PlayerBattleInput(wb, ship) : battle.ComputerIntelligence(ship));
-            AfterBattleFrame(wb);
+            StepBattle(wb);
         }
         _battleInput.Clear();
     }
+
+    private void StepBattle(WorldBattle wb)
+    {
+        var battle = wb.Battle;
+        if (battle.InBattle)
+            battle.Step(ship => ship.PlayerNr == 0 ? PlayerBattleInput(wb, ship) : battle.ComputerIntelligence(ship));
+        AfterBattleFrame(wb);
+    }
+
+    // The battle whose flagship's crew has run out (it's exploding), if any.
+    private WorldBattle? FlagshipDying() => _battles.FirstOrDefault(wb => wb.Fighters.Any(f =>
+        f.Player.Ship.Kind == ShipKind.Flagship && f.Player.Ship.Battle == wb
+        && (f.Exit == BattleExit.Destroyed || f.Starship.RaceDesc is { CrewLevel: 0 })));
 
     private BattleInput PlayerBattleInput(WorldBattle wb, Starship ship)
     {

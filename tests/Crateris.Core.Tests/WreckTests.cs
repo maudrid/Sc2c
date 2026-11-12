@@ -579,6 +579,32 @@ public class WreckTests
     }
 
     [ContentFact]
+    public void AStoryTalkStartedAsTheFlagshipsCrewRunsOutDoesntHoldOffTheGameOver()
+    {
+        // The guest touches the starbase with the Lunar base aboard in the
+        // frame the flagship's crew runs out, before its battle has seen it.
+        var world = InSol(2);
+        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
+        var wb = world.StartBattle("host", Ilwrath);
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            Run(world, 1);
+        Kill(wb.Battle, Fighter(wb, "host").Starship);
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        world.Story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(world.Find("g1")!);
+        Assert.Equal((true, false), (world.StoryPaused, world.FlagshipLost));
+        Run(world, 1);
+        Assert.True(world.FlagshipLost);
+        Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(world));
+        // The flagship's battle runs on through the pause to the game over.
+        int frames = 1;
+        for (; frames < 300 && !world.GameOver; ++frames)
+            Run(world, 1);
+        Assert.Equal((true, true), (world.GameOver, world.StoryPaused));
+        Assert.Equal(36 + 72 + 2, frames);
+    }
+
+    [ContentFact]
     public void AfterTheGameOverNothingChanges()
     {
         // g1 talking to the commander, g3 docked at the starbase's menu, g2 in orbit round Luna.
@@ -627,17 +653,31 @@ public class WreckTests
         host.World.BattleKit = Kit();
         host.StartBattle(Ilwrath);
         host.Hello(1, "g1", "Guest 1", Protocol.Version);
+        // g2 stays by the marker (there as it started: outside the battle), taking snapshots.
+        host.Hello(2, "g2", "Guest 2", Protocol.Version);
         var wb = JoinedInSol(host, "g1");
+        Assert.Null(wb.FighterOf("g2"));
+        var g2 = new SnapshotReceiver();
+        WorldSnapshot? Send()
+        {
+            var shown = g2.Receive(host.SnapshotFor(2), out _);
+            host.GuestInput(2, host.World.Frame + 1, 0, shown!.Frame);   // it has this one
+            return shown;
+        }
         Kill(wb.Battle, wb.FighterOf("host")!.Starship);
         var before = host.Step(ShipInput.None);
-        Assert.Equal(2, before.Ships.Count);
+        Assert.Equal(before.Frame, Send()!.Frame);
+        Assert.Equal(3, before.Ships.Count);
         host.GuestLeft(1);
-        Assert.True(host.World.GameOver);   // the battle ended with no one left, the flagship destroyed
-        // The next step's snapshot is the world as it stopped, after the last one sent.
+        Assert.True(host.World.GameOver);   // the battle ended with no one left in it, the flagship destroyed
+        // The next step's snapshot is the world as it stopped, after the last one sent; g2 takes it as a delta.
         var after = host.Step(ShipInput.None);
-        Assert.True(after.Frame > before.Frame);
-        Assert.Equal(new[] { "host" }, after.Ships.Select(s => s.Id));
+        Assert.Equal(before.Frame + 1, after.Frame);
+        Assert.Equal(new[] { "host", "g2" }, after.Ships.Select(s => s.Id));
         Assert.NotEqual(Activity.Battle, after.Ships[0].Activity);
+        var shownAfter = g2.Receive(host.SnapshotFor(2), out bool full);
+        Assert.False(full);
+        Assert.Equal((after.Frame, "host g2"), (shownAfter!.Frame, string.Join(" ", shownAfter.Ships.Select(s => s.Id))));
         Assert.Same(after, host.Step(ShipInput.None));
     }
 
