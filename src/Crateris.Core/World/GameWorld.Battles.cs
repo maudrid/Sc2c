@@ -65,8 +65,8 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// The flagship's crew has run out in a battle (it's exploding, or the
-    /// game is over): from this frame no ship docks at the starbase or
-    /// starts a visit there, so no story pause starts (it would hold off the
+    /// game is over): from this frame no ship touching the starbase docks
+    /// or starts a visit there, so no story pause starts (it would hold off the
     /// game over; one started in the same frame doesn't: the flagship's
     /// battle runs on through it to the game over), and no save is made
     /// (<see cref="Session.HostSession.SaveJson"/>; <see cref="HostSave.ToJson"/>
@@ -346,10 +346,10 @@ public sealed partial class GameWorld
         AfterBattleFrame(wb);
     }
 
-    // The battle whose flagship's crew has run out (it's exploding), if any.
+    // The battle whose flagship's crew has run out (it's exploding: its
+    // crew stays 0 until new_ship frees it, and the game is over then), if any.
     private WorldBattle? FlagshipDying() => _battles.FirstOrDefault(wb => wb.Fighters.Any(f =>
-        f.Player.Ship.Kind == ShipKind.Flagship && f.Player.Ship.Battle == wb
-        && (f.Exit == BattleExit.Destroyed || f.Starship.RaceDesc is { CrewLevel: 0 })));
+        f.Player.Ship.Kind == ShipKind.Flagship && f.Player.Ship.Battle == wb && f.Starship.RaceDesc is { CrewLevel: 0 }));
 
     private BattleInput PlayerBattleInput(WorldBattle wb, Starship ship)
     {

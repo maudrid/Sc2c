@@ -179,8 +179,8 @@ public sealed class BattleFighter
 /// players who fly into it. It has a marker where it started
 /// (<see cref="Place"/>), shown to the players there, which any of them
 /// may fly into to join (decision 6), and runs on the host at 24 frames a
-/// second while the world does (a story talk freezes it, decision 11). It
-/// ends when one side has no ship left able to fight: won, the salvage
+/// second while the world does (a story talk freezes it, decision 11, but
+/// for the flagship's as it explodes, item 7). It ends when one side has no ship left able to fight: won, the salvage
 /// split between the players still in it (decision 9), or lost.
 /// </summary>
 public sealed class WorldBattle

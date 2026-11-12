@@ -581,27 +581,55 @@ public class WreckTests
     [ContentFact]
     public void AStoryTalkStartedAsTheFlagshipsCrewRunsOutDoesntHoldOffTheGameOver()
     {
-        // The guest touches the starbase with the Lunar base aboard in the
-        // frame the flagship's crew runs out, before its battle has seen it.
-        var world = InSol(2);
-        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
-        var wb = world.StartBattle("host", Ilwrath);
-        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
-            Run(world, 1);
+        // g1, with the Lunar base aboard, flies into the starbase in the very
+        // frame the flagship's crew runs out in the host's battle (the
+        // flights go first, then the battles: the story talk starts before
+        // the battle sees the death). g2 fights a battle of its own there.
+        (GameWorld World, WorldBattle Host, WorldBattle Other) Make()
+        {
+            var world = InSol(3);
+            world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
+            world.Story!.Set("STARBASE_AVAILABLE", 1);
+            world.Story.Set("MOONBASE_ON_SHIP", 1);
+            return (world, world.StartBattle("host", Ilwrath), world.StartBattle("g2", Ilwrath));
+        }
+        // Steering g1 at the starbase (Earth's first moon), as OpeningTests does.
+        static void Fly(GameWorld world)
+        {
+            var ip = world.Find("g1")!.Ship.Ip!;
+            var target = ip.MoonScreen[0];
+            int want = Uqm.UqmMath.AngleToFacing(Uqm.UqmMath.ArcTan((short)(target.X - ip.Screen.X), (short)(target.Y - ip.Screen.Y)));
+            int turn = (want - ip.Facing) & (Uqm.UqmMath.Facings - 1);
+            var keys = turn == 0 ? ShipInput.Thrust : turn > Uqm.UqmMath.Facings / 2 ? ShipInput.Left : ShipInput.Right;
+            Run(world, 1, id => id == "g1" ? keys : ShipInput.None);
+        }
+        // How many frames g1 takes to touch it.
+        var (dry, _, _) = Make();
+        int touch = 0;
+        while (touch < 24 * 60 && !dry.StoryPaused)
+        {
+            Fly(dry);
+            ++touch;
+        }
+        Assert.True(dry.StoryPaused);
+
+        var (world, wb, other) = Make();
+        for (int i = 0; i < touch - 1; ++i)
+            Fly(world);
+        Assert.False(world.StoryPaused);
         Kill(wb.Battle, Fighter(wb, "host").Starship);
-        world.Story!.Set("STARBASE_AVAILABLE", 1);
-        world.Story.Set("MOONBASE_ON_SHIP", 1);
-        world.VisitStarbase(world.Find("g1")!);
-        Assert.Equal((true, false), (world.StoryPaused, world.FlagshipLost));
-        Run(world, 1);
-        Assert.True(world.FlagshipLost);
+        Fly(world);
+        Assert.Equal((true, true, BattleExit.Destroyed), (world.StoryPaused, world.FlagshipLost, Fighter(wb, "host").Exit));
         Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(world));
-        // The flagship's battle runs on through the pause to the game over.
+        // The flagship's battle runs on through the pause to the game over; g2's waits, as the pause has it.
+        string State(Battle b) => b.Random.Seed + " " + string.Join(" ", b.List.Elements.Select(e => $"{e.Current.X},{e.Current.Y},{e.LifeSpan}"));
+        string otherAt = State(other.Battle);
         int frames = 1;
         for (; frames < 300 && !world.GameOver; ++frames)
             Run(world, 1);
         Assert.Equal((true, true), (world.GameOver, world.StoryPaused));
         Assert.Equal(36 + 72 + 2, frames);
+        Assert.Equal(otherAt, State(other.Battle));
     }
 
     [ContentFact]

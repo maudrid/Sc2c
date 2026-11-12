@@ -372,7 +372,8 @@ public sealed partial class GameWorld
         if (StoryPaused)
         {
             // Everything waits for the story (decision 7): input read now
-            // is dropped, and only the visit goes on (time passing's fade).
+            // is dropped, and only the visit goes on (time passing's fade),
+            // and a battle whose flagship is dying (below).
             foreach (var p in _players.Where(p => p.Present))
             {
                 _inputs[p.Id].Take(Frame);
@@ -576,8 +577,9 @@ public sealed partial class GameWorld
     /// without the talks' content, the ship stays in flight (docs/differences.md
     /// row 27); and it waits while another player talks to the commander
     /// from the menu (row 17). Once the flagship is lost (its crew run out,
-    /// <see cref="FlagshipLost"/>) no ship docks or starts a visit, so no
-    /// story pause can start before the game over (stage 4a item 7).
+    /// <see cref="FlagshipLost"/>) no ship touching it docks or starts a
+    /// visit, so no story pause can start before the game over (stage 4a
+    /// item 7).
     /// </summary>
     internal void VisitStarbase(Player player)
     {
