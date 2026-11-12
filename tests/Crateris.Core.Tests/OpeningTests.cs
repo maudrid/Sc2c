@@ -1279,6 +1279,9 @@ public class OpeningTests
         ship.Crew += 4;
         hold.LanderLeaves();
         int aboard = hold.Crew;
+        // A save meanwhile, the lander as back aboard: it stays the ship's there too.
+        var saved = ship.Changes[world.Host].Without(hold.Save(), world.Host.Ship.Flight.Fuel, hold.CrewCapacity, landersAtLeast: 1);
+        Assert.Equal(1, saved.Hold.Landers);
         ship.Changes[world.Host].TakeBackFrom(world.Host.Ship);
         Assert.Equal((aboard - 4, 1), (hold.Crew, hold.Landers));
     }

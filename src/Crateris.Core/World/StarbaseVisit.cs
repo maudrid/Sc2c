@@ -467,7 +467,11 @@ public sealed class StarbaseVisit
     /// settled, is put back whole instead: <see cref="HoldBefore"/>).
     /// </summary>
     internal (HoldState Hold, uint Fuel) WithoutTalks(Player player, HoldState hold, uint fuel) =>
-        _ship?.Changes.GetValueOrDefault(player) is { } changes ? changes.Without(hold, fuel, player.Ship.Hold.CrewCapacity) : (hold, fuel);
+        _ship?.Changes.GetValueOrDefault(player) is { } changes
+            // A lander out, saved as back aboard, stays the ship's, as Undo leaves it (TalkChanges.TakeBackFrom).
+            ? changes.Without(hold, fuel, player.Ship.Hold.CrewCapacity,
+                player.Ship.Hold.LanderOut is not null && player.Ship.Lander is not { Crew: <= 0 } ? 1 : 0)
+            : (hold, fuel);
 
     /// <summary>
     /// The starter disconnected from the Ilwrath's fight (a retreat at once,
