@@ -78,7 +78,8 @@ public enum VisitStep
 /// made during it is of the game without it, as UQM can't save in the
 /// middle of one; and if the starter leaves with no one to take the
 /// replies, or every player leaves the Ilwrath's fight with the Ilwrath
-/// alive (<see cref="GameWorld"/>'s AfterTheFight), it's undone. Once docked,
+/// alive (<see cref="GameWorld"/>'s AfterTheFight), or the starter is gone
+/// as that fight would start, it's undone. Once docked,
 /// nothing is taken back: leaving ends the visit, as departing does.
 /// </para>
 /// </summary>
@@ -449,19 +450,21 @@ public sealed class StarbaseVisit
     /// <summary>
     /// The starter disconnected from the Ilwrath's fight (a retreat at once,
     /// decision 10): its part of the visit is taken back now rather than
-    /// when the visit is: its hold as before the visit, and its fuel as
-    /// before it less the retreat's 5 units (to no lower than 0), which
-    /// taking the visit back doesn't give back (decision 13). It's settled
-    /// (<see cref="StarterSettled"/>): neither <see cref="Undo"/> nor a save
-    /// puts its hold or fuel back again, so what it does once back in the
-    /// game, outside the fight, stays done. The visit itself goes on with
-    /// the fight.
+    /// when the visit is: its hold as before the visit but with the crew it
+    /// left the fight with (a disconnect keeps its crew, decision 10, and
+    /// the fight's losses aren't refunded, whether the fight is then won or
+    /// the visit taken back), and its fuel as before it less the retreat's 5
+    /// units (to no lower than 0), which taking the visit back doesn't give
+    /// back (decision 13). It's settled (<see cref="StarterSettled"/>):
+    /// neither <see cref="Undo"/> nor a save puts its hold, fuel or escape
+    /// counter back again, so what it does once back in the game, outside
+    /// the fight, stays done. The visit itself goes on with the fight.
     /// </summary>
     internal void SettleStarter()
     {
         if (StarterSettled)
             return;
-        Starter.Ship.Hold.Restore(HoldBefore);
+        Starter.Ship.Hold.Restore(HoldBefore with { Crew = Starter.Ship.Hold.Crew });
         Starter.Ship.Flight.Fuel = FuelBefore > GameWorld.RetreatFuelCost ? FuelBefore - GameWorld.RetreatFuelCost : 0;
         StarterSettled = true;
     }
@@ -487,8 +490,8 @@ public sealed class StarbaseVisit
                 Starter.Ship.Hold.SetCrew(0);
             Starter.Ship.Flight.Fuel = FuelBefore;
         }
-        if (Starter.Ship.Ip is { } ip)
-            ip.EscapeCounter = 0;   // none before the visit: a ship with one can't touch the starbase
+        if (!StarterSettled && Starter.Ship.Ip is { } ip)
+            ip.EscapeCounter = 0;   // none before the visit: a ship with one can't touch the starbase (a settled one's is its own, from leaving the fight)
         _world.CommanderMet = MetBefore;
         var (y, m, d) = DateWithout();
         (_world.Clock.Year, _world.Clock.Month, _world.Clock.Day) = (y, m, d);

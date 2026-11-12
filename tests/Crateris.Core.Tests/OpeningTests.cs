@@ -1069,14 +1069,18 @@ public class OpeningTests
         var wb = ToTheFight(world, "g1");
         var visit = world.Visit!;
         FlyIn(world, wb, "host");
-        // The starter disconnects: a retreat at once, paying its fuel, though the fight can't be retreated from;
-        // its part of the visit settled there and then, its hold as before the visit.
+        // The starter, hurt down to 2 crew, disconnects: a retreat at once, paying its fuel, though the fight
+        // can't be retreated from; its part of the visit settled there and then: its hold as before the
+        // visit, but with the crew it left with (not refunded, though the fight is then won).
+        var starship = wb.FighterOf("g1")!.Starship;
+        wb.Battle.DoDamage(starship.Ship!, (short)(starship.RaceDesc!.CrewLevel - 2));
         g1.Ship.Hold.ResourceUnits += 50;
         world.Leave("g1");
-        Assert.Equal(BattleExit.Disconnected, wb.FighterOf("g1")!.Exit);
+        var left = wb.FighterOf("g1")!;
+        Assert.Equal((BattleExit.Disconnected, 1), (left.Exit, left.CrewLeft));
         Assert.True(visit.StarterSettled);
         Assert.Equal(700u, g1.Ship.Flight.Fuel);
-        Assert.Equivalent(visit.HoldBefore, g1.Ship.Hold.Save(), strict: true);
+        Assert.Equivalent(visit.HoldBefore with { Crew = 1 }, g1.Ship.Hold.Save(), strict: true);
         Assert.Equal(VisitStep.IlwrathFight, visit.Step);   // the fight goes on: not taken back
         // A save meanwhile: the game without the visit, the starter's disconnect paid.
         var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
@@ -1095,7 +1099,7 @@ public class OpeningTests
         Assert.True(visit.Done);
         Assert.False(visit.Undone);
         Assert.Equal((Activity.InnerSystem, Activity.InnerSystem), (world.Host.Ship.Activity, g1.Ship.Activity));
-        Assert.Equal(650u, g1.Ship.Flight.Fuel);
+        Assert.Equal((650u, 1), (g1.Ship.Flight.Fuel, g1.Ship.Hold.Crew));
     }
 
     [ContentFact]
@@ -1132,6 +1136,24 @@ public class OpeningTests
         Assert.Equal(100u, g1.Ship.Flight.Fuel);
         Assert.Equivalent(held, g1.Ship.Hold.Save(), strict: true);
         Assert.True(world.Find("g2")!.Ship.Wreck);
+    }
+
+    [ContentFact]
+    public void OnlyTheStartersDisconnectSettlesItsPartOfTheVisit()
+    {
+        var world = Reported(3);
+        var g1 = world.Find("g1")!;
+        g1.Ship.Flight.Fuel = 1200;
+        world.Host.Ship.Hold.ResourceUnits = 100;
+        var wb = ToTheFight(world, "g1");
+        var visit = world.Visit!;
+        FlyIn(world, wb, "g2");
+        world.Leave("g2");
+        Assert.Equal(BattleExit.Disconnected, wb.FighterOf("g2")!.Exit);
+        Assert.False(visit.StarterSettled);
+        Assert.Equal(1200u, g1.Ship.Flight.Fuel);
+        Assert.True(wb.Battle.Fighting(wb.FighterOf("g1")!.Starship));
+        Assert.Equal(TradeRefusal.Paused, world.Give(new Gift("host", "g1", 10, new int[8], 0)));
     }
 
     [ContentFact]
@@ -1238,14 +1260,21 @@ public class OpeningTests
         var g1 = world.Find("g1")!;
         g1.Ship.Flight.Fuel = 1200;
         var wb = ToTheFight(world, "g1");
-        int crew = g1.Ship.Hold.Crew;
+        var starship = wb.FighterOf("g1")!.Starship;
+        wb.Battle.DoDamage(starship.Ship!, 4);
+        int crew = starship.RaceDesc!.CrewLevel - 1;   // without the captain
+        var before = world.Visit!.HoldBefore;
         world.Leave("g1");
         Assert.Equal((BattleOutcome.Lost, BattleExit.Disconnected), (wb.Outcome, wb.FighterOf("g1")!.Exit));
         Assert.Null(world.Visit);
         Assert.Equal(0, world.Story!.Get("PROBE_ILWRATH_ENCOUNTER"));
-        // As before the visit, then the retreat's 5 units: not given back by taking the visit back.
+        // As before the visit, but with the crew it left with (a disconnect keeps its crew, the fight's losses
+        // not refunded), then the retreat's 5 units: not given back by taking the visit back.
+        Assert.Equal(crew, wb.FighterOf("g1")!.CrewLeft);
+        Assert.Equal(before.Crew - 4, crew);
         Assert.Equal((700u, crew, false), (g1.Ship.Flight.Fuel, g1.Ship.Hold.Crew, g1.Ship.Destroyed));
-        Assert.Equal(0, (int)g1.Ship.Ip!.EscapeCounter);
+        // The escape counter it left the fight with is its own: not cleared as the visit is taken back.
+        Assert.Equal(IpFlight.EscapeFrames, (int)g1.Ship.Ip!.EscapeCounter);
         // With less than 5 units, down to none.
         var other = Reported(2);
         other.Find("g1")!.Ship.Flight.Fuel = 300;
