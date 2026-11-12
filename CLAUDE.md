@@ -1,5 +1,9 @@
 # Working on Attack on Crateris
 
+## Keep the handoff current
+
+Work moves between computers, so `docs/handoff.md` says where things stand. Read it at the start of a session. Update it and commit it with the work whenever a step ends: a plan item built, a review's findings fixed, a decision made or asked of the owner, or the session stopping. It holds only what's open and the next step (the plans' Progress sections and git hold the history): the branch and whether everything is pushed, the last checks' results, open items with where they are, decisions waiting on the owner, the next step, and the working agreements and setup notes a fresh session needs. Drop items once they're done.
+
 ## Review before reporting complete
 
 Before reporting any piece of work as complete (a plan item, a fix, a review's findings), have a subagent review it first:
