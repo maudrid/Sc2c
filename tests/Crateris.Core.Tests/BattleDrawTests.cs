@@ -157,6 +157,45 @@ public class BattleDrawTests
         Assert.Equal(drawn.Count - 1, frames);
     }
 
+    [ContentTheory]
+    [MemberData(nameof(Battles))]
+    public void TheSpaceIsUqms(string name)
+    {
+        var recorded = BattleReplay.Recorded(Reference.Value, name);
+        var sheets = Reference.Value.GetProperty("sheets").EnumerateArray().Select(s => s.GetString()!).ToList();
+        var drawn = recorded.GetProperty("drawn").EnumerateArray().ToList();
+        var stars = recorded.GetProperty("stars").EnumerateArray().Select(p => ((short)p[0].GetInt32(), (short)p[1].GetInt32())).ToList();
+        var galaxy = new BattleGalaxy(stars);
+        bool step = recorded.GetProperty("input").TryGetProperty("zoom", out var z) && z.GetString() == "step";
+        int frames = 0;
+        Replay(recorded, (frame, battle, own) =>
+        {
+            frames = frame;
+            if (frame == 0)
+                return;   // nothing drawn before the first frame
+            var cam = new BattleCamera(battle.ViewState, battle.ScrollX, battle.ScrollY, battle.ZoomOut, battle.SpaceOrgX, battle.SpaceOrgY, step);
+            galaxy.Move(cam);
+            var ours = galaxy.Prims
+                .Concat(battle.List.Elements.Where(e => e.Prim != PrimType.None)
+                    .Select(e => BattleSpace.Of(World.GameWorld.ElementSnapshot(e), cam, BattleSpace.SizeOf)))
+                .ToList();
+            var theirs = drawn[frame][1].EnumerateArray().ToList();
+            int scale = theirs[^1].GetInt32();
+            var prims = theirs.Take(theirs.Count - 1).Select(p =>
+            {
+                var a = p.Ints();
+                return new BattlePrim((PrimType)a[0], a[1], a[2], a[3], a[4], a[5] < 0 ? "" : sheets[a[5]], a[6], a[7]);
+            }).ToList();
+            // A stamp's colour isn't drawn: only a filled stamp's, a point's and a line's.
+            static BattlePrim Drawn(BattlePrim p) => p.Type == PrimType.Stamp ? p with { Color = 0 } : p;
+            Assert.Equal(scale, cam.Scale);
+            for (int i = 0; i < Math.Max(prims.Count, ours.Count); ++i)
+                Assert.True(i < prims.Count && i < ours.Count && Drawn(prims[i]) == Drawn(ours[i]),
+                    $"{name} frame {frame} primitive {i}: UQM {(i < prims.Count ? prims[i] : null)}, the port {(i < ours.Count ? ours[i] : null)}");
+        });
+        Assert.Equal(drawn.Count - 1, frames);
+    }
+
     // The status area's pixels that differ.
     private static List<(int X, int Y)> Diff(ScreenRaster a, ScreenRaster b)
     {
