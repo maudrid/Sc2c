@@ -33,8 +33,8 @@ namespace Crateris.Game;
 /// the one where the Lunar base is reported, the errands done, whose replies bring the Ilwrath and its fight),
 /// --start-docked (host: a new game starts docked at Earth's starbase's menu, the opening over),
 /// --start-battle RACE (host: a new game starts after the opening, the host's ship in flight by Earth in a battle against
-/// a ported race's ship, by data/ships.json's id: ilwrath, arilou, spathi, supox, druuge, yehat, zoqfot, thradd or umgah;
-/// Escape retreats),
+/// a ported race's ship, by data/ships.json's id: ilwrath, arilou, spathi, supox, druuge, yehat, zoqfot, thradd, umgah,
+/// utwig, mycon, androsyn, mmrnmhrm, chenjesu, slylandr, urquan or blackurq (the Kohr-Ah); Escape retreats),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),

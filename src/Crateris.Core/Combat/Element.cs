@@ -273,24 +273,48 @@ public sealed class Element
     /// </summary>
     internal Element Copy()
     {
-        var c = new Element(Slot)
-        {
-            Pred = Pred, Succ = Succ,
-            PreprocessFunc = PreprocessFunc, PostprocessFunc = PostprocessFunc, DeathFunc = DeathFunc,
-            CollisionFunc = CollisionFunc,
-            PlayerNr = PlayerNr, StateFlags = StateFlags, LifeSpan = LifeSpan, CrewLevel = CrewLevel,
-            MassPoints = MassPoints, TurnWait = TurnWait, ThrustWait = ThrustWait, ColorCycleIndex = ColorCycleIndex,
-            Velocity = Velocity, Prim = Prim, PrimColor = PrimColor, Current = Current, Next = Next,
-            Parent = Parent, Target = Target,
-        };
-        c.Intersect.Frame = Intersect.Frame;
-        c.IntersectStamp = IntersectStamp;
-        c.Intersect.OriginX = Intersect.OriginX;
-        c.Intersect.OriginY = Intersect.OriginY;
-        c.Intersect.EndX = Intersect.EndX;
-        c.Intersect.EndY = Intersect.EndY;
-        c.Intersect.LastTime = Intersect.LastTime;
+        var c = new Element(Slot);
+        c.CopyFrom(this);
         return c;
+    }
+
+    /// <summary>
+    /// UQM's <c>*e = *src</c> on a list element's struct (a ship's code
+    /// copying a shot into a newly allocated element, its primitive with
+    /// it): every field as <paramref name="src"/>'s, its intersection
+    /// control too, and its links (which putting it in the list sets
+    /// again); its own slot, and whether it's in the list, stay its own.
+    /// </summary>
+    internal void CopyFrom(Element src)
+    {
+        Pred = src.Pred;
+        Succ = src.Succ;
+        PreprocessFunc = src.PreprocessFunc;
+        PostprocessFunc = src.PostprocessFunc;
+        DeathFunc = src.DeathFunc;
+        CollisionFunc = src.CollisionFunc;
+        PlayerNr = src.PlayerNr;
+        StateFlags = src.StateFlags;
+        LifeSpan = src.LifeSpan;
+        CrewLevel = src.CrewLevel;
+        MassPoints = src.MassPoints;
+        TurnWait = src.TurnWait;
+        ThrustWait = src.ThrustWait;
+        ColorCycleIndex = src.ColorCycleIndex;
+        Velocity = src.Velocity;
+        Prim = src.Prim;
+        PrimColor = src.PrimColor;
+        Current = src.Current;
+        Next = src.Next;
+        Parent = src.Parent;
+        Target = src.Target;
+        Intersect.Frame = src.Intersect.Frame;
+        IntersectStamp = src.IntersectStamp;
+        Intersect.OriginX = src.Intersect.OriginX;
+        Intersect.OriginY = src.Intersect.OriginY;
+        Intersect.EndX = src.Intersect.EndX;
+        Intersect.EndY = src.Intersect.EndY;
+        Intersect.LastTime = src.Intersect.LastTime;
     }
 
     /// <summary>AllocElement's memset: every field cleared but the primitive's colour (<see cref="PrimColor"/>), not drawn.</summary>

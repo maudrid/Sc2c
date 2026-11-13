@@ -25,6 +25,9 @@ public static class RaceShips
         // Stage 4b item 2.
         ArilouShip.Id, SpathiShip.Id, SupoxShip.Id, DruugeShip.Id, YehatShip.Id, ZoqFotPikShip.Id, ThraddashShip.Id,
         UmgahShip.Id,
+        // Stage 4b item 3.
+        UtwigShip.Id, MyconShip.Id, AndrosynthShip.Id, MmrnmhrmShip.Id, ChenjesuShip.Id, SlylandroShip.Id,
+        UrquanShip.Id, KohrAhShip.Id,
     };
 
     /// <summary>
@@ -47,6 +50,14 @@ public static class RaceShips
             ZoqFotPikShip.Id => new ZoqFotPikShip(d, hull, weapon, special),
             ThraddashShip.Id => new ThraddashShip(d, hull, weapon, special),
             UmgahShip.Id => new UmgahShip(d, hull, weapon, special),
+            UtwigShip.Id => new UtwigShip(d, hull, weapon),
+            MyconShip.Id => new MyconShip(d, hull, weapon),
+            AndrosynthShip.Id => new AndrosynthShip(d, hull, weapon, special),
+            MmrnmhrmShip.Id => new MmrnmhrmShip(d, hull, weapon, special),
+            ChenjesuShip.Id => new ChenjesuShip(d, hull, weapon, special),
+            SlylandroShip.Id => new SlylandroShip(d, hull),
+            UrquanShip.Id => new UrquanShip(d, hull, weapon, special),
+            KohrAhShip.Id => new KohrAhShip(d, hull, weapon, special),
             _ => throw new ArgumentException($"{d.Id}'s code isn't ported (ported: {string.Join(", ", Ported)})"),
         };
     }

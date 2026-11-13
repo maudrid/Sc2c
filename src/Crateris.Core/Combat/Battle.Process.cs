@@ -34,7 +34,7 @@ public sealed partial class Battle
     public static bool Colliding(Element e) => (e.StateFlags & SkipCollision) == 0;
 
     // UQM's, and teammates' elements never (decision 2).
-    private static bool CollisionPossible(Element e0, Element e1) =>
+    internal static bool CollisionPossible(Element e0, Element e1) =>
         Colliding(e0)
         && (e1.StateFlags & e0.StateFlags & ElementFlags.Collision) == 0
         && ((e1.StateFlags & e0.StateFlags & ElementFlags.IgnoreSimilar) == 0 || e1.Parent != e0.Parent)
@@ -76,6 +76,16 @@ public sealed partial class Battle
 
     /// <inheritdoc cref="SeamDeltaX"/>
     public short SeamDeltaY(int dy) => AcrossSeam ? WrapDeltaY(dy) : (short)dy;
+
+    /// <summary>
+    /// A difference of two places in display units (contact points, as
+    /// collision callbacks get them) as contact measures it: the shorter way
+    /// round where contact is tested across the seam (<see cref="AcrossSeam"/>).
+    /// </summary>
+    public short SeamDisplayDeltaX(int dx) => AcrossSeam ? (short)WrapDelta(dx, Size.Width >> OneShift) : (short)dx;
+
+    /// <inheritdoc cref="SeamDisplayDeltaX"/>
+    public short SeamDisplayDeltaY(int dy) => AcrossSeam ? (short)WrapDelta(dy, Size.Height >> OneShift) : (short)dy;
 
     // What to add to a place (to) to bring it within half the arena of
     // another (from), where contact is tested across the seam; nothing

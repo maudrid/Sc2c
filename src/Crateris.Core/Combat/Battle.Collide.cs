@@ -17,7 +17,7 @@ namespace Crateris.Core.Combat;
 public sealed partial class Battle
 {
     private const int CollisionTurnWait = 1;
-    private const int CollisionThrustWait = 3;
+    internal const int CollisionThrustWait = 3;
     private const int GravityThreshold = 255;
 
     // collide: two solid elements bounce off each other by their masses

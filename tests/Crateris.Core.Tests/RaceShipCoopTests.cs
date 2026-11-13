@@ -15,20 +15,22 @@ namespace Crateris.Core.Tests;
 
 /// <summary>
 /// Stage 4b's race ships with several players (stage 4's co-op rules), each
-/// ported ship of item 2 (<see cref="Ships"/>) on the content's own sheets:
+/// ported ship of items 2 and 3 (<see cref="Ships"/>) on the content's own sheets:
 /// flown by the computer as the enemy against two and four players (its AI
 /// takes the nearest player ship every frame; no player's element ever
 /// touches a teammate's), its homing (the Arilou's laser, the Spathi's
 /// B.U.T.T.) taking the nearest player, two players flying it on side 0
 /// against the Ilwrath (its shots are side 0's and reach the Ilwrath, never
 /// each other), and a battle in the world started against it. UQM's traces
-/// (<see cref="RaceShipBattleTests"/>) check one ship a side.
+/// (<see cref="RaceShipBattleTests"/>) check one ship a side. Each item's
+/// own cases (the paths its traces don't reach, the seam) are in this
+/// class too: item 3's in RaceShipCoopTests.Item3.cs.
 /// </summary>
 [Trait("Topic", "combat")]
-public class RaceShipCoopTests
+public partial class RaceShipCoopTests
 {
-    /// <summary>The ships of stage 4b item 2.</summary>
-    public static readonly string[] Ships = RaceBattleTraceTests.Parts[0];
+    /// <summary>The ships of stage 4b items 2 and 3.</summary>
+    public static readonly string[] Ships = RaceBattleTraceTests.Parts[0].Concat(RaceBattleTraceTests.Parts[1]).ToArray();
 
     private static readonly ShipDescription Sis = BattleReplay.Ships[ShipDescriptions.Flagship];
 
@@ -38,7 +40,7 @@ public class RaceShipCoopTests
     public static IEnumerable<object[]> EachShip() => Ships.Select(s => new object[] { s });
 
     [Fact]
-    public void ItemTwosShipsArePortedAndCanBeFought()
+    public void ItemTwoAndThreesShipsArePortedAndCanBeFought()
     {
         foreach (string id in Ships)
         {
@@ -483,7 +485,9 @@ public class RaceShipCoopTests
         Assert.All(team.Skip(1), t =>
         {
             Assert.Equal(BattleReplay.Ships[race].Crew, t.RaceDesc!.CrewLevel);
-            Assert.True(t.Ship!.Velocity.IsZero, "not moved");
+            // The Slylandro flies on by itself, at its top speed (slylandro_preprocess).
+            if (race != SlylandroShip.Id)
+                Assert.True(t.Ship!.Velocity.IsZero, "not moved");
         });
         var (hits, _, ilwrath) = Pressed(race, enemyAhead: true);
         Assert.True(hits > 0, "the shots reached the Ilwrath ahead");
