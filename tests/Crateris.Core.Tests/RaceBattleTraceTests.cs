@@ -126,19 +126,31 @@ public class RaceBattleTraceTests
     }
 
     [Fact]
-    public void TheRaceShipPressesItsWeaponAndSpecial()
+    public void TheRaceShipUsesItsWeaponAndSpecial()
     {
-        // By keys, the race ship's steps press both (the recorder checks
-        // each changes the battle); by the AI, the AI pressed both.
+        // The recorder found the frame each first had an effect (the battle
+        // without those presses first differs there: golden_uqm.py's
+        // key_effect), never frame 0 or 1 (frame 1's input comes as the ship
+        // warps in, to no effect); the race ship pressed it, after frame 1,
+        // by then (the weapon without the special; the Orz's both are its marines).
         foreach (var (n, file) in Files())
             foreach (var battle in file.GetProperty("battles").EnumerateArray())
             {
                 string name = battle.GetProperty("name").GetString()!;
-                var pressed = battle.GetProperty("input").TryGetProperty("ai", out _)
-                    ? battle.GetProperty("inputs").EnumerateArray().Select(i => i[1].GetInt32()).Where(k => k > 0)
-                    : battle.GetProperty("input").GetProperty("steps").EnumerateArray().Select(s => s[2].GetInt32());
-                int keys = pressed.Aggregate(0, (a, k) => a | k);
-                Assert.True((keys & (Weapon | Special)) == (Weapon | Special), $"{name}: the race ship pressed {keys & (Weapon | Special)}");
+                if (name == "pkunk-rebirth")
+                {
+                    Assert.False(battle.TryGetProperty("uses", out _));
+                    continue;
+                }
+                var inputs = battle.GetProperty("inputs").EnumerateArray().Select(i => i[1].GetInt32()).ToList();
+                var uses = battle.GetProperty("uses");
+                foreach (var (what, key, without) in new[] { ("weapon", Weapon, Special), ("special", Special, 0) })
+                {
+                    int at = uses.GetProperty(what).GetInt32();
+                    Assert.InRange(at, 2, inputs.Count - 1);
+                    Assert.True(Enumerable.Range(2, at - 1).Any(t => inputs[t] > 0 && (inputs[t] & key) != 0 && (inputs[t] & without) == 0),
+                        $"{name}: its {what} had an effect at frame {at}, but wasn't pressed after frame 1 by then");
+                }
             }
     }
 }

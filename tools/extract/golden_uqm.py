@@ -1916,6 +1916,8 @@ E_FLAGS, E_LIFE, E_CREW, E_MASS = 0, 1, 2, 3
 E_CX, E_CY, E_SHEET, E_FRAME, E_PLAYER, E_PRIM = 15, 16, 19, 20, 21, 22
 E_BLACK, E_SLOT, E_TARGET, E_COLOR = 23, 24, 25, 26
 PLAYER_SHIP_FLAG, FINITE_LIFE_FLAG, CREW_OBJECT_FLAG = 1 << 2, 1 << 10, 1 << 14
+# A STARSHIP's cur_status_flags' LOW_ON_ENERGY (races.h).
+LOW_ON_ENERGY_FLAG = 1 << 5
 
 
 def battle_ships():
@@ -2009,6 +2011,10 @@ def battle_line(scenario, numbers):
     parts.append(1 if scenario.get("earth") else 0)
     # SHOFIXTI_RECRUITED (stage 4b's Shofixti: without it, Tanaka's scout).
     parts.append(1 if scenario.get("shofixti_recruited") else 0)
+    # Keys taken from each side's input, [mask, unless] (battle.c's
+    # side_input; only the race battles' checks set it).
+    for mask, unless in scenario.get("mask", [[0, 0], [0, 0]]):
+        parts += [mask, unless]
     return " ".join(str(p) for p in parts)
 
 
@@ -3320,7 +3326,7 @@ def check_ai_battles(scenarios, battles):
 # hashed, as the other traces' later frames).
 RACE_KEYS_FRAMES, RACE_AI_FRAMES, RACE_FULL = 720, 900, 60
 # How many seeds each battle may try (race_battle_scenarios).
-RACE_SEEDS = 20
+RACE_SEEDS = 40
 # The keys' phases (frames each): the weapon pressed in pulses, then the
 # special, then both at once (the Orz's marines take both).
 RACE_PHASE = 40
@@ -3356,17 +3362,18 @@ def race_program_sheets(part):
     return list(dict.fromkeys(ids))
 
 
-def race_pilot(keep_off=400, goal=None, special_goal=None, specials_from=0):
+def race_pilot(keep_off=400, goal=None, special_goal=None, specials_from=0, weapon_until=None):
     """A race ship's keys: it flies at the flagship (or goal), keeping off
     keep_off, and in turn presses its weapon in pulses for RACE_PHASE
     frames, its special (flying at special_goal meanwhile, if given), then
-    both at once; the special not before specials_from frames."""
+    both at once; the special not before specials_from frames, the weapon
+    not after weapon_until."""
     def pilot(f, side, t):
         phase = (t // RACE_PHASE) % 3
         target = special_goal if phase == 1 and special_goal else goal or the_ship(1 - side)
         keys = steer(f, side, target, keep_off=keep_off)
         pulse = (t // 4) % 2 == 0
-        if pulse and phase in (0, 2):
+        if pulse and phase in (0, 2) and (weapon_until is None or t < weapon_until):
             keys |= B_WEAPON
         if pulse and phase in (1, 2) and t >= specials_from:
             keys |= B_SPECIAL
@@ -3392,6 +3399,9 @@ RACE_PILOTS = {
     # The Shofixti's self-destruct ends it: after the weapon's phase, and a
     # second Shofixti comes in (fleet).
     "shofixti": dict(keep_off=300),
+    # The Mycon regrows crew only with all its energy and crew lost: its
+    # weapon only for the first round, then it takes hits and regrows.
+    "mycon": dict(weapon_until=3 * RACE_PHASE),
 }
 # A fleet of more than one for a ship whose special ends it.
 RACE_FLEETS = {"shofixti": [1, 2]}
@@ -3418,24 +3428,24 @@ def race_battle_scenarios(program, part, seed):
         if ship in RACE_FLEETS:
             extra["fleet"] = RACE_FLEETS[ship]
         # The keys' battle: the first seed (from seed + 2n, a thousand
-        # apart) in which the weapon and the special each change the
-        # battle (a small ship may die before its special's turn).
+        # apart) in which the weapon and the special each have an effect
+        # (key_effects; a small ship may die before its special's turn).
         for k in range(RACE_SEEDS):
             s = dict(name=f"{ship}-keys", seed=seed + 2 * n + 1000 * k, planet=planet,
                      ships=[race_flagship(keys=True), race(ship)], steps=[(20, 0, 0)], full=RACE_FULL, **extra)
             s = piloted(program, s, RACE_KEYS_FRAMES, [flagship_pilot(), race_pilot(**opts)], chunk=6)
-            if keys_used(program, s, program.run([s], colours=True)[0]) == B_WEAPON | B_SPECIAL:
+            if all(key_effects(program, s, program.run([s], colours=True)[0]).values()):
                 break
         out.append(s)
         # The AI's battle: the first seed (from seed + 2n + 1, a thousand
-        # apart) in which the race ship's AI presses both its weapon and
-        # its special (some, as the Arilou's teleport, only when a shot is
-        # about to hit).
+        # apart) in which the race ship's AI uses both its weapon and its
+        # special to some effect (some, as the Arilou's teleport, only when
+        # a shot is about to hit).
         for k in range(RACE_SEEDS):
             s = dict(name=f"{ship}-ai", seed=seed + 2 * n + 1 + 1000 * k, planet=BATTLE_PLANETS[(n + 1) % 2],
                      ships=[race_flagship(), race(ship)], ai=["awesome", "awesome"],
                      steps=[(RACE_AI_FRAMES, 0, 0)], full=RACE_FULL, **extra)
-            if ai_pressed(program.run([s])[0], 1) == B_WEAPON | B_SPECIAL:
+            if all(key_effects(program, s, program.run([s], colours=True)[0]).values()):
                 break
         out.append(s)
         if ship == "pkunk":
@@ -3458,60 +3468,78 @@ def reborn(battle):
     return any("new_pkunk" in f[F_DRAWS] for f in battle["frames"])
 
 
-def keys_used(program, scenario, battle):
-    """The keys of B_WEAPON and B_SPECIAL whose presses by side 1 change
-    the battle: without them (without_keys), it differs."""
-    used = 0
-    for key in (B_WEAPON, B_SPECIAL):
-        if any(step[2] & key for step in scenario["steps"]):
-            other = program.run([without_keys(scenario, 1, key)], colours=True)[0]
-            if other["frames"] != battle["frames"]:
-                used |= key
-    return used
+def without_status_keys(frame, side):
+    """The frame with side's ships' status flags' WEAPON and SPECIAL bits
+    cleared (they are the presses themselves, which ship_preprocess copies
+    from the input, effect or not), and LOW_ON_ENERGY (ship_postprocess
+    sets it for a press without the energy, to play a sound), as JSON for
+    comparing."""
+    ships = [list(map(list, (s if s else [] for s in side_ships))) for side_ships in frame[F_SHIPS]]
+    for s in ships[side]:
+        if s:
+            s[6] &= ~(B_WEAPON | B_SPECIAL | LOW_ON_ENERGY_FLAG)
+    return json.dumps(frame[:F_SHIPS] + [ships] + frame[F_SHIPS + 1:])
 
 
-def ai_pressed(battle, side):
-    """The keys of B_WEAPON and B_SPECIAL side's AI pressed in the battle."""
-    pressed = 0
-    for i in battle["inputs"]:
-        if i[side] > 0:
-            pressed |= i[side] & (B_WEAPON | B_SPECIAL)
-    return pressed
+def key_effect(program, scenario, battle, key):
+    """The first frame in which side 1's key has an effect, the weapon
+    pressed without the special (the Orz's both are its marines, the
+    special's; the special counts with the weapon or without, as the
+    Druuge's AI burns crew only as it fires): the
+    same battle with those presses taken away (battle.c's mask, the keys'
+    or the AI's) first differs there, with the same input up to and in that
+    frame (a battle whose AI decides otherwise first, having seen its own
+    last input differ, shows nothing) and the status flags' presses aside
+    (without_status_keys). None if it never has one."""
+    other = B_SPECIAL if key == B_WEAPON else 0
+    without = program.run([dict(scenario, mask=[[0, 0], [key, other]])], colours=True)[0]
+
+    def masked(i):
+        return [i[0], i[1] & ~key if i[1] > 0 and not i[1] & other else i[1]]
+    a, b = battle["frames"], without["frames"]
+    for t in range(max(len(a), len(b))):
+        if t >= len(a) or t >= len(b):
+            return t   # one ended sooner, its inputs the same so far
+        same_input = masked(battle["inputs"][t]) == without["inputs"][t]
+        if without_status_keys(a[t], 1) != without_status_keys(b[t], 1):
+            return t if same_input else None
+        if not same_input:
+            return None
+    return None
 
 
-def without_keys(scenario, side, keys):
-    """The scenario with these keys taken from side's steps."""
-    steps = []
-    for step in scenario["steps"]:
-        step = list(step)
-        step[1 + side] &= ~keys
-        steps.append(tuple(step))
-    return dict(scenario, steps=steps)
+def key_effects(program, scenario, battle):
+    """{"weapon": frame, "special": frame}: the first frame each has an
+    effect (key_effect), None for never; never before frame 2 (frame 1's
+    input comes as the ship warps in)."""
+    out = {}
+    for key, what in ((B_WEAPON, "weapon"), (B_SPECIAL, "special")):
+        t = key_effect(program, scenario, battle, key)
+        out[what] = t if t is not None and t >= 2 else None
+    return out
 
 
 def check_race_battles(program, scenarios, battles):
-    """Each race ship's duels show what they're for: by keys, its weapon
-    and its special each change the battle (the same battle without that
-    key differs); by the AI, the AI presses both. Each battle is recorded
-    on its own (a program run each: pkunk.c keeps its last insult in a
-    static between battles, as UQM does in a game)."""
+    """Each race ship's duels show what they're for: by keys and by the
+    AI, its weapon and its special each have an effect (key_effects); the
+    Pkunk's rebirth battle, the rebirth. Returns each battle's key_effects
+    (None for the rebirth's)."""
     def fail(name, why):
         raise RuntimeError(f"race battle {name}: {why}")
+    effects = []
     for scenario, battle in zip(scenarios, battles):
         name = scenario["name"]
-        if scenario.get("ai"):
-            for key, what in ((B_WEAPON, "weapon"), (B_SPECIAL, "special")):
-                if not ai_pressed(battle, 1) & key:
-                    fail(name, f"the AI never pressed its {what}")
-            continue
         if name == "pkunk-rebirth":
             if not reborn(battle):
                 fail(name, "the Pkunk wasn't reborn")
+            effects.append(None)
             continue
-        used = keys_used(program, scenario, battle)
-        for key, what in ((B_WEAPON, "weapon"), (B_SPECIAL, "special")):
-            if not used & key:
-                fail(name, f"its {what} changed nothing (or was never pressed)")
+        used = key_effects(program, scenario, battle)
+        for what, t in used.items():
+            if t is None:
+                fail(name, f"its {what} never had an effect")
+        effects.append(used)
+    return effects
 
 
 def run_race_battles(program, scenarios):
@@ -3554,9 +3582,9 @@ def record_battle_races(uqm, battle_exe, strings_exe, images_exe, package):
             battles = run_race_battles(program, scenarios)
             if run_race_battles(program, scenarios) != battles:
                 raise RuntimeError(f"race battles part {n}: recorded twice, they differ")
-            check_race_battles(program, scenarios, battles)
+            effects = check_race_battles(program, scenarios, battles)
         out = []
-        for scenario, battle in zip(scenarios, battles):
+        for scenario, battle, uses in zip(scenarios, battles, effects):
             full = scenario["full"]
             frames = [f if i <= full else f[:F_SHIPS] + [len(f[F_ELEMENTS]), battle_frame_hash(f)]
                       for i, f in enumerate(battle["frames"])]
@@ -3565,6 +3593,8 @@ def record_battle_races(uqm, battle_exe, strings_exe, images_exe, package):
                         "crew_enlisted": battle["crew_enlisted"], "bomb_carrier": battle["bomb_carrier"],
                         "stars": battle["stars"], "inputs": battle["inputs"], "frames": frames,
                         "crew_floating": battle["crew_floating"], "freed": battle["freed"]})
+            if uses:
+                out[-1]["uses"] = uses
         data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
                       + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
                                                              "src/libs/math/random.c"], [
@@ -3575,8 +3605,9 @@ def record_battle_races(uqm, battle_exe, strings_exe, images_exe, package):
             "the program battle.json, battle-ships.json and battle-ai.json are "
             "(tools/extract/golden/battle.c; see their notes for the engine, the "
             "sheets, the masks, the flagship, the AI and the frames), as an "
-            "encounter runs a battle. Each battle is a program run of its own "
-            "(pkunk.c keeps its last insult in a static).",
+            "encounter runs a battle. Each battle is a program run of its own, so "
+            "nothing a ship's code keeps between battles carries over (pkunk.c's "
+            "last insult needn't: init_pkunk resets it whenever a Pkunk is made).",
             "Each race ship has two battles: RACE-keys, the race ship (side 1) "
             "flown by keys against the flagship (side 0, keys; a new game's "
             "with two more crew pods, firing its gun in bursts): it flies at the "
@@ -3588,9 +3619,14 @@ def record_battle_races(uqm, battle_exe, strings_exe, images_exe, package):
             "intelligence_func on cyborg.c) against the flagship flown by the AI "
             "(sis_intelligence, UQM's Cyborg option; a blaster and a tracking "
             "system too). Each takes the first seed (a thousand apart) in which "
-            "it shows its ship's weapon and special: by keys, the weapon and the "
-            "special each change the battle (it differs without that key); by "
-            "the AI, the race ship's AI presses both. The Shofixti (recruited) "
+            "its ship's weapon and special each have an effect (the weapon "
+            "pressed without the special, whose the Orz's both are, its "
+            "marines; the special with or without the weapon): the battle with those "
+            "presses taken away (the keys' or the AI's, battle.c's mask) "
+            "differs, with the same input until it does (the ship's status "
+            "flags' weapon and special bits aside, being the presses "
+            "themselves, and LOW_ON_ENERGY, a press without the energy); never before frame 2 (frame 1's input comes as the "
+            "ship warps in). uses: the first frame each has one. The Shofixti (recruited) "
             "has a second ship (fleet), as its self-destruct ends the first; "
             "pkunk-rebirth is a Pkunk of 2 crew by keys, the first seed in which "
             "it dies and is reborn (new_pkunk). Checked when recorded: recorded "
@@ -3609,6 +3645,8 @@ def record_battle_races(uqm, battle_exe, strings_exe, images_exe, package):
             "(ModifySilhouette, which draws random numbers to place them). "
             f"GetSoundCount of the Pkunk's sounds is the content's ({sounds}): "
             "pkunk_postprocess draws insults until one differs from the last.",
+            "uses: {weapon, special}, the frame in which each first has an effect "
+            "(not in pkunk-rebirth). "
             "inputs, frames, crew_enlisted, bomb_carrier, crew_floating and "
             "freed: as battle-ai.json's. The frames' draws name UQM's "
             "functions, the ships' own static ones among them.",

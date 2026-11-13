@@ -54,6 +54,7 @@
  *   name seed scale runaway planet0 planet1 planet2
  *   ship0 ship1 fleet0 fleet1  nsteps (frames keys0 keys1)...
  *   nevents (frame side target crew)...  control0 control1 earth recruited
+ *   mask0 unless0 mask1 unless1
  * seed is TFB_SeedRandom's; scale 0 the step zoom (TFB_SCALE_STEP), 1 the
  * smooth (TFB_SCALE_TRILINEAR, UQM's default); runaway 1 sets
  * STARBASE_AVAILABLE, so side 0 can retreat (BATTLE_ESCAPE); planet0..2
@@ -98,7 +99,10 @@
  * its keys. earth 1 sets PROBE_ILWRATH_ENCOUNTER, as the Earth fight has it
  * (with IN_ENCOUNTER, the Ilwrath's AI doesn't cloak); recruited 1 sets
  * SHOFIXTI_RECRUITED (without it, an encounter's Shofixti is Tanaka's
- * damaged scout, init_shofixti).
+ * damaged scout, init_shofixti). mask and unless take keys away from a
+ * side's input (the keys' or the AI's) each frame: mask's, unless one of
+ * unless's is pressed too (0 0 for none): golden_uqm.py's check that a
+ * key has an effect runs the battle without it.
  *
  * Output: one JSON object per battle: its stars (InitGalaxy's
  * log_star_array, [x, y] each), and its frames: the first after the
@@ -915,6 +919,7 @@ scripted_keys (InputContext *context, STARSHIP *StarShipPtr)
 /* Who flies each side: 0 the keys, else the AI at a rating (1 standard,
  * 2 good, 3 awesome); and PROBE_ILWRATH_ENCOUNTER. */
 static int side_control[NUM_SIDES], earth;
+static int side_mask[NUM_SIDES], side_unless[NUM_SIDES];
 static int frame_input[NUM_SIDES];   /* this frame's, -1 none */
 
 /* A side's frameInput: the keys, or intel.c's computer_intelligence (the
@@ -929,6 +934,11 @@ side_input (InputContext *context, STARSHIP *StarShipPtr)
 				StarShipPtr);
 	else
 		s = scripted_keys (context, StarShipPtr);
+	/* The input taken away (golden_uqm.py's check that a key has an
+	 * effect: the battle without it): mask's keys, unless any of
+	 * unless's are pressed with them. */
+	if (!(s & side_unless[context->playerNr]))
+		s &= ~side_mask[context->playerNr];
 	frame_input[context->playerNr] = s;
 	return s;
 }
@@ -1395,6 +1405,9 @@ main (int argc, char *argv[])
 				|| earth < 0 || earth > 1
 				|| shofixti_recruited < 0 || shofixti_recruited > 1)
 			return bad_input (name, "the sides' control and the story's flags");
+		if (scanf ("%d %d %d %d", &side_mask[0], &side_unless[0],
+				&side_mask[1], &side_unless[1]) != 4)
+			return bad_input (name, "the sides' masks");
 		battle_seed = s;
 		fight (name, scale, runaway);
 	}
