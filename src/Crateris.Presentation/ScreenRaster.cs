@@ -94,16 +94,54 @@ public sealed class ScreenRaster
             case UqmDrawKind.Point:
                 Fill(clip, d.X, d.Y, 1, 1, d.Color);
                 break;
+            case UqmDrawKind.Line:
+                Line(clip, d.X, d.Y, d.Width, d.Height, d.Color);
+                break;
             case UqmDrawKind.Stamp:
             case UqmDrawKind.FilledStamp:
             {
                 var img = _frame(d.Sheet, d.Frame);
                 bool filled = d.Kind == UqmDrawKind.FilledStamp;
-                int left = d.X - img.HotSpotX, top = d.Y - img.HotSpotY;
-                for (int y = 0; y < img.Height; ++y)
-                    for (int x = 0; x < img.Width; ++x)
+                // TFB_DrawCanvas_Rescale_Nearest's picture of a scaled stamp: its size and hot spot scaled down,
+                // each pixel taken from the source's, stepping from a quarter-and-a-bit in to spread the jumps.
+                int w = img.Width, h = img.Height, hx = img.HotSpotX, hy = img.HotSpotY;
+                int fsx = 0, fsy = 0;
+                bool scaled = d.Scale > 0 && d.Scale != GraphicScaleIdentity;
+                if (scaled)
+                {
+                    w = img.Width * d.Scale / GraphicScaleIdentity;
+                    h = img.Height * d.Scale / GraphicScaleIdentity;
+                    hx = img.HotSpotX * d.Scale / GraphicScaleIdentity;
+                    hy = img.HotSpotY * d.Scale / GraphicScaleIdentity;
+                    if (w == 0 && img.Width > 0)
+                        w = 1;
+                    if (h == 0 && img.Height > 0)
+                        h = 1;
+                    if (w > 1)
+                        fsx = ((img.Width - 1) << 16) / (w - 1);
+                    if (h > 1)
+                        fsy = ((img.Height - 1) << 16) / (h - 1);
+                }
+                int left = d.X - hx, top = d.Y - hy;
+                for (int y = 0, sy = 0x6000, srcY = 0; y < h; ++y)
+                {
+                    if (scaled)
                     {
-                        int o = (y * img.Width + x) * 4;
+                        srcY += sy >> 16;
+                        sy = (sy & 0xffff) + fsy;
+                    }
+                    else
+                        srcY = y;
+                    for (int x = 0, sx = 0x6000, srcX = 0; x < w; ++x)
+                    {
+                        if (scaled)
+                        {
+                            srcX += sx >> 16;
+                            sx = (sx & 0xffff) + fsx;
+                        }
+                        else
+                            srcX = x;
+                        int o = (srcY * img.Width + srcX) * 4;
                         byte a = img.Rgba[o + 3];
                         if (a == 0)
                             continue;
@@ -112,6 +150,7 @@ public sealed class ScreenRaster
                         else
                             Blend(clip, left + x, top + y, img.Rgba[o], img.Rgba[o + 1], img.Rgba[o + 2], a);
                     }
+                }
                 break;
             }
             case UqmDrawKind.Text:
@@ -184,6 +223,50 @@ public sealed class ScreenRaster
                 int o = (py * Width + px) * 4;
                 (Rgba[o], Rgba[o + 1], Rgba[o + 2]) = (c.R, c.G, c.B);
             }
+    }
+
+    /// <summary>GSCALE_IDENTITY: a graphic scale drawing a stamp at its own size.</summary>
+    public const int GraphicScaleIdentity = 256;
+
+    // line_prim's Bresenham line, both ends drawn; UQM clips the line to the
+    // rectangle first (clip_line), this tests each pixel, which draws the same
+    // pixels for a line starting inside it.
+    private void Line(in (int X0, int Y0, int X1, int Y1) clip, int x1, int y1, int x2, int y2, Crateris.Core.Systems.Rgb c)
+    {
+        int dx = x2 - x1, ax = Math.Abs(dx) << 1, sx = dx < 0 ? -1 : 1;
+        int dy = y2 - y1, ay = Math.Abs(dy) << 1, sy = dy < 0 ? -1 : 1;
+        int x = x1, y = y1, d;
+        if (ax > ay)
+        {
+            d = ay - (ax >> 1);
+            for (;;)
+            {
+                Blend(clip, x, y, c.R, c.G, c.B, 255);
+                if (x == x2)
+                    return;
+                if (d >= 0)
+                {
+                    y += sy;
+                    d -= ax;
+                }
+                x += sx;
+                d += ay;
+            }
+        }
+        d = ax - (ay >> 1);
+        for (;;)
+        {
+            Blend(clip, x, y, c.R, c.G, c.B, 255);
+            if (y == y2)
+                return;
+            if (d >= 0)
+            {
+                x += sx;
+                d -= ay;
+            }
+            y += sy;
+            d += ax;
+        }
     }
 
     private void Blend(in (int X0, int Y0, int X1, int Y1) clip, int x, int y, byte r, byte g, byte b, byte a)

@@ -12,6 +12,7 @@ using Crateris.Core.Combat;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
+using Crateris.Core.World;
 using Crateris.Presentation;
 using Xunit;
 
@@ -172,12 +173,16 @@ public class BattleDrawTests
         {
             frames = frame;
             if (frame == 0)
-                return;   // nothing drawn before the first frame
-            var cam = new BattleCamera(battle.ViewState, battle.ScrollX, battle.ScrollY, battle.ZoomOut, battle.SpaceOrgX, battle.SpaceOrgY, step);
+            {   // nothing drawn before the first frame; the stars come from the seed sent
+                Assert.Equal(stars, Battle.Galaxy(battle.StarSeed));
+                return;
+            }
+            var cam = battle.Camera;
+            Assert.Equal(new BattleCamera(battle.ViewState, battle.ScrollX, battle.ScrollY, battle.ZoomOut, battle.SpaceOrgX, battle.SpaceOrgY, step), cam);
             galaxy.Move(cam);
             var ours = galaxy.Prims
                 .Concat(battle.List.Elements.Where(e => e.Prim != PrimType.None)
-                    .Select(e => BattleSpace.Of(World.GameWorld.ElementSnapshot(e), cam, BattleSpace.SizeOf)))
+                    .Select(e => BattleSpace.Of(GameWorld.ElementSnapshot(e), cam, BattleSpace.SizeOf)))
                 .ToList();
             var theirs = drawn[frame][1].EnumerateArray().ToList();
             int scale = theirs[^1].GetInt32();
@@ -192,6 +197,83 @@ public class BattleDrawTests
             for (int i = 0; i < Math.Max(prims.Count, ours.Count); ++i)
                 Assert.True(i < prims.Count && i < ours.Count && Drawn(prims[i]) == Drawn(ours[i]),
                     $"{name} frame {frame} primitive {i}: UQM {(i < prims.Count ? prims[i] : null)}, the port {(i < ours.Count ? ours[i] : null)}");
+        });
+        Assert.Equal(drawn.Count - 1, frames);
+    }
+
+    // The frame as the host sends it to the player whose ship the camera follows (side 0's, "p").
+    private static BattleSnapshot Snapshot(Battle battle, IReadOnlyList<Starship> own)
+    {
+        static BattleShipStatus Status(string ship, Starship s) => s.RaceDesc is { } r
+            ? new(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy, s.CaptainsNameIndex, s.CurStatusFlags,
+                s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null)
+            : new(ship, s.CrewLevel, s.MaxCrew, 0, 0, s.CaptainsNameIndex, s.CurStatusFlags, Gone: s.Ship is null);
+        var me = own[0];
+        var fighter = new BattleFighterSnapshot("p", Status(ShipDescriptions.Flagship, me), me.Ship?.Current.X ?? 0, me.Ship?.Current.Y ?? 0,
+            true);   // the one player: their view is the battle's camera
+        var enemy = own[1];
+        return new BattleSnapshot(1, battle.Size.Width, battle.Size.Height, Status(ShipDescriptions.Ilwrath, enemy),
+            enemy.Ship?.Current.X ?? 0, enemy.Ship?.Current.Y ?? 0, new[] { fighter },
+            battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(GameWorld.ElementSnapshot).ToList(),
+            battle.Camera, battle.StarSeed);
+    }
+
+    // A recorded space primitive as the screen draws it.
+    private static UqmDraw SpaceCall(int[] a, IReadOnlyList<string> sheets, int scale)
+    {
+        var clip = BattleScreen.SpaceClip;
+        var c = a[7] < 0 ? default : BattleScreen.FromRgb15(a[7]);
+        return (PrimType)a[0] switch
+        {
+            PrimType.Stamp => new UqmDraw(UqmDrawKind.Stamp, a[1], a[2], Sheet: sheets[a[5]], Frame: a[6], Clip: clip, Scale: scale),
+            PrimType.StampFill => new UqmDraw(UqmDrawKind.FilledStamp, a[1], a[2], Color: c, Sheet: sheets[a[5]], Frame: a[6], Clip: clip,
+                Scale: scale),
+            PrimType.Line => new UqmDraw(UqmDrawKind.Line, a[1], a[2], a[3], a[4], c, Clip: clip),
+            _ => new UqmDraw(UqmDrawKind.Point, a[1], a[2], Color: c, Clip: clip),
+        };
+    }
+
+    /// <summary>
+    /// The whole screen from what the host sends: the followed player's
+    /// battle snapshot each frame through <see cref="BattleScreen"/>, its
+    /// space window's calls UQM's DrawBatch's (after the clear, before the
+    /// minimap) and its status panel UQM's, pixel for pixel.
+    /// </summary>
+    [ContentTheory]
+    [MemberData(nameof(Battles))]
+    public void TheScreenFromTheSnapshotIsUqms(string name)
+    {
+        var recorded = BattleReplay.Recorded(Reference.Value, name);
+        var sheets = Reference.Value.GetProperty("sheets").EnumerateArray().Select(s => s.GetString()!).ToList();
+        var drawn = recorded.GetProperty("drawn").EnumerateArray().ToList();
+        var pics = Pics.Value;
+        var canvas = new UqmCanvas(pics.Count, (_, _) => default, Leading);
+        Starship? player = null, enemy = null;
+        var screen = new BattleScreen(canvas, (s, id) => StatusOf(id is null ? enemy! : player!));
+        var uqm = pics.Raster();
+        var port = pics.Raster();
+        int frames = 0;
+        Replay(recorded, (frame, battle, own) =>
+        {
+            frames = frame;
+            if (frame == 0)
+                return;
+            (player, enemy) = (own[0], own[1]);
+            canvas.Drawn.Clear();
+            var space = screen.Frame(Snapshot(battle, own), "p", BattleSpace.SizeOf);
+            Assert.True(screen.View.Camera == battle.Camera, $"{name} frame {frame}: the followed player's camera isn't the battle's: {screen.View.Camera} {battle.Camera}");
+            var theirs = drawn[frame][1].EnumerateArray().ToList();
+            int scale = theirs[^1].GetInt32();
+            var expected = theirs.Take(theirs.Count - 1).Select(p => SpaceCall(p.Ints(), sheets, scale)).ToList();
+            static UqmDraw Drawn(UqmDraw d) => d.Kind == UqmDrawKind.Stamp ? d with { Color = default } : d;
+            var ours = space.Skip(1).Take(expected.Count).ToList();
+            for (int i = 0; i < expected.Count; ++i)
+                Assert.True(i < ours.Count && Drawn(ours[i]) == Drawn(expected[i]),
+                    $"{name} frame {frame} call {i}: UQM {expected[i]}, the screen {(i < ours.Count ? ours[i] : null)}");
+            uqm.Paint(drawn[frame][0].EnumerateArray().Select(c => StatusCall(c, sheets)));
+            port.Paint(screen.Status);
+            var diff = Diff(uqm, port);
+            Assert.True(diff.Count == 0, $"{name} frame {frame}: {diff.Count} status pixels differ, first at {diff.FirstOrDefault()}");
         });
         Assert.Equal(drawn.Count - 1, frames);
     }

@@ -39,6 +39,9 @@ public enum UqmDrawKind
 
     /// <summary>font_DrawText: <see cref="UqmDraw.Text"/> in <see cref="UqmDraw.Font"/> from its baseline, in the colour or the font effect's frame.</summary>
     Text,
+
+    /// <summary>DrawLine: from (X, Y) to (<see cref="UqmDraw.Width"/>, <see cref="UqmDraw.Height"/>), both ends drawn (line_prim).</summary>
+    Line,
 }
 
 /// <summary>
@@ -50,11 +53,13 @@ public enum UqmDrawKind
 /// from, or -1; <see cref="EffectSheet"/> the sheet that frame is of when
 /// it isn't graphics.fontgradient: the lander's font effect for the lander
 /// report). <see cref="Clip"/> is the context's clip rectangle, in the
-/// screen's pixels: UQM draws only inside it.
+/// screen's pixels: UQM draws only inside it. <see cref="Scale"/> is a
+/// stamp's graphic scale (SetGraphicScale: 256 its own size; 0 unset, the
+/// same), as a battle's smooth zoom draws.
 /// </summary>
 public readonly record struct UqmDraw(UqmDrawKind Kind, int X, int Y, int Width = 0, int Height = 0, Rgb Color = default,
     string Sheet = "", int Frame = 0, string Font = "", TextAlign Align = TextAlign.Left, int Count = -1, string Text = "",
-    int Effect = -1, URect Clip = default, string EffectSheet = "");
+    int Effect = -1, URect Clip = default, string EffectSheet = "", int Scale = 0);
 
 /// <summary>UQM's RECT.</summary>
 public struct URect : IEquatable<URect>

@@ -192,7 +192,8 @@ public sealed partial class Battle
     /// <summary>WRAP_DELTA_Y.</summary>
     public short WrapDeltaY(int dy) => (short)WrapDelta(dy, Size.Height);
 
-    private static int WrapDelta(int d, int w) => d < 0
+    /// <summary>WRAP_DELTA across an arena <paramref name="w"/> wide: the shorter way round.</summary>
+    public static int WrapDelta(int d, int w) => d < 0
         ? (-d <= w >> 1 ? d : w + d)
         : (d <= w >> 1 ? d : d - w);
 
@@ -579,26 +580,44 @@ public sealed partial class Battle
     // galaxy.c's InitGalaxy: where the stars are (their drawing is the client's).
     private void InitGalaxy()
     {
+        StarSeed = Random.Seed;
+        Galaxy(() => Random.Next("InitGalaxy")).CopyTo(_stars, 0);
+    }
+
+    /// <summary>The generator's seed as InitGalaxy started: the stars come from it alone (<see cref="Galaxy(uint)"/>), so a client makes them from it.</summary>
+    public uint StarSeed { get; private set; }
+
+    /// <summary>InitGalaxy's stars drawn from a generator seeded with <paramref name="seed"/> (<see cref="StarSeed"/>).</summary>
+    public static (short X, short Y)[] Galaxy(uint seed)
+    {
+        var random = new TfbRandom(seed);
+        return Galaxy(random.Next);
+    }
+
+    private static (short X, short Y)[] Galaxy(Func<uint> next)
+    {
+        var stars = new (short X, short Y)[BigStarCount + MedStarCount + SmlStarCount];
         int factor = OneShift + Units.MaxReduction + (3 - 3);   // BACKGROUND_SHIFT - 3
-        for (int i = 0; i < _stars.Length; ++i)
+        for (int i = 0; i < stars.Length; ++i)
         {
             if (i == BigStarCount || i == BigStarCount + MedStarCount)
                 ++factor;
-            short x = (short)((ushort)Random.Next("InitGalaxy") % Units.SpaceWidth << factor);
-            short y = (short)((ushort)Random.Next("InitGalaxy") % Units.SpaceHeight << factor);
-            _stars[i] = (x, y);
+            short x = (short)((ushort)next() % Units.SpaceWidth << factor);
+            short y = (short)((ushort)next() % Units.SpaceHeight << factor);
+            stars[i] = (x, y);
         }
-        SortStarBlock(0, BigStarCount);
-        SortStarBlock(BigStarCount, MedStarCount);
-        SortStarBlock(BigStarCount + MedStarCount, SmlStarCount);
+        SortStarBlock(stars, 0, BigStarCount);
+        SortStarBlock(stars, BigStarCount, MedStarCount);
+        SortStarBlock(stars, BigStarCount + MedStarCount, SmlStarCount);
+        return stars;
     }
 
-    private void SortStarBlock(int start, int count)
+    private static void SortStarBlock((short X, short Y)[] stars, int start, int count)
     {
         for (int i = 0; i < count; ++i)
             for (int j = count - 1; j > i; --j)
-                if (_stars[start + i].Y > _stars[start + j].Y)
-                    (_stars[start + i], _stars[start + j]) = (_stars[start + j], _stars[start + i]);
+                if (stars[start + i].Y > stars[start + j].Y)
+                    (stars[start + i], stars[start + j]) = (stars[start + j], stars[start + i]);
     }
 
     // ship.c's GetNextStarShip: the side's next ship warps in, taking the

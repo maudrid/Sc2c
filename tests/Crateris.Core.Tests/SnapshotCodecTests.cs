@@ -474,16 +474,16 @@ public class SnapshotCodecTests
     // all of UQM's own), and the enemy; elements by each, and one across the seam from a.
     private static BattleSnapshot Battle()
     {
-        var status = new BattleShipStatus("sis_ship", 30, 50, 10, 42);
-        return new BattleSnapshot(3, 3 * 8192, 3 * 7680, new BattleShipStatus("ilwrath", 22, 22, 16, 16), 1000, 100,
-            new[] { new BattleFighterSnapshot("a", status, 100, 100), new BattleFighterSnapshot("b", status with { Crew = 1 }, 12000, 11000) },
+        var status = new BattleShipStatus("sis_ship", 30, 50, 10, 42, 0, StatusFlags.Thrust | StatusFlags.Left, 30, 1);
+        return new BattleSnapshot(3, 3 * 8192, 3 * 7680, new BattleShipStatus("ilwrath", 22, 22, 16, 16, 7, StatusFlags.Weapon, 0, 9, true), 1000, 100,
+            new[] { new BattleFighterSnapshot("a", status, 100, 100, true), new BattleFighterSnapshot("b", status with { Crew = 1 }, 12000, 11000) },
             new[]
             {
                 new BattleElementSnapshot(PrimType.Stamp, 100, 100, 0, 0, "ship.sis_ship.big", 3, -1),
                 new BattleElementSnapshot(PrimType.StampFill, 1000, 100, 0, 0, "ship.ilwrath.big", 15, 0x123456),
                 new BattleElementSnapshot(PrimType.Line, 24500, 23000, 24550, 23050, "battle.stars", 0, 0xFF0000),   // across the seam from a
                 new BattleElementSnapshot(PrimType.Point, 12000, 11000, 0, 0, "battle.stars", 2, 7),                 // by b, far from a
-            });
+            }, new BattleCamera(2, -12, 40, 640, -300, 200, false), 123456789);
     }
 
     [Fact]
@@ -529,6 +529,10 @@ public class SnapshotCodecTests
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(bad));
         bad = For(Battle() with { Elements = new[] { new BattleElementSnapshot(PrimType.None, 100, 100, 0, 0, "x", 0, 0) } });
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(bad));
+        // A view state or a step zoom past UQM's, a zoom below none.
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(For(Battle() with { Camera = Battle().Camera with { ViewState = 3 } })));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(For(Battle() with { Camera = new BattleCamera(0, 0, 0, 3, 0, 0, true) })));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(For(Battle() with { Camera = Battle().Camera with { ZoomOut = -1 } })));
         // Cut short anywhere.
         for (int n = good.Length - 1; n > good.Length - 40; --n)
             Assert.ThrowsAny<Exception>(() => SnapshotCodec.Decode(good.AsSpan(0, n)));

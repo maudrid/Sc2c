@@ -18,16 +18,26 @@ namespace Crateris.Core.World;
 /// </summary>
 public sealed record BattleMarkerSnapshot(int Id, int? Star, int? InnerPlanet, int X, int Y);
 
-/// <summary>A ship's status panel as UQM's shows it: its kind (a ship description's id), crew and energy, each with its most.</summary>
-public sealed record BattleShipStatus(string Ship, int Crew, int MaxCrew, int Energy, int MaxEnergy);
+/// <summary>
+/// A ship's status panel as UQM's shows it: its kind (a ship description's
+/// id), crew and energy, each with its most; its captain's name (an index
+/// in its race's strings, <see cref="Starship.CaptainsNameIndex"/>); the
+/// keys its captain's window shows (<see cref="Starship.CurStatusFlags"/>);
+/// and its element's crew and life, or that it's gone (the panel stops as
+/// the ship's explosion ends, status.c's).
+/// </summary>
+public sealed record BattleShipStatus(string Ship, int Crew, int MaxCrew, int Energy, int MaxEnergy, int Captain = 0,
+    StatusFlags Flags = StatusFlags.None, int ElementCrew = 0, int LifeSpan = 0, bool Gone = false);
 
 /// <summary>
 /// One player's ship in a battle, still in it (fighting, or destroyed in a
 /// battle still running: its player watches); a ship that left (retreated,
 /// disconnected) isn't listed. Its status and its place (world units, as
-/// the elements'; a destroyed ship's last, where it exploded).
+/// the elements'; a destroyed ship's last, where it exploded); whether
+/// the battle's camera followed it this frame (<see cref="BattleSnapshot.Camera"/>
+/// is then its player's own, UQM's exactly).
 /// </summary>
-public sealed record BattleFighterSnapshot(string PlayerId, BattleShipStatus Status, short X, short Y);
+public sealed record BattleFighterSnapshot(string PlayerId, BattleShipStatus Status, short X, short Y, bool Followed = false);
 
 /// <summary>
 /// One of a battle's elements as it's drawn this frame (the element's
@@ -46,10 +56,14 @@ public sealed record BattleElementSnapshot(PrimType Prim, short X, short Y, shor
 /// elements. The host's world gives every element; a guest is sent its
 /// own battle only, with only the elements near its ship (within UQM's
 /// widest view of it, so any camera framing it and the enemy has what it
-/// draws), and every ship's place and crew for the minimap.
+/// draws), and every ship's place and crew for the minimap. To draw it
+/// (stage 4a item 12): the battle's camera this frame (<see cref="Camera"/>,
+/// the one following <see cref="BattleFighterSnapshot.Followed"/>), and the
+/// seed its stars come from (<see cref="Battle.Galaxy(uint)"/>).
 /// </summary>
 public sealed record BattleSnapshot(int Id, int Width, int Height, BattleShipStatus Enemy, short EnemyX, short EnemyY,
-    IReadOnlyList<BattleFighterSnapshot> Fighters, IReadOnlyList<BattleElementSnapshot> Elements)
+    IReadOnlyList<BattleFighterSnapshot> Fighters, IReadOnlyList<BattleElementSnapshot> Elements,
+    BattleCamera Camera = default, uint StarSeed = 0)
 {
     /// <summary>The player's own ship in it, or null.</summary>
     public BattleFighterSnapshot? FighterOf(string id) => Fighters.FirstOrDefault(f => f.PlayerId == id);
@@ -81,7 +95,8 @@ public sealed record BattleSnapshot(int Id, int Width, int Height, BattleShipSta
     }
 
     public bool Equals(BattleSnapshot? other) =>
-        other is not null && (Id, Width, Height, Enemy, EnemyX, EnemyY) == (other.Id, other.Width, other.Height, other.Enemy, other.EnemyX, other.EnemyY)
+        other is not null && (Id, Width, Height, Enemy, EnemyX, EnemyY, Camera, StarSeed)
+        == (other.Id, other.Width, other.Height, other.Enemy, other.EnemyX, other.EnemyY, other.Camera, other.StarSeed)
         && Fighters.SequenceEqual(other.Fighters) && Elements.SequenceEqual(other.Elements);
 
     public override int GetHashCode() => HashCode.Combine(Id, Fighters.Count, Elements.Count);

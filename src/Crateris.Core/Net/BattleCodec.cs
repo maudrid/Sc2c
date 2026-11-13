@@ -89,12 +89,47 @@ public static partial class SnapshotCodec
         w.UInt((ulong)s.MaxCrew);
         w.UInt((ulong)s.Energy);
         w.UInt((ulong)s.MaxEnergy);
+        w.UInt((ulong)s.Captain);
+        w.UInt((ulong)s.Flags);
+        w.UInt((ulong)s.ElementCrew);
+        w.UInt((ulong)s.LifeSpan);
+        w.Byte(s.Gone ? (byte)1 : (byte)0);
     }
 
     private static BattleShipStatus ReadStatus(ref WireReader r) =>
         new(r.String() ?? throw new InvalidDataException("A ship's status has no kind."),
             ToInt((long)Math.Min(r.UInt(), int.MaxValue)), ToInt((long)Math.Min(r.UInt(), int.MaxValue)),
-            ToInt((long)Math.Min(r.UInt(), int.MaxValue)), ToInt((long)Math.Min(r.UInt(), int.MaxValue)));
+            ToInt((long)Math.Min(r.UInt(), int.MaxValue)), ToInt((long)Math.Min(r.UInt(), int.MaxValue)),
+            Small(r.UInt(), byte.MaxValue, "captain"), (StatusFlags)Small(r.UInt(), ushort.MaxValue, "status flags"),
+            Small(r.UInt(), ushort.MaxValue, "element crew"), Small(r.UInt(), ushort.MaxValue, "life span"), Flag(r.Byte()));
+
+    private static int Small(ulong v, int most, string what) =>
+        v <= (ulong)most ? (int)v : throw new InvalidDataException($"Bad {what}.");
+
+    private static bool Flag(byte b) => b switch { 0 => false, 1 => true, _ => throw new InvalidDataException("Bad flag.") };
+
+    private static void WriteCamera(WireWriter w, BattleCamera c)
+    {
+        w.Int(c.ViewState);
+        w.Int(c.ScrollX);
+        w.Int(c.ScrollY);
+        w.Int(c.ZoomOut);
+        w.Int(c.OrgX);
+        w.Int(c.OrgY);
+        w.Byte(c.Step ? (byte)1 : (byte)0);
+    }
+
+    private static BattleCamera ReadCamera(ref WireReader r)
+    {
+        long view = r.Int();
+        if (view is < -1 or > 2)
+            throw new InvalidDataException("Bad view state.");
+        short sx = ToShort(r.Int()), sy = ToShort(r.Int()), zoom = ToShort(r.Int()), ox = ToShort(r.Int()), oy = ToShort(r.Int());
+        bool step = Flag(r.Byte());
+        if (zoom < 0 || (step && zoom > 2))
+            throw new InvalidDataException("Bad zoom.");
+        return new BattleCamera((int)view, sx, sy, zoom, ox, oy, step);
+    }
 
     // A battle, whole: 0 for none (the viewer has left it), else 1 and the battle.
     private static void WriteBattle(WireWriter w, BattleSnapshot? b)
@@ -122,7 +157,10 @@ public static partial class SnapshotCodec
             WriteStatus(w, f.Status);
             w.Int(f.X);
             w.Int(f.Y);
+            w.Byte(f.Followed ? (byte)1 : (byte)0);
         }
+        WriteCamera(w, b.Camera);
+        w.UInt(b.StarSeed);
         var sheets = new Dictionary<string, int>();
         foreach (var e in b.Elements)
             if (sheets.Count < MostBattleSheets)
@@ -169,8 +207,12 @@ public static partial class SnapshotCodec
         for (int i = 0; i < fighters.Length; ++i)
         {
             string pid = r.String() ?? throw new InvalidDataException("A battle's ship has no player.");
-            fighters[i] = new BattleFighterSnapshot(pid, ReadStatus(ref r), ToShort(r.Int()), ToShort(r.Int()));
+            fighters[i] = new BattleFighterSnapshot(pid, ReadStatus(ref r), ToShort(r.Int()), ToShort(r.Int()), Flag(r.Byte()));
         }
+        var camera = ReadCamera(ref r);
+        ulong seed = r.UInt();
+        if (seed > uint.MaxValue)
+            throw new InvalidDataException("Bad star seed.");
         var sheets = new string[Count(r.UInt(), MostBattleSheets)];
         for (int i = 0; i < sheets.Length; ++i)
             sheets[i] = r.String() ?? throw new InvalidDataException("A battle's sheet has no name.");
@@ -192,6 +234,6 @@ public static partial class SnapshotCodec
                 throw new InvalidDataException("Bad element frame.");
             elements[i] = new BattleElementSnapshot(prim, x, y, x2, y2, sheets[sheet], (ushort)frame, ToInt(r.Int()));
         }
-        return new[] { new BattleSnapshot(id, width, height, enemy, ex, ey, fighters, elements) };
+        return new[] { new BattleSnapshot(id, width, height, enemy, ex, ey, fighters, elements, camera, (uint)seed) };
     }
 }

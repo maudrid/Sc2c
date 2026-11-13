@@ -100,7 +100,11 @@ public static class Protocol
     /// a battle joined or ended, a wreck, a battle too full, a rescue offered
     /// or made, the game over) and a guest's revival (Revive, refused with a
     /// RescueRefusal) are reliable messages.
-    public const int Version = 21;
+    /// 22: a battle carries what drawing it needs (stage 4a item 12): its
+    /// camera this frame and which player ship it followed, its stars'
+    /// seed, and each ship's captain, captain's-window keys and element's
+    /// crew and life for the status panel.
+    public const int Version = 22;
     public const int DefaultPort = 24642;
 
     /// <summary>

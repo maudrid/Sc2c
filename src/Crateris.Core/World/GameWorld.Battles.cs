@@ -162,6 +162,9 @@ public sealed partial class GameWorld
 
         var enemyShip = new Starship(new IlwrathShip(description, kit.Graphics.Views(description.Graphics.Ship),
             kit.Graphics.Views(description.Graphics.Weapon), start.NoCloak), 1, (ushort)crew, (ushort)description.MaxCrew);
+        // NameCaptain: an encounter ship's captain, one of its race's 16 names (PickCaptainName, from
+        // UQM's general generator: here one of the battle's own seed, not the battle's, whose draws are UQM's).
+        enemyShip.CaptainsNameIndex = (byte)((new Uqm.TfbRandom(seed ^ 0x9E3779B9).Next() & (NumCaptainsNames - 1)) + CaptainNameOffset);
         var fighter = NewFighter(player);
         // Retreat is the world's to allow, per player and frame (RetreatAllowed): the battle lets side 0 run.
         var battle = new Battle(kit.Graphics.Arena(battlePlanet), new[] { new[] { fighter.Starship }, new[] { enemyShip } },
@@ -582,21 +585,32 @@ public sealed partial class GameWorld
 
     // A battle as the snapshot holds it: its ships' status and places, and
     // its elements as they're drawn this frame.
+    // build.h's NAME_OFFSET and NUM_CAPTAINS_NAMES: where a race's captains' names start in its strings, and how many.
+    private const int CaptainNameOffset = 5, NumCaptainsNames = 16;
+
     private static BattleSnapshot BattleSnapshotOf(WorldBattle wb)
     {
         static BattleShipStatus Status(string ship, Starship s) => s.RaceDesc is { } r
-            ? new BattleShipStatus(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy)
-            : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0);
+            ? new BattleShipStatus(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy, s.CaptainsNameIndex, s.CurStatusFlags,
+                s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null)
+            : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0, s.CaptainsNameIndex, s.CurStatusFlags, Gone: s.Ship is null);
+        // The player whose view is the battle's camera, UQM's: the one whose ship it follows, when it follows
+        // only one of theirs; when it follows none (the frame a ship stops being one, or none left), the
+        // first player still in the battle, as with one player UQM's camera is theirs whatever it follows.
+        // With several followed (none fighting, each still a ship), none: each player's view is their own.
+        var present = wb.Fighters.Where(f => f.Player.Ship.Battle == wb).ToList();
+        var followed = present.Where(f => f.Starship.Ship is { } e && wb.Battle.CameraFollowed(e)).ToList();
+        var viewer = followed.Count == 1 ? followed[0] : followed.Count == 0 ? present.FirstOrDefault() : null;
         // A ship's place, or its last once it's gone (its explosion over: its
         // player still watches), kept after each frame (AfterBattleFrame).
-        var fighters = wb.Fighters.Where(f => f.Player.Ship.Battle == wb)
+        var fighters = present
             .Select(f => f.Starship.Ship is { } ship
-                ? new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), ship.Current.X, ship.Current.Y)
-                : new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), f.LastX, f.LastY))
+                ? new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), ship.Current.X, ship.Current.Y, f == viewer)
+                : new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), f.LastX, f.LastY, f == viewer))
             .ToList();
         var (ex, ey) = wb.Enemy.Ship is { } enemy ? (enemy.Current.X, enemy.Current.Y) : (wb.EnemyLastX, wb.EnemyLastY);
         var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(ElementSnapshot).ToList();
         return new BattleSnapshot(wb.Id, wb.Battle.Size.Width, wb.Battle.Size.Height, Status(wb.EnemyShip.Id, wb.Enemy),
-            ex, ey, fighters, elements);
+            ex, ey, fighters, elements, wb.Battle.Camera, wb.Battle.StarSeed);
     }
 }

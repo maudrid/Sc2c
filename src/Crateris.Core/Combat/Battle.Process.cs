@@ -225,10 +225,18 @@ public sealed partial class Battle
     }
 
     // CalcReduction: how far out to zoom for two ships dx and dy apart.
-    private int CalcReduction(short dx, short dy)
+    private int CalcReduction(short dx, short dy) => CalcReduction(Zoom, ZoomOut, dx, dy);
+
+    /// <summary>
+    /// CalcReduction: how far out a camera at <paramref name="zoomOut"/>
+    /// zooms for two ships <paramref name="dx"/> and <paramref name="dy"/>
+    /// apart (each way, not negative). A player's own camera (stage 4a item
+    /// 12) zooms as the battle's does.
+    /// </summary>
+    public static int CalcReduction(BattleZoom zoom, int zoomOut, short dx, short dy)
     {
         int nextReduction;
-        if (Zoom == BattleZoom.Step)
+        if (zoom == BattleZoom.Step)
         {
             short sdx = dx, sdy = dy;
             for (nextReduction = MaxVisReduction;
@@ -240,7 +248,7 @@ public sealed partial class Battle
             }
 
             // check for "real" zoom in
-            if (nextReduction < ZoomOut && ZoomOut <= MaxVisReduction)
+            if (nextReduction < zoomOut && zoomOut <= MaxVisReduction)
             {
                 const int hysteresisX = 24 << OneShift, hysteresisY = 20 << OneShift;
                 if (((sdx + hysteresisX) << (MaxVisReduction - nextReduction)) > TransitionWidth
@@ -293,21 +301,8 @@ public sealed partial class Battle
             viewState = dx == 0 && dy == 0 ? 0 : 1;   // VIEW_STABLE, VIEW_SCROLL
         else
         {
-            if (Zoom == BattleZoom.Step)
-            {
-                SpaceOrgX = (short)(centreX - (LogSpaceWidth >> (MaxReduction + 1 - nextReduction)));
-                SpaceOrgY = (short)(centreY - (LogSpaceHeight >> (MaxReduction + 1 - nextReduction)));
-            }
-            else
-            {
-                const int zoomJump = (1 << ZoomShift) >> 3;
-                if (shipsAlive == 1 && ZoomOut > nextReduction && ZoomOut <= MaxZoomOut
-                    && ZoomOut - nextReduction > zoomJump)
-                    nextReduction = (short)(ZoomOut - zoomJump);
-                // Always on a whole pixel, to reduce the jitter.
-                SpaceOrgX = DisplayAlign(centreX - LogSpaceWidth * nextReduction / (MaxZoomOut << 2));
-                SpaceOrgY = DisplayAlign(centreY - LogSpaceHeight * nextReduction / (MaxZoomOut << 2));
-            }
+            nextReduction = (short)ZoomTo(Zoom, ZoomOut, nextReduction, shipsAlive);
+            (SpaceOrgX, SpaceOrgY) = SpaceOrg(Zoom, Size, nextReduction);
             ZoomOut = nextReduction;
             viewState = 2;   // VIEW_CHANGE
         }
@@ -316,6 +311,30 @@ public sealed partial class Battle
         pdy = dy;
         return viewState;
     }
+
+    /// <summary>CalcView's zoom: the smooth zoom with one ship followed zooms in by at most an eighth a frame.</summary>
+    public static int ZoomTo(BattleZoom zoom, int zoomOut, int nextReduction, int shipsAlive)
+    {
+        const int zoomJump = (1 << ZoomShift) >> 3;
+        if (zoom == BattleZoom.Smooth && shipsAlive == 1 && zoomOut > nextReduction && zoomOut <= MaxZoomOut
+            && zoomOut - nextReduction > zoomJump)
+            nextReduction = zoomOut - zoomJump;
+        return nextReduction;
+    }
+
+    /// <summary>CalcView's SpaceOrg: the view's corner at a zoom, round the arena's centre (the smooth zoom's on a whole pixel, to reduce the jitter).</summary>
+    public static (short X, short Y) SpaceOrg(BattleZoom zoom, ArenaSize size, int reduction)
+    {
+        int centreX = size.Width >> 1, centreY = size.Height >> 1;
+        return zoom == BattleZoom.Step
+            ? ((short)(centreX - (LogSpaceWidth >> (MaxReduction + 1 - reduction))),
+                (short)(centreY - (LogSpaceHeight >> (MaxReduction + 1 - reduction))))
+            : (DisplayAlign(centreX - LogSpaceWidth * reduction / (MaxZoomOut << 2)),
+                DisplayAlign(centreY - LogSpaceHeight * reduction / (MaxZoomOut << 2)));
+    }
+
+    /// <summary>The camera the battle was last drawn from (stage 4a item 12: sent to the players).</summary>
+    public BattleCamera Camera => new(ViewState, ScrollX, ScrollY, ZoomOut, SpaceOrgX, SpaceOrgY, Zoom == BattleZoom.Step);
 
     // ProcessCollisions: the element against those after it (from hSucc),
     // each pair's time of impact over their shapes; returns COLLISION if
@@ -522,6 +541,15 @@ public sealed partial class Battle
         }
         return lastStill ? _lastFollowed[side] : fallback;
     }
+
+    /// <summary>
+    /// Whether the camera followed a ship's element in the last frame: it was
+    /// its side's <see cref="FollowedElement"/> as the frame started, or the
+    /// side had none (then each of its ships is followed, as UQM's are).
+    /// </summary>
+    public bool CameraFollowed(Element ship) =>
+        (ship.StateFlags & ElementFlags.PlayerShip) != 0 && ship.PlayerNr is >= 0 and < NumSides
+        && Followed(ship, _lastFollowed[ship.PlayerNr]);
 
     // The element each side's camera followed last frame.
     private readonly Element?[] _lastFollowed = new Element?[NumSides];
