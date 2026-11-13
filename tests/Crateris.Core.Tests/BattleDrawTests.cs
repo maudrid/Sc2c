@@ -332,17 +332,23 @@ public class BattleDrawTests
     [InlineData(new[] { 35 })]
     [InlineData(new[] { 30, 29, 3 })]
     [InlineData(new int[0])]
-    public void TheExplosionsFlashIsWholeWhateverFramesAreMissed(int[] seen)
+    [InlineData(new[] { 25 })]
+    [InlineData(new[] { 25, 24 }, false)]
+    [InlineData(new[] { 29, 28 }, false)]
+    [InlineData(new[] { 0 }, false)]
+    [InlineData(new int[0], false)]
+    public void TheExplosionsFlashIsWholeWhateverFramesAreMissed(int[] seen, bool outSeen = true)
     {
         var pics = Pics.Value;
         var d = BattleReplay.Ships[ShipDescriptions.Ilwrath];
         var ship = new StatusShip(d.Graphics.Icons, d.Graphics.Captain, 22, 16, false, false, false, "string 1", "string 5");
-        ScreenRaster Run(IEnumerable<int> lives)
+        ScreenRaster Run(IReadOnlyList<int> lives)
         {
             var canvas = new UqmCanvas(pics.Count, (_, _) => default, Leading);
             var status = new BattleStatus(canvas);
             status.Init(BattleStatus.EnemySlot, ship, new StatusState(22, 16, StatusFlags.None, 22, 1));
-            status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, 1));   // its crew seen out
+            if (lives != All || outSeen)   // its crew seen out (do_damage leaves its life 0), or that frame missed
+                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, 0));
             foreach (int life in lives)
                 status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, life));
             status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, 72));   // its life going again: the end
@@ -350,11 +356,14 @@ public class BattleDrawTests
             raster.Paint(canvas.Drawn);
             return raster;
         }
-        var all = Run(Enumerable.Range(0, 36).Reverse());
+        var all = Run(All);
         var some = Run(seen);
         var diff = Diff(all, some);
-        Assert.True(diff.Count == 0, $"seen {string.Join(",", seen)}: {diff.Count} pixels differ, first at {diff.FirstOrDefault()}");
+        Assert.True(diff.Count == 0, $"seen {string.Join(",", seen)}{(outSeen ? "" : ", its crew running out not")}: "
+            + $"{diff.Count} pixels differ, first at {diff.FirstOrDefault()}");
     }
+
+    private static readonly int[] All = Enumerable.Range(0, 36).Reverse().ToArray();   // every life of an explosion
 
     // The status area's pixels that differ.
     private static List<(int X, int Y)> Diff(ScreenRaster a, ScreenRaster b) => Diff(a.Rgba, b.Rgba);

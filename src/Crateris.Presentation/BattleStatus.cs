@@ -98,7 +98,9 @@ public sealed class BattleStatus
         public int ElementCrew = -1;
         public bool Flashing;
         public int LastLife;
-        public bool Exploding;   // its flash drawn: the explosion's frames missed at its end are drawn as it stops
+        // The least life of its explosion whose flash step is drawn (none yet: NumExplosionFrames * 3): the steps
+        // of frames missed are drawn as the next is seen, or as the slot stops.
+        public int FlashedTo = NumExplosionFrames * 3;
         public bool Done;
     }
 
@@ -133,25 +135,22 @@ public sealed class BattleStatus
         // UQM's status runs in the ship's own steps, which end with its
         // explosion: the element gone, or past its explosion (its life set
         // going again, as cleanup_dead_ship waits for the battle's end).
-        // Its crew seen out and its life past any explosion's: the explosion's over, however many of its frames
-        // were missed (a snapshot lost).
-        bool over = slot.ElementCrew == 0 && state.ElementCrew == 0 && state.LifeSpan > NumExplosionFrames * 3;
+        // Out of crew and its life past any explosion's (cleanup_dead_ship's wait): the explosion's over, however
+        // many of its frames were missed (a snapshot lost).
+        bool over = state.Crew == 0 && state.ElementCrew == 0 && state.LifeSpan > NumExplosionFrames * 3;
         if (state.Gone || over || slot.Flashing && state.LifeSpan > slot.LastLife)
         {
-            // The explosion's frames missed at its end: their flash steps, down to its life's end (all of them if
-            // none was seen).
-            int from = slot.Exploding ? slot.LastLife - 1 : NumExplosionFrames * 3 - 1;
-            if (state.Crew == 0 && slot.ElementCrew == 0 && from >= 0)
+            // Destroyed (a retreat keeps its crew): the flash steps not drawn yet, its explosion's frames missed
+            // (all of them if none was seen), down to its life's end.
+            if (state.Crew == 0)
             {
                 var old0 = _c.SetContext(_c.Status);
-                for (int life = Math.Min(from, NumExplosionFrames * 3 - 1); life >= 0; --life)
-                    ExplosionFlash(y, life);
+                FlashTo(slot, y, 0);
                 _c.SetContext(old0);
             }
             slot.Done = true;
             return;
         }
-        int lastLife = slot.LastLife;
         slot.LastLife = state.LifeSpan;
         var old = _c.SetContext(_c.Status);
         // The first frame after the ship's crew ran out, its keys are as they
@@ -163,7 +162,7 @@ public sealed class BattleStatus
         if (keysChanged != 0)
             CaptainsWindow(slot, y, keysChanged, state.Flags, 1);
         DeltaStatistics(slot, y, state.Crew - slot.Crew, state.Energy - slot.Energy);
-        PostProcessStatus(slot, y, state, lastLife);
+        PostProcessStatus(slot, y, state);
         _c.SetContext(old);
     }
 
@@ -443,7 +442,7 @@ public sealed class BattleStatus
             DrawBattleCrewAmount(slot, yOffs);
     }
 
-    private void PostProcessStatus(Slot slot, int y, StatusState state, int lastLife)
+    private void PostProcessStatus(Slot slot, int y, StatusState state)
     {
         var cur = state.Flags;
         // The ship's crew ran out: from the frame after it's seen out (UQM's
@@ -452,27 +451,32 @@ public sealed class BattleStatus
         // the engine's, cleared as UQM's are).
         bool outBefore = slot.ElementCrew == 0;
         slot.ElementCrew = state.ElementCrew;
-        bool flash = state.ElementCrew == 0 && outBefore;
-        // Each step draws on the last: frames missed while it flashed (a snapshot lost, or two in one of the
-        // screen's frames) have their steps drawn now, from the life after the last seen down to this one's; the
-        // keys' changes taken as made in the first frame missed, so drawn before them, as UQM drew them.
-        int from = flash && lastLife > state.LifeSpan ? Math.Min(lastLife - 1, state.LifeSpan + NumExplosionFrames * 3)
-            : state.LifeSpan;
-        bool catchUp = flash && state.Crew == 0 && from > state.LifeSpan;
+        // The frame its crew runs out has life 0 (do_damage), its explosion then 35 down to 0: a ship out of crew
+        // first seen at a life of its explosion's has had its crew run out in a frame missed.
+        bool exploding = state.ElementCrew == 0 && state.Crew == 0 && state.LifeSpan < NumExplosionFrames * 3;
+        bool flash = state.ElementCrew == 0 && (outBefore || exploding && state.LifeSpan > 0);
+        // Each step draws on the last: frames missed (a snapshot lost, or two in one of the screen's frames) have
+        // their steps drawn now, down to this one's; the keys' changes taken as made in the first frame missed,
+        // so drawn before them (UQM drew them after the first of those steps, which fills the window as the next
+        // does: the same pixels).
+        bool steps = flash && exploding;
+        bool catchUp = steps && slot.FlashedTo - 1 > state.LifeSpan;
         if (catchUp)
             KeysChanged(slot, y, cur);
         if (flash)
-        {
             slot.Flashing = true;
-            if (state.Crew == 0)
-            {
-                slot.Exploding = true;
-                for (int life = from; life >= state.LifeSpan; --life)
-                    ExplosionFlash(y, life);
-            }
-        }
+        if (steps)
+            FlashTo(slot, y, state.LifeSpan);
         if (!catchUp)
             KeysChanged(slot, y, cur);
+    }
+
+    // The explosion's flash steps not drawn yet, from the one after the last drawn down to life's.
+    private void FlashTo(Slot slot, int y, int life)
+    {
+        for (int l = slot.FlashedTo - 1; l >= life; --l)
+            ExplosionFlash(y, l);
+        slot.FlashedTo = Math.Min(slot.FlashedTo, life);
     }
 
     // PostProcessStatus's keys and low energy, as they changed.
