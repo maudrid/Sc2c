@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, stage 4b item 1 (every ship's content and recording) built; not yet reviewed.
+**Last updated:** 2026-11-13, stage 4b item 1 (every ship's content and recording) built and reviewed in three rounds (round 3 found nothing).
 
 ## Where things are
 
@@ -36,7 +36,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-The review of stage 4b item 1 (`CLAUDE.md`'s loop), then report it and wait for the go-ahead for item 2.
+Stage 4b item 1 is done; wait for the owner's go-ahead for item 2 (ships, part 1: the Arilou, Spathi, Supox, Druuge, Yehat, Zoq-Fot-Pik, Thraddash and Umgah).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
