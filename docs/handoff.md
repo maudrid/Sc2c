@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, item 13 (docs) written; stage 4a's items are all built. Its review loop is running.
+**Last updated:** 2026-11-13, item 13 (docs) built and reviewed in three rounds; stage 4a is built.
 
 ## Where things are
 
@@ -25,7 +25,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Item 13's review loop, then report to the owner: stage 4a done. After that, the owner decides what's next (planning stage 4b in detail, or 3b).
+Stage 4a is done; wait for the owner to say what's next (planning stage 4b in detail, or 3b). Item 13's review: round 1 five findings (the handoff's build warnings, differences row 27's stale Why, the porting inventory's arena and save version and Pause row, the game over's save on the how-to-try page), round 2 two (the `--save` file an earlier run left, a typo), round 3 none.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
