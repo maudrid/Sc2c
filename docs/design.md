@@ -201,7 +201,10 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
    - 3a. Talking, the story state and Earth: the conversation engine and screen, story pauses, the dialogue lock, the group inventory, UQM's opening at Earth and the allied starbase, names, wallets and cargo trading. **Built** (plan: `docs/plans/stage-3.md`; see `docs/how-to-try/stage-3a.md`).
    - 3b. Ships in space and the races: alien ships in systems and hyperspace, hailing, the races' conversations, Melnorme trading. After stage 4.
    - 3c. Story events and devices: the event calendar, energy nodes on story worlds, devices, time skips, cutscenes. After 3b.
-4. Combat, including joining battles, one enemy at a time, and the minimap. After 3a, before 3b, since most races' conversations can end in a battle. Plan: `docs/plans/stage-4.md` (4a, then 4b).
+4. Combat, including joining battles, one enemy at a time, and the minimap. After 3a, before 3b, since most races' conversations can end in a battle. Plan: `docs/plans/stage-4.md`, in two parts:
+   - 4a. The battle, together: the battle engine, the flagship and escorts in combat, the Ilwrath and its AI, several players against one enemy (markers, joining, each player's camera and minimap, retreat, wrecks and revival, salvage, game over), the Ilwrath fight in the opening and the host's pause. **Built** (see `docs/how-to-try/stage-4a.md`).
+   - 4b. Every race's ship and the host's fleet: the other 24 race ships and their AI, the host's AI fleet (the shipyard's fleet ships, the Arilou's gift, sending a fleet ship into battle), the enemy's fleets of several ships. After 4a.
+   - The Sa-Matra and the final battle go with the endgame, after 3c.
 
 ### Working rules
 
@@ -232,7 +235,7 @@ Bugs found in play go back to the code session with the error text, a screenshot
 - [x] Decide whether a rescuer must keep more than 1 crew: no, 1 is enough
 - [x] Decide whether cargo can be traded between players: yes, within the same solar system
 - [ ] Decide who can use group devices (portal spawner, Sun device and others) and whether the group must be present (deferred)
-- [ ] List the escort module set
+- [ ] List the escort module set. Its combat part is decided (stage 4, decision 3; built in stage 4a): escorts fight with the flagship's battle code and their own modules, their kit has a gun in the nose (a setting), and at the starbase they may buy the gun, blaster, cannon, tracking, point defence, dynamo and furnace at the flagship's prices, besides landers and storage bays; the flagship keeps its unique ones (crew pods, fuel tanks, high-efficiency fuel systems, thrusters, turning jets and the bomb's parts). Still open: whether escorts may ever buy crew pods, fuel tanks, thrusters or jets
 - [x] Mark which conversations and events count as story (pause for all): each conversation's rule is in `src/Crateris.Core/Comm/TalkRules.cs` (stage 3, decision 6); 3b and 3c add theirs, and the events' with them
 - [ ] Draft the server data model and message protocol
 - [ ] Contact the UQM community before going public

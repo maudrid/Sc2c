@@ -178,6 +178,8 @@ Includes the flagship (`sis_ship`; its real stats come from installed modules), 
 
 From `races.h`: the `*_SHIP` enum (the order of `avail_race_q`, one `FLEET_INFO` per race), `RACE_SHIP_COST` (battle salvage is cost / 8 per enemy ship destroyed), `RACE_IP_SPEED` (speed in solar systems) and `RACE_COMMUNICATION` (which conversation a race uses). 23 races have a cost; the last entry (drone/Sa-Matra) has only a speed and a conversation. The extractor checks the table lengths against the race list. `conversation_races` (`RACE_SHIP_FOR_COMM`) gives each `CONVERSATION` id (commglue.h's enum) the race it's with, as `InitCommunication` reads it; the dialogue lock uses it.
 
+**Used by:** the story state (stage 3a: the races in `avail_race_q`'s order, `Story/StoryRules.cs`), the dialogue lock (`conversation_races`, `Comm/DialogueLocks.cs`), and since stage 4a battle salvage: `ship_cost` is read with the ships' descriptions (`BattleKit.LoadShipCosts`, `World/WorldBattle.cs`), a won battle paying cost / 8 for each enemy ship (the Ilwrath's 1,000 pays 125; the Earth fight pays none, as UQM's).
+
 ### `game-state.json`: story flags
 
 From the `ADD_GAME_STATE` list in `src/uqm/globdata.h`. 447 named flags and counters packed into 1,238 bits: `name`, `bits`, `start_bit`, and its source comment where there is one. The source doesn't group the flags (it has only two section headings, near the top); the name prefix usually says which race or topic a flag belongs to. UQM reads them with `GET_GAME_STATE` / `SET_GAME_STATE`.

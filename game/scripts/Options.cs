@@ -23,7 +23,8 @@ namespace Crateris.Game;
 /// Both take --content PATH: the UQM content package (or its folder), if
 /// not the game's own downloaded copy.
 /// Testing options: --id ID (player id instead of the saved one),
-/// --script "thrust:40,right:10,none:20" (scripted input instead of keys;
+/// --script "thrust:40,right:10,none:20" (scripted input instead of keys; left, right, thrust, action, fire, takeoff
+/// (Escape: in a battle, a retreat), special (a battle's special) and none are held for their frames;
 /// up, down, select, cancel, pageup and pagedown press an orbit menu key once as their step starts, give opens or closes the giving screen, pause is the host's pause key),
 /// --first-run-use FILE (the first-run screen acts as if the player chose
 /// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),

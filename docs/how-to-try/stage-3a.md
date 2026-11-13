@@ -46,7 +46,7 @@ Keys, as in stage 2 and 2b: arrows fly (left and right turn, up thrusts); in men
    ![The Lunar base's report, typed into the scan map's area](../screenshots/stage-3a-lander-report.png)
 
 5. **The alliance.** Fly back into Earth's starbase. Report the base dealt with, and the opening runs at once, every player watching:
-   - the commander warns of the Ilwrath, and an Ilwrath ship hails: its replies all lead to the battle, which counts as won (there's no combat before stage 4);
+   - the commander warns of the Ilwrath, and an Ilwrath ship hails: its replies all lead to the battle, which stage 3a counted as won; since stage 4a the talk's starter fights it, and the opening goes on once it's won (`docs/how-to-try/stage-4a.md`);
    - the commander again: "What a beautiful sight", the alliance, and you name it from four choices, one of them using your captain's name;
    - the screen fades to black over two seconds and two weeks pass: the date jumps 14 days for everyone;
    - the commander says the starbase is ready and gives 2,500 resource units to whoever answers (not split: players may give them on);
@@ -101,7 +101,7 @@ Each of these starts a host where a step can be tried at once (the host's option
 
 | Option | What it does |
 | --- | --- |
-| `--start-visit` | A new game starts in the commander's first talk at Earth's starbase |
+| `--start-visit [STEP]` | A new game starts in the commander's first talk at Earth's starbase; with `base-report` (stage 4a), in his talk where the Lunar base is reported, the errands done (the radioactives brought, the base destroyed and aboard), whose replies bring the Ilwrath and its fight |
 | `--start-docked` | A new game starts docked at the starbase's menu, the opening over: the starbase ready, the commander met, no news |
 | `--start-minerals N,N,N,N,N,N,N,N` | The host's hold starts with these minerals, by category: common, corrosive, base metal, noble, rare earth, precious, radioactive, exotic |
 | `--start-units N` | The host's wallet starts with N resource units |
@@ -110,7 +110,7 @@ Each of these starts a host where a step can be tried at once (the host's option
 | `--start-at X:Y` | The host starts in hyperspace there, in universe units (Sol is at 1752:1450) |
 | `--guests-in-orbit` | Guests joining for the first time start in orbit where the host is |
 | `--show-report RESOURCE` | Shows a lander report as if your lander had found it (`text.moonbase` is the Lunar base's): on the screen with `--start-orbit`, else as a notice |
-| `--script "STEP,STEP"` | Scripted input instead of keys, each step `name:frames`. `left`, `right`, `thrust`, `action`, `fire`, `takeoff` and `none` are held; `up`, `down`, `select`, `cancel`, `pageup` and `pagedown` press a menu key once as their step starts (in a talk they choose and say replies, docked they're the starbase's keys); `give` opens or closes the giving screen; `pause` presses the host's pause key (stage 4a) |
+| `--script "STEP,STEP"` | Scripted input instead of keys, each step `name:frames`. `left`, `right`, `thrust`, `action`, `fire`, `takeoff`, `special` (stage 4a: a battle's special) and `none` are held; `up`, `down`, `select`, `cancel`, `pageup` and `pagedown` press a menu key once as their step starts (in a talk they choose and say replies, docked they're the starbase's keys); `give` opens or closes the giving screen; `pause` presses the host's pause key (stage 4a) |
 | `--quit-after FRAMES`, `--screenshot FILE.png`, `--report FILE` | Quit after so many frames, saving a screenshot (needs a display) and what happened as JSON |
 
 What should happen with each (each was run this way):
@@ -156,7 +156,7 @@ Each is a row of `docs/differences.md`:
 
 - The clock runs at one rate in every activity, talks and the starbase too; only story pauses stop it (rows 1 and 2).
 - The story's talks and the two weeks passing are shown to every player while the game waits; whoever started replies (rows 2, 3 and 42).
-- The Ilwrath's battle counts as won until combat comes in stage 4 (row 39).
+- The Ilwrath's battle counted as won until combat came in stage 4a, which fights it (row 39, closed; row 55).
 - The Ur-Quan drone isn't at Earth until ships in space come in stage 3b, so the commander can't be asked about "the red thing" (row 40).
 - The starbase's 2,500 resource units go to whoever answers, not split (row 37); each player has their own wallet and can give units and cargo (rows 11 and 22).
 - The Lunar base with several landers on Luna (row 38); the devices are the group's (row 10).
@@ -168,7 +168,7 @@ Each is a row of `docs/differences.md`:
 ## Known limits of stage 3a
 
 - **No sound:** no music, voices or the report's typing sound, as in every stage so far. The lines are paged at UQM's pace without voices.
-- **No combat:** the Ilwrath fight, buying fleet ships and the Arilou's gift wait for stage 4.
+- **No combat:** the Ilwrath fight waited for stage 4a (`docs/how-to-try/stage-4a.md`); buying fleet ships and the Arilou's gift wait for stage 4b.
 - **No other races:** every other conversation, the drone, the Slylandro probes and the Melnorme come with ships in space in stage 3b (which comes after stage 4).
 - **No story events:** the event calendar keeps its dates and is saved, but apart from the one a new game runs at once (the Slylandro's ramp-up, which only changes the story state) no event runs until stage 3c, nor do the devices do anything, the other energy nodes' stories (Fwiffo on Pluto among them) or the other time skips.
 - **The status panel** still stands for most of UQM's status area (the flagship's picture, crew, fuel, names, landers) outside outfitting and the shipyard.

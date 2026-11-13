@@ -2,14 +2,14 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, item 12 (client views) built and reviewed in five rounds; the fifth still found a small thing (fixed), so the loop stopped there as CLAUDE.md says, and the owner is told.
+**Last updated:** 2026-11-13, item 13 (docs) written; stage 4a's items are all built. Its review loop is running.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4.md`, stage 4a (combat), approved by the owner with all fifteen decisions accepted.
-- **Stage 4a items 1 to 12 are built.** Each has a Built row in the plan's Progress section and notes under the later items for what they must honour. Item 13 (docs) is left; item 12 left it a note (the differences rows to write, the how-to-try page, protocol 22).
-- **Last checks:** after item 12's fifth review round's fix, all topics 1,464 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed on item 12's first commit (a guest in a battle over the lossy relay: about 350 bytes a snapshot; `GODOT` set to the binary inside `/opt/godot/Godot_v4.7.2-stable_mono_linux_x86_64/` here); not run again after the review fixes, which touched only drawing and the camera's two added numbers. Data checks were last run on item 9's last commit.
+- **Stage 4a is built: items 1 to 13.** Each has a Built row in the plan's Progress section. Item 13 wrote `docs/how-to-try/stage-4a.md`, `differences.md` rows (new rows 48 to 58), and brought `design.md`, `porting-inventory.md`, `uqm-data.md`, `how-to-try/stage-3a.md` and `Options.cs`'s usage up to date.
+- **Last checks:** with item 13's docs, all topics 1,464 passed, 0 failed, 0 skipped with the content set; the game build has no warnings; three headless runs for the how-to-try page (the Ilwrath fight from `--start-visit base-report`, a retreat from `--start-battle`, the host's pause) did what the page says. `tools/test_network.py` was last run on item 12's first commit; data checks on item 9's last commit.
 
 ## Open items
 
@@ -25,7 +25,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Item 13 (docs), only when the owner says to start it. Item 12's review: round 1 seven findings (the pause redrawing, missed frames' stars, the inner system's zoom, a bigger arena's stars, held keys into the rescue screen, two docs), round 2 three (an own camera's star totals, the explosion's flash after missed frames, docs), round 3 two (the flash's start and a whole explosion missed), round 4 two (keys held as the crew runs out, a doc), round 5 one (a one-frame difference midway through an explosion when the frame after the crew ran out was missed): all fixed and tested. The loop stopped at five rounds as CLAUDE.md says; a sixth round wasn't run.
+Item 13's review loop, then report to the owner: stage 4a done. After that, the owner decides what's next (planning stage 4b in detail, or 3b).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
