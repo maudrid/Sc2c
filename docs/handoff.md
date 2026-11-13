@@ -27,6 +27,11 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 Stage 4b's plan, `docs/plans/stage-4b.md` "Decisions": (1) who flies a fleet ship (recommended: the host, as UQM); (2) whether the battle stops while the host picks the next ship (recommended: only when no other player ship is fighting); (3) who has a fleet (recommended: only the host, who alone builds, crews and scraps); (4) a fleet ship that dies (recommended: gone, as UQM); (5) the salvage with fleet ships (recommended: one share per player); (6) ship code that picks "the" opponent (recommended: the nearest; effects in range hit every player ship in range; teammates spared).
 
+## Decided, not built
+
+- **Escorts' upgrades (the owner, 2026-11-13):** escorts may buy crew pods, fuel tanks, thrusters and turning jets, each capped below the flagship by a setting; the flagship keeps high-efficiency fuel systems and the bomb's parts (`design.md`'s open item, `differences.md` row 9). Not yet in any plan: outfitting (`Starbase/Outfitting.cs`) refuses them to escorts now. Needs the caps' numbers (placeholders until playtesting) and a go-ahead to build.
+- **Backlog:** guests' alien hulls (`design.md`, "Backlog"), not to be built now.
+
 ## Next step
 
 The owner answers stage 4b's decisions (or approves the recommendations); then item 1 on their go-ahead.
