@@ -241,6 +241,12 @@ Bugs found in play go back to the code session with the error text, a screenshot
 - [ ] Contact the UQM community before going public
 - [ ] Consult a lawyer before public release
 
+## Backlog
+
+Ideas the owner wants kept but not built now. Each would need a plan decision before it's taken up.
+
+- **Guests' ships with an alien hull (2026-11-13).** A guest's ship gets a hull: an allied race's ship, or the flagship-style one it has now. Outside battle it flies, lands, mines and talks as now, drawn with the race's look (marked so it isn't taken for a hostile alien); in battle it is that race's ship, with UQM's code for it (stage 4b ports every race's ship for players), and nothing is picked when a battle starts. Rules suggested when it was raised: bought at the shipyard with the guest's own units, from the allied races only, at UQM's ship cost; changed only at the starbase, the old hull sold back as a scrapped fleet ship; the crew limit is the race's maximum, the same crew manning the lander; the escort's combat modules only for the flagship-style hull, while fuel tanks, storage bays and landers still work; a ship that dies becomes a wreck and is revived with its hull. Costs about one plan item (the hull in the save and on the wire, the shipyard's choice, the look in systems and hyperspace) on top of stage 4b. Makes battles easier, as several players would fly strong race ships at one enemy.
+
 ## Sources
 
 - [UQM 0.8.0 source mirror (MacSourcePorts/uqm)](https://github.com/MacSourcePorts/uqm): `COPYING` for the license split, `src/uqm/` for data locations
