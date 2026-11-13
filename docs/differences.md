@@ -84,6 +84,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 
 | Date | Rows | Change |
 | --- | --- | --- |
+| 2026-11-13 | 9 | The owner's decision: escorts may buy crew pods, fuel tanks, thrusters and turning jets, capped below the flagship (not built) |
 | 2026-11-13 | 1, 2, 4–9, 12–15, 18, 27, 36, 39, 43, 44, 46, 48–58 | Stage 4a built (item 13, the docs): combat's rows done (the pause, battles in story pauses, retreat and disconnects, sides, cameras and the minimap, the arena, wrecks and revival, escorts' combat modules, saves 10 and 11, joining, salvage); rows 43 and 44 wait for 4b, the Sa-Matra for the endgame (27); new rows for friendly fire, the seam, the game over's timing, saving during a battle (gifts refused meanwhile), the bomb's carrier, floating crew, the wreck's place, the Ilwrath fight with several players, the escape counter, the battle's planet and random numbers, and (temporary) the battle's pixels |
 | 2026-11-12 | 39 | Stage 4a item 9: the Ilwrath fight in the opening, fought by the talk's starter as UQM's (row 39 closed) |
 | 2026-11-10 | 3, 9, 13, 27, 36, 39, 40 | Stage 3a built (item 12, the docs): row 3's other time skips planned for 3c; rows 27, 39 and 40 say what 3a leaves to stage 3b and stage 4; rows 9, 13 and 36 brought up to date with what stages 1 to 3a built |
