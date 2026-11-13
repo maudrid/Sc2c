@@ -1154,6 +1154,7 @@ fight (const char *name, int scale, int runaway)
 	TinyFont = (FONT) tiny_font;
 	MicroFont = (FONT) micro_font;
 	StatusFrame = &sheet_frames[sheet_named ("graphics.status")][0];
+	optWhichMenu = OPT_PC;   /* UQM's default menus (uqm.c), the port's (the starbase's screens too) */
 	strcpy (GLOBAL_SIS (ShipName), "Vindicator");
 	strcpy (GLOBAL_SIS (CommanderName), "Zelnick");
 	buf_clear (&drawn);
