@@ -2,12 +2,12 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, stage 4b's plan drafted (`docs/plans/stage-4b.md`); waiting on the owner's six decisions.
+**Last updated:** 2026-11-13, stage 4b's plan approved (`docs/plans/stage-4b.md`, all six recommendations accepted); nothing started.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
-- **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet), a draft: eleven items, six decisions for the owner. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
+- **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet): eleven items, approved by the owner on 2026-11-13 with all six recommendations accepted. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
 - **Stage 4a is built: items 1 to 13.** Each has a Built row in the plan's Progress section. Item 13 wrote `docs/how-to-try/stage-4a.md`, `differences.md` rows (new rows 48 to 58), and brought `design.md`, `porting-inventory.md`, `uqm-data.md`, `how-to-try/stage-3a.md` and `Options.cs`'s usage up to date.
 - **Last checks:** with item 13's docs, all topics 1,464 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); three headless runs for the how-to-try page (the Ilwrath fight from `--start-visit base-report`, a retreat from `--start-battle`, the host's pause) did what the page says. `tools/test_network.py` was last run on item 12's first commit; data checks on item 9's last commit.
 
@@ -25,7 +25,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Decisions waiting on the owner
 
-Stage 4b's plan, `docs/plans/stage-4b.md` "Decisions": (1) who flies a fleet ship (recommended: the host, as UQM); (2) whether the battle stops while the host picks the next ship (recommended: only when no other player ship is fighting); (3) who has a fleet (recommended: only the host, who alone builds, crews and scraps); (4) a fleet ship that dies (recommended: gone, as UQM); (5) the salvage with fleet ships (recommended: one share per player); (6) ship code that picks "the" opponent (recommended: the nearest; effects in range hit every player ship in range; teammates spared).
+- The escorts' upgrade caps (placeholders suggested: thrusters 8, turning jets 6, fuel tanks 4, crew pods 2), and whether that small item is built on its own or added to stage 4b.
 
 ## Decided, not built
 
@@ -34,7 +34,7 @@ Stage 4b's plan, `docs/plans/stage-4b.md` "Decisions": (1) who flies a fleet shi
 
 ## Next step
 
-The owner answers stage 4b's decisions (or approves the recommendations); then item 1 on their go-ahead.
+Stage 4b item 1 (every ship's content and recording) on the owner's go-ahead.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

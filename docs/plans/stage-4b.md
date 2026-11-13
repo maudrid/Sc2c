@@ -1,6 +1,6 @@
 # Stage 4b plan: every race's ship and the host's fleet
 
-**Status:** draft, waiting on the owner's decisions (see "Decisions"). Stage 4a is built (`docs/plans/stage-4.md`); this plan builds on its engine, its co-op rules and its fifteen decisions, which hold here unless a decision below says otherwise.
+**Status:** approved by the owner on 2026-11-13, with all six recommendations accepted (see "Decisions"). Stage 4a is built (`docs/plans/stage-4.md`); this plan builds on its engine, its co-op rules and its fifteen decisions, which hold here unless a decision below says otherwise.
 
 Build order item: the second part of "4. Combat" (`docs/design.md`; stage 4, decision 1), before stage 3b, since 3b's encounters and conversations end in battles against these ships and these fleets. The stage 4 plan's left-out table gives 4b: the other 24 race ships and their AI, the host's fleet (building, scrapping and crewing fleet ships at the shipyard, the Arilou's gift, sending a fleet ship instead of the flagship, picking the next ship), the enemy's fleets of several ships one at a time, and crew floating in space with the Syreen. `docs/differences.md` rows 43 (the Arilou's gift) and 44 (the shipyard) are temporary until this stage.
 
@@ -129,7 +129,7 @@ Each item ends with headless tests in the `combat` topic, or a new `fleet` topic
 
 ## Decisions
 
-Recommendations first.
+All six recommendations were accepted on 2026-11-13. Recommendations first.
 
 1. **Who flies a fleet ship.** The design calls the fleet "the host's AI fleet" and says the host "can send one fleet ship into battle instead of the flagship"; the porting inventory's Combat AI row speaks of "AI-flown fleet ships".
    - **The host flies it, as in UQM (recommended).** The host chooses which ship goes in and flies it; the flagship waits outside the arena until chosen. "AI fleet" is read as the allied races' ships, which UQM's player flies.
