@@ -11,6 +11,9 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
+ * The draw build (-DRECORD_DRAW) records the drawing instead
+ * (battle.c), without the stand-ins it replaces.
+ *
  * Compiled without UQM's headers, so each stand-in can take any
  * arguments; functions return 0 and the data are zeroed space. None of
  * them is reached in a battle but to draw, to play a sound or to wait, but
@@ -30,20 +33,36 @@ long DestroyContext () { return 0; }
 long DestroyDrawable () { return 0; }
 long DestroyMusic () { return 0; }
 long DestroyStringTable () { return 0; }
+#ifndef RECORD_DRAW
 long DrawBatch () { return 0; }
+#endif
+#ifndef RECORD_DRAW
 long DrawFilledRectangle () { return 0; }
+#endif
+#ifndef RECORD_DRAW
 long DrawFilledStamp () { return 0; }
+#endif
+#ifndef RECORD_DRAW
 long DrawRectangle () { return 0; }
+#endif
+#ifndef RECORD_DRAW
 long DrawStamp () { return 0; }
+#endif
 long FindMasterShip () { return 0; }
 long FlushSounds () { return 0; }
+#ifndef RECORD_DRAW
 long font_DrawText () { return 0; }
+#endif
 long free_gravity_well () { return 0; }
 long FreeHyperspace () { return 0; }
 long GetContextClipRect () { return 0; }
 long GetInitialMeleeStarShips () { return 0; }
+#ifndef RECORD_DRAW
 long GetStringAddress () { return 0; }
+#endif
+#ifndef RECORD_DRAW
 long GetStringLength () { return 0; }
+#endif
 long hyper_transition () { return 0; }
 long InitGroupInfo () { return 0; }
 long InitPlanetInfo () { return 0; }
@@ -61,15 +80,25 @@ long ProcessSound () { return 0; }
 long ReleaseStringTable () { return 0; }
 long RemoveSoundsForObject () { return 0; }
 long ScreenTransition () { return 0; }
+#ifndef RECORD_DRAW
 long SetAbsStringTableIndex () { return 0; }
+#endif
+#ifndef RECORD_DRAW
 long SetContext () { return 0; }
+#endif
 long SetContextBackGroundColor () { return 0; }
 long SetContextClipRect () { return 0; }
 long SetContextFGFrame () { return 0; }
+#ifndef RECORD_DRAW
 long SetContextFont () { return 0; }
+#endif
+#ifndef RECORD_DRAW
 long SetContextForeGroundColor () { return 0; }
+#endif
 long SetContextOrigin () { return 0; }
+#ifndef RECORD_DRAW
 long SetGraphicScale () { return 0; }
+#endif
 long SetGraphicScaleMode () { return 0; }
 long SetMenuSounds () { return 0; }
 long SetRaceAllied () { return 0; }
@@ -86,4 +115,7 @@ long UpdateSoundPositions () { return 0; }
 long utf8StringCopy () { return 0; }
 
 char CurStarDescPtr[64], FlagStatFrame[64], FontGradFrame[64], GameSounds[64],
-		GameStrings[64], master_q[256], MiscDataFrame[64], StatusFrame[64];
+		GameStrings[64], master_q[256], MiscDataFrame[64];
+#ifndef RECORD_DRAW
+char StatusFrame[64];   /* the draw build has its own (battle.c) */
+#endif

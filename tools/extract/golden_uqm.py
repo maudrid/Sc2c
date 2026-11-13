@@ -3255,6 +3255,102 @@ def check_ai_battles(scenarios, battles):
             fail("ai-*", f"the AI never drew a random number in {place}")
 
 
+# ---- The battle's drawing (stage 4a item 12) ----
+
+def battle_draw_sheets():
+    """The draw program's sheets: the battle program's, then each ported
+    ship's captain's window and status icons, and the status panel's own
+    frames (graphics.status, setup.c's StatusFrame)."""
+    ships, _ = battle_ships()
+    ids = battle_program_sheets()
+    for ship in BATTLE_SHIPS:
+        g = ships[ship]["graphics"]
+        ids += [g["captain"], g["icons"]]
+    return ids + ["graphics.status"]
+
+
+class BattleDrawProgram(BattleProgram):
+    """The battle program built to record its drawing (-DRECORD_DRAW)."""
+
+    def __init__(self, exe, sheets_file, masks):
+        super().__init__(exe, sheets_file, masks)
+        self.ids = battle_draw_sheets()
+        self.numbers = {r: n for n, r in enumerate(self.ids)}
+
+
+def battle_draw_scenarios(program):
+    """Fights to draw: the flagship (a new game's, with point defence)
+    against the Ilwrath coming at it, firing, cloaking, until one is
+    destroyed (its captain's window flashing as it explodes), at the smooth
+    zoom (UQM's default); and a short one at the step zoom."""
+    shoot = lambda keep_off: lambda f, side, t: steer(f, side, the_ship(1 - side), fire=True, keep_off=keep_off)
+    defend = lambda f, side, t: shoot(500)(f, side, t) | (B_SPECIAL if t % 30 < 2 else 0)
+    out = []
+    s = dict(name="draw-fight", seed=7101, planet="planet.water",
+             ships=[sis(20, {1: M_FUEL_TANK, 2: M_CREW_POD, 4: M_DEFENSE, 8: M_STORAGE_BAY, 15: M_GUN}),
+                    ilwrath(12)], steps=[(20, 0, 0)], full=0)
+    out.append(piloted(program, s, 700, [defend, cloaker(period=120, close=500)]))
+    s = dict(name="draw-step", seed=7102, planet="planet.chondrite", zoom="step",
+             ships=[sis(30), ilwrath(22)], steps=[(20, 0, 0)], full=0)
+    out.append(piloted(program, s, 160, [shoot(600), cloaker(period=60)]))
+    return out
+
+
+def record_battle_draw(uqm, battle_exe, draw_exe, strings_exe, images_exe, package):
+    """What UQM draws in a battle (battle.c built with RECORD_DRAW): each
+    frame's status panel calls and the space's primitives."""
+    ids = battle_draw_sheets()
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp, list(enumerate(ids)))
+        sheets_file = os.path.join(tmp, "sheets.txt")
+        with open(sheets_file, "w") as f:
+            for n, key in enumerate(ids):
+                f.write(f"{n} {key} {len(hashes[key])}\n")
+        pilot = BattleProgram(battle_exe, sheets_file, masks)
+        scenarios = battle_draw_scenarios(pilot)
+        battles = BattleDrawProgram(draw_exe, sheets_file, masks).run(scenarios, colours=True)
+    out = []
+    for scenario, battle in zip(scenarios, battles):
+        inputs = {k: v for k, v in scenario.items() if k not in ("name", "full")}
+        if len(battle["drawn"]) != len(battle["frames"]):
+            raise RuntimeError(f"{scenario['name']}: {len(battle['drawn'])} frames drawn, {len(battle['frames'])} run")
+        out.append({"name": scenario["name"], "input": inputs, "ended": battle["ended"], "stars": battle["stars"],
+                    "views": [f[:F_SHIPS] for f in battle["frames"]], "drawn": battle["drawn"]})
+    data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
+                  + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
+                                                         "src/libs/graphics/frame.c"], [
+        "What UQM 0.8.0 draws in a battle, recorded by the battle program "
+        "(tools/extract/golden/battle.c; battle.json's notes say how it runs "
+        "a battle) built with RECORD_DRAW: its drawing calls are recorded "
+        "rather than stubbed. The battles are the flagship (sis_ship.c) "
+        "against the Ilwrath (ilwrath.c), flown by pilots (their keys "
+        "recorded in input, as battle-ships.json's), with the captain's "
+        "windows and status icons loaded (load_ship's battle data).",
+        "sheets: the battle program's (battle.json), then the captains' "
+        "windows and icons and graphics.status (StatusFrame), numbered.",
+        "views: each frame's [seed, scroll x, y, zoom_out, view (0 stable, 1 "
+        "scrolled, 2 zoomed, -1 the first), SpaceOrg x, y], as battle.json's "
+        "frames begin.",
+        "drawn: each frame's [status, space]. status: the status panel's "
+        "calls in StatusContext as status.c and shipstat.c make them, in its "
+        "own coordinates, in order: [\"s\", sheet, frame, x, y] DrawStamp, "
+        "[\"f\", sheet, frame, x, y, r, g, b] DrawFilledStamp, [\"r\", x, y, w, "
+        "h, r, g, b] DrawFilledRectangle, [\"o\", ...] DrawRectangle, "
+        "[\"t\", font, x, y, align, text, r, g, b] font_DrawText (fonts named; "
+        "a ship's race strings read \"string N\", N the table's index; the "
+        "flagship's names Vindicator and Zelnick); a sheet of -1 is no frame. "
+        "space: DrawBatch's primitives as it draws the display list, in "
+        "order, each [type (0 point, 1 stamp, 2 filled stamp, 3 line), x, y, "
+        "a line's second x, y (else 0), sheet, frame (else -1), colour "
+        "(RGB15, -1 never set)], at the display coordinates PostProcessQueue "
+        "and MoveGalaxy gave them; then the graphic scale it's drawn at "
+        "(SetGraphicScale: 0 none).",
+    ])
+    data["sheets"] = ids
+    data["battles"] = out
+    return data
+
+
 def record_battle_ai(uqm, battle_exe, strings_exe, images_exe, package):
     """The Ilwrath (and the flagship) flown by UQM's own AI (intel.c,
     cyborg.c, ilwrath_intelligence, sis_intelligence) in UQM's own battle
@@ -5334,6 +5430,9 @@ def main():
         battle = os.path.join(build_dir, "battle")
         build(uqm, os.path.join(HERE, "golden", "battle.c"), BATTLE_LINK, battle,
               extra=[BATTLE_STUBS])
+        battle_draw = os.path.join(build_dir, "battledraw")
+        build(uqm, os.path.join(HERE, "golden", "battle.c"), BATTLE_LINK, battle_draw,
+              extra=[BATTLE_STUBS], defines=["RECORD_DRAW"])
         strings = os.path.join(build_dir, "strings")
         build(uqm, os.path.join(HERE, "golden", "strings.c"), STRINGS_LINK,
               strings, extra=[UIO_FILES], libs=["-lm"])   # the name index's hash table: ceil, floor
@@ -5375,6 +5474,7 @@ def main():
                      ("contact", lambda: record_contact(uqm, systems, strings, images, args.content)),
                      ("battle-masks", lambda: record_battle_masks(uqm, strings, images, args.content)),
                      ("battle", lambda: record_battle(uqm, battle, strings, images, args.content)),
+                     ("battle-draw", lambda: record_battle_draw(uqm, battle, battle_draw, strings, images, args.content)),
                      ("battle-ships", lambda: record_battle_ships(uqm, battle, strings, images, args.content)),
                      ("battle-ai", lambda: record_battle_ai(uqm, battle, strings, images, args.content)),
                      ("lander-pickups", lambda: record_lander_pickups(uqm, lander, strings, images, args.content)),

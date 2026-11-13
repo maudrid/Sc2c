@@ -124,6 +124,9 @@
  */
 
 #include "uqm/battle.c"
+#ifdef RECORD_DRAW
+FRAME StatusFrame;   /* setup.c's, the draw build's own (battle_stubs.c's otherwise) */
+#endif
 #define MoveGalaxy uqm_MoveGalaxy
 #include "uqm/galaxy.c"
 #undef MoveGalaxy
@@ -356,6 +359,211 @@ MoveGalaxy (VIEW_STATE view_state, SIZE dx, SIZE dy)
 	uqm_MoveGalaxy (view_state, dx, dy);
 }
 
+#ifdef RECORD_DRAW
+/* ---- The drawing, recorded (the draw build, -DRECORD_DRAW: stage 4a
+ * item 12) ----
+ *
+ * What UQM draws each frame: the status panel's calls in StatusContext
+ * (DrawStamp, DrawFilledStamp, DrawFilledRectangle, DrawRectangle,
+ * font_DrawText, as status.c and shipstat.c make them, in its own
+ * coordinates) and the space's primitives as DrawBatch draws the display
+ * list (each in the order drawn, at the display coordinates
+ * PostProcessQueue and MoveGalaxy gave it), with the graphic scale it's
+ * drawn at. Fonts are named (starcon, tiny), the ships' race strings read
+ * as "string N" (the table's index), the flagship's names as below. */
+
+#include <stdarg.h>
+#include <stdint.h>
+
+static int prim_color (PRIMITIVE *p);
+
+typedef struct { char *s; size_t n, cap; int items; } Buf;
+static Buf frame_status, frame_space, drawn;
+static CONTEXT cur_context;
+static Color cur_fg;
+static FONT cur_font;
+static int cur_scale;
+static char starcon_font[1], tiny_font[1], micro_font[1];
+
+static void
+buf_printf (Buf *b, const char *fmt, ...)
+{
+	va_list ap;
+	int len;
+	va_start (ap, fmt);
+	len = vsnprintf (NULL, 0, fmt, ap);
+	va_end (ap);
+	if (b->n + len + 1 > b->cap)
+	{
+		b->cap = (b->n + len + 1) * 2;
+		b->s = realloc (b->s, b->cap);
+	}
+	va_start (ap, fmt);
+	vsnprintf (b->s + b->n, len + 1, fmt, ap);
+	va_end (ap);
+	b->n += len;
+}
+
+static void
+buf_item (Buf *b)
+{
+	buf_printf (b, "%s", b->items++ ? ", " : "");
+}
+
+static void
+buf_clear (Buf *b)
+{
+	b->n = 0;
+	b->items = 0;
+	if (b->s)
+		b->s[0] = '\0';
+}
+
+static const char *
+font_name (FONT f)
+{
+	return f == StarConFont ? "starcon" : f == TinyFont ? "tiny" : f == MicroFont ? "micro" : "";
+}
+
+static void
+put_frame (Buf *b, FRAME f)
+{
+	buf_printf (b, "%d, %d", frame_sheet (f), f ? (int) GetFrameIndex (f) : -1);
+}
+
+static void
+put_color (Buf *b, Color c)
+{
+	buf_printf (b, "%d, %d, %d", c.r, c.g, c.b);
+}
+
+static void
+put_text (Buf *b, const UNICODE *str, COUNT count)
+{
+	COUNT i;
+	buf_printf (b, "\"");
+	for (i = 0; str && str[i] && i < count; ++i)
+		buf_printf (b, (str[i] == '"' || str[i] == '\\') ? "\\%c" : "%c", str[i]);
+	buf_printf (b, "\"");
+}
+
+static int status_drawing (void) { return cur_context == StatusContext; }
+
+CONTEXT SetContext (CONTEXT c) { CONTEXT old = cur_context; cur_context = c; return old; }
+Color SetContextForeGroundColor (Color c) { Color old = cur_fg; cur_fg = c; return old; }
+FONT SetContextFont (FONT f) { FONT old = cur_font; cur_font = f; return old; }
+int SetGraphicScale (int scale) { int old = cur_scale; cur_scale = scale; return old; }
+
+void
+DrawStamp (STAMP *st)
+{
+	if (!status_drawing ())
+		return;
+	buf_item (&frame_status);
+	buf_printf (&frame_status, "[\"s\", ");
+	put_frame (&frame_status, st->frame);
+	buf_printf (&frame_status, ", %d, %d]", st->origin.x, st->origin.y);
+}
+
+void
+DrawFilledStamp (STAMP *st)
+{
+	if (!status_drawing ())
+		return;
+	buf_item (&frame_status);
+	buf_printf (&frame_status, "[\"f\", ");
+	put_frame (&frame_status, st->frame);
+	buf_printf (&frame_status, ", %d, %d, ", st->origin.x, st->origin.y);
+	put_color (&frame_status, cur_fg);
+	buf_printf (&frame_status, "]");
+}
+
+static void
+rect_call (const char *kind, RECT *r)
+{
+	if (!status_drawing ())
+		return;
+	buf_item (&frame_status);
+	buf_printf (&frame_status, "[\"%s\", %d, %d, %d, %d, ", kind, r->corner.x, r->corner.y,
+			r->extent.width, r->extent.height);
+	put_color (&frame_status, cur_fg);
+	buf_printf (&frame_status, "]");
+}
+
+void DrawFilledRectangle (RECT *r) { rect_call ("r", r); }
+void DrawRectangle (RECT *r) { rect_call ("o", r); }
+
+void
+font_DrawText (TEXT *t)
+{
+	if (!status_drawing ())
+		return;
+	buf_item (&frame_status);
+	buf_printf (&frame_status, "[\"t\", \"%s\", %d, %d, %d, ", font_name (cur_font), t->baseline.x,
+			t->baseline.y, (int) t->align);
+	put_text (&frame_status, t->pStr, t->CharCount);
+	buf_printf (&frame_status, ", ");
+	put_color (&frame_status, cur_fg);
+	buf_printf (&frame_status, "]");
+}
+
+/* A race string: "string N" for the table's index N (the names' tables
+ * aren't loaded). */
+STRING SetAbsStringTableIndex (STRING table, COUNT index) { (void) table; return (STRING) (uintptr_t) (index + 1); }
+COUNT GetStringLength (STRING s) { (void) s; return (COUNT) ~0; }
+STRINGPTR
+GetStringAddress (STRING s)
+{
+	static char buf[32];
+	snprintf (buf, sizeof buf, "string %d", (int) (uintptr_t) s - 1);
+	return buf;
+}
+
+void
+DrawBatch (PRIMITIVE *base, PRIM_LINKS links, BATCH_FLAGS flags)
+{
+	COUNT i;
+	PRIMITIVE *p;
+	(void) flags;
+	for (i = GetPredLink (links); i != END_OF_LIST; i = GetSuccLink (GetPrimLinks (p)))
+	{
+		GRAPHICS_PRIM type;
+		p = &base[i];
+		type = GetPrimType (p);
+		if (type >= NUM_PRIMS)
+			continue;
+		buf_item (&frame_space);
+		if (type == LINE_PRIM)
+			buf_printf (&frame_space, "[%d, %d, %d, %d, %d, -1, -1, %d]", type,
+					p->Object.Line.first.x, p->Object.Line.first.y,
+					p->Object.Line.second.x, p->Object.Line.second.y, prim_color (p));
+		else if (type == STAMP_PRIM || type == STAMPFILL_PRIM)
+		{
+			buf_printf (&frame_space, "[%d, %d, %d, 0, 0, ", type,
+					p->Object.Stamp.origin.x, p->Object.Stamp.origin.y);
+			put_frame (&frame_space, p->Object.Stamp.frame);
+			buf_printf (&frame_space, ", %d]", prim_color (p));
+		}
+		else
+			buf_printf (&frame_space, "[%d, %d, %d, 0, 0, -1, -1, %d]", type,
+					p->Object.Point.x, p->Object.Point.y, prim_color (p));
+	}
+	buf_item (&frame_space);
+	buf_printf (&frame_space, "%d", cur_scale);   /* the scale, last */
+}
+
+/* A frame's drawing onto the battle's: [status calls], [space prims, scale]. */
+static void
+record_drawn (void)
+{
+	buf_item (&drawn);
+	buf_printf (&drawn, "\n  [[%s], [%s]]", frame_status.s ? frame_status.s : "",
+			frame_space.s ? frame_space.s : "");
+	buf_clear (&frame_status);
+	buf_clear (&frame_space);
+}
+#endif
+
 /* ---- The test ships ---- */
 
 enum { W_MISSILE = 1, W_HOMING = 2, W_LASER = 4, W_SPRAY = 8 };
@@ -506,6 +714,14 @@ load_ship (SPECIES_ID SpeciesID, BOOLEAN LoadBattleData)
 		*rd = ship_kind[side] == K_SIS ? *init_sis () : *init_ilwrath ();
 		bind_frames (rd->ship_data.ship, rd->ship_data.ship_rsc);
 		bind_frames (rd->ship_data.weapon, rd->ship_data.weapon_rsc);
+#ifdef RECORD_DRAW
+		/* load_ship's battle data too: the status panel's icons and
+		 * captain's window. */
+		rd->ship_info.icons = rd->ship_info.icons_rsc
+				? &sheet_frames[sheet_named (rd->ship_info.icons_rsc)][0] : NULL;
+		rd->ship_data.captain_control.background = rd->ship_data.captain_control.captain_rsc
+				? &sheet_frames[sheet_named (rd->ship_data.captain_control.captain_rsc)][0] : NULL;
+#endif
 	}
 	return rd;
 }
@@ -681,6 +897,9 @@ record (int start)
 		printf ("%s%lu", i ? ", " : "", (unsigned long) draws[i]);
 	printf ("], [%d, %d]]", frame_input[0], frame_input[1]);
 	frame_input[0] = frame_input[1] = -1;
+#ifdef RECORD_DRAW
+	record_drawn ();
+#endif
 	num_draws = 0;
 	frame_scroll_x = frame_scroll_y = 0;
 	frame_view = -1;
@@ -929,6 +1148,19 @@ fight (const char *name, int scale, int runaway)
 	num_draws = 0;
 	frame_scroll_x = frame_scroll_y = 0;
 	frame_view = -1;
+#ifdef RECORD_DRAW
+	/* The fonts by name, the status panel's frames, the flagship's names. */
+	StarConFont = (FONT) starcon_font;
+	TinyFont = (FONT) tiny_font;
+	MicroFont = (FONT) micro_font;
+	StatusFrame = &sheet_frames[sheet_named ("graphics.status")][0];
+	strcpy (GLOBAL_SIS (ShipName), "Vindicator");
+	strcpy (GLOBAL_SIS (CommanderName), "Zelnick");
+	buf_clear (&drawn);
+	buf_clear (&frame_status);
+	buf_clear (&frame_space);
+	cur_context = NULL;
+#endif
 	printf ("{\"name\": \"%s\", \"stars\": ", name);
 	Battle (NULL);
 	printf ("\n], \"ended\": %s, \"crew_enlisted\": %u, \"bomb_carrier\": %d"
@@ -948,7 +1180,11 @@ fight (const char *name, int scale, int runaway)
 		}
 		printf ("]");
 	}
+#ifdef RECORD_DRAW
+	printf ("], \"drawn\": [%s\n  ]}\n", drawn.s ? drawn.s : "");
+#else
 	printf ("]}\n");
+#endif
 	for (i = 0; i < NUM_SIDES; ++i)
 		UninitQueue (&race_q[i]);
 	fflush (stdout);
