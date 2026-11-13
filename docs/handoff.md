@@ -27,10 +27,10 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 Item 13 (docs), only when the owner says to start it. Item 12's review: round 1 seven findings (the pause redrawing, missed frames' stars, the inner system's zoom, a bigger arena's stars, held keys into the rescue screen, two docs), round 2 three (an own camera's star totals, the explosion's flash after missed frames, docs), round 3 two (the flash's start and a whole explosion missed), round 4 two (keys held as the crew runs out, a doc), round 5 one (a one-frame difference midway through an explosion when the frame after the crew ran out was missed): all fixed and tested. The loop stopped at five rounds as CLAUDE.md says; a sixth round wasn't run.
 
-## Decisions for the owner (item 12)
+## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
-- **The smooth zoom's scaling.** UQM's default smooth zoom scales stamps trilinearly (each frame blended with the next size's); the port scales by nearest pixels for now (sizes and places are UQM's, the pixels sharper). Porting the trilinear scaler (about 300 lines of `canvas.c`) is possible if wanted.
-- **The minimap** (decision 2's) is drawn over the space window's bottom right corner, the arena round the player's ship; it could go elsewhere.
+- **The smooth zoom's scaling.** UQM's default smooth zoom scales stamps trilinearly (each frame blended with the next size's); the port scales by nearest pixels (sizes and places are UQM's, the pixels sharper). Porting the trilinear scaler (about 300 lines of `canvas.c`) waits for a visual-fidelity pass.
+- **The minimap's place** (over the space window's bottom right corner) may move then too.
 
 ## Working agreements
 
