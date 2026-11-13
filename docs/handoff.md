@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, stage 4b item 2 (ships, part 1) built; review round 1's test gaps filled.
+**Last updated:** 2026-11-13, stage 4b item 2 (ships, part 1) built and reviewed in two rounds (round 1: three test gaps, filled; round 2: nothing to fix).
 
 ## Where things are
 
@@ -35,7 +35,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Review stage 4b item 2 (the owner's or a review round's), fix what it finds, then wait for the go-ahead for item 3 (ships, part 2).
+Stage 4b item 2 is done; wait for the owner's go-ahead for item 3 (ships, part 2: the Utwig, Mycon, Androsynth, Mmrnmhrm, Chenjesu, Slylandro, Ur-Quan and Kohr-Ah).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
