@@ -18,8 +18,9 @@ namespace Crateris.Presentation;
 /// stars, explosions, blasts, asteroids, status panel and planets, every
 /// frame drawn once with UQM's main colour map (the only one a battle has:
 /// setup.c sets it at start and nothing in a battle changes it), so
-/// anything wrong is found when it's made (the game will make it as the
-/// content is opened, stage 4a item 12; the tests do now). Any failure is a
+/// anything wrong is found when it's made (the game makes it as the content
+/// is opened, with a window, for every ship a battle can have:
+/// <see cref="Crateris.Core.World.BattleKit.Fighters"/>). Any failure is a
 /// <see cref="ContentPackageException"/>.
 /// </summary>
 public sealed class BattleSprites

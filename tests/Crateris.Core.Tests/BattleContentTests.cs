@@ -15,10 +15,11 @@ using Crateris.Presentation;
 namespace Crateris.Core.Tests;
 
 /// <summary>
-/// The battle's content from the package: every sheet the flagship, the
-/// Ilwrath and the arena use loads and draws, and the shapes a battle tests
-/// for contact are UQM's (tests/golden/battle-masks.json, recorded by UQM's
-/// own image loader).
+/// The battle's content from the package: every sheet every ship a battle
+/// can have (the flagship and every race ship: <see cref="World.BattleKit.Fighters"/>)
+/// and the arena use loads and draws, with UQM's frame counts, and the
+/// shapes a battle tests for contact are UQM's (tests/golden/battle-masks.json,
+/// recorded by UQM's own image loader).
 /// </summary>
 [Trait("Topic", "combat")]
 public class BattleContentTests
@@ -26,7 +27,8 @@ public class BattleContentTests
     private static readonly string Data = Path.Combine(AppContext.BaseDirectory, "data");
     private static readonly PlanetTypes Planets = PlanetTypes.Load(Data);
     private static readonly ShipDescriptions Ships = ShipDescriptions.Load(Data);
-    private static readonly ShipDescription[] Fighters = { Ships[ShipDescriptions.Flagship], Ships[ShipDescriptions.Ilwrath] };
+    private static readonly ShipDescription[] Fighters = World.BattleKit.Fighters(Ships).ToArray();
+    private static readonly ShipDescription Ilwrath = Ships[ShipDescriptions.Ilwrath];
 
     private static readonly Lazy<AnimationSheets> Sheets = new(() => TestContent.With(p =>
     {
@@ -43,6 +45,25 @@ public class BattleContentTests
         var sprites = TestContent.With(p => new BattleSprites(p, Sheets.Value, Fighters, Planets));
         var all = BattleResources.All(Fighters, Planets);
         Assert.Equal(all.OrderBy(r => r), sprites.Resources.OrderBy(r => r));
+        // The flagship and 25 race ships, each with its ship sheets, a
+        // captain's window and icons.
+        Assert.Equal(26, Fighters.Length);
+        Assert.Equal(26, all.Count(r => r.EndsWith(".captain")));
+        Assert.Equal(26, all.Count(r => r.EndsWith(".icons")));
+        // Every resource's frames as UQM's loader loads them (battle-masks.json's frames).
+        var frames = Golden.Load("battle-masks").GetProperty("frames");
+        Assert.Equal(frames.EnumerateObject().Select(f => f.Name).OrderBy(n => n), all.OrderBy(r => r));
+        foreach (var f in frames.EnumerateObject())
+            Assert.True(f.Value.GetInt32() == sprites.Count(f.Name), $"{f.Name}: {sprites.Count(f.Name)} frames, UQM {f.Value}");
+        // Every ship turns through 16 facings at each zoom, and every
+        // captain's window has UQM's 15 frames (the background, then the
+        // turn's, thrust's, weapon's and special's, DrawCaptainsWindow) but
+        // the Shofixti's 20 (its self-destruct's three more steps).
+        foreach (var ship in Fighters)
+        {
+            Assert.All(ship.Graphics.Ship, r => Assert.Equal(16, sprites.Count(r!)));
+            Assert.True(sprites.Count(ship.Graphics.Captain!) == (ship.Id == "shofixti" ? 20 : 15), $"{ship.Id}'s captain");
+        }
         // The package's sheets, as UQM 0.8.0's are: 16 facings of each
         // ship at each zoom, the flagship's 27 shots (blasters, cannons
         // and tracking), the hellfire's 8, both captains' 15 frames, the
@@ -64,14 +85,19 @@ public class BattleContentTests
                  })
             Assert.True(count == sprites.Count(resource), $"{resource}: {sprites.Count(resource)} frames, UQM {count}");
         // Every frame shows something but the asteroid's last at the
-        // smallest zoom (it has broken up to nothing), each zoom smaller
-        // than the one before.
+        // smallest zoom (it has broken up to nothing), the Chmmr's muzzle
+        // sheet's first 16 at each zoom (a clear pixel each, placed at the
+        // muzzle: only their hot spots are used) and a clear frame of the
+        // Mycon's captain's window; each zoom smaller than the one before.
         var empty = all.SelectMany(r => Enumerable.Range(0, sprites.Count(r))
                 .Where(f => sprites.Image(r, f).Rgba.Where((_, i) => i % 4 == 3).All(a => a == 0))
                 .Select(f => $"{r} {f}"))
             .ToList();
-        Assert.Equal(new[] { "graphics.asteroid.small 20" }, empty);
-        foreach (var views in BattleResources.Planets(Planets).Append(Fighters[0].Graphics.Ship).Append(BattleResources.Asteroid))
+        var clear = new[] { "large", "medium", "small" }
+            .SelectMany(size => Enumerable.Range(0, 16).Select(f => $"ship.chmmr.graphics.muzzle.{size} {f}"))
+            .Append("ship.mycon.graphics.captain 11").Append("graphics.asteroid.small 20");
+        Assert.True(empty.OrderBy(e => e).SequenceEqual(clear.OrderBy(e => e)), string.Join("; ", empty));
+        foreach (var views in BattleResources.Planets(Planets).Concat(Fighters.Select(f => f.Graphics.Ship)).Append(BattleResources.Asteroid))
             Assert.True(sprites.Image(views[0]!, 0).Width > sprites.Image(views[1]!, 0).Width
                         && sprites.Image(views[1]!, 0).Width > sprites.Image(views[2]!, 0).Width, $"{views[0]}'s zooms");
         // A planet in battle is true colour, its black clear.
@@ -87,9 +113,12 @@ public class BattleContentTests
         // entry 1) and its captain from one of the 16 from NAME_OFFSET, 5
         // (build.h, PickCaptainName). The flagship's names are the player's own.
         Assert.Null(Fighters[0].RaceStrings);
-        var table = TestContent.With(p => StringTable.Load(p, Fighters[1].RaceStrings!));
-        Assert.True(table.Count >= 5 + 16, $"{Fighters[1].RaceStrings} has {table.Count} strings");
-        Assert.All(Enumerable.Range(5, 16).Append(1), i => Assert.NotEqual("", table[i]));
+        foreach (var ship in Fighters[1..])
+        {
+            var table = TestContent.With(p => StringTable.Load(p, ship.RaceStrings!));
+            Assert.True(table.Count >= 5 + 16, $"{ship.RaceStrings} has {table.Count} strings");
+            Assert.All(Enumerable.Range(5, 16).Append(1), i => Assert.True(table[i] != "", $"{ship.RaceStrings} {i} is empty"));
+        }
     }
 
     [ContentFact]
@@ -115,7 +144,17 @@ public class BattleContentTests
                 frames++;
             }
         }
-        Assert.Equal(16 + 27 + 16 + 8 + 21 + 8 + 9 + 3 + 60, frames);
+        // The flagship's and the Ilwrath's (and their icons), the arena's
+        // and the planets', then stage 4b's race ships' and their icons.
+        int raceFrames = Fighters.Where(f => f.Id is not (ShipDescriptions.Flagship or ShipDescriptions.Ilwrath))
+            .SelectMany(f => new[] { f.Graphics.Ship, f.Graphics.Weapon, f.Graphics.Special }
+                .Select(ShipGraphics.Sheets).OfType<IReadOnlyList<string>>().Select(v => v[0]).Append(f.Graphics.Icons!))
+            .Sum(id => want.GetProperty(id).GetArrayLength());
+        Assert.Equal(16 + 27 + 1 + 16 + 8 + 2 + 21 + 8 + 9 + 3 + 60, frames - raceFrames);
+        Assert.Equal(1202, frames);
+        // The VUX's limpets are placed on a ship's silhouette, its icons'
+        // frame 1 (ModifySilhouette): every race ship's icons have it.
+        Assert.All(Fighters[1..], f => Assert.Equal(2, shapes[f.Graphics.Icons!].Count));
         // A planet's black corners don't touch; its middle does.
         var water = shapes["planet.water.large"][0];
         Assert.Equal(0, water.Mask![0]);
@@ -167,7 +206,7 @@ public class BattleContentTests
         Assert.Throws<ContentPackageException>(() => BattleShapes.Load(empty, new[] { "graphics.stars" }));
         // A ship needs its 16 facings.
         var one = Sheets.Value["ship.ilwrath.graphics.avenger.large"].Take(1).ToList();
-        var sheets = BattleResources.ContactSheets(Fighters[1..], Planets).ToDictionary(id => id, id => id == "ship.ilwrath.graphics.avenger.large" ? one : Sheets.Value[id]);
-        Assert.Throws<ContentPackageException>(() => BattleShapes.Load(new AnimationSheets(sheets), Fighters[1..], Planets));
+        var sheets = BattleResources.ContactSheets(new[] { Ilwrath }, Planets).ToDictionary(id => id, id => id == "ship.ilwrath.graphics.avenger.large" ? one : Sheets.Value[id]);
+        Assert.Throws<ContentPackageException>(() => BattleShapes.Load(new AnimationSheets(sheets), new[] { Ilwrath }, Planets));
     }
 }

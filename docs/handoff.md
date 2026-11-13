@@ -2,14 +2,14 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, stage 4b's plan approved (`docs/plans/stage-4b.md`, all six recommendations accepted); nothing started.
+**Last updated:** 2026-11-13, stage 4b item 1 (every ship's content and recording) built; not yet reviewed.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet): eleven items, approved by the owner on 2026-11-13 with all six recommendations accepted. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
-- **Stage 4a is built: items 1 to 13.** Each has a Built row in the plan's Progress section. Item 13 wrote `docs/how-to-try/stage-4a.md`, `differences.md` rows (new rows 48 to 58), and brought `design.md`, `porting-inventory.md`, `uqm-data.md`, `how-to-try/stage-3a.md` and `Options.cs`'s usage up to date.
-- **Last checks:** with item 13's docs, all topics 1,464 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); three headless runs for the how-to-try page (the Ilwrath fight from `--start-visit base-report`, a retreat from `--start-battle`, the host's pause) did what the page says. `tools/test_network.py` was last run on item 12's first commit; data checks on item 9's last commit.
+- **Stage 4b item 1 is built** (its Progress row): every race ship's graphics and masks are the battle's (`BattleKit.Fighters`; `--start-battle` still only the Ilwrath), and `tests/golden/battle-races-1.json` to `-3.json` trace each of the 24 ships by keys and by its AI, one file per part (items 2 to 4), 6.8 MB together; notes for items 2 to 4 are under them in the plan.
+- **Last checks:** with item 1, all topics 1,469 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle ilwrath` retreat ran as `how-to-try/stage-4a.md` says (the shapes of every ship made at start); the battle recordings of 4a re-recorded with the new battle program are unchanged. `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (item 1 changed nothing in `data/`).
 
 ## Open items
 
@@ -34,7 +34,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 1 (every ship's content and recording) on the owner's go-ahead.
+The review of stage 4b item 1 (`CLAUDE.md`'s loop), then report it and wait for the go-ahead for item 2.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
@@ -54,7 +54,7 @@ Stage 4b item 1 (every ship's content and recording) on the owner's go-ahead.
 - **Commit trailer:** end commit messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - **Toolchain:** .NET 8 SDK and Godot 4 mono. Set `GODOT` to the mono build for `tools/test_network.py`.
 - **UQM content:** never committed. The game downloads it on first start into Godot's user folder (on Linux `~/.local/share/godot/app_userdata/Attack on Crateris/content/uqm-0.8.0-content.uqm`). Point `CRATERIS_CONTENT` at it for tests and headless runs (`docs/how-to-try/content-stage.md`).
-- **UQM 0.8.0 source:** expected beside the repo at `../uqm-0.8.0/sc2`, for the golden recorders and data checks.
+- **UQM 0.8.0 source:** expected beside the repo at `../uqm-0.8.0/sc2`, for the golden recorders and data checks (`golden_uqm.py --uqm PATH --content PACKAGE --only NAME,...`; `--only battle-races` takes about two minutes).
 - **Commands:**
   - tests: `python3 tools/run_tests.py` (`--changed` while working; `--map` to remake `tests/topic-map.json`)
   - build: `dotnet build game/Crateris.Game.csproj`

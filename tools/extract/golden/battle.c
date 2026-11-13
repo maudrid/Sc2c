@@ -35,19 +35,25 @@
  * Ilwrath's sheets (item 2's traces); or one of the game's own ships
  * (item 3's): the flagship, UQM's sis_ship.c (init_sis building it from
  * GLOBAL_SIS's slots and crew, as in an encounter), or the Ilwrath,
- * ilwrath.c (init_ilwrath), with the sheets their RACE_DESCs name. Each
- * side is flown by scripted keys or by UQM's own AI (item 4's).
+ * ilwrath.c (init_ilwrath), with the sheets their RACE_DESCs name; or
+ * (stage 4b's) any race ship, its own ships/RACE/RACE.c (init_spathi and
+ * the rest), with the sheets its RACE_DESC names as load_ship loads them
+ * (load_animation's sizes; its icons and captain's window where the
+ * sheets file has them). Each side is flown by scripted keys or by UQM's
+ * own AI (item 4's).
  *
- * Usage: battle SHEETS MASKS. SHEETS lists the sheets, a line each:
+ * Usage: battle SHEETS MASKS [SOUNDS]. SHEETS lists the sheets, a line each:
  * "number resource frames"; MASKS is a folder of NUMBER.INDEX.mask files
  * (golden_uqm.py's write_masks) for the sheets collisions test (the big
  * size). Sheets without masks are only counted (the medium and small
- * sizes the zoom draws: their frames count in SetAbsFrameIndex).
+ * sizes the zoom draws: their frames count in SetAbsFrameIndex). SOUNDS
+ * is the Pkunk's sounds' count (GetSoundCount: pkunk_postprocess draws
+ * insults until one differs from the last), needed only for a Pkunk.
  *
  * Input on stdin, one battle per line:
  *   name seed scale runaway planet0 planet1 planet2
  *   ship0 ship1 fleet0 fleet1  nsteps (frames keys0 keys1)...
- *   nevents (frame side target crew)...  control0 control1 earth
+ *   nevents (frame side target crew)...  control0 control1 earth recruited
  * seed is TFB_SeedRandom's; scale 0 the step zoom (TFB_SCALE_STEP), 1 the
  * smooth (TFB_SCALE_TRILINEAR, UQM's default); runaway 1 sets
  * STARBASE_AVAILABLE, so side 0 can retreat (BATTLE_ESCAPE); planet0..2
@@ -73,7 +79,9 @@
  * 0 only), "crew bomb drive0..10 jet0..7 module0..15": GLOBAL_SIS's
  * CrewEnlisted and slots (sis.h's module numbers), and CHMMR_BOMB_STATE;
  * 2 the Ilwrath, "crew": its STARSHIP's crew_level (its RACE_DESC's 22
- * held to that, as an encounter's ship). Keys hold for the
+ * held to that, as an encounter's ship); 3 a race ship, "id crew": its
+ * folder's name (data/ships.json's id: spathi, blackurq, ...) and its
+ * STARSHIP's crew_level, as the Ilwrath's. Keys hold for the
  * step's frames, as BATTLE_INPUT_STATE: 1 left, 2 right, 4 thrust,
  * 8 weapon, 16 special, 32 escape; after the steps the battle ends.
  * fleet0 and fleet1 are how many of its ship each side has: when
@@ -88,7 +96,9 @@
  * story's enemy (restart.c: COMPUTER_CONTROL | AWESOME_RATING; side 0 as
  * the Cyborg option makes it, CYBORG_CONTROL); a side the AI flies ignores
  * its keys. earth 1 sets PROBE_ILWRATH_ENCOUNTER, as the Earth fight has it
- * (with IN_ENCOUNTER, the Ilwrath's AI doesn't cloak).
+ * (with IN_ENCOUNTER, the Ilwrath's AI doesn't cloak); recruited 1 sets
+ * SHOFIXTI_RECRUITED (without it, an encounter's Shofixti is Tanaka's
+ * damaged scout, init_shofixti).
  *
  * Output: one JSON object per battle: its stars (InitGalaxy's
  * log_star_array, [x, y] each), and its frames: the first after the
@@ -181,7 +191,7 @@ CalcSoundPosition (ELEMENT *ElementPtr)
 
 /* ---- Sheets: real DRAWABLE_DESCs and FRAME_DESCs, indexed by pixmap.c ---- */
 
-#define MAX_SHEETS 128
+#define MAX_SHEETS 512
 #define MAX_FRAMES 64
 static DRAWABLE_DESC sheet_drawables[MAX_SHEETS];
 static FRAME_DESC sheet_frames[MAX_SHEETS][MAX_FRAMES];
@@ -197,15 +207,27 @@ frame_sheet (FRAME f)
 	return f ? (int) (f->parent - sheet_drawables) : -1;
 }
 
+/* A sheet's number by its resource, or -1 if it isn't loaded. */
+static int
+sheet_find (const char *name)
+{
+	int s;
+	for (s = 0; s < num_sheets; ++s)
+		if (strcmp (sheet_names[s], name) == 0)
+			return s;
+	return -1;
+}
+
 static int
 sheet_named (const char *name)
 {
-	int s;
-	for (s = 0; s < MAX_SHEETS; ++s)
-		if (strcmp (sheet_names[s], name) == 0)
-			return s;
-	fprintf (stderr, "no sheet %s\n", name);
-	exit (1);
+	int s = sheet_find (name);
+	if (s < 0)
+	{
+		fprintf (stderr, "no sheet %s\n", name);
+		exit (1);
+	}
+	return s;
 }
 
 void *
@@ -676,19 +698,88 @@ test_weapons (ELEMENT *ShipPtr, HELEMENT Weapon[])
 	return n;
 }
 
-/* ---- The ships of the game: sis_ship.c's flagship and ilwrath.c's ---- */
+/* ---- The ships of the game: sis_ship.c's flagship, ilwrath.c's and
+ * the other race ships' (stage 4b) ---- */
 
-enum { K_TEST = 0, K_SIS = 1, K_ILWRATH = 2 };
+enum { K_TEST = 0, K_SIS = 1, K_ILWRATH = 2, K_RACE = 3 };
 static int ship_kind[NUM_SIDES];
-static int ship_crew[NUM_SIDES];   /* the STARSHIP's crew_level (the Ilwrath's) */
+static int ship_crew[NUM_SIDES];   /* the STARSHIP's crew_level (the Ilwrath's, a race ship's) */
+static int ship_race[NUM_SIDES];   /* a race ship's, in races[] */
 
 /* The flagship's GLOBAL_SIS, which init_sis reads, and CHMMR_BOMB_STATE. */
 static int sis_crew, sis_bomb;
 static BYTE sis_drives[NUM_DRIVE_SLOTS], sis_jets[NUM_JET_SLOTS],
 		sis_modules[NUM_MODULE_SLOTS];
 
+/* SHOFIXTI_RECRUITED: without it, init_shofixti gives an encounter's
+ * Shofixti Tanaka's (or Katana's) damaged scout. */
+static int shofixti_recruited;
+
 extern RACE_DESC *init_sis (void);
 extern RACE_DESC *init_ilwrath (void);
+extern RACE_DESC *init_androsynth (void);
+extern RACE_DESC *init_arilou (void);
+extern RACE_DESC *init_black_urquan (void);
+extern RACE_DESC *init_chenjesu (void);
+extern RACE_DESC *init_chmmr (void);
+extern RACE_DESC *init_druuge (void);
+extern RACE_DESC *init_human (void);
+extern RACE_DESC *init_melnorme (void);
+extern RACE_DESC *init_mmrnmhrm (void);
+extern RACE_DESC *init_mycon (void);
+extern RACE_DESC *init_orz (void);
+extern RACE_DESC *init_pkunk (void);
+extern RACE_DESC *init_shofixti (void);
+extern RACE_DESC *init_slylandro (void);
+extern RACE_DESC *init_spathi (void);
+extern RACE_DESC *init_supox (void);
+extern RACE_DESC *init_syreen (void);
+extern RACE_DESC *init_thraddash (void);
+extern RACE_DESC *init_umgah (void);
+extern RACE_DESC *init_urquan (void);
+extern RACE_DESC *init_utwig (void);
+extern RACE_DESC *init_vux (void);
+extern RACE_DESC *init_yehat (void);
+extern RACE_DESC *init_zoqfotpik (void);
+
+/* The race ships by their folder's name (data/ships.json's id). */
+static const struct
+{
+	const char *id;
+	RACE_DESC *(*init) (void);
+} races[] = {
+	{ "androsyn", init_androsynth }, { "arilou", init_arilou },
+	{ "blackurq", init_black_urquan }, { "chenjesu", init_chenjesu },
+	{ "chmmr", init_chmmr }, { "druuge", init_druuge },
+	{ "human", init_human }, { "ilwrath", init_ilwrath },
+	{ "melnorme", init_melnorme }, { "mmrnmhrm", init_mmrnmhrm },
+	{ "mycon", init_mycon }, { "orz", init_orz }, { "pkunk", init_pkunk },
+	{ "shofixti", init_shofixti }, { "slylandr", init_slylandro },
+	{ "spathi", init_spathi }, { "supox", init_supox },
+	{ "syreen", init_syreen }, { "thradd", init_thraddash },
+	{ "umgah", init_umgah }, { "urquan", init_urquan },
+	{ "utwig", init_utwig }, { "vux", init_vux }, { "yehat", init_yehat },
+	{ "zoqfot", init_zoqfotpik },
+};
+#define NUM_RACES ((int) (sizeof races / sizeof races[0]))
+
+/* The Pkunk's sounds' count (GetSoundCount, a sound bank being a string
+ * table): pkunk_postprocess draws a random insult until it differs from
+ * the last, so the count decides how many numbers it draws. From the
+ * command line (golden_uqm.py counts the content's); 0, none given. */
+static int ship_sound_count;
+
+COUNT
+GetStringTableCount (STRING String)
+{
+	(void) String;
+	if (ship_sound_count == 0)
+	{
+		fprintf (stderr, "a sound bank was counted, but no count was given\n");
+		exit (1);
+	}
+	return (COUNT) ship_sound_count;
+}
 
 /* load_animation's frames for a RACE_DESC's sheets, by their resources. */
 static void
@@ -699,8 +790,34 @@ bind_frames (FRAME *frames, RESOURCE *rsc)
 		frames[j] = rsc[j] ? &sheet_frames[sheet_named (rsc[j])][0] : NULL;
 }
 
+/* init.c's load_animation: the big size, then each other size its own or,
+ * without one, the size before's (the Umgah's and the VUX's shots); none
+ * without a big size (load_ship loads a weapon or special only if it
+ * has one). */
+static void
+bind_animation (FRAME *frames, RESOURCE *rsc)
+{
+	int j;
+	if (!rsc[0])
+		return;
+	frames[0] = &sheet_frames[sheet_named (rsc[0])][0];
+	for (j = 1; j < NUM_VIEWS; ++j)
+		frames[j] = rsc[j] ? &sheet_frames[sheet_named (rsc[j])][0]
+				: frames[j - 1];
+}
+
+/* A sheet load_ship loads by itself (the icons, the captain's window), if
+ * the program has it. */
+static FRAME
+bind_sheet (RESOURCE rsc)
+{
+	int s = rsc ? sheet_find (rsc) : -1;
+	return s < 0 ? NULL : &sheet_frames[s][0];
+}
+
 /* build.c's load_ship: the side's ship, a fresh copy of its RACE_DESC (a
- * test ship's, or init_sis's or init_ilwrath's with its sheets). */
+ * test ship's, or init_sis's, init_ilwrath's or a race ship's init's with
+ * its sheets). */
 RACE_DESC *
 load_ship (SPECIES_ID SpeciesID, BOOLEAN LoadBattleData)
 {
@@ -709,6 +826,18 @@ load_ship (SPECIES_ID SpeciesID, BOOLEAN LoadBattleData)
 	(void) LoadBattleData;
 	if (ship_kind[side] == K_TEST)
 		*rd = test_ships[side].desc;
+	else if (ship_kind[side] == K_RACE)
+	{
+		*rd = *races[ship_race[side]].init ();
+		bind_animation (rd->ship_data.ship, rd->ship_data.ship_rsc);
+		bind_animation (rd->ship_data.weapon, rd->ship_data.weapon_rsc);
+		bind_animation (rd->ship_data.special, rd->ship_data.special_rsc);
+		/* The status panel's icons, which ModifySilhouette tests the VUX's
+		 * limpets against (frame 1), and the captain's window. */
+		rd->ship_info.icons = bind_sheet (rd->ship_info.icons_rsc);
+		rd->ship_data.captain_control.background =
+				bind_sheet (rd->ship_data.captain_control.captain_rsc);
+	}
 	else
 	{
 		*rd = ship_kind[side] == K_SIS ? *init_sis () : *init_ilwrath ();
@@ -721,6 +850,10 @@ load_ship (SPECIES_ID SpeciesID, BOOLEAN LoadBattleData)
 				? &sheet_frames[sheet_named (rd->ship_info.icons_rsc)][0] : NULL;
 		rd->ship_data.captain_control.background = rd->ship_data.captain_control.captain_rsc
 				? &sheet_frames[sheet_named (rd->ship_data.captain_control.captain_rsc)][0] : NULL;
+#else
+		/* The icons where the program has them (the race ships' battles),
+		 * for the VUX's limpets on the flagship (ModifySilhouette). */
+		rd->ship_info.icons = bind_sheet (rd->ship_info.icons_rsc);
 #endif
 	}
 	return rd;
@@ -1015,8 +1148,18 @@ read_ship (int side)
 	CHARACTERISTIC_STUFF *c = &rd->characteristics;
 	int v[29], i, j;
 	if (scanf ("%d", &ship_kind[side]) != 1
-			|| ship_kind[side] < K_TEST || ship_kind[side] > K_ILWRATH)
+			|| ship_kind[side] < K_TEST || ship_kind[side] > K_RACE)
 		return 0;
+	if (ship_kind[side] == K_RACE)
+	{
+		char id[32];
+		if (scanf ("%31s %d", id, &ship_crew[side]) != 2)
+			return 0;
+		for (ship_race[side] = 0; ship_race[side] < NUM_RACES; ++ship_race[side])
+			if (strcmp (races[ship_race[side]].id, id) == 0)
+				return 1;
+		return 0;
+	}
 	if (ship_kind[side] == K_SIS)
 	{
 		int slot;
@@ -1102,6 +1245,7 @@ fight (const char *name, int scale, int runaway)
 	SET_GAME_STATE (STARBASE_AVAILABLE, runaway);
 	SET_GAME_STATE (CHMMR_BOMB_STATE, sis_bomb);
 	SET_GAME_STATE (PROBE_ILWRATH_ENCOUNTER, earth);
+	SET_GAME_STATE (SHOFIXTI_RECRUITED, shofixti_recruited);
 	GLOBAL_SIS (CrewEnlisted) = sis_crew;
 	memcpy (GLOBAL_SIS (DriveSlots), sis_drives, sizeof sis_drives);
 	memcpy (GLOBAL_SIS (JetSlots), sis_jets, sizeof sis_jets);
@@ -1207,10 +1351,12 @@ main (int argc, char *argv[])
 
 	if (argc < 3)
 	{
-		fprintf (stderr, "usage: battle SHEETS MASKS\n");
+		fprintf (stderr, "usage: battle SHEETS MASKS [SOUNDS]\n");
 		return 1;
 	}
 	load_sheets (argv[1], argv[2]);
+	if (argc > 3)
+		ship_sound_count = atoi (argv[3]);
 	InitQueue (&disp_q, MAX_DISPLAY_ELEMENTS, sizeof (ELEMENT));
 	while (scanf ("%63s %lu %d %d %d %d %d", name, &s, &scale, &runaway,
 			&p[0], &p[1], &p[2]) == 7)
@@ -1242,11 +1388,13 @@ main (int argc, char *argv[])
 			if (scanf ("%d %d %d %d", &event_frame[i], &event_side[i],
 					&event_target[i], &event_crew[i]) != 4)
 				return bad_input (name, "an event");
-		if (scanf ("%d %d %d", &side_control[0], &side_control[1], &earth) != 3
+		if (scanf ("%d %d %d %d", &side_control[0], &side_control[1], &earth,
+				&shofixti_recruited) != 4
 				|| side_control[0] < 0 || side_control[0] > 3
 				|| side_control[1] < 0 || side_control[1] > 3
-				|| earth < 0 || earth > 1)
-			return bad_input (name, "the sides' control and the Earth flag");
+				|| earth < 0 || earth > 1
+				|| shofixti_recruited < 0 || shofixti_recruited > 1)
+			return bad_input (name, "the sides' control and the story's flags");
 		battle_seed = s;
 		fight (name, scale, runaway);
 	}

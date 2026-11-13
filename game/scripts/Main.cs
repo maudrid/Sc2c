@@ -342,9 +342,9 @@ public partial class Main : Node2D
             var sheets = new AnimationSheets(content);   // decoded once, for the shapes and the sprites
             _names = Names.Load(content);
             _shapes = ContactShapes.Load(sheets);
-            // The battle's shapes, for the ported ships and every planet, headless too (stage 4a item 6).
+            // The battle's shapes, for every ship a battle can have and every planet, headless too.
             var planetTypes = _systems.Generator.Types;
-            var battleShapes = BattleShapes.Load(sheets, BattleKit.Ported(_ships), planetTypes);
+            var battleShapes = BattleShapes.Load(sheets, BattleKit.Fighters(_ships), planetTypes);
             _battleKit = BattleKit.Load(_dataDir, _ships,
                 new ContentBattleGraphics(new BattleSheets(sheets, battleShapes), planetTypes));
             var scripts = ConversationScripts.Load(_dataDir);

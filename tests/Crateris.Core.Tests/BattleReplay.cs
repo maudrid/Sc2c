@@ -17,7 +17,8 @@ namespace Crateris.Core.Tests;
 
 /// <summary>
 /// Replays a battle UQM's own engine recorded (tools/extract/golden/battle.c:
-/// tests/golden/battle.json, battle-ships.json, battle-ai.json) from its
+/// tests/golden/battle.json, battle-ships.json, battle-ai.json; stage 4b's
+/// race ships' battle-races-1.json to 3.json, once their code is ported) from its
 /// seed and keys (or its AI), comparing every frame's random generator,
 /// camera, ships, elements (as the netplay checksum takes them) and random
 /// draws, and where recorded each side's input.
@@ -27,9 +28,11 @@ internal static class BattleReplay
     private static readonly string Data = Path.Combine(AppContext.BaseDirectory, "data");
     private static readonly PlanetTypes Planets = PlanetTypes.Load(Data);
     public static readonly ShipDescriptions Ships = ShipDescriptions.Load(Data);
-    private static readonly ShipDescription[] Fighters = { Ships[ShipDescriptions.Flagship], Ships[ShipDescriptions.Ilwrath] };
+    // Every ship a battle can have, so stage 4b's race ships' traces
+    // (battle-races-*.json) replay with the same sheets.
+    private static readonly ShipDescription[] Fighters = World.BattleKit.Fighters(Ships).ToArray();
 
-    /// <summary>The flagship's, the Ilwrath's and the arena's sheets, from the content.</summary>
+    /// <summary>Every ship's (the flagship's and every race ship's) and the arena's sheets, from the content.</summary>
     public static readonly Lazy<BattleSheets> Sheets = new(() => TestContent.With(p =>
     {
         var decoded = new AnimationSheets(p);

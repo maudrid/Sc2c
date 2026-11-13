@@ -157,9 +157,12 @@ public class ShipDescriptionTests
         Assert.Contains("planet.slaveshield.small", arena);
         Assert.Contains("graphics.boom.medium", arena);
         Assert.Equal(arena.Count + 8 + 8, BattleResources.All(ships, planets).Count);
-        // Contact takes the big size only: the ships' hulls and guns, the arena's four, the 60 planets.
+        // Contact takes the big size only: the ships' hulls and guns, and
+        // their icons (the VUX's limpets are placed on a ship's silhouette,
+        // ModifySilhouette), the arena's four, the 60 planets.
         var contact = BattleResources.ContactSheets(ships, planets);
-        Assert.Equal(4 + 4 + 60, contact.Count);
+        Assert.Equal(4 + 2 + 4 + 60, contact.Count);
+        Assert.Contains("ship.ilwrath.icons", contact);
         Assert.Contains("ship.ilwrath.graphics.fire.large", contact);
         Assert.Contains("graphics.stars", contact);
         Assert.DoesNotContain(contact, id => id.EndsWith(".medium") || id.EndsWith(".small"));

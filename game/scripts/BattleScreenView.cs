@@ -53,7 +53,7 @@ public partial class BattleScreenView : Node2D
     {
         _content = content;
         _ships = ships;
-        _sprites = new BattleSprites(content, sheets, BattleKit.Ported(ships), planets);
+        _sprites = new BattleSprites(content, sheets, BattleKit.Fighters(ships), planets);
         _raceStrings.Clear();
         foreach (var f in new[] { "starcon", "tiny" })
             _fonts[f] = UqmFont.Load(content, "font." + f);

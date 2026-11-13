@@ -19,8 +19,9 @@ namespace Crateris.Core.World;
 /// What a world needs to run battles (stage 4a item 6): the ships'
 /// descriptions (data/ships.json), the battle's sheets (the content's, or a
 /// test's own) and each race's ship cost, which the salvage is paid from
-/// (RACE_SHIP_COST, data/races.json). Only the ported ships fight
-/// (<see cref="Ported"/>).
+/// (RACE_SHIP_COST, data/races.json). Only the races whose code is ported
+/// can be fought (<see cref="Enemies"/>); every ship's shapes are made
+/// (<see cref="Fighters"/>).
 /// </summary>
 public sealed class BattleKit
 {
@@ -40,18 +41,35 @@ public sealed class BattleKit
     public IBattleGraphics Graphics { get; }
 
     /// <summary>
-    /// The race ships ported, which a battle can be fought against (4b adds
-    /// the other 24): by their ids in data/ships.json.
+    /// The race ships whose code is ported, which a battle can be fought
+    /// against (<c>--start-battle</c>): by their ids in data/ships.json.
+    /// Stage 4b's items 2 to 4 each add their races.
     /// </summary>
     public static readonly IReadOnlyList<string> Enemies = new[] { ShipDescriptions.Ilwrath };
 
     /// <summary>
-    /// Every ship a battle can have in 4a: the flagship's (which escorts
-    /// fly too, decision 3) and the enemies' (<see cref="Enemies"/>), whose
-    /// shapes the game makes as the content is opened.
+    /// The ships in data/ships.json no battle of the port has: the Sa-Matra
+    /// (lastbat, the endgame's last battle, not a ship of 16 facings) and
+    /// the Ur-Quan drone (probe, which never fights and has no battle graphics).
     /// </summary>
-    public static IEnumerable<ShipDescription> Ported(ShipDescriptions ships) =>
-        Enemies.Prepend(ShipDescriptions.Flagship).Select(id => ships[id]);
+    public static readonly IReadOnlyList<string> NotFought = new[] { "lastbat", "probe" };
+
+    /// <summary>
+    /// Every race ship, in data/ships.json's order: every ship but the
+    /// flagship and <see cref="NotFought"/>'s, the Ilwrath and stage 4b's 24.
+    /// </summary>
+    public static IEnumerable<ShipDescription> RaceShips(ShipDescriptions ships) =>
+        ships.All.Where(s => s.Id != ShipDescriptions.Flagship && !NotFought.Contains(s.Id));
+
+    /// <summary>
+    /// Every ship a battle can have, its code ported yet or not: the
+    /// flagship (which escorts fly too, stage 4 decision 3) and every race
+    /// ship (<see cref="RaceShips"/>). The game makes their shapes as the
+    /// content is opened, headless too, and with a window their sprites, so
+    /// a broken sheet of any of them is found then, not in a battle.
+    /// </summary>
+    public static IEnumerable<ShipDescription> Fighters(ShipDescriptions ships) =>
+        RaceShips(ships).Prepend(ships[ShipDescriptions.Flagship]);
 
     /// <summary>
     /// The salvage for a ship destroyed (UninitEncounter's bounty): its

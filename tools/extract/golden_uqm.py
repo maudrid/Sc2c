@@ -1703,9 +1703,11 @@ BATTLE_SHIPS = ["sis_ship", "ilwrath"]
 
 def battle_sheets():
     """The sheets a battle tests for contact, the big size only (farray[0],
-    InitIntersectFrame in collide.h): the flagship's and the Ilwrath's
-    ship and weapon (and special, for a ship that has one) as their
-    RACE_DESCs name them (data/ships.json), the arena's asteroids, blasts
+    InitIntersectFrame in collide.h): every ship's (the flagship's, the
+    Ilwrath's and stage 4b's race ships') ship and weapon (and special, for
+    a ship that has one) as their RACE_DESCs name them (data/ships.json),
+    and its status panel's icons, whose frame 1 ModifySilhouette tests the
+    VUX's limpets against (weapon.c), the arena's asteroids, blasts
     and explosions (InitSpace, init.c), stars_in_space, whose last frame
     is floating crew, lasers and ion trails (graphics.stars), and every
     planet the battle can have (load_gravity_well, cons_res.c: each
@@ -1716,9 +1718,10 @@ def battle_sheets():
     with open(os.path.join(REPO, "data", "planet-types.json")) as f:
         planets = json.load(f)
     ids = []
-    for ship in BATTLE_SHIPS:
+    for ship in BATTLE_SHIPS + RACE_SHIPS:
         g = ships[ship]["graphics"]
         ids += [g[k][0] for k in ("ship", "weapon", "special") if g[k][0]]
+        ids.append(g["icons"])
     ids += ["graphics.asteroid.large", "graphics.blast.large",
             "graphics.boom.large", "graphics.stars"]
     ids += [t["battle_sprites"][0] for t in planets["planet_types"]]
@@ -1726,11 +1729,38 @@ def battle_sheets():
     return list(enumerate(ids))
 
 
+def battle_resources():
+    """Every graphics resource a battle draws (BattleResources.All): each
+    fighting ship's sheets at its three sizes, captain's window and status
+    icons as data/ships.json names them, InitSpace's stars, explosions,
+    blasts and asteroids, the status panel's frames and every planet's
+    battle sprites (data/planet-types.json)."""
+    ships, _ = battle_ships()
+    with open(os.path.join(REPO, "data", "planet-types.json")) as f:
+        planets = json.load(f)
+    ids = []
+    for ship in BATTLE_SHIPS + RACE_SHIPS:
+        g = ships[ship]["graphics"]
+        for k in ("ship", "weapon", "special"):
+            ids += [r for r in g[k] if r]
+        ids += [g["captain"], g["icons"]]
+    ids += ["graphics.stars", "graphics.status"]
+    for base in ["graphics.boom", "graphics.blast", "graphics.asteroid"]:
+        ids += [f"{base}.large", f"{base}.medium", f"{base}.small"]
+    for sprites in [t["battle_sprites"] for t in planets["planet_types"]] + [planets["shielded_battle_sprites"]]:
+        ids += sprites
+    return list(dict.fromkeys(ids))
+
+
 def record_battle_masks(uqm, strings_exe, images_exe, package):
-    """The collision masks of the battle's sheets (battle_sheets)."""
+    """The collision masks of the battle's sheets (battle_sheets), and
+    every battle resource's frame count (battle_resources)."""
     with tempfile.TemporaryDirectory() as tmp:
         _, hashes = write_masks(strings_exe, images_exe, package, tmp,
                                 battle_sheets())
+    with tempfile.TemporaryDirectory() as tmp:
+        _, all_frames = write_masks(strings_exe, images_exe, package, tmp,
+                                    list(enumerate(battle_resources())))
     data = header(uqm, ["tools/extract/golden/images.c",
                         "src/libs/graphics/gfxload.c",
                         "src/libs/graphics/sdl/canvas.c",
@@ -1755,16 +1785,25 @@ def record_battle_masks(uqm, strings_exe, images_exe, package):
         "step, as its SDL stand-in has no conversion.",
         "Collisions test the big size only (InitIntersectFrame takes the "
         "frame from farray[0]), so only it is here: "
-        f"{', '.join(BATTLE_SHIPS)}'s ship, weapon and special sheets as "
-        "data/ships.json names them, the asteroids, blasts and explosions "
+        f"{', '.join(BATTLE_SHIPS + RACE_SHIPS)}'s ship, weapon and special sheets as "
+        "data/ships.json names them, and their status panel's icons (frame 1 "
+        "is the ship's silhouette, which ModifySilhouette in weapon.c tests "
+        "the VUX's limpets against: every frame is here), the asteroids, blasts and explosions "
         "(InitSpace), graphics.stars (floating crew, lasers and ion "
         "trails are its last frame) and every planet's battle sprite "
         "(load_gravity_well).",
         "By resource id, each frame is [width, height, hot spot x, hot "
         "spot y, SHA-256 of the mask: a byte a pixel, row by row, 1 where "
         "it can touch]. Content, so hashes only.",
+        "frames: every graphics resource a battle draws (every fighting "
+        "ship's ship, weapon and special sheets at their three sizes, its "
+        "captain's window and status icons; the stars, the status panel, the "
+        "explosions, blasts and asteroids at three sizes, every planet's "
+        "battle sprites), its frame count as _GetCelData loads it (an image "
+        "that doesn't load is dropped).",
     ])
     data["sheets"] = hashes
+    data["frames"] = {key: len(frames) for key, frames in all_frames.items()}
     return data
 
 
@@ -1840,6 +1879,18 @@ BATTLE_LINK = ["uqm/process.c", "uqm/collide.c", "uqm/gravity.c",
                "libs/graphics/boxint.c",
                "uqm/ships/sis_ship/sis_ship.c", "uqm/ships/ilwrath/ilwrath.c",
                "uqm/intel.c", "uqm/cyborg.c"]
+# The race ships (stage 4b): every ship but the flagship, the Ilwrath, the
+# Sa-Matra (lastbat, the endgame's) and the Ur-Quan drone (probe, which
+# never fights), by data/ships.json's id, in the order of the plan's three
+# parts (docs/plans/stage-4b.md, items 2, 3 and 4), each part recorded to
+# its own file.
+RACE_SHIP_PARTS = [
+    ["arilou", "spathi", "supox", "druuge", "yehat", "zoqfot", "thradd", "umgah"],
+    ["utwig", "mycon", "androsyn", "mmrnmhrm", "chenjesu", "slylandr", "urquan", "blackurq"],
+    ["human", "chmmr", "shofixti", "syreen", "orz", "melnorme", "vux", "pkunk"],
+]
+RACE_SHIPS = [ship for part in RACE_SHIP_PARTS for ship in part]
+BATTLE_LINK += [f"uqm/ships/{ship}/{ship}.c" for ship in sorted(RACE_SHIPS)]
 BATTLE_STUBS = os.path.join(HERE, "golden", "battle_stubs.c")
 
 # The planets the battles have (load_gravity_well's battle sprites).
@@ -1933,6 +1984,9 @@ def battle_line(scenario, numbers):
         if kind == "ilwrath":
             parts += [2, ship["crew"]]
             continue
+        if kind == "race":
+            parts += [3, ship["ship"], ship["crew"]]
+            continue
         parts.append(0)
         g = ships[ship["ship"]]["graphics"]
         parts += [numbers[r] for r in g["ship"] + g["weapon"]]
@@ -1953,15 +2007,19 @@ def battle_line(scenario, numbers):
     # fight's PROBE_ILWRATH_ENCOUNTER.
     parts += [AI_RATINGS.index(c) if c else 0 for c in scenario.get("ai", [None, None])]
     parts.append(1 if scenario.get("earth") else 0)
+    # SHOFIXTI_RECRUITED (stage 4b's Shofixti: without it, Tanaka's scout).
+    parts.append(1 if scenario.get("shofixti_recruited") else 0)
     return " ".join(str(p) for p in parts)
 
 
 class BattleProgram:
     """The battle program with its sheets and masks, run on scenarios."""
 
-    def __init__(self, exe, sheets_file, masks):
+    def __init__(self, exe, sheets_file, masks, ids=None, sounds=None):
         self.exe, self.sheets_file, self.masks = exe, sheets_file, masks
-        self.ids = battle_program_sheets()
+        self.ids = ids or battle_program_sheets()
+        # The Pkunk's sounds' count, for pkunk_postprocess (battle.c).
+        self.args = [str(sounds)] if sounds else []
         self.numbers = {r: n for n, r in enumerate(self.ids)}
         out = subprocess.run(["nm", "-n", exe], capture_output=True, text=True, check=True).stdout
         self.symbols = [(int(a, 16), name) for a, kind, name in
@@ -1978,7 +2036,7 @@ class BattleProgram:
         """The battles, their elements without their colour (item 2's
         traces don't keep it) unless colours."""
         lines = [battle_line(s, self.numbers) for s in scenarios]
-        res = subprocess.run([self.exe, self.sheets_file, self.masks], input="\n".join(lines) + "\n",
+        res = subprocess.run([self.exe, self.sheets_file, self.masks, *self.args], input="\n".join(lines) + "\n",
                              capture_output=True, text=True)
         if res.returncode < 0:
             # UQM's own code crashing. The cause seen was AbandonShip events
@@ -3253,6 +3311,312 @@ def check_ai_battles(scenarios, battles):
     for place in ("TurnShip", "Entice"):
         if place not in draws:
             fail("ai-*", f"the AI never drew a random number in {place}")
+
+
+# ---- Every race's ship (stage 4b item 1) ----
+
+# How long each race ship's duels run: against the flagship by keys, and
+# the AI's against the flagship's AI; the frames kept whole (the rest are
+# hashed, as the other traces' later frames).
+RACE_KEYS_FRAMES, RACE_AI_FRAMES, RACE_FULL = 720, 900, 60
+# How many seeds each battle may try (race_battle_scenarios).
+RACE_SEEDS = 20
+# The keys' phases (frames each): the weapon pressed in pulses, then the
+# special, then both at once (the Orz's marines take both).
+RACE_PHASE = 40
+
+
+def race(ship_id, crew=None):
+    """A race ship (its own ships/RACE/RACE.c, init_RACE), its STARSHIP's
+    crew_level crew (spawn_ship holds the RACE_DESC's to it), its
+    description's starting crew without."""
+    ships, _ = battle_ships()
+    return dict(ship=ship_id, kind="race", crew=ships[ship_id]["crew"] if crew is None else crew)
+
+
+def race_program_sheets(part):
+    """The sheets the battle program loads for a part's race ships,
+    numbered: the flagship's ship and weapon sheets and its status icons
+    (the VUX's limpets test them), each race ship's ship, weapon and
+    special sheets as load_ship loads them (a size without its own is the
+    one before's), its icons and captain's window (the Shofixti's
+    self-destruct counts its frames), the arena's asteroids, blasts and
+    explosions and the battles' planets at three sizes, and the stars."""
+    ships, _ = battle_ships()
+    g = ships["sis_ship"]["graphics"]
+    ids = g["ship"] + g["weapon"] + [g["icons"]]
+    for ship in part:
+        g = ships[ship]["graphics"]
+        for k in ("ship", "weapon", "special"):
+            ids += [r for r in g[k] if r]
+        ids += [g["icons"], g["captain"]]
+    for base in ["graphics.asteroid", "graphics.blast", "graphics.boom"] + BATTLE_PLANETS:
+        ids += [f"{base}.large", f"{base}.medium", f"{base}.small"]
+    ids.append("graphics.stars")
+    return list(dict.fromkeys(ids))
+
+
+def race_pilot(keep_off=400, goal=None, special_goal=None, specials_from=0):
+    """A race ship's keys: it flies at the flagship (or goal), keeping off
+    keep_off, and in turn presses its weapon in pulses for RACE_PHASE
+    frames, its special (flying at special_goal meanwhile, if given), then
+    both at once; the special not before specials_from frames."""
+    def pilot(f, side, t):
+        phase = (t // RACE_PHASE) % 3
+        target = special_goal if phase == 1 and special_goal else goal or the_ship(1 - side)
+        keys = steer(f, side, target, keep_off=keep_off)
+        pulse = (t // 4) % 2 == 0
+        if pulse and phase in (0, 2):
+            keys |= B_WEAPON
+        if pulse and phase in (1, 2) and t >= specials_from:
+            keys |= B_SPECIAL
+        return keys
+    return pilot
+
+
+def flagship_pilot(keep_off=600):
+    """The flagship's keys against a race ship: at it, firing in bursts."""
+    return lambda f, side, t: steer(f, side, the_ship(1 - side), fire=t % 40 < 6, keep_off=keep_off)
+
+
+# What each race ship's keys need beyond race_pilot's defaults: how close
+# it keeps (the Syreen's song and the Zoq-Fot-Pik's tongue reach only so
+# far), and the rest.
+RACE_PILOTS = {
+    "syreen": dict(keep_off=250),
+    "zoqfot": dict(keep_off=150),
+    "androsyn": dict(keep_off=200),
+    "chmmr": dict(keep_off=500),
+    # The Slylandro's special harvests asteroids near it.
+    "slylandr": dict(keep_off=300, special_goal=nearest_asteroid(1)),
+    # The Shofixti's self-destruct ends it: after the weapon's phase, and a
+    # second Shofixti comes in (fleet).
+    "shofixti": dict(keep_off=300),
+}
+# A fleet of more than one for a ship whose special ends it.
+RACE_FLEETS = {"shofixti": [1, 2]}
+
+
+def race_flagship(keys=False):
+    """The flagship each race ship fights: a new game's with more crew
+    pods, and for the AI a blaster and a tracking system too (by keys, its
+    gun alone, so the race ship lives to use its special)."""
+    if keys:
+        return sis(100, {**START_MODULES, 3: M_CREW_POD, 4: M_CREW_POD})
+    return sis(100, {**START_MODULES, 3: M_CREW_POD, 4: M_CREW_POD, 12: M_TRACKING, 14: M_BLASTER})
+
+
+def race_battle_scenarios(program, part, seed):
+    """Each race ship of the part: against the flagship by keys, using its
+    weapon and special (race_pilot), and flown by UQM's AI (awesome, the
+    story's enemy's) against the flagship flown by the AI too (sis_intelligence)."""
+    out = []
+    for n, ship in enumerate(part):
+        opts = RACE_PILOTS.get(ship, {})
+        planet = BATTLE_PLANETS[n % 2]
+        extra = dict(shofixti_recruited=True) if ship == "shofixti" else {}
+        if ship in RACE_FLEETS:
+            extra["fleet"] = RACE_FLEETS[ship]
+        # The keys' battle: the first seed (from seed + 2n, a thousand
+        # apart) in which the weapon and the special each change the
+        # battle (a small ship may die before its special's turn).
+        for k in range(RACE_SEEDS):
+            s = dict(name=f"{ship}-keys", seed=seed + 2 * n + 1000 * k, planet=planet,
+                     ships=[race_flagship(keys=True), race(ship)], steps=[(20, 0, 0)], full=RACE_FULL, **extra)
+            s = piloted(program, s, RACE_KEYS_FRAMES, [flagship_pilot(), race_pilot(**opts)], chunk=6)
+            if keys_used(program, s, program.run([s], colours=True)[0]) == B_WEAPON | B_SPECIAL:
+                break
+        out.append(s)
+        # The AI's battle: the first seed (from seed + 2n + 1, a thousand
+        # apart) in which the race ship's AI presses both its weapon and
+        # its special (some, as the Arilou's teleport, only when a shot is
+        # about to hit).
+        for k in range(RACE_SEEDS):
+            s = dict(name=f"{ship}-ai", seed=seed + 2 * n + 1 + 1000 * k, planet=BATTLE_PLANETS[(n + 1) % 2],
+                     ships=[race_flagship(), race(ship)], ai=["awesome", "awesome"],
+                     steps=[(RACE_AI_FRAMES, 0, 0)], full=RACE_FULL, **extra)
+            if ai_pressed(program.run([s])[0], 1) == B_WEAPON | B_SPECIAL:
+                break
+        out.append(s)
+        if ship == "pkunk":
+            # The Pkunk reborn (pkunk_preprocess's even chance, new_pkunk):
+            # one of little crew flying at the flagship, the first seed in
+            # which it dies and comes back.
+            for k in range(RACE_SEEDS):
+                s = dict(name="pkunk-rebirth", seed=seed + 50 + 1000 * k, planet=planet,
+                         ships=[race_flagship(), race(ship, crew=2)], steps=[(20, 0, 0)], full=RACE_FULL)
+                s = piloted(program, s, RACE_KEYS_FRAMES,
+                            [flagship_pilot(keep_off=300), race_pilot(keep_off=100)], chunk=6)
+                if reborn(program.run([s])[0]):
+                    break
+            out.append(s)
+    return out
+
+
+def reborn(battle):
+    """Whether a Pkunk was reborn in the battle (new_pkunk drew its place)."""
+    return any("new_pkunk" in f[F_DRAWS] for f in battle["frames"])
+
+
+def keys_used(program, scenario, battle):
+    """The keys of B_WEAPON and B_SPECIAL whose presses by side 1 change
+    the battle: without them (without_keys), it differs."""
+    used = 0
+    for key in (B_WEAPON, B_SPECIAL):
+        if any(step[2] & key for step in scenario["steps"]):
+            other = program.run([without_keys(scenario, 1, key)], colours=True)[0]
+            if other["frames"] != battle["frames"]:
+                used |= key
+    return used
+
+
+def ai_pressed(battle, side):
+    """The keys of B_WEAPON and B_SPECIAL side's AI pressed in the battle."""
+    pressed = 0
+    for i in battle["inputs"]:
+        if i[side] > 0:
+            pressed |= i[side] & (B_WEAPON | B_SPECIAL)
+    return pressed
+
+
+def without_keys(scenario, side, keys):
+    """The scenario with these keys taken from side's steps."""
+    steps = []
+    for step in scenario["steps"]:
+        step = list(step)
+        step[1 + side] &= ~keys
+        steps.append(tuple(step))
+    return dict(scenario, steps=steps)
+
+
+def check_race_battles(program, scenarios, battles):
+    """Each race ship's duels show what they're for: by keys, its weapon
+    and its special each change the battle (the same battle without that
+    key differs); by the AI, the AI presses both. Each battle is recorded
+    on its own (a program run each: pkunk.c keeps its last insult in a
+    static between battles, as UQM does in a game)."""
+    def fail(name, why):
+        raise RuntimeError(f"race battle {name}: {why}")
+    for scenario, battle in zip(scenarios, battles):
+        name = scenario["name"]
+        if scenario.get("ai"):
+            for key, what in ((B_WEAPON, "weapon"), (B_SPECIAL, "special")):
+                if not ai_pressed(battle, 1) & key:
+                    fail(name, f"the AI never pressed its {what}")
+            continue
+        if name == "pkunk-rebirth":
+            if not reborn(battle):
+                fail(name, "the Pkunk wasn't reborn")
+            continue
+        used = keys_used(program, scenario, battle)
+        for key, what in ((B_WEAPON, "weapon"), (B_SPECIAL, "special")):
+            if not used & key:
+                fail(name, f"its {what} changed nothing (or was never pressed)")
+
+
+def run_race_battles(program, scenarios):
+    """The battles, each in a program run of its own."""
+    return [program.run([s], colours=True)[0] for s in scenarios]
+
+
+def pkunk_sound_count(strings_exe, package):
+    """The Pkunk's sounds (ship.pkunk.sounds, a sound bank: each line of its
+    .snd file a sound), which GetSoundCount counts for pkunk_postprocess."""
+    import zipfile
+    with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(package) as z:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        path = index["ship.pkunk.sounds"][1]
+        folder = path.rsplit("/", 1)[0] + "/"
+        names = [line.strip() for line in z.read(path).decode().splitlines() if line.strip()]
+        for name in names:
+            z.getinfo(folder + name)   # each sound is there
+    return len(names)
+
+
+def record_battle_races(uqm, battle_exe, strings_exe, images_exe, package):
+    """Every race ship (stage 4b) in UQM's own battle engine (battle.c),
+    with its own code and AI: one file for each part of the plan."""
+    sounds = pkunk_sound_count(strings_exe, package)
+    files = {}
+    for n, part in enumerate(RACE_SHIP_PARTS, 1):
+        ids = race_program_sheets(part)
+        with tempfile.TemporaryDirectory() as tmp:
+            masks, hashes = write_masks(strings_exe, images_exe, package, tmp, list(enumerate(ids)))
+            sheets_file = os.path.join(tmp, "sheets.txt")
+            with open(sheets_file, "w") as f:
+                for i, key in enumerate(ids):
+                    f.write(f"{i} {key} {len(hashes[key])}\n")
+            program = BattleProgram(battle_exe, sheets_file, masks, ids=ids, sounds=sounds)
+            scenarios = race_battle_scenarios(program, part, 9000 + 100 * n)
+            battles = run_race_battles(program, scenarios)
+            if run_race_battles(program, scenarios) != battles:
+                raise RuntimeError(f"race battles part {n}: recorded twice, they differ")
+            check_race_battles(program, scenarios, battles)
+        out = []
+        for scenario, battle in zip(scenarios, battles):
+            full = scenario["full"]
+            frames = [f if i <= full else f[:F_SHIPS] + [len(f[F_ELEMENTS]), battle_frame_hash(f)]
+                      for i, f in enumerate(battle["frames"])]
+            inputs = {k: v for k, v in scenario.items() if k not in ("name", "full")}
+            out.append({"name": scenario["name"], "input": inputs, "full": full, "ended": battle["ended"],
+                        "crew_enlisted": battle["crew_enlisted"], "bomb_carrier": battle["bomb_carrier"],
+                        "stars": battle["stars"], "inputs": battle["inputs"], "frames": frames,
+                        "crew_floating": battle["crew_floating"], "freed": battle["freed"]})
+        data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
+                      + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
+                                                             "src/libs/math/random.c"], [
+            f"Part {n} of stage 4b's race ships (docs/plans/stage-4b.md, item {n + 1}): "
+            f"{', '.join(part)}, each with its own code (src/uqm/ships/RACE/RACE.c: "
+            "init_RACE's RACE_DESC, its preprocess, postprocess, weapon and "
+            "intelligence functions), in UQM 0.8.0's own battle engine, recorded by "
+            "the program battle.json, battle-ships.json and battle-ai.json are "
+            "(tools/extract/golden/battle.c; see their notes for the engine, the "
+            "sheets, the masks, the flagship, the AI and the frames), as an "
+            "encounter runs a battle. Each battle is a program run of its own "
+            "(pkunk.c keeps its last insult in a static).",
+            "Each race ship has two battles: RACE-keys, the race ship (side 1) "
+            "flown by keys against the flagship (side 0, keys; a new game's "
+            "with two more crew pods, firing its gun in bursts): it flies at the "
+            "flagship and in turn presses its weapon in pulses, its special, then "
+            "both at once, each for "
+            f"{RACE_PHASE} frames (the Slylandro flies at an asteroid while it "
+            "presses its special, which harvests them); and RACE-ai, the race "
+            "ship flown by UQM's AI (awesome, the story's enemy's: its own "
+            "intelligence_func on cyborg.c) against the flagship flown by the AI "
+            "(sis_intelligence, UQM's Cyborg option; a blaster and a tracking "
+            "system too). Each takes the first seed (a thousand apart) in which "
+            "it shows its ship's weapon and special: by keys, the weapon and the "
+            "special each change the battle (it differs without that key); by "
+            "the AI, the race ship's AI presses both. The Shofixti (recruited) "
+            "has a second ship (fleet), as its self-destruct ends the first; "
+            "pkunk-rebirth is a Pkunk of 2 crew by keys, the first seed in which "
+            "it dies and is reborn (new_pkunk). Checked when recorded: recorded "
+            "twice, they're the same, and each shows what it's for.",
+            "input: as battle-ai.json's, and a race ship is kind race: ship "
+            "(data/ships.json's id) and crew (its STARSHIP's crew_level, which "
+            "spawn_ship holds its RACE_DESC's crew to, at most its max_crew); "
+            "shofixti_recruited: SHOFIXTI_RECRUITED set (without it an "
+            "encounter's Shofixti is Tanaka's damaged scout, init_shofixti). "
+            "The race ship's sheets are its RACE_DESC's as load_ship loads them "
+            "(load_animation: a size without its own is the size before's), "
+            "and its status icons and captain's window: the Shofixti's "
+            "self-destruct counts the captain window's frames "
+            "(captain_control.special, set by DrawCaptainsWindow), and the "
+            "VUX's limpets test the hit ship's icons' frame 1 "
+            "(ModifySilhouette, which draws random numbers to place them). "
+            f"GetSoundCount of the Pkunk's sounds is the content's ({sounds}): "
+            "pkunk_postprocess draws insults until one differs from the last.",
+            "inputs, frames, crew_enlisted, bomb_carrier, crew_floating and "
+            "freed: as battle-ai.json's. The frames' draws name UQM's "
+            "functions, the ships' own static ones among them.",
+        ])
+        data["sheets"] = ids
+        data["battles"] = out
+        files[f"battle-races-{n}"] = data
+    return files
 
 
 # ---- The battle's drawing (stage 4a item 12) ----
@@ -5478,6 +5842,7 @@ def main():
                      ("battle-draw", lambda: record_battle_draw(uqm, battle, battle_draw, strings, images, args.content)),
                      ("battle-ships", lambda: record_battle_ships(uqm, battle, strings, images, args.content)),
                      ("battle-ai", lambda: record_battle_ai(uqm, battle, strings, images, args.content)),
+                     ("battle-races", lambda: record_battle_races(uqm, battle, strings, images, args.content)),
                      ("lander-pickups", lambda: record_lander_pickups(uqm, lander, strings, images, args.content)),
                      ("lander-creatures", lambda: record_lander_creatures(uqm, lander, strings, images, args.content)),
                      ("lander-hazards", lambda: record_lander_hazards(uqm, lander, strings, images, args.content)),

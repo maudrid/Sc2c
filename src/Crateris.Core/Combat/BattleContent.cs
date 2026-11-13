@@ -59,16 +59,22 @@ public static class BattleResources
     /// <summary>
     /// The sheets a battle tests for contact: the big size only, as
     /// InitIntersectFrame takes an element's frame from farray[0]. Each
-    /// ship's ship, weapon and special, the asteroids, blasts, explosions
-    /// and stars, and every planet.
+    /// ship's ship, weapon and special, and its status panel's icons (frame
+    /// 1, its silhouette, is what ModifySilhouette in weapon.c tests the
+    /// VUX's limpets against as it places them on a ship's captain's
+    /// window), the asteroids, blasts, explosions and stars, and every planet.
     /// </summary>
     public static IReadOnlyList<string> ContactSheets(IEnumerable<ShipDescription> ships, PlanetTypes planets)
     {
         var sheets = new List<string>();
         foreach (var ship in ships)
+        {
             foreach (var views in new[] { ship.Graphics.Ship, ship.Graphics.Weapon, ship.Graphics.Special })
                 if (ShipGraphics.Sheets(views) is { } s)
                     sheets.Add(s[0]);
+            if (ship.Graphics.Icons is { } icons)
+                sheets.Add(icons);
+        }
         sheets.AddRange(new[] { Asteroid[0], Blast[0], Explosion[0], Stars });
         sheets.AddRange(Planets(planets).Select(p => p[0]));
         return sheets.Distinct().ToList();
@@ -92,7 +98,12 @@ public sealed class BattleShapes
     public IReadOnlyList<IntersectFrame> this[string resourceId] => Sheets.TryGetValue(resourceId, out var frames)
         ? frames : throw new KeyNotFoundException($"no battle shapes for {resourceId}");
 
-    /// <summary>The shapes for a battle between <paramref name="ships"/>, from sheets decoded once for everything that uses them.</summary>
+    /// <summary>
+    /// The shapes for a battle between <paramref name="ships"/>, from sheets
+    /// decoded once for everything that uses them. The game makes them for
+    /// every ship a battle can have (<see cref="World.BattleKit.Fighters"/>)
+    /// as the content is opened.
+    /// </summary>
     public static BattleShapes Load(AnimationSheets decoded, IEnumerable<ShipDescription> ships, PlanetTypes planets)
     {
         var list = ships.ToList();
@@ -111,8 +122,8 @@ public sealed class BattleShapes
     /// <summary>
     /// The shapes of these sheets. Every frame must have a known mask, and
     /// every sheet a frame; anything wrong is a <see cref="ContentPackageException"/>,
-    /// found when it's made rather than in a battle (the game will make it as the
-    /// content is opened, headless too, stage 4a item 6; the tests do now).
+    /// found when it's made rather than in a battle (the game makes them as the
+    /// content is opened, headless too).
     /// </summary>
     public static BattleShapes Load(AnimationSheets decoded, IEnumerable<string> sheets)
     {
