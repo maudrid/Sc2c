@@ -9,7 +9,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4.md`, stage 4a (combat), approved by the owner with all fifteen decisions accepted.
 - **Stage 4a is built: items 1 to 13.** Each has a Built row in the plan's Progress section. Item 13 wrote `docs/how-to-try/stage-4a.md`, `differences.md` rows (new rows 48 to 58), and brought `design.md`, `porting-inventory.md`, `uqm-data.md`, `how-to-try/stage-3a.md` and `Options.cs`'s usage up to date.
-- **Last checks:** with item 13's docs, all topics 1,464 passed, 0 failed, 0 skipped with the content set; the game build has no warnings; three headless runs for the how-to-try page (the Ilwrath fight from `--start-visit base-report`, a retreat from `--start-battle`, the host's pause) did what the page says. `tools/test_network.py` was last run on item 12's first commit; data checks on item 9's last commit.
+- **Last checks:** with item 13's docs, all topics 1,464 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); three headless runs for the how-to-try page (the Ilwrath fight from `--start-visit base-report`, a retreat from `--start-battle`, the host's pause) did what the page says. `tools/test_network.py` was last run on item 12's first commit; data checks on item 9's last commit.
 
 ## Open items
 

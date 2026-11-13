@@ -25,7 +25,7 @@ What should happen: every topic passes and none is skipped (1,464 tests in 15 to
 
 ## Keys
 
-In a battle, as on any flying screen: left and right turn, up thrusts. Space, Enter or Ctrl fires the weapon, Shift the special (the flagship has none; it's for stage 4b's ships), Esc retreats where it's allowed. P or Pause is the host's pause. On the rescue screen: up and down choose the row (the wreck, the crew), left and right change it by one, Page Up and Page Down the crew by ten, Enter gives, Esc closes. On the game over screen, Enter or Esc ends the game. A guest's keys are the same.
+In a battle, as on any flying screen: left and right turn, up thrusts. Space, Enter or Ctrl fires the weapon, Shift the special (the flagship has none; it's for stage 4b's ships), Esc retreats where it's allowed. P or Pause is the host's pause. On the rescue screen: up and down choose the row (the wreck, the crew), left and right change it by one, Page Up and Page Down the crew by ten, Enter (or Space) gives, Esc (or Backspace) closes. On the game over screen, Enter or Esc ends the game. A guest's keys are the same.
 
 ## Play it: the Ilwrath at Earth
 
@@ -45,7 +45,7 @@ godot --path game -- --join 127.0.0.1 --name Guest --id guest-1
 4. **Winning.** The Ilwrath destroyed, the battle ends (it pays no salvage, as UQM's at Earth) and the commander's alliance talk follows, every player watching: the opening goes on as in stage 3a, the two weeks, the starbase ready. The player who started the fight answers if their ship fought to the end; otherwise (wrecked, or gone) the next player present in join order, the host first, and nobody docks as the opening ends.
 5. **Losing the escort.** If the escort's crew runs out (the guest flew in, or started the fight by flying into the starbase first and replying), it explodes as UQM's ships do and the guest watches the battle on. Once the battle is over the escort is a wreck by Earth, at the battle's marker: dimmed, still, labelled, its cargo, fuel and modules kept, with no crew. It doesn't fly, land, talk or take gifts.
 6. **Everyone out.** If every player is out of the fight with the Ilwrath alive (destroyed or disconnected), the visit is taken back: the starter's ship as before it (a wreck staying a wreck), and the Ilwrath hails again on the next report to the commander.
-7. **Losing the flagship** is the game over, whoever else is still fighting: once its explosion and the Ilwrath's victory ditty's time are over, every player's screen fades to black and says the game is over. Enter or Esc ends the game; the host's save is the one from before the battle, so loading it tries again.
+7. **Losing the flagship** is the game over, whoever else is still fighting: once its explosion and the Ilwrath's victory ditty's time are over, every player's screen fades to black and says the game is over. Enter or Esc ends the game. Nothing is saved from the frame the flagship's crew runs out, so the host's save is the last one made before that (the autosave runs every minute; a battle lost in the first minute of a new game leaves none): loading it tries again.
 
 ## Reviving a wreck
 
