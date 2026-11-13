@@ -158,7 +158,7 @@ public sealed class BattleStatus
         // were: UQM clears them in that frame's PostProcessStatus, after
         // reading them, so the window turns back only on the next.
         // Only that frame itself (its explosion's first life, 35): after frames missed the keys' change is drawn
-        // before the steps caught up, as UQM drew it under the steps that followed.
+        // as PostProcessStatus orders it against the steps caught up.
         if (slot.ElementCrew == 0 && !slot.Flashing && !(state.Crew == 0 && state.LifeSpan < NumExplosionFrames * 3 - 1))
             state = state with { Flags = (state.Flags & ~Keys) | (slot.OldFlags & Keys) };
         var keysChanged = (slot.OldFlags ^ state.Flags) & Keys;
@@ -459,11 +459,11 @@ public sealed class BattleStatus
         bool exploding = state.ElementCrew == 0 && state.Crew == 0 && state.LifeSpan < NumExplosionFrames * 3;
         bool flash = state.ElementCrew == 0 && (outBefore || exploding && state.LifeSpan > 0);
         // Each step draws on the last: frames missed (a snapshot lost, or two in one of the screen's frames) have
-        // their steps drawn now, down to this one's; the keys' changes taken as made in the first frame missed,
-        // so drawn before them (UQM drew them after the first of those steps, which fills the window as the next
-        // does: the same pixels).
+        // their steps drawn now, down to this one's. UQM clears the keys held as the crew ran out on the
+        // explosion's second life, 34, drawing them over that step, and the next step's fill covers them: caught
+        // up past it, the keys' change is drawn first, under the steps (the same pixels); caught up to it, after.
         bool steps = flash && exploding;
-        bool catchUp = steps && slot.FlashedTo - 1 > state.LifeSpan;
+        bool catchUp = steps && slot.FlashedTo - 1 > state.LifeSpan && state.LifeSpan != NumExplosionFrames * 3 - 2;
         if (catchUp)
             KeysChanged(slot, y, cur);
         if (flash)

@@ -371,6 +371,40 @@ public class BattleDrawTests
 
     private static readonly int[] All = Enumerable.Range(0, 36).Reverse().ToArray();   // every life of an explosion
 
+    /// <summary>
+    /// The panel midway through an explosion, after frames missed, is the
+    /// one that saw them all at the same life (the keys held as the crew ran
+    /// out cleared on its second life, 34, over that step).
+    /// </summary>
+    [ContentTheory]
+    [InlineData(new[] { 34 }, true)]
+    [InlineData(new[] { 33 }, true)]
+    [InlineData(new[] { 35, 33 }, true)]
+    [InlineData(new[] { 20 }, true)]
+    [InlineData(new[] { 34 }, false)]
+    [InlineData(new[] { 30, 12 }, false)]
+    public void TheExplosionsFlashMidwayIsWholeWhateverFramesAreMissed(int[] seen, bool keysHeld)
+    {
+        var pics = Pics.Value;
+        var d = BattleReplay.Ships[ShipDescriptions.Ilwrath];
+        var ship = new StatusShip(d.Graphics.Icons, d.Graphics.Captain, 22, 16, false, false, false, "string 1", "string 5");
+        var held = keysHeld ? StatusFlags.Thrust | StatusFlags.Weapon | StatusFlags.Left : StatusFlags.None;
+        ScreenRaster Run(IEnumerable<int> lives)
+        {
+            var canvas = new UqmCanvas(pics.Count, (_, _) => default, Leading);
+            var status = new BattleStatus(canvas);
+            status.Init(BattleStatus.EnemySlot, ship, new StatusState(22, 16, held, 22, 1));
+            status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, held, 0, 0));   // its crew seen out, the keys held
+            foreach (int life in lives)   // the engine clears them as its explosion starts
+                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, life));
+            var raster = pics.Raster();
+            raster.Paint(canvas.Drawn);
+            return raster;
+        }
+        var diff = Diff(Run(Enumerable.Range(seen[^1], 36 - seen[^1]).Reverse()), Run(seen));
+        Assert.True(diff.Count == 0, $"seen {string.Join(",", seen)}: {diff.Count} pixels differ, first at {diff.FirstOrDefault()}");
+    }
+
     // The status area's pixels that differ.
     private static List<(int X, int Y)> Diff(ScreenRaster a, ScreenRaster b) => Diff(a.Rgba, b.Rgba);
 
