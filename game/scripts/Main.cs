@@ -399,6 +399,7 @@ public partial class Main : Node2D
         };
         _player.Logged += Log;
         _player.TradeClosed += TradeClosed;
+        _player.RescueOpened += TradeClosed;   // its keys likely held as the ship flies into the wreck: taken too
         if (_options.ShowReport is { } report)
             _player.ShowReport(new Crateris.Core.Planetside.LanderReport(report));
         if (_options.Join)
@@ -1226,7 +1227,9 @@ public partial class Main : Node2D
 
     // The keys held as the giving screen closes (the Esc that closed it, an arrow as a talk closed it) are taken
     // there and then, the game's again only once they've come up: their repeats mustn't leave outfitting, the
-    // Manifest, or move a reply (a guest's talk comes between frames, before the next key's handled).
+    // Manifest, or move a reply (a guest's talk comes between frames, before the next key's handled). So are those
+    // held as the rescue screen opens (the ship flying into the wreck): their repeats mustn't choose for the
+    // player, nor a held Enter give at once.
     private void TradeClosed() =>
         _taken.TakeHeld(_down.Select(d => ((long)d.Key, (long)d.Value)), shut: true, except: (long)Key.F1);
 

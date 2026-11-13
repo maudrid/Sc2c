@@ -757,6 +757,7 @@ public sealed class PlayerSession
                 if (Trade is not null)
                     CloseTrade();   // the rescue's keys now
                 Rescue = new RescueScreen(notice.Other);
+                RescueOpened?.Invoke();
                 break;
             case BattleNoticeKind.Revived when notice.Other == RescueOffer:
                 RescueOffer = null;
@@ -780,9 +781,17 @@ public sealed class PlayerSession
     /// flies into a wreck (a rescue offered), closed by Esc, by giving, or
     /// once nothing is left to rescue here (the wreck offered revived and no
     /// other wreck in the same place), the ship busy (no longer flying), a
-    /// talk shown, the game paused or over. The ship waits meanwhile.
+    /// talk shown, a story pause or the game over; the host's pause leaves it
+    /// open (a revival given meanwhile is refused, and said why). The ship
+    /// waits meanwhile.
     /// </summary>
     public RescueScreen? Rescue { get; private set; }
+
+    /// <summary>
+    /// The rescue screen opened, as the ship flew into a wreck: the keys
+    /// held then (flying into it) aren't the screen's till they've come up.
+    /// </summary>
+    public event Action? RescueOpened;
 
     private void FollowRescue()
     {

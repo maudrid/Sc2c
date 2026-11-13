@@ -62,7 +62,7 @@ public sealed class BattleView
             return;
         }
         if (fresh || !_own)
-        {   // From the battle's camera as it is: the same zoom and frame.
+        {   // From the battle's camera as it is: the same zoom and frame (the stars placed afresh: BattleScreen).
             _cam = host with { ViewState = 2 };
             _own = true;
             OffsetX = OffsetY = 0;
@@ -118,7 +118,8 @@ public sealed class BattleView
         OffsetX = Wrap(OffsetX + sx, w);
         OffsetY = Wrap(OffsetY + sy, h);
         // The stars move with the battle's frame and this camera's on it.
-        _cam = new BattleCamera(view, (short)(host.ScrollX + sx), (short)(host.ScrollY + sy), zoomOut, orgX, orgY, host.Step);
+        _cam = new BattleCamera(view, (short)(host.ScrollX + sx), (short)(host.ScrollY + sy), zoomOut, orgX, orgY, host.Step,
+            host.Frame, host.ScrolledX + OffsetX, host.ScrolledY + OffsetY);
     }
 
     private static int Wrap(int v, int size) => ((v % size) + size) % size;
@@ -155,6 +156,8 @@ public sealed class BattleScreen
     private readonly BattleView _view = new();
     private BattleGalaxy? _galaxy;
     private int? _battle;
+    private int _frame;
+    private bool _wasOwn;
     private bool _enemyShown, _mineShown;
 
     /// <param name="canvas">Where the status panel's calls go (<see cref="Status"/>).</param>
@@ -178,12 +181,20 @@ public sealed class BattleScreen
     /// A frame of <paramref name="b"/> as <paramref name="viewer"/> sees it:
     /// the status panel's changes added to <see cref="Status"/>, and the
     /// space window's calls returned, the window cleared first, the minimap
-    /// last.
+    /// last; null for a frame already drawn (the host's pause sends the same
+    /// one again: nothing new is drawn). After a frame missed (a snapshot
+    /// lost, or two in one of the screen's frames), the first seen, or the
+    /// camera passing between the battle's and the player's own, the stars
+    /// are placed afresh (<see cref="BattleGalaxy.Place"/>), else moved as
+    /// UQM moves them. The stars are drawn from UQM's own space round the
+    /// view (InitGalaxy's stars cover it only), whatever the arena's size.
     /// </summary>
     /// <param name="sizeOf">A big sheet's id at a zoom's size (<see cref="BattleSpace.SizeOf"/>).</param>
-    public List<UqmDraw> Frame(BattleSnapshot b, string viewer, Func<string, int, string> sizeOf)
+    public List<UqmDraw>? Frame(BattleSnapshot b, string viewer, Func<string, int, string> sizeOf)
     {
         Fresh = _battle != b.Id;
+        if (!Fresh && b.Camera.Frame == _frame)
+            return null;
         if (Fresh)
         {
             _battle = b.Id;
@@ -192,7 +203,15 @@ public sealed class BattleScreen
         }
         _view.Follow(b, viewer);
         var cam = _view.Camera;
-        _galaxy!.Move(cam);
+        var zoom = cam.Step ? BattleZoom.Step : BattleZoom.Smooth;
+        var (sx, sy) = Battle.SpaceOrg(zoom, ArenaSize.Uqm, cam.ZoomOut);
+        var stars = cam with { OrgX = sx, OrgY = sy };
+        if (Fresh || cam.Frame != _frame + 1 || _view.Own != _wasOwn)
+            _galaxy!.Place(stars);
+        else
+            _galaxy!.Move(stars);
+        _frame = cam.Frame;
+        _wasOwn = _view.Own;
         var prims = _galaxy.Prims
             .Concat(b.Elements.Select(e => BattleSpace.Of(_view.InFrame(e, b.Width, b.Height), cam, sizeOf)));
         var drawn = new List<UqmDraw> { new(UqmDrawKind.Clear, 0, 0, SpaceClip.W, SpaceClip.H, default, Clip: SpaceClip) };

@@ -48,7 +48,10 @@ public class RescueScreenTests
             Ship("far", 0, 20, wreck: true, star: 3));
         session.Observe(world);
         Assert.Null(session.Rescue);
+        int opened = 0;
+        session.RescueOpened += () => opened++;   // the game takes the keys held then
         session.ShowBattleNotice(new BattleNotice(BattleNoticeKind.RescueOffer, Other: "w1"));
+        Assert.Equal(1, opened);
         var rescue = Assert.IsType<RescueScreen>(session.Rescue);
         Assert.Equal(new[] { "w1", "w2" }, RescueScreen.WrecksHere(world, "me").Select(s => s.Id));   // not the one in a system
 

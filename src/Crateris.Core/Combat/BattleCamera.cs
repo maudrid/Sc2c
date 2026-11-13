@@ -18,9 +18,13 @@ namespace Crateris.Core.Combat;
 /// stable, 1 scrolled, 2 zoomed), its scroll (CalcView's dx and dy, which
 /// moved every element and moves the stars), its zoom (zoom_out) and the
 /// view's corner (SpaceOrg), and whether the zoom is UQM's step zoom
-/// rather than its smooth one.
+/// rather than its smooth one; the battle's frames so far and every
+/// frame's scroll added up (<see cref="Battle.Frames"/>,
+/// <see cref="Battle.ScrolledX"/>), so a screen sees a frame it missed and
+/// places the stars afresh.
 /// </summary>
-public readonly record struct BattleCamera(int ViewState, int ScrollX, int ScrollY, int ZoomOut, int OrgX, int OrgY, bool Step)
+public readonly record struct BattleCamera(int ViewState, int ScrollX, int ScrollY, int ZoomOut, int OrgX, int OrgY, bool Step,
+    int Frame = 0, int ScrolledX = 0, int ScrolledY = 0)
 {
     public const int ZoomShift = 8, OneShift = 2;
 

@@ -333,8 +333,22 @@ public sealed partial class Battle
                 DisplayAlign(centreY - LogSpaceHeight * reduction / (MaxZoomOut << 2)));
     }
 
-    /// <summary>The camera the battle was last drawn from (stage 4a item 12: sent to the players).</summary>
-    public BattleCamera Camera => new(ViewState, ScrollX, ScrollY, ZoomOut, SpaceOrgX, SpaceOrgY, Zoom == BattleZoom.Step);
+    /// <summary>The camera the battle was last drawn from (stage 4a item 12: sent to the players), with the frames and scroll so far.</summary>
+    public BattleCamera Camera => new(ViewState, ScrollX, ScrollY, ZoomOut, SpaceOrgX, SpaceOrgY, Zoom == BattleZoom.Step,
+        Frames, ScrolledX, ScrolledY);
+
+    /// <summary>The frames stepped so far (RedrawQueue's): a player's screen draws each once, and sees one missed.</summary>
+    public int Frames { get; private set; }
+
+    /// <summary>
+    /// Every frame's scroll added up: the stars' places are InitGalaxy's
+    /// moved by it, each plane's wrapped round its size, so a player's
+    /// screen that missed a frame places them afresh (stage 4a item 12).
+    /// </summary>
+    public int ScrolledX { get; private set; }
+
+    /// <inheritdoc cref="ScrolledX"/>
+    public int ScrolledY { get; private set; }
 
     // ProcessCollisions: the element against those after it (from hSucc),
     // each pair's time of impact over their shapes; returns COLLISION if
@@ -772,6 +786,9 @@ public sealed partial class Battle
         ScrollX = scrollX;
         ScrollY = scrollY;
         ViewState = viewState;
+        Frames++;
+        ScrolledX += scrollX;
+        ScrolledY += scrollY;
         PostProcessQueue(viewState, scrollX, scrollY);
     }
 

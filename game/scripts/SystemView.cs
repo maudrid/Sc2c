@@ -236,14 +236,15 @@ public partial class SystemView : Control
         // in the same activity): the flagship's image by facing, with the
         // player's name. As in UQM, no thrust shows outside battle.
         // A ship whose entry into the star still plays is shown in hyperspace until it ends.
-        // A ship at another zoom (another player's outer view: a ship waiting in a battle, a wreck) is put at this
-        // view's; a wreck lies still, dimmed, and a ship in a battle is said to be.
+        // In the outer system a ship at another zoom (another player's: a ship waiting in a battle, a wreck) is
+        // put at this view's (an inner system has one zoom, its own); a wreck lies still, dimmed, and a ship in a
+        // battle is said to be.
         foreach (var s in _snapshot.Ships.Where(s => (InFlightOrBattle(me.Activity) ? InFlightOrBattle(s.Activity) : s.Activity == me.Activity)
                      && s.SystemStar == star
                      && s.InnerPlanet == me.InnerPlanet && s.Entry is null))
         {
             double x, y;
-            if (s.Id != me.Id && s.ZoomRadius != me.ZoomRadius && me.ZoomRadius > 0)
+            if (me.InnerPlanet is null && s.Id != me.Id && s.ZoomRadius != me.ZoomRadius && me.ZoomRadius > 0)
                 (x, y) = At(s.IpX, s.IpY, me.ZoomRadius);
             else
                 (x, y) = _motion.TryGetValue(s.Id, out var m) && !s.Wrecked ? m.AtTime(_clock.Time) : (s.ScreenX, s.ScreenY);
@@ -260,12 +261,14 @@ public partial class SystemView : Control
                 HorizontalAlignment.Left, -1, 14, s.Wrecked ? WreckTint : SisScreen.ShipColor(s, _me));
         }
 
-        // The battles fought in this view, each at its marker (stage 4a item 6), at this view's zoom.
+        // The battles fought in this view, each at its marker (stage 4a item 6), at this view's zoom (an inner
+        // system's its own, as InReach measures it).
+        int markerZoom = me.InnerPlanet is null ? me.ZoomRadius : IpGeometry.MaxZoomRadius;
         foreach (var b in _snapshot.Markers ?? Array.Empty<BattleMarkerSnapshot>())
         {
-            if (b.Star != star || b.InnerPlanet != me.InnerPlanet || me.ZoomRadius <= 0)
+            if (b.Star != star || b.InnerPlanet != me.InnerPlanet || markerZoom <= 0)
                 continue;
-            var (x, y) = At(b.X, b.Y, me.ZoomRadius);
+            var (x, y) = At(b.X, b.Y, markerZoom);
             SisScreen.BattleMarker(this, new Vector2((float)x, (float)y) * SisScreen.Scale);
         }
     }

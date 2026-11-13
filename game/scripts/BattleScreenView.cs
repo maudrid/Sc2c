@@ -25,8 +25,8 @@ namespace Crateris.Game;
 /// host sends, painted by <see cref="ScreenRaster"/> from the battle's
 /// sprites (<see cref="BattleSprites"/>, made as the content is opened).
 /// The status panel is drawn incrementally, as UQM's is, so the raster is
-/// kept from frame to frame. A frame the host holds (its pause) draws
-/// nothing new.
+/// kept from frame to frame. A battle frame already drawn (the host's
+/// pause sends the same one again) draws nothing new.
 /// </summary>
 public partial class BattleScreenView : Node2D
 {
@@ -96,7 +96,7 @@ public partial class BattleScreenView : Node2D
         if (_sprites is null || Broken || player.Battle is not { } battle || player.Snapshot is not { } snapshot)
             return false;
         if (snapshot.Frame == _frame && _screen is not null)
-            return true;   // held (the host's pause), or no new frame yet
+            return true;   // no new snapshot yet
         try
         {
             if (_screen is null)
@@ -109,12 +109,14 @@ public partial class BattleScreenView : Node2D
                 _screen = new BattleScreen(_canvas, (s, id) => StatusShip(s, id, player.Snapshot));
             }
             var space = _screen.Frame(battle, player.PlayerId, BattleSpace.SizeOf);
+            _frame = snapshot.Frame;
+            if (space is null)
+                return true;   // the battle's frame already drawn: the host's pause holds it
             if (_screen.Fresh || _raster is null)
                 _raster = new ScreenRaster(_sprites.Image, f => _fonts[f]);
             _raster.Paint(space);
             _raster.Paint(_screen.Status);
             _screen.Status.Clear();
-            _frame = snapshot.Frame;
             var image = Image.CreateFromData(ScreenRaster.Width, ScreenRaster.Height, false, Image.Format.Rgba8, _raster.Rgba);
             if (_texture is null)
                 _texture = ImageTexture.CreateFromImage(image);

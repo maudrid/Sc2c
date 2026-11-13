@@ -44,6 +44,8 @@ public sealed class BattleGalaxy
     private static int Rgb15(int r, int g, int b) => (r << 10) | (g << 5) | b;
 
     private readonly short[] _x = new short[NumStars], _y = new short[NumStars];
+    // InitGalaxy's places, which every frame's scroll added up moves (Place).
+    private readonly short[] _x0 = new short[NumStars], _y0 = new short[NumStars];
     // Each plane's star with the least y (min_star_index): where its wrap starts.
     private readonly int[] _min = new int[3];
     // The display list's star primitives: their kind, frame, colour and place.
@@ -59,11 +61,46 @@ public sealed class BattleGalaxy
         for (int i = 0; i < NumStars; ++i)
         {
             (_x[i], _y[i]) = stars[i];
+            (_x0[i], _y0[i]) = stars[i];
             bool big = i < BigStars + MedStars;
             _type[i] = big ? PrimType.Stamp : PrimType.Point;
             _color[i] = big ? Rgb15(0x0B, 0x0B, 0x1F) : Rgb15(0x15, 0x15, 0x15);
         }
     }
+
+    /// <summary>
+    /// The stars placed afresh for a frame, after one or more missed (or the
+    /// first seen): each plane's InitGalaxy places moved by every frame's
+    /// scroll added up (<see cref="BattleCamera.ScrolledX"/>), wrapped round
+    /// the plane's size as WrapStarBlock and MoveGalaxy keep them (the
+    /// planes' widths divide 2^16, so the 16-bit places agree), then drawn
+    /// at the camera as a zoom's change draws them. The same as stepping
+    /// every frame, but for a plane UQM left unmoved on the screen
+    /// (CmpMovePoints) whose other stars would have moved a pixel.
+    /// </summary>
+    public void Place(BattleCamera cam)
+    {
+        for (int plane = 0; plane < 3; ++plane)
+        {
+            int w = LogSpaceWidth << plane, h = LogSpaceHeight << plane, first = FirstOf[plane], n = StarCounts[plane];
+            for (int p = first; p < first + n; ++p)
+            {
+                _x[p] = (short)Mod(_x0[p] + cam.ScrolledX, w);
+                _y[p] = (short)Mod(_y0[p] + cam.ScrolledY, h);
+            }
+            // The block stays sorted by y round its least star (min_star_index): where it wraps.
+            _min[plane] = 0;
+            for (int k = 1; k < n; ++k)
+                if (_y[first + k] < _y[first + k - 1])
+                {
+                    _min[plane] = k;
+                    break;
+                }
+        }
+        Move(cam with { ViewState = 2, ScrollX = 0, ScrollY = 0 });
+    }
+
+    private static int Mod(int v, int m) => ((v % m) + m) % m;
 
     /// <summary>MoveGalaxy: the frame's camera moves the stars and sets how they're drawn.</summary>
     public void Move(BattleCamera cam)

@@ -167,6 +167,7 @@ public class BattleDrawTests
         var drawn = recorded.GetProperty("drawn").EnumerateArray().ToList();
         var stars = recorded.GetProperty("stars").EnumerateArray().Select(p => ((short)p[0].GetInt32(), (short)p[1].GetInt32())).ToList();
         var galaxy = new BattleGalaxy(stars);
+        (int X, int Y) scrolled = (0, 0);
         bool step = recorded.GetProperty("input").TryGetProperty("zoom", out var z) && z.GetString() == "step";
         int frames = 0;
         Replay(recorded, (frame, battle, own) =>
@@ -178,8 +179,17 @@ public class BattleDrawTests
                 return;
             }
             var cam = battle.Camera;
-            Assert.Equal(new BattleCamera(battle.ViewState, battle.ScrollX, battle.ScrollY, battle.ZoomOut, battle.SpaceOrgX, battle.SpaceOrgY, step), cam);
+            scrolled = (scrolled.X + battle.ScrollX, scrolled.Y + battle.ScrollY);
+            Assert.Equal(new BattleCamera(battle.ViewState, battle.ScrollX, battle.ScrollY, battle.ZoomOut, battle.SpaceOrgX, battle.SpaceOrgY, step,
+                frame, scrolled.X, scrolled.Y), cam);
             galaxy.Move(cam);
+            // A screen that missed frames places the stars afresh from the scroll so far: UQM's places again.
+            if (frame % 37 == 0)
+            {
+                var placed = new BattleGalaxy(Battle.Galaxy(battle.StarSeed));
+                placed.Place(cam);
+                Assert.Equal(galaxy.Prims, placed.Prims);
+            }
             var ours = galaxy.Prims
                 .Concat(battle.List.Elements.Where(e => e.Prim != PrimType.None)
                     .Select(e => BattleSpace.Of(GameWorld.ElementSnapshot(e), cam, BattleSpace.SizeOf)))
@@ -250,6 +260,7 @@ public class BattleDrawTests
         var canvas = new UqmCanvas(pics.Count, (_, _) => default, Leading);
         Starship? player = null, enemy = null;
         var screen = new BattleScreen(canvas, (s, id) => StatusOf(id is null ? enemy! : player!));
+        var skipper = new BattleScreen(new UqmCanvas(pics.Count, (_, _) => default, Leading), (s, id) => StatusOf(id is null ? enemy! : player!));
         var uqm = pics.Raster();
         var port = pics.Raster();
         int frames = 0;
@@ -260,13 +271,29 @@ public class BattleDrawTests
                 return;
             (player, enemy) = (own[0], own[1]);
             canvas.Drawn.Clear();
-            var space = screen.Frame(Snapshot(battle, own), "p", BattleSpace.SizeOf);
+            var snapshot = Snapshot(battle, own);
+            var space = screen.Frame(snapshot, "p", BattleSpace.SizeOf)!;
+            Assert.Null(screen.Frame(snapshot, "p", BattleSpace.SizeOf));   // the same frame again (the host's pause): nothing new
+            // A screen sent only every third frame (the others lost) draws the stars and elements as UQM's too.
+            var skipping = frame % 3 == 1 ? skipper.Frame(snapshot, "p", BattleSpace.SizeOf) : null;
             Assert.True(screen.View.Camera == battle.Camera, $"{name} frame {frame}: the followed player's camera isn't the battle's: {screen.View.Camera} {battle.Camera}");
             var theirs = drawn[frame][1].EnumerateArray().ToList();
             int scale = theirs[^1].GetInt32();
             var expected = theirs.Take(theirs.Count - 1).Select(p => SpaceCall(p.Ints(), sheets, scale)).ToList();
             static UqmDraw Drawn(UqmDraw d) => d.Kind == UqmDrawKind.Stamp ? d with { Color = default } : d;
             var ours = space.Skip(1).Take(expected.Count).ToList();
+            if (skipping is not null)
+            {
+                var sk = skipping.Skip(1).Take(expected.Count).ToList();
+                // The stars within a pixel (UQM leaves a plane's places as they were while its first star stays put on
+                // the screen, CmpMovePoints, though another may have moved a pixel); the elements exactly.
+                for (int i = 0; i < ours.Count; ++i)
+                    Assert.True(i < BattleGalaxy.NumStars
+                            ? Drawn(ours[i]) with { X = 0, Y = 0 } == Drawn(sk[i]) with { X = 0, Y = 0 }
+                              && Math.Abs(ours[i].X - sk[i].X) <= 1 && Math.Abs(ours[i].Y - sk[i].Y) <= 1
+                            : Drawn(ours[i]) == Drawn(sk[i]),
+                        $"{name} frame {frame} call {i}: every frame {ours[i]}, every third {sk[i]}");
+            }
             for (int i = 0; i < expected.Count; ++i)
                 Assert.True(i < ours.Count && Drawn(ours[i]) == Drawn(expected[i]),
                     $"{name} frame {frame} call {i}: UQM {expected[i]}, the screen {(i < ours.Count ? ours[i] : null)}");

@@ -102,7 +102,7 @@ public class BattleScreenTests
     {
         var canvas = new UqmCanvas(_ => 1, (_, _) => default, new Dictionary<string, int>());
         var screen = new BattleScreen(canvas, (s, id) => new StatusShip(null, null, s.MaxCrew, s.MaxEnergy, false, false, id != null, "n", "c"));
-        var drawn = screen.Frame(Battle((1000, 1000), (1000 + W / 4, 1000)), "me", BattleSpace.SizeOf);
+        var drawn = screen.Frame(Battle((1000, 1000), (1000 + W / 4, 1000)), "me", BattleSpace.SizeOf)!;
         var box = BattleScreen.MinimapRect(W, H);
         var dots = drawn.Where(d => d.Kind == UqmDrawKind.Rect && d.Width == 2).ToList();
         Assert.Equal(3, dots.Count);
@@ -113,6 +113,35 @@ public class BattleScreenTests
         Assert.True(screen.Fresh);
         Assert.NotEmpty(screen.Status);                       // the panel drawn afresh
         Assert.Equal(UqmDrawKind.Clear, drawn[0].Kind);
+    }
+
+    // The stars a frame draws, in the space window.
+    private static List<UqmDraw> Stars(List<UqmDraw> drawn) => drawn.Skip(1).Take(BattleGalaxy.NumStars).ToList();
+
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(2.0)]
+    [InlineData(3.0)]
+    public void StarsFillTheWindowInABiggerArenaAndOnAFirstFrameSeenStill(double scale)
+    {
+        // The widest zoom, the camera still (view state 0) on the frame first seen: the stars are placed all the same.
+        var arena = ArenaSize.Scaled(scale);
+        var zoom = 1 << 10;
+        var (ox, oy) = Combat.Battle.SpaceOrg(BattleZoom.Smooth, arena, zoom);
+        var b = new BattleSnapshot(1, arena.Width, arena.Height, Status with { Ship = "ilwrath" }, (short)(arena.Width / 2), 100,
+            new[] { new BattleFighterSnapshot("me", Status, (short)(arena.Width / 2), (short)(arena.Height - 100), true) },
+            Array.Empty<BattleElementSnapshot>(), new BattleCamera(0, 0, 0, zoom, ox, oy, false, 40, 1234, -567), 99);
+        var canvas = new UqmCanvas(_ => 1, (_, _) => default, new Dictionary<string, int>());
+        var screen = new BattleScreen(canvas, (s, id) => new StatusShip(null, null, s.MaxCrew, s.MaxEnergy, false, false, id != null, "n", "c"));
+        var stars = Stars(screen.Frame(b, "me", BattleSpace.SizeOf)!);
+        bool In(UqmDraw d, int x0, int x1, int y0, int y1) => d.X >= x0 && d.X < x1 && d.Y >= y0 && d.Y < y1;
+        const int w = UqmCanvas.SpaceWidth, h = UqmCanvas.SpaceHeight;
+        Assert.Contains(stars, d => In(d, 0, w / 2, 0, h / 2));
+        Assert.Contains(stars, d => In(d, w / 2, w, 0, h / 2));
+        Assert.Contains(stars, d => In(d, 0, w / 2, h / 2, h));
+        Assert.Contains(stars, d => In(d, w / 2, w, h / 2, h));
+        // Zoomed out, the smooth zoom draws every star a point (the 3DO's choice: MoveGalaxy), the near ones too.
+        Assert.All(stars, d => Assert.Equal(UqmDrawKind.Point, d.Kind));
     }
 
     private static ScreenRaster Raster(SpriteImage img) => new((_, _) => img, _ => throw new InvalidOperationException());

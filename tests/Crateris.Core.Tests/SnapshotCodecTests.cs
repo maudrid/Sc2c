@@ -483,7 +483,7 @@ public class SnapshotCodecTests
                 new BattleElementSnapshot(PrimType.StampFill, 1000, 100, 0, 0, "ship.ilwrath.big", 15, 0x123456),
                 new BattleElementSnapshot(PrimType.Line, 24500, 23000, 24550, 23050, "battle.stars", 0, 0xFF0000),   // across the seam from a
                 new BattleElementSnapshot(PrimType.Point, 12000, 11000, 0, 0, "battle.stars", 2, 7),                 // by b, far from a
-            }, new BattleCamera(2, -12, 40, 640, -300, 200, false), 123456789);
+            }, new BattleCamera(2, -12, 40, 640, -300, 200, false, 345, -98765, 4321), 123456789);
     }
 
     [Fact]

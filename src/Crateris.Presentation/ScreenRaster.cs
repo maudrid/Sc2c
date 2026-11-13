@@ -228,9 +228,11 @@ public sealed class ScreenRaster
     /// <summary>GSCALE_IDENTITY: a graphic scale drawing a stamp at its own size.</summary>
     public const int GraphicScaleIdentity = 256;
 
-    // line_prim's Bresenham line, both ends drawn; UQM clips the line to the
-    // rectangle first (clip_line), this tests each pixel, which draws the same
-    // pixels for a line starting inside it.
+    // line_prim's Bresenham line, both ends drawn. UQM clips the line to the
+    // rectangle first (clip_line, moving an end outside it to where the line
+    // crosses the edge, which changes the steps); this tests each pixel, so a
+    // line with both ends inside draws UQM's pixels, and one with an end
+    // outside may differ by a pixel along it.
     private void Line(in (int X0, int Y0, int X1, int Y1) clip, int x1, int y1, int x2, int y2, Crateris.Core.Systems.Rgb c)
     {
         int dx = x2 - x1, ax = Math.Abs(dx) << 1, sx = dx < 0 ? -1 : 1;

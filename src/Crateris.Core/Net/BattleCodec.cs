@@ -117,6 +117,9 @@ public static partial class SnapshotCodec
         w.Int(c.OrgX);
         w.Int(c.OrgY);
         w.Byte(c.Step ? (byte)1 : (byte)0);
+        w.UInt((ulong)c.Frame);
+        w.Int(c.ScrolledX);
+        w.Int(c.ScrolledY);
     }
 
     private static BattleCamera ReadCamera(ref WireReader r)
@@ -128,7 +131,11 @@ public static partial class SnapshotCodec
         bool step = Flag(r.Byte());
         if (zoom < 0 || (step && zoom > 2))
             throw new InvalidDataException("Bad zoom.");
-        return new BattleCamera((int)view, sx, sy, zoom, ox, oy, step);
+        int frame = ToInt((long)Math.Min(r.UInt(), int.MaxValue));
+        long tx = r.Int(), ty = r.Int();
+        if (tx is < int.MinValue or > int.MaxValue || ty is < int.MinValue or > int.MaxValue)
+            throw new InvalidDataException("Bad scroll.");
+        return new BattleCamera((int)view, sx, sy, zoom, ox, oy, step, frame, (int)tx, (int)ty);
     }
 
     // A battle, whole: 0 for none (the viewer has left it), else 1 and the battle.
