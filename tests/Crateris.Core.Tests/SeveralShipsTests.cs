@@ -675,6 +675,11 @@ public class SeveralShipsTests
             Assert.InRange(battle.WrapDeltaX(laser.LineStartX - x), -64, 64);
             Assert.InRange(battle.WrapDeltaY(laser.LineStartY - (h - 200)), -64, 64);
             Assert.InRange(battle.WrapDeltaY(laser.Current.Y - laser.LineStartY), 200, 400);
+            // And so it's sent: from that start to its end, not a point.
+            var sent = World.GameWorld.ElementSnapshot(laser);
+            Assert.Equal((PrimType.Line, laser.LineStartX, laser.LineStartY, laser.Current.X, laser.Current.Y),
+                (sent.Prim, sent.X, sent.Y, sent.X2, sent.Y2));
+            Assert.NotEqual((sent.X, sent.Y), (sent.X2, sent.Y2));
         }
 
         // A second Ilwrath, not the one the camera follows, and the escort

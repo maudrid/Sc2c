@@ -569,6 +569,17 @@ public sealed partial class GameWorld
         _endedBattles.Add(wb);
     }
 
+    /// <summary>
+    /// An element as it's drawn after the frame, as the snapshot sends it: a
+    /// line from its start as drawn (<see cref="Element.LineStartX"/>) to its
+    /// end (its place), anything else at its place.
+    /// </summary>
+    internal static BattleElementSnapshot ElementSnapshot(Element e) =>
+        new(e.Prim, e.Prim == PrimType.Line ? e.LineStartX : e.Current.X, e.Prim == PrimType.Line ? e.LineStartY : e.Current.Y,
+            e.Prim == PrimType.Line ? e.Current.X : (short)0, e.Prim == PrimType.Line ? e.Current.Y : (short)0,
+            e.Current.FrameArray is { } views ? views[0].Sheet!.Id : e.Current.Frame.Sheet?.Id ?? "",
+            e.Current.Frame.Index, e.PrimColor);
+
     // A battle as the snapshot holds it: its ships' status and places, and
     // its elements as they're drawn this frame.
     private static BattleSnapshot BattleSnapshotOf(WorldBattle wb)
@@ -584,14 +595,7 @@ public sealed partial class GameWorld
                 : new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), f.LastX, f.LastY))
             .ToList();
         var (ex, ey) = wb.Enemy.Ship is { } enemy ? (enemy.Current.X, enemy.Current.Y) : (wb.EnemyLastX, wb.EnemyLastY);
-        var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None)
-            // A line from its start as drawn to its end (its place, after the frame).
-            .Select(e => new BattleElementSnapshot(e.Prim, e.Prim == PrimType.Line ? e.LineStartX : e.Current.X,
-                e.Prim == PrimType.Line ? e.LineStartY : e.Current.Y,
-                e.Prim == PrimType.Line ? e.Current.X : (short)0, e.Prim == PrimType.Line ? e.Current.Y : (short)0,
-                e.Current.FrameArray is { } views ? views[0].Sheet!.Id : e.Current.Frame.Sheet?.Id ?? "",
-                e.Current.Frame.Index, e.PrimColor))
-            .ToList();
+        var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(ElementSnapshot).ToList();
         return new BattleSnapshot(wb.Id, wb.Battle.Size.Width, wb.Battle.Size.Height, Status(wb.EnemyShip.Id, wb.Enemy),
             ex, ey, fighters, elements);
     }

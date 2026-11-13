@@ -138,20 +138,13 @@ public class BattleWireTests
         var back = Assert.Single(host.TakeBattleNotices().Guests);
         Assert.Equal((3L, BattleNoticeKind.Ended, (BattleOutcome?)null, (BattleExit?)BattleExit.Disconnected),
             (back.Peer, back.Notice.Kind, back.Notice.Outcome, back.Notice.Exit));
-        // g1 destroyed, then away as the battle ends (the host pausing first: an end during the pause is told too):
-        // its wreck told as it's back.
+        // g1 destroyed, then away as the battle ends: its wreck told as it's back.
         Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
         host.Step(ShipInput.None);
         host.GuestLeft(1);
-        Assert.True(host.TogglePause());
         Kill(wb.Battle, wb.Enemy);
         for (int i = 0; i < 600 && wb.Outcome is null; ++i)
-        {
-            host.TogglePause();
             host.Step(ShipInput.None);
-            host.TogglePause();
-            host.Step(ShipInput.None);
-        }
         Assert.Equal(BattleOutcome.Won, wb.Outcome);
         var (own, guests) = host.TakeBattleNotices();
         Assert.Contains(own, n => n.Kind == BattleNoticeKind.Ended && n.Outcome == BattleOutcome.Won);
@@ -159,6 +152,42 @@ public class BattleWireTests
         host.Hello(4, "g1", "Guest 1", Protocol.Version);
         host.Step(ShipInput.None);
         Assert.Contains(BattleNoticeKind.Wrecked, host.TakeBattleNotices().Guests.Where(g => g.Peer == 4).Select(g => g.Notice.Kind));
+    }
+
+    [ContentFact]
+    public void ABattleEndedByADisconnectDuringTheHostsPauseIsTold()
+    {
+        // g1 alone fights an Ilwrath of its own; the host pauses; g1 disconnects (a retreat at once): the battle
+        // ends there and then, the world held, and g1 is told as it's back.
+        var host = Host();
+        host.Step(ShipInput.None);
+        var wb = host.World.StartBattle("g1", Ilwrath);
+        host.Step(ShipInput.None);
+        host.TakeBattleNotices();
+        Assert.True(host.TogglePause());
+        host.GuestLeft(1);
+        Assert.Equal(BattleOutcome.Lost, wb.Outcome);
+        host.Step(ShipInput.None);
+        Assert.True(host.World.HostPaused);
+        host.Hello(3, "g1", "Guest 1", Protocol.Version);
+        host.Step(ShipInput.None);
+        var told = Assert.Single(host.TakeBattleNotices().Guests);
+        Assert.Equal((3L, BattleNoticeKind.Ended, (BattleOutcome?)BattleOutcome.Lost, (BattleExit?)BattleExit.Disconnected),
+            (told.Peer, told.Notice.Kind, told.Notice.Outcome, told.Notice.Exit));
+    }
+
+    [ContentFact]
+    public void ARescueOfferGoesOnceTheWreckIsRevivedByAnyone()
+    {
+        var session = new PlayerSession(WorldBattleTests.Systems.Value, null, "g1", TestContent.Shapes.HyperFlagship.Count);
+        ShipSnapshot Ship(string id, bool wreck) => new ShipSnapshot(id, id, false, ShipKind.Escort, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            false, false, Activity.Hyperspace, null, null, 0, 0, 0, 0, 0, 0, null, null, 0, 0, 0, 0) with { Wrecked = wreck };
+        session.Observe(new WorldSnapshot(1, 2155, 1, 1, new[] { Ship("g1", false), Ship("g2", true) }));
+        session.ShowBattleNotice(new BattleNotice(BattleNoticeKind.RescueOffer, Other: "g2"));
+        session.Observe(new WorldSnapshot(2, 2155, 1, 1, new[] { Ship("g1", false), Ship("g2", true) }));
+        Assert.Equal("g2", session.RescueOffer);   // still a wreck
+        session.Observe(new WorldSnapshot(3, 2155, 1, 1, new[] { Ship("g1", false), Ship("g2", false) }));
+        Assert.Null(session.RescueOffer);   // revived, by another player
     }
 
     [Fact]
