@@ -39,7 +39,7 @@ public sealed partial class Battle
     private static uint VelocitySquared(short dx, short dy) => (uint)((long)dx * dx + (long)dy * dy);
 
     // inertial_thrust: a thrust along the ship's facing, up to its top speed.
-    private static StatusFlags InertialThrust(Element e)
+    internal static StatusFlags InertialThrust(Element e)
     {
         var starShip = e.Parent!;
         var rd = starShip.RaceDesc!;

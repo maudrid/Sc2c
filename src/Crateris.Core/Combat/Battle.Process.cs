@@ -112,26 +112,28 @@ public sealed partial class Battle
         return time;
     }
 
-    private static void InitIntersectStartPoint(Element e)
+    internal static void InitIntersectStartPoint(Element e)
     {
         e.Intersect.OriginX = WorldToDisplay(e.Current.X);
         e.Intersect.OriginY = WorldToDisplay(e.Current.Y);
     }
 
-    private static void InitIntersectEndPoint(Element e)
+    internal static void InitIntersectEndPoint(Element e)
     {
         e.Intersect.EndX = WorldToDisplay(e.Next.X);
         e.Intersect.EndY = WorldToDisplay(e.Next.Y);
     }
 
-    private static void InitIntersectFrame(Element e) => e.Intersect.Frame = ShapeOf(e.Next);
+    internal static void InitIntersectFrame(Element e)
+    {
+        var frame = StampOf(e.Next);
+        e.IntersectStamp = frame;
+        e.Intersect.Frame = frame.IsNull ? null! : frame.Shape;
+    }
 
     /// <summary>SetEquFrameIndex (farray[0], frame): the big size's frame, which collisions test; null without one.</summary>
-    private static IntersectFrame ShapeOf(ElementState state)
-    {
-        var frame = state.FrameArray == null ? default : Frame.SetEqu(state.FrameArray[0], state.Frame);
-        return frame.IsNull ? null! : frame.Shape;
-    }
+    private static Frame StampOf(ElementState state) =>
+        state.FrameArray == null ? default : Frame.SetEqu(state.FrameArray[0], state.Frame);
 
     private void InitDisplayList()
     {

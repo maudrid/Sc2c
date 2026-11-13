@@ -78,7 +78,8 @@ public class ShipBattleTests
 
     /// <summary>
     /// A recorded ship: the flagship from its slots and crew, or the Ilwrath
-    /// with its crew (its AI not cloaking with <paramref name="noCloak"/>);
+    /// (its AI not cloaking with <paramref name="noCloak"/>) or a race ship
+    /// (<see cref="RaceShips.Code"/>) with its crew;
     /// and the crew its STARSHIP comes with (0: the flagship's own).
     /// </summary>
     internal static (IShipCode Code, ushort Crew) Ship(JsonElement s, bool noCloak = false)
@@ -96,6 +97,9 @@ public class ShipBattleTests
                 return (new SisShip(description, hull, weapon, loadout), 0);
             case "ilwrath":
                 return (new IlwrathShip(description, hull, weapon, noCloak), (ushort)crew);
+            case "race":
+                // Stage 4b's race ships (battle-races-*.json), as the world makes them.
+                return (RaceShips.Code(description, r => BattleReplay.Sheets.Value.Views(r), noCloak), (ushort)crew);
             default:
                 throw new InvalidDataException($"a ship of kind {s.GetProperty("kind")}");
         }

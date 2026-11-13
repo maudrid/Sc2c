@@ -65,7 +65,7 @@ public sealed partial class Battle
 
     private const int Octant = UqmMath.Quadrant >> 1;
 
-    private static ushort WorldToTurn(int d) => (ushort)(d >> 6);
+    internal static ushort WorldToTurn(int d) => (ushort)(d >> 6);
 
     private static bool ElementsOfSamePlayer(Element e0, Element e1) => e0.PlayerNr == e1.PlayerNr;
 
@@ -323,12 +323,11 @@ public sealed partial class Battle
 
     // GetFrameRect (SetAbsFrameIndex (IntersectStamp.frame, 0)): the
     // footprint of the first frame of the sheet the ship's intersection
-    // tests, none before it has one. InitIntersectFrame takes that frame
-    // from next.image.farray[0]: the ship's hull for the ships ported (a
-    // ship changing its farray, as the Mmrnmhrm transforming, would need
-    // the intersection's own sheet).
+    // tests, none before it has one: the sheet InitIntersectFrame last took
+    // from next.image.farray[0] (Element.IntersectStamp), which a ship
+    // changing its farray while non-solid (the Arilou teleporting) keeps.
     private static IntersectFrame? FrameZeroShape(Element ship) =>
-        ship.Intersect.HasFrame && ship.Next.FrameArray != null ? ship.Next.FrameArray[0].Shape : null;
+        ship.Intersect.HasFrame && !ship.IntersectStamp.IsNull ? ship.IntersectStamp.SetAbs(0).Shape : null;
 
     // InitCyborg: the ship's manoeuvrability, its top speed over its waits.
     private static void InitCyborg(Starship starShip)

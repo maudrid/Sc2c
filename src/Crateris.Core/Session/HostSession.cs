@@ -215,8 +215,8 @@ public sealed class HostSession
     /// --start-battle RACE (testing): a game after the opening, as
     /// --start-docked leaves it (so a retreat is allowed), with the host's
     /// ship in flight in Earth's inner system, in a battle against a ported
-    /// race's ship (<see cref="BattleKit.Enemies"/>: the Ilwrath, which
-    /// cloaks here, as everywhere but in the Earth fight), whose marker the
+    /// race's ship (<see cref="BattleKit.Enemies"/>; the Ilwrath cloaks
+    /// here, as everywhere but in the Earth fight), whose marker the
     /// others may fly into. Needs the content (InvalidOperationException);
     /// a race not ported is an ArgumentException.
     /// </summary>

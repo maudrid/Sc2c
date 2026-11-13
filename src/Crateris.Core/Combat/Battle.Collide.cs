@@ -172,7 +172,8 @@ public sealed partial class Battle
     // An element's shape where it is, not moving.
     private static IntersectControl StillControl(Element e)
     {
-        var shape = ShapeOf(e.Current);
+        var stamp = StampOf(e.Current);
+        var shape = stamp.IsNull ? null! : stamp.Shape;
         short x = WorldToDisplay(e.Current.X), y = WorldToDisplay(e.Current.Y);
         return new IntersectControl { Frame = shape, OriginX = x, OriginY = y, EndX = x, EndY = y };
     }

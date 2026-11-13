@@ -165,10 +165,10 @@ public sealed partial class Battle
     /// arena. WRAP_X is a macro that reads its argument up to three times,
     /// and each read draws a number: UQM draws three and keeps the last.
     /// </summary>
-    private short RandomX(string place) => WrapRandom(() => DisplayAlignX(Random.Next(place)), Size.Width);
+    internal short RandomX(string place) => WrapRandom(() => DisplayAlignX(Random.Next(place)), Size.Width);
 
     /// <summary>WRAP_Y (DISPLAY_ALIGN_Y (TFB_Random ())), drawing as <see cref="RandomX"/> does.</summary>
-    private short RandomY(string place) => WrapRandom(() => DisplayAlignY(Random.Next(place)), Size.Height);
+    internal short RandomY(string place) => WrapRandom(() => DisplayAlignY(Random.Next(place)), Size.Height);
 
     // WRAP_VAL (v, w) with v read afresh each time.
     private static short WrapRandom(Func<short> v, int w)

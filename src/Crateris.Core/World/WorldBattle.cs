@@ -42,10 +42,11 @@ public sealed class BattleKit
 
     /// <summary>
     /// The race ships whose code is ported, which a battle can be fought
-    /// against (<c>--start-battle</c>): by their ids in data/ships.json.
-    /// Stage 4b's items 2 to 4 each add their races.
+    /// against (<c>--start-battle</c>): by their ids in data/ships.json
+    /// (<see cref="Combat.RaceShips.Ported"/>: the Ilwrath and stage 4b's, each
+    /// of items 2 to 4 adding its races).
     /// </summary>
-    public static readonly IReadOnlyList<string> Enemies = new[] { ShipDescriptions.Ilwrath };
+    public static IReadOnlyList<string> Enemies => Combat.RaceShips.Ported;
 
     /// <summary>
     /// The ships in data/ships.json no battle of the port has: the Sa-Matra

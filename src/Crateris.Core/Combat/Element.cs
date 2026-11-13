@@ -197,6 +197,16 @@ public sealed class Element
     public byte MassPoints, TurnWait, ThrustWait, ColorCycleIndex;
     public Velocity Velocity;
     public readonly IntersectControl Intersect = new();
+
+    /// <summary>
+    /// IntersectControl.IntersectStamp.frame as a frame of its sheet (the
+    /// big size's, <see cref="Intersect"/>'s shape is its): the AI measures
+    /// a ship by the sheet's first frame (tactical_intelligence's footprint),
+    /// which is the sheet the ship was last set up with for contact, not
+    /// always the one it's drawn with (the Arilou teleporting, non-solid,
+    /// keeps its hull's). The default before one is set.
+    /// </summary>
+    public Frame IntersectStamp;
     public PrimType Prim;
 
     /// <summary>
@@ -274,6 +284,7 @@ public sealed class Element
             Parent = Parent, Target = Target,
         };
         c.Intersect.Frame = Intersect.Frame;
+        c.IntersectStamp = IntersectStamp;
         c.Intersect.OriginX = Intersect.OriginX;
         c.Intersect.OriginY = Intersect.OriginY;
         c.Intersect.EndX = Intersect.EndX;
@@ -295,6 +306,7 @@ public sealed class Element
         MassPoints = TurnWait = ThrustWait = ColorCycleIndex = 0;
         Velocity = default;
         Intersect.Clear();
+        IntersectStamp = default;
         Prim = PrimType.None;
         Current = Next = default;
         Parent = null;

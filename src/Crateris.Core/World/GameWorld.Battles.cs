@@ -160,8 +160,8 @@ public sealed partial class GameWorld
             battlePlanet = RandomPlanetType(seed);
         }
 
-        var enemyShip = new Starship(new IlwrathShip(description, kit.Graphics.Views(description.Graphics.Ship),
-            kit.Graphics.Views(description.Graphics.Weapon), start.NoCloak), 1, (ushort)crew, (ushort)description.MaxCrew);
+        var enemyShip = new Starship(RaceShips.Code(description, kit.Graphics.Views, start.NoCloak), 1, (ushort)crew,
+            (ushort)description.MaxCrew);
         // NameCaptain: an encounter ship's captain, one of its race's 16 names (PickCaptainName, from
         // UQM's general generator: here one of the battle's own seed, not the battle's, whose draws are UQM's).
         enemyShip.CaptainsNameIndex = (byte)((new Uqm.TfbRandom(seed ^ 0x9E3779B9).Next() & (NumCaptainsNames - 1)) + CaptainNameOffset);
