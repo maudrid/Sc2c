@@ -2,13 +2,13 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, after item 11 (the wire) was built and reviewed (three rounds, the last finding nothing).
+**Last updated:** 2026-11-13, item 12 (client views) built; its review rounds under way.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4.md`, stage 4a (combat), approved by the owner with all fifteen decisions accepted.
-- **Stage 4a items 1 to 11 are built.** Each has a Built row in the plan's Progress section and notes under the later items for what they must honour. Items 12 and 13 are left: 12 client views, 13 docs.
+- **Stage 4a items 1 to 12 are built.** Each has a Built row in the plan's Progress section and notes under the later items for what they must honour. Item 13 (docs) is left; item 12 left it a note (the differences rows to write, the how-to-try page, protocol 22).
 - **Last checks:** on 76768fd, all topics 1,425 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~976, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed (a guest in a battle over the lossy relay: about 330 bytes a snapshot; `GODOT` set to the binary inside `/opt/godot/Godot_v4.7.2-stable_mono_linux_x86_64/` here). Data checks were last run on item 9's last commit.
 
 ## Open items
@@ -25,7 +25,12 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Item 12, client views, only when the owner says to start it.
+Item 12's review loop (CLAUDE.md), then report to the owner. Item 13 only when the owner says to start it.
+
+## Decisions for the owner (item 12)
+
+- **The smooth zoom's scaling.** UQM's default smooth zoom scales stamps trilinearly (each frame blended with the next size's); the port scales by nearest pixels for now (sizes and places are UQM's, the pixels sharper). Porting the trilinear scaler (about 300 lines of `canvas.c`) is possible if wanted.
+- **The minimap** (decision 2's) is drawn over the space window's bottom right corner, the arena round the player's ship; it could go elsewhere.
 
 ## Working agreements
 

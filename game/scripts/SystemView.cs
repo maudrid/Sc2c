@@ -88,6 +88,16 @@ public static class SisScreen
     /// <summary>The radar box in the status area (RADAR_X, RADAR_Y less the status area's place): the lander's gauges.</summary>
     public const int RadarX = 4, RadarY = 10 + IpGeometry.ScreenHeight - 53;
 
+    /// <summary>A battle's marker (stage 4a item 6): a red ring with a cross, and the word, at its place (the window's pixels).</summary>
+    public static void BattleMarker(CanvasItem c, Vector2 at)
+    {
+        var red = new Color(1f, 0.25f, 0.2f);
+        c.DrawArc(at, 10, 0, Mathf.Tau, 24, red, 2);
+        c.DrawLine(at + new Vector2(-6, -6), at + new Vector2(6, 6), red, 2);
+        c.DrawLine(at + new Vector2(-6, 6), at + new Vector2(6, -6), red, 2);
+        c.DrawString(ThemeDB.FallbackFont, at + new Vector2(13, 5), "battle", HorizontalAlignment.Left, -1, 13, red);
+    }
+
     public static Color ShipColor(ShipSnapshot s, string me) =>
         s.Id == me ? Colors.Cyan : (s.IsHost ? Colors.Gold : Colors.LightGreen);
 }
@@ -226,15 +236,48 @@ public partial class SystemView : Control
         // in the same activity): the flagship's image by facing, with the
         // player's name. As in UQM, no thrust shows outside battle.
         // A ship whose entry into the star still plays is shown in hyperspace until it ends.
+        // A ship at another zoom (another player's outer view: a ship waiting in a battle, a wreck) is put at this
+        // view's; a wreck lies still, dimmed, and a ship in a battle is said to be.
         foreach (var s in _snapshot.Ships.Where(s => (InFlightOrBattle(me.Activity) ? InFlightOrBattle(s.Activity) : s.Activity == me.Activity)
                      && s.SystemStar == star
                      && s.InnerPlanet == me.InnerPlanet && s.Entry is null))
         {
-            var (x, y) = _motion.TryGetValue(s.Id, out var m) ? m.AtTime(_clock.Time) : (s.ScreenX, s.ScreenY);
-            Sprites.Draw(this, Sprites.Sprites.Image(SystemSheet.Flagship, s.IpFacing), (float)x, (float)y);
-            DrawString(font, new Vector2((float)x + 6, (float)y - 4) * SisScreen.Scale, s.Name,
-                HorizontalAlignment.Left, -1, 14, SisScreen.ShipColor(s, _me));
+            double x, y;
+            if (s.Id != me.Id && s.ZoomRadius != me.ZoomRadius && me.ZoomRadius > 0)
+                (x, y) = At(s.IpX, s.IpY, me.ZoomRadius);
+            else
+                (x, y) = _motion.TryGetValue(s.Id, out var m) && !s.Wrecked ? m.AtTime(_clock.Time) : (s.ScreenX, s.ScreenY);
+            var image = Sprites.Sprites.Image(SystemSheet.Flagship, s.IpFacing);
+            if (s.Wrecked)
+            {
+                var at = new Vector2((float)x - image.HotSpotX, (float)y - image.HotSpotY) * SisScreen.Scale;
+                DrawTextureRect(Sprites.Texture(image), new Rect2(at, new Vector2(image.Width, image.Height) * SisScreen.Scale), false, WreckTint);
+            }
+            else
+                Sprites.Draw(this, image, (float)x, (float)y);
+            string label = s.Wrecked ? s.Name + " (wreck)" : s.Activity == Activity.Battle ? s.Name + " (battle)" : s.Name;
+            DrawString(font, new Vector2((float)x + 6, (float)y - 4) * SisScreen.Scale, label,
+                HorizontalAlignment.Left, -1, 14, s.Wrecked ? WreckTint : SisScreen.ShipColor(s, _me));
         }
+
+        // The battles fought in this view, each at its marker (stage 4a item 6), at this view's zoom.
+        foreach (var b in _snapshot.Markers ?? Array.Empty<BattleMarkerSnapshot>())
+        {
+            if (b.Star != star || b.InnerPlanet != me.InnerPlanet || me.ZoomRadius <= 0)
+                continue;
+            var (x, y) = At(b.X, b.Y, me.ZoomRadius);
+            SisScreen.BattleMarker(this, new Vector2((float)x, (float)y) * SisScreen.Scale);
+        }
+    }
+
+    /// <summary>A ship's dimmed look once it's a wreck.</summary>
+    public static readonly Color WreckTint = new(0.55f, 0.55f, 0.55f, 0.8f);
+
+    // A place in the system (IP units) on this view's screen at its zoom.
+    private static (double X, double Y) At(int ipX, int ipY, int zoomRadius)
+    {
+        var p = IpGeometry.LocationToDisplay(new IpPoint((short)ipX, (short)ipY), zoomRadius);
+        return (p.X, p.Y);
     }
 
     // Flying in the system, or waiting in a battle there at its marker (until item 12 draws the battle):

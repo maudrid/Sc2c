@@ -30,6 +30,12 @@ public enum PlayerScreen
     /// <summary>The communication screen: a talk this player is in, or watches in a story pause (<see cref="PlayerSession.TalkShown"/>).</summary>
     Comm,
 
+    /// <summary>A battle this player's ship is in (fighting, or watching once destroyed): <see cref="PlayerSession.Battle"/>.</summary>
+    Battle,
+
+    /// <summary>The game is over, the flagship lost (<see cref="PlayerSession.GameOver"/>).</summary>
+    GameOver,
+
     /// <summary>Docked at the allied starbase: its menu, outfitting or the shipyard (<see cref="PlayerSession.Starbase"/>).</summary>
     Starbase,
 }
@@ -286,6 +292,7 @@ public sealed class PlayerSession
         Entries.Observe(snapshot);
         if (RescueOffer is { } wreck && snapshot.Ships.FirstOrDefault(s => s.Id == wreck) is not { Wrecked: true })
             RescueOffer = null;   // revived (by anyone), or gone
+        FollowRescue();
         UpdateOrbitMenu();
         // The Devices list follows the story the host sends while it's
         // open (another player's talk or lander can change what the group
@@ -379,8 +386,8 @@ public sealed class PlayerSession
                 ToggleTrade();
             if (press is MenuKey key)
                 PressMenu(key);
-            if (Trade is not null)
-                input = ShipInput.None;   // the ship waits while the giving screen is open, as with keys
+            if (Trade is not null || Rescue is not null)
+                input = ShipInput.None;   // the ship waits while the giving or rescue screen is open, as with keys
         }
         else
         {
@@ -389,7 +396,7 @@ public sealed class PlayerSession
             if (_waitForRelease && keys == ShipInput.None)
                 _waitForRelease = false;
             input = Me?.Activity is Activity.Orbit or Activity.Talk or Activity.Starbase || StoryPaused || Trade is not null
-                    || _waitForRelease
+                    || Rescue is not null || _waitForRelease
                 ? ShipInput.None : keys;   // on the surface, the lander's keys
         }
         if (Entering)
@@ -649,6 +656,8 @@ public sealed class PlayerSession
             Notify("Close the cargo display first.");
         else if (OrbitMenu?.DeviceList is not null)
             Notify("Close the Devices list first.");
+        else if (Rescue is not null)
+            Notify("Close the rescue first.");
         else if (Me?.Wrecked == true)
             Notify(Gift.Why(TradeRefusal.Wrecked));
         else if (TradeScreen.Others(Snapshot, PlayerId).Count == 0)
@@ -745,6 +754,9 @@ public sealed class PlayerSession
         {
             case BattleNoticeKind.RescueOffer:
                 RescueOffer = notice.Other;
+                if (Trade is not null)
+                    CloseTrade();   // the rescue's keys now
+                Rescue = new RescueScreen(notice.Other);
                 break;
             case BattleNoticeKind.Revived when notice.Other == RescueOffer:
                 RescueOffer = null;
@@ -753,6 +765,7 @@ public sealed class PlayerSession
                 GameOver = true;
                 break;
         }
+        FollowRescue();
         // The other player by name, as the snapshot has it.
         string name = Snapshot?.Ships.FirstOrDefault(s => s.Id == notice.Other)?.Name ?? notice.Other;
         string text = (notice with { Other = name }).Describe();
@@ -761,6 +774,30 @@ public sealed class PlayerSession
     }
 
     private (string Wreck, int Crew)? _revive;
+
+    /// <summary>
+    /// The rescue screen (item 12), while it's open: opened as the player
+    /// flies into a wreck (a rescue offered), closed by Esc, by giving, or
+    /// once nothing is left to rescue here (the wreck offered revived and no
+    /// other wreck in the same place), the ship busy (no longer flying), a
+    /// talk shown, the game paused or over. The ship waits meanwhile.
+    /// </summary>
+    public RescueScreen? Rescue { get; private set; }
+
+    private void FollowRescue()
+    {
+        if (Rescue is null)
+            return;
+        if (GameOver || StoryPaused || TalkShown || Me is not { Activity: Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem }
+            || Me.Wrecked || RescueScreen.WrecksHere(Snapshot, PlayerId).Count == 0)
+            CloseRescue();
+    }
+
+    private void CloseRescue()
+    {
+        Rescue = null;
+        _waitForRelease = true;
+    }
 
     /// <summary>Gives a wreck crew (item 12's rescue screen): sent to the host once.</summary>
     public void Revive(string wreck, int crew) => _revive = (wreck, crew);
@@ -806,6 +843,17 @@ public sealed class PlayerSession
     /// <summary>A key for the orbit screen's menus (in a talk, for its replies; docked, for the starbase's screens; on the giving screen, for it).</summary>
     public void PressMenu(MenuKey key)
     {
+        if (Rescue is { } rescue)
+        {
+            if (key == MenuKey.Cancel)
+                CloseRescue();
+            else if (rescue.Press(key, Snapshot, PlayerId) is { } revival)
+            {
+                Revive(revival.Wreck, revival.Crew);
+                CloseRescue();
+            }
+            return;
+        }
         if (Trade is { } trade)
         {
             if (key == MenuKey.Cancel)
@@ -1010,10 +1058,14 @@ public sealed class PlayerSession
     {
         get
         {
+            if (GameOver)
+                return PlayerScreen.GameOver;
             if (TalkShown)
                 return PlayerScreen.Comm;
             var me = Me;
-            // In a battle, until item 12 draws it: the place it's in, its marker's.
+            if (me?.Activity == Activity.Battle && Battle is not null)
+                return PlayerScreen.Battle;
+            // In a battle not yet sent (its first frame on its way): the place it's in, its marker's.
             if (me == null || me.Activity == Activity.Hyperspace || Entering
                 || me.Activity == Activity.Battle && me.SystemStar is null)
                 return PlayerScreen.Hyperspace;

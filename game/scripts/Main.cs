@@ -72,6 +72,9 @@ public partial class Main : Node2D
     private GivingView _givingView = null!;
     private DevicesView _devicesView = null!;
     private StarbaseScreenView _starbaseView = null!;
+    private BattleScreenView _battleView = null!;
+    private RescueView _rescueView = null!;
+    private GameOverView _gameOverView = null!;
     private Label _hud = null!;
     private Label _paused = null!;
     private BoxNoticeView _boxNotice = null!;   // the notice, below the cargo display or the Devices list (the panel hidden)
@@ -163,6 +166,9 @@ public partial class Main : Node2D
                 RpcId(1, MethodName.StarbaseRedraw);
         };
         AddChild(_starbaseView);
+        // The battle (stage 4a item 12): UQM's whole screen, where the starbase's goes.
+        _battleView = new BattleScreenView { Position = _starbaseView.Position, Visible = false };
+        AddChild(_battleView);
         // The giving screen, in the status area where the cargo display goes, over every view.
         _givingView = new GivingView
         {
@@ -171,6 +177,14 @@ public partial class Main : Node2D
             Visible = false,
         };
         AddChild(_givingView);
+        // The rescue screen, where the giving screen goes.
+        _rescueView = new RescueView
+        {
+            Position = statusOrigin + new Vector2(RescueDrawing.Area.X - UqmCanvas.SpaceWidth, RescueDrawing.Area.Y) * SisScreen.Scale,
+            Width = systemScreenAt.X - 24,
+            Visible = false,
+        };
+        AddChild(_rescueView);
         // The Manifest's Devices list, in the status area where the cargo display goes, over the orbit view.
         _devicesView = new DevicesView
         {
@@ -205,6 +219,11 @@ public partial class Main : Node2D
         _paused.AddThemeColorOverride("font_outline_color", Colors.Black);
         _paused.AddThemeConstantOverride("outline_size", 12);
         pauseLayer.AddChild(_paused);
+        // The game over (stage 4a item 12), over every screen but the pause's.
+        var gameOverLayer = new CanvasLayer { Layer = 50 };
+        AddChild(gameOverLayer);
+        _gameOverView = new GameOverView { Visible = false };
+        gameOverLayer.AddChild(_gameOverView);
         // While the Manifest's cargo display or Devices list covers the status area (its panel hidden), the
         // notice (a gift, another player's report) is shown below the box, as the giving screen shows it: eight
         // lines fit above the orbit menu, which hold every page of the content's lander reports.
@@ -350,6 +369,8 @@ public partial class Main : Node2D
                 _sellingView.UseContent(content, sheets);
                 _givingView.UseContent(content, sheets);
                 _devicesView.UseContent(content, sheets);
+                _battleView.UseContent(content, sheets, _ships, planetTypes);
+                _rescueView.UseContent(content);
             }
         }
         catch (ContentPackageException e)
@@ -683,7 +704,13 @@ public partial class Main : Node2D
         Multiplayer.ConnectedToServer += () =>
             RpcId(1, MethodName.Hello, _playerId, _name, Protocol.Version);
         Multiplayer.ConnectionFailed += () => Fail($"Could not reach {_options.Address}:{_options.Port}.");
-        Multiplayer.ServerDisconnected += () => Fail("The host closed the game.");
+        Multiplayer.ServerDisconnected += () =>
+        {
+            if (_player?.GameOver == true)
+                _connected = false;   // let go after the game over: its screen stays till a key leaves
+            else
+                Fail("The host closed the game.");
+        };
         SetStatus($"Connecting to {_options.Address}:{_options.Port}...");
     }
 
@@ -996,6 +1023,14 @@ public partial class Main : Node2D
             GetViewport().SetInputAsHandled();
             return;
         }
+        // The game over's words up: Enter or Esc ends the game (the host's save untouched, the guests let go).
+        if (_player.Screen == PlayerScreen.GameOver)
+        {
+            if (_gameOverView.Shown && !k.Echo && k.Keycode is Key.Enter or Key.KpEnter or Key.Escape)
+                Finish(0);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         // P or Pause: the host pauses the game, or lifts the pause (stage 4a item 10); a guest's does nothing.
         if (k.Keycode is Key.P or Key.Pause && !k.Echo && _host != null)
         {
@@ -1147,6 +1182,16 @@ public partial class Main : Node2D
         _sellingView.Visible = _commView.Visible && _sellingView.Active;
         _starbaseView.Visible = screen == PlayerScreen.Starbase;
         _starbaseView.Show(player.Starbase);
+        // The battle, drawn as the host sends each frame (said in the status lines if it can't be).
+        if (screen == PlayerScreen.Battle && !Headless)
+            _battleView.Visible = _battleView.Show(player);
+        else
+        {
+            _battleView.Visible = false;
+            _battleView.Leave();
+        }
+        // The game over, over everything, fading in.
+        _gameOverView.Follow(screen == PlayerScreen.GameOver, 1.0 / Engine.PhysicsTicksPerSecond);
         if (_planetsideView.Visible)
             _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)
@@ -1164,6 +1209,13 @@ public partial class Main : Node2D
         {
             player.CloseDevices();   // not a key: in a story pause the keys are the talk's
             player.Notify("The Devices list couldn't be drawn.");
+        }
+        _rescueView.Visible = !Headless && _rescueView.Show(player);
+        _orbitView.MenuCovered |= _rescueView.Visible;
+        if (_rescueView.Broken && player.Rescue is not null)
+        {
+            player.PressMenu(MenuKey.Cancel);
+            player.Notify("The rescue screen couldn't be drawn.");
         }
         if (_givingView.Broken && player.Trade is not null)
         {
@@ -1190,10 +1242,11 @@ public partial class Main : Node2D
         // Manifest's Devices list.
         // (the cargo display only on the orbit screen: a story talk leaves it open, under the communication screen)
         bool box = (_player?.Screen == PlayerScreen.Orbit && _player.OrbitMenu?.CargoOpen == true) || _devicesView.Visible;
-        _hud.Visible = _firstRun == null && _contentError == null && !box && !_sellingView.Visible && !_givingView.Visible;
+        _hud.Visible = _firstRun == null && _contentError == null && !box && !_sellingView.Visible && !_givingView.Visible
+            && !_rescueView.Visible;
         _boxNotice.Text = _player?.Notice ?? "";
         _boxNotice.Visible = _firstRun == null && _contentError == null && box && !_sellingView.Visible && !_givingView.Visible
-            && _boxNotice.Text != "";
+            && !_rescueView.Visible && _boxNotice.Text != "";
     }
 
     // ---------------------------------------------------- quit / report

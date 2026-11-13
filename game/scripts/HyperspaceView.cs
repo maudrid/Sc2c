@@ -99,9 +99,28 @@ public partial class HyperspaceView : Control
                      && StarContact.InReach(s.UniverseX, s.UniverseY, ux, uy)))
         {
             var (x, y) = HyperScreen.Ship(ship.LogX, ship.LogY, ship.ViewX, ship.ViewY, logX, logY);
-            Sprites.Draw(this, Sprites.Sprites.Hyper(true, ship.Facing), x, y);
-            DrawString(font, new Vector2(x + 9, y - 6) * SisScreen.Scale, ship.Name, HorizontalAlignment.Left, -1, 14,
-                SisScreen.ShipColor(ship, _me));
+            var image = Sprites.Sprites.Hyper(true, ship.Facing);
+            if (ship.Wrecked)
+            {
+                // A wreck lies still, dimmed (stage 4a item 12).
+                var at = new Vector2(x - image.HotSpotX, y - image.HotSpotY) * SisScreen.Scale;
+                DrawTextureRect(Sprites.Texture(image), new Rect2(at, new Vector2(image.Width, image.Height) * SisScreen.Scale), false,
+                    SystemView.WreckTint);
+            }
+            else
+                Sprites.Draw(this, image, x, y);
+            string label = ship.Wrecked ? ship.Name + " (wreck)" : ship.Activity == Activity.Battle ? ship.Name + " (battle)" : ship.Name;
+            DrawString(font, new Vector2(x + 9, y - 6) * SisScreen.Scale, label, HorizontalAlignment.Left, -1, 14,
+                ship.Wrecked ? SystemView.WreckTint : SisScreen.ShipColor(ship, _me));
+        }
+
+        // The battles fought in hyperspace near the ship, each at its marker (stage 4a item 6).
+        foreach (var b in _snapshot.Markers ?? Array.Empty<BattleMarkerSnapshot>())
+        {
+            if (b.Star is not null || !StarContact.InReach(Units.LogXToUniverse(b.X), Units.LogYToUniverse(b.Y), ux, uy))
+                continue;
+            var (x, y) = HyperScreen.Sprite(b.X, b.Y, logX, logY);
+            SisScreen.BattleMarker(this, new Vector2(x, y) * SisScreen.Scale);
         }
 
         // Ships entering a star: turning and drifting onto it, as UQM plays
