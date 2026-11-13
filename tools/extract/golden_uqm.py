@@ -3472,13 +3472,24 @@ def without_status_keys(frame, side):
     """The frame with side's ships' status flags' WEAPON and SPECIAL bits
     cleared (they are the presses themselves, which ship_preprocess copies
     from the input, effect or not), and LOW_ON_ENERGY (ship_postprocess
-    sets it for a press without the energy, to play a sound), as JSON for
-    comparing."""
+    sets it for a press without the energy, to play a sound), and each
+    element's handle and its target's (E_SLOT, E_TARGET) given as places
+    in the list instead: a press that only allocates a helper element that
+    dies within the frame (the Earthling's spawn_point_defense without the
+    energy to fire) shifts the handles later elements get, which is no
+    effect. As JSON for comparing."""
     ships = [list(map(list, (s if s else [] for s in side_ships))) for side_ships in frame[F_SHIPS]]
     for s in ships[side]:
         if s:
             s[6] &= ~(B_WEAPON | B_SPECIAL | LOW_ON_ENERGY_FLAG)
-    return json.dumps(frame[:F_SHIPS] + [ships] + frame[F_SHIPS + 1:])
+    place = {e[E_SLOT]: i + 1 for i, e in enumerate(frame[F_ELEMENTS])}
+    elements = []
+    for e in frame[F_ELEMENTS]:
+        e = list(e)
+        e[E_SLOT] = place[e[E_SLOT]]
+        e[E_TARGET] = place.get(e[E_TARGET], -1) if e[E_TARGET] else 0
+        elements.append(e)
+    return json.dumps(frame[:F_SHIPS] + [ships, elements] + frame[F_ELEMENTS + 1:])
 
 
 def key_effect(program, scenario, battle, key):
@@ -3619,13 +3630,17 @@ def record_battle_races(uqm, battle_exe, strings_exe, images_exe, package):
             "intelligence_func on cyborg.c) against the flagship flown by the AI "
             "(sis_intelligence, UQM's Cyborg option; a blaster and a tracking "
             "system too). Each takes the first seed (a thousand apart) in which "
-            "its ship's weapon and special each have an effect (the weapon "
-            "pressed without the special, whose the Orz's both are, its "
-            "marines; the special with or without the weapon): the battle with those "
-            "presses taken away (the keys' or the AI's, battle.c's mask) "
-            "differs, with the same input until it does (the ship's status "
-            "flags' weapon and special bits aside, being the presses "
-            "themselves, and LOW_ON_ENERGY, a press without the energy); never before frame 2 (frame 1's input comes as the "
+            "its ship's weapon and special each have an effect. The weapon "
+            "counts only when pressed without the special, since the Orz's "
+            "two pressed together launch its marines, which are its special; "
+            "the special counts with or without the weapon. A key has an "
+            "effect when the battle with those presses taken away (the keys' "
+            "or the AI's, battle.c's mask) differs, with the same input until "
+            "it does. The comparison leaves out the ship's status flags' weapon "
+            "and special bits (the presses themselves) and LOW_ON_ENERGY (a "
+            "press without the energy), and takes each element's handle and "
+            "its target's as places in the list (a helper allocated and gone "
+            "within a frame only shifts later handles). Never before frame 2 (frame 1's input comes as the "
             "ship warps in). uses: the first frame each has one. The Shofixti (recruited) "
             "has a second ship (fleet), as its self-destruct ends the first; "
             "pkunk-rebirth is a Pkunk of 2 crew by keys, the first seed in which "
