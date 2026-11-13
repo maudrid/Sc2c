@@ -17,7 +17,11 @@ public enum BattleNoticeKind : byte
     /// <summary>The player's ship is in a battle: flown into its marker, started by a talk or an encounter.</summary>
     Joined = 1,
 
-    /// <summary>The player's battle is over: its outcome, how the player's ship came out, its crew and salvage.</summary>
+    /// <summary>
+    /// The player's battle is over for it: its outcome, how the player's
+    /// ship came out, its crew and salvage; or, out of a battle still going
+    /// on (retreated, or disconnected and back), how it left, with no outcome.
+    /// </summary>
     Ended,
 
     /// <summary>The player's ship is a wreck (destroyed in a battle, its crew 0): it waits for a rescuer.</summary>

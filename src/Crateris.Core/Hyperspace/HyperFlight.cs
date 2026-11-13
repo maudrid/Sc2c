@@ -37,8 +37,7 @@ public enum ShipInput : byte
 
     /// <summary>
     /// The special key: in a battle, the ship's special (stage 4a item 6;
-    /// the guests' key, their input mask and the script's step are item
-    /// 11's). Ignored elsewhere.
+    /// a guest's too, and --script's special, since item 11). Ignored elsewhere.
     /// </summary>
     Special = 64,
 }

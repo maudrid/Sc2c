@@ -671,6 +671,10 @@ public class SeveralShipsTests
             var laser = Lasers(battle, escort)[0];
             Assert.InRange(battle.WrapDeltaX(laser.Current.X - x), -16, 16);
             Assert.InRange(battle.WrapDeltaY(laser.Current.Y - 100), -16, 16);
+            // As drawn (stage 4a item 11: sent to the players), it starts at the escort, its end that far from it.
+            Assert.InRange(battle.WrapDeltaX(laser.LineStartX - x), -64, 64);
+            Assert.InRange(battle.WrapDeltaY(laser.LineStartY - (h - 200)), -64, 64);
+            Assert.InRange(battle.WrapDeltaY(laser.Current.Y - laser.LineStartY), 200, 400);
         }
 
         // A second Ilwrath, not the one the camera follows, and the escort

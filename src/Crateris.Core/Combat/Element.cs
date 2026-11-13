@@ -234,6 +234,14 @@ public sealed class Element
         set => ThrustWait = value;
     }
 
+    /// <summary>
+    /// A line's start as last drawn (its place before the frame's
+    /// PostProcess, in the frame's moved coordinates): after the frame its
+    /// place and next are both the line's end. Not UQM's (its display list
+    /// keeps the line's two points); only read, for the players' view.
+    /// </summary>
+    public short LineStartX, LineStartY;
+
     /// <summary>next_turn: <see cref="ThrustWait"/>'s other name, for an animation.</summary>
     public byte NextTurn
     {

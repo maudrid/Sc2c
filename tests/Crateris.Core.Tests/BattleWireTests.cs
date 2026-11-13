@@ -72,13 +72,23 @@ public class BattleWireTests
         Assert.Equal(new BattleNotice(BattleNoticeKind.Joined, wb.Id, Ilwrath), Assert.Single(own));
         Assert.Equal((1L, new BattleNotice(BattleNoticeKind.Joined, wb.Id, Ilwrath)), Assert.Single(guests));
         // g1 destroyed, then the Ilwrath: won by the host, g1 a wreck.
+        var dying = wb.FighterOf("g1")!.Starship.Ship!;
+        var where = (dying.Current.X, dying.Current.Y);
         Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
-        for (int i = 0; i < 60; ++i)
+        WorldSnapshot? last = null;
+        for (int i = 0; i < 300 && (last is null || wb.FighterOf("g1")!.Starship.Ship is not null); ++i)
         {
             wb.Enemy.WeaponCounter = wb.Enemy.SpecialCounter = 2;   // disarmed: nothing it does decides the test
-            host.Step(ShipInput.None);
+            last = host.Step(ShipInput.None);
+            // Where it is (exploding), or was, moved with the frame's scroll as every element is.
+            where = wb.FighterOf("g1")!.Starship.Ship is { } s ? (s.Current.X, s.Current.Y)
+                : ((short)wb.Battle.WrapX(where.X + wb.Battle.ScrollX), (short)wb.Battle.WrapY(where.Y + wb.Battle.ScrollY));
         }
         Assert.Null(wb.Outcome);
+        // Its explosion over, g1 watches from where its ship was (its view and its minimap dot there, not at 0,0).
+        Assert.Null(wb.FighterOf("g1")!.Starship.Ship);
+        var watching = last!.Battles!.Single().FighterOf("g1")!;
+        Assert.Equal(where, (watching.X, watching.Y));
         Kill(wb.Battle, wb.Enemy);
         for (int i = 0; i < 600 && wb.Outcome is null; ++i)
             host.Step(ShipInput.None);
@@ -111,6 +121,44 @@ public class BattleWireTests
         Assert.Equal(new[] { (2L, BattleNoticeKind.GameOver) }, guests.Select(g => (g.Peer, g.Notice.Kind)));
         host.Step(ShipInput.None);
         Assert.Empty(host.TakeBattleNotices().Host);   // once
+    }
+
+    [ContentFact]
+    public void ALeaverIsToldAsItLeavesAndAnAwayPlayerAsItsBack()
+    {
+        var host = Host();
+        var wb = WreckTests.JoinedInSol(host, "g1", "g2");
+        host.TakeBattleNotices();
+        // g2 disconnects mid-battle (a retreat at once): told as it's back, not at the battle's end.
+        host.GuestLeft(2);
+        host.Step(ShipInput.None);
+        Assert.Empty(host.TakeBattleNotices().Guests);   // away
+        host.Hello(3, "g2", "Guest 2", Protocol.Version);
+        host.Step(ShipInput.None);
+        var back = Assert.Single(host.TakeBattleNotices().Guests);
+        Assert.Equal((3L, BattleNoticeKind.Ended, (BattleOutcome?)null, (BattleExit?)BattleExit.Disconnected),
+            (back.Peer, back.Notice.Kind, back.Notice.Outcome, back.Notice.Exit));
+        // g1 destroyed, then away as the battle ends (the host pausing first: an end during the pause is told too):
+        // its wreck told as it's back.
+        Kill(wb.Battle, wb.FighterOf("g1")!.Starship);
+        host.Step(ShipInput.None);
+        host.GuestLeft(1);
+        Assert.True(host.TogglePause());
+        Kill(wb.Battle, wb.Enemy);
+        for (int i = 0; i < 600 && wb.Outcome is null; ++i)
+        {
+            host.TogglePause();
+            host.Step(ShipInput.None);
+            host.TogglePause();
+            host.Step(ShipInput.None);
+        }
+        Assert.Equal(BattleOutcome.Won, wb.Outcome);
+        var (own, guests) = host.TakeBattleNotices();
+        Assert.Contains(own, n => n.Kind == BattleNoticeKind.Ended && n.Outcome == BattleOutcome.Won);
+        Assert.DoesNotContain(guests, g => g.Peer == 3);   // g2 was told already, as it came back
+        host.Hello(4, "g1", "Guest 1", Protocol.Version);
+        host.Step(ShipInput.None);
+        Assert.Contains(BattleNoticeKind.Wrecked, host.TakeBattleNotices().Guests.Where(g => g.Peer == 4).Select(g => g.Notice.Kind));
     }
 
     [Fact]

@@ -77,7 +77,7 @@ public static partial class SnapshotCodec
         bool pauseChanged = snapshot.StoryPause != (baseSnapshot?.StoryPause);
         bool hostPauseChanged = snapshot.HostPaused != (baseSnapshot?.HostPaused ?? false);
         var battle = BattleSeen(snapshot, viewer);
-        bool battleChanged = battle is not null || BattleSeen(baseSnapshot, viewer) is not null;
+        bool battleChanged = battle is not null || InBattle(baseSnapshot, viewer);
         bool markersChanged = !SameMarkers(snapshot.Markers, baseSnapshot?.Markers);
         writer.Byte((byte)((dateChanged ? PartDate : 0) | (orbitedChanged ? PartOrbited : 0) | (surfaceChanged ? PartSurface : 0)
             | (storyChanged ? PartStory : 0) | (pauseChanged ? PartPause : 0) | (hostPauseChanged ? PartHostPause : 0)

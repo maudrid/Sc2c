@@ -1307,7 +1307,11 @@ public sealed partial class GameWorld
     {
         var present = _players.Where(p => p.Present).ToList();
         // The ships in space: the present players', and every wreck, an away player's too (stage 4a item 7).
-        var ships = _players.Where(p => p.Present || p.Ship.Wreck).Select(p =>
+        // At most the codec's ships (Net.SnapshotCodec.MostShips): every
+        // present player's, and away players' wrecks up to the rest (those
+        // of players who never come back would otherwise grow without end).
+        int awayWrecks = Net.SnapshotCodec.MostShips - present.Count;
+        var ships = _players.Where(p => p.Present || p.Ship.Wreck && awayWrecks-- > 0).Select(p =>
         {
             var f = p.Ship.Flight;
             var ip = p.Ship.Ip;

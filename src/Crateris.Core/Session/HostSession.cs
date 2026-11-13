@@ -581,6 +581,11 @@ public sealed class HostSession
     private readonly Dictionary<string, int> _inBattle = new();
     private readonly HashSet<string> _wrecks = new();
     private readonly List<(string PlayerId, BattleNotice Notice)> _notices = new();
+    // Notices for players away when they came, told as they're back (a
+    // wreck made, revived, or the game over meanwhile).
+    private readonly List<(string PlayerId, BattleNotice Notice)> _awayNotices = new();
+    // The fighters told they're out of a battle (left it before its end).
+    private readonly HashSet<(int Battle, string Player)> _toldOut = new();
 
     // The world's battle news since the last frame, as notices for the
     // players present (stage 4a item 11), each logged: a ship joining a
@@ -593,7 +598,17 @@ public sealed class HostSession
         {
             if (World.Find(id) is { Present: true })
                 _notices.Add((id, notice));
+            else
+                _awayNotices.Add((id, notice));
         }
+        // Those back since: their notices from while they were away (none
+        // of a battle they joined: they left it as they went).
+        for (int i = 0; i < _awayNotices.Count; ++i)
+            if (World.Find(_awayNotices[i].PlayerId) is { Present: true })
+            {
+                _notices.Add(_awayNotices[i]);
+                _awayNotices.RemoveAt(i--);
+            }
         foreach (var p in World.Players)
         {
             if (p.Ship.Battle is { } wb && (!_inBattle.TryGetValue(p.Id, out int was) || was != wb.Id))
@@ -604,13 +619,20 @@ public sealed class HostSession
             else if (p.Ship.Battle is null)
                 _inBattle.Remove(p.Id);
         }
+        // A ship out of a battle still going on (retreated, or its player
+        // disconnected): told then, with no outcome yet.
+        foreach (var wb in World.Battles)
+            foreach (var f in wb.Fighters)
+                if (f.Exit is BattleExit.Retreated or BattleExit.Disconnected && _toldOut.Add((wb.Id, f.Player.Id)))
+                    Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, wb.Id, wb.EnemyShip.Id, null, f.Exit, 0, f.CrewLeft));
         foreach (var ended in World.TakeEndedBattles())
         {
             Logged?.Invoke($"Battle {ended.Id} against the {ended.EnemyShip.Id} {ended.Outcome?.ToString().ToLowerInvariant()}: "
                 + string.Join(", ", ended.Fighters.Select(f => $"{f.Player.Id} {f.Exit?.ToString().ToLowerInvariant()}")));
             foreach (var f in ended.Fighters)
-                Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, ended.Id, ended.EnemyShip.Id, ended.Outcome, f.Exit,
-                    f.Salvage, f.CrewLeft));
+                if (!_toldOut.Remove((ended.Id, f.Player.Id)))
+                    Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, ended.Id, ended.EnemyShip.Id, ended.Outcome, f.Exit,
+                        f.Salvage, f.CrewLeft));
         }
         foreach (var p in World.Players)
         {

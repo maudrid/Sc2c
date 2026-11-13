@@ -284,6 +284,8 @@ public sealed class PlayerSession
             Log($"Saw {s.Id} {s.Activity} at frame {snapshot.Frame}");
         }
         Entries.Observe(snapshot);
+        if (RescueOffer is { } wreck && snapshot.Ships.FirstOrDefault(s => s.Id == wreck) is not { Wrecked: true })
+            RescueOffer = null;   // revived (by anyone), or gone
         UpdateOrbitMenu();
         // The Devices list follows the story the host sends while it's
         // open (another player's talk or lander can change what the group
@@ -720,7 +722,14 @@ public sealed class PlayerSession
     /// <summary>The battle notices received, oldest first (stage 4a item 11): what item 12's screens show.</summary>
     public List<BattleNotice> BattleNotices { get; } = new();
 
-    /// <summary>The wreck this player may give crew to (its player's id), offered as they flew into it; null once revived or another is offered.</summary>
+    /// <summary>The most battle notices kept (the oldest go).</summary>
+    public const int MostBattleNotices = 64;
+
+    /// <summary>
+    /// The wreck this player may give crew to (its player's id), offered as
+    /// they flew into it; null once it's revived (by anyone: the snapshot no
+    /// longer shows it a wreck) or another is offered.
+    /// </summary>
     public string? RescueOffer { get; private set; }
 
     /// <summary>Whether the host has said the game is over (the flagship lost).</summary>
@@ -730,6 +739,8 @@ public sealed class PlayerSession
     public void ShowBattleNotice(BattleNotice notice)
     {
         BattleNotices.Add(notice);
+        if (BattleNotices.Count > MostBattleNotices)
+            BattleNotices.RemoveAt(0);
         switch (notice.Kind)
         {
             case BattleNoticeKind.RescueOffer:
@@ -1081,7 +1092,7 @@ public sealed class PlayerSession
             var mine = battle.FighterOf(PlayerId)!.Status;
             lines.Add($"In battle against the {battle.Enemy.Ship}: crew {mine.Crew}/{mine.MaxCrew}, energy {mine.Energy}/{mine.MaxEnergy}; "
                 + $"the enemy's crew {battle.Enemy.Crew}/{battle.Enemy.MaxCrew}");
-            lines.Add("Arrows: turn and thrust; Space: fire; Shift: special; Esc: retreat");
+            lines.Add("Arrows: turn and thrust; Space: fire; Shift: special; Esc: retreat, where allowed");
         }
         else if (Me?.Activity != Activity.Orbit && !Entering && Me?.Wrecked != true)
             lines.Add("Arrows: turn and thrust");

@@ -172,6 +172,9 @@ public sealed class BattleFighter
 
     /// <summary>Its share of the salvage, on a win.</summary>
     public uint Salvage { get; internal set; }
+
+    // Its ship's last place in the battle (the snapshot's, for a ship gone once its explosion is over).
+    internal short LastX, LastY;
 }
 
 /// <summary>
@@ -263,4 +266,7 @@ public sealed class WorldBattle
     internal HashSet<string> SeenOutOfReach { get; } = new();
 
     internal void Leaves(string id) => _left.Add(id);
+
+    // The enemy ship's last place (the snapshot's, once it's gone).
+    internal short EnemyLastX, EnemyLastY;
 }

@@ -60,7 +60,7 @@ public static partial class SnapshotCodec
 
     private static void WriteMarkers(WireWriter w, IReadOnlyList<BattleMarkerSnapshot>? markers)
     {
-        int count = markers?.Count ?? 0;
+        int count = Math.Min(markers?.Count ?? 0, MostMarkers);   // the decoder's limit (a thousand battles at once won't happen)
         w.UInt((ulong)count);
         for (int i = 0; i < count; ++i)
         {
@@ -111,20 +111,28 @@ public static partial class SnapshotCodec
         WriteStatus(w, b.Enemy);
         w.Int(b.EnemyX);
         w.Int(b.EnemyY);
-        w.UInt((ulong)b.Fighters.Count);
-        foreach (var f in b.Fighters)
+        // Within the decoder's limits: a battle's ships are bounded by the
+        // players, its elements by GameSettings.MostBattleElements; sheets
+        // past the limit (none in practice) leave their elements out.
+        int fighters = Math.Min(b.Fighters.Count, MostBattleShips);
+        w.UInt((ulong)fighters);
+        foreach (var f in b.Fighters.Take(fighters))
         {
             w.String(f.PlayerId);
             WriteStatus(w, f.Status);
             w.Int(f.X);
             w.Int(f.Y);
         }
-        var sheets = b.Elements.Select(e => e.Sheet).Distinct().ToList();
-        w.UInt((ulong)sheets.Count);
-        foreach (var s in sheets)
-            w.String(s);
-        w.UInt((ulong)b.Elements.Count);
+        var sheets = new Dictionary<string, int>();
         foreach (var e in b.Elements)
+            if (sheets.Count < MostBattleSheets)
+                sheets.TryAdd(e.Sheet, sheets.Count);
+        w.UInt((ulong)sheets.Count);
+        foreach (var s in sheets.Keys)
+            w.String(s);
+        var sent = b.Elements.Where(e => sheets.ContainsKey(e.Sheet)).Take(MostBattleElements).ToList();
+        w.UInt((ulong)sent.Count);
+        foreach (var e in sent)
         {
             w.Byte((byte)e.Prim);
             w.Int(e.X);
@@ -134,7 +142,7 @@ public static partial class SnapshotCodec
                 w.Int(e.X2);
                 w.Int(e.Y2);
             }
-            w.UInt((ulong)sheets.IndexOf(e.Sheet));
+            w.UInt((ulong)sheets[e.Sheet]);
             w.UInt(e.Frame);
             w.Int(e.Color);
         }

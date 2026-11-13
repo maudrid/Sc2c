@@ -22,18 +22,18 @@ public sealed record BattleMarkerSnapshot(int Id, int? Star, int? InnerPlanet, i
 public sealed record BattleShipStatus(string Ship, int Crew, int MaxCrew, int Energy, int MaxEnergy);
 
 /// <summary>
-/// One player's ship in a battle: its status, its place (world units, as
-/// the elements'), and whether it's still in it (fighting, or destroyed
-/// in a battle still running); a ship that left (retreated, disconnected)
-/// isn't listed.
+/// One player's ship in a battle, still in it (fighting, or destroyed in a
+/// battle still running: its player watches); a ship that left (retreated,
+/// disconnected) isn't listed. Its status and its place (world units, as
+/// the elements'; a destroyed ship's last, where it exploded).
 /// </summary>
 public sealed record BattleFighterSnapshot(string PlayerId, BattleShipStatus Status, short X, short Y);
 
 /// <summary>
 /// One of a battle's elements as it's drawn this frame (the element's
 /// current state, after the frame): what it is (<see cref="PrimType"/>),
-/// where (world units, which wrap at the arena's size), a line's other
-/// end (its next place, <see cref="X2"/>, <see cref="Y2"/>), a stamp's
+/// where (world units, which wrap at the arena's size; a line's start as
+/// drawn, its end in <see cref="X2"/>, <see cref="Y2"/>), a stamp's
 /// sheet (the big size's, the client picking its zoom's size) and frame,
 /// and a point's, line's or filled stamp's colour. A cloaked or undrawn
 /// element (no prim) isn't sent.

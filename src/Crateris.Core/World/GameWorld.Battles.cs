@@ -396,6 +396,16 @@ public sealed partial class GameWorld
 
     private void AfterBattleFrame(WorldBattle wb)
     {
+        // Each ship's place, or its last moved with the frame's scroll as
+        // every element is (the snapshot's, for a ship gone once its
+        // explosion is over: its player watches from there).
+        var battle = wb.Battle;
+        (short, short) Follow(Element? ship, short x, short y) => ship is not null ? (ship.Current.X, ship.Current.Y)
+            : ((short)battle.WrapX(x + battle.ScrollX), (short)battle.WrapY(y + battle.ScrollY));
+        (wb.EnemyLastX, wb.EnemyLastY) = Follow(wb.Enemy.Ship, wb.EnemyLastX, wb.EnemyLastY);
+        foreach (var f in wb.Fighters)
+            if (f.Player.Ship.Battle == wb)
+                (f.LastX, f.LastY) = Follow(f.Starship.Ship, f.LastX, f.LastY);
         foreach (var fighter in wb.Fighters.Where(f => f.Exit is null).ToList())
         {
             var starship = fighter.Starship;
@@ -566,18 +576,23 @@ public sealed partial class GameWorld
         static BattleShipStatus Status(string ship, Starship s) => s.RaceDesc is { } r
             ? new BattleShipStatus(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy)
             : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0);
-        var enemy = wb.Enemy.Ship;
+        // A ship's place, or its last once it's gone (its explosion over: its
+        // player still watches), kept after each frame (AfterBattleFrame).
         var fighters = wb.Fighters.Where(f => f.Player.Ship.Battle == wb)
-            .Select(f => new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship),
-                f.Starship.Ship?.Current.X ?? 0, f.Starship.Ship?.Current.Y ?? 0))
+            .Select(f => f.Starship.Ship is { } ship
+                ? new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), ship.Current.X, ship.Current.Y)
+                : new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), f.LastX, f.LastY))
             .ToList();
+        var (ex, ey) = wb.Enemy.Ship is { } enemy ? (enemy.Current.X, enemy.Current.Y) : (wb.EnemyLastX, wb.EnemyLastY);
         var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None)
-            .Select(e => new BattleElementSnapshot(e.Prim, e.Current.X, e.Current.Y,
-                e.Prim == PrimType.Line ? e.Next.X : (short)0, e.Prim == PrimType.Line ? e.Next.Y : (short)0,
+            // A line from its start as drawn to its end (its place, after the frame).
+            .Select(e => new BattleElementSnapshot(e.Prim, e.Prim == PrimType.Line ? e.LineStartX : e.Current.X,
+                e.Prim == PrimType.Line ? e.LineStartY : e.Current.Y,
+                e.Prim == PrimType.Line ? e.Current.X : (short)0, e.Prim == PrimType.Line ? e.Current.Y : (short)0,
                 e.Current.FrameArray is { } views ? views[0].Sheet!.Id : e.Current.Frame.Sheet?.Id ?? "",
                 e.Current.Frame.Index, e.PrimColor))
             .ToList();
         return new BattleSnapshot(wb.Id, wb.Battle.Size.Width, wb.Battle.Size.Height, Status(wb.EnemyShip.Id, wb.Enemy),
-            enemy?.Current.X ?? 0, enemy?.Current.Y ?? 0, fighters, elements);
+            ex, ey, fighters, elements);
     }
 }

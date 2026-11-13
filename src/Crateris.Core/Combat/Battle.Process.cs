@@ -698,6 +698,12 @@ public sealed partial class Battle
             else
             {
                 var objType = e.Prim;
+                // A line is drawn from its place to its next (the display
+                // list's line.first and line.second); PostProcess then makes
+                // the next its place, so the start is kept here for whoever
+                // draws it (stage 4a item 11: the battle sent to the players).
+                if (objType == PrimType.Line)
+                    (e.LineStartX, e.LineStartY) = (e.Current.X, e.Current.Y);
                 if (viewState != 0 || (stateFlags & (ElementFlags.Appearing | ElementFlags.Changing)) != 0)
                 {
                     short nextX, nextY;
@@ -707,6 +713,7 @@ public sealed partial class Battle
                         short dy = (short)(e.Next.Y - e.Current.Y);
                         nextX = (short)WrapX(e.Current.X + deltaX);
                         nextY = (short)WrapY(e.Current.Y + deltaY);
+                        (e.LineStartX, e.LineStartY) = (nextX, nextY);
                         nextX += dx;
                         nextY += dy;
                     }
