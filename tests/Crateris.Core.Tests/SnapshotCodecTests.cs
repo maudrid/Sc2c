@@ -533,6 +533,7 @@ public class SnapshotCodecTests
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(For(Battle() with { Camera = Battle().Camera with { ViewState = 3 } })));
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(For(Battle() with { Camera = new BattleCamera(0, 0, 0, 3, 0, 0, true) })));
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(For(Battle() with { Camera = Battle().Camera with { ZoomOut = -1 } })));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(For(Battle() with { Camera = Battle().Camera with { Frame = -1 } })));
         // Cut short anywhere.
         for (int n = good.Length - 1; n > good.Length - 40; --n)
             Assert.ThrowsAny<Exception>(() => SnapshotCodec.Decode(good.AsSpan(0, n)));

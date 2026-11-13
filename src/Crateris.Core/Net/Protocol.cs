@@ -101,7 +101,8 @@ public static class Protocol
     /// or made, the game over) and a guest's revival (Revive, refused with a
     /// RescueRefusal) are reliable messages.
     /// 22: a battle carries what drawing it needs (stage 4a item 12): its
-    /// camera this frame and which player ship it followed, its stars'
+    /// camera this frame (with the battle's frames so far and every frame's
+    /// scroll added up) and which player ship it followed, its stars'
     /// seed, and each ship's captain, captain's-window keys and element's
     /// crew and life for the status panel.
     public const int Version = 22;

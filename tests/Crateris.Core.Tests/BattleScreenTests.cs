@@ -144,6 +144,28 @@ public class BattleScreenTests
         Assert.All(stars, d => Assert.Equal(UqmDrawKind.Point, d.Kind));
     }
 
+    [Fact]
+    public void AnotherPlayersStarsAfterMissedFramesAreAsIfEachWasSeen()
+    {
+        // The player's own camera scrolls up and left to centre its ship and the enemy, below and right of the
+        // arena's centre: its scroll adds up negative, past what the arena wraps to.
+        BattleSnapshot At(int frame) => Battle(((short)(W * 3 / 4), (short)(H * 3 / 4)), ((short)(W * 3 / 4 + 400), (short)(H * 3 / 4 + 300)))
+            with { Camera = new BattleCamera(0, 0, 0, 256, 3072, 2880, false, frame) };
+        UqmCanvas Canvas() => new(_ => 1, (_, _) => default, new Dictionary<string, int>());
+        StatusShip Look(BattleShipStatus s, string? id) => new(null, null, s.MaxCrew, s.MaxEnergy, false, false, id != null, "n", "c");
+        var every = new BattleScreen(Canvas(), Look);
+        var some = new BattleScreen(Canvas(), Look);
+        List<UqmDraw>? last = null;
+        for (int f = 1; f <= 8; ++f)
+        {
+            last = every.Frame(At(f), "me", BattleSpace.SizeOf);
+            if (f is 1 or 2 or 8)
+                Assert.Equal(last, some.Frame(At(f), "me", BattleSpace.SizeOf));
+        }
+        Assert.True(every.View.Own);
+        Assert.True(every.View.OffsetX > W / 2, "the offset wraps at the arena: the scroll so far is negative");
+    }
+
     private static ScreenRaster Raster(SpriteImage img) => new((_, _) => img, _ => throw new InvalidOperationException());
 
     [Fact]

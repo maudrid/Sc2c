@@ -98,6 +98,7 @@ public sealed class BattleStatus
         public int ElementCrew = -1;
         public bool Flashing;
         public int LastLife;
+        public bool Exploding;   // its flash drawn: the explosion's frames missed at its end are drawn as it stops
         public bool Done;
     }
 
@@ -132,11 +133,25 @@ public sealed class BattleStatus
         // UQM's status runs in the ship's own steps, which end with its
         // explosion: the element gone, or past its explosion (its life set
         // going again, as cleanup_dead_ship waits for the battle's end).
-        if (state.Gone || slot.Flashing && state.LifeSpan > slot.LastLife)
+        // Its crew seen out and its life past any explosion's: the explosion's over, however many of its frames
+        // were missed (a snapshot lost).
+        bool over = slot.ElementCrew == 0 && state.ElementCrew == 0 && state.LifeSpan > NumExplosionFrames * 3;
+        if (state.Gone || over || slot.Flashing && state.LifeSpan > slot.LastLife)
         {
+            // The explosion's frames missed at its end: their flash steps, down to its life's end (all of them if
+            // none was seen).
+            int from = slot.Exploding ? slot.LastLife - 1 : NumExplosionFrames * 3 - 1;
+            if (state.Crew == 0 && slot.ElementCrew == 0 && from >= 0)
+            {
+                var old0 = _c.SetContext(_c.Status);
+                for (int life = Math.Min(from, NumExplosionFrames * 3 - 1); life >= 0; --life)
+                    ExplosionFlash(y, life);
+                _c.SetContext(old0);
+            }
             slot.Done = true;
             return;
         }
+        int lastLife = slot.LastLife;
         slot.LastLife = state.LifeSpan;
         var old = _c.SetContext(_c.Status);
         // The first frame after the ship's crew ran out, its keys are as they
@@ -148,7 +163,7 @@ public sealed class BattleStatus
         if (keysChanged != 0)
             CaptainsWindow(slot, y, keysChanged, state.Flags, 1);
         DeltaStatistics(slot, y, state.Crew - slot.Crew, state.Energy - slot.Energy);
-        PostProcessStatus(slot, y, state);
+        PostProcessStatus(slot, y, state, lastLife);
         _c.SetContext(old);
     }
 
@@ -428,7 +443,7 @@ public sealed class BattleStatus
             DrawBattleCrewAmount(slot, yOffs);
     }
 
-    private void PostProcessStatus(Slot slot, int y, StatusState state)
+    private void PostProcessStatus(Slot slot, int y, StatusState state, int lastLife)
     {
         var cur = state.Flags;
         // The ship's crew ran out: from the frame after it's seen out (UQM's
@@ -437,12 +452,32 @@ public sealed class BattleStatus
         // the engine's, cleared as UQM's are).
         bool outBefore = slot.ElementCrew == 0;
         slot.ElementCrew = state.ElementCrew;
-        if (state.ElementCrew == 0 && outBefore)
+        bool flash = state.ElementCrew == 0 && outBefore;
+        // Each step draws on the last: frames missed while it flashed (a snapshot lost, or two in one of the
+        // screen's frames) have their steps drawn now, from the life after the last seen down to this one's; the
+        // keys' changes taken as made in the first frame missed, so drawn before them, as UQM drew them.
+        int from = flash && lastLife > state.LifeSpan ? Math.Min(lastLife - 1, state.LifeSpan + NumExplosionFrames * 3)
+            : state.LifeSpan;
+        bool catchUp = flash && state.Crew == 0 && from > state.LifeSpan;
+        if (catchUp)
+            KeysChanged(slot, y, cur);
+        if (flash)
         {
             slot.Flashing = true;
             if (state.Crew == 0)
-                ExplosionFlash(y, state.LifeSpan);
+            {
+                slot.Exploding = true;
+                for (int life = from; life >= state.LifeSpan; --life)
+                    ExplosionFlash(y, life);
+            }
         }
+        if (!catchUp)
+            KeysChanged(slot, y, cur);
+    }
+
+    // PostProcessStatus's keys and low energy, as they changed.
+    private void KeysChanged(Slot slot, int y, StatusFlags cur)
+    {
         var changed = (slot.OldFlags ^ cur) & (Keys | StatusFlags.LowOnEnergy);
         if (changed != 0)
         {

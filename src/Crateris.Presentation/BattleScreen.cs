@@ -33,6 +33,8 @@ public sealed class BattleView
     private int? _battle;
     private bool _own;
     private BattleCamera _cam;
+    // This camera's own scrolls added up since it took over (OffsetX wraps at the arena; this doesn't).
+    private int _scrolledX, _scrolledY;
 
     /// <summary>The camera the frame is drawn from: its zoom and corner, and the scroll the stars move by.</summary>
     public BattleCamera Camera => _cam;
@@ -66,6 +68,7 @@ public sealed class BattleView
             _cam = host with { ViewState = 2 };
             _own = true;
             OffsetX = OffsetY = 0;
+            _scrolledX = _scrolledY = 0;
             if (fresh)
                 return;
         }
@@ -117,9 +120,12 @@ public sealed class BattleView
         }
         OffsetX = Wrap(OffsetX + sx, w);
         OffsetY = Wrap(OffsetY + sy, h);
+        // Unwrapped: the farther star planes are wider than the arena (BattleGalaxy.Place).
+        _scrolledX += sx;
+        _scrolledY += sy;
         // The stars move with the battle's frame and this camera's on it.
         _cam = new BattleCamera(view, (short)(host.ScrollX + sx), (short)(host.ScrollY + sy), zoomOut, orgX, orgY, host.Step,
-            host.Frame, host.ScrolledX + OffsetX, host.ScrolledY + OffsetY);
+            host.Frame, host.ScrolledX + _scrolledX, host.ScrolledY + _scrolledY);
     }
 
     private static int Wrap(int v, int size) => ((v % size) + size) % size;

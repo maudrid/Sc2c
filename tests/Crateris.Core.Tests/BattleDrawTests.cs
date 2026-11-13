@@ -260,7 +260,12 @@ public class BattleDrawTests
         var canvas = new UqmCanvas(pics.Count, (_, _) => default, Leading);
         Starship? player = null, enemy = null;
         var screen = new BattleScreen(canvas, (s, id) => StatusOf(id is null ? enemy! : player!));
-        var skipper = new BattleScreen(new UqmCanvas(pics.Count, (_, _) => default, Leading), (s, id) => StatusOf(id is null ? enemy! : player!));
+        // Screens sent only every third frame, from each of the three first frames (the others lost).
+        var skippers = Enumerable.Range(0, 3)
+            .Select(_ => new BattleScreen(new UqmCanvas(pics.Count, (_, _) => default, Leading), (s, id) => StatusOf(id is null ? enemy! : player!)))
+            .ToList();
+        var skippedRasters = Enumerable.Range(0, 3).Select(_ => pics.Raster()).ToList();
+        var uqmSeen = new byte[3][];   // UQM's status panel as each saw it last
         var uqm = pics.Raster();
         var port = pics.Raster();
         int frames = 0;
@@ -275,7 +280,10 @@ public class BattleDrawTests
             var space = screen.Frame(snapshot, "p", BattleSpace.SizeOf)!;
             Assert.Null(screen.Frame(snapshot, "p", BattleSpace.SizeOf));   // the same frame again (the host's pause): nothing new
             // A screen sent only every third frame (the others lost) draws the stars and elements as UQM's too.
-            var skipping = frame % 3 == 1 ? skipper.Frame(snapshot, "p", BattleSpace.SizeOf) : null;
+            var skipper = skippers[frame % 3];
+            var skipping = skipper.Frame(snapshot, "p", BattleSpace.SizeOf);
+            skippedRasters[frame % 3].Paint(skipper.Status);
+            skipper.Status.Clear();
             Assert.True(screen.View.Camera == battle.Camera, $"{name} frame {frame}: the followed player's camera isn't the battle's: {screen.View.Camera} {battle.Camera}");
             var theirs = drawn[frame][1].EnumerateArray().ToList();
             int scale = theirs[^1].GetInt32();
@@ -299,21 +307,66 @@ public class BattleDrawTests
                     $"{name} frame {frame} call {i}: UQM {expected[i]}, the screen {(i < ours.Count ? ours[i] : null)}");
             uqm.Paint(drawn[frame][0].EnumerateArray().Select(c => StatusCall(c, sheets)));
             port.Paint(screen.Status);
+            uqmSeen[frame % 3] = (byte[])uqm.Rgba.Clone();
             var diff = Diff(uqm, port);
             Assert.True(diff.Count == 0, $"{name} frame {frame}: {diff.Count} status pixels differ, first at {diff.FirstOrDefault()}");
         });
         Assert.Equal(drawn.Count - 1, frames);
+        // Each screen sent every third frame ends with UQM's status panel as at the last frame it saw (an explosion's flash among it: each
+        // step missed drawn as the next is seen).
+        for (int phase = 0; phase < 3; ++phase)
+        {
+            var missed = Diff(uqmSeen[phase], skippedRasters[phase].Rgba);
+            Assert.True(missed.Count == 0,
+                $"{name}: sent every third frame from {phase}, {missed.Count} status pixels differ at the end, first at {missed.FirstOrDefault()}");
+        }
+    }
+
+    /// <summary>
+    /// A ship's explosion flashing in its captain's window, each step drawn
+    /// on the last: a panel that missed frames during it (the end too, its
+    /// slot stopping as the life starts again) ends as one that saw them all.
+    /// </summary>
+    [ContentTheory]
+    [InlineData(new[] { 35, 20 })]
+    [InlineData(new[] { 35 })]
+    [InlineData(new[] { 30, 29, 3 })]
+    [InlineData(new int[0])]
+    public void TheExplosionsFlashIsWholeWhateverFramesAreMissed(int[] seen)
+    {
+        var pics = Pics.Value;
+        var d = BattleReplay.Ships[ShipDescriptions.Ilwrath];
+        var ship = new StatusShip(d.Graphics.Icons, d.Graphics.Captain, 22, 16, false, false, false, "string 1", "string 5");
+        ScreenRaster Run(IEnumerable<int> lives)
+        {
+            var canvas = new UqmCanvas(pics.Count, (_, _) => default, Leading);
+            var status = new BattleStatus(canvas);
+            status.Init(BattleStatus.EnemySlot, ship, new StatusState(22, 16, StatusFlags.None, 22, 1));
+            status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, 1));   // its crew seen out
+            foreach (int life in lives)
+                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, life));
+            status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, 72));   // its life going again: the end
+            var raster = pics.Raster();
+            raster.Paint(canvas.Drawn);
+            return raster;
+        }
+        var all = Run(Enumerable.Range(0, 36).Reverse());
+        var some = Run(seen);
+        var diff = Diff(all, some);
+        Assert.True(diff.Count == 0, $"seen {string.Join(",", seen)}: {diff.Count} pixels differ, first at {diff.FirstOrDefault()}");
     }
 
     // The status area's pixels that differ.
-    private static List<(int X, int Y)> Diff(ScreenRaster a, ScreenRaster b)
+    private static List<(int X, int Y)> Diff(ScreenRaster a, ScreenRaster b) => Diff(a.Rgba, b.Rgba);
+
+    private static List<(int X, int Y)> Diff(byte[] a, byte[] b)
     {
         var out_ = new List<(int, int)>();
         for (int y = 0; y < ScreenRaster.Height; ++y)
             for (int x = UqmCanvas.SpaceWidth; x < ScreenRaster.Width; ++x)
             {
                 int o = (y * ScreenRaster.Width + x) * 4;
-                if (a.Rgba[o] != b.Rgba[o] || a.Rgba[o + 1] != b.Rgba[o + 1] || a.Rgba[o + 2] != b.Rgba[o + 2])
+                if (a[o] != b[o] || a[o + 1] != b[o + 1] || a[o + 2] != b[o + 2])
                     out_.Add((x, y));
             }
         return out_;

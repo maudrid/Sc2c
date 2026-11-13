@@ -131,7 +131,10 @@ public static partial class SnapshotCodec
         bool step = Flag(r.Byte());
         if (zoom < 0 || (step && zoom > 2))
             throw new InvalidDataException("Bad zoom.");
-        int frame = ToInt((long)Math.Min(r.UInt(), int.MaxValue));
+        ulong frames = r.UInt();
+        if (frames > int.MaxValue)
+            throw new InvalidDataException("Bad battle frame.");
+        int frame = (int)frames;
         long tx = r.Int(), ty = r.Int();
         if (tx is < int.MinValue or > int.MaxValue || ty is < int.MinValue or > int.MaxValue)
             throw new InvalidDataException("Bad scroll.");
