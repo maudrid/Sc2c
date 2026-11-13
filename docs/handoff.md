@@ -2,16 +2,15 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, stage 4b item 1 (every ship's content and recording) built and reviewed in three rounds (round 3 found nothing).
+**Last updated:** 2026-11-13, stage 4b item 2 (ships, part 1) built, not yet reviewed.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet): eleven items, approved by the owner on 2026-11-13 with all six recommendations accepted. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
-- **Stage 4b item 1 is built** (its Progress row): every race ship's graphics and masks are the battle's (`BattleKit.Fighters`; `--start-battle` still only the Ilwrath), and `tests/golden/battle-races-1.json` to `-3.json` trace each of the 24 ships by keys and by its AI, one file per part (items 2 to 4), 6.8 MB together; notes for items 2 to 4 are under them in the plan.
-- **Review round 1 fixed:** the AI duels' check now looks for each key's effect (a battle without those presses differs), not its press (frame 1's press as the ship warps in had passed four duels that never used one); seeds picked again, all three files recorded again; the Pkunk note corrected (`init_pkunk` resets its last insult on every Pkunk made).
-- **Review round 2 fixed:** the effect check takes elements' handles as places in the list, so a helper allocated and gone within a frame (the Earthling's point defence without the energy) isn't an effect; recorded again, only the Earthling's `uses.special` moved (keys 60 to 171, AI 643 to 646, its first real shot); the recording's note reworded.
-- **Last checks:** with review round 2's fixes, all topics 1,469 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle ilwrath` retreat ran as `how-to-try/stage-4a.md` says (the shapes of every ship made at start); the battle recordings of 4a re-recorded with the new battle program are unchanged. `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (item 1 changed nothing in `data/`).
+- **Stage 4b item 1 is built and reviewed** (its Progress row): every ship's content, and the traces `tests/golden/battle-races-1.json` to `-3.json` (items 2 to 4); notes for items 3 and 4 are under them in the plan.
+- **Stage 4b item 2 is built** (its Progress row): the Arilou, Spathi, Supox, Druuge, Yehat, Zoq-Fot-Pik, Thraddash and Umgah in `src/Crateris.Core/Combat/` (`RaceShips.Code` makes them; `BattleKit.Enemies` is `RaceShips.Ported`), all 16 of their traces matched (`RaceShipBattleTests`), co-op tests in `RaceShipCoopTests`. Not yet reviewed.
+- **Last checks:** with item 2, all topics 1,535 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle druuge --script "none:40,fire:100,special:20,none:200" --quit-after 400` ran as `how-to-try/stage-4a.md` says (in battle against the druuge to the end, 14 elements). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 and 2 changed nothing in `data/`).
 
 ## Open items
 
@@ -36,7 +35,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 1 is done; wait for the owner's go-ahead for item 2 (ships, part 1: the Arilou, Spathi, Supox, Druuge, Yehat, Zoq-Fot-Pik, Thraddash and Umgah).
+Review stage 4b item 2 (the owner's or a review round's), fix what it finds, then wait for the go-ahead for item 3 (ships, part 2).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
