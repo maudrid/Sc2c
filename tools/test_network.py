@@ -445,6 +445,36 @@ def main():
     check(p_host is not None and h_host is not None and (p_host["LogX"], p_host["LogY"]) == (h_host["LogX"], h_host["LogY"]),
           "the host's ship stayed where it stopped, for P as for the host")
 
+    # Stage 4a, item 11: the host starts in a battle by Earth; guest Q
+    # joins through the lossy relay, into the battle (put by the marker as
+    # it joins, --guests-in-battle), and fires and uses its special. Q is
+    # told it joined, sees its battle every frame (its own ship, the
+    # enemy's status), and what that costs is measured.
+    relay = LossyRelay(RELAY_PORT, PORT, 0.2)
+    host9 = start(out, "host9", "--host", "--no-upnp", "--port", PORT,
+                  "--name", "Host", "--id", "host", "--save", os.path.join(out, "save9.json"),
+                  "--start-battle", "ilwrath", "--guests-in-battle",
+                  "--script", "left:4,thrust:400", "--quit-after", "300")
+    time.sleep(1)
+    q = start(out, "q", "--join", f"127.0.0.1:{RELAY_PORT}", "--name", "Q",
+              "--id", "guest-q", "--script", "special+fire:400", "--quit-after", "240")
+    for proc in (q, host9):
+        proc.wait(timeout=90)
+    relay.close()
+    rq = report(out, "q")
+    n = rq["snapshots"]
+    per = n["bytes"] / max(1, n["full"] + n["deltas"])
+    print(f"     battle over the relay: {relay.dropped} of {relay.dropped + relay.passed} datagrams lost; "
+          f"Q: {n['full']} full, {n['deltas']} deltas, {n['in_battle']} with its battle, {n['bytes']} bytes "
+          f"({per:.0f} a snapshot)")
+    check(rq["welcome"] == "Joined", "Q joined through the lossy relay")
+    check("Joined" in (rq.get("battle_notices") or []), "Q was told it joined the battle")
+    check(n["in_battle"] > 100 and n["bad"] == 0, "Q was sent its battle, frame after frame")
+    battle = rq.get("battle")
+    check(battle is not None and battle["enemy"] == "ilwrath" and battle["ships"] >= 2 and battle["elements"] > 0,
+          "Q's battle has the enemy, both ships and their elements")
+    check(per < 1500, f"a battle's snapshot costs under 1,500 bytes ({per:.0f})")
+
     print(f"\nlogs and reports in {out}")
     if failures:
         print(f"{len(failures)} check(s) failed")

@@ -709,6 +709,78 @@ public sealed class PlayerSession
     /// <summary>The host refused this player's gift: why, as a notice.</summary>
     public void TradeRefused(TradeRefusal refusal) => Notify(Gift.Why(refusal));
 
+    /// <summary>
+    /// The battle this player's ship is in, as the host last sent it (stage
+    /// 4a item 11): the elements near its ship, every ship's status and
+    /// place; null when in none. Item 12 draws it; until then the status
+    /// lines say it.
+    /// </summary>
+    public BattleSnapshot? Battle => Snapshot?.Battles?.FirstOrDefault(b => b.FighterOf(PlayerId) is not null);
+
+    /// <summary>The battle notices received, oldest first (stage 4a item 11): what item 12's screens show.</summary>
+    public List<BattleNotice> BattleNotices { get; } = new();
+
+    /// <summary>The wreck this player may give crew to (its player's id), offered as they flew into it; null once revived or another is offered.</summary>
+    public string? RescueOffer { get; private set; }
+
+    /// <summary>Whether the host has said the game is over (the flagship lost).</summary>
+    public bool GameOver { get; private set; }
+
+    /// <summary>A battle notice from the host: kept, said in words, and logged.</summary>
+    public void ShowBattleNotice(BattleNotice notice)
+    {
+        BattleNotices.Add(notice);
+        switch (notice.Kind)
+        {
+            case BattleNoticeKind.RescueOffer:
+                RescueOffer = notice.Other;
+                break;
+            case BattleNoticeKind.Revived when notice.Other == RescueOffer:
+                RescueOffer = null;
+                break;
+            case BattleNoticeKind.GameOver:
+                GameOver = true;
+                break;
+        }
+        // The other player by name, as the snapshot has it.
+        string name = Snapshot?.Ships.FirstOrDefault(s => s.Id == notice.Other)?.Name ?? notice.Other;
+        string text = (notice with { Other = name }).Describe();
+        Notify(text);
+        Log($"Battle notice: {notice.Kind} {text}");
+    }
+
+    private (string Wreck, int Crew)? _revive;
+
+    /// <summary>Gives a wreck crew (item 12's rescue screen): sent to the host once.</summary>
+    public void Revive(string wreck, int crew) => _revive = (wreck, crew);
+
+    /// <summary>The revival to send the host, once; null if none is waiting.</summary>
+    public (string Wreck, int Crew)? TakeRevive()
+    {
+        var r = _revive;
+        _revive = null;
+        return r;
+    }
+
+    /// <summary>The host refused a revival.</summary>
+    public void RescueRefused(RescueRefusal refusal) => Notify(RescueWhy(refusal));
+
+    /// <summary>Why a revival was refused, in words.</summary>
+    public static string RescueWhy(RescueRefusal refusal) => refusal switch
+    {
+        RescueRefusal.NoOne => "There's no one to rescue.",
+        RescueRefusal.NotAWreck => "That ship isn't a wreck.",
+        RescueRefusal.Busy => "Not while busy.",
+        RescueRefusal.NotHere => "You aren't at the wreck.",
+        RescueRefusal.Nothing => "There's no crew to give.",
+        RescueRefusal.NotEnough => "You must keep at least one crew.",
+        RescueRefusal.NoRoom => "The wreck hasn't room for that much crew.",
+        RescueRefusal.Paused => "The game waits while the story's talk goes on.",
+        RescueRefusal.GameOver => "The game is over.",
+        RescueRefusal.HostPaused => "The host has paused the game.",
+        _ => "",
+    };
+
     /// <summary>A gift given: to its giver, that it went; to its receiver, what came and from whom.</summary>
     public void ShowGift(Gift gift)
     {
@@ -1003,6 +1075,14 @@ public sealed class PlayerSession
             lines.AddRange(StarbaseLines(sb));
         else if (Me?.Activity == Activity.Planetside)
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
+        else if (Battle is { } battle)
+        {
+            // The status panel in words until item 12 draws the battle.
+            var mine = battle.FighterOf(PlayerId)!.Status;
+            lines.Add($"In battle against the {battle.Enemy.Ship}: crew {mine.Crew}/{mine.MaxCrew}, energy {mine.Energy}/{mine.MaxEnergy}; "
+                + $"the enemy's crew {battle.Enemy.Crew}/{battle.Enemy.MaxCrew}");
+            lines.Add("Arrows: turn and thrust; Space: fire; Shift: special; Esc: retreat");
+        }
         else if (Me?.Activity != Activity.Orbit && !Entering && Me?.Wrecked != true)
             lines.Add("Arrows: turn and thrust");
         // The Manifest's Devices list is drawn in the status area (DevicesDisplay), which hides this panel while it's open.

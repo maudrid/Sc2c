@@ -475,6 +475,7 @@ public partial class Main : Node2D
             if (_options.StartBattle is { } race)
                 Log(host.StartBattle(race));
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
+            host.GuestsJoinBattle = _options.GuestsInBattle;
         }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
         {
@@ -573,6 +574,35 @@ public partial class Main : Node2D
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void GiftRefused(int refusal) => _player?.TradeRefused((TradeRefusal)refusal);
+
+    // A battle's news for this player (stage 4a item 11): its start, end and wreck, a rescue, the game over.
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowBattleNotice(byte[] notice)
+    {
+        try
+        {
+            _player?.ShowBattleNotice(BattleNotice.Decode(notice));
+        }
+        catch (InvalidDataException e)
+        {
+            Log($"Bad battle notice from the host: {e.Message}");
+        }
+    }
+
+    // A guest gives a wreck crew (item 12's rescue screen): its rescuer the guest, whatever it says.
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void Revive(string wreck, int crew)
+    {
+        if (_host == null)
+            return;
+        long peer = Multiplayer.GetRemoteSenderId();
+        var refusal = _host.GuestRevive(peer, wreck, crew);
+        if (refusal != RescueRefusal.None && _host.InGame(peer))
+            RpcId(peer, MethodName.RescueRefused, (int)refusal);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RescueRefused(int refusal) => _player?.RescueRefused((RescueRefusal)refusal);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowGift(byte[] gift)
@@ -679,12 +709,19 @@ public partial class Main : Node2D
 
     private int _badSnapshots;
 
+    // What the snapshots have cost (the report's, for the network test).
+    private long _snapshotBytes;
+    private int _battleSnapshots;
+
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
     private void ReceiveSnapshot(byte[] data)
     {
         try
         {
             _player?.ReceiveSnapshot(data);
+            _snapshotBytes += data.Length;
+            if (_player?.Battle is not null)
+                _battleSnapshots++;
         }
         catch (InvalidDataException e)
         {
@@ -745,6 +782,9 @@ public partial class Main : Node2D
                         _host.StarbaseKey(_host.HostId, key);
                     if (_player.TakeRename() is var (ship, captain))
                         _host.Rename(_host.HostId, ship, captain);
+                    if (_player.TakeRevive() is var (wreck, crew) && _host.Revive(_host.HostId, wreck, crew) is var no
+                            && no != RescueRefusal.None)
+                        _player.RescueRefused(no);
                 }
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
@@ -765,6 +805,14 @@ public partial class Main : Node2D
                         RpcId(peer, MethodName.DrawStarbase, drawing);
                     foreach (var (peer, view) in _host.StarbaseUpdates())
                         RpcId(peer, MethodName.ShowStarbase, view);
+                }
+                var (ownNotices, guestNotices) = _host.TakeBattleNotices();
+                foreach (var notice in ownNotices)
+                    _player.ShowBattleNotice(notice);
+                if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
+                {
+                    foreach (var (peer, notice) in guestNotices)
+                        RpcId(peer, MethodName.ShowBattleNotice, notice.Encode());
                 }
                 var (ownGifts, guestGifts) = _host.TakeGifts();
                 foreach (var gift in ownGifts)
@@ -797,6 +845,8 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.GiveGift, gift.Encode());
                 if (_player.TakeRename() is var (ship, captain))
                     RpcId(1, MethodName.RenameShip, ship ?? "", captain ?? "");
+                if (_player.TakeRevive() is var (wreck, crew))
+                    RpcId(1, MethodName.Revive, wreck, crew);
                 RpcId(1, MethodName.SendInput, snap.Frame + _inputDelay, (int)input, snap.Frame);
                 if (_player.UndockTick())
                     RpcId(1, MethodName.UndockShown);
@@ -835,7 +885,7 @@ public partial class Main : Node2D
     // The keys held. On a planet's surface, as UQM's: Space, Enter or Ctrl
     // fires, Esc takes off (a key of its own, never leaving orbit); in a
     // battle the same, Esc retreating where allowed, and Shift the special
-    // (the guests' Special key is item 11's); elsewhere Space and Enter are
+    // (a guest's too, the host taking it since stage 4a item 11); elsewhere Space and Enter are
     // the action key.
     private ShipInput ReadKeys(bool onSurface, bool inBattle)
     {
@@ -1203,7 +1253,11 @@ public partial class Main : Node2D
                     deltas = _player?.SnapshotsDelta ?? 0,
                     without_base = _player?.SnapshotsWithoutBase ?? 0,
                     bad = _badSnapshots,
+                    bytes = _snapshotBytes,
+                    in_battle = _battleSnapshots,
                 },
+                battle = _player?.Battle is { } b ? new { id = b.Id, enemy = b.Enemy.Ship, ships = b.Fighters.Count, elements = b.Elements.Count } : null,
+                battle_notices = _player?.BattleNotices.Select(n => n.Kind.ToString()).ToList(),
             };
             File.WriteAllText(_options.ReportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }

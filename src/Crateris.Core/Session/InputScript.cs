@@ -88,6 +88,7 @@ public sealed class InputScript
                     "action" => ShipInput.Action,
                     "fire" => ShipInput.Fire,
                     "takeoff" => ShipInput.TakeOff,
+                    "special" => ShipInput.Special,
                     "none" => ShipInput.None,
                     var k => throw new ArgumentException($"Unknown input '{k}' in --script"),
                 };

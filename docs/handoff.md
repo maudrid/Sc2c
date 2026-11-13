@@ -2,14 +2,14 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, after item 10 (the host's pause) was built and reviewed (four rounds, the last finding nothing).
+**Last updated:** 2026-11-13, item 11 (the wire) built and in review.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4.md`, stage 4a (combat), approved by the owner with all fifteen decisions accepted.
-- **Stage 4a items 1 to 10 are built.** Each has a Built row in the plan's Progress section and notes under the later items for what they must honour. Items 11 to 13 are left: 11 the wire, 12 client views, 13 docs.
-- **Last checks:** on d634d96, all topics 1,414 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~976, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed on item 10's first commit (with `GODOT` set to the binary inside `/opt/godot/Godot_v4.7.2-stable_mono_linux_x86_64/` here); the review fixes since touch Core and tests only. Data checks were last run on item 9's last commit.
+- **Stage 4a items 1 to 11 are built** (11 in review). Each has a Built row in the plan's Progress section and notes under the later items for what they must honour. Items 12 and 13 are left: 12 client views, 13 docs.
+- **Last checks:** on item 11, all topics 1,422 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~976, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed (with `GODOT` set to the binary inside `/opt/godot/Godot_v4.7.2-stable_mono_linux_x86_64/` here). Data checks were last run on item 9's last commit.
 
 ## Open items
 
@@ -25,7 +25,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Item 11, the wire, only when the owner says to start it.
+Finish item 11's review rounds, report, and stop: don't start item 12 unasked.
 
 ## Working agreements
 

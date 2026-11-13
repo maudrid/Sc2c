@@ -37,7 +37,8 @@ namespace Crateris.Game;
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
 /// --guests-in-orbit (host: guests joining for the first time start in
-/// orbit where the host is), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
+/// orbit where the host is), --guests-in-battle (host: guests joining for the first time join the battle by the host,
+/// as if they'd flown into its marker), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
 /// --first-run-tick FILE[,FILE] (the first-run screen ticks these add-ons, by file name, before --first-run-use),
 /// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
@@ -105,6 +106,9 @@ public sealed class Options
     /// <summary>--guests-in-orbit: guests joining for the first time are put in orbit where the host is (testing).</summary>
     public bool GuestsInOrbit { get; private set; }
 
+    /// <summary>--guests-in-battle: guests joining for the first time join the battle by the host, as if they'd flown into its marker (testing).</summary>
+    public bool GuestsInBattle { get; private set; }
+
     /// <summary>--show-report RESOURCE: the lander report (a string table, text.moonbase) shown as the finder's at start: on the screen in orbit (--start-orbit), else a notice (testing).</summary>
     public string? ShowReport { get; private set; }
 
@@ -157,6 +161,7 @@ public sealed class Options
                 case "--quit-after-join": o.QuitAfterJoinFrames = long.Parse(Next()); break;
                 case "--no-upnp": o.UseUpnp = false; break;
                 case "--guests-in-orbit": o.GuestsInOrbit = true; break;
+                case "--guests-in-battle": o.GuestsInBattle = true; break;
                 case "--seconds-per-day":
                     o.SecondsPerDay = double.Parse(Next(), System.Globalization.CultureInfo.InvariantCulture);
                     break;

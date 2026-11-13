@@ -30,9 +30,11 @@ public sealed class SnapshotSender
     private readonly WorldSnapshot?[] _history = new WorldSnapshot?[History];
     private readonly Dictionary<long, Guest> _guests = new();
     private readonly WireWriter _writer = new();
-    // The latest snapshot's messages, by base frame (-1 for the full one)
-    // and the surfaces the guest sees in it and was sent with the base.
-    private readonly Dictionary<(long, SurfaceSnapshot?, SurfaceSnapshot?), byte[]> _messages = new();
+    // The latest snapshot's messages, by base frame (-1 for the full one),
+    // the surfaces the guest sees in it and was sent with the base, and, for
+    // a guest in a battle in either, the guest (its battle is its own: the
+    // elements near its ship).
+    private readonly Dictionary<(long, SurfaceSnapshot?, SurfaceSnapshot?, string?), byte[]> _messages = new();
     private WorldSnapshot? _latest;
 
     private sealed class Guest
@@ -60,7 +62,7 @@ public sealed class SnapshotSender
     /// <paramref name="viewer"/>: a delta from the newest snapshot it has,
     /// if that's still kept, otherwise in full, with the surface its lander
     /// is on (<see cref="SnapshotCodec.Encode"/>). Guests on the same base
-    /// and surface share the message; don't change it.
+    /// and surface, and in no battle, share the message; don't change it.
     /// </summary>
     public byte[] For(long peer, string? viewer = null)
     {
@@ -69,7 +71,8 @@ public sealed class SnapshotSender
             _guests[peer] = guest = new Guest();
         var baseSnapshot = BaseFor(guest, latest);
         var key = (baseSnapshot?.Frame ?? -1, SnapshotCodec.SurfaceSeen(latest, viewer),
-            SnapshotCodec.SurfaceSeen(baseSnapshot, viewer));
+            SnapshotCodec.SurfaceSeen(baseSnapshot, viewer),
+            SnapshotCodec.InBattle(latest, viewer) || SnapshotCodec.InBattle(baseSnapshot, viewer) ? viewer : null);
         if (!_messages.TryGetValue(key, out var message))
         {
             SnapshotCodec.Encode(_writer, latest, baseSnapshot, viewer);

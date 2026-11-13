@@ -239,6 +239,13 @@ public sealed class HostSession
     public bool GuestsStartInOrbit { get; set; }
 
     /// <summary>
+    /// --guests-in-battle (testing): each guest joining for the first time,
+    /// put beside the host as ever, joins the battle there as if it had
+    /// flown into its marker (<see cref="GameWorld.LetIntoBattle"/>).
+    /// </summary>
+    public bool GuestsJoinBattle { get; set; }
+
+    /// <summary>
     /// A guest says hello: refused if its version differs or its connection
     /// already has a player, otherwise joined (or refused, if the game is full). The welcome goes back to it; an
     /// accepted guest's input and undocking are taken from its peer from now on.
@@ -271,6 +278,8 @@ public sealed class HostSession
             : $"{name} ({playerId}): {result}, peer {peer} is already {already}");
         if (result == JoinResult.Joined && GuestsStartInOrbit && World.Host.Ship.OrbitedWorld is { } w)
             World.PutInOrbit(playerId, w.Star, w.Planet, w.Moon);
+        if (result == JoinResult.Joined && GuestsJoinBattle)
+            World.LetIntoBattle(playerId);
         if (Protocol.Accepted(result))
         {
             _peers[peer] = playerId;
@@ -280,7 +289,7 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// A guest's input for a frame (only the six input bits count), with
+    /// A guest's input for a frame (only the seven input bits count, Special among them), with
     /// the frame of the newest snapshot it has (<paramref name="has"/>),
     /// which the host's next snapshots for it are deltas from.
     /// </summary>
@@ -288,7 +297,7 @@ public sealed class HostSession
     {
         if (_peers.TryGetValue(peer, out var id))
         {
-            World.SubmitInput(id, frame, (ShipInput)(input & 63));
+            World.SubmitInput(id, frame, (ShipInput)(input & 127));   // Special (64) too: the battle's
             _snapshots.Acknowledge(peer, has);
         }
     }
@@ -569,6 +578,90 @@ public sealed class HostSession
     }
 
     private bool _gameOverLogged;
+    private readonly Dictionary<string, int> _inBattle = new();
+    private readonly HashSet<string> _wrecks = new();
+    private readonly List<(string PlayerId, BattleNotice Notice)> _notices = new();
+
+    // The world's battle news since the last frame, as notices for the
+    // players present (stage 4a item 11), each logged: a ship joining a
+    // battle (seen here, a frame on: the Ilwrath fight starts inside a
+    // reply), a battle's end, a ship become a wreck, a battle too full to
+    // join, a wreck flown into and one revived, and the game over.
+    private void TakeBattleNews()
+    {
+        void Tell(string id, BattleNotice notice)
+        {
+            if (World.Find(id) is { Present: true })
+                _notices.Add((id, notice));
+        }
+        foreach (var p in World.Players)
+        {
+            if (p.Ship.Battle is { } wb && (!_inBattle.TryGetValue(p.Id, out int was) || was != wb.Id))
+            {
+                _inBattle[p.Id] = wb.Id;
+                Tell(p.Id, new BattleNotice(BattleNoticeKind.Joined, wb.Id, wb.EnemyShip.Id));
+            }
+            else if (p.Ship.Battle is null)
+                _inBattle.Remove(p.Id);
+        }
+        foreach (var ended in World.TakeEndedBattles())
+        {
+            Logged?.Invoke($"Battle {ended.Id} against the {ended.EnemyShip.Id} {ended.Outcome?.ToString().ToLowerInvariant()}: "
+                + string.Join(", ", ended.Fighters.Select(f => $"{f.Player.Id} {f.Exit?.ToString().ToLowerInvariant()}")));
+            foreach (var f in ended.Fighters)
+                Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, ended.Id, ended.EnemyShip.Id, ended.Outcome, f.Exit,
+                    f.Salvage, f.CrewLeft));
+        }
+        foreach (var p in World.Players)
+        {
+            if (p.Ship.Wreck && _wrecks.Add(p.Id))
+                Tell(p.Id, new BattleNotice(BattleNoticeKind.Wrecked));
+            else if (!p.Ship.Wreck)
+                _wrecks.Remove(p.Id);
+        }
+        foreach (var (player, text) in World.TakeBattleNotices())
+        {
+            Logged?.Invoke($"{player}: {text}");
+            Tell(player, new BattleNotice(BattleNoticeKind.Full, Text: text));
+        }
+        foreach (var (rescuer, wreck) in World.TakeRescueOffers())
+        {
+            Logged?.Invoke($"{rescuer} is at {wreck}'s wreck");
+            Tell(rescuer, new BattleNotice(BattleNoticeKind.RescueOffer, Other: wreck));
+        }
+        foreach (var revival in World.TakeRevivals())   // Revive logs each
+        {
+            Tell(revival.Rescuer, new BattleNotice(BattleNoticeKind.Revived, Crew: revival.Crew, Other: revival.Wreck, Text: BattleNotice.Rescuer));
+            Tell(revival.Wreck, new BattleNotice(BattleNoticeKind.Revived, Crew: revival.Crew, Other: revival.Rescuer, Text: BattleNotice.Rescued));
+        }
+        if (World.GameOver && !_gameOverLogged)
+        {
+            _gameOverLogged = true;
+            Logged?.Invoke("Game over: the flagship was lost");
+            foreach (var p in World.Players)
+                Tell(p.Id, new BattleNotice(BattleNoticeKind.GameOver));
+        }
+    }
+
+    /// <summary>
+    /// The battle notices since last asked: the host's own, and each
+    /// guest's by its peer (a notice for a player who's since left is dropped).
+    /// </summary>
+    public (List<BattleNotice> Host, List<(long Peer, BattleNotice Notice)> Guests) TakeBattleNotices()
+    {
+        var host = new List<BattleNotice>();
+        var guests = new List<(long, BattleNotice)>();
+        foreach (var (id, notice) in _notices)
+        {
+            if (id == HostId)
+                host.Add(notice);
+            foreach (var (peer, pid) in _peers)
+                if (pid == id)
+                    guests.Add((peer, notice));
+        }
+        _notices.Clear();
+        return (host, guests);
+    }
     private WorldSnapshot? _lastSnapshot;
     private bool _gameOverSnapshot;
 
@@ -577,24 +670,7 @@ public sealed class HostSession
     {
         World.SubmitInput(HostId, World.Frame + World.Settings.InputDelayFrames, hostInput);
         World.Step();
-        // Battles ended and notices about them: only logged until item 11
-        // sends them to the players, but taken so none is kept.
-        foreach (var ended in World.TakeEndedBattles())
-            Logged?.Invoke($"Battle {ended.Id} against the {ended.EnemyShip.Id} {ended.Outcome?.ToString().ToLowerInvariant()}: "
-                + string.Join(", ", ended.Fighters.Select(f => $"{f.Player.Id} {f.Exit?.ToString().ToLowerInvariant()}")));
-        foreach (var (player, text) in World.TakeBattleNotices())
-            Logged?.Invoke($"{player}: {text}");
-        // Wrecks flown into and revived, and the game over: only logged
-        // until item 11 sends them (and item 12 shows the rescue and the
-        // game over screens), but taken so none is kept.
-        foreach (var (rescuer, wreck) in World.TakeRescueOffers())
-            Logged?.Invoke($"{rescuer} is at {wreck}'s wreck");
-        World.TakeRevivals();   // Revive logs each
-        if (World.GameOver && !_gameOverLogged)
-        {
-            _gameOverLogged = true;
-            Logged?.Invoke("Game over: the flagship was lost");
-        }
+        TakeBattleNews();
         // Once the game is over the world has stopped (decision 12): its
         // frame no longer moves on, and the snapshot of the world as it
         // stopped stands. That is taken once, the first step the game is

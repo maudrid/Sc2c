@@ -1043,7 +1043,7 @@ public class WreckTests
 
     // The host's battle by Earth, the guests (there as it started, at the
     // host's place) flying off and back into its marker, everyone warped in.
-    private static WorldBattle JoinedInSol(HostSession host, params string[] guests)
+    internal static WorldBattle JoinedInSol(HostSession host, params string[] guests)
     {
         var world = host.World;
         var wb = world.Battles.Single();

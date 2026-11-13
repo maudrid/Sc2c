@@ -31,6 +31,9 @@ namespace Crateris.Core.Net;
 public static partial class SnapshotCodec
 {
     private const byte KindFull = 0, KindDelta = 1;
+    /// <summary>The most ships a snapshot holds: the players present and every wreck, an away player's too (stage 4a item 7).</summary>
+    public const int MostShips = 1024;
+
     private const byte PartDate = 1, PartOrbited = 2, PartSurface = 4, PartPause = 16, PartHostPause = 32;
 
     // The ship's numbers, in the order of the mask's bits.
@@ -73,8 +76,12 @@ public static partial class SnapshotCodec
         bool storyChanged = StoryChanged(snapshot.Story, baseSnapshot?.Story);
         bool pauseChanged = snapshot.StoryPause != (baseSnapshot?.StoryPause);
         bool hostPauseChanged = snapshot.HostPaused != (baseSnapshot?.HostPaused ?? false);
+        var battle = BattleSeen(snapshot, viewer);
+        bool battleChanged = battle is not null || BattleSeen(baseSnapshot, viewer) is not null;
+        bool markersChanged = !SameMarkers(snapshot.Markers, baseSnapshot?.Markers);
         writer.Byte((byte)((dateChanged ? PartDate : 0) | (orbitedChanged ? PartOrbited : 0) | (surfaceChanged ? PartSurface : 0)
-            | (storyChanged ? PartStory : 0) | (pauseChanged ? PartPause : 0) | (hostPauseChanged ? PartHostPause : 0)));
+            | (storyChanged ? PartStory : 0) | (pauseChanged ? PartPause : 0) | (hostPauseChanged ? PartHostPause : 0)
+            | (battleChanged ? PartBattle : 0) | (markersChanged ? PartMarkers : 0)));
         if (dateChanged)
         {
             writer.Int((long)snapshot.Year - (baseSnapshot?.Year ?? 0));
@@ -91,6 +98,10 @@ public static partial class SnapshotCodec
             writer.String(snapshot.StoryPause);
         if (hostPauseChanged)
             writer.Byte(snapshot.HostPaused ? (byte)1 : (byte)0);
+        if (battleChanged)
+            WriteBattle(writer, battle);
+        if (markersChanged)
+            WriteMarkers(writer, snapshot.Markers);
 
         writer.UInt((ulong)snapshot.Ships.Count);
         Span<long> now = stackalloc long[Numbers];
@@ -251,7 +262,7 @@ public static partial class SnapshotCodec
                 throw new ArgumentException($"the base given for frame {bf} is frame {baseSnapshot.Frame}", nameof(baseOf));
         }
         byte parts = r.Byte();
-        if ((parts & ~(PartDate | PartOrbited | PartSurface | PartStory | PartPause | PartHostPause)) != 0
+        if ((parts & ~(PartDate | PartOrbited | PartSurface | PartStory | PartPause | PartHostPause | PartBattle | PartMarkers)) != 0
                 || (baseSnapshot is null && (parts & (PartDate | PartOrbited)) != (PartDate | PartOrbited)))
             throw new InvalidDataException("Bad snapshot parts.");
         int year = baseSnapshot?.Year ?? 0, month = baseSnapshot?.Month ?? 0, day = baseSnapshot?.Day ?? 0;
@@ -274,8 +285,11 @@ public static partial class SnapshotCodec
                 1 => true,
                 _ => throw new InvalidDataException("The host's pause is neither on nor off."),
             };
+        // The battle isn't kept from the base: sent every frame the viewer is in one.
+        var battles = (parts & PartBattle) != 0 ? ReadBattle(ref r) : null;
+        var markers = (parts & PartMarkers) != 0 ? ReadMarkers(ref r) : baseSnapshot?.Markers;
 
-        int count = Count(r.UInt(), 64);
+        int count = Count(r.UInt(), MostShips);
         var ships = new ShipSnapshot[count];
         Span<long> v = stackalloc long[Numbers];
         for (int i = 0; i < count; ++i)
@@ -330,13 +344,13 @@ public static partial class SnapshotCodec
         }
         if (!r.AtEnd)
             throw new InvalidDataException("The snapshot has bytes left over.");
-        return new WorldSnapshot(frame, year, month, day, ships, worlds, surfaces, story, pause, hostPaused);
+        return new WorldSnapshot(frame, year, month, day, ships, worlds, surfaces, story, pause, hostPaused, battles, markers);
     }
 
     private static void ToNumbers(ShipSnapshot s, Span<long> v)
     {
         v[Flags] = (s.IsHost ? 1 : 0) | (s.Thrusting ? 2 : 0) | (s.UndockPending ? 4 : 0)
-            | ((int)s.Kind << 3) | ((int)s.Activity << 5);
+            | ((int)s.Kind << 3) | ((int)s.Activity << 5) | (s.Wrecked ? 1 << 9 : 0);
         v[LogX] = s.LogX;
         v[LogY] = s.LogY;
         v[UniverseX] = s.UniverseX;
@@ -366,10 +380,10 @@ public static partial class SnapshotCodec
         string? shipName = null, string? captainName = null, ModulesState? modules = null)
     {
         long flags = v[Flags];
-        if (flags < 0 || flags >= 1 << 8)
+        if (flags < 0 || flags >= 1 << 10)
             throw new InvalidDataException("Bad ship flags.");
         var kind = (ShipKind)((flags >> 3) & 3);
-        var activity = (Activity)(flags >> 5);
+        var activity = (Activity)((flags >> 5) & 15);
         if (!Enum.IsDefined(kind) || !Enum.IsDefined(activity))
             throw new InvalidDataException("Bad ship kind or activity.");
         return new ShipSnapshot(id, name, (flags & 1) != 0, kind,
@@ -379,7 +393,7 @@ public static partial class SnapshotCodec
             activity, ToOptional(v[SystemStar]), ToOptional(v[InnerPlanet]),
             ToInt(v[IpX]), ToInt(v[IpY]), ToInt(v[ScreenX]), ToInt(v[ScreenY]), ToInt(v[IpFacing]), ToInt(v[ZoomRadius]),
             ToOptional(v[OrbitPlanet]), ToOptional(v[OrbitMoon]), ToInt(v[IpVelocityX]), ToInt(v[IpVelocityY]),
-            ToShort(v[ViewX]), ToShort(v[ViewY]), entry, hold, shipName, captainName, modules);
+            ToShort(v[ViewX]), ToShort(v[ViewY]), entry, hold, shipName, captainName, modules, (flags & (1 << 9)) != 0);
     }
 
     private static void WriteEntry(WireWriter w, StarEntryState? e)

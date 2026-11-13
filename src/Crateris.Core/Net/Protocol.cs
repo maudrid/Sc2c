@@ -90,8 +90,17 @@ public static class Protocol
     /// from stage 4a item 7: the welcome may be JoinResult.GameOver (a guest
     /// joining or coming back after the game over, its connection closed),
     /// and a gift may be refused as TradeRefusal.Wrecked or GameOver.
-    /// </summary>
-    public const int Version = 20;
+    /// 21: battles (stage 4a item 11): the snapshot carries the viewer's own
+    /// battle (BattleSnapshot: the enemy's and every player ship's status
+    /// and place, and the elements near the viewer's ship; a part sent
+    /// every frame it's in one) and every battle's marker (a part sent when
+    /// they change); a ship's flags carry its activity in four bits and
+    /// whether it's a wreck; a snapshot holds up to 1024 ships; a guest's
+    /// input keeps its Special key (64); the battle notices (ShowBattleNotice:
+    /// a battle joined or ended, a wreck, a battle too full, a rescue offered
+    /// or made, the game over) and a guest's revival (Revive, refused with a
+    /// RescueRefusal) are reliable messages.
+    public const int Version = 21;
     public const int DefaultPort = 24642;
 
     /// <summary>

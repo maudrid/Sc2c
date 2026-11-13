@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using Stopwatch = System.Diagnostics.Stopwatch;
+using Crateris.Core.Combat;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
@@ -67,14 +68,18 @@ public class SnapshotCodecTests
         r.Next(3) == 0 ? null : new HoldSnapshot(AnyInt(r), AnyInt(r), AnyInt(r),
             Enumerable.Range(0, r.Next(9)).Select(_ => AnyInt(r)).ToArray(), AnyInt(r), (LanderUpgrades)r.Next(128),
             (uint)r.NextInt64(0, uint.MaxValue + 1L), r.Next(3) == 0 ? 0 : r.Next(int.MaxValue)))
-        with { ShipName = AnyName(r), CaptainName = AnyName(r) };
+        with { ShipName = AnyName(r), CaptainName = AnyName(r), Wrecked = r.Next(4) == 0 };
 
     private static WorldSnapshot AnySnapshot(Random r, long frame) => new WorldSnapshot(frame, AnyInt(r), AnyInt(r), AnyInt(r),
         Enumerable.Range(0, r.Next(5)).Select(i => AnyShip(r, "p" + r.Next(6))).DistinctBy(s => s.Id).ToArray(),
         r.Next(3) == 0 ? null : Enumerable.Range(0, r.Next(4)).Select(_ => new OrbitedWorldSnapshot(AnyInt(r), AnyInt(r),
             AnyOptional(r), (uint)r.NextInt64(0, uint.MaxValue + 1L), (uint)r.NextInt64(0, uint.MaxValue + 1L),
             (uint)r.NextInt64(0, uint.MaxValue + 1L))).ToArray())
-        with { StoryPause = r.Next(3) == 0 ? AnyText(r) : null, HostPaused = r.Next(3) == 0 };
+        with { StoryPause = r.Next(3) == 0 ? AnyText(r) : null, HostPaused = r.Next(3) == 0, Markers = AnyMarkers(r) };
+
+    private static BattleMarkerSnapshot[]? AnyMarkers(Random r) => r.Next(3) == 0 ? null
+        : Enumerable.Range(0, r.Next(4)).Select(i => new BattleMarkerSnapshot(r.Next(1000), AnyOptional(r), AnyOptional(r), AnyInt(r), AnyInt(r)))
+            .ToArray();
 
     // A snapshot a little on from another: most ships move a little, some
     // change something else, ships come and go now and then.
@@ -95,7 +100,8 @@ public class SnapshotCodecTests
         return new WorldSnapshot(frame, s.Year, r.Next(20) == 0 ? s.Month + 1 : s.Month, s.Day, ships,
             r.Next(10) == 0 ? AnySnapshot(r, 0).OrbitedWorlds : s.OrbitedWorlds,
             StoryPause: r.Next(8) switch { 0 => null, 1 => "p" + r.Next(6), _ => s.StoryPause },
-            HostPaused: r.Next(8) == 0 ? !s.HostPaused : s.HostPaused);
+            HostPaused: r.Next(8) == 0 ? !s.HostPaused : s.HostPaused,
+            Markers: r.Next(8) == 0 ? AnyMarkers(r) : s.Markers);
     }
 
     private static void AssertSame(WorldSnapshot want, WorldSnapshot got)
@@ -104,6 +110,7 @@ public class SnapshotCodecTests
         Assert.Equal(want.Ships, got.Ships);
         Assert.Equal(want.StoryPause, got.StoryPause);
         Assert.Equal(want.HostPaused, got.HostPaused);
+        Assert.Equal(want.Markers ?? Array.Empty<BattleMarkerSnapshot>(), got.Markers ?? Array.Empty<BattleMarkerSnapshot>());
         if (want.OrbitedWorlds is null)
             Assert.Null(got.OrbitedWorlds);
         else
@@ -461,5 +468,78 @@ public class SnapshotCodecTests
         host.Step(ShipInput.None);
         Assert.Null(SnapshotCodec.Peek(host.SnapshotFor(1)).Base);
         Assert.Equal(new long[] { 1, 2, 3 }, host.GuestPeers.Order());
+    }
+
+    // A battle by two players, a and b, far apart in an arena three times UQM's (UQM's widest view of a ship covers
+    // all of UQM's own), and the enemy; elements by each, and one across the seam from a.
+    private static BattleSnapshot Battle()
+    {
+        var status = new BattleShipStatus("sis_ship", 30, 50, 10, 42);
+        return new BattleSnapshot(3, 3 * 8192, 3 * 7680, new BattleShipStatus("ilwrath", 22, 22, 16, 16), 1000, 100,
+            new[] { new BattleFighterSnapshot("a", status, 100, 100), new BattleFighterSnapshot("b", status with { Crew = 1 }, 12000, 11000) },
+            new[]
+            {
+                new BattleElementSnapshot(PrimType.Stamp, 100, 100, 0, 0, "ship.sis_ship.big", 3, -1),
+                new BattleElementSnapshot(PrimType.StampFill, 1000, 100, 0, 0, "ship.ilwrath.big", 15, 0x123456),
+                new BattleElementSnapshot(PrimType.Line, 24500, 23000, 24550, 23050, "battle.stars", 0, 0xFF0000),   // across the seam from a
+                new BattleElementSnapshot(PrimType.Point, 12000, 11000, 0, 0, "battle.stars", 2, 7),                 // by b, far from a
+            });
+    }
+
+    [Fact]
+    public void ABattleIsSentToItsShipsOnlyWithTheElementsNearEach()
+    {
+        var battle = Battle();
+        var s = new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { battle },
+            Markers: new[] { new BattleMarkerSnapshot(3, 0, 2, 5, 6) });
+        WorldSnapshot For(string viewer, WorldSnapshot snap, WorldSnapshot? b = null)
+        {
+            var w = new WireWriter(16);
+            SnapshotCodec.Encode(w, snap, b, viewer);
+            return SnapshotCodec.Decode(w.Written, b);
+        }
+        var a = Assert.Single(For("a", s).Battles!);
+        Assert.Equal(battle with { Elements = battle.Elements.Take(3).ToList() }, a);   // b's point is too far; the seam's line near
+        var b = Assert.Single(For("b", s).Battles!);
+        Assert.Equal(new[] { battle.Elements[3] }, b.Elements);
+        Assert.Equal(2, b.Fighters.Count);   // every ship, for the minimap
+        Assert.Null(For("c", s).Battles);   // not in it
+        Assert.Equal(s.Markers, For("c", s).Markers);
+        // Left: a delta from a frame in it says so; the markers, unchanged, are kept from the base.
+        var gone = s with { Frame = 11, Battles = Array.Empty<BattleSnapshot>() };
+        var d = For("a", gone, s);
+        Assert.Null(d.Battles);
+        Assert.Equal(s.Markers, d.Markers);
+    }
+
+    [Fact]
+    public void BadBattlesAreRefused()
+    {
+        var s = new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { Battle() });
+        byte[] For(BattleSnapshot battle)
+        {
+            var w = new WireWriter(16);
+            SnapshotCodec.Encode(w, s with { Battles = new[] { battle } }, null, "a");
+            return w.Written.ToArray();
+        }
+        var good = For(Battle());
+        Assert.NotNull(SnapshotCodec.Decode(good).Battles);
+        // An element whose kind is no prim, or undrawn: its byte after the elements' count.
+        var bad = For(Battle() with { Elements = new[] { new BattleElementSnapshot((PrimType)9, 100, 100, 0, 0, "x", 0, 0) } });
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(bad));
+        bad = For(Battle() with { Elements = new[] { new BattleElementSnapshot(PrimType.None, 100, 100, 0, 0, "x", 0, 0) } });
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(bad));
+        // Cut short anywhere.
+        for (int n = good.Length - 1; n > good.Length - 40; --n)
+            Assert.ThrowsAny<Exception>(() => SnapshotCodec.Decode(good.AsSpan(0, n)));
+    }
+
+    [Fact]
+    public void ManyWrecksFitASnapshot()
+    {
+        var r = new Random(5);
+        var ships = Enumerable.Range(0, 200).Select(i => AnyShip(r, "w" + i) with { Wrecked = true }).ToArray();
+        var s = new WorldSnapshot(1, 2155, 1, 1, ships);
+        AssertSame(s, SnapshotCodec.Decode(Encode(s)));
     }
 }

@@ -71,11 +71,14 @@ public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint 
 /// their taken nodes) and the surfaces with landers on them, and the story state (made again only when it changes);
 /// while the game is paused for a story talk, who replies in it
 /// (<see cref="StoryPause"/>); and whether the host has paused it
-/// (<see cref="HostPaused"/>). A guest is sent only its own lander's surface.
+/// (<see cref="HostPaused"/>); the battles (<see cref="Battles"/>) and
+/// their markers (<see cref="Markers"/>). A guest is sent only its own
+/// lander's surface, and only its own battle, the elements near its ship.
 /// </summary>
 public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IReadOnlyList<ShipSnapshot> Ships,
     IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null, IReadOnlyList<SurfaceSnapshot>? Surfaces = null,
-    Story.StorySnapshot? Story = null, string? StoryPause = null, bool HostPaused = false);
+    Story.StorySnapshot? Story = null, string? StoryPause = null, bool HostPaused = false,
+    IReadOnlyList<BattleSnapshot>? Battles = null, IReadOnlyList<BattleMarkerSnapshot>? Markers = null);
 
 /// <summary>
 /// The host's authoritative game: world state (clock, planets) and every
@@ -1344,6 +1347,8 @@ public sealed partial class GameWorld
             _storyOf = story;
         }
         return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces,
-            Story is null ? null : _storySnapshot, StoryPaused ? Visit!.Replier.Id : null, HostPaused);
+            Story is null ? null : _storySnapshot, StoryPaused ? Visit!.Replier.Id : null, HostPaused,
+            _battles.Select(BattleSnapshotOf).ToList(),
+            _battles.Select(b => new BattleMarkerSnapshot(b.Id, b.Place.Star, b.Place.InnerPlanet, b.Place.X, b.Place.Y)).ToList());
     }
 }

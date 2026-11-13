@@ -282,6 +282,20 @@ public sealed partial class GameWorld
         }
     }
 
+    /// <summary>
+    /// Testing (--guests-in-battle): a player's ship by a battle's marker
+    /// counts as having been out of its reach, so it joins the battle on the
+    /// next frame it's in reach, as if it had flown in. False if no battle
+    /// is in its place.
+    /// </summary>
+    public bool LetIntoBattle(string id)
+    {
+        if (Find(id) is not { } player || _battles.FirstOrDefault(b => InPlace(b.Place, player.Ship)) is not { } wb)
+            return false;
+        wb.SeenOutOfReach.Add(id);
+        return true;
+    }
+
     // A present player's ship flying (in hyperspace or a system, not entering
     // a star, not in a battle, not destroyed): one that may fly into a marker.
     private static bool Flying(Player player) => player.Present && !player.Ship.Destroyed && player.Ship.Battle is null
@@ -543,5 +557,27 @@ public sealed partial class GameWorld
         _battles.Remove(wb);
         _toldFull.RemoveWhere(t => t.Battle == wb.Id);
         _endedBattles.Add(wb);
+    }
+
+    // A battle as the snapshot holds it: its ships' status and places, and
+    // its elements as they're drawn this frame.
+    private static BattleSnapshot BattleSnapshotOf(WorldBattle wb)
+    {
+        static BattleShipStatus Status(string ship, Starship s) => s.RaceDesc is { } r
+            ? new BattleShipStatus(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy)
+            : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0);
+        var enemy = wb.Enemy.Ship;
+        var fighters = wb.Fighters.Where(f => f.Player.Ship.Battle == wb)
+            .Select(f => new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship),
+                f.Starship.Ship?.Current.X ?? 0, f.Starship.Ship?.Current.Y ?? 0))
+            .ToList();
+        var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None)
+            .Select(e => new BattleElementSnapshot(e.Prim, e.Current.X, e.Current.Y,
+                e.Prim == PrimType.Line ? e.Next.X : (short)0, e.Prim == PrimType.Line ? e.Next.Y : (short)0,
+                e.Current.FrameArray is { } views ? views[0].Sheet!.Id : e.Current.Frame.Sheet?.Id ?? "",
+                e.Current.Frame.Index, e.PrimColor))
+            .ToList();
+        return new BattleSnapshot(wb.Id, wb.Battle.Size.Width, wb.Battle.Size.Height, Status(wb.EnemyShip.Id, wb.Enemy),
+            enemy?.Current.X ?? 0, enemy?.Current.Y ?? 0, fighters, elements);
     }
 }
