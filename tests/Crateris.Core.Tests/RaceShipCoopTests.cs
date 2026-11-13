@@ -196,34 +196,242 @@ public class RaceShipCoopTests
     [InlineData("zoqfot", 1.5, true)]
     [InlineData("umgah", 1.0, false)]
     [InlineData("umgah", 1.5, true)]
+    [InlineData("spathi", 1.0, false)]
+    [InlineData("spathi", 1.5, true)]
+    [InlineData("supox", 1.0, false)]
+    [InlineData("supox", 1.5, true)]
+    [InlineData("thradd", 1.0, false)]
+    [InlineData("thradd", 1.5, true)]
     public void ItsAiMeasuresAcrossTheSeamInABiggerArena(string race, double scale, bool across)
     {
         // The race ship by the arena's west edge, the player just across the
-        // seam to its west, 200 units away. The Zoq-Fot-Pik faces west: the
-        // player is dead ahead, so it sticks its tongue out (zoqfot.c:299).
-        // The Umgah faces east: the player is behind it, so it zips back
-        // (umgah.c:240). In UQM's arena, as UQM's, its AI measures the long
-        // way round, the player behind or ahead, and it doesn't.
+        // seam to its west, 200 units away. Its special decides on where the
+        // player is: the Zoq-Fot-Pik faces west, the player dead ahead, and
+        // sticks its tongue out (zoqfot.c:299); the Umgah faces east, the
+        // player behind it, and zips back (umgah.c:240); the Spathi faces
+        // east, the player behind and near, and fires its B.U.T.T.; the
+        // Supox faces west, lined up with the player facing it, and strafes;
+        // the Thraddash faces east, the player behind it and flying at it,
+        // and burns. In UQM's arena, as UQM's, its AI measures the long way
+        // round, the player ahead or behind, and it doesn't.
         var player = Player();
         var enemy = Race(race, 1);
         var battle = new Battle(Arena(), new[] { new[] { player }, new[] { enemy } }, 7,
             size: ArenaSize.Scaled(scale), maxElements: 300);
         WarpIn(battle);
-        foreach (var e in battle.List.Elements.Where(e => (e.StateFlags & ElementFlags.PlayerShip) == 0).ToList())
-        {
-            battle.List.Remove(e);
-            battle.List.Free(e);
-        }
+        Clear(battle);
         int cy = battle.Size.Height / 2;
-        ushort facing = race == "zoqfot" ? (ushort)12 : (ushort)4;
-        enemy.ShipFacing = facing;
-        enemy.Ship!.Current.Frame = enemy.Ship.Next.Frame = enemy.RaceDesc!.Ship![0].SetAbs(facing);
-        Put(battle, enemy.Ship, 100, cy);
+        ushort facing = race is "zoqfot" or "supox" ? (ushort)12 : (ushort)4;
+        Face(enemy, facing);
+        Face(player, 4);   // east, at the race ship
+        Put(battle, enemy.Ship!, 100, cy);
         Put(battle, player.Ship!, battle.Size.Width - 100, cy);
+        if (race == "thradd")
+            player.Ship!.Velocity.SetComponents(1024, 0);   // flying east, faster than STATIONARY_SPEED
         enemy.SpecialCounter = 0;
         enemy.ShipInputState = StatusFlags.None;
         enemy.OldStatusFlags = StatusFlags.None;
         Assert.Equal(across, (battle.ComputerIntelligence(enemy) & BattleInput.Special) != 0);
+    }
+
+    [ContentFact]
+    public void TheAiMeasuresATeleportingArilouByItsHull()
+    {
+        // The AI's footprint of its ship (tactical_intelligence's
+        // ship_bounds, for keeping clear of the planet) is the first frame of
+        // the sheet its contact was last set up with: teleporting, non-solid
+        // and drawn with its warp sheet (17 by 13), the Arilou is still
+        // measured by its hull's (17 by 14). At every distance from the
+        // planet it sees the planet as it would flying.
+        var player = Player();
+        var arilou = Race("arilou", 1);
+        var battle = new Battle(Arena(), new[] { new[] { player }, new[] { arilou } }, 11, maxElements: 300);
+        WarpIn(battle);
+        Clear(battle, keepPlanet: true);
+        var planet = battle.List.Elements.Single(e => Battle.GravityMass(e.MassPoints));
+        var ship = arilou.Ship!;
+        var rd = arilou.RaceDesc!;
+        Assert.NotEqual(rd.Ship![0].Shape.Height, rd.Special![0].Shape.Height);
+        Put(battle, player.Ship!, planet.Current.X, planet.Current.Y - 3000);
+        var own = rd.Intelligence!;
+        (bool, ushort, ushort) seen = default;
+        rd.Intelligence = (s, concerns, count) => seen = (concerns[Battle.GravityMassIndex].Object != null,
+            concerns[Battle.GravityMassIndex].WhichTurn, concerns[Battle.GravityMassIndex].Facing);
+
+        (bool, ushort, ushort) Sees(int d, bool teleporting)
+        {
+            Put(battle, ship, planet.Current.X + d, planet.Current.Y);
+            ship.TurnWait = ship.ThrustWait = 0;
+            ship.StateFlags = teleporting ? ship.StateFlags | ElementFlags.NonSolid : ship.StateFlags & ~ElementFlags.NonSolid;
+            ship.Next.FrameArray = teleporting ? rd.Special : rd.Ship;
+            ship.Next.Frame = teleporting ? rd.Special[0] : rd.Ship[0].SetAbs(arilou.ShipFacing);
+            seen = default;
+            battle.ComputerIntelligence(arilou);
+            return seen;
+        }
+
+        int seenAt = 0;
+        for (int d = 200; d < 1200; d += 4)
+        {
+            var flying = Sees(d, teleporting: false);
+            if (flying.Item1)
+                ++seenAt;
+            Assert.Equal(flying, Sees(d, teleporting: true));
+        }
+        rd.Intelligence = own;
+        Assert.InRange(seenAt, 1, 249);   // seen near, not far
+    }
+
+    [ContentFact]
+    public void TheDruugesFurnaceKeepsItsLastCrew()
+    {
+        // Pressing its special with its energy low: on 2 crew it burns one
+        // for 16 energy; on 1 it doesn't.
+        foreach (var (crew, after, energy) in new[] { (2, 1, 16), (1, 1, 0) })
+        {
+            var (battle, druuge, _) = Lab("druuge", crew);
+            var rd = druuge.RaceDesc!;
+            rd.EnergyLevel = 0;
+            druuge.EnergyCounter = 50;
+            battle.Step(ship => ship == druuge ? BattleInput.Special : BattleInput.None);
+            Assert.Equal((after, energy), ((int)rd.CrewLevel, (int)rd.EnergyLevel));
+        }
+    }
+
+    [ContentFact]
+    public void TheDruugesAiBurnsCrewToFireButNotItsLast()
+    {
+        // Flown by the AI with the enemy near and no energy to fire: on 2
+        // crew it presses its special (the furnace); on 1 it doesn't.
+        foreach (var (crew, burns) in new[] { (2, true), (1, false) })
+        {
+            var (battle, druuge, enemy) = Lab("druuge", crew, enemyAt: 400);
+            druuge.RaceDesc!.EnergyLevel = 0;
+            var input = battle.ComputerIntelligence(druuge);
+            Assert.True((input & BattleInput.Weapon) != 0, "it wants to fire");
+            Assert.Equal(burns, (input & BattleInput.Special) != 0);
+        }
+    }
+
+    [ContentFact]
+    public void TheDruugesShotKnocksOnlyAShipItLeavesWithCrew()
+    {
+        // Its slug (6 damage) hits the still Ilwrath ahead: one of 22 crew
+        // is knocked along; one of 6, killed by it, isn't.
+        foreach (var (crew, knocked) in new[] { (22, true), (6, false) })
+        {
+            var (battle, druuge, ilwrath) = Lab("druuge", 14, enemyAt: 600, enemyCrew: crew);
+            var hit = false;
+            for (int frame = 0; frame < 30 && !hit; ++frame)
+            {
+                battle.Step(ship => ship == druuge && frame == 0 ? BattleInput.Weapon : BattleInput.None);
+                hit = ilwrath.RaceDesc!.CrewLevel < crew;
+            }
+            Assert.True(hit, "the slug hit it");
+            Assert.Equal(knocked, !ilwrath.Ship!.Velocity.IsZero);
+        }
+    }
+
+    [ContentFact]
+    public void TheZoqFotPiksTongueHurtsOnlyInItsFirstFrame()
+    {
+        // The tongue out at the Ilwrath ahead: there from the first frame,
+        // it takes 12 crew; put there a frame after the tongue came out, it
+        // touches it but takes none (tongue_collision's damage only while
+        // the special's wait is whole).
+        foreach (bool fromTheStart in new[] { true, false })
+        {
+            var (battle, zfp, ilwrath) = Lab("zoqfot", 10, enemyAt: fromTheStart ? 160 : 4000);
+            var contacts = new ContactCheck(battle);
+            contacts.Watch();
+            battle.Step(ship => ship == zfp ? BattleInput.Special : BattleInput.None);
+            contacts.Watch();
+            battle.Step(_ => BattleInput.None);
+            if (!fromTheStart)
+                Put(battle, ilwrath.Ship!, zfp.Ship!.Current.X + 160, zfp.Ship.Current.Y);
+            for (int frame = 0; frame < 4; ++frame)
+            {
+                contacts.Watch();
+                battle.Step(_ => BattleInput.None);
+            }
+            Assert.True(contacts.HitBy(ilwrath, new[] { zfp }) > 0, "the tongue touched it");
+            Assert.Equal(fromTheStart ? 22 - 12 : 22, ilwrath.RaceDesc!.CrewLevel);
+        }
+    }
+
+    [ContentFact]
+    public void TheYehatsShieldEndsWhenItsLifeIsCutShort()
+    {
+        // Shielded (drawn with its shield sheet), its life span put back to
+        // NORMAL_LIFE (as a collision would): its next step draws its hull again.
+        var (battle, yehat, _) = Lab("yehat", 20);
+        var rd = yehat.RaceDesc!;
+        battle.Step(ship => ship == yehat ? BattleInput.Special : BattleInput.None);
+        Assert.Same(rd.Special, yehat.Ship!.Current.FrameArray);
+        yehat.Ship.LifeSpan = Battle.NormalLife;
+        battle.Step(_ => BattleInput.None);
+        Assert.Same(rd.Ship, yehat.Ship.Current.FrameArray);
+    }
+
+    [ContentFact]
+    public void TheYehatsShieldCostsNothingWhileItsNonSolid()
+    {
+        // Its shield up (its special waiting, its life span over NORMAL_LIFE):
+        // each frame costs 3 energy, but not while it's non-solid.
+        foreach (bool nonSolid in new[] { false, true })
+        {
+            var (battle, yehat, _) = Lab("yehat", 20);
+            var rd = yehat.RaceDesc!;
+            battle.Step(ship => ship == yehat ? BattleInput.Special : BattleInput.None);
+            yehat.EnergyCounter = 50;
+            yehat.SpecialCounter = 2;   // still waiting after this frame's count down
+            byte energy = rd.EnergyLevel;
+            if (nonSolid)
+                yehat.Ship!.StateFlags |= ElementFlags.NonSolid;
+            battle.Step(_ => BattleInput.None);
+            Assert.Equal(nonSolid ? energy : energy - 3, rd.EnergyLevel);
+        }
+    }
+
+    // A race ship of side 0 (with its crew) still at the centre facing
+    // east, the Ilwrath (side 1, not cloaking, of its crew) still ahead of
+    // it or far off, the planet and asteroids taken out.
+    private static (Battle Battle, Starship Race, Starship Ilwrath) Lab(string race, int crew, int enemyAt = 4000,
+        int enemyCrew = 22)
+    {
+        var d = BattleReplay.Ships[race];
+        var ship = new Starship(RaceShips.Code(d, r => BattleReplay.Sheets.Value.Views(r)), 0, (ushort)crew, (ushort)d.MaxCrew);
+        var ilwrath = new Starship(ShipBattleTests.Ship(IlwrathInput(), noCloak: true).Code, 1, (ushort)enemyCrew, 0)
+            { CaptainsNameIndex = 5 };
+        var battle = new Battle(Arena(), new[] { new[] { ship }, new[] { ilwrath } }, 808, maxElements: 300);
+        WarpIn(battle);
+        Clear(battle);
+        int cx = battle.Size.Width / 2, cy = battle.Size.Height / 2;
+        Face(ship, 4);
+        Face(ilwrath, 4);
+        Put(battle, ship.Ship!, cx, cy);
+        Put(battle, ilwrath.Ship!, cx + enemyAt, cy);
+        ship.WeaponCounter = ship.SpecialCounter = 0;
+        ship.ShipInputState = ship.OldStatusFlags = StatusFlags.None;
+        return (battle, ship, ilwrath);
+    }
+
+    // Everything but the ships (and the planet, if kept) taken out.
+    private static void Clear(Battle battle, bool keepPlanet = false)
+    {
+        foreach (var e in battle.List.Elements.Where(e => (e.StateFlags & ElementFlags.PlayerShip) == 0
+                                                          && !(keepPlanet && Battle.GravityMass(e.MassPoints))).ToList())
+        {
+            battle.List.Remove(e);
+            battle.List.Free(e);
+        }
+    }
+
+    // A ship turned to a facing, drawn so.
+    private static void Face(Starship s, ushort facing)
+    {
+        s.ShipFacing = facing;
+        s.Ship!.Current.Frame = s.Ship.Next.Frame = s.RaceDesc!.Ship![0].SetAbs(facing);
     }
 
     [ContentFact]

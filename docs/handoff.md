@@ -2,15 +2,15 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-13, stage 4b item 2 (ships, part 1) built, not yet reviewed.
+**Last updated:** 2026-11-13, stage 4b item 2 (ships, part 1) built; review round 1's test gaps filled.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
 - **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet): eleven items, approved by the owner on 2026-11-13 with all six recommendations accepted. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
 - **Stage 4b item 1 is built and reviewed** (its Progress row): every ship's content, and the traces `tests/golden/battle-races-1.json` to `-3.json` (items 2 to 4); notes for items 3 and 4 are under them in the plan.
-- **Stage 4b item 2 is built** (its Progress row): the Arilou, Spathi, Supox, Druuge, Yehat, Zoq-Fot-Pik, Thraddash and Umgah in `src/Crateris.Core/Combat/` (`RaceShips.Code` makes them; `BattleKit.Enemies` is `RaceShips.Ported`), all 16 of their traces matched (`RaceShipBattleTests`), co-op tests in `RaceShipCoopTests`. Not yet reviewed.
-- **Last checks:** with item 2, all topics 1,535 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle druuge --script "none:40,fire:100,special:20,none:200" --quit-after 400` ran as `how-to-try/stage-4a.md` says (in battle against the druuge to the end, 14 elements). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 and 2 changed nothing in `data/`).
+- **Stage 4b item 2 is built** (its Progress row): the Arilou, Spathi, Supox, Druuge, Yehat, Zoq-Fot-Pik, Thraddash and Umgah in `src/Crateris.Core/Combat/` (`RaceShips.Code` makes them; `BattleKit.Enemies` is `RaceShips.Ported`), all 16 of their traces matched (`RaceShipBattleTests`), co-op and branch tests in `RaceShipCoopTests`. Review round 1 found no bugs, only untested paths; tests added for them, each checked to fail on its mutation.
+- **Last checks:** with item 2, all topics 1,548 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle druuge --script "none:40,fire:100,special:20,none:200" --quit-after 400` ran as `how-to-try/stage-4a.md` says (in battle against the druuge to the end, 14 elements). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 and 2 changed nothing in `data/`).
 
 ## Open items
 
