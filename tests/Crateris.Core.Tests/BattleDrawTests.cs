@@ -337,7 +337,10 @@ public class BattleDrawTests
     [InlineData(new[] { 29, 28 }, false)]
     [InlineData(new[] { 0 }, false)]
     [InlineData(new int[0], false)]
-    public void TheExplosionsFlashIsWholeWhateverFramesAreMissed(int[] seen, bool outSeen = true)
+    [InlineData(new[] { 20, 19 }, true, true)]
+    [InlineData(new[] { 34, 33 }, true, true)]
+    [InlineData(new[] { 35, 20 }, true, true)]
+    public void TheExplosionsFlashIsWholeWhateverFramesAreMissed(int[] seen, bool outSeen = true, bool keysHeld = false)
     {
         var pics = Pics.Value;
         var d = BattleReplay.Ships[ShipDescriptions.Ilwrath];
@@ -347,8 +350,11 @@ public class BattleDrawTests
             var canvas = new UqmCanvas(pics.Count, (_, _) => default, Leading);
             var status = new BattleStatus(canvas);
             status.Init(BattleStatus.EnemySlot, ship, new StatusState(22, 16, StatusFlags.None, 22, 1));
-            if (lives != All || outSeen)   // its crew seen out (do_damage leaves its life 0), or that frame missed
-                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, 0));
+            // Its crew seen out (do_damage leaves its life 0), keys held then or not, or that frame missed; the
+            // engine clears the keys on the next (PostProcessStatus).
+            var held = keysHeld ? StatusFlags.Thrust | StatusFlags.Weapon | StatusFlags.Left : StatusFlags.None;
+            if (lives != All || outSeen)
+                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, held, 0, 0));
             foreach (int life in lives)
                 status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, life));
             status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, 72));   // its life going again: the end

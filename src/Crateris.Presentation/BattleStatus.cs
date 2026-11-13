@@ -135,8 +135,9 @@ public sealed class BattleStatus
         // UQM's status runs in the ship's own steps, which end with its
         // explosion: the element gone, or past its explosion (its life set
         // going again, as cleanup_dead_ship waits for the battle's end).
-        // Out of crew and its life past any explosion's (cleanup_dead_ship's wait): the explosion's over, however
-        // many of its frames were missed (a snapshot lost).
+        // Out of crew and its life past any explosion's (cleanup_dead_ship's wait with a victory ditty, 73): the
+        // explosion's over, however many of its frames were missed (a snapshot lost). Its wait without a ditty
+        // (life 1) is told by the life rising past the last seen, or the ship gone.
         bool over = state.Crew == 0 && state.ElementCrew == 0 && state.LifeSpan > NumExplosionFrames * 3;
         if (state.Gone || over || slot.Flashing && state.LifeSpan > slot.LastLife)
         {
@@ -156,7 +157,9 @@ public sealed class BattleStatus
         // The first frame after the ship's crew ran out, its keys are as they
         // were: UQM clears them in that frame's PostProcessStatus, after
         // reading them, so the window turns back only on the next.
-        if (slot.ElementCrew == 0 && !slot.Flashing)
+        // Only that frame itself (its explosion's first life, 35): after frames missed the keys' change is drawn
+        // before the steps caught up, as UQM drew it under the steps that followed.
+        if (slot.ElementCrew == 0 && !slot.Flashing && !(state.Crew == 0 && state.LifeSpan < NumExplosionFrames * 3 - 1))
             state = state with { Flags = (state.Flags & ~Keys) | (slot.OldFlags & Keys) };
         var keysChanged = (slot.OldFlags ^ state.Flags) & Keys;
         if (keysChanged != 0)
