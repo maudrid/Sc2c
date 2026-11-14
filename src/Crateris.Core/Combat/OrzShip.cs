@@ -31,8 +31,10 @@ namespace Crateris.Core.Combat;
 /// the ship it boarded (UQM's finds the one opposing ship in the list
 /// each frame) and goes on killing its crew whatever its teammates can or
 /// can't do to it; one flying back takes only its own ship, not a
-/// teammate's. Its count of marines leaves out a teammate Orz's (UQM's
-/// counts every marine with its sheets).
+/// teammate's. It counts only its own marines (UQM tells them by its
+/// sheets, which are each ship's own there; the port shares a race's
+/// sheets, so it tells them by their ship). A teammate's marines aboard
+/// also hold slots on a captain's window; an enemy Orz's never do.
 /// </para>
 /// <para>
 /// Its AI turns the turret to the enemy with the special while it can,
