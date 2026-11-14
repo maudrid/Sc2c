@@ -102,8 +102,10 @@ public sealed partial class Battle
         deadShip.Parent = null;
         dead.RaceDesc!.Uninit?.Invoke(dead.RaceDesc);   // free_ship
         dead.RaceDesc = null;
-        // UpdateShipFragCrew is the world's; the ship can't be picked again.
-        dead.Available = false;
+        // UpdateShipFragCrew is the world's; the ship can't be picked again,
+        // but an infinite fleet's, which comes back (GetNextStarShip).
+        if (!(dead.PlayerNr == 1 && InfiniteEnemy))
+            dead.Available = false;
         if (GetNextStarShip(dead, dead.PlayerNr))
         {
         }

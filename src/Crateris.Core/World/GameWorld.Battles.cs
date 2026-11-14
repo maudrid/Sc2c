@@ -110,10 +110,24 @@ public sealed partial class GameWorld
     }
 
     /// <summary>
+    /// A player's ship starts a battle against one enemy ship (an
+    /// <see cref="EnemyFleet"/> of one, with <see cref="BattleStart.EnemyCrew"/>):
+    /// as <see cref="StartBattle(string, EnemyFleet, BattleStart?)"/>.
+    /// </summary>
+    public WorldBattle StartBattle(string id, string enemy, BattleStart? start = null)
+    {
+        start ??= new BattleStart();
+        return StartBattle(id, EnemyFleet.Of(enemy, start.EnemyCrew), start, crewInStart: true);
+    }
+
+    /// <summary>
     /// A player's ship starts a battle where it is, in flight, against an
-    /// enemy ship of a ported race (<see cref="BattleKit.Enemies"/>), as
-    /// UQM's EncounterBattle does after a talk that ends hostile (3b's
-    /// talks and item 9's Ilwrath call it; --start-battle does now). The
+    /// enemy fleet of ported races' ships (<see cref="BattleKit.Enemies"/>),
+    /// as UQM's EncounterBattle does after a talk that ends hostile (3b's
+    /// talks and item 9's Ilwrath call it; --start-battle does now): its
+    /// ships come in one at a time, in the fleet's order, the next as one
+    /// dies (BuildBattle's race_q[1]; an infinite fleet's one ship brought
+    /// back each time, with full crew). The
     /// ship stops where it is, which is the battle's marker; the arena's
     /// planet is BATTLE_PLANET's (the inner system's planet, or in the outer
     /// system the planet closest on the screen, as UQM names the place of
@@ -123,14 +137,27 @@ public sealed partial class GameWorld
     /// frame and number (UQM seeds from the clock). Refused (an
     /// <see cref="InvalidOperationException"/>) without the battle's content,
     /// during a story talk, after the game is over, or for a ship not
-    /// present and in flight, or already in a battle, or destroyed.
+    /// present and in flight, or already in a battle, or destroyed; an
+    /// empty fleet, a ship not ported, a crew out of its ship's range, an
+    /// infinite fleet of more than one ship or with a crew, or
+    /// <see cref="BattleStart.EnemyCrew"/> given with a fleet are argument errors.
     /// </summary>
-    public WorldBattle StartBattle(string id, string enemy, BattleStart? start = null)
+    public WorldBattle StartBattle(string id, EnemyFleet fleet, BattleStart? start = null) =>
+        StartBattle(id, fleet, start ?? new BattleStart(), crewInStart: false);
+
+    // crewInStart: the one ship's crew is the start's EnemyCrew, which the battle keeps in its Start.
+    private WorldBattle StartBattle(string id, EnemyFleet fleet, BattleStart start, bool crewInStart)
     {
-        start ??= new BattleStart();
         var kit = BattleKit ?? throw new InvalidOperationException("battles need the battle's content");
-        if (!BattleKit.Enemies.Contains(enemy))
-            throw new ArgumentException($"{enemy} isn't a ship that can be fought (ported: {string.Join(", ", BattleKit.Enemies)})");
+        if (fleet.Ships.Count == 0)
+            throw new ArgumentException("an enemy fleet has a ship at least", nameof(fleet));
+        if (fleet.Infinite && (fleet.Ships.Count != 1 || fleet.Ships[0].Crew is not null))
+            throw new ArgumentException("an infinite fleet is one ship, with full crew", nameof(fleet));
+        if (start.EnemyCrew is not null && !crewInStart)
+            throw new ArgumentException("a fleet's crews are its ships'", nameof(start));
+        foreach (var s in fleet.Ships)
+            if (!BattleKit.Enemies.Contains(s.Ship))
+                throw new ArgumentException($"{s.Ship} isn't a ship that can be fought (ported: {string.Join(", ", BattleKit.Enemies)})");
         var player = Find(id) ?? throw new ArgumentException($"no player {id}");
         var ship = player.Ship;
         if (GameOver || StoryPaused)
@@ -138,10 +165,12 @@ public sealed partial class GameWorld
         if (!player.Present || ship.Destroyed || ship.Battle is not null || ship.Entry is not null
             || ship.Activity is not (Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem))
             throw new InvalidOperationException($"{id}'s ship isn't in flight, free to fight ({ship.Activity})");
-        var description = kit.Ships[enemy];
-        int crew = start.EnemyCrew ?? description.Crew;
-        if (crew < 1 || crew > description.MaxCrew)
-            throw new ArgumentOutOfRangeException(nameof(start), $"{crew} crew for a ship of {description.MaxCrew}");
+        foreach (var s in fleet.Ships)
+        {
+            var d = kit.Ships[s.Ship];
+            if (s.Crew is int c && (c < 1 || c > d.MaxCrew))
+                throw new ArgumentOutOfRangeException(nameof(fleet), $"{c} crew for a ship of {d.MaxCrew}");
+        }
 
         int number = ++_battleIds;
         uint seed = unchecked((uint)(Frame * 1_000_003 + number * 7919));
@@ -160,16 +189,32 @@ public sealed partial class GameWorld
             battlePlanet = RandomPlanetType(seed);
         }
 
-        var enemyShip = new Starship(RaceShips.Code(description, kit.Graphics.Views, start.NoCloak), 1, (ushort)crew,
-            (ushort)description.MaxCrew) { Icons = RaceShips.Icons(description, kit.Graphics.Views) };
-        // NameCaptain: an encounter ship's captain, one of its race's 16 names (PickCaptainName, from
-        // UQM's general generator: here one of the battle's own seed, not the battle's, whose draws are UQM's).
-        enemyShip.CaptainsNameIndex = (byte)((new Uqm.TfbRandom(seed ^ 0x9E3779B9).Next() & (NumCaptainsNames - 1)) + CaptainNameOffset);
+        // BuildBattle's race_q[1] from the fleet: each ship with its crew (an infinite fleet's, its most),
+        // its captain named as CloneShipFragment names it (NameCaptain: PickCaptainName drawn again while
+        // another ship of its race in the fleet has the name; from UQM's general generator: here one of
+        // the battle's own seed, not the battle's, whose draws are UQM's).
+        var names = new TfbRandom(seed ^ 0x9E3779B9);
+        var enemies = new List<(Starship, ShipDescription)>();
+        foreach (var s in fleet.Ships)
+        {
+            var description = kit.Ships[s.Ship];
+            int crew = fleet.Infinite ? description.MaxCrew : s.Crew ?? description.Crew;
+            var enemyShip = new Starship(RaceShips.Code(description, kit.Graphics.Views, start.NoCloak), 1, (ushort)crew,
+                (ushort)description.MaxCrew) { Icons = RaceShips.Icons(description, kit.Graphics.Views) };
+            byte name;
+            do
+                name = (byte)((names.Next() & (Battle.NumCaptainsNames - 1)) + Battle.CaptainNameOffset);
+            while (enemies.Any(e => e.Item2.Id == description.Id && e.Item1.CaptainsNameIndex == name));
+            enemyShip.CaptainsNameIndex = name;
+            enemies.Add((enemyShip, description));
+        }
         var fighter = NewFighter(player);
         // Retreat is the world's to allow, per player and frame (RetreatAllowed): the battle lets side 0 run.
-        var battle = new Battle(kit.Graphics.Arena(battlePlanet), new[] { new[] { fighter.Starship }, new[] { enemyShip } },
-            seed, runAwayAllowed: true, size: ArenaSize.Scaled(Settings.BattleArenaScale), maxElements: Settings.BattleMaxElements);
-        var wb = new WorldBattle(number, place, battlePlanet, battle, enemyShip, description, start, id, Frame)
+        var battle = new Battle(kit.Graphics.Arena(battlePlanet),
+            new[] { new[] { fighter.Starship }, enemies.Select(e => e.Item1).ToArray() },
+            seed, runAwayAllowed: true, size: ArenaSize.Scaled(Settings.BattleArenaScale), maxElements: Settings.BattleMaxElements,
+            infiniteEnemy: fleet.Infinite);
+        var wb = new WorldBattle(number, place, battlePlanet, battle, enemies, fleet, start, id, Frame)
         {
             PlaceIp = ship.Ip is { } at ? IpFlight.AtRest(at.Save()) : null,
             PlaceStarJustLeft = ship.Ip is null ? ship.Flight.StarJustLeft : null,
@@ -515,9 +560,10 @@ public sealed partial class GameWorld
     /// running away (cut short: retreated, its fuel paid, item 5's rule),
     /// or alive, its crew back aboard. Won if the
     /// enemy is out and a player's ship still in it (decision 9), and a
-    /// battle that pays salvage pays RACE_SHIP_COST / 8 for each enemy ship,
-    /// split equally between those ships, the remainder to the one that
-    /// joined first.
+    /// battle that pays salvage pays the encounter race's RACE_SHIP_COST / 8
+    /// for each enemy ship (none for a race without a ship cost), split
+    /// equally between those ships, the remainder to the one that joined
+    /// first. The enemy's fleet left is recorded (<see cref="WorldBattle.EnemyFleetLeft"/>).
     /// The marker goes, and those still in it are back in flight.
     /// </summary>
     private void EndBattle(WorldBattle wb)
@@ -554,9 +600,16 @@ public sealed partial class GameWorld
 
         bool won = survivors.Count > 0 && battle.BattleCounter[1] == 0;
         wb.Outcome = won ? BattleOutcome.Won : BattleOutcome.Lost;
+        // UninitEncounter's npc_built_ship_q: those destroyed are gone (on a win, every
+        // one), the rest keeping the crew recorded (UpdateShipFragCrew, as each died,
+        // and for the one still in it UninitShips'); an infinite fleet stays.
+        wb.EnemyFleetLeft = wb.EnemyFleet.Infinite ? wb.EnemyFleet
+            : new EnemyFleet(wb.Enemies.Where(e => e.Starship.CrewLevel > 0)
+                .Select(e => new EnemyFleetShip(e.Ship.Id, e.Starship.CrewLevel)).ToList());
         if (won && wb.Start.PaysSalvage)
         {
-            // Every enemy ship counts on a victory (UninitEncounter): the enemy's one.
+            // Every enemy ship counts on a victory (UninitEncounter), each paying the
+            // encounter race's bounty (EncounterRace: the fleet's first ship's), whatever its own.
             uint salvage = (uint)(battle.Fleet(1).Count * BattleKit!.Salvage(wb.EnemyShip));
             wb.SalvagePaid = salvage;
             uint share = salvage / (uint)survivors.Count, remainder = salvage % (uint)survivors.Count;
@@ -586,9 +639,6 @@ public sealed partial class GameWorld
 
     // A battle as the snapshot holds it: its ships' status and places, and
     // its elements as they're drawn this frame.
-    // build.h's NAME_OFFSET and NUM_CAPTAINS_NAMES: where a race's captains' names start in its strings, and how many.
-    private const int CaptainNameOffset = 5, NumCaptainsNames = 16;
-
     private static BattleSnapshot BattleSnapshotOf(WorldBattle wb)
     {
         static BattleShipStatus Status(string ship, Starship s) => s.RaceDesc is { } r
@@ -611,7 +661,8 @@ public sealed partial class GameWorld
             .ToList();
         var (ex, ey) = wb.Enemy.Ship is { } enemy ? (enemy.Current.X, enemy.Current.Y) : (wb.EnemyLastX, wb.EnemyLastY);
         var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(ElementSnapshot).ToList();
-        return new BattleSnapshot(wb.Id, wb.Battle.Size.Width, wb.Battle.Size.Height, Status(wb.EnemyShip.Id, wb.Enemy),
+        var enemyNow = wb.Enemy;
+        return new BattleSnapshot(wb.Id, wb.Battle.Size.Width, wb.Battle.Size.Height, Status(wb.EnemyShipOf(enemyNow).Id, enemyNow),
             ex, ey, fighters, elements, wb.Battle.Camera, wb.Battle.StarSeed);
     }
 }

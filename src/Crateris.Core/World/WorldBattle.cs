@@ -74,15 +74,18 @@ public sealed class BattleKit
 
     /// <summary>
     /// The salvage for a ship destroyed (UninitEncounter's bounty): its
-    /// race's RACE_SHIP_COST / 8 resource units (an Ilwrath, 1,000, pays 125).
+    /// race's RACE_SHIP_COST / 8 resource units (an Ilwrath, 1,000, pays
+    /// 125). A ship of no race of the full game's (not in avail_race_q: the
+    /// Androsynth, Chenjesu and Mmrnmhrm, which have no ship cost) pays
+    /// none, as UQM suppresses the tally and salvage for a battle whose
+    /// encounter race isn't one (encount.c's VictoryState = -1).
     /// </summary>
     public int Salvage(ShipDescription ship)
     {
         string race = ship.Species is { } species && species.EndsWith("_ID", StringComparison.Ordinal)
             ? species[..^3] + "_SHIP"
             : throw new ArgumentException($"{ship.Id} has no race");
-        return _shipCosts.TryGetValue(race, out int cost) ? cost >> 3
-            : throw new KeyNotFoundException($"no ship cost for {race}");
+        return _shipCosts.TryGetValue(race, out int cost) ? cost >> 3 : 0;
     }
 
     /// <summary>RACE_SHIP_COST by race, from data/races.json's ship_cost.</summary>
@@ -102,8 +105,39 @@ public sealed class BattleKit
 }
 
 /// <summary>
+/// One ship of an enemy fleet (a SHIP_FRAGMENT of npc_built_ship_q): its
+/// ship's id in data/ships.json and its crew (null: its race's starting
+/// crew, as CloneShipFragment's 0).
+/// </summary>
+public sealed record EnemyFleetShip(string Ship, int? Crew = null);
+
+/// <summary>
+/// The enemy's side of a battle (npc_built_ship_q, stage 4b item 5): its
+/// ships, fought one at a time in this order, the next warping in when one
+/// dies; or, infinite (FleetIsInfinite: a homeworld's, its one ship's crew
+/// INFINITE_FLEET), one ship brought back with full crew and a new captain
+/// each time it dies, so it can't be beaten.
+/// </summary>
+public sealed record EnemyFleet(IReadOnlyList<EnemyFleetShip> Ships, bool Infinite = false)
+{
+    /// <summary>A fleet of one ship.</summary>
+    public static EnemyFleet Of(string ship, int? crew = null) => new(new[] { new EnemyFleetShip(ship, crew) });
+
+    /// <summary>A fleet of these ships, each with its race's starting crew.</summary>
+    public static EnemyFleet Of(params string[] ships) => new(ships.Select(s => new EnemyFleetShip(s)).ToList());
+
+    /// <summary>An infinite fleet of this ship (CloneShipFragment's INFINITE_FLEET): each one with full crew.</summary>
+    public static EnemyFleet InfiniteOf(string ship) => new(new[] { new EnemyFleetShip(ship) }, Infinite: true);
+
+    public bool Equals(EnemyFleet? other) => other is not null && Infinite == other.Infinite && Ships.SequenceEqual(other.Ships);
+
+    public override int GetHashCode() => Ships.Aggregate(Infinite.GetHashCode(), (h, s) => HashCode.Combine(h, s));
+}
+
+/// <summary>
 /// How a battle starts (<see cref="GameWorld.StartBattle"/>): the enemy's
-/// crew (null: its race's starting crew), whether an Ilwrath may cloak
+/// crew for a battle against one ship (null: its race's starting crew; a
+/// fleet's crews are its ships', <see cref="EnemyFleet"/>), whether an Ilwrath may cloak
 /// (<see cref="IlwrathShip.NoCloak"/>, the Earth fight's rule), whether it
 /// pays salvage (UQM marks the Earth Ilwrath's as paying none, race_id ~0),
 /// and whether it may be retreated from at all (in an encounter, as UQM's
@@ -197,8 +231,8 @@ public sealed class BattleFighter
 }
 
 /// <summary>
-/// A battle in the world (stage 4a item 6): one enemy ship against the
-/// players who fly into it. It has a marker where it started
+/// A battle in the world (stage 4a item 6): the enemy's fleet (one ship at
+/// a time, stage 4b item 5) against the players who fly into it. It has a marker where it started
 /// (<see cref="Place"/>), shown to the players there, which any of them
 /// may fly into to join (decision 6), and runs on the host at 24 frames a
 /// second while the world does (a story talk freezes it, decision 11, but
@@ -210,16 +244,20 @@ public sealed class WorldBattle
 {
     private readonly List<BattleFighter> _fighters = new();
     private readonly HashSet<string> _left = new();
+    private readonly IReadOnlyList<(Starship Starship, ShipDescription Ship)> _enemies;
+    private Starship _lastEnemy;
 
-    internal WorldBattle(int id, BattlePlace place, byte battlePlanet, Battle battle, Starship enemy,
-        ShipDescription enemyShip, BattleStart start, string startedBy, long frame)
+    internal WorldBattle(int id, BattlePlace place, byte battlePlanet, Battle battle,
+        IReadOnlyList<(Starship Starship, ShipDescription Ship)> enemies, EnemyFleet fleet, BattleStart start,
+        string startedBy, long frame)
     {
         Id = id;
         Place = place;
         BattlePlanet = battlePlanet;
         Battle = battle;
-        Enemy = enemy;
-        EnemyShip = enemyShip;
+        _enemies = enemies;
+        _lastEnemy = enemies[0].Starship;
+        EnemyFleet = fleet;
         Start = start;
         StartedBy = startedBy;
         StartFrame = frame;
@@ -236,10 +274,49 @@ public sealed class WorldBattle
     /// <summary>The battle itself.</summary>
     public Battle Battle { get; }
 
-    /// <summary>The enemy's ship.</summary>
-    public Starship Enemy { get; }
+    /// <summary>
+    /// The enemy's ship now: the one fighting, or exploding, or (between
+    /// one's death and the next's coming in, and once the last is gone)
+    /// the last that was.
+    /// </summary>
+    public Starship Enemy
+    {
+        get
+        {
+            foreach (var (starship, _) in _enemies)
+                if (starship.Ship is not null)
+                    return _lastEnemy = starship;
+            return _lastEnemy;
+        }
+    }
 
-    public ShipDescription EnemyShip { get; }
+    /// <summary>The enemy's ship now's description (<see cref="Enemy"/>).</summary>
+    public ShipDescription EnemyShipNow => EnemyShipOf(Enemy);
+
+    /// <summary>
+    /// The encounter's race (EncounterRace): the enemy fleet's first ship's,
+    /// whose bounty the salvage pays for each ship destroyed, and which
+    /// the battle is named by.
+    /// </summary>
+    public ShipDescription EnemyShip => _enemies[0].Ship;
+
+    /// <summary>The enemy's ships (race_q[1]), in the order they come in, each with its description.</summary>
+    public IReadOnlyList<(Starship Starship, ShipDescription Ship)> Enemies => _enemies;
+
+    /// <summary>An enemy ship's description.</summary>
+    public ShipDescription EnemyShipOf(Starship starship) => _enemies.First(e => e.Starship == starship).Ship;
+
+    /// <summary>The enemy's fleet as the battle started.</summary>
+    public EnemyFleet EnemyFleet { get; }
+
+    /// <summary>
+    /// The enemy's fleet once the battle is over (null before), for 3b's
+    /// encounters to keep: UninitEncounter's npc_built_ship_q, each ship's
+    /// crew recorded as it died or warped out or the battle ended
+    /// (UpdateShipFragCrew), those destroyed taken out, and on a win none
+    /// left; an infinite fleet stays as it was.
+    /// </summary>
+    public EnemyFleet? EnemyFleetLeft { get; internal set; }
 
     public BattleStart Start { get; }
 

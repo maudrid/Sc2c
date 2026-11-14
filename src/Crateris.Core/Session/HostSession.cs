@@ -212,23 +212,29 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// --start-battle RACE (testing): a game after the opening, as
+    /// --start-battle RACE[,RACE...] (testing): a game after the opening, as
     /// --start-docked leaves it (so a retreat is allowed), with the host's
-    /// ship in flight in Earth's inner system, in a battle against a ported
-    /// race's ship (<see cref="BattleKit.Enemies"/>; the Ilwrath cloaks
-    /// here, as everywhere but in the Earth fight), whose marker the
-    /// others may fly into. Needs the content (InvalidOperationException);
-    /// a race not ported is an ArgumentException.
+    /// ship in flight in Earth's inner system, in a battle against a fleet
+    /// of ported races' ships (<see cref="BattleKit.Enemies"/>; the Ilwrath
+    /// cloaks here, as everywhere but in the Earth fight), each with its
+    /// race's starting crew, coming in one at a time in the order given
+    /// (stage 4b item 5), whose marker the others may fly into. Needs the
+    /// content (InvalidOperationException); a race not ported (or none
+    /// between two commas) is an ArgumentException.
     /// </summary>
-    public string StartBattle(string race)
+    public string StartBattle(string races)
     {
         if (World.BattleKit is null || World.Systems is null || World.Story is null)
             throw new InvalidOperationException("a battle needs the content");
-        if (!BattleKit.Enemies.Contains(race))
-            throw new ArgumentException($"{race} isn't a ship that can be fought (ported: {string.Join(", ", BattleKit.Enemies)})");
+        var fleet = races.Split(',', StringSplitOptions.TrimEntries);
+        foreach (var race in fleet)
+            if (!BattleKit.Enemies.Contains(race))
+                throw new ArgumentException($"{race} isn't a ship that can be fought (ported: {string.Join(", ", BattleKit.Enemies)})");
         AfterTheOpening();
-        var battle = World.StartBattle(HostId, race);
-        return $"Starting in a battle against the {battle.EnemyShip.Id} by Earth";
+        var battle = World.StartBattle(HostId, EnemyFleet.Of(fleet));
+        return fleet.Length == 1
+            ? $"Starting in a battle against the {battle.EnemyShip.Id} by Earth"
+            : $"Starting in a battle against a fleet of {fleet.Length} ({string.Join(", ", fleet)}) by Earth";
     }
 
     /// <summary>

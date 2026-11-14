@@ -32,10 +32,11 @@ namespace Crateris.Game;
 /// --start-visit [STEP] (host: a new game starts in the commander's talk at Earth's starbase: his first, or with base-report
 /// the one where the Lunar base is reported, the errands done, whose replies bring the Ilwrath and its fight),
 /// --start-docked (host: a new game starts docked at Earth's starbase's menu, the opening over),
-/// --start-battle RACE (host: a new game starts after the opening, the host's ship in flight by Earth in a battle against
-/// a ported race's ship, by data/ships.json's id: ilwrath, arilou, spathi, supox, druuge, yehat, zoqfot, thradd, umgah,
-/// utwig, mycon, androsyn, mmrnmhrm, chenjesu, slylandr, urquan, blackurq (the Kohr-Ah), human (the Earthling),
-/// chmmr, shofixti, syreen, orz, melnorme, vux or pkunk; Escape retreats),
+/// --start-battle RACE[,RACE...] (host: a new game starts after the opening, the host's ship in flight by Earth in a
+/// battle against a fleet of ported races' ships, by data/ships.json's id: ilwrath, arilou, spathi, supox, druuge, yehat,
+/// zoqfot, thradd, umgah, utwig, mycon, androsyn, mmrnmhrm, chenjesu, slylandr, urquan, blackurq (the Kohr-Ah), human
+/// (the Earthling), chmmr, shofixti, syreen, orz, melnorme, vux or pkunk; each warps in when the one before it dies, and a
+/// win pays the first ship's race's bounty for each; Escape retreats),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
@@ -94,7 +95,7 @@ public sealed class Options
     /// <summary>--start-docked: a new game starts docked at Earth's starbase's menu, as after the opening (testing).</summary>
     public bool StartDocked { get; private set; }
 
-    /// <summary>--start-battle RACE: a new game starts after the opening, in a battle by Earth against that race's ship (testing).</summary>
+    /// <summary>--start-battle RACE[,RACE...]: a new game starts after the opening, in a battle by Earth against a fleet of these races' ships, one at a time (testing).</summary>
     public string? StartBattle { get; private set; }
 
     /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>

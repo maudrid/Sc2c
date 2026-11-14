@@ -115,6 +115,29 @@ public class BattleScreenTests
         Assert.Equal(UqmDrawKind.Clear, drawn[0].Kind);
     }
 
+    [Fact]
+    public void EachEnemyShipComingInHasItsStatusDrawnAfresh()
+    {
+        // A fleet's next ship, or an infinite fleet's brought back with a new captain (stage 4b item 5): InitShipStatus.
+        var canvas = new UqmCanvas(_ => 1, (_, _) => default, new Dictionary<string, int>());
+        var shown = new List<(string Ship, int Captain)>();
+        var screen = new BattleScreen(canvas, (s, id) =>
+        {
+            if (id is null)
+                shown.Add((s.Ship, s.Captain));
+            return new StatusShip(null, null, s.MaxCrew, s.MaxEnergy, false, false, id != null, "n", "c");
+        });
+        var b = Battle((1000, 1000), (1200, 1000));
+        int frame = 0;
+        void Show(BattleShipStatus enemy) =>
+            Assert.NotNull(screen.Frame(b with { Enemy = enemy, Camera = b.Camera with { Frame = ++frame } }, "me", BattleSpace.SizeOf));
+        Show(Status with { Ship = "ilwrath", Captain = 5 });
+        Show(Status with { Ship = "ilwrath", Captain = 5, Crew = 3 });   // the same ship: updated, not drawn afresh
+        Show(Status with { Ship = "spathi", Captain = 5 });
+        Show(Status with { Ship = "spathi", Captain = 9 });
+        Assert.Equal(new[] { ("ilwrath", 5), ("spathi", 5), ("spathi", 9) }, shown);
+    }
+
     // The stars a frame draws, in the space window.
     private static List<UqmDraw> Stars(List<UqmDraw> drawn) => drawn.Skip(1).Take(BattleGalaxy.NumStars).ToList();
 

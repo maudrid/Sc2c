@@ -236,9 +236,14 @@ public sealed partial class Battle
     /// <param name="randomPlaces">Where to note each random number's place, or null.</param>
     /// <param name="size">The arena's size: UQM's (the default), or bigger (decision 4).</param>
     /// <param name="maxElements">The most elements the list holds: UQM's 150 (MAX_DISPLAY_ELEMENTS) by default, more for more players.</param>
+    /// <param name="infiniteEnemy">
+    /// The enemy's fleet is infinite (FleetIsInfinite: a homeworld's, its
+    /// one ship's crew INFINITE_FLEET): its one ship comes back each time it
+    /// dies, with full crew and a new captain, so side 1 never runs out.
+    /// </param>
     public Battle(BattleArena arena, IReadOnlyList<IReadOnlyList<Starship>> fleets, uint seed,
         BattleZoom zoom = BattleZoom.Smooth, bool runAwayAllowed = false, List<string>? randomPlaces = null,
-        ArenaSize? size = null, int maxElements = DisplayList.MaxDisplayElements)
+        ArenaSize? size = null, int maxElements = DisplayList.MaxDisplayElements, bool infiniteEnemy = false)
     {
         if (fleets.Count != NumSides)
             throw new ArgumentException("a battle has two sides");
@@ -252,6 +257,9 @@ public sealed partial class Battle
         for (int side = 0; side < NumSides; ++side)
             if (_fleets[side].Any(s => s.PlayerNr != side))
                 throw new ArgumentException($"a ship of side {side} isn't that side's");
+        if (infiniteEnemy && _fleets[1].Count != 1)
+            throw new ArgumentException("an infinite fleet is one ship, brought back each time it dies");
+        InfiniteEnemy = infiniteEnemy;
         Random = new BattleRandom(seed) { Places = randomPlaces };
 
         InitShips();
@@ -276,7 +284,13 @@ public sealed partial class Battle
     /// <summary>Each side's ships (race_q), in the order they're picked.</summary>
     public IReadOnlyList<Starship> Fleet(int side) => _fleets[side];
 
-    /// <summary>battle_counter: each side's ships still able to fight.</summary>
+    /// <summary>Whether the enemy's fleet is infinite (FleetIsInfinite): its one ship brought back each time it dies.</summary>
+    public bool InfiniteEnemy { get; }
+
+    /// <summary>
+    /// battle_counter: each side's ships still able to fight (an infinite
+    /// fleet's goes up as its ship is picked, each time, so it never runs out).
+    /// </summary>
     public byte[] BattleCounter { get; } = new byte[NumSides];
 
     /// <summary>Whether the battle goes on (IN_BATTLE): cleared when a side has no ship left.</summary>
@@ -641,12 +655,27 @@ public sealed partial class Battle
     // the player; here each side takes its first ship still able to fight
     // and not fighting already (with several ships of a side at once, a
     // teammate in the battle isn't the next ship).
+    // An infinite fleet's side (GetEncounterStarShip's FleetIsInfinite)
+    // takes its one ship each time, the dead one brought back with full
+    // crew and a new captain (PickCaptainName, the battle's TFB_Random),
+    // its count going up each time; the ship recycled keeps its element.
     private bool GetNextStarShip(Starship? last, int side)
     {
-        // (UQM recycles a ship of an infinite fleet, picking the dead one
-        // again; new_ship here always makes the dead ship unavailable first,
-        // so it never comes up: 4b's infinite fleets must bring it back.)
-        var next = _fleets[side].FirstOrDefault(s => s.Available && s.Ship == null);
+        Starship? next;
+        if (side == 1 && InfiniteEnemy)
+        {
+            next = _fleets[side][0];
+            if (last != null)
+            {
+                last.CrewLevel = last.MaxCrew;
+                last.CaptainsNameIndex = PickCaptainName();
+            }
+            BattleCounter[side]++;
+            if (next == last)
+                last = null;   // recycled: it keeps its element
+        }
+        else
+            next = _fleets[side].FirstOrDefault(s => s.Available && s.Ship == null);
         if (next != null)
         {
             if (last != null)
@@ -658,4 +687,11 @@ public sealed partial class Battle
             last.Ship = null;
         return next != null;
     }
+
+    // build.h's PickCaptainName: one of a race's 16 captains' names, past NAME_OFFSET's 5.
+    private byte PickCaptainName() =>
+        (byte)((Random.Next("PickCaptainName") & (NumCaptainsNames - 1)) + CaptainNameOffset);
+
+    /// <summary>build.h's NAME_OFFSET and NUM_CAPTAINS_NAMES: where a race's captains' names start in its strings, and how many.</summary>
+    public const int CaptainNameOffset = 5, NumCaptainsNames = 16;
 }
