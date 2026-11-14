@@ -53,7 +53,9 @@ public class RaceShipBattleTests
                 var (code, crew) = ShipBattleTests.Ship(s);
                 if (code is SisShip flagship)
                     sis.Add(flagship);
-                return new Starship(code, (short)side, crew, 0) { CaptainsNameIndex = (byte)(side == 0 ? 0 : 5) };
+                // Its status panel's icons, which the VUX's limpets are placed on (ModifySilhouette).
+                var icons = RaceShips.Icons(BattleReplay.Ships[s.GetProperty("ship").GetString()!], r => BattleReplay.Sheets.Value.Views(r));
+                return new Starship(code, (short)side, crew, 0) { CaptainsNameIndex = (byte)(side == 0 ? 0 : 5), Icons = icons };
             }).ToList()).ToList();
 
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !sis.Any(s => s.BombCarrier);

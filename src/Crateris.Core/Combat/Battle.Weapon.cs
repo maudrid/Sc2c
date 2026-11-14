@@ -173,6 +173,42 @@ public sealed partial class Battle
     }
 
     /// <summary>
+    /// ModifySilhouette: a mark on <paramref name="ship"/>'s captain's
+    /// window (<see cref="Starship.Silhouette"/>), <paramref name="frame"/>
+    /// at (<paramref name="x"/>, <paramref name="y"/>). With
+    /// <paramref name="image"/> (MODIFY_IMAGE, the VUX's limpets) the place
+    /// is drawn at random until the frame touches the ship's silhouette
+    /// (its icons' frame 1) and put on the silhouette's spot; a ship without
+    /// icons takes no mark. With <paramref name="erase"/> (MODIFY_SWAP) the
+    /// window is drawn afresh within the frame's rectangle there.
+    /// </summary>
+    internal void ModifySilhouette(Element ship, Frame frame, short x, short y, bool image = false, bool erase = false)
+    {
+        var starShip = ship.Parent!;
+        if (image)
+        {
+            if (starShip.Icons is not { } icons)
+                return;
+            var silhouette = icons[0].SetAbs(1).Shape;
+            var mark = frame.Shape;
+            var shipIntersect = new IntersectControl(silhouette, 0, 0);
+            var markIntersect = new IntersectControl(mark, 0, 0);
+            do
+            {
+                x = (short)((ushort)Random.Next("ModifySilhouette") % (silhouette.Width - mark.Width)
+                            + ((mark.Width - silhouette.Width) >> 1));
+                y = (short)((ushort)Random.Next("ModifySilhouette") % (silhouette.Height - mark.Height)
+                            + ((mark.Height - silhouette.Height) >> 1));
+                markIntersect.OriginX = markIntersect.EndX = x;
+                markIntersect.OriginY = markIntersect.EndY = y;
+            } while (Intersection.DrawablesIntersect(markIntersect, shipIntersect, MaxTimeValue) == 0);
+            x += 64 >> 1;   // STATUS_WIDTH >> 1
+            y += 31;
+        }
+        starShip.Silhouette.Add(new SilhouetteMark(frame, x, y, erase));
+    }
+
+    /// <summary>
     /// TrackShip: the nearest opposing ship (by |dx| + |dy|, across the
     /// seam), uncloaked unless the tracker is a ship warping in, becomes the
     /// tracker's target and is kept once chosen; <paramref name="facing"/>

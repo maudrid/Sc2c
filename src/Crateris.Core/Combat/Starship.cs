@@ -181,4 +181,33 @@ public sealed class Starship
 
     /// <summary>Its side: 0 the player's (RPG_PLAYER_NUM), 1 the enemy's (NPC_PLAYER_NUM).</summary>
     public short PlayerNr { get; }
+
+    /// <summary>
+    /// The status panel's icons (ship_info.icons, data/ships.json's
+    /// graphics.icons), whose frame 1, the ship's silhouette, the VUX's
+    /// limpets are placed on (<see cref="Battle.ModifySilhouette"/>); null
+    /// for a ship without them, on which a limpet places nothing and draws
+    /// no random numbers, as UQM's. Whoever makes a ship for a battle sets
+    /// them (<see cref="RaceShips.Icons"/>), as load_ship loads them.
+    /// </summary>
+    public Views? Icons;
+
+    /// <summary>
+    /// What ModifySilhouette has done to the ship's captain's window since
+    /// it was last drawn (DrawCaptainsWindow, as the ship warps in or is
+    /// reborn), in order: the Orz's marines aboard and the VUX's limpets
+    /// stuck on it. Kept for the client (stage 4b item 10), as the status
+    /// panel's crew and energy are; the battle doesn't read it.
+    /// </summary>
+    public List<SilhouetteMark> Silhouette { get; } = new();
 }
+
+/// <summary>
+/// A mark ModifySilhouette made on a ship's captain's window
+/// (<see cref="Starship.Silhouette"/>): <see cref="Frame"/> stamped with
+/// its hot spot at (<see cref="X"/>, <see cref="Y"/>) in the ship's status
+/// panel (before status_y_offsets for its side), or, with
+/// <see cref="Erase"/> (MODIFY_SWAP), the panel drawn afresh within the
+/// frame's rectangle there.
+/// </summary>
+public readonly record struct SilhouetteMark(Frame Frame, short X, short Y, bool Erase);

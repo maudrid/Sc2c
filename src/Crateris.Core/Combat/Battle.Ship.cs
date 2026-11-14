@@ -116,6 +116,7 @@ public sealed partial class Battle
             // Preprocessing for the first time: InitShipStatus and the
             // captain's window are drawing (their crew and energy come out as they were).
             e.CrewLevel = rd.CrewLevel;
+            starShip.Silhouette.Clear();   // DrawCaptainsWindow
             rd.Preprocess?.Invoke(e);
             if (e.Target == null)
                 ShipTransition(e);

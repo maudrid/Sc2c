@@ -161,7 +161,7 @@ public sealed partial class GameWorld
         }
 
         var enemyShip = new Starship(RaceShips.Code(description, kit.Graphics.Views, start.NoCloak), 1, (ushort)crew,
-            (ushort)description.MaxCrew);
+            (ushort)description.MaxCrew) { Icons = RaceShips.Icons(description, kit.Graphics.Views) };
         // NameCaptain: an encounter ship's captain, one of its race's 16 names (PickCaptainName, from
         // UQM's general generator: here one of the battle's own seed, not the battle's, whose draws are UQM's).
         enemyShip.CaptainsNameIndex = (byte)((new Uqm.TfbRandom(seed ^ 0x9E3779B9).Next() & (NumCaptainsNames - 1)) + CaptainNameOffset);
@@ -223,7 +223,8 @@ public sealed partial class GameWorld
         bool bomb = ship.Kind == ShipKind.Flagship && Story?.Get("CHMMR_BOMB_STATE") == 3;
         var code = new SisShip(sis, kit.Graphics.Views(sis.Graphics.Ship), kit.Graphics.Views(sis.Graphics.Weapon),
             SisLoadout.From(ship.Kind, ship.Modules, ship.Hold.Crew, bomb));
-        return new BattleFighter(player, code, new Starship(code, 0, 0, 0), ship.Hold.Save(), ship.Flight.Fuel, Frame);
+        return new BattleFighter(player, code, new Starship(code, 0, 0, 0) { Icons = RaceShips.Icons(sis, kit.Graphics.Views) },
+            ship.Hold.Save(), ship.Flight.Fuel, Frame);
     }
 
     /// <summary>

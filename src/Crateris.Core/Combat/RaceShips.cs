@@ -29,7 +29,7 @@ public static class RaceShips
         UtwigShip.Id, MyconShip.Id, AndrosynthShip.Id, MmrnmhrmShip.Id, ChenjesuShip.Id, SlylandroShip.Id,
         UrquanShip.Id, KohrAhShip.Id,
         // Stage 4b item 4.
-        HumanShip.Id, SyreenShip.Id, PkunkShip.Id,
+        HumanShip.Id, SyreenShip.Id, PkunkShip.Id, VuxShip.Id,
     };
 
     /// <summary>
@@ -63,9 +63,17 @@ public static class RaceShips
             HumanShip.Id => new HumanShip(d, hull, weapon),
             SyreenShip.Id => new SyreenShip(d, hull, weapon),
             PkunkShip.Id => new PkunkShip(d, hull, weapon),
+            VuxShip.Id => new VuxShip(d, hull, weapon, special),
             _ => throw new ArgumentException($"{d.Id}'s code isn't ported (ported: {string.Join(", ", Ported)})"),
         };
     }
+
+    /// <summary>
+    /// A ship's status panel's icons (ship_info.icons) from <paramref name="views"/>,
+    /// for its <see cref="Starship.Icons"/>; null for a ship without them.
+    /// </summary>
+    public static Views? Icons(ShipDescription d, Func<IReadOnlyList<string?>, Views?> views) =>
+        d.Graphics.Icons is { } icons ? views(new[] { icons, null, null }) : null;
 
     /// <summary>
     /// A RACE_DESC as a ship's file initialises it (data/ships.json's
