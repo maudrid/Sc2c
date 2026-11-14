@@ -1700,6 +1700,80 @@ public partial class RaceShipCoopTests
         Assert.Equal(1, eighth.TurnWait);
     }
 
+    // ---- Orz against Orz (each ship's sheets its own in UQM) ----
+
+    // The player's Orz (side 0) at the centre facing east, the computer's
+    // Orz (side 1) 2400 behind it; the two take the very same sheets here.
+    private static (Battle Battle, Starship Player, Starship Enemy) OrzDuel()
+    {
+        var player = Race("orz", 0);
+        var enemy = Race("orz", 1);
+        var battle = new Battle(Arena(), new[] { new[] { player }, new[] { enemy } }, 808, maxElements: 300);
+        WarpIn(battle);
+        Assert.Same(player.RaceDesc!.Special, enemy.RaceDesc!.Special);
+        ClearArena(battle);
+        int cx = battle.Size.Width / 2, cy = battle.Size.Height / 2;
+        Put(battle, player.Ship!, cx, cy);
+        Put(battle, enemy.Ship!, cx - 2400, cy);
+        foreach (var s in new[] { player, enemy })
+        {
+            Face(s, 4);
+            s.WeaponCounter = s.SpecialCounter = 0;
+            s.ShipInputState = s.OldStatusFlags = StatusFlags.None;
+        }
+        return (battle, player, enemy);
+    }
+
+    [ContentFact]
+    public void AnOrzCountsNoneOfAnEnemyOrzsMarinesAgainstItsEight()
+    {
+        // The enemy Orz has eight marines out; the player's launches one all
+        // the same (UQM's counts its own sheets', which are its own).
+        var (battle, player, enemy) = OrzDuel();
+        for (int i = 0; i < 8; ++i)
+        {
+            enemy.SpecialCounter = enemy.WeaponCounter = 0;
+            battle.Step(ship => ship == enemy ? BattleInput.Weapon | BattleInput.Special : BattleInput.None);
+        }
+        Assert.Equal(8, battle.List.Elements.Count(e => e.Parent == enemy && (e.StateFlags & ElementFlags.CrewObject) != 0));
+        Assert.Single(PressedOnceAfterReset(battle, player), e => e.Parent == player && (e.StateFlags & ElementFlags.CrewObject) != 0);
+    }
+
+    [ContentFact]
+    public void AnOrzsAiCountsNoneOfAnEnemyOrzsMarines()
+    {
+        // The enemy Orz (not slow, far off) has two marines out, the player's
+        // none: its AI launches, as it does with fewer than two of its own.
+        var (battle, player, enemy) = OrzDuel();
+        for (int i = 0; i < 2; ++i)
+            FreeMarine(battle, enemy);
+        player.WeaponCounter = player.SpecialCounter = 0;
+        enemy.RaceDesc!.ManeuverabilityIndex = Battle.MediumShip;
+        OwnAi(battle, player, enemy.Ship!, MoveState.Pursue, 30);
+        Assert.Equal(StatusFlags.Weapon | StatusFlags.Special,
+            player.ShipInputState & (StatusFlags.Weapon | StatusFlags.Special));
+    }
+
+    [ContentFact]
+    public void AnEnemyOrzsMarineAboardHoldsNoneOfAnOrzsSlots()
+    {
+        // The enemy Orz's marine is aboard the player's Orz (its slot 0);
+        // the player's marine boards the enemy Orz: it takes slot 0 too.
+        var (battle, player, enemy) = OrzDuel();
+        var theirs = Board(battle, enemy, player.Ship!);
+        Assert.Equal(0, theirs.TurnWait);
+        var ours = Board(battle, player, enemy.Ship!);
+        Assert.True((theirs.StateFlags & ElementFlags.NonSolid) != 0 && theirs.LifeSpan != 0, "theirs is still aboard");
+        Assert.Equal(0, ours.TurnWait);
+    }
+
+    // The ship's keys cleared and a marine launched; the elements made.
+    private static List<Element> PressedOnceAfterReset(Battle battle, Starship orz)
+    {
+        orz.SpecialCounter = orz.WeaponCounter = 0;
+        return PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special);
+    }
+
     [ContentFact]
     public void TheOrzsTurretMakesNoFlashForATeammatesBlast()
     {

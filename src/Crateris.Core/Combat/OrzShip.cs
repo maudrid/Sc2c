@@ -149,21 +149,19 @@ public sealed class OrzShip : IShipCode
 
     // count_marines: the ship's marines out (up to MAX_MARINES), counted
     // from the list's tail; with findSpot, the first slot on a captain's
-    // window none of the marines aboard a ship holds. A teammate Orz's
-    // marines aren't counted (UQM's counts every marine of its sheets) but
-    // hold their slots all the same, as in UQM every marine of the sheets
-    // shares one set; with every slot held (only possible with a teammate's
-    // marines aboard too), the first is shared. UQM's scan stops at the
-    // eighth counted; finding a slot with a teammate in the battle, it goes
-    // on to the head, so that a teammate's marine aboard further on (older
-    // than the eight) still marks its slot.
+    // window none of its marines aboard a ship holds. UQM tells its marines
+    // by their sheets, each ship's its own (load_ship detaches them); here
+    // a race's sheets are shared between its ships, so they're told by
+    // their ship (Parent): an enemy Orz's marines are none of its. Co-op:
+    // a teammate Orz's marines aboard a ship hold their slots too (UQM has
+    // no teammates; two marks in one slot would erase each other), though
+    // they aren't counted; with every slot held (only possible with a
+    // teammate's aboard too), the first is shared. The slot search goes
+    // through the whole list (UQM's stops at the eighth counted, its last).
     private static int CountMarines(Battle battle, Starship starShip, bool findSpot, Defines f)
     {
         var idUse = new bool[f.MaxMarines];
         int numMarines = 0;
-        var ship = starShip.Ship;
-        bool scanAll = findSpot && ship != null
-                       && battle.List.Elements.Any(o => (o.StateFlags & ElementFlags.PlayerShip) != 0 && Battle.Teammates(o, ship));
         for (Element? e = battle.List.Tail, next; e != null; e = next)
         {
             next = e.Predecessor;
@@ -171,9 +169,11 @@ public sealed class OrzShip : IShipCode
                 && e.LifeSpan != 0
                 && (e.StateFlags & (ElementFlags.FiniteLife | ElementFlags.Disappearing)) == 0)
             {
-                if ((e.StateFlags & ElementFlags.NonSolid) != 0)
+                bool own = e.Parent == starShip;
+                bool teammates = !own && e.Parent != null && e.PlayerNr == starShip.PlayerNr;
+                if ((e.StateFlags & ElementFlags.NonSolid) != 0 && (own || teammates))
                     idUse[e.TurnWait] = true;
-                if (!(ship != null && Battle.Teammates(e, ship)) && ++numMarines == f.MaxMarines && !scanAll)
+                if (own && ++numMarines == f.MaxMarines && !findSpot)
                     next = null;
             }
         }
