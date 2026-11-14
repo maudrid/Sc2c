@@ -209,8 +209,9 @@ public sealed partial class Battle
             BattleCounter[dead.PlayerNr]--;   // a ship running away was counted when it ran
     }
 
-    // StartShipExplosion: still, without energy, blowing up for 36 frames.
-    private void StartShipExplosion(Element ship)
+    // StartShipExplosion: still, without energy, blowing up for 36 frames (the
+    // Pkunk's rebirth and the Shofixti's self-destruct start it themselves).
+    internal void StartShipExplosion(Element ship)
     {
         var starShip = ship.Parent!;
         ship.Velocity.Zero();

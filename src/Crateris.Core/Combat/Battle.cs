@@ -202,6 +202,22 @@ public sealed partial class Battle
     private static short Cosine(int angle, int magnitude) => UqmMath.Cosine(angle, magnitude);
 
     private readonly List<Starship>[] _fleets;
+
+    // What a ship's code keeps for the whole battle in UQM's statics (the
+    // Pkunk's last insult), one of each kind a battle.
+    private readonly Dictionary<Type, object> _shipStates = new();
+
+    /// <summary>
+    /// A ship's code's state for the battle, made on first use: what UQM's
+    /// ship files keep in statics (pkunk.c's LastSound), here per battle so
+    /// battles don't share it.
+    /// </summary>
+    internal T ShipState<T>() where T : class, new()
+    {
+        if (!_shipStates.TryGetValue(typeof(T), out var state))
+            _shipStates[typeof(T)] = state = new T();
+        return (T)state;
+    }
     private readonly bool _runAwayAllowed;
 
     // Whether a frame is being stepped: ships join between frames.

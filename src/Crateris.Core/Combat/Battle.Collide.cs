@@ -104,7 +104,7 @@ public sealed partial class Battle
     /// unit a frame towards it; for anything else, whether a planet is near
     /// (where nothing may spawn).
     /// </summary>
-    private bool CalculateGravity(Element e)
+    internal bool CalculateGravity(Element e)
     {
         bool hasGravity = Colliding(e) && GravityMass(e.MassPoints + 1);
         for (var test = List.Head; test != null; test = test.Succ)

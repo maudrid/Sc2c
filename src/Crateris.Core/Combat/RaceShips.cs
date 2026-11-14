@@ -29,7 +29,7 @@ public static class RaceShips
         UtwigShip.Id, MyconShip.Id, AndrosynthShip.Id, MmrnmhrmShip.Id, ChenjesuShip.Id, SlylandroShip.Id,
         UrquanShip.Id, KohrAhShip.Id,
         // Stage 4b item 4.
-        HumanShip.Id, SyreenShip.Id,
+        HumanShip.Id, SyreenShip.Id, PkunkShip.Id,
     };
 
     /// <summary>
@@ -62,6 +62,7 @@ public static class RaceShips
             KohrAhShip.Id => new KohrAhShip(d, hull, weapon, special),
             HumanShip.Id => new HumanShip(d, hull, weapon),
             SyreenShip.Id => new SyreenShip(d, hull, weapon),
+            PkunkShip.Id => new PkunkShip(d, hull, weapon),
             _ => throw new ArgumentException($"{d.Id}'s code isn't ported (ported: {string.Join(", ", Ported)})"),
         };
     }
