@@ -1514,6 +1514,223 @@ public partial class RaceShipCoopTests
         Assert.InRange(blast!.LifeSpan, 5, 6);
     }
 
+    // ---- Review round 1's cases ----
+
+    [ContentFact]
+    public void AShofixtiThatHasWonAndBlowsItselfUpForgetsItsDitty()
+    {
+        // The Ilwrath is killed: the Shofixti has won, its ditty to play as
+        // the Ilwrath's explosion ends. It blows itself up meanwhile: still
+        // the winner, its ditty forgotten (shofixti.c's destruct death), so
+        // the Ilwrath's element waits a frame to pick its next ship as its
+        // explosion ends, not the ditty's frames (cleanup_dead_ship).
+        var (battle, shofixti, ilwrath) = Lab4("shofixti", 6, enemyAt: 4000);
+        battle.DoDamage(ilwrath.Ship!, 22);
+        battle.Step(_ => BattleInput.None);
+        Assert.Same(shofixti, battle.Winner);
+        Assert.NotEqual(StatusFlags.None, shofixti.CurStatusFlags & StatusFlags.PlayVictoryDitty);
+        int frames = 1;
+        foreach (var keys in Glory)
+        {
+            battle.Step(ship => ship == shofixti ? keys : BattleInput.None);
+            ++frames;
+        }
+        battle.Step(_ => BattleInput.None);   // its destruct death
+        ++frames;
+        Assert.True((shofixti.Ship!.StateFlags & ElementFlags.FiniteLife) != 0, "the Shofixti is blowing up");
+        Assert.Same(shofixti, battle.Winner);
+        Assert.Equal(StatusFlags.None, shofixti.CurStatusFlags & StatusFlags.PlayVictoryDitty);
+        for (; frames < 200 && ilwrath.RaceDesc != null; ++frames)
+            battle.Step(_ => BattleInput.None);
+        // Its explosion's 36 frames and its element's 2 more, not the ditty's 72.
+        Assert.InRange(frames, Battle.NumExplosionFrames * 3, Battle.NumExplosionFrames * 3 + 4);
+    }
+
+    [ContentFact]
+    public void AFreeMarineDiesWithItsOwnShipAsItsExplosionEnds()
+    {
+        // The Orz blows up with a marine flying free: the frame its ship's
+        // explosion has a frame left, the marine dies (marine_preprocess),
+        // before the explosion's end would take it with the rest; it is
+        // still the Orz's.
+        var (battle, orz, _) = Lab4("orz", 16, enemyAt: 3000);
+        var marine = FreeMarine(battle, orz);
+        var ship = orz.Ship!;
+        int x = ship.Current.X, y = ship.Current.Y - 2400;
+        battle.DoDamage(ship, (short)ship.CrewLevel);
+        for (int frame = 0; frame < 60 && !((ship.StateFlags & ElementFlags.FiniteLife) != 0 && ship.LifeSpan == 1); ++frame)
+        {
+            Assert.NotEqual(0, marine.LifeSpan);
+            Put(battle, marine, x, y);   // kept clear of everything
+            battle.Step(_ => BattleInput.None);
+        }
+        Assert.Equal(1, ship.LifeSpan);
+        Assert.Same(orz, marine.Parent);
+        Assert.Equal(0, marine.LifeSpan);
+        Assert.Equal(ElementFlags.Disappearing | ElementFlags.NonSolid,
+            marine.StateFlags & (ElementFlags.Disappearing | ElementFlags.NonSolid));
+    }
+
+    [ContentFact]
+    public void TwoTeammateMelnormesEachConfuseTheShipTheyHit()
+    {
+        // Two players' Melnormes each hit the Ilwrath with a confusion:
+        // each has its own on it (one Melnorme's renews only its own, not
+        // its teammate's).
+        var (battle, _, team, ilwrath) = Team("melnorme", 2);
+        foreach (var melnorme in team)
+        {
+            var other = team.Single(t => t != melnorme);
+            int cx = melnorme.Ship!.Current.X, cy = melnorme.Ship.Current.Y;
+            Put(battle, other.Ship!, cx, cy - 3000);
+            Put(battle, ilwrath.Ship!, cx + 1200, cy);
+            melnorme.SpecialCounter = 0;
+            melnorme.RaceDesc!.EnergyLevel = melnorme.RaceDesc.MaxEnergy;
+            battle.Step(ship => ship == melnorme ? BattleInput.Special : BattleInput.None);
+            for (int frame = 0; frame < 20 && Confusion(battle, melnorme, ilwrath) == null; ++frame)
+            {
+                ilwrath.Ship!.Velocity.Zero();
+                battle.Step(_ => BattleInput.None);
+            }
+            Assert.NotNull(Confusion(battle, melnorme, ilwrath));
+            Put(battle, ilwrath.Ship!, cx, cy + 4000);
+        }
+        Assert.All(team, m => Assert.NotNull(Confusion(battle, m, ilwrath)));
+        Assert.NotSame(Confusion(battle, team[0], ilwrath), Confusion(battle, team[1], ilwrath));
+    }
+
+    [ContentFact]
+    public void APkunkThatHasWonKeepsItsDittyThroughItsRebirth()
+    {
+        // The Pkunk has won (its ditty to play) and dies with a phoenix: reborn,
+        // its keys are cleared but its ditty is kept (new_pkunk).
+        var (battle, pkunk, _) = PkunkWithPhoenix();
+        battle.SetWinnerStarShip(pkunk);
+        pkunk.CurStatusFlags |= StatusFlags.Weapon;
+        battle.DoDamage(pkunk.Ship!, 8);
+        for (int frame = 0; frame < 80 && pkunk.RaceDesc!.CrewLevel != 8; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(8, pkunk.RaceDesc!.CrewLevel);
+        Assert.Equal(StatusFlags.PlayVictoryDitty, pkunk.CurStatusFlags & (StatusFlags.PlayVictoryDitty | StatusFlags.Weapon));
+    }
+
+    [ContentFact]
+    public void ThePkunkIsRebornClearOfOtherThings()
+    {
+        // The Pkunk dies twice alike: the second time the Ilwrath is put,
+        // as it's reborn, where it was reborn the first: it's reborn
+        // elsewhere, clear of it (new_pkunk's TimeSpaceMatterConflict).
+        (int X, int Y) Reborn(bool blocked)
+        {
+            var (battle, pkunk, ilwrath) = PkunkWithPhoenix();
+            (int X, int Y)? at = null, first = blocked ? Reborn(false) : null;
+            battle.DoDamage(pkunk.Ship!, 8);
+            for (int frame = 0; frame < 80 && at == null; ++frame)
+            {
+                var ship = pkunk.Ship!;
+                if (ship.DeathFunc is { } inner && (ship.StateFlags & ElementFlags.FiniteLife) != 0 && ship.LifeSpan == 0)
+                {
+                    ship.DeathFunc = e =>
+                    {
+                        if (first is { } f)
+                        {
+                            Put(battle, ilwrath.Ship!, f.X, f.Y);
+                        }
+                        inner(e);
+                        at = (e.Current.X, e.Current.Y);
+                        if (first != null)
+                            Assert.False(battle.TimeSpaceMatterConflict(e), "reborn clear of the Ilwrath");
+                    };
+                }
+                battle.Step(_ => BattleInput.None);
+            }
+            Assert.NotNull(at);
+            return at!.Value;
+        }
+
+        var unblocked = Reborn(false);
+        Assert.NotEqual(unblocked, Reborn(true));
+    }
+
+    [ContentFact]
+    public void TwoTeammateOrzsMarinesAboardAShipTakeTheirOwnSlots()
+    {
+        // Two players' Orz each put a marine aboard the Ilwrath: the second
+        // takes the second slot (frame 23, 9 pixels right of the first), as
+        // every Orz marine shares one set of slots; the first leaving
+        // erases its own mark, not the other's.
+        var (battle, first, team, ilwrath) = Team("orz", 2);
+        var second = team[1];
+        Put(battle, ilwrath.Ship!, first.Ship!.Current.X, first.Ship.Current.Y + 3000);
+        Put(battle, second.Ship!, first.Ship.Current.X - 3000, first.Ship.Current.Y);
+        var one = Board(battle, first, ilwrath.Ship!);
+        var two = Board(battle, second, ilwrath.Ship!);
+        Assert.Equal((0, 1), (one.TurnWait, two.TurnWait));
+        Assert.Equal(new[] { (22, 16, 14), (23, 25, 14) },
+            ilwrath.Silhouette.Where(m => !m.Erase && m.Frame.Index is >= 22 and < 30)
+                .Select(m => ((int)m.Frame.Index, (int)m.X, (int)m.Y)).Take(2));
+    }
+
+    [ContentFact]
+    public void TheOrzsTurretMakesNoFlashForATeammatesBlast()
+    {
+        // Two players' Orz: the first's shell hits the Ilwrath (its blast at
+        // the list's tail) while the second presses its weapon, not ready:
+        // the second's turret makes no flash for the teammate's blast (UQM's
+        // takes any of its side's, a blast without a ship among them).
+        var (battle, _, team, ilwrath) = Team("orz", 2);
+        var (first, second) = InListOrder(battle, team[0], team[1]);
+        bool Flash(Element e, Starship of) => e.Parent == of && ReferenceEquals(e.Current.FrameArray, of.RaceDesc!.Special)
+                                               && e.Current.Frame.Index >= 16 && (e.StateFlags & ElementFlags.CrewObject) == 0;
+        var shell = Shots(battle, new[] { first })[0];
+        Put(battle, second.Ship!, ilwrath.Ship!.Current.X - 3000, ilwrath.Ship.Current.Y - 2000);
+        FlyAt(battle, shell, ilwrath.Ship!);
+        var made = new List<Element>();
+        for (int frame = 0; frame < 10 && shell.LifeSpan != 0; ++frame)
+        {
+            ilwrath.Ship!.Velocity.Zero();
+            second.WeaponCounter = 3;
+            made.AddRange(PressedOnceBy(battle, s => s == second ? BattleInput.Weapon : BattleInput.None));
+        }
+        Assert.Contains(made, e => e.BlastOf == first);
+        Assert.True(ilwrath.RaceDesc!.CrewLevel < 22, "the shell hit");
+        Assert.DoesNotContain(made, e => Flash(e, second));
+    }
+
+    [ContentFact]
+    public void ALimpetsMarkIsPlacedByUqmsArithmetic()
+    {
+        // ModifySilhouette with MODIFY_IMAGE: x drawn as random % (the
+        // silhouette's width - the mark's) + (the mark's - the
+        // silhouette's) / 2, y alike, drawn again until the mark touches the
+        // silhouette; then STATUS_WIDTH / 2 (32) added to x and 31 to y.
+        var (battle, vux, ilwrath) = Lab4("vux", 20, enemyAt: -1200);
+        ilwrath.Icons = RaceShips.Icons(BattleReplay.Ships[ShipDescriptions.Ilwrath], r => BattleReplay.Sheets.Value.Views(r));
+        var silhouette = ilwrath.Icons[0].SetAbs(1).Shape;
+        var limpets = vux.RaceDesc!.Weapon![0];
+        for (int i = 0; i < limpets.Count; ++i)
+        {
+            var frame = limpets.SetAbs(i);
+            var mark = frame.Shape;
+            var random = new TfbRandom(battle.Random.Seed);
+            var places = new List<string>();
+            battle.Random.Places = places;
+            battle.ModifySilhouette(ilwrath.Ship!, frame, 0, 0, image: true);
+            battle.Random.Places = null;
+            Assert.True(places.Count >= 2 && places.Count % 2 == 0, $"{places.Count} draws");
+            uint rx = 0, ry = 0;
+            for (int k = 0; k < places.Count / 2; ++k)
+            {
+                rx = random.Next();
+                ry = random.Next();
+            }
+            int x = (ushort)rx % (silhouette.Width - mark.Width) + ((mark.Width - silhouette.Width) >> 1) + 32;
+            int y = (ushort)ry % (silhouette.Height - mark.Height) + ((mark.Height - silhouette.Height) >> 1) + 31;
+            var placed = ilwrath.Silhouette[^1];
+            Assert.Equal((i, x, y), (placed.Frame.Index, (int)placed.X, (int)placed.Y));
+        }
+    }
+
     // ---- Helpers ----
 
     // As Lab: a race ship of side 0 at the centre facing east, the Ilwrath

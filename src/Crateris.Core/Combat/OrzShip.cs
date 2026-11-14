@@ -149,8 +149,11 @@ public sealed class OrzShip : IShipCode
 
     // count_marines: the ship's marines out (up to MAX_MARINES), counted
     // from the list's tail; with findSpot, the first slot on a captain's
-    // window none of those aboard a ship holds. A teammate Orz's marines
-    // aren't counted (UQM's counts every marine of its sheets).
+    // window none of the marines aboard a ship holds. A teammate Orz's
+    // marines aren't counted (UQM's counts every marine of its sheets) but
+    // hold their slots all the same, as in UQM every marine of the sheets
+    // shares one set; with every slot held (only possible with a teammate's
+    // marines aboard too), the first is shared.
     private static int CountMarines(Battle battle, Starship starShip, bool findSpot, Defines f)
     {
         var idUse = new bool[f.MaxMarines];
@@ -161,12 +164,11 @@ public sealed class OrzShip : IShipCode
             next = e.Predecessor;
             if (ReferenceEquals(e.Current.FrameArray, starShip.RaceDesc!.Special)
                 && e.LifeSpan != 0
-                && (e.StateFlags & (ElementFlags.FiniteLife | ElementFlags.Disappearing)) == 0
-                && !(ship != null && Battle.Teammates(e, ship)))
+                && (e.StateFlags & (ElementFlags.FiniteLife | ElementFlags.Disappearing)) == 0)
             {
                 if ((e.StateFlags & ElementFlags.NonSolid) != 0)
                     idUse[e.TurnWait] = true;
-                if (++numMarines == f.MaxMarines)
+                if (!(ship != null && Battle.Teammates(e, ship)) && ++numMarines == f.MaxMarines)
                     next = null;
             }
         }
@@ -174,8 +176,10 @@ public sealed class OrzShip : IShipCode
         if (findSpot)
         {
             numMarines = 0;
-            while (idUse[numMarines])
+            while (numMarines < f.MaxMarines && idUse[numMarines])
                 ++numMarines;
+            if (numMarines == f.MaxMarines)
+                numMarines = 0;
         }
         return numMarines;
     }
@@ -668,9 +672,10 @@ public sealed class OrzShip : IShipCode
                 Element? effect;
                 if (tail != e
                     && tail.PlayerNr == e.PlayerNr
-                    // Co-op: a teammate's shell fired this frame isn't its own (UQM's takes
-                    // any of its side's, a blast without a ship among them).
-                    && (tail.Parent == null || tail.Parent == starShip)
+                    // Co-op: a teammate's shell fired this frame, or the blast of a
+                    // teammate's shot, isn't its own (UQM's takes any of its side's, a
+                    // blast without a ship among them, which the traces need).
+                    && (tail.Parent ?? tail.BlastOf) is var owner && (owner == null || owner == starShip)
                     && (tail.StateFlags & ElementFlags.Appearing) != 0
                     && tail.Prim == PrimType.Stamp
                     && (effect = battle.List.Alloc()) != null)

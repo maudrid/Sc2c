@@ -257,6 +257,14 @@ public sealed class Element
     /// </summary>
     internal object? Tag;
 
+    /// <summary>
+    /// The ship whose shot left this blast (weapon_collision's), not UQM's:
+    /// a blast has no <see cref="Parent"/>, as UQM's, so that the ship's
+    /// going leaves it be; only the Orz's turret flash reads it, to tell its
+    /// own shot's blast from a teammate's. Copied and cleared with the rest.
+    /// </summary>
+    internal Starship? BlastOf;
+
     /// <summary>hit_points: <see cref="CrewLevel"/>'s other name.</summary>
     public ushort HitPoints
     {
@@ -336,6 +344,7 @@ public sealed class Element
         Parent = src.Parent;
         Target = src.Target;
         Tag = src.Tag;
+        BlastOf = src.BlastOf;
         Intersect.Frame = src.Intersect.Frame;
         IntersectStamp = src.IntersectStamp;
         Intersect.OriginX = src.Intersect.OriginX;
@@ -364,6 +373,7 @@ public sealed class Element
         Parent = null;
         Target = null;
         Tag = null;
+        BlastOf = null;
     }
 
     public override string ToString() => $"element {Slot} ({StateFlags}, {Current.Frame})";

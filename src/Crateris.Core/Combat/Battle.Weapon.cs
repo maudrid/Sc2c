@@ -135,6 +135,7 @@ public sealed partial class Battle
             {
                 List.Put(blast);
                 blast.PlayerNr = weapon.PlayerNr;
+                blast.BlastOf = weapon.Parent;
                 blast.StateFlags = ElementFlags.Appearing | ElementFlags.FiniteLife | ElementFlags.NonSolid;
                 blast.Prim = PrimType.Stamp;
                 blast.Current.X = DisplayToWorld(at.X);
