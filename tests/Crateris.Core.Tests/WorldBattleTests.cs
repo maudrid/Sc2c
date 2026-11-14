@@ -165,7 +165,7 @@ public class WorldBattleTests
 
         // A ship in a battle, an unknown or unported race, a world without the battle's content: refused.
         Assert.Throws<InvalidOperationException>(() => world.StartBattle("host", Ilwrath));
-        Assert.Throws<ArgumentException>(() => world.StartBattle("g1", "vux"));
+        Assert.Throws<ArgumentException>(() => world.StartBattle("g1", "probe"));
         Assert.Throws<ArgumentOutOfRangeException>(() => world.StartBattle("g1", Ilwrath, new BattleStart(EnemyCrew: 23)));
         var bare = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir), "host", "Host");
         Assert.Throws<InvalidOperationException>(() => bare.StartBattle("host", Ilwrath));
@@ -929,7 +929,7 @@ public class WorldBattleTests
         var host = Session.HostSession.New(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host",
             systems, TestContent.Shapes);
         host.World.BattleKit = BattleReplay.Kit.Value;
-        Assert.Throws<ArgumentException>(() => host.StartBattle("vux"));
+        Assert.Throws<ArgumentException>(() => host.StartBattle("probe"));
         Assert.Contains("ilwrath", host.StartBattle("ilwrath"));
         var wb = Assert.Single(host.World.Battles);
         Assert.Equal((Sol, Earth), (wb.Place.Star, wb.Place.InnerPlanet));

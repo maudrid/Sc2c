@@ -15,8 +15,9 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 ## In progress: stage 4b item 4
 
-- **Built so far** (committed and pushed as each matched): the Earthling (`HumanShip.cs`), Syreen (`SyreenShip.cs`), Pkunk (`PkunkShip.cs`; its last insult per battle, `Battle.ShipState`, reset as each Pkunk is made), VUX (`VuxShip.cs`; the limpets' marks by `Battle.ModifySilhouette` into `Starship.Silhouette`, on `Starship.Icons`, which the world and the trace tests now set), Shofixti (`ShofixtiShip.cs`, the recruited one; its Glory Device counting on its captain sheet's frames; `OrzShip.cs` is only a stub for its marine test until the Orz is ported), Chmmr (`ChmmrShip.cs`) and Melnorme (`MelnormeShip.cs`; frames' sizes at every zoom now in `Sheet.Rects`, `Frame.Rect`, for GetFrameRect), in `RaceShips.Ported`; their fifteen traces in `battle-races-3.json` match, `pkunk-rebirth` among them (`RaceShipBattleTests`).
-- **Left:** the Orz; the co-op, seam and branch tests (`RaceShipCoopTests.Item4.cs`); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row.
+- **Built so far** (committed and pushed): all eight ships in `src/Crateris.Core/Combat/` (`HumanShip.cs`, `ChmmrShip.cs`, `ShofixtiShip.cs`, the recruited one, `SyreenShip.cs`, `OrzShip.cs`, `MelnormeShip.cs`, `VuxShip.cs`, `PkunkShip.cs`), in `RaceShips.Ported`; all 17 traces of `battle-races-3.json` match (`RaceShipBattleTests`), `pkunk-rebirth` among them; the combat topic passes. Engine additions: `Starship.Icons` and `Starship.Silhouette` (`Battle.ModifySilhouette`'s marks, for the client), `Sheet.Rects`/`Frame.Rect` (GetFrameRect at every zoom), `Element.Tag` (an Orz marine's boarded ship), `Battle.ShipState` (the Pkunk's last insult per battle), the winner and explosion helpers internal.
+- **Debugging aid:** a UQM run of one recorded battle with full frames can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings`, `images`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
+- **Left:** the co-op, seam and branch tests (`RaceShipCoopTests.Item4.cs`); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row; a headless `--start-battle`.
 
 ## Open items
 

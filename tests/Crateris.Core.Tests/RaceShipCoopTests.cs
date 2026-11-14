@@ -47,7 +47,8 @@ public partial class RaceShipCoopTests
             Assert.Contains(id, RaceShips.Ported);
             Assert.Contains(id, BattleKit.Enemies);
         }
-        Assert.Throws<ArgumentException>(() => RaceShips.Code(BattleReplay.Ships["vux"], _ => null));
+        // The flagship's code isn't a race ship's.
+        Assert.Throws<ArgumentException>(() => RaceShips.Code(BattleReplay.Ships[ShipDescriptions.Flagship], _ => null));
         Assert.Throws<ArgumentException>(() => new SpathiShip(BattleReplay.Ships["arilou"], null, null, null));
     }
 

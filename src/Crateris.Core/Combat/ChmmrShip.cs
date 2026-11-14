@@ -200,8 +200,9 @@ public sealed class ChmmrShip : IShipCode
             Element? flash;
             if (tail != e
                 && tail.PlayerNr == e.PlayerNr
-                // Co-op: a teammate's laser fired this frame isn't its own.
-                && !Battle.Teammates(tail, e)
+                // Co-op: a teammate's laser fired this frame isn't its own (UQM's takes
+                // any of its side's, one without a ship among them).
+                && (tail.Parent == null || tail.Parent == starShip)
                 && (tail.StateFlags & ElementFlags.Appearing) != 0
                 && tail.Prim == PrimType.Line
                 && (starShip.SpecialCounter & 1) == 0
