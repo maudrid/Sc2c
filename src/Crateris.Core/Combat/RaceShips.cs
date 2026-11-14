@@ -29,7 +29,7 @@ public static class RaceShips
         UtwigShip.Id, MyconShip.Id, AndrosynthShip.Id, MmrnmhrmShip.Id, ChenjesuShip.Id, SlylandroShip.Id,
         UrquanShip.Id, KohrAhShip.Id,
         // Stage 4b item 4.
-        HumanShip.Id, SyreenShip.Id, PkunkShip.Id, VuxShip.Id, ShofixtiShip.Id, ChmmrShip.Id,
+        HumanShip.Id, SyreenShip.Id, PkunkShip.Id, VuxShip.Id, ShofixtiShip.Id, ChmmrShip.Id, MelnormeShip.Id,
     };
 
     /// <summary>
@@ -65,6 +65,7 @@ public static class RaceShips
             PkunkShip.Id => new PkunkShip(d, hull, weapon),
             VuxShip.Id => new VuxShip(d, hull, weapon, special),
             ChmmrShip.Id => new ChmmrShip(d, hull, weapon, special),
+            MelnormeShip.Id => new MelnormeShip(d, hull, weapon, special),
             ShofixtiShip.Id => new ShofixtiShip(d, hull, weapon, special, views(new[] { d.Graphics.Captain, null, null })),
             _ => throw new ArgumentException($"{d.Id}'s code isn't ported (ported: {string.Join(", ", Ported)})"),
         };

@@ -182,8 +182,13 @@ public sealed class BattleSheets
             lock (_lock)
             {
                 if (!_sheets.TryGetValue(resourceId, out var sheet))
-                    _sheets[resourceId] = sheet = new Sheet(resourceId, _decoded[resourceId].Count,
-                        _shapes.Sheets.TryGetValue(resourceId, out var shapes) ? shapes : null);
+                {
+                    var frames = _decoded[resourceId];
+                    _sheets[resourceId] = sheet = new Sheet(resourceId, frames.Count,
+                        _shapes.Sheets.TryGetValue(resourceId, out var shapes) ? shapes : null,
+                        frames.Select(f => new FrameRect(f.Image.Width, f.Image.Height, f.Frame.HotSpotX, f.Frame.HotSpotY))
+                            .ToArray());
+                }
                 return sheet;
             }
         }

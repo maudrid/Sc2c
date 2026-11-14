@@ -146,7 +146,7 @@ public sealed class ChmmrShip : IShipCode
     {
         var starShip = ship.Parent!;
         var block = new LaserBlock { Face = starShip.ShipFacing };
-        var r = starShip.RaceDesc!.Weapon![0].SetAbs(block.Face).Shape;
+        var r = starShip.RaceDesc!.Weapon![0].SetAbs(block.Face).Rect;
         block.Cx = (short)(Battle.DisplayAlign(ship.Next.X) + Battle.DisplayToWorld(-r.HotSpotX));
         block.Cy = (short)(Battle.DisplayAlign(ship.Next.Y) + Battle.DisplayToWorld(-r.HotSpotY));
         block.Ex = UqmMath.Cosine(UqmMath.FacingToAngle(block.Face), f.LaserRange);

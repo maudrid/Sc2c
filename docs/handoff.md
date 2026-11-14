@@ -15,8 +15,8 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 ## In progress: stage 4b item 4
 
-- **Built so far** (committed and pushed as each matched): the Earthling (`HumanShip.cs`), Syreen (`SyreenShip.cs`), Pkunk (`PkunkShip.cs`; its last insult per battle, `Battle.ShipState`, reset as each Pkunk is made), VUX (`VuxShip.cs`; the limpets' marks by `Battle.ModifySilhouette` into `Starship.Silhouette`, on `Starship.Icons`, which the world and the trace tests now set), Shofixti (`ShofixtiShip.cs`, the recruited one; its Glory Device counting on its captain sheet's frames; `OrzShip.cs` is only a stub for its marine test until the Orz is ported) and Chmmr (`ChmmrShip.cs`), in `RaceShips.Ported`; their thirteen traces in `battle-races-3.json` match, `pkunk-rebirth` among them (`RaceShipBattleTests`).
-- **Left:** the Orz and Melnorme; the co-op, seam and branch tests (`RaceShipCoopTests.Item4.cs`); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row.
+- **Built so far** (committed and pushed as each matched): the Earthling (`HumanShip.cs`), Syreen (`SyreenShip.cs`), Pkunk (`PkunkShip.cs`; its last insult per battle, `Battle.ShipState`, reset as each Pkunk is made), VUX (`VuxShip.cs`; the limpets' marks by `Battle.ModifySilhouette` into `Starship.Silhouette`, on `Starship.Icons`, which the world and the trace tests now set), Shofixti (`ShofixtiShip.cs`, the recruited one; its Glory Device counting on its captain sheet's frames; `OrzShip.cs` is only a stub for its marine test until the Orz is ported), Chmmr (`ChmmrShip.cs`) and Melnorme (`MelnormeShip.cs`; frames' sizes at every zoom now in `Sheet.Rects`, `Frame.Rect`, for GetFrameRect), in `RaceShips.Ported`; their fifteen traces in `battle-races-3.json` match, `pkunk-rebirth` among them (`RaceShipBattleTests`).
+- **Left:** the Orz; the co-op, seam and branch tests (`RaceShipCoopTests.Item4.cs`); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row.
 
 ## Open items
 

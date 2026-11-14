@@ -66,23 +66,33 @@ public enum PrimType : byte
 /// </summary>
 public sealed class Sheet
 {
-    public Sheet(string id, int count, IReadOnlyList<IntersectFrame>? shapes = null)
+    public Sheet(string id, int count, IReadOnlyList<IntersectFrame>? shapes = null,
+        IReadOnlyList<FrameRect>? rects = null)
     {
         if (count < 1)
             throw new ArgumentException($"{id} has no frames");
         if (shapes != null && shapes.Count != count)
             throw new ArgumentException($"{id} has {count} frames but {shapes.Count} shapes");
+        if (rects != null && rects.Count != count)
+            throw new ArgumentException($"{id} has {count} frames but {rects.Count} sizes");
         Id = id;
         Count = count;
         Shapes = shapes;
+        Rects = rects;
     }
 
     public string Id { get; }
     public int Count { get; }
     public IReadOnlyList<IntersectFrame>? Shapes { get; }
 
+    /// <summary>Each frame's size and hot spot, at any size (GetFrameRect), where known.</summary>
+    public IReadOnlyList<FrameRect>? Rects { get; }
+
     public override string ToString() => Id;
 }
+
+/// <summary>A frame's size and hot spot (GetFrameRect: its extent, and its corner at minus the hot spot).</summary>
+public readonly record struct FrameRect(int Width, int Height, int HotSpotX, int HotSpotY);
 
 /// <summary>
 /// A FRAME: a sheet and an index in it, compared as UQM compares the
@@ -120,6 +130,15 @@ public readonly record struct Frame(Sheet? Sheet, ushort Index)
 
     /// <summary>SetEquFrameIndex: <paramref name="dst"/>'s sheet at <paramref name="src"/>'s index; null if either is.</summary>
     public static Frame SetEqu(Frame dst, Frame src) => dst.IsNull || src.IsNull ? default : dst.SetAbs(src.Index);
+
+    /// <summary>
+    /// GetFrameRect: the frame's size and hot spot (its corner is minus the
+    /// hot spot), from its sheet's sizes or, for a sheet collisions test,
+    /// its shape.
+    /// </summary>
+    public FrameRect Rect => Sheet?.Rects?[Index]
+        ?? (Sheet?.Shapes?[Index] is { } s ? new FrameRect(s.Width, s.Height, s.HotSpotX, s.HotSpotY)
+            : throw new InvalidOperationException($"{Sheet?.Id ?? "a null frame"} frame {Index} has no size"));
 
     /// <summary>The frame's shape, for a sheet collisions test.</summary>
     public IntersectFrame Shape => Sheet?.Shapes?[Index]
