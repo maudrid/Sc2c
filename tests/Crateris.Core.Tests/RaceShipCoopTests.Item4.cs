@@ -341,7 +341,400 @@ public partial class RaceShipCoopTests
         Assert.Equal(total + left, team.Sum(t => t.CrewLevel));
     }
 
+    // ---- The Orz's marines ----
+
+    [ContentTheory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void TheOrzsMarinesGoForTheNearestPlayer(int players)
+    {
+        // The computer's Orz at the centre facing north; the player first
+        // in the list the nearest, 160 pixels behind it, the rest
+        // farther off about it. Its marine boards the nearest (decision 6;
+        // UQM's takes the last opposing ship in the list).
+        var (battle, orz, crowd) = Crowd("orz", players);
+        // The players in the list's order: the nearest the first.
+        var team = battle.List.Elements.Where(e => (e.StateFlags & ElementFlags.PlayerShip) != 0 && e.PlayerNr == 0)
+            .Select(e => e.Parent!).ToArray();
+        Assert.Equal(players, team.Length);
+        int cx = orz.Ship!.Current.X, cy = orz.Ship.Current.Y;
+        int[] dx = { 0, 2400, 0, -2000 }, dy = { 640, 0, -2400, -2000 };
+        for (int i = 0; i < players; ++i)
+            Put(battle, team[i].Ship!, cx + dx[i], cy + dy[i]);
+        var crew = team.Select(t => (int)t.RaceDesc!.CrewLevel).ToArray();
+        battle.Step(ship => ship == orz ? BattleInput.Weapon | BattleInput.Special : BattleInput.None);
+        var marine = Assert.Single(battle.List.Elements, e => e.Parent == orz && (e.StateFlags & ElementFlags.CrewObject) != 0);
+        for (int frame = 0; frame < 200 && (marine.StateFlags & ElementFlags.NonSolid) == 0; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.True((marine.StateFlags & ElementFlags.NonSolid) != 0, "it boarded");
+        Assert.True(team[0].RaceDesc!.CrewLevel < crew[0], "the nearest lost crew");
+        Assert.Equal(crew.Skip(1), team.Skip(1).Select(t => (int)t.RaceDesc!.CrewLevel));
+    }
+
+    [ContentTheory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void AMarineAboardStaysWithTheShipItBoarded(int players)
+    {
+        // The computer's Orz has a marine aboard the second player's
+        // ship; the first player (before it in the list) flies by and fires
+        // at it, its shots passing its teammate. The marine stays aboard the
+        // ship it boarded, following it and killing its crew; the first
+        // player loses none (UQM's marine takes the one opposing ship in the
+        // list, which here would be the first player's).
+        var (battle, orz, team) = Crowd("orz", players);
+        var boarded = team[1];
+        var marine = Board(battle, orz, boarded.Ship!);
+        Put(battle, orz.Ship!, boarded.Ship!.Current.X + 4000, boarded.Ship.Current.Y);
+        int crew = team[0].RaceDesc!.CrewLevel, boardedCrew = boarded.RaceDesc!.CrewLevel;
+        var contacts = new ContactCheck(battle);
+        for (int frame = 0; frame < 300; ++frame)
+        {
+            Put(battle, team[0].Ship!, boarded.Ship.Current.X - 200, boarded.Ship.Current.Y);
+            boarded.Ship.Velocity.Zero();
+            Face(team[0], 4);
+            contacts.Watch();
+            battle.Step(ship => ship == team[0] && frame % 4 == 0 ? BattleInput.Weapon : BattleInput.None);
+            Assert.True((marine.StateFlags & ElementFlags.NonSolid) != 0, "still aboard");
+            // At the boarded ship (where it was before the frame's scroll), not the first player's 200 pixels off.
+            Assert.InRange(battle.WrapDeltaX(marine.Next.X - boarded.Ship.Next.X), -100, 100);
+            Assert.InRange(battle.WrapDeltaY(marine.Next.Y - boarded.Ship.Next.Y), -100, 100);
+        }
+        Assert.Equal(crew, team[0].RaceDesc.CrewLevel);
+        Assert.True(boarded.RaceDesc.CrewLevel < boardedCrew - 2, "the marine killed the boarded ship's crew");
+        Assert.True(contacts.Opposing == 0, "the first player's shots hit no opponent");
+    }
+
+    [ContentFact]
+    public void AnOrzMarineFliesHomeToItsOwnShipNotATeammates()
+    {
+        // Two players' Orz; the second's (later in the list) marine on its
+        // way home (outbound no more), facing north; the first's ship
+        // (first in the list) 300 pixels west of it, its own 600 east: it turns east, home (UQM's
+        // takes the first of its side's ships in the list).
+        var (battle, _, team, _) = Team("orz", 2);
+        var (first, second) = InListOrder(battle, team[0], team[1]);
+        var marine = FreeMarine(battle, second);
+        int x = marine.Current.X, y = marine.Current.Y;
+        Put(battle, marine, x, y);
+        Put(battle, first.Ship!, x - 1200, y);
+        Put(battle, second.Ship!, x + 2400, y);
+        marine.StateFlags &= ~ElementFlags.IgnoreSimilar;
+        marine.TurnWait = 0;   // facing north, ready to turn
+        battle.Step(_ => BattleInput.None);
+        Assert.Equal(1, marine.TurnWait >> 4);   // a step east (right)
+    }
+
+    [ContentFact]
+    public void AnOrzCountsOnlyItsOwnMarinesNotATeammates()
+    {
+        // The second player's Orz has eight marines out; the first's
+        // launches one all the same (UQM's counts every marine of its
+        // sheets, which a teammate Orz shares, and would refuse at eight).
+        var (battle, first, team, ilwrath) = Team("orz", 2);
+        var second = team[1];
+        Put(battle, ilwrath.Ship!, first.Ship!.Current.X, first.Ship.Current.Y + 3000);
+        for (int i = 0; i < 8; ++i)
+        {
+            second.SpecialCounter = second.WeaponCounter = 0;
+            battle.Step(ship => ship == second ? BattleInput.Weapon | BattleInput.Special : BattleInput.None);
+        }
+        Assert.Equal(8, battle.List.Elements.Count(e => e.Parent == second && (e.StateFlags & ElementFlags.CrewObject) != 0));
+        first.SpecialCounter = first.WeaponCounter = 0;
+        battle.Step(ship => ship == first ? BattleInput.Weapon | BattleInput.Special : BattleInput.None);
+        Assert.Single(battle.List.Elements, e => e.Parent == first && (e.StateFlags & ElementFlags.CrewObject) != 0);
+    }
+
+    [ContentFact]
+    public void AnOrzLaunchesNoNinthMarine()
+    {
+        // With eight marines out, its own, it launches no more.
+        var (battle, orz, ilwrath) = Lab4("orz", 16, enemyAt: 3000);
+        for (int i = 0; i < 9; ++i)
+        {
+            orz.SpecialCounter = orz.WeaponCounter = 0;
+            battle.Step(ship => ship == orz ? BattleInput.Weapon | BattleInput.Special : BattleInput.None);
+        }
+        Assert.Equal(8, battle.List.Elements.Count(e => e.Parent == orz && (e.StateFlags & ElementFlags.CrewObject) != 0));
+        Assert.Equal(8, orz.RaceDesc!.CrewLevel);
+    }
+
+    [ContentFact]
+    public void AMarineMarksTheCaptainsWindowAndLeavesWhenTheShipHasNoCrew()
+    {
+        // Boarding, a marine marks its slot on the ship's captain's window
+        // (its frame 22, the first slot's place); when the ship's crew is
+        // gone it leaves, its mark erased, and flies free (frame 21).
+        var (battle, orz, team) = Crowd("orz", 2);
+        var boarded = team[0];
+        var marine = Board(battle, orz, boarded.Ship!);
+        var mark = Assert.Single(boarded.Silhouette);
+        Assert.Equal((22, (short)16, (short)14, false), (mark.Frame.Index, mark.X, mark.Y, mark.Erase));
+        Assert.Same(orz.RaceDesc!.Special![0].Sheet, mark.Frame.Sheet);
+        battle.DeltaCrew(boarded.Ship!, (short)-boarded.Ship!.CrewLevel);
+        battle.Step(_ => BattleInput.None);
+        Assert.Contains(boarded.Silhouette, m => m.Erase && m.Frame.Index == 22);
+        Assert.Equal(ElementFlags.None, marine.StateFlags & ElementFlags.NonSolid);
+        Assert.Equal(21, marine.Current.Frame.Index);
+    }
+
+    [ContentFact]
+    public void AMarineBoardingAShipWithOneCrewKillsIt()
+    {
+        // A marine touching a ship of one crew takes its last and doesn't board.
+        var (battle, orz, ilwrath) = Lab4("orz", 16, enemyAt: 3000, enemyCrew: 1);
+        orz.SpecialCounter = orz.WeaponCounter = 0;
+        var marine = Assert.Single(PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special),
+            e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+        FlyAt(battle, marine, ilwrath.Ship!);
+        for (int frame = 0; frame < 10 && ilwrath.RaceDesc!.CrewLevel != 0; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(0, ilwrath.RaceDesc!.CrewLevel);
+        Assert.Equal(ElementFlags.None, marine.StateFlags & ElementFlags.NonSolid);
+        battle.Step(_ => BattleInput.None);
+        Assert.True((ilwrath.Ship!.StateFlags & (ElementFlags.NonSolid | ElementFlags.FiniteLife))
+                    == (ElementFlags.NonSolid | ElementFlags.FiniteLife), "the Ilwrath is blowing up");
+    }
+
+    [ContentFact]
+    public void AMarineComingHomeIsACrewmanAgain()
+    {
+        // A marine on its way home touching its own ship comes aboard: a crewman back.
+        var (battle, orz, ilwrath) = Lab4("orz", 16, enemyAt: 3000);
+        orz.SpecialCounter = orz.WeaponCounter = 0;
+        var marine = Assert.Single(PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special),
+            e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+        Assert.Equal(15, orz.RaceDesc!.CrewLevel);
+        marine.StateFlags &= ~ElementFlags.IgnoreSimilar;
+        FlyAt(battle, marine, orz.Ship!);
+        for (int frame = 0; frame < 10 && marine.InList && marine.LifeSpan > 0; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(16, orz.RaceDesc.CrewLevel);
+    }
+
+    [ContentFact]
+    public void AMarineBumpingAShipAboardsNoMoreForFiveFrames()
+    {
+        // A marine on its way home touching the enemy ship (not boarding:
+        // outbound no more) is knocked back, its steering stopped for five frames.
+        var (battle, orz, ilwrath) = Lab4("orz", 16, enemyAt: 3000);
+        orz.SpecialCounter = orz.WeaponCounter = 0;
+        var marine = Assert.Single(PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special),
+            e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+        marine.StateFlags &= ~ElementFlags.IgnoreSimilar;
+        FlyAt(battle, marine, ilwrath.Ship!);
+        for (int frame = 0; frame < 10 && (marine.TurnWait & 0x0F) == 0; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.InRange(marine.TurnWait & 0x0F, 4, 5);
+        Assert.Equal(22, ilwrath.RaceDesc!.CrewLevel);
+        Assert.Equal(ElementFlags.None, marine.StateFlags & ElementFlags.NonSolid);
+    }
+
+    [ContentFact]
+    public void AMarineHittingThePlanetDies()
+    {
+        // A marine flying into the planet is gone; no crewman comes back.
+        var (battle, orz, _) = Lab4("orz", 16, enemyAt: 3000, keepPlanet: true);
+        var planet = KeepPlanet(battle, orz.Ship!.Current.X, orz.Ship.Current.Y + 4000);
+        orz.SpecialCounter = orz.WeaponCounter = 0;
+        var marine = Assert.Single(PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special),
+            e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+        Put(battle, marine, planet.Current.X - 300, planet.Current.Y);
+        marine.Velocity.SetVector(64, 4);
+        for (int frame = 0; frame < 20 && marine.LifeSpan > 0; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(0, marine.LifeSpan);
+        Assert.Equal(15, orz.RaceDesc!.CrewLevel);
+    }
+
+    [ContentFact]
+    public void AMarineAboardDiesWithItsOwnShip()
+    {
+        // The Orz blows up with a marine aboard the Ilwrath: as its ship's
+        // explosion ends, the marine is gone too.
+        var (battle, orz, team) = Crowd("orz", 1);
+        var marine = Board(battle, orz, team[0].Ship!);
+        Put(battle, orz.Ship!, team[0].Ship!.Current.X + 4000, team[0].Ship.Current.Y);
+        battle.DoDamage(orz.Ship!, (short)orz.Ship!.CrewLevel);
+        for (int frame = 0; frame < 60 && marine.LifeSpan != 0; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(0, marine.LifeSpan);
+    }
+
+    [ContentFact]
+    public void TheOrzsSpecialTurnsTheTurretNotTheShip()
+    {
+        // The special with right turns the turret a step (the ship's facing
+        // held), and the howitzer then fires the turret's way; the weapon
+        // and special together launch a marine, firing nothing.
+        var (battle, orz, ilwrath) = Lab4("orz", 16, enemyAt: 3000);
+        ushort facing = orz.ShipFacing;
+        battle.Step(ship => ship == orz ? BattleInput.Special | BattleInput.Right : BattleInput.None);
+        battle.Step(ship => ship == orz ? BattleInput.Special | BattleInput.Right : BattleInput.None);
+        Assert.Equal(facing, orz.ShipFacing);
+        var turret = orz.Ship!.Successor!;
+        Assert.Equal(1, turret.ThrustWait);
+        Assert.Equal((facing + 1) % 16, turret.Current.Frame.Index);
+        for (int i = 0; i < 10; ++i)
+            battle.Step(ship => ship == orz ? BattleInput.Special | BattleInput.Right : BattleInput.None);
+        Assert.Equal(facing, orz.ShipFacing);
+        int turretFacing = (orz.ShipFacing + turret.ThrustWait) & 15;
+        Assert.InRange(turret.ThrustWait, 3, 4);
+        // Its FIRES flag is the turret's quarter (turret_postprocess), for the AI.
+        Assert.Equal((ShipFlags)((int)ShipFlags.FiresFore << (((turretFacing + 2) & 15) / 4)),
+            orz.RaceDesc!.ShipFlags & (ShipFlags.FiresFore | ShipFlags.FiresRight | ShipFlags.FiresAft | ShipFlags.FiresLeft));
+        orz.WeaponCounter = 0;
+        var shell = Assert.Single(PressedOnce(battle, orz, BattleInput.Weapon), e => e.Parent == orz && e.MassPoints == 3);
+        Assert.Equal(turretFacing, shell.Current.Frame.Index);
+        orz.WeaponCounter = orz.SpecialCounter = 0;
+        var made = PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special);
+        Assert.DoesNotContain(made, e => e.Parent == orz && e.MassPoints == 3 && (e.StateFlags & ElementFlags.CrewObject) == 0);
+        Assert.Single(made, e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+    }
+
+    [ContentTheory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void AnOrzWhoseKeptTargetHasNoCrewLaunchesAtTheNextAtOnce(int players)
+    {
+        // The computer's Orz has launched at the nearest player (its ship's
+        // kept target); that player's crew runs out (the ship still there):
+        // pressed again, it launches at once, at another (UQM's TrackShip
+        // first drops the dead one and finds none that frame).
+        var (battle, orz, team) = Crowd("orz", players);
+        int cx = orz.Ship!.Current.X, cy = orz.Ship.Current.Y;
+        Put(battle, team[0].Ship!, cx, cy + 1200);
+        battle.Step(ship => ship == orz ? BattleInput.Weapon | BattleInput.Special : BattleInput.None);
+        Assert.Same(team[0].Ship, orz.Ship.Target);
+        battle.DeltaCrew(team[0].Ship!, (short)-team[0].Ship!.CrewLevel);
+        orz.SpecialCounter = orz.WeaponCounter = 0;
+        int marines = battle.List.Elements.Count(e => e.Parent == orz && (e.StateFlags & ElementFlags.CrewObject) != 0);
+        battle.Step(ship => ship == orz ? BattleInput.Weapon | BattleInput.Special : BattleInput.None);
+        Assert.Equal(marines + 1, battle.List.Elements.Count(e => e.Parent == orz && (e.StateFlags & ElementFlags.CrewObject) != 0));
+        Assert.NotSame(team[0].Ship, orz.Ship.Target);
+    }
+
+    [ContentTheory]
+    [InlineData(1.0, false, false)]
+    [InlineData(1.5, true, false)]
+    [InlineData(1.0, false, true)]
+    [InlineData(1.5, true, true)]
+    public void AMarineAimsAcrossTheSeamInABiggerArena(double scale, bool across, bool northSouth)
+    {
+        // A free marine by the west edge facing north, the player just
+        // across the seam to its west: it turns a step west (left) in a
+        // bigger arena (its aim after leading the target, measured the
+        // short way round), east in UQM's, as UQM's. With northSouth, by the
+        // north edge facing east, the player across to its north: it turns
+        // north (left), or south in UQM's.
+        var player = Player();
+        var orz = Race("orz", 1);
+        var battle = new Battle(Arena(), new[] { new[] { player }, new[] { orz } }, 7,
+            size: ArenaSize.Scaled(scale), maxElements: 300);
+        WarpIn(battle);
+        ClearArena(battle);
+        Put(battle, orz.Ship!, battle.Size.Width / 2, battle.Size.Height / 2);
+        orz.SpecialCounter = orz.WeaponCounter = 0;
+        var marine = Assert.Single(PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special),
+            e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+        Put(battle, marine, Along(battle, northSouth, 100));
+        Put(battle, player.Ship!, Along(battle, northSouth, -200));
+        int facing = Turned(northSouth, 0);
+        marine.TurnWait = (byte)(facing << 4);
+        battle.Step(_ => BattleInput.None);
+        Assert.Equal(across ? (facing + 15) % 16 : (facing + 1) % 16, marine.TurnWait >> 4);
+    }
+
+    [ContentFact]
+    public void TheOrzsTurretFlashesOnlyForItsOwnShell()
+    {
+        // Two players' Orz: the first in the list fires (its shell, then its
+        // turret's flash, at the list's tail); the second presses its weapon
+        // but isn't ready: its turret makes no flash for the other's (UQM's
+        // takes any of its side's new stamps at the tail).
+        var (battle, _, team, _) = Team("orz", 2);
+        var (first, second) = InListOrder(battle, team[0], team[1]);
+        bool Flash(Element e, Starship of) => e.Parent == of && ReferenceEquals(e.Current.FrameArray, of.RaceDesc!.Special)
+                                               && e.Current.Frame.Index >= 16 && (e.StateFlags & ElementFlags.CrewObject) == 0;
+        first.WeaponCounter = 0;
+        second.WeaponCounter = 3;
+        var made = PressedOnceBy(battle, s => s == first || s == second ? BattleInput.Weapon : BattleInput.None);
+        Assert.Single(made, e => Flash(e, first));
+        Assert.DoesNotContain(made, e => Flash(e, second));
+    }
+
+    [ContentFact]
+    public void TheOrzsAiLaunchesWithCrewToSpareAtAShipWithoutPointDefence()
+    {
+        // The enemy far behind it: with its 16 crew it launches marines; with
+        // a quarter of its crew, or at a ship with point defence, it doesn't.
+        foreach (var (crew, pointDefence, launches) in new[] { (16, false, true), (4, false, false), (16, true, false) })
+        {
+            var (battle, orz, ilwrath) = Lab4("orz", crew, enemyAt: -2400);
+            if (pointDefence)
+                ilwrath.RaceDesc!.ShipFlags |= ShipFlags.PointDefense;
+            var concerns = OwnAi(battle, orz, ilwrath.Ship!, MoveState.Pursue, 30);
+            Assert.Equal(launches, (orz.ShipInputState & (StatusFlags.Weapon | StatusFlags.Special))
+                                   == (StatusFlags.Weapon | StatusFlags.Special));
+        }
+    }
+
+    // Two ships in the order their elements are in the list.
+    private static (Starship First, Starship Second) InListOrder(Battle battle, Starship a, Starship b)
+    {
+        var ships = battle.List.Elements.Where(e => (e.StateFlags & ElementFlags.PlayerShip) != 0).ToList();
+        return ships.IndexOf(a.Ship!) < ships.IndexOf(b.Ship!) ? (a, b) : (b, a);
+    }
+
+    // A free marine of the ship's, just launched.
+    private static Element FreeMarine(Battle battle, Starship orz)
+    {
+        orz.SpecialCounter = orz.WeaponCounter = 0;
+        return Assert.Single(PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special),
+            e => (e.StateFlags & ElementFlags.CrewObject) != 0);
+    }
+
+    // The planet kept (or put back) at a place; returned.
+    private static Element KeepPlanet(Battle battle, int x, int y)
+    {
+        var planet = battle.List.Elements.FirstOrDefault(e => Battle.GravityMass(e.MassPoints));
+        Assert.NotNull(planet);
+        Put(battle, planet!, x, y);
+        return planet!;
+    }
+
     // ---- Helpers ----
+
+    // As Lab: a race ship of side 0 at the centre facing east, the Ilwrath
+    // (not cloaking) ahead or far off; but only the asteroids (and the
+    // planet unless kept) taken out, the ships' own elements (the Orz's
+    // turret, the Chmmr's satellites coming) kept.
+    private static (Battle Battle, Starship Race, Starship Ilwrath) Lab4(string race, int crew, int enemyAt = 4000,
+        int enemyCrew = 22, bool keepPlanet = false, double scale = 1.0)
+    {
+        var d = BattleReplay.Ships[race];
+        var ship = new Starship(RaceShips.Code(d, r => BattleReplay.Sheets.Value.Views(r)), 0, (ushort)crew, (ushort)d.MaxCrew);
+        var ilwrath = new Starship(ShipBattleTests.Ship(IlwrathInput(), noCloak: true).Code, 1, (ushort)enemyCrew, 0)
+            { CaptainsNameIndex = 5 };
+        var battle = new Battle(Arena(), new[] { new[] { ship }, new[] { ilwrath } }, 808,
+            size: ArenaSize.Scaled(scale), maxElements: 300);
+        WarpIn(battle);
+        foreach (var e in battle.List.Elements.Where(e => (e.StateFlags & ElementFlags.PlayerShip) == 0
+                                                          && (e.Parent == null || e.PlayerNr == Battle.NeutralPlayerNum)
+                                                          && !(keepPlanet && Battle.GravityMass(e.MassPoints))).ToList())
+        {
+            battle.List.Remove(e);
+            battle.List.Free(e);
+        }
+        int cx = battle.Size.Width / 2, cy = battle.Size.Height / 2;
+        Face(ship, 4);
+        Face(ilwrath, 4);
+        Put(battle, ship.Ship!, cx, cy);
+        Put(battle, ilwrath.Ship!, cx + enemyAt, cy);
+        ship.WeaponCounter = ship.SpecialCounter = 0;
+        ship.ShipInputState = ship.OldStatusFlags = StatusFlags.None;
+        return (battle, ship, ilwrath);
+    }
 
     // A race ship of side 0 (the player's) at the centre facing east, its
     // teammates (more of the same, in the battle in turn) about it within
@@ -437,6 +830,23 @@ public partial class RaceShipCoopTests
         return battle.List.Elements.Where(e => !before.Contains(e)).ToList();
     }
 
+    // An element put just clear of a ship to its west, flying east at it
+    // (things standing still don't touch).
+    private static void FlyAt(Battle battle, Element e, Element ship)
+    {
+        var shape = ship.IntersectStamp.Shape;
+        Put(battle, e, ship.Current.X - Battle.DisplayToWorld(shape.Width / 2 + 10), ship.Current.Y);
+        e.Velocity.SetVector(40, 4);
+    }
+
+    // A frame with the keys given; the elements made in it.
+    private static List<Element> PressedOnceBy(Battle battle, Func<Starship, BattleInput> keys)
+    {
+        var before = battle.List.Elements.ToHashSet();
+        battle.Step(keys);
+        return battle.List.Elements.Where(e => !before.Contains(e)).ToList();
+    }
+
     // An Orz's marine launched and put aboard a ship (as marine_collision
     // does when it touches it): returns the marine.
     private static Element Board(Battle battle, Starship orz, Element ship)
@@ -445,9 +855,7 @@ public partial class RaceShipCoopTests
         var made = PressedOnce(battle, orz, BattleInput.Weapon | BattleInput.Special);
         var marine = Assert.Single(made, e => ReferenceEquals(e.Current.FrameArray, orz.RaceDesc!.Special)
                                               && (e.StateFlags & ElementFlags.CrewObject) != 0);
-        // Flying at it from just west of it (still things don't touch).
-        Put(battle, marine, ship.Current.X - 60, ship.Current.Y);
-        marine.Velocity.SetVector(40, 4);
+        FlyAt(battle, marine, ship);
         for (int frame = 0; frame < 10 && (marine.StateFlags & ElementFlags.NonSolid) == 0; ++frame)
             battle.Step(_ => BattleInput.None);
         Assert.True((marine.StateFlags & ElementFlags.NonSolid) != 0, "the marine boarded");
