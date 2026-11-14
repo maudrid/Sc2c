@@ -966,12 +966,15 @@ public partial class RaceShipCoopTests
             Assert.NotNull(Confusion(battle, melnorme, target));
             Put(battle, target.Ship!, melnorme.Ship.Current.X + 3000, melnorme.Ship.Current.Y + 2000 * (team.ToList().IndexOf(target) + 1));
         }
-        battle.Step(_ => BattleInput.None);
+        // The confused press their specials: the confusion takes them away and turns them.
+        battle.Step(ship => ship.PlayerNr == 0 ? BattleInput.Special : BattleInput.None);
         Assert.All(team.Take(2), t =>
         {
             Assert.NotNull(Confusion(battle, melnorme, t));
             Assert.NotEqual(StatusFlags.None, t.ShipInputState & (StatusFlags.Left | StatusFlags.Right));
+            Assert.Equal(StatusFlags.None, t.ShipInputState & StatusFlags.Special);
         });
+        Assert.All(team.Skip(2), t => Assert.Equal(StatusFlags.Special, t.ShipInputState & StatusFlags.Special));
         Assert.All(team.Skip(2), t => Assert.Null(Confusion(battle, melnorme, t)));
     }
 
@@ -1179,6 +1182,27 @@ public partial class RaceShipCoopTests
         Assert.Single(made, e => e.Parent == first && e.Prim == PrimType.Line);
         Assert.DoesNotContain(made, e => e.Prim == PrimType.Stamp && ReferenceEquals(e.Current.FrameArray, second.RaceDesc.Weapon));
         Assert.DoesNotContain(made, e => e.Parent == second);
+    }
+
+    [ContentFact]
+    public void TheChmmrHasPointDefenceWhileASatelliteLives()
+    {
+        // A satellite shot down takes its point defence away (as the AI
+        // reads it), until another's step puts it back; with all three gone
+        // it has none, and the satellites break up.
+        var (battle, chmmr, _) = Lab4("chmmr", 42);
+        WaitForSatellites(battle, chmmr);
+        var satellites = battle.List.Elements.Where(e => e.Parent == chmmr && ReferenceEquals(e.Current.FrameArray, chmmr.RaceDesc!.Special)).ToList();
+        var rd = chmmr.RaceDesc!;
+        battle.DoDamage(satellites[0], 10);
+        battle.Step(_ => BattleInput.None);
+        Assert.Equal(ShipFlags.PointDefense, rd.ShipFlags & ShipFlags.PointDefense);
+        foreach (var satellite in satellites.Skip(1))
+            battle.DoDamage(satellite, 10);
+        for (int frame = 0; frame < 2; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(ShipFlags.None, rd.ShipFlags & ShipFlags.PointDefense);
+        Assert.All(satellites, s => Assert.True(!s.InList || ((s.StateFlags & ElementFlags.NonSolid) != 0 && s.LifeSpan <= 4), "breaking up"));
     }
 
     // ---- The seam ----
@@ -1400,6 +1424,34 @@ public partial class RaceShipCoopTests
         Assert.NotEqual(StatusFlags.None, pkunk.ShipInputState & StatusFlags.Special);
     }
 
+    [ContentFact]
+    public void TheGloryDeviceDestroysAShotItsDamageReaches()
+    {
+        // Ilwrath shots 170 pixels off take 2: one of 2 hit points is gone,
+        // one of 3 left with 1.
+        var (battle, shofixti, ilwrath) = Lab4("shofixti", 6, enemyAt: 4000);
+        var shots = Shots(battle, new[] { ilwrath });
+        shots.Add(Shots(battle, new[] { ilwrath })[0]);
+        shots[0].HitPoints = 2;
+        shots[1].HitPoints = 3;
+        int x = shofixti.Ship!.Current.X, y = shofixti.Ship.Current.Y;
+        Put(battle, shots[0], x + Battle.DisplayToWorld(170), y);
+        Put(battle, shots[1], x - Battle.DisplayToWorld(170), y);
+        foreach (var s in shots)
+            s.LifeSpan = 20;
+        var before = battle.List.Elements.ToHashSet();
+        for (int i = 0; i < 5; ++i)
+        {
+            shofixti.CurStatusFlags = StatusFlags.Special;
+            shofixti.OldStatusFlags = StatusFlags.None;
+            shofixti.RaceDesc!.Postprocess!(shofixti.Ship);
+        }
+        var helper = Assert.Single(battle.List.Elements, e => !before.Contains(e) && e.DeathFunc != null);
+        helper.DeathFunc!(helper);
+        Assert.Equal((0, 0), (shots[0].HitPoints, shots[0].LifeSpan));
+        Assert.Equal((1, 20), (shots[1].HitPoints, shots[1].LifeSpan));
+    }
+
     // ---- The Glory Device's winner ----
 
     [ContentFact]
@@ -1415,6 +1467,51 @@ public partial class RaceShipCoopTests
             battle.Step(_ => BattleInput.None);
             Assert.Same(takesIt ? shofixti : ilwrath, battle.Winner);
         }
+    }
+
+    [ContentFact]
+    public void TheMelnormesConfusionGoesWithTheShipItsOn()
+    {
+        // A player confused leaves the battle (its ship no more): the
+        // confusion on it goes at once, not lasting out its 400 frames.
+        var (battle, melnorme, team) = Crowd("melnorme", 2);
+        var target = team[0];
+        Put(battle, target.Ship!, melnorme.Ship!.Current.X, melnorme.Ship.Current.Y - 1200);
+        battle.Step(ship => ship == melnorme ? BattleInput.Special : BattleInput.None);
+        for (int frame = 0; frame < 20 && Confusion(battle, melnorme, target) == null; ++frame)
+        {
+            target.Ship!.Velocity.Zero();
+            battle.Step(_ => BattleInput.None);
+        }
+        var confusion = Confusion(battle, melnorme, target)!;
+        Assert.NotNull(confusion);
+        battle.Leave(target);
+        Assert.Null(confusion.Target);
+        for (int frame = 0; frame < 3; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.False(confusion.InList && confusion.Parent == melnorme && confusion.LifeSpan > 0, "the confusion is gone");
+    }
+
+    [ContentFact]
+    public void TheMelnormesChargedShotsBlastLongerTheMoreCharged()
+    {
+        // A shot let go at its top level (its level count 3) hits the
+        // Ilwrath ahead: its blast (the weapon's last frames) lasts
+        // MIN_PUMPITUDE_ANIMS + 3 = 6 frames.
+        var (battle, melnorme, ilwrath) = Lab4("melnorme", 20);
+        for (int frame = 0; frame < 230; ++frame)
+            battle.Step(ship => ship == melnorme ? BattleInput.Weapon : BattleInput.None);
+        Put(battle, ilwrath.Ship!, melnorme.Ship!.Current.X + 600, melnorme.Ship.Current.Y);
+        Element? blast = null;
+        for (int frame = 0; frame < 20 && blast == null; ++frame)
+        {
+            ilwrath.Ship!.Velocity.Zero();
+            blast = PressedOnce(battle, melnorme, BattleInput.None)
+                .FirstOrDefault(e => ReferenceEquals(e.Current.FrameArray, melnorme.RaceDesc!.Weapon) && e.Current.Frame.Index >= 20);
+        }
+        Assert.NotNull(blast);
+        Assert.Equal(22 - 16, ilwrath.RaceDesc!.CrewLevel);   // 16 damage: its top level's
+        Assert.InRange(blast!.LifeSpan, 5, 6);
     }
 
     // ---- Helpers ----
