@@ -484,6 +484,11 @@ public partial class Main : Node2D
                 Log(host.StartAt(at.X, at.Y));
             if (_options.StartOrbit is { } o)
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
+            // The fleet and alliances before the visit, which keeps the fleet as it began for its saves and Undo.
+            if (_options.StartAllied is { } allied)
+                Log(host.StartAllied(allied));
+            if (_options.StartFleet is { } fleet)
+                Log(host.StartWithFleet(fleet));
             if (_options.StartVisit)
                 Log(host.StartVisit(_options.StartVisitStep));
             if (_options.StartMinerals is { } minerals)
@@ -492,10 +497,6 @@ public partial class Main : Node2D
                 Log(host.StartWithUnits(units));
             if (_options.StartDevices is { } devices)
                 Log(host.StartWithDevices(devices));
-            if (_options.StartAllied is { } allied)
-                Log(host.StartAllied(allied));
-            if (_options.StartFleet is { } fleet)
-                Log(host.StartWithFleet(fleet));
             if (_options.StartDocked)
                 Log(host.StartDocked());
             if (_options.StartBattle is { } race)

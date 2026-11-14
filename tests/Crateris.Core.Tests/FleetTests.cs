@@ -175,7 +175,7 @@ public class FleetTests
         }
         Refused(new FleetShip("NOT_A_SHIP", 1, 5, 0));
         Refused(new FleetShip("URQUAN_DRONE_SHIP", 1, 5, 0));
-        Refused(new FleetShip(Arilou, 0, 5, 0));
+        Refused(new FleetShip(Arilou, -1, 5, 0));
         Refused(new FleetShip(Arilou, 7, 5, 0));
         Refused(new FleetShip(Arilou, 6, 4, 0));
         Refused(new FleetShip(Arilou, 6, 21, 0));
@@ -184,8 +184,9 @@ public class FleetTests
         Refused(new FleetShip(Arilou, 6, 5, 3), new FleetShip(Spathi, 6, 5, 3));
         Refused(Enumerable.Range(0, 13).Select(i => new FleetShip(Arilou, 6, 5, i % 12)).ToArray());
         // In any order, kept by slot.
-        fleet.Restore(Rules, new[] { new FleetShip(Spathi, 30, 20, 11), new FleetShip(Arilou, 1, 5, 4) });
+        fleet.Restore(Rules, new[] { new FleetShip(Spathi, 30, 20, 11), new FleetShip(Arilou, 0, 5, 4) });
         Assert.Equal(new[] { 4, 11 }, fleet.Ships.Select(s => s.Slot));
+        Assert.Equal(0, fleet.InSlot(4)!.Crew);   // a ship whose crew the shipyard sent away stays
     }
 
     // A world of hyperspace only with a story (the fleet's rules), the host and guests g1, ...
@@ -332,12 +333,29 @@ public class FleetTests
     }
 
     [ContentFact]
+    public void TheArilouJoinAsFarAsTheFleetHasRoomAndTheNewsIsGiven()
+    {
+        // AddEscortShips takes what room there is: one of the three; the bulletin is told all the same.
+        var world = AlliedWithTheSpawner();
+        world.AddFleetShips(Spathi, 11);
+        var events = TalkToTheCommander(world, "host");
+        Assert.Equal(new EscortsAdded(Rules.RaceIndex(Arilou), 3, 1), Assert.Single(events.OfType<EscortsAdded>()));
+        Assert.Equal((12, 1), (world.Fleet.Count, world.Fleet.CountOf(Arilou)));
+        Assert.Equal(11, world.Fleet.InSlot(11)!.Slot);
+        var visit = world.Host.Ship.Visit!;
+        int bye = visit.Talk!.Replies.Select(r => r.Phrase).ToList().IndexOf(Scripts["starbas"].PhraseNumber("goodbye_commander"));
+        Assert.True(world.ChooseReply("host", bye, visit.Round));
+        Assert.Equal(1u << 5, world.Story!.Get32("STARBASE_BULLETS0") & (1u << 5));
+    }
+
+    [ContentFact]
     public void AFleetIsSavedAndLoadedAndAnOlderSaveHasNone()
     {
         var world = AlliedWithTheSpawner();
         world.AddFleetShips(Arilou, 2);
         world.AddFleetShips("SYREEN_SHIP", 1);
         world.Fleet.SetCrew(Rules, 2, 30);
+        world.Fleet.SetCrew(Rules, 1, 0);   // its crew sent away: saved and loaded as it is
         string json = HostSave.ToJson(world);
         var node = JsonNode.Parse(json)!;
         Assert.Equal(12, node["version"]!.GetValue<int>());
@@ -356,7 +374,7 @@ public class FleetTests
         Assert.Empty(HostSave.FromJson(old.ToJsonString(), Systems.Value, TestContent.Shapes).Fleet.Ships);
 
         // A bad fleet is refused.
-        foreach (var (field, value) in new (string, JsonNode?)[] { ("crew", 0), ("captain", 30), ("slot", 12), ("race", "NOT_A_SHIP"), ("race", null) })
+        foreach (var (field, value) in new (string, JsonNode?)[] { ("crew", -1), ("captain", 30), ("slot", 12), ("race", "NOT_A_SHIP"), ("race", null) })
         {
             var bad = JsonNode.Parse(json)!;
             bad["fleet"]![0]![field] = value?.DeepClone();

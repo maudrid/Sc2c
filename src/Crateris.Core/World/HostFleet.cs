@@ -154,7 +154,8 @@ public sealed class HostFleet
 
     /// <summary>
     /// The fleet as a save holds it, or as a test sets it: every ship's
-    /// race one that can have a fleet, its crew from 1 to its most, its
+    /// race one that can have a fleet, its crew from 0 to its most (the
+    /// shipyard keeps a ship whose crew it sent away, as UQM's), its
     /// captain one of its race's 16 names, its slot 0 to 11 and its own;
     /// 12 ships at most. Anything else is an <see cref="ArgumentException"/>,
     /// and the fleet is left as it was.
@@ -167,8 +168,8 @@ public sealed class HostFleet
         foreach (var s in list)
         {
             var raceShip = Fleetable(rules, s.Race);
-            if (s.Crew < 1 || s.Crew > raceShip.MaxCrew)
-                throw new ArgumentException($"a {s.Race} of {s.Crew} crew: 1 to {raceShip.MaxCrew}");
+            if (s.Crew < 0 || s.Crew > raceShip.MaxCrew)
+                throw new ArgumentException($"a {s.Race} of {s.Crew} crew: 0 to {raceShip.MaxCrew}");
             if (s.Captain is < CaptainNameOffset or >= CaptainNameOffset + NumCaptainsNames)
                 throw new ArgumentException($"a {s.Race}'s captain {s.Captain} isn't one of its names");
             if (s.Slot is < 0 or >= MaxShips)
