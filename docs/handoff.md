@@ -19,7 +19,8 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Debugging aid:** a UQM run of one recorded battle with full frames can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings`, `images`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
 - **Tests so far:** `RaceShipCoopTests`' theories take item 4's ships; `RaceShipCoopTests.Item4.cs` has point defence, the Glory Device and the song with two and four players (mutations caught so far: the Earthling's and the Glory Device's teammate checks, ORZ_MARINE, the song's side check and its crew cap).
 - **Orz tests done** (the marines' nearest target, staying aboard, flying home, the count, the captain's window, the kept target, the seam, the turret, the AI; each probed).
-- **Left:** the rest of the co-op, seam and branch tests (the Pkunk, VUX, Melnorme, the Chmmr's tractor, the seam cases of the other ships, homing, the AIs); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row; a headless `--start-battle`.
+- **Pkunk, VUX and Melnorme tests done** (each probed).
+- **Left:** the rest of the co-op, seam and branch tests (the Chmmr's tractor, the seam cases of the other ships, homing, the AIs); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row; a headless `--start-battle`.
 
 ## Open items
 

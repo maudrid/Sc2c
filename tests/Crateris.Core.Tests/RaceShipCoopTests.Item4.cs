@@ -703,6 +703,308 @@ public partial class RaceShipCoopTests
         return planet!;
     }
 
+    // ---- The Pkunk's rebirth and insults ----
+
+    [ContentFact]
+    public void ThePkunksRebirthReachesTheWholeArena()
+    {
+        // In an arena three times UQM's, the Pkunk is killed again and again;
+        // the places it's reborn at (new_pkunk's, before the frame's scroll)
+        // are all within the arena, and reach past UQM's.
+        var places = new List<(int X, int Y)>();
+        int width = 0, height = 0;
+        for (uint seed = 1; seed < 400 && places.Count < 20; ++seed)
+        {
+            var (battle, pkunk, _) = Lab4("pkunk", 8, scale: 3, seed: seed);
+            (width, height) = (battle.Size.Width, battle.Size.Height);
+            ElementProcess? wrapped = null;
+            for (int frame = 0; frame < 2000 && places.Count < 20 && pkunk.RaceDesc != null && pkunk.Ship != null; ++frame)
+            {
+                var ship = pkunk.Ship;
+                if (ship.DeathFunc != null && ship.DeathFunc != wrapped)
+                {
+                    var inner = ship.DeathFunc;
+                    wrapped = e =>
+                    {
+                        inner(e);
+                        if ((e.StateFlags & ElementFlags.Appearing) != 0 && e.Target != null)
+                            places.Add((e.Current.X, e.Current.Y));
+                    };
+                    ship.DeathFunc = wrapped;
+                }
+                if (pkunk.RaceDesc.CrewLevel == 8 && (ship.StateFlags & (ElementFlags.NonSolid | ElementFlags.Appearing)) == 0)
+                    battle.DoDamage(ship, 8);
+                battle.Step(_ => BattleInput.None);
+            }
+        }
+        Assert.Equal(20, places.Count);
+        Assert.All(places, p => Assert.True(p.X >= 0 && p.X < width && p.Y >= 0 && p.Y < height, $"{p}"));
+        Assert.Contains(places, p => p.X >= Battle.LogSpaceWidth);
+        Assert.Contains(places, p => p.Y >= Battle.LogSpaceHeight);
+    }
+
+    [ContentFact]
+    public void ThePkunksLastInsultIsForgottenWhenAPkunkIsMadeNotWhenOneIsReborn()
+    {
+        // The battle's last insult (pkunk.c's LastSound) stays as it was
+        // through a rebirth, and goes back to 0 when another Pkunk is made
+        // (init_pkunk, as each Pkunk warps in).
+        var (battle, pkunk, _) = PkunkWithPhoenix();
+        var insults = battle.ShipState<PkunkShip.Insults>();
+        insults.LastSound = 7;
+        battle.DoDamage(pkunk.Ship!, 8);
+        for (int frame = 0; frame < 80 && pkunk.RaceDesc!.CrewLevel != 8; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(8, pkunk.RaceDesc!.CrewLevel);
+        Assert.Equal(7, insults.LastSound);
+        Assert.True(battle.Join(Race("pkunk", 0)));
+        for (int frame = 0; frame < 3; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(0, insults.LastSound);
+    }
+
+    [ContentFact]
+    public void ThePkunkNeverInsultsWithTheSameInsultTwice()
+    {
+        // Sixty insults: each one of the twelve (sounds 2 to 13), none the
+        // one before it; each gives it 2 energy.
+        var (battle, pkunk, _) = Lab4("pkunk", 8);
+        var insults = battle.ShipState<PkunkShip.Insults>();
+        var rd = pkunk.RaceDesc!;
+        var heard = new List<int>();
+        for (int i = 0; i < 60; ++i)
+        {
+            rd.EnergyLevel = 0;
+            rd.Characteristics.SpecialWait = 0;
+            battle.Step(ship => ship == pkunk ? BattleInput.Special : BattleInput.None);
+            heard.Add(insults.LastSound);
+            Assert.Equal(2, rd.EnergyLevel);
+        }
+        Assert.All(heard, h => Assert.InRange(h, 2, PkunkShip.SoundCount - 1));
+        Assert.All(heard.Zip(heard.Skip(1)), p => Assert.NotEqual(p.First, p.Second));
+        Assert.True(heard.Distinct().Count() > 6, "many insults heard");
+    }
+
+    [ContentFact]
+    public void ThePkunksSoundCountIsTheContents()
+    {
+        // GetSoundCount (ship.pkunk.sounds): the content's sound list.
+        int count = TestContent.With(p => System.Text.Encoding.ASCII.GetString(p.ReadResource("ship.pkunk.sounds"))
+            .Split('\n').Count(l => l.Trim().Length > 0));
+        Assert.Equal(count, PkunkShip.SoundCount);
+    }
+
+    [ContentFact]
+    public void ThePkunkRebornHasItsCrewEnergyAndCharacteristicsBack()
+    {
+        // Reborn, it has all its crew and energy, its characteristics as
+        // built (a VUX's limpets shaken off), its keys and counters clear,
+        // its insult's wait none.
+        var (battle, pkunk, _) = PkunkWithPhoenix();
+        var rd = pkunk.RaceDesc!;
+        var c = rd.Characteristics;
+        var built = (c.MaxThrust, c.ThrustIncrement, c.TurnWait, c.ThrustWait);
+        c.MaxThrust = 30;
+        c.ThrustIncrement = 10;
+        c.TurnWait = 4;
+        c.ThrustWait = 3;
+        c.SpecialWait = 9;
+        rd.EnergyLevel = 1;
+        battle.DoDamage(pkunk.Ship!, 8);
+        for (int frame = 0; frame < 80 && rd.CrewLevel != 8; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(8, rd.CrewLevel);
+        Assert.Equal(12, rd.EnergyLevel);
+        Assert.Equal(built, (c.MaxThrust, c.ThrustIncrement, c.TurnWait, c.ThrustWait));
+        Assert.Equal(0, c.SpecialWait);
+        Assert.Equal((0, 0, 0), (pkunk.WeaponCounter, pkunk.SpecialCounter, pkunk.EnergyCounter));
+    }
+
+    [ContentFact]
+    public void ThePkunkAtTheStandardRatingHasNoPhoenix()
+    {
+        // UQM's standard AI takes the phoenix away; the awesome AI keeps it.
+        foreach (var (rating, kept) in new[] { (CyborgRating.Awesome, true), (CyborgRating.Standard, false) })
+        {
+            var (battle, pkunk, _) = PkunkWithPhoenix();
+            var phoenix = Phoenix(battle, pkunk)!;
+            battle.ComputerIntelligence(pkunk, rating);
+            Assert.Equal(kept, phoenix.InList);
+        }
+    }
+
+    [ContentFact]
+    public void APkunkDyingAsItRetreatsIsntReborn()
+    {
+        // With a phoenix, the Pkunk (a player's, able to retreat) flashes
+        // red to warp out and is killed meanwhile: it isn't reborn.
+        for (uint seed = 1; seed < 100; ++seed)
+        {
+            var (battle, pkunk, _) = Lab4("pkunk", 8, seed: seed, runAway: true);
+            if (Phoenix(battle, pkunk) == null)
+                continue;
+            battle.Step(ship => ship == pkunk ? BattleInput.Escape : BattleInput.None);
+            Assert.Equal(Battle.MaxShipMass * 10, pkunk.Ship!.MassPoints);
+            battle.DoDamage(pkunk.Ship, 8);
+            bool reborn = false;
+            for (int frame = 0; frame < 80 && battle.InBattle; ++frame)
+            {
+                battle.Step(_ => BattleInput.None);
+                reborn |= pkunk.RaceDesc?.CrewLevel == 8;
+            }
+            Assert.False(reborn);
+            return;
+        }
+        Assert.Fail("no Pkunk had a phoenix");
+    }
+
+    // A Pkunk (side 0) with a phoenix watching over it (half of them have one).
+    private static (Battle Battle, Starship Pkunk, Starship Ilwrath) PkunkWithPhoenix()
+    {
+        for (uint seed = 1; seed < 100; ++seed)
+        {
+            var lab = Lab4("pkunk", 8, seed: seed);
+            if (Phoenix(lab.Battle, lab.Race) != null)
+                return lab;
+        }
+        throw new InvalidOperationException("no Pkunk had a phoenix");
+    }
+
+    // The Pkunk's phoenix (intercept_pkunk_death's element at the list's head), or none.
+    private static Element? Phoenix(Battle battle, Starship pkunk) =>
+        battle.List.Elements.FirstOrDefault(e => e.Parent == pkunk && (e.StateFlags & ElementFlags.PlayerShip) == 0
+                                                 && e.DeathFunc != null
+                                                 && (e.StateFlags & ElementFlags.NonSolid) != 0 && e.Prim == PrimType.None
+                                                 && e.PostprocessFunc == null && e.PreprocessFunc == null);
+
+    // ---- The VUX's limpets ----
+
+    [ContentFact]
+    public void AVuxLimpetSlowsTheShipItSticksToAndMarksItsWindow()
+    {
+        // A limpet stuck on the Ilwrath behind the VUX: a frame more to turn
+        // and to thrust, a step less thrust (its top speed as many steps of
+        // it), the AI to work its manoeuvrability out again; a slime frame
+        // marked on its captain's window, over its silhouette (on the
+        // panel's right half), drawn at random.
+        var places = new List<string>();
+        var (battle, vux, ilwrath) = Lab4("vux", 20, enemyAt: -1200, places: places);
+        ilwrath.Icons = RaceShips.Icons(BattleReplay.Ships[ShipDescriptions.Ilwrath], r => BattleReplay.Sheets.Value.Views(r));
+        var c = ilwrath.RaceDesc!.Characteristics;
+        var before = (c.TurnWait, c.ThrustWait, c.ThrustIncrement, c.MaxThrust);
+        ilwrath.RaceDesc.ManeuverabilityIndex = 33;
+        Limpet(battle, vux, ilwrath);
+        Assert.Equal(before.TurnWait + 1, c.TurnWait);
+        Assert.Equal(before.ThrustWait + 1, c.ThrustWait);
+        Assert.Equal(before.ThrustIncrement - 1, c.ThrustIncrement);
+        Assert.Equal((before.MaxThrust / before.ThrustIncrement) * (before.ThrustIncrement - 1), c.MaxThrust);
+        Assert.Equal(0, ilwrath.RaceDesc.ManeuverabilityIndex);
+        var mark = Assert.Single(ilwrath.Silhouette);
+        Assert.Same(vux.RaceDesc!.Weapon![0].Sheet, mark.Frame.Sheet);
+        Assert.False(mark.Erase);
+        Assert.InRange(mark.X, 0, 64);
+        Assert.Contains("ModifySilhouette", places);
+    }
+
+    [ContentFact]
+    public void AVuxLimpetOnAShipOfLowThrustDoublesItAndMarksNothingWithoutIcons()
+    {
+        // A ship of thrust steps of 4 or less: its top speed is two steps.
+        // A ship without status icons takes no mark and no place is drawn.
+        var places = new List<string>();
+        var (battle, vux, ilwrath) = Lab4("vux", 20, enemyAt: -1200, places: places);
+        var c = ilwrath.RaceDesc!.Characteristics;
+        c.ThrustIncrement = 4;
+        c.TurnWait = c.ThrustWait = 255;
+        Limpet(battle, vux, ilwrath);
+        Assert.Equal(4, c.ThrustIncrement);
+        Assert.Equal(8, c.MaxThrust);
+        Assert.Equal((255, 255), (c.TurnWait, c.ThrustWait));   // at most
+        Assert.Empty(ilwrath.Silhouette);
+        Assert.DoesNotContain("ModifySilhouette", places);
+        Assert.Contains("limpet_collision", places);
+    }
+
+    // A limpet dropped behind the VUX and stuck on the Ilwrath behind it.
+    private static void Limpet(Battle battle, Starship vux, Starship ilwrath)
+    {
+        int crew = ilwrath.RaceDesc!.CrewLevel;
+        var limpet = Assert.Single(PressedOnce(battle, vux, BattleInput.Special),
+            e => ReferenceEquals(e.Current.FrameArray, vux.RaceDesc!.Special));
+        for (int frame = 0; frame < 120 && limpet.InList && limpet.LifeSpan > 0; ++frame)
+        {
+            ilwrath.Ship!.Velocity.Zero();
+            battle.Step(_ => BattleInput.None);
+        }
+        Assert.False(limpet.InList && limpet.LifeSpan > 0, "the limpet stuck");
+        Assert.Equal(crew, ilwrath.RaceDesc.CrewLevel);
+    }
+
+    // ---- The Melnorme ----
+
+    [ContentTheory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void TheMelnormesConfusionConfusesEachPlayerItHits(int players)
+    {
+        // The computer's Melnorme confuses one player, then another: each
+        // has a confusion of its own (UQM's renews its one confusion,
+        // keeping it on the first ship), turning its keys.
+        var (battle, melnorme, team) = Crowd("melnorme", players);
+        foreach (var target in team.Take(2))
+        {
+            int cx = melnorme.Ship!.Current.X, cy = melnorme.Ship.Current.Y;
+            Put(battle, target.Ship!, cx, cy - 1200);
+            melnorme.SpecialCounter = 0;
+            melnorme.RaceDesc!.EnergyLevel = melnorme.RaceDesc.MaxEnergy;
+            battle.Step(ship => ship == melnorme ? BattleInput.Special : BattleInput.None);
+            for (int frame = 0; frame < 20 && Confusion(battle, melnorme, target) == null; ++frame)
+            {
+                target.Ship!.Velocity.Zero();
+                battle.Step(_ => BattleInput.None);
+            }
+            Assert.NotNull(Confusion(battle, melnorme, target));
+            Put(battle, target.Ship!, melnorme.Ship.Current.X + 3000, melnorme.Ship.Current.Y + 2000 * (team.ToList().IndexOf(target) + 1));
+        }
+        battle.Step(_ => BattleInput.None);
+        Assert.All(team.Take(2), t =>
+        {
+            Assert.NotNull(Confusion(battle, melnorme, t));
+            Assert.NotEqual(StatusFlags.None, t.ShipInputState & (StatusFlags.Left | StatusFlags.Right));
+        });
+        Assert.All(team.Skip(2), t => Assert.Null(Confusion(battle, melnorme, t)));
+    }
+
+    // The Melnorme's confusion on a ship, if any.
+    private static Element? Confusion(Battle battle, Starship melnorme, Starship ship) =>
+        battle.List.Elements.FirstOrDefault(e => e.Parent == melnorme && e.Target == ship.Ship && e.LifeSpan > 1
+                                                 && (e.StateFlags & ElementFlags.NonSolid) != 0
+                                                 && ReferenceEquals(e.Current.FrameArray, melnorme.RaceDesc!.Special));
+
+    [ContentFact]
+    public void TheMelnormesBlasterChargesFourLevelsWhileHeld()
+    {
+        // Held, its shot at the nose doubles its damage every 72 frames, up
+        // to 16 (four levels); let go, it flies with it.
+        var (battle, melnorme, _) = Lab4("melnorme", 20);
+        var damage = new List<int>();
+        Element? shot = null;
+        for (int frame = 0; frame < 400; ++frame)
+        {
+            battle.Step(ship => ship == melnorme ? BattleInput.Weapon : BattleInput.None);
+            shot = battle.List.Elements.Single(e => e.Parent == melnorme && ReferenceEquals(e.Current.FrameArray, melnorme.RaceDesc!.Weapon)
+                                                    && (e.StateFlags & ElementFlags.NonSolid) == 0);
+            if (frame % 36 == 35)
+                damage.Add(shot.MassPoints);
+        }
+        Assert.Equal(new[] { 2, 2, 4, 4, 8, 8, 16, 16, 16, 16, 16 }, damage);
+        battle.Step(_ => BattleInput.None);
+        var flying = battle.List.Elements.Single(e => e.Parent == melnorme && ReferenceEquals(e.Current.FrameArray, melnorme.RaceDesc!.Weapon)
+                                                      && (e.StateFlags & ElementFlags.NonSolid) == 0);
+        Assert.Equal(16, flying.MassPoints);
+        Assert.False(flying.Velocity.IsZero, "it flies");
+    }
+
     // ---- Helpers ----
 
     // As Lab: a race ship of side 0 at the centre facing east, the Ilwrath
@@ -710,14 +1012,15 @@ public partial class RaceShipCoopTests
     // planet unless kept) taken out, the ships' own elements (the Orz's
     // turret, the Chmmr's satellites coming) kept.
     private static (Battle Battle, Starship Race, Starship Ilwrath) Lab4(string race, int crew, int enemyAt = 4000,
-        int enemyCrew = 22, bool keepPlanet = false, double scale = 1.0)
+        int enemyCrew = 22, bool keepPlanet = false, double scale = 1.0, uint seed = 808, bool runAway = false,
+        List<string>? places = null)
     {
         var d = BattleReplay.Ships[race];
         var ship = new Starship(RaceShips.Code(d, r => BattleReplay.Sheets.Value.Views(r)), 0, (ushort)crew, (ushort)d.MaxCrew);
         var ilwrath = new Starship(ShipBattleTests.Ship(IlwrathInput(), noCloak: true).Code, 1, (ushort)enemyCrew, 0)
             { CaptainsNameIndex = 5 };
-        var battle = new Battle(Arena(), new[] { new[] { ship }, new[] { ilwrath } }, 808,
-            size: ArenaSize.Scaled(scale), maxElements: 300);
+        var battle = new Battle(Arena(), new[] { new[] { ship }, new[] { ilwrath } }, seed,
+            runAwayAllowed: runAway, randomPlaces: places, size: ArenaSize.Scaled(scale), maxElements: 300);
         WarpIn(battle);
         foreach (var e in battle.List.Elements.Where(e => (e.StateFlags & ElementFlags.PlayerShip) == 0
                                                           && (e.Parent == null || e.PlayerNr == Battle.NeutralPlayerNum)
