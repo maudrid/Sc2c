@@ -42,6 +42,9 @@ public sealed partial class Battle
     // winnerStarShip: the ship that won, which picks last.
     private Starship? _winner;
 
+    /// <summary>GetWinnerStarShip: the ship that won, if one has yet (the Shofixti's self-destruct asks).</summary>
+    internal Starship? Winner => _winner;
+
     // preprocess_dead_ship: only stops the sounds.
     private static void PreprocessDeadShip(Element e)
     {
@@ -179,7 +182,7 @@ public sealed partial class Battle
     // winner, and the winner is the first of the other side's ships alive.
     // (A ship's element without a ship isn't one: cleanup_dead_ship leaves
     // the element no longer a ship's, so it can't come up.)
-    private Starship? FindAliveStarShip(Element deadShip)
+    internal Starship? FindAliveStarShip(Element deadShip)
     {
         for (var e = List.Head; e != null; e = e.Succ)
         {
@@ -194,7 +197,7 @@ public sealed partial class Battle
         return null;
     }
 
-    private void SetWinnerStarShip(Starship? winner)
+    internal void SetWinnerStarShip(Starship? winner)
     {
         if (winner == null)
             return;
@@ -202,7 +205,7 @@ public sealed partial class Battle
         _winner ??= winner;   // the first, if both die
     }
 
-    private void RecordShipDeath(Element deadShip)
+    internal void RecordShipDeath(Element deadShip)
     {
         var dead = deadShip.Parent!;
         if (deadShip.MassPoints <= MaxShipMass)

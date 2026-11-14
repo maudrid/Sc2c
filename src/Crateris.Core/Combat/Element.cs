@@ -230,6 +230,14 @@ public sealed class Element
     /// <summary>The element it homes in on or follows (hTarget), or none.</summary>
     public Element? Target;
 
+    /// <summary>
+    /// A ship's code's own state for the element, not UQM's: what UQM's
+    /// code tells by comparing callbacks, which are closures here (an Orz
+    /// marine aboard a ship, ORZ_MARINE in shofixti.c, keeps the ship it
+    /// boarded: <see cref="OrzShip"/>). Copied and cleared with the rest.
+    /// </summary>
+    internal object? Tag;
+
     /// <summary>hit_points: <see cref="CrewLevel"/>'s other name.</summary>
     public ushort HitPoints
     {
@@ -308,6 +316,7 @@ public sealed class Element
         Next = src.Next;
         Parent = src.Parent;
         Target = src.Target;
+        Tag = src.Tag;
         Intersect.Frame = src.Intersect.Frame;
         IntersectStamp = src.IntersectStamp;
         Intersect.OriginX = src.Intersect.OriginX;
@@ -335,6 +344,7 @@ public sealed class Element
         Current = Next = default;
         Parent = null;
         Target = null;
+        Tag = null;
     }
 
     public override string ToString() => $"element {Slot} ({StateFlags}, {Current.Frame})";

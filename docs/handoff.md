@@ -15,8 +15,8 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 ## In progress: stage 4b item 4
 
-- **Built so far** (committed and pushed as each matched): the Earthling (`HumanShip.cs`), Syreen (`SyreenShip.cs`), Pkunk (`PkunkShip.cs`; its last insult per battle, `Battle.ShipState`, reset as each Pkunk is made) and VUX (`VuxShip.cs`; the limpets' marks by `Battle.ModifySilhouette` into `Starship.Silhouette`, on `Starship.Icons`, which the world and the trace tests now set), in `RaceShips.Ported`; their nine traces in `battle-races-3.json` match, `pkunk-rebirth` among them (`RaceShipBattleTests`).
-- **Left:** the Chmmr, Shofixti, Orz and Melnorme; the co-op, seam and branch tests (`RaceShipCoopTests.Item4.cs`); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row.
+- **Built so far** (committed and pushed as each matched): the Earthling (`HumanShip.cs`), Syreen (`SyreenShip.cs`), Pkunk (`PkunkShip.cs`; its last insult per battle, `Battle.ShipState`, reset as each Pkunk is made), VUX (`VuxShip.cs`; the limpets' marks by `Battle.ModifySilhouette` into `Starship.Silhouette`, on `Starship.Icons`, which the world and the trace tests now set) and Shofixti (`ShofixtiShip.cs`, the recruited one; its Glory Device counting on its captain sheet's frames; `OrzShip.cs` is only a stub for its marine test until the Orz is ported), in `RaceShips.Ported`; their eleven traces in `battle-races-3.json` match, `pkunk-rebirth` among them (`RaceShipBattleTests`).
+- **Left:** the Chmmr, Orz and Melnorme; the co-op, seam and branch tests (`RaceShipCoopTests.Item4.cs`); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row.
 
 ## Open items
 
