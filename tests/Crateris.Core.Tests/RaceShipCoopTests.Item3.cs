@@ -117,12 +117,14 @@ public partial class RaceShipCoopTests
     }
 
     [ContentTheory]
-    [InlineData(1.0, false)]
-    [InlineData(1.5, true)]
-    public void TheSlylandroHarvestsAcrossTheSeamInABiggerArena(double scale, bool across)
+    [InlineData(1.0, false, false)]
+    [InlineData(1.5, true, false)]
+    [InlineData(1.0, false, true)]
+    [InlineData(1.5, true, true)]
+    public void TheSlylandroHarvestsAcrossTheSeamInABiggerArena(double scale, bool across, bool northSouth)
     {
-        // The Slylandro by the arena's west edge with no energy, an
-        // asteroid just across the seam to its west, 200 units away: its
+        // The Slylandro by the arena's west edge (north, northSouth) with
+        // no energy, an asteroid just across the seam beyond it, 200 units away: its
         // special harvests it (slylandr.c:310) in a bigger arena, measured
         // the short way round; in UQM's, as UQM's, it's the long way and
         // too far.
@@ -139,10 +141,9 @@ public partial class RaceShipCoopTests
             battle.List.Remove(e);
             battle.List.Free(e);
         }
-        int cy = battle.Size.Height / 2;
-        Put(battle, sly.Ship!, 100, cy);
-        Put(battle, asteroid, battle.Size.Width - 100, cy);
-        Put(battle, player.Ship!, battle.Size.Width / 2, cy + 3000);
+        Put(battle, sly.Ship!, Along(battle, northSouth, 100));
+        Put(battle, asteroid, Along(battle, northSouth, -100));
+        Put(battle, player.Ship!, battle.Size.Width / 2 + 3000, battle.Size.Height / 2 + 3000);
         sly.RaceDesc!.EnergyLevel = 0;
         sly.SpecialCounter = sly.WeaponCounter = 0;
         sly.CurStatusFlags = StatusFlags.Special;
@@ -155,13 +156,19 @@ public partial class RaceShipCoopTests
     }
 
     [ContentTheory]
-    [InlineData("mycon", 1.0, false)]
-    [InlineData("mycon", 1.5, true)]
-    [InlineData("androsyn", 1.0, false)]
-    [InlineData("androsyn", 1.5, true)]
-    [InlineData("mmrnmhrm", 1.0, false)]
-    [InlineData("mmrnmhrm", 1.5, true)]
-    public void ItsOwnAiMeasuresAcrossTheSeamInABiggerArena(string race, double scale, bool across)
+    [InlineData("mycon", 1.0, false, false)]
+    [InlineData("mycon", 1.5, true, false)]
+    [InlineData("androsyn", 1.0, false, false)]
+    [InlineData("androsyn", 1.5, true, false)]
+    [InlineData("mmrnmhrm", 1.0, false, false)]
+    [InlineData("mmrnmhrm", 1.5, true, false)]
+    [InlineData("mycon", 1.0, false, true)]
+    [InlineData("mycon", 1.5, true, true)]
+    [InlineData("androsyn", 1.0, false, true)]
+    [InlineData("androsyn", 1.5, true, true)]
+    [InlineData("mmrnmhrm", 1.0, false, true)]
+    [InlineData("mmrnmhrm", 1.5, true, true)]
+    public void ItsOwnAiMeasuresAcrossTheSeamInABiggerArena(string race, double scale, bool across, bool northSouth)
     {
         // As ItsAiMeasuresAcrossTheSeamInABiggerArena: the race ship by the
         // arena's west edge, the player across the seam to its west. What
@@ -175,27 +182,28 @@ public partial class RaceShipCoopTests
         // - the Mmrnmhrm's X-wing, the player 1,200 away flying west, away
         //   from it: it turns into the Y-wing to chase (mmrnmhrm.c), not
         //   when the long way round has the player flying at it.
+        // With northSouth, all of it turned a quarter: by the north edge,
+        // the player across the seam to its north.
         var player = Player();
         var enemy = Race(race, 1);
         var battle = new Battle(Arena(), new[] { new[] { player }, new[] { enemy } }, 7,
             size: ArenaSize.Scaled(scale), maxElements: 300);
         WarpIn(battle);
         Clear(battle);
-        int cy = battle.Size.Height / 2;
         int gap = race switch { "mycon" => 200, "androsyn" => 600, _ => 1200 };
-        Face(enemy, race == "androsyn" ? (ushort)12 : (ushort)4);
-        Face(player, 0);
-        Put(battle, enemy.Ship!, 100, cy);
-        Put(battle, player.Ship!, battle.Size.Width - gap + 100, cy);
+        Face(enemy, Turned(northSouth, race == "androsyn" ? 12 : 4));
+        Face(player, Turned(northSouth, 0));
+        Put(battle, enemy.Ship!, Along(battle, northSouth, 100));
+        Put(battle, player.Ship!, Along(battle, northSouth, -(gap - 100)));
         var rd = enemy.RaceDesc!;
         if (race == "androsyn")
         {
             rd.EnergyLevel = 3;   // below a third: no Blazer
-            enemy.Ship!.Velocity.SetVector(24, 12);   // flying west
+            enemy.Ship!.Velocity.SetVector(24, Turned(northSouth, 12));   // flying west
         }
         if (race == "mmrnmhrm")
         {
-            player.Ship!.Velocity.SetVector(64, 12);   // flying west, away
+            player.Ship!.Velocity.SetVector(64, Turned(northSouth, 12));   // flying west, away
             player.RaceDesc!.ManeuverabilityIndex = Battle.MediumShip;   // not a slow ship
         }
         enemy.WeaponCounter = enemy.SpecialCounter = 0;
@@ -217,47 +225,53 @@ public partial class RaceShipCoopTests
     }
 
     [ContentTheory]
-    [InlineData(1.0, false)]
-    [InlineData(1.5, true)]
-    public void TheChenjesusDogiChasesAcrossTheSeamInABiggerArena(double scale, bool across)
+    [InlineData(1.0, false, false)]
+    [InlineData(1.5, true, false)]
+    [InlineData(1.0, false, true)]
+    [InlineData(1.5, true, true)]
+    public void TheChenjesusDogiChasesAcrossTheSeamInABiggerArena(double scale, bool across, bool northSouth)
     {
         // A DOGI by the arena's west edge flying north, the player across
         // the seam to its west, 400 away (facing north, not at it): it
         // turns west at the player in a bigger arena (doggy_preprocess's
         // aim, measured the short way round), east in UQM's, as UQM's.
+        // With northSouth, all of it turned a quarter (by the north edge).
         var player = Player();
         var chenjesu = Race("chenjesu", 1);
         var battle = new Battle(Arena(), new[] { new[] { player }, new[] { chenjesu } }, 7,
             size: ArenaSize.Scaled(scale), maxElements: 300);
         WarpIn(battle);
         Clear(battle);
-        int cy = battle.Size.Height / 2;
-        Face(player, 0);
-        Put(battle, chenjesu.Ship!, battle.Size.Width / 2, cy);
-        Put(battle, player.Ship!, battle.Size.Width - 300, cy);
+        Face(player, Turned(northSouth, 0));
+        Put(battle, chenjesu.Ship!, battle.Size.Width / 2 + 1000, battle.Size.Height / 2 + 1000);
+        Put(battle, player.Ship!, Along(battle, northSouth, -300));
         chenjesu.RaceDesc!.EnergyLevel = chenjesu.RaceDesc.MaxEnergy;
         battle.Step(ship => ship == chenjesu ? BattleInput.Special : BattleInput.None);
         var doggy = Assert.Single(battle.List.Elements, e => ReferenceEquals(e.Current.FrameArray, chenjesu.RaceDesc.Special));
-        Put(battle, doggy, 100, cy);
-        doggy.Velocity.SetVector(32, 0);
+        Put(battle, doggy, Along(battle, northSouth, 100));
+        doggy.Velocity.SetVector(32, Turned(northSouth, 0));
         doggy.ThrustWait = 0;
         doggy.Target = null;
         battle.Step(_ => BattleInput.None);
         Assert.Same(player.Ship, doggy.Target);
-        Assert.Equal(across ? 12 : 4, UqmMath.AngleToFacing(doggy.Velocity.TravelAngle));
+        Assert.Equal(Turned(northSouth, across ? 12 : 4), UqmMath.AngleToFacing(doggy.Velocity.TravelAngle));
     }
 
     [ContentTheory]
-    [InlineData(1.0, 0)]
-    [InlineData(1.5, 8)]
-    public void TheUrQuansFighterTurnsOffThePlanetAcrossTheSeam(double scale, int facing)
+    [InlineData(1.0, 0, false)]
+    [InlineData(1.5, 8, false)]
+    [InlineData(1.0, 12, true)]
+    [InlineData(1.5, 4, true)]
+    public void TheUrQuansFighterTurnsOffThePlanetAcrossTheSeam(double scale, int facing, bool eastWest)
     {
         // A fighter flying east touches the planet at the arena's top edge,
         // just across the seam to its north (the contact points either side
         // of it, as contact gives them): its copy turns a quarter away from
         // the planet, south, in a bigger arena; in UQM's the contact points'
         // difference is the long way round, the planet seen south, and it
-        // turns north, as UQM's.
+        // turns north, as UQM's. With eastWest, the fighter flies south
+        // and the planet is just across the east-west seam to its west: it
+        // turns east in a bigger arena, west in UQM's.
         var player = Player();
         var urquan = Race("urquan", 1);
         var battle = new Battle(Arena(), new[] { new[] { player }, new[] { urquan } }, 7,
@@ -267,10 +281,14 @@ public partial class RaceShipCoopTests
         var planet = battle.List.Elements.Single(e => Battle.GravityMass(e.MassPoints));
         battle.Step(ship => ship == urquan ? BattleInput.Special : BattleInput.None);
         var fighter = battle.List.Elements.First(e => ReferenceEquals(e.Current.FrameArray, urquan.RaceDesc!.Special));
-        fighter.Velocity.SetVector(32, 4);   // east
+        fighter.Velocity.SetVector(32, eastWest ? 8 : 4);   // south, or east
         int x = Battle.WorldToDisplay((short)(battle.Size.Width / 2)), h = Battle.WorldToDisplay((short)battle.Size.Height);
+        int y = Battle.WorldToDisplay((short)(battle.Size.Height / 2)), w = Battle.WorldToDisplay((short)battle.Size.Width);
         var before = battle.List.Elements.ToHashSet();
-        fighter.CollisionFunc!(fighter, ((short)x, 1), planet, ((short)(x + 1), (short)(h - 2)));
+        if (eastWest)
+            fighter.CollisionFunc!(fighter, (1, (short)y), planet, ((short)(w - 2), (short)(y + 1)));
+        else
+            fighter.CollisionFunc!(fighter, ((short)x, 1), planet, ((short)(x + 1), (short)(h - 2)));
         var copy = Assert.Single(battle.List.Elements, e => !before.Contains(e));
         Assert.Equal(facing, copy.Next.Frame.Index);
         Assert.Equal(facing * 4, copy.Velocity.TravelAngle);
@@ -376,7 +394,9 @@ public partial class RaceShipCoopTests
         var (battle, mm, _) = Lab("mmrnmhrm", 20);
         var rd = mm.RaceDesc!;
         rd.ManeuverabilityIndex = 77;
+        mm.WeaponCounter = 10;
         battle.Step(ship => ship == mm ? BattleInput.Special : BattleInput.None);
+        Assert.Equal(0, mm.WeaponCounter);   // the weapon ready after each transform
         Assert.Same(rd.Special, mm.Ship!.Current.FrameArray);
         Assert.Equal(14, rd.Characteristics.TurnWait);
         Assert.Equal(0, rd.ManeuverabilityIndex);
@@ -384,7 +404,9 @@ public partial class RaceShipCoopTests
         Assert.Equal(ShipFlags.SeekingWeapon, rd.ShipFlags & (ShipFlags.SeekingWeapon | ShipFlags.ImmediateWeapon));
         rd.EnergyLevel = rd.MaxEnergy;
         mm.CurStatusFlags |= StatusFlags.ShipAtMaxSpeed;
+        mm.WeaponCounter = 10;
         battle.Step(ship => ship == mm ? BattleInput.Special : BattleInput.None);
+        Assert.Equal(0, mm.WeaponCounter);
         Assert.Same(rd.Ship, mm.Ship.Current.FrameArray);
         Assert.Equal(2, rd.Characteristics.TurnWait);
         Assert.Equal(Battle.CloseRangeWeapon, rd.WeaponRange);
@@ -574,4 +596,106 @@ public partial class RaceShipCoopTests
             Assert.Equal(state, concerns[Battle.EnemyShipIndex].MoveState);
         }
     }
+    [ContentTheory]
+    [InlineData("urquan")]
+    [InlineData("blackurq")]
+    public void ItsKeptTargetWithoutCrewGivesWayToTheNearestWithCrew(string race)
+    {
+        // Two players; the Ur-Quan's fighters, or the Kohr-Ah's stopped
+        // blade, locked on the nearer. Its crew runs out (as a drain takes
+        // it, the ship still there): they take the other player as soon as
+        // they next track (decision 6). With no other opponent left, as in
+        // UQM's one against one, they keep it.
+        foreach (bool another in new[] { true, false })
+        {
+            var team = another ? new[] { Player(), Player() } : new[] { Player() };
+            var enemy = Race(race, 1);
+            var battle = new Battle(Arena(), new[] { new[] { team[0] }, new[] { enemy } }, 99, maxElements: 300);
+            foreach (var p in team.Skip(1))
+                Assert.True(battle.Join(p));
+            WarpIn(battle);
+            Clear(battle);
+            int cx = battle.Size.Width / 2, cy = battle.Size.Height / 2;
+            Put(battle, enemy.Ship!, cx, cy);
+            Face(enemy, 0);
+            var near = team[^1].Ship!;
+            Put(battle, near, cx, cy + 700);
+            if (another)
+                Put(battle, team[0].Ship!, cx + 900, cy + 300);
+
+            bool Locked(Element e) => e.Parent == enemy && (e.StateFlags & ElementFlags.PlayerShip) == 0 && e.Target != null;
+            for (int frame = 0; frame < 60 && !battle.List.Elements.Any(Locked); ++frame)
+                battle.Step(ship => ship == enemy && frame == 0 ? (race == "urquan" ? BattleInput.Special : BattleInput.Weapon)
+                    : BattleInput.None);
+            var shots = battle.List.Elements.Where(Locked).ToList();
+            Assert.NotEmpty(shots);
+            Assert.All(shots, e => Assert.Same(near, e.Target));
+
+            battle.DeltaCrew(near, (short)-near.CrewLevel);
+            Assert.Equal(0, near.Parent!.RaceDesc!.CrewLevel);
+            for (int frame = 0; frame < 6; ++frame)   // a blade tracks every TRACK_WAIT + 1 frames
+                battle.Step(_ => BattleInput.None);
+            Assert.All(shots.Where(e => e.InList && e.LifeSpan > 0), e =>
+                Assert.Same(another ? team[0].Ship : near, e.Target));
+        }
+    }
+
+    [ContentFact]
+    public void TheUtwigsAiHalvesTheTimeToAShortLivedShot()
+    {
+        // A short-lived shot with mass it's enticed by (the Ilwrath's
+        // flame) counts half the frames away, at least 1, and is dropped
+        // from its concerns (the special waiting, so no shield decided).
+        foreach (var (turns, halved) in new[] { (4, 2), (1, 1) })
+        {
+            var (battle, utwig, ilwrath) = Lab("utwig", 20, enemyAt: 260);
+            Face(ilwrath, 12);
+            battle.Step(ship => ship == ilwrath ? BattleInput.Weapon : BattleInput.None);
+            var flame = battle.List.Elements.First(e => e.Parent == ilwrath && (e.StateFlags & ElementFlags.PlayerShip) == 0);
+            Assert.NotEqual(0, flame.MassPoints);
+            utwig.RaceDesc!.EnergyLevel = 5;
+            utwig.SpecialCounter = 5;
+            var concerns = OwnAi(battle, utwig, ilwrath.Ship!, MoveState.Pursue, 31, flame, MoveState.Entice, (ushort)turns);
+            Assert.Equal(halved, concerns[Battle.EnemyWeaponIndex].WhichTurn);
+            Assert.Null(concerns[Battle.EnemyWeaponIndex].Object);
+        }
+    }
+
+    [ContentFact]
+    public void TheUrQuansFighterHittingThePlanetHeadOnTurnsItsOwnWay()
+    {
+        // A fighter flying east touches the planet dead ahead: its copy
+        // turns by the fighter's own side, the first launched (LEFT) north,
+        // the second (RIGHT) south.
+        var (battle, urquan, _) = Lab("urquan", 42);
+        battle.Step(ship => ship == urquan ? BattleInput.Special : BattleInput.None);
+        var fighters = battle.List.Elements.Where(e => ReferenceEquals(e.Current.FrameArray, urquan.RaceDesc!.Special)).ToList();
+        Assert.Equal(2, fighters.Count);
+        var gravity = new Element(0) { MassPoints = 255 };   // the planet, as the fighter's collision sees it
+        foreach (var fighter in fighters)
+        {
+            fighter.Velocity.SetVector(32, 4);   // east
+            var before = battle.List.Elements.ToHashSet();
+            fighter.CollisionFunc!(fighter, (100, 100), gravity, (105, 100));
+            var copy = Assert.Single(battle.List.Elements, e => !before.Contains(e));
+            bool left = (fighter.TurnWait & (byte)StatusFlags.Left) != 0;
+            Assert.Equal(left ? 0 : 8, copy.Next.Frame.Index);
+        }
+        Assert.Contains(fighters, f => (f.TurnWait & (byte)StatusFlags.Left) != 0);
+        Assert.Contains(fighters, f => (f.TurnWait & (byte)StatusFlags.Right) != 0);
+    }
+
+    // A place by the seam: `along` from the west edge (from the east edge
+    // if negative), half way down; with northSouth, from the north edge (or
+    // the south), half way across.
+    private static (int X, int Y) Along(Battle battle, bool northSouth, int along)
+    {
+        int w = battle.Size.Width, h = battle.Size.Height;
+        return northSouth ? (w / 2, along >= 0 ? along : h + along) : (along >= 0 ? along : w + along, h / 2);
+    }
+
+    // A facing turned a quarter clockwise with northSouth (west to north).
+    private static ushort Turned(bool northSouth, int facing) => UqmMath.NormalizeFacing(northSouth ? facing + 4 : facing);
+
+    private static void Put(Battle battle, Element e, (int X, int Y) at) => Put(battle, e, at.X, at.Y);
 }

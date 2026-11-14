@@ -118,6 +118,9 @@ public sealed class KohrAhShip : IShipCode
         else
         {
             ushort facing = 0;
+            // Co-op: a target without crew is dropped while another
+            // opponent has crew, for the nearest (decision 6).
+            battle.DropDeadTarget(e);
             if (e.Target == null && battle.TrackShip(e, ref facing) < 0)
                 e.Velocity.Zero();
             else

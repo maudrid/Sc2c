@@ -250,6 +250,35 @@ public sealed partial class Battle
         return bestDeltaFacing;
     }
 
+    /// <summary>
+    /// The co-op rule for a shot that keeps its target once chosen (the
+    /// Ur-Quan's fighters, the Kohr-Ah's blades: UQM tracks again only
+    /// without one): a target whose crew is gone is dropped when another
+    /// opposing ship that <see cref="TrackShip"/> would take still has
+    /// crew, so the shot takes the nearest of those (stage 4b, decision 6).
+    /// With no other, as in UQM's one against one, the target is kept.
+    /// Returns whether it was dropped.
+    /// </summary>
+    internal bool DropDeadTarget(Element tracker)
+    {
+        var target = tracker.Target;
+        if (target == null || (target.StateFlags & ElementFlags.PlayerShip) == 0 || Alive(target))
+            return false;
+        for (var e = List.Head; e != null; e = e.Succ)
+        {
+            if (e != target && (e.StateFlags & ElementFlags.PlayerShip) != 0 && e.PlayerNr != tracker.PlayerNr
+                && !ObjectCloaked(e) && Alive(e))
+            {
+                tracker.Target = null;
+                return true;
+            }
+        }
+        return false;
+
+        // TrackShip's test of a ship it may take.
+        static bool Alive(Element ship) => ship.LifeSpan != 0 && ship.Parent?.RaceDesc is { CrewLevel: not 0 };
+    }
+
     /// <summary>OBJECT_CLOAKED: not drawn, or drawn filled black (the Ilwrath cloaked).</summary>
     public static bool ObjectCloaked(Element e) =>
         e.Prim >= PrimType.None || (e.Prim == PrimType.StampFill && e.PrimColor == 0);

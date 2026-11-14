@@ -139,6 +139,10 @@ public sealed class UrquanShip : IShipCode
         int crew = rd.CrewLevel, life = e.LifeSpan;
         ushort facing, origFacing;
         origFacing = facing = e.Current.Frame.Index;
+        // Co-op: a target without crew is dropped while another opponent
+        // has crew, and the nearest taken at once (decision 6).
+        if (battle.DropDeadTarget(e))
+            battle.TrackShip(e, ref facing);
         if (((life & 1) != 0 || e.Target != null || battle.TrackShip(e, ref facing) >= 0)
             && (crew == 0 || life >= f.OneWayFlight))
             e.StateFlags |= ElementFlags.IgnoreSimilar;
