@@ -309,4 +309,269 @@ public partial class RaceShipCoopTests
         ship.OldStatusFlags = ship.ShipInputState = StatusFlags.Weapon;
         Assert.Equal(BattleInput.None, battle.ComputerIntelligence(ship) & BattleInput.Weapon);
     }
+    // ---- Paths UQM's traces don't reach ----
+
+    [ContentFact]
+    public void TheUtwigsUnpaidShieldTakesAwayItsDefences()
+    {
+        // The special held with energy: the shield is up (drawn filled, its
+        // life span over a ship's), its point and shield defence kept for
+        // the AI. Without energy: no shield, and the AI no longer sees
+        // either defence (utwig_preprocess).
+        foreach (var (energy, shielded) in new[] { (5, true), (0, false) })
+        {
+            var (battle, utwig, _) = Lab("utwig", 20);
+            var rd = utwig.RaceDesc!;
+            rd.EnergyLevel = (byte)energy;
+            battle.Step(ship => ship == utwig ? BattleInput.Special : BattleInput.None);
+            const ShipFlags defences = ShipFlags.PointDefense | ShipFlags.ShieldDefense;
+            Assert.Equal(shielded ? defences : 0, rd.ShipFlags & defences);
+            Assert.Equal(shielded ? PrimType.StampFill : PrimType.Stamp, utwig.Ship!.Prim);
+            Assert.Equal(shielded ? Battle.NormalLife + 1 : Battle.NormalLife, utwig.Ship.LifeSpan);
+        }
+    }
+
+    [ContentFact]
+    public void TheUtwigsAiShieldsOnlyWithEnergy()
+    {
+        // The Ilwrath's flames coming at it: with energy its AI raises the
+        // shield (three times in four); with none it never tries.
+        foreach (var (energy, shields) in new[] { (5, true), (0, false) })
+        {
+            var (battle, utwig, ilwrath) = Lab("utwig", 20, enemyAt: 260);
+            Face(ilwrath, 12);
+            int raised = 0;
+            for (int frame = 0; frame < 8; ++frame)
+            {
+                battle.Step(ship => ship == ilwrath ? BattleInput.Weapon : BattleInput.None);
+                utwig.RaceDesc!.EnergyLevel = (byte)energy;
+                utwig.SpecialCounter = 0;
+                if ((battle.ComputerIntelligence(utwig) & BattleInput.Special) != 0)
+                    ++raised;
+            }
+            Assert.Equal(shields, raised > 0);
+        }
+    }
+
+    [ContentFact]
+    public void TheMyconGrowsCrewOnlyToItsMost()
+    {
+        // All its energy for up to 4 crew: from 12, 16; from 18, only 20.
+        foreach (var (crew, after) in new[] { (12, 16), (18, 20) })
+        {
+            var (battle, mycon, _) = Lab("mycon", crew);
+            battle.Step(ship => ship == mycon ? BattleInput.Special : BattleInput.None);
+            Assert.Equal(after, mycon.RaceDesc!.CrewLevel);
+            Assert.Equal(0, mycon.RaceDesc.EnergyLevel);
+        }
+    }
+
+    [ContentFact]
+    public void TheMmrnmhrmsTransformSwapsItsCharacteristics()
+    {
+        // Into the Y-wing: its characteristics the Y-wing's (turning every
+        // 15 frames), a long reach and a seeking weapon, and its
+        // manoeuvrability to be worked out afresh by the AI; back again,
+        // the X-wing's.
+        var (battle, mm, _) = Lab("mmrnmhrm", 20);
+        var rd = mm.RaceDesc!;
+        rd.ManeuverabilityIndex = 77;
+        battle.Step(ship => ship == mm ? BattleInput.Special : BattleInput.None);
+        Assert.Same(rd.Special, mm.Ship!.Current.FrameArray);
+        Assert.Equal(14, rd.Characteristics.TurnWait);
+        Assert.Equal(0, rd.ManeuverabilityIndex);
+        Assert.Equal(Battle.LongRangeWeapon - 1, rd.WeaponRange);
+        Assert.Equal(ShipFlags.SeekingWeapon, rd.ShipFlags & (ShipFlags.SeekingWeapon | ShipFlags.ImmediateWeapon));
+        rd.EnergyLevel = rd.MaxEnergy;
+        mm.CurStatusFlags |= StatusFlags.ShipAtMaxSpeed;
+        battle.Step(ship => ship == mm ? BattleInput.Special : BattleInput.None);
+        Assert.Same(rd.Ship, mm.Ship.Current.FrameArray);
+        Assert.Equal(2, rd.Characteristics.TurnWait);
+        Assert.Equal(Battle.CloseRangeWeapon, rd.WeaponRange);
+        Assert.Equal(ShipFlags.ImmediateWeapon, rd.ShipFlags & (ShipFlags.SeekingWeapon | ShipFlags.ImmediateWeapon));
+    }
+
+    [ContentFact]
+    public void TheMmrnmhrmsLasersPassItsOwnShip()
+    {
+        // Its X-wing's lasers touching its own ship do nothing
+        // (twin_laser_collision); touching the Ilwrath they hurt it.
+        var (battle, mm, ilwrath) = Lab("mmrnmhrm", 20);
+        var lasers = mm.RaceDesc!.InitWeapon!(mm.Ship!).Select(l => l!).ToList();
+        Assert.Equal(2, lasers.Count);
+        Assert.All(lasers, l => Assert.Equal(PrimType.Line, l.Prim));
+        var at = ((short)0, (short)0);
+        lasers[0].CollisionFunc!(lasers[0], at, mm.Ship!, at);
+        Assert.Equal(20, mm.RaceDesc!.CrewLevel);
+        lasers[1].CollisionFunc!(lasers[1], at, ilwrath.Ship!, at);
+        Assert.Equal(21, ilwrath.RaceDesc!.CrewLevel);
+    }
+
+    [ContentFact]
+    public void TheChenjesusCountAboveOneHoldsBackItsDogi()
+    {
+        // Its special with all its energy: a DOGI comes out with its counter
+        // at 0; at 2 (only UQM's standard computer opponent leaves it so)
+        // the counter is pushed past the most DOGI, and none does.
+        foreach (var (counter, released) in new[] { (0, true), (2, false) })
+        {
+            var (battle, chenjesu, _) = Lab("chenjesu", 36);
+            chenjesu.SpecialCounter = (byte)counter;
+            battle.Step(ship => ship == chenjesu ? BattleInput.Special : BattleInput.None);
+            Assert.Equal(released, battle.List.Elements.Any(e => ReferenceEquals(e.Current.FrameArray, chenjesu.RaceDesc!.Special)));
+        }
+    }
+
+    [ContentFact]
+    public void TheUrQuanLaunchesAFighterACrewmanWhileItHasCrewToSpare()
+    {
+        // Two fighters from 3 crew (1 left); one from 2 (1 left); none from 1.
+        foreach (var (crew, fighters) in new[] { (3, 2), (2, 1), (1, 0) })
+        {
+            var (battle, urquan, _) = Lab("urquan", crew);
+            battle.Step(ship => ship == urquan ? BattleInput.Special : BattleInput.None);
+            Assert.Equal(fighters, battle.List.Elements.Count(e => ReferenceEquals(e.Current.FrameArray, urquan.RaceDesc!.Special)));
+            Assert.Equal(crew - fighters, urquan.RaceDesc!.CrewLevel);
+        }
+    }
+
+    [ContentFact]
+    public void TheUrQuansFighterGoneIsUncounted()
+    {
+        // A fighter hitting the Ilwrath is gone, and takes itself off the
+        // count of fighters the AI reads (its special wait).
+        var (battle, urquan, ilwrath) = Lab("urquan", 42);
+        battle.Step(ship => ship == urquan ? BattleInput.Special : BattleInput.None);
+        var fighter = battle.List.Elements.First(e => ReferenceEquals(e.Current.FrameArray, urquan.RaceDesc!.Special));
+        var rd = urquan.RaceDesc!;
+        rd.Characteristics.SpecialWait = 5;
+        var at = ((short)0, (short)0);
+        fighter.CollisionFunc!(fighter, at, ilwrath.Ship!, at);
+        Assert.Equal(4, rd.Characteristics.SpecialWait);
+        Assert.Equal(0, fighter.LifeSpan);
+    }
+
+    [ContentFact]
+    public void TheUrQuansAiLaunchesWithCrewToSpareAtAShipWithoutPointDefence()
+    {
+        // The Ilwrath near: with all its crew the AI launches fighters; with
+        // a quarter of its crew, or against a ship with point defence, it
+        // doesn't. Each look starts the fighters' count again.
+        foreach (var (crew, pointDefence, launches) in new[] { (42, false, true), (10, false, false), (42, true, false) })
+        {
+            var (battle, urquan, ilwrath) = Lab("urquan", crew, enemyAt: 1200);
+            if (pointDefence)
+                ilwrath.RaceDesc!.ShipFlags |= ShipFlags.PointDefense;
+            urquan.RaceDesc!.Characteristics.SpecialWait = 3;
+            Assert.Equal(launches, (battle.ComputerIntelligence(urquan) & BattleInput.Special) != 0);
+            Assert.Equal(0, urquan.RaceDesc.Characteristics.SpecialWait);
+        }
+    }
+
+    [ContentFact]
+    public void TheKohrAhKeepsEightBlades()
+    {
+        // Each blade counts itself as it moves: the ninth counted goes.
+        // A ship without crew counts none, and none go.
+        foreach (var (counted, crew, goes) in new[] { (7, 42, false), (8, 42, true), (8, 0, false) })
+        {
+            var (battle, kohrah, _) = Lab("blackurq", 42);
+            battle.Step(ship => ship == kohrah ? BattleInput.Weapon : BattleInput.None);
+            var saw = battle.List.Elements.Single(e => e.Parent == kohrah && (e.StateFlags & ElementFlags.PlayerShip) == 0
+                                                       && e.LifeSpan > 0);
+            kohrah.RaceDesc!.Characteristics.SpecialWait = (byte)counted;
+            kohrah.Ship!.CrewLevel = (ushort)crew;
+            saw.PreprocessFunc!(saw);
+            Assert.Equal(goes, (saw.StateFlags & ElementFlags.Disappearing) != 0);
+        }
+    }
+
+    [ContentFact]
+    public void TheKohrAhsStoppedBladeDriftsOnlyAtAShipInReach()
+    {
+        // A blade let go stops, then drifts at the Ilwrath if it's within
+        // ACTIVATE_RANGE (224 pixels); one farther off stays still.
+        foreach (var (at, drifts) in new[] { (900, true), (2400, false) })
+        {
+            var (battle, kohrah, _) = Lab("blackurq", 42, enemyAt: at);
+            battle.Step(ship => ship == kohrah ? BattleInput.Weapon : BattleInput.None);
+            for (int frame = 0; frame < 20; ++frame)
+                battle.Step(_ => BattleInput.None);
+            var saw = battle.List.Elements.Single(e => e.Parent == kohrah && (e.StateFlags & ElementFlags.PlayerShip) == 0);
+            Assert.Equal(drifts, !saw.Velocity.IsZero);
+        }
+    }
+    // A ship's own AI given what tactical_intelligence would have found:
+    // the enemy ship (the Ilwrath) and, as its weapon, the element given,
+    // with their move states and distances. Returns the concerns after.
+    private static EvaluateDesc[] OwnAi(Battle battle, Starship ship, Element enemy, MoveState enemyState,
+        ushort enemyTurns, Element? weapon = null, MoveState weaponState = MoveState.NoMovement, ushort weaponTurns = 0)
+    {
+        var concerns = new EvaluateDesc[Battle.FirstEmptyIndex + 1];
+        for (int i = 0; i <= Battle.FirstEmptyIndex; ++i)
+            concerns[i] = new EvaluateDesc { MoveState = MoveState.NoMovement, WhichTurn = ushort.MaxValue };
+        concerns[Battle.EnemyShipIndex] = new EvaluateDesc { Object = enemy, MoveState = enemyState, WhichTurn = enemyTurns };
+        if (weapon != null)
+            concerns[Battle.EnemyWeaponIndex] = new EvaluateDesc { Object = weapon, MoveState = weaponState, WhichTurn = weaponTurns };
+        if (ship.RaceDesc!.ManeuverabilityIndex == 0)
+            ship.RaceDesc.ManeuverabilityIndex = Battle.MediumShip;
+        ship.RaceDesc.Intelligence!(ship.Ship!.Copy(), concerns, Battle.FirstEmptyIndex);
+        return concerns;
+    }
+
+    [ContentFact]
+    public void TheMyconDoesntThrustAfterWhatItPursues()
+    {
+        // Enticed by something lasting (the Ilwrath itself as the shot to
+        // mind), the Mycon pursues it, but doesn't thrust at it ("don't
+        // pursue seekers").
+        var (battle, mycon, ilwrath) = Lab("mycon", 20, enemyAt: 2000);
+        OwnAi(battle, mycon, ilwrath.Ship!, MoveState.Pursue, 31, ilwrath.Ship, MoveState.Entice, 31);
+        Assert.Equal(StatusFlags.None, mycon.ShipInputState & StatusFlags.Thrust);
+    }
+
+    [ContentFact]
+    public void TheChenjesuWaitsAfterLettingGoAtAShot()
+    {
+        // A DOGI just out (the counter 1), its crystal key held a frame ago
+        // and no crystal out, a shot it's enticed by 4 frames off: it lets
+        // the key go and waits 3 frames to fire again.
+        var (battle, chenjesu, ilwrath) = Lab("chenjesu", 36, enemyAt: 2000);
+        chenjesu.SpecialCounter = 1;
+        chenjesu.OldStatusFlags = chenjesu.ShipInputState = StatusFlags.Weapon;
+        OwnAi(battle, chenjesu, ilwrath.Ship!, MoveState.Pursue, 31, ilwrath.Ship, MoveState.Entice, 4);
+        Assert.Equal(StatusFlags.None, chenjesu.ShipInputState & StatusFlags.Weapon);
+        Assert.Equal(3, chenjesu.WeaponCounter);
+    }
+
+    [ContentFact]
+    public void TheAndrosynthLowOnEnergyEnticesTheShipNear()
+    {
+        // The enemy ship within 16 frames: with energy left the AI leaves
+        // it pursued; below a third of its energy, it entices it.
+        foreach (var (energy, state) in new[] { (24, MoveState.Pursue), (5, MoveState.Entice) })
+        {
+            var (battle, andro, ilwrath) = Lab("androsyn", 20, enemyAt: 2000);
+            andro.RaceDesc!.EnergyLevel = (byte)energy;
+            andro.SpecialCounter = 0;
+            ilwrath.RaceDesc!.WeaponRange = Battle.LongRangeWeapon;   // neither close nor to be rammed
+            ilwrath.RaceDesc.ManeuverabilityIndex = Battle.SlowShip;
+            var concerns = OwnAi(battle, andro, ilwrath.Ship!, MoveState.Pursue, 10);
+            Assert.Equal(state, concerns[Battle.EnemyShipIndex].MoveState);
+        }
+    }
+
+    [ContentFact]
+    public void TheUtwigPursuesOnlyWithEnergy()
+    {
+        // An enemy ship without an immediate weapon: with energy the AI
+        // pursues it; without, it leaves it as it was found.
+        foreach (var (energy, state) in new[] { (5, MoveState.Pursue), (0, MoveState.Avoid) })
+        {
+            var (battle, utwig, ilwrath) = Lab("utwig", 20, enemyAt: 2000);
+            utwig.RaceDesc!.EnergyLevel = (byte)energy;
+            var concerns = OwnAi(battle, utwig, ilwrath.Ship!, MoveState.Avoid, 31);
+            Assert.Equal(state, concerns[Battle.EnemyShipIndex].MoveState);
+        }
+    }
 }
