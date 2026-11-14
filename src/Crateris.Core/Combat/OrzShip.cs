@@ -153,12 +153,17 @@ public sealed class OrzShip : IShipCode
     // marines aren't counted (UQM's counts every marine of its sheets) but
     // hold their slots all the same, as in UQM every marine of the sheets
     // shares one set; with every slot held (only possible with a teammate's
-    // marines aboard too), the first is shared.
+    // marines aboard too), the first is shared. UQM's scan stops at the
+    // eighth counted; finding a slot with a teammate in the battle, it goes
+    // on to the head, so that a teammate's marine aboard further on (older
+    // than the eight) still marks its slot.
     private static int CountMarines(Battle battle, Starship starShip, bool findSpot, Defines f)
     {
         var idUse = new bool[f.MaxMarines];
         int numMarines = 0;
         var ship = starShip.Ship;
+        bool scanAll = findSpot && ship != null
+                       && battle.List.Elements.Any(o => (o.StateFlags & ElementFlags.PlayerShip) != 0 && Battle.Teammates(o, ship));
         for (Element? e = battle.List.Tail, next; e != null; e = next)
         {
             next = e.Predecessor;
@@ -168,7 +173,7 @@ public sealed class OrzShip : IShipCode
             {
                 if ((e.StateFlags & ElementFlags.NonSolid) != 0)
                     idUse[e.TurnWait] = true;
-                if (!(ship != null && Battle.Teammates(e, ship)) && ++numMarines == f.MaxMarines)
+                if (!(ship != null && Battle.Teammates(e, ship)) && ++numMarines == f.MaxMarines && !scanAll)
                     next = null;
             }
         }

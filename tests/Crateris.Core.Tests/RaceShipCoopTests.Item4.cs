@@ -1672,6 +1672,35 @@ public partial class RaceShipCoopTests
     }
 
     [ContentFact]
+    public void AnOrzWithSevenMarinesOutStillSeesATeammatesMarineAboard()
+    {
+        // The second player's Orz has a marine aboard the Ilwrath (slot 0);
+        // the first's then launches seven marines, kept away, and boards an
+        // eighth: its eight, newer, come first from the list's tail, yet the
+        // teammate's older marine aboard still holds its slot: the eighth
+        // takes slot 1.
+        var (battle, first, team, ilwrath) = Team("orz", 2);
+        var second = team[1];
+        Put(battle, ilwrath.Ship!, first.Ship!.Current.X, first.Ship.Current.Y + 3000);
+        Put(battle, second.Ship!, first.Ship.Current.X - 3000, first.Ship.Current.Y);
+        var aboard = Board(battle, second, ilwrath.Ship!);
+        Assert.Equal(0, aboard.TurnWait);
+        int fx = first.Ship.Current.X, fy = first.Ship.Current.Y - 3000;
+        var free = new List<Element>();
+        for (int i = 0; i < 7; ++i)
+        {
+            free.Add(FreeMarine(battle, first));
+            for (int k = 0; k < free.Count; ++k)
+                Put(battle, free[k], fx + 200 * k, fy);
+        }
+        Assert.All(free, m => Assert.Equal(ElementFlags.None, m.StateFlags & ElementFlags.NonSolid));
+        var eighth = Board(battle, first, ilwrath.Ship!);
+        Assert.True(aboard.InList && aboard.LifeSpan != 0 && (aboard.StateFlags & ElementFlags.NonSolid) != 0,
+            "the teammate's marine is still aboard");
+        Assert.Equal(1, eighth.TurnWait);
+    }
+
+    [ContentFact]
     public void TheOrzsTurretMakesNoFlashForATeammatesBlast()
     {
         // Two players' Orz: the first's shell hits the Ilwrath (its blast at
