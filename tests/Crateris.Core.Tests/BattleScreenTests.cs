@@ -133,6 +133,8 @@ public class BattleScreenTests
             Assert.NotNull(screen.Frame(b with { Enemy = enemy, Camera = b.Camera with { Frame = ++frame } }, "me", BattleSpace.SizeOf));
         Show(Status with { Ship = "ilwrath", Captain = 5 });
         Show(Status with { Ship = "ilwrath", Captain = 5, Crew = 3 });   // the same ship: updated, not drawn afresh
+        Show(Status with { Ship = "ilwrath", Captain = 5, Crew = 5 });   // nor as its crew rises (crew picked up, regrown)
+        Assert.Single(shown);
         Show(Status with { Ship = "spathi", Captain = 5 });
         Show(Status with { Ship = "spathi", Captain = 9 });
         // A ship whose status stopped (here gone), back with crew and the same captain: shown afresh (an infinite fleet's

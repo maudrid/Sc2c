@@ -165,8 +165,8 @@ public sealed class BattleScreen
     private int _frame;
     private bool _wasOwn;
     private bool _enemyShown, _mineShown;
-    // The enemy ship whose status is shown: its ship and captain (the next of a fleet is shown afresh; so is one with crew
-    // again once its status has stopped, as an infinite fleet's brought back, whose new captain may be the old one's).
+    // The enemy ship whose status is shown: its ship and captain (another is shown afresh; so is the same one seen with
+    // crew after none, StatusFrame).
     private (string Ship, int Captain) _enemyShownAs;
     // The enemy's crew last seen (0 while gone): 0 to more is a ship back.
     private int _enemyCrewSeen;
