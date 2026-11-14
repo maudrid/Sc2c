@@ -685,6 +685,86 @@ public partial class RaceShipCoopTests
         Assert.Contains(fighters, f => (f.TurnWait & (byte)StatusFlags.Right) != 0);
     }
 
+    [ContentTheory]
+    [InlineData("urquan")]
+    [InlineData("blackurq")]
+    public void ItsKeptTargetWithoutCrewStaysWhenTheOnlyOtherIsCloaked(string race)
+    {
+        // As ItsKeptTargetWithoutCrewGivesWayToTheNearestWithCrew, but the
+        // other player flies an Ilwrath, cloaked: no shot can take it, so
+        // the fighters or the blade keep the target they had.
+        var flagship = Player();
+        var ilwrath = Race("ilwrath", 0);
+        var enemy = Race(race, 1);
+        var battle = new Battle(Arena(), new[] { new[] { flagship }, new[] { enemy } }, 99, maxElements: 300);
+        Assert.True(battle.Join(ilwrath));
+        WarpIn(battle);
+        Clear(battle);
+        int cx = battle.Size.Width / 2, cy = battle.Size.Height / 2;
+        Put(battle, enemy.Ship!, cx, cy);
+        Face(enemy, 0);
+        var near = flagship.Ship!;
+        Put(battle, near, cx, cy + 700);
+        Put(battle, ilwrath.Ship!, cx + 900, cy + 300);
+        ilwrath.Ship!.Prim = PrimType.StampFill;   // cloaked: filled black
+        ilwrath.Ship.PrimColor = 0;
+        Assert.True(Battle.ObjectCloaked(ilwrath.Ship));
+
+        bool Locked(Element e) => e.Parent == enemy && (e.StateFlags & ElementFlags.PlayerShip) == 0 && e.Target != null;
+        for (int frame = 0; frame < 60 && !battle.List.Elements.Any(Locked); ++frame)
+            battle.Step(ship => ship == enemy && frame == 0 ? (race == "urquan" ? BattleInput.Special : BattleInput.Weapon)
+                : BattleInput.None);
+        var shots = battle.List.Elements.Where(Locked).ToList();
+        Assert.NotEmpty(shots);
+        Assert.All(shots, e => Assert.Same(near, e.Target));
+
+        battle.DeltaCrew(near, (short)-near.CrewLevel);
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            battle.Step(_ => BattleInput.None);
+            Assert.True(Battle.ObjectCloaked(ilwrath.Ship), "the Ilwrath stays cloaked");
+        }
+        Assert.All(shots.Where(e => e.InList && e.LifeSpan > 0), e => Assert.Same(near, e.Target));
+    }
+
+    [ContentTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheUrQuansFightersTakeTheLivePlayerInTheFrameTheyDropTheDead(bool oddFrame)
+    {
+        // The fighters locked on the nearer of two players, whose crew runs
+        // out: in the very next frame they have the other as their target,
+        // on a frame of odd life span (when UQM's fighter doesn't track) as
+        // on an even one.
+        var team = new[] { Player(), Player() };
+        var enemy = Race("urquan", 1);
+        var battle = new Battle(Arena(), new[] { new[] { team[0] }, new[] { enemy } }, 99, maxElements: 300);
+        Assert.True(battle.Join(team[1]));
+        WarpIn(battle);
+        Clear(battle);
+        int cx = battle.Size.Width / 2, cy = battle.Size.Height / 2;
+        Put(battle, enemy.Ship!, cx, cy);
+        Face(enemy, 0);
+        var near = team[1].Ship!;
+        Put(battle, near, cx, cy + 700);
+        Put(battle, team[0].Ship!, cx + 900, cy + 300);
+
+        bool Fighter(Element e) => ReferenceEquals(e.Current.FrameArray, enemy.RaceDesc!.Special);
+        for (int frame = 0; frame < 60 && !battle.List.Elements.Any(e => Fighter(e) && e.Target != null); ++frame)
+            battle.Step(ship => ship == enemy && frame == 0 ? BattleInput.Special : BattleInput.None);
+        var fighters = battle.List.Elements.Where(Fighter).ToList();
+        Assert.Equal(2, fighters.Count);
+        Assert.All(fighters, e => Assert.Same(near, e.Target));
+        if ((fighters[0].LifeSpan & 1) == 1 != oddFrame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Equal(oddFrame, (fighters[0].LifeSpan & 1) == 1);
+        Assert.All(fighters, e => Assert.Same(near, e.Target));
+
+        battle.DeltaCrew(near, (short)-near.CrewLevel);
+        battle.Step(_ => BattleInput.None);
+        Assert.All(fighters, e => Assert.Same(team[0].Ship, e.Target));
+    }
+
     // A place by the seam: `along` from the west edge (from the east edge
     // if negative), half way down; with northSouth, from the north edge (or
     // the south), half way across.

@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-14, stage 4b item 3 (ships, part 2) built; review round 1's findings fixed (a co-op gap: kept targets without crew; four test gaps).
+**Last updated:** 2026-11-14, stage 4b item 3 (ships, part 2) built; review round 1's findings fixed (a co-op gap: kept targets without crew; four test gaps), round 2's (two untested branches of the fix).
 
 ## Where things are
 
@@ -10,8 +10,8 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet): eleven items, approved by the owner on 2026-11-13 with all six recommendations accepted. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
 - **Stage 4b item 1 is built and reviewed** (its Progress row): every ship's content, and the traces `tests/golden/battle-races-1.json` to `-3.json` (items 2 to 4); notes for items 3 and 4 are under them in the plan.
 - **Stage 4b item 2 is built and reviewed** (its Progress row): the Arilou, Spathi, Supox, Druuge, Yehat, Zoq-Fot-Pik, Thraddash and Umgah.
-- **Stage 4b item 3 is built** (its Progress row), review round 1's findings fixed (fighters and blades leave a target without crew for the nearest opposing ship with crew; tests for the Mmrnmhrm's weapon after a transform, the Utwig AI's halving, the fighter's head-on bounce, north-south seam cases): the Utwig, Mycon, Androsynth, Mmrnmhrm, Chenjesu, Slylandro, Ur-Quan and Kohr-Ah in `src/Crateris.Core/Combat/` (in `RaceShips.Ported`, so `--start-battle` takes them), all 16 of their traces matched (`RaceShipBattleTests`); co-op, seam and branch tests in `RaceShipCoopTests` (a partial class, item 3's in `RaceShipCoopTests.Item3.cs`), each new one checked to fail on its mutation (the row lists them, and the few equivalent or untested).
-- **Last checks:** with item 3 and review round 1's fixes, all topics 1,664 passed (combat 429), 0 failed, 0 skipped with the content set; `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle urquan --script "none:40,fire:100,special:20,none:200" --quit-after 400` ran (in battle against the urquan, which destroyed the flagship at frame 337: game over). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 3 changed nothing in `data/`).
+- **Stage 4b item 3 is built** (its Progress row), review rounds 1 and 2's findings fixed (round 2: tests for the drop's cloak exclusion and the fighters' immediate track; round 1: fighters and blades leave a target without crew for the nearest opposing ship with crew; tests for the Mmrnmhrm's weapon after a transform, the Utwig AI's halving, the fighter's head-on bounce, north-south seam cases): the Utwig, Mycon, Androsynth, Mmrnmhrm, Chenjesu, Slylandro, Ur-Quan and Kohr-Ah in `src/Crateris.Core/Combat/` (in `RaceShips.Ported`, so `--start-battle` takes them), all 16 of their traces matched (`RaceShipBattleTests`); co-op, seam and branch tests in `RaceShipCoopTests` (a partial class, item 3's in `RaceShipCoopTests.Item3.cs`), each new one checked to fail on its mutation (the row lists them, and the few equivalent or untested).
+- **Last checks:** with item 3 and review rounds 1 and 2's fixes, all topics 1,668 passed (combat 433), 0 failed, 0 skipped with the content set; `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle urquan --script "none:40,fire:100,special:20,none:200" --quit-after 400` ran (in battle against the urquan, which destroyed the flagship at frame 337: game over). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 3 changed nothing in `data/`).
 
 ## Open items
 
@@ -36,7 +36,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Review round 2 of stage 4b item 3 (the review loop of `CLAUDE.md`, on round 1's fix commit); then wait for the owner's go-ahead for item 4 (ships, part 3).
+Review round 3 of stage 4b item 3 (the review loop of `CLAUDE.md`, on round 2's fix commit); then wait for the owner's go-ahead for item 4 (ships, part 3).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
