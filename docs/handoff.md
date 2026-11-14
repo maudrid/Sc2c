@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-14, stage 4b item 3 (ships, part 2) built; review round 1's findings fixed (a co-op gap: kept targets without crew; four test gaps), round 2's (two untested branches of the fix).
+**Last updated:** 2026-11-14, stage 4b item 3 (ships, part 2) built and reviewed in three rounds (round 1: a co-op gap, kept targets without crew, and four test gaps; round 2: two untested branches of that fix; round 3: nothing to fix).
 
 ## Where things are
 
@@ -36,7 +36,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Review round 3 of stage 4b item 3 (the review loop of `CLAUDE.md`, on round 2's fix commit); then wait for the owner's go-ahead for item 4 (ships, part 3).
+Stage 4b item 3 is done; wait for the owner's go-ahead for item 4 (ships, part 3: the Earthling, Chmmr, Shofixti, Syreen, Orz, Melnorme, VUX and Pkunk).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
