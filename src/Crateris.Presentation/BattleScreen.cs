@@ -168,6 +168,8 @@ public sealed class BattleScreen
     // The enemy ship whose status is shown: its ship and captain (the next of a fleet is shown afresh; so is one with crew
     // again once its status has stopped, as an infinite fleet's brought back, whose new captain may be the old one's).
     private (string Ship, int Captain) _enemyShownAs;
+    // The enemy's crew last seen (0 while gone): 0 to more is a ship back.
+    private int _enemyCrewSeen;
 
     /// <param name="canvas">Where the status panel's calls go (<see cref="Status"/>).</param>
     /// <param name="statusShip">A ship's look in the panel from its status (and its player, null for the enemy): its icons, captain and names.</param>
@@ -234,16 +236,15 @@ public sealed class BattleScreen
     {
         StatusState State(BattleShipStatus s) => new(s.Crew, s.Energy, s.Flags, s.ElementCrew, s.LifeSpan, s.Gone);
         // spawn_ship's InitShipStatus (ship_preprocess's first frame): each enemy ship coming in has its status drawn
-        // afresh, another ship or captain, or, once the slot's ship has stopped, one with crew there again (an infinite
-        // fleet's back with its element, its new captain maybe the old one's; a Pkunk reborn, new_pkunk's APPEARING),
-        // in the frame it's first seen with crew.
-        bool fresh = !_enemyShown || _enemyShownAs != (b.Enemy.Ship, b.Enemy.Captain);
+        // afresh, in the frame it's first seen: another ship or captain, or one with crew after frames seen without (an
+        // infinite fleet's back with its element, its new captain maybe the old one's; a Pkunk reborn, new_pkunk's
+        // APPEARING, whether its status stopped or frames missed through its death and rebirth left it running).
+        bool fresh = !_enemyShown || _enemyShownAs != (b.Enemy.Ship, b.Enemy.Captain)
+            || _enemyCrewSeen == 0 && b.Enemy.Crew > 0 && !b.Enemy.Gone;
+        _enemyCrewSeen = b.Enemy.Gone ? 0 : b.Enemy.Crew;   // a ship gone is none there
         if (!fresh)
-        {
             _status.Update(BattleStatus.EnemySlot, State(b.Enemy));
-            fresh = _status.Stopped(BattleStatus.EnemySlot) && b.Enemy.Crew > 0 && !b.Enemy.Gone;
-        }
-        if (fresh)
+        else
         {
             _status.Init(BattleStatus.EnemySlot, _statusShip(b.Enemy, null), State(b.Enemy));
             _enemyShown = true;

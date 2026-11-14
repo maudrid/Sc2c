@@ -135,11 +135,22 @@ public class BattleScreenTests
         Show(Status with { Ship = "ilwrath", Captain = 5, Crew = 3 });   // the same ship: updated, not drawn afresh
         Show(Status with { Ship = "spathi", Captain = 5 });
         Show(Status with { Ship = "spathi", Captain = 9 });
-        // An infinite fleet's ship gone and back with the same captain drawn again (1 in 16): shown afresh all the same.
+        // A ship whose status stopped (here gone), back with crew and the same captain: shown afresh (an infinite fleet's
+        // real path, its ship never gone, is EnemyFleetTests'); not while gone, even with crew.
         for (int i = 0; i < 3; ++i)
-            Show(Status with { Ship = "spathi", Captain = 9, Crew = 0, Gone = true });   // gone: not drawn afresh
+            Show(Status with { Ship = "spathi", Captain = 9, Crew = 0, Gone = true });
+        Show(Status with { Ship = "spathi", Captain = 9, Crew = 4, Gone = true });
+        Assert.Equal(3, shown.Count);
         Show(Status with { Ship = "spathi", Captain = 9 });
         Assert.Equal(new[] { ("ilwrath", 5), ("spathi", 5), ("spathi", 9), ("spathi", 9) }, shown);
+
+        // A Pkunk reborn with the frames of its death and rebirth missed (its slot not stopped: the life seen next no
+        // higher than the last): crew 0 then crew again is a ship back all the same.
+        Show(Status with { Ship = "pkunk", Captain = 6, Crew = 8 });
+        Show(Status with { Ship = "pkunk", Captain = 6, Crew = 0, LifeSpan = 20 });
+        Show(Status with { Ship = "pkunk", Captain = 6, Crew = 8, LifeSpan = 4 });
+        Show(Status with { Ship = "pkunk", Captain = 6, Crew = 8, LifeSpan = 3 });
+        Assert.Equal(new[] { ("pkunk", 6), ("pkunk", 6) }, shown.Skip(4));
     }
 
     // The stars a frame draws, in the space window.

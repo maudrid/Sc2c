@@ -108,9 +108,6 @@ public sealed class BattleStatus
 
     public BattleStatus(UqmCanvas canvas) => _c = canvas;
 
-    /// <summary>Whether a slot's ship has stopped (destroyed or warped out): its status is drawn no more.</summary>
-    public bool Stopped(int slot) => _slots.TryGetValue(slot, out var s) && s.Done;
-
     /// <summary>The ship in a slot (<see cref="PlayerSlot"/>, <see cref="EnemySlot"/>), or null.</summary>
     public StatusShip? ShipIn(int slot) => _slots.TryGetValue(slot, out var s) ? s.Ship : null;
 
