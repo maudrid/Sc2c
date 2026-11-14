@@ -1005,6 +1005,418 @@ public partial class RaceShipCoopTests
         Assert.False(flying.Velocity.IsZero, "it flies");
     }
 
+    // ---- The Chmmr ----
+
+    [ContentTheory]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void TheChmmrsTractorPullsTheNearestAndGivesUpOneWithoutCrew(int players)
+    {
+        // The computer's Chmmr pulls the nearest player (its ship's kept
+        // target) towards it; the others drift on. That player's crew runs
+        // out (the ship still there): the next pull takes another player at
+        // once (UQM's TrackShip drops the dead one and finds none that frame).
+        var (battle, chmmr, team) = Crowd("chmmr", players);
+        int cx = chmmr.Ship!.Current.X, cy = chmmr.Ship.Current.Y;
+        int[] dx = { 0, 2400, 0, -2000 }, dy = { 1200, 0, -2400, -2000 };
+        for (int i = 0; i < players; ++i)
+            Put(battle, team[i].Ship!, cx + dx[i], cy + dy[i]);
+        battle.Step(ship => ship == chmmr ? BattleInput.Special : BattleInput.None);
+        Assert.Same(team[0].Ship, chmmr.Ship.Target);
+        Assert.False(team[0].Ship!.Velocity.IsZero, "pulled");
+        Assert.All(team.Skip(1), t => Assert.True(t.Ship!.Velocity.IsZero, "not pulled"));
+
+        battle.DeltaCrew(team[0].Ship!, (short)-team[0].Ship!.CrewLevel);
+        foreach (var t in team)
+            t.Ship!.Velocity.Zero();
+        battle.Step(ship => ship == chmmr ? BattleInput.Special : BattleInput.None);
+        Assert.NotSame(team[0].Ship, chmmr.Ship.Target);
+        Assert.Single(team.Skip(1), t => !t.Ship!.Velocity.IsZero);
+    }
+
+    [ContentTheory]
+    [InlineData(1.0, false, false)]
+    [InlineData(1.5, true, false)]
+    [InlineData(1.0, false, true)]
+    [InlineData(1.5, true, true)]
+    public void TheChmmrsTractorPullsAcrossTheSeamInABiggerArena(double scale, bool across, bool northSouth)
+    {
+        // The Chmmr by the west edge facing east, the Ilwrath just across the
+        // seam to its west, 300 away: pulled east, towards the point ahead of
+        // the Chmmr, in a bigger arena; west in UQM's (the long way round), as
+        // UQM's. With northSouth, by the north edge facing south: pulled south, or north.
+        var (battle, chmmr, ilwrath) = Lab4("chmmr", 42, scale: scale);
+        Face(chmmr, Turned(northSouth, 4));
+        Put(battle, chmmr.Ship!, Along(battle, northSouth, 100));
+        Put(battle, ilwrath.Ship!, Along(battle, northSouth, -200));
+        // Its step after moving, by itself: a frame's scroll would move them first.
+        chmmr.CurStatusFlags = StatusFlags.Special;
+        chmmr.RaceDesc!.Postprocess!(chmmr.Ship!);
+        var (vx, vy) = ilwrath.Ship!.Velocity.Current();
+        Assert.Equal(across, (northSouth ? vy : vx) > 0);
+    }
+
+    [ContentTheory]
+    [InlineData(1.0, false, false)]
+    [InlineData(1.5, true, false)]
+    [InlineData(1.0, false, true)]
+    [InlineData(1.5, true, true)]
+    [InlineData(1.1, true, false)]   // 9,008 wide: a 16-bit velocity no longer wraps the long way round onto the short
+    public void TheChmmrsSatellitesZapAcrossTheSeamInABiggerArena(double scale, bool across, bool northSouth)
+    {
+        // A satellite held by the west edge, an Ilwrath shot just across the
+        // seam to its west, 40 pixels off: zapped in a bigger arena; out of
+        // reach the long way round in UQM's, as UQM's. With northSouth, by the north edge.
+        var (battle, chmmr, ilwrath) = Lab4("chmmr", 42, scale: scale);
+        WaitForSatellites(battle, chmmr);
+        var satellite = battle.List.Elements.First(e => e.Parent == chmmr && ReferenceEquals(e.Current.FrameArray, chmmr.RaceDesc!.Special));
+        var shot = Shots(battle, new[] { ilwrath })[0];
+        // Its steps by themselves: a frame's scroll would move them first.
+        Put(battle, satellite, Along(battle, northSouth, 40));
+        Put(battle, shot, Along(battle, northSouth, -120));
+        satellite.ThrustWait = 0;
+        var before = battle.List.Elements.ToHashSet();
+        satellite.PostprocessFunc!(satellite);
+        var defense = Assert.Single(battle.List.Elements, e => !before.Contains(e));
+        defense.DeathFunc!(defense);
+        var laser = battle.List.Elements.FirstOrDefault(e => !before.Contains(e) && e.Parent == chmmr && e.Prim == PrimType.Line);
+        bool zapped = laser != null;
+        if (laser != null)
+        {
+            // Aimed west across the seam (north, with northSouth), the short way round.
+            var (vx, vy) = laser.Velocity.Current();
+            int along = northSouth ? vy : vx, aside = northSouth ? vx : vy;
+            // 160 world units the short way round (as velocity, VELOCITY_SHIFT 5 more bits).
+            Assert.InRange(along, -(200 << 5), -(120 << 5));
+            Assert.InRange(aside, -(8 << 5), 8 << 5);
+        }
+        Assert.Equal(across, zapped);
+    }
+
+    [ContentTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheChmmrsIonSpotsLieAlongItsBeamAcrossTheSeam(bool northSouth)
+    {
+        // In a bigger arena, the Chmmr by the east edge fires east across
+        // the seam: the beam's ion spots lie ahead of it, between it and the
+        // beam's end (laser_death measuring from the ship to the end the
+        // short way round), not behind it. With northSouth, by the south
+        // edge firing south.
+        var (battle, chmmr, ilwrath) = Lab4("chmmr", 42, scale: 1.5);
+        int w = battle.Size.Width, h = battle.Size.Height;
+        Face(chmmr, Turned(northSouth, 4));
+        Put(battle, chmmr.Ship!, northSouth ? w / 2 : w - 200, northSouth ? h - 200 : h / 2);
+        var spots = new List<Element>();
+        for (int i = 0; i < 20; ++i)
+        {
+            // A beam fired east, its end (where it is as it dies) 400 ahead, across the seam.
+            var laser = chmmr.RaceDesc!.InitWeapon!(chmmr.Ship!)[0]!;
+            laser.Parent = chmmr;
+            battle.List.Put(laser);
+            laser.Current.X = (short)battle.WrapX(chmmr.Ship!.Current.X + (northSouth ? 0 : 1600));
+            laser.Current.Y = (short)battle.WrapY(chmmr.Ship.Current.Y + (northSouth ? 1600 : 0));
+            var before = battle.List.Elements.ToHashSet();
+            laser.DeathFunc!(laser);
+            spots.AddRange(battle.List.Elements.Where(e => !before.Contains(e)));
+            battle.List.Remove(laser);
+            battle.List.Free(laser);
+        }
+        foreach (var spot in spots)
+        {
+            int along = northSouth ? battle.WrapDeltaY(spot.Current.Y - chmmr.Ship!.Current.Y)
+                : battle.WrapDeltaX(spot.Current.X - chmmr.Ship!.Current.X);
+            int aside = northSouth ? battle.WrapDeltaX(spot.Current.X - chmmr.Ship.Current.X)
+                : battle.WrapDeltaY(spot.Current.Y - chmmr.Ship.Current.Y);
+            Assert.InRange(along, 0, 1601);
+            Assert.InRange(aside, -2, 2);
+        }
+        Assert.NotEmpty(spots);
+    }
+
+    [ContentFact]
+    public void TheChmmrsSatelliteZapsTheWeakestThenTheNearest()
+    {
+        // Two Ilwrath shots within a satellite's reach: the one with fewer
+        // hit points is zapped though it's farther; of two alike, the nearer.
+        foreach (bool alike in new[] { false, true })
+        {
+            var (battle, chmmr, ilwrath) = Lab4("chmmr", 42);
+            WaitForSatellites(battle, chmmr);
+            var satellite = battle.List.Elements.First(e => e.Parent == chmmr && ReferenceEquals(e.Current.FrameArray, chmmr.RaceDesc!.Special));
+            var shots = Shots(battle, new[] { ilwrath });
+            shots.Add(Shots(battle, new[] { ilwrath })[0]);
+            var (near, far) = (shots[0], shots[1]);
+            near.HitPoints = 3;
+            far.HitPoints = (ushort)(alike ? 3 : 2);
+            Element? laser = null;
+            for (int frame = 0; frame < 6 && laser == null; ++frame)
+            {
+                Put(battle, near, satellite.Current.X + 80, satellite.Current.Y);
+                Put(battle, far, satellite.Current.X - 160, satellite.Current.Y);
+                near.LifeSpan = far.LifeSpan = 10;
+                laser = PressedOnce(battle, chmmr, BattleInput.None).FirstOrDefault(e => e.Parent == chmmr && e.Prim == PrimType.Line);
+            }
+            Assert.NotNull(laser);
+            // The laser's way: east at the nearer, west at the weaker.
+            Assert.Equal(alike, laser!.Velocity.Current().dx > 0);
+        }
+    }
+
+    [ContentFact]
+    public void TheChmmrsMuzzleFlashesOnlyForItsOwnLaser()
+    {
+        // Two players' Chmmr: the first in the list fires its laser (no flash
+        // of its own on an odd colour step); the second presses its weapon
+        // without the energy to fire: no flash for the first's laser at the
+        // list's tail (UQM's takes any of its side's new lines).
+        var (battle, _, team, _) = Team("chmmr", 2);
+        var (first, second) = InListOrder(battle, team[0], team[1]);
+        first.SpecialCounter = 2;
+        second.SpecialCounter = 0;
+        second.RaceDesc!.EnergyLevel = 0;
+        var made = PressedOnceBy(battle, s => s == first || s == second ? BattleInput.Weapon : BattleInput.None);
+        Assert.Single(made, e => e.Parent == first && e.Prim == PrimType.Line);
+        Assert.DoesNotContain(made, e => e.Prim == PrimType.Stamp && ReferenceEquals(e.Current.FrameArray, second.RaceDesc.Weapon));
+        Assert.DoesNotContain(made, e => e.Parent == second);
+    }
+
+    // ---- The seam ----
+
+    [ContentTheory]
+    [InlineData("human", 1.0, false, false)]
+    [InlineData("human", 1.5, true, false)]
+    [InlineData("human", 1.0, false, true)]
+    [InlineData("human", 1.5, true, true)]
+    [InlineData("syreen", 1.0, false, false)]
+    [InlineData("syreen", 1.5, true, false)]
+    [InlineData("syreen", 1.0, false, true)]
+    [InlineData("syreen", 1.5, true, true)]
+    [InlineData("shofixti", 1.0, false, false)]
+    [InlineData("shofixti", 1.5, true, false)]
+    [InlineData("shofixti", 1.0, false, true)]
+    [InlineData("shofixti", 1.5, true, true)]
+    public void ItsReachIsMeasuredAcrossTheSeamInABiggerArena(string race, double scale, bool across, bool northSouth)
+    {
+        // The race ship by the west edge, the Ilwrath just across the seam
+        // to its west, 75 pixels away: within the Earthling's point defence's
+        // reach (it fires at it), the Syreen's song's (it loses crew) and the
+        // Glory Device's (it loses crew) in a bigger arena, measured the short
+        // way round; in UQM's, the long way, as UQM's, beyond them. With
+        // northSouth, by the north edge.
+        var (battle, ship, ilwrath) = Lab4(race, BattleReplay.Ships[race].Crew, scale: scale);
+        Put(battle, ship.Ship!, Along(battle, northSouth, 100));
+        Put(battle, ilwrath.Ship!, Along(battle, northSouth, -200));
+        // Its steps by themselves: a frame's scroll would move them first.
+        var before = battle.List.Elements.ToHashSet();
+        var rd = ship.RaceDesc!;
+        for (int i = 0; i < (race == "shofixti" ? 5 : 1); ++i)
+        {
+            ship.CurStatusFlags = StatusFlags.Special;
+            ship.OldStatusFlags = StatusFlags.None;
+            rd.Postprocess!(ship.Ship!);
+        }
+        foreach (var helper in battle.List.Elements.Where(e => !before.Contains(e) && e.DeathFunc != null).ToList())
+            helper.DeathFunc!(helper);
+        bool reached = race == "human"
+            ? battle.List.Elements.Any(e => !before.Contains(e) && e.Parent == ship && e.Prim == PrimType.Line)
+            : ilwrath.RaceDesc!.CrewLevel < 22;
+        Assert.Equal(across, reached);
+    }
+
+    [ContentTheory]
+    [InlineData(1.0, false, false)]
+    [InlineData(1.5, true, false)]
+    [InlineData(1.0, false, true)]
+    [InlineData(1.5, true, true)]
+    public void TheOrzsAiStopsTurningAwayAcrossTheSeamInABiggerArena(double scale, bool across, bool northSouth)
+    {
+        // The Orz by the west edge at top speed eastwards, enticing the
+        // enemy just across the seam to its west, behind it: in a bigger
+        // arena it sees it flying away from it and stops turning; in UQM's
+        // (the long way round, the enemy ahead) it doesn't, as UQM's. With
+        // northSouth, by the north edge flying south.
+        var (battle, orz, ilwrath) = Lab4("orz", 16, scale: scale);
+        Put(battle, orz.Ship!, Along(battle, northSouth, 100));
+        Put(battle, ilwrath.Ship!, Along(battle, northSouth, -900));
+        orz.Ship!.Velocity.SetVector(35, Turned(northSouth, 4));
+        orz.CurStatusFlags |= StatusFlags.ShipAtMaxSpeed;
+        orz.SpecialCounter = 2;   // no marines (its AI acts with the counter anything but 1)
+        orz.ShipInputState = StatusFlags.Left;
+        orz.Ship.TurnWait = 0;
+        orz.Ship.ThrustWait = 1;   // it can't thrust this frame
+        orz.Ship.Successor!.TurnWait = 3;   // nor turn its turret (which would turn it with the special)
+        var concerns = OwnAi(battle, orz, ilwrath.Ship!, MoveState.Entice, 20);
+        Assert.Equal(across, (orz.ShipInputState & (StatusFlags.Left | StatusFlags.Right)) == 0);
+    }
+
+    // ---- Homing and SEEKING_SPECIAL ----
+
+    [ContentTheory]
+    [InlineData("human", 2)]
+    [InlineData("human", 4)]
+    [InlineData("vux", 2)]
+    [InlineData("vux", 4)]
+    public void ItsHomersTakeTheNearestPlayerAndKeepIt(string race, int players)
+    {
+        // The Earthling's missile, the VUX's limpet (dropped behind it):
+        // the race ship still at the centre facing north, the second player
+        // the nearest, 1,000 south; it takes it and keeps it though another
+        // comes nearer. The limpet takes the very sheets in the RACE_DESC's special.
+        var (battle, enemy, team) = Crowd(race, players);
+        int cx = enemy.Ship!.Current.X, cy = enemy.Ship.Current.Y;
+        int[] dx = { 1500, 0, 0, -1200 }, dy = { 0, 1000, -2000, -1200 };
+        for (int i = 0; i < players; ++i)
+            Put(battle, team[i].Ship!, cx + dx[i], cy + dy[i]);
+        var nearest = team[1].Ship!;
+        var key = race == "human" ? BattleInput.Weapon : BattleInput.Special;
+        var shot = Assert.Single(PressedOnce(battle, enemy, key), e => e.Parent == enemy && (e.StateFlags & ElementFlags.PlayerShip) == 0);
+        if (race == "vux")
+            Assert.Same(enemy.RaceDesc!.Special, shot.Current.FrameArray);
+        for (int frame = 0; frame < 8 && shot.Target == null; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Same(nearest, shot.Target);
+        Put(battle, team[0].Ship!, shot.Current.X + 200, shot.Current.Y);
+        for (int frame = 0; frame < 6; ++frame)
+            battle.Step(_ => BattleInput.None);
+        Assert.Same(nearest, shot.Target);
+    }
+
+    [ContentFact]
+    public void ItsSpecialElementsTakeTheVerySpecialSheets()
+    {
+        // SEEKING_SPECIAL ships: the AI tells their special elements from
+        // their weapon's by the RACE_DESC's very special array. The Chmmr's
+        // satellites, the Orz's turret, its flash and marines, the VUX's
+        // limpets take it.
+        foreach (string race in new[] { "chmmr", "orz", "vux" })
+        {
+            var (battle, ship, _) = Lab4(race, BattleReplay.Ships[race].Crew);
+            Assert.True((ship.RaceDesc!.ShipFlags & ShipFlags.SeekingSpecial) != 0);
+            if (race == "chmmr")
+                WaitForSatellites(battle, ship);
+            var made = PressedOnce(battle, ship, race == "orz" ? BattleInput.Weapon | BattleInput.Special : BattleInput.Special);
+            var special = battle.List.Elements.Where(e => e.Parent == ship && e.Current.FrameArray?.Sizes == ship.RaceDesc.Special!.Sizes
+                                                          && e.Current.Frame.Sheet != null
+                                                          && ship.RaceDesc.Special[0].Sheet == e.Current.FrameArray![0].Sheet).ToList();
+            Assert.NotEmpty(special);
+            Assert.All(special, e => Assert.Same(ship.RaceDesc.Special, e.Current.FrameArray));
+        }
+    }
+
+    // ---- The AIs ----
+
+    [ContentFact]
+    public void TheEarthlingsAiDefendsAgainstWhatsNear()
+    {
+        // Its point defence at a shot within 2 frames or the enemy within 4,
+        // not beyond; its missile while not turning, or turning with the enemy within 12.
+        var (battle, human, ilwrath) = Lab4("human", 18, enemyAt: -2000);
+        var shot = Shots(battle, new[] { ilwrath })[0];
+        foreach (var (shipTurns, weaponTurns, special) in new[] { (30, 2, true), (30, 3, false), (4, 30, true), (5, 30, false) })
+        {
+            human.SpecialCounter = human.WeaponCounter = 0;
+            human.ShipInputState = StatusFlags.None;
+            OwnAi(battle, human, ilwrath.Ship!, MoveState.Pursue, (ushort)shipTurns, shot, MoveState.Avoid, (ushort)weaponTurns);
+            Assert.Equal(special, (human.ShipInputState & StatusFlags.Special) != 0);
+            Assert.True((human.ShipInputState & StatusFlags.Weapon) != 0 || (human.ShipInputState & (StatusFlags.Left | StatusFlags.Right)) != 0,
+                "fires unless turning");
+        }
+    }
+
+    [ContentFact]
+    public void TheSyreensAiSingsAtANearShipWithCrewToLose()
+    {
+        // Within 14 frames at a ship of more than one crew, not crew-immune;
+        // not beyond, not at one of one crew, not at a crew-immune one.
+        foreach (var (turns, crew, immune, sings) in new[]
+                     { (14, 22, false, true), (15, 22, false, false), (14, 1, false, false), (14, 22, true, false) })
+        {
+            var (battle, syreen, ilwrath) = Lab4("syreen", 12, enemyAt: -2000, enemyCrew: crew);
+            if (immune)
+                ilwrath.RaceDesc!.ShipFlags |= ShipFlags.CrewImmune;
+            OwnAi(battle, syreen, ilwrath.Ship!, MoveState.Pursue, (ushort)turns);
+            Assert.Equal(sings, (syreen.ShipInputState & StatusFlags.Special) != 0);
+        }
+    }
+
+    [ContentFact]
+    public void TheShofixtisAiWorksTheKeyThenWaitsForItsMoment()
+    {
+        // Far from the window's end it presses and lets go by turns; near it
+        // (5 or fewer frames left), it waits for the enemy within 4 frames.
+        var (battle, shofixti, ilwrath) = Lab4("shofixti", 6, enemyAt: -2000);
+        var presses = new List<bool>();
+        for (int i = 0; i < 6; ++i)
+        {
+            OwnAi(battle, shofixti, ilwrath.Ship!, MoveState.Pursue, 30);
+            presses.Add((shofixti.ShipInputState & StatusFlags.Special) != 0);
+            battle.Step(_ => (BattleInput)(byte)(shofixti.ShipInputState & StatusFlags.Keys));
+        }
+        // Frames 12 to 15 of 20: pressed, let go, pressed, let go... then 5 left: it waits.
+        Assert.Equal(new[] { true, false, true, false, false, false }, presses);
+        Assert.Equal(6, shofixti.RaceDesc!.CrewLevel);
+        OwnAi(battle, shofixti, ilwrath.Ship!, MoveState.Pursue, 4);
+        Assert.True((shofixti.ShipInputState & StatusFlags.Special) != 0, "the enemy within 4 frames");
+    }
+
+    [ContentFact]
+    public void TheChmmrsAiPullsAnEnemyFlyingAwayBeyond12Frames()
+    {
+        // The Chmmr still, the enemy beyond 12 frames flying away from it:
+        // it pulls; within 12 frames, or flying at it, it doesn't.
+        foreach (var (turns, away, pulls) in new[] { (20, true, true), (12, true, false), (20, false, false) })
+        {
+            var (battle, chmmr, ilwrath) = Lab4("chmmr", 42, enemyAt: -3000);
+            chmmr.Ship!.Velocity.SetVector(8, 12);   // drifting west, at it
+            ilwrath.Ship!.Velocity.SetVector(32, away ? 12 : 4);
+            OwnAi(battle, chmmr, ilwrath.Ship!, MoveState.Pursue, (ushort)turns);
+            Assert.Equal(pulls, (chmmr.ShipInputState & StatusFlags.Special) != 0);
+        }
+    }
+
+    [ContentFact]
+    public void TheVuxsAiDropsALimpetTurningNearWithHalfItsEnergy()
+    {
+        foreach (var (turns, energy, drops) in new[] { (12, 20, true), (13, 20, false), (12, 19, false) })
+        {
+            var (battle, vux, ilwrath) = Lab4("vux", 20, enemyAt: 600);
+            vux.RaceDesc!.EnergyLevel = (byte)energy;
+            vux.ShipInputState = StatusFlags.None;
+            var concerns = OwnAi(battle, vux, ilwrath.Ship!, MoveState.Pursue, (ushort)turns);
+            bool turning = (vux.ShipInputState & (StatusFlags.Left | StatusFlags.Right)) != 0;
+            Assert.Equal(drops && turning, (vux.ShipInputState & StatusFlags.Special) != 0);
+        }
+    }
+
+    [ContentFact]
+    public void ThePkunksAiInsultsOnlyShortOfEnergy()
+    {
+        var (battle, pkunk, ilwrath) = Lab4("pkunk", 8, enemyAt: -2000);
+        OwnAi(battle, pkunk, ilwrath.Ship!, MoveState.Pursue, 30);
+        Assert.Equal(StatusFlags.None, pkunk.ShipInputState & StatusFlags.Special);
+        pkunk.RaceDesc!.EnergyLevel = 3;
+        OwnAi(battle, pkunk, ilwrath.Ship!, MoveState.Pursue, 30);
+        Assert.NotEqual(StatusFlags.None, pkunk.ShipInputState & StatusFlags.Special);
+    }
+
+    // ---- The Glory Device's winner ----
+
+    [ContentFact]
+    public void TheGloryDevicesWinnerIsTheOtherSideAliveOrTheShofixti()
+    {
+        // Blowing itself up with the Ilwrath far off, alive: the Ilwrath has
+        // won. Taking the Ilwrath with it: the Shofixti has.
+        foreach (bool takesIt in new[] { false, true })
+        {
+            var (battle, shofixti, ilwrath) = Lab4("shofixti", 6, enemyAt: takesIt ? 200 : 4000, enemyCrew: takesIt ? 3 : 22);
+            foreach (var keys in Glory)
+                battle.Step(ship => ship == shofixti ? keys : BattleInput.None);
+            battle.Step(_ => BattleInput.None);
+            Assert.Same(takesIt ? shofixti : ilwrath, battle.Winner);
+        }
+    }
+
     // ---- Helpers ----
 
     // As Lab: a race ship of side 0 at the centre facing east, the Ilwrath

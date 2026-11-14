@@ -20,7 +20,8 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Tests so far:** `RaceShipCoopTests`' theories take item 4's ships; `RaceShipCoopTests.Item4.cs` has point defence, the Glory Device and the song with two and four players (mutations caught so far: the Earthling's and the Glory Device's teammate checks, ORZ_MARINE, the song's side check and its crew cap).
 - **Orz tests done** (the marines' nearest target, staying aboard, flying home, the count, the captain's window, the kept target, the seam, the turret, the AI; each probed).
 - **Pkunk, VUX and Melnorme tests done** (each probed).
-- **Left:** the rest of the co-op, seam and branch tests (the Chmmr's tractor, the seam cases of the other ships, homing, the AIs); mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row; a headless `--start-battle`.
+- **Chmmr, seam, homing and AI tests written** (the seam measures each probed raw, X and Y).
+- **Left:** probing the AIs' and the remaining branches; mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row; a headless `--start-battle`.
 
 ## Open items
 
