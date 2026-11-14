@@ -154,8 +154,10 @@ public sealed class HostFleet
 
     /// <summary>
     /// The fleet as a save holds it, or as a test sets it: every ship's
-    /// race one that can have a fleet, its crew from 0 to its most (the
-    /// shipyard keeps a ship whose crew it sent away, as UQM's), its
+    /// race one that can have a fleet, its crew from 0 to its most (UQM's
+    /// shipyard holds one of none while its crew is edited, scrapping it
+    /// after, and encount.c drops one after a battle: the shipyard and the
+    /// battles that come do so too; a save may come between), its
     /// captain one of its race's 16 names, its slot 0 to 11 and its own;
     /// 12 ships at most. Anything else is an <see cref="ArgumentException"/>,
     /// and the fleet is left as it was.

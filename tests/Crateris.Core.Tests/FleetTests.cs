@@ -155,7 +155,7 @@ public class FleetTests
         fleet.Add(Rules, "SYREEN_SHIP", 1, Counting());
         Assert.Equal(12, fleet.Ships[0].Crew);   // the Syreen's starting crew, not its most
         fleet.SetCrew(Rules, 0, 42);
-        fleet.SetCrew(Rules, 0, 0);              // the shipyard's ship with its crew sent away
+        fleet.SetCrew(Rules, 0, 0);              // the shipyard's, while its crew is edited
         Assert.Equal(0, fleet.Ships[0].Crew);
         Assert.Throws<ArgumentOutOfRangeException>(() => fleet.SetCrew(Rules, 0, 43));
         Assert.Throws<ArgumentOutOfRangeException>(() => fleet.SetCrew(Rules, 0, -1));
@@ -341,7 +341,7 @@ public class FleetTests
         var events = TalkToTheCommander(world, "host");
         Assert.Equal(new EscortsAdded(Rules.RaceIndex(Arilou), 3, 1), Assert.Single(events.OfType<EscortsAdded>()));
         Assert.Equal((12, 1), (world.Fleet.Count, world.Fleet.CountOf(Arilou)));
-        Assert.Equal(11, world.Fleet.InSlot(11)!.Slot);
+        Assert.Equal(Arilou, world.Fleet.InSlot(11)!.Race);
         var visit = world.Host.Ship.Visit!;
         int bye = visit.Talk!.Replies.Select(r => r.Phrase).ToList().IndexOf(Scripts["starbas"].PhraseNumber("goodbye_commander"));
         Assert.True(world.ChooseReply("host", bye, visit.Round));
@@ -355,7 +355,7 @@ public class FleetTests
         world.AddFleetShips(Arilou, 2);
         world.AddFleetShips("SYREEN_SHIP", 1);
         world.Fleet.SetCrew(Rules, 2, 30);
-        world.Fleet.SetCrew(Rules, 1, 0);   // its crew sent away: saved and loaded as it is
+        world.Fleet.SetCrew(Rules, 1, 0);   // a save while the shipyard edits its crew: saved and loaded as it is
         string json = HostSave.ToJson(world);
         var node = JsonNode.Parse(json)!;
         Assert.Equal(12, node["version"]!.GetValue<int>());
