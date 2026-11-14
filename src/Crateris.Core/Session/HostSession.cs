@@ -12,6 +12,7 @@ using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
 using Crateris.Core.Planetside;
+using Crateris.Core.Story;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
 
@@ -142,6 +143,66 @@ public sealed class HostSession
         foreach (var d in chosen)
             story.Set(d.Field!, d.Value ?? 1);
         return $"Starting with {chosen.Count} devices aboard";
+    }
+
+    /// <summary>
+    /// --start-fleet SHIP[:CREW],... (testing, stage 4b item 6): the host's
+    /// fleet is these ships, by data/ships.json's id (arilou, spathi, ...),
+    /// each in the next slot with that crew (1 to its most; its race's
+    /// starting crew without one) and a captain named as UQM names one
+    /// (NameCaptain), whatever fleet there was. Like --start-units it changes
+    /// whatever game is loaded, and is saved with it. Needs the story
+    /// (InvalidOperationException); a ship of no race that can have a fleet
+    /// (the flagship, the Androsynth, Chenjesu, Mmrnmhrm, the probe), a crew
+    /// out of range, or more than 12 ships is an ArgumentException, changing
+    /// nothing.
+    /// </summary>
+    public string StartWithFleet(IEnumerable<string> ships)
+    {
+        if (World.Story is not { } story)
+            throw new InvalidOperationException("a fleet needs the content");
+        var rules = story.Rules;
+        var wanted = new List<(RaceShip Race, int Crew)>();
+        foreach (var entry in ships)
+        {
+            var parts = entry.Split(':', StringSplitOptions.TrimEntries);
+            var race = parts.Length <= 2 ? rules.RaceOfShip(parts[0]) : null;
+            if (race is null)
+                throw new ArgumentException($"{entry}: no ship of a race that can have a fleet (SHIP[:CREW], by data/ships.json's id)");
+            int crew = race.Crew;
+            if (parts.Length == 2 && (!int.TryParse(parts[1], out crew) || crew < 1 || crew > race.MaxCrew))
+                throw new ArgumentException($"{entry}: a {parts[0]}'s crew is 1 to {race.MaxCrew}");
+            wanted.Add((race, crew));
+        }
+        if (wanted.Count > HostFleet.MaxShips)
+            throw new ArgumentException($"{wanted.Count} ships: a fleet has {HostFleet.MaxShips} at most");
+        var fleet = new HostFleet();
+        foreach (var (race, crew) in wanted)
+        {
+            fleet.Add(rules, race.Race, 1, World.FleetRandomForTesting);
+            var made = fleet.Ships[^1];
+            fleet.SetCrew(rules, made.Slot, crew);
+        }
+        World.Fleet.Restore(rules, fleet.Ships);
+        return $"Starting with a fleet of {wanted.Count}" + (wanted.Count == 0 ? "" : $" ({string.Join(", ", wanted.Select(w => w.Race.Ship))})");
+    }
+
+    /// <summary>
+    /// --start-allied SHIP,... (testing, stage 4b item 6): these ships'
+    /// races are allied (SetRaceAllied), by data/ships.json's id, so the
+    /// shipyard builds their ships. Changes whatever game is loaded, and is
+    /// saved with it. Needs the story (InvalidOperationException); a ship of
+    /// no race that can have a fleet is an ArgumentException, changing
+    /// nothing.
+    /// </summary>
+    public string StartAllied(IEnumerable<string> ships)
+    {
+        if (World.Story is not { } story)
+            throw new InvalidOperationException("alliances need the content");
+        var races = ships.Select(s => story.Rules.RaceOfShip(s) ?? throw new ArgumentException($"{s}: no ship of a race that can be allied")).ToList();
+        foreach (var r in races)
+            story.SetAlliance(r.Race, Story.Allied.Good);
+        return $"Starting allied with {string.Join(", ", races.Select(r => r.Ship))}";
     }
 
     /// <summary>

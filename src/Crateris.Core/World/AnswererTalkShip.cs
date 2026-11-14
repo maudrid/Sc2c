@@ -25,16 +25,18 @@ internal sealed class AnswererTalkShip : ITalkShip
 {
     private readonly Func<Player> _answerer;
     private readonly GameStrings _strings;
+    private readonly GameWorld _world;
     private readonly PlayerShip _flagship;
     private readonly Dictionary<Player, TalkChanges> _changes = new();
 
     /// <param name="answerer">Who answers now.</param>
-    /// <param name="flagship">The flagship, whose modules the talks read.</param>
-    public AnswererTalkShip(Func<Player> answerer, GameStrings strings, PlayerShip flagship)
+    /// <param name="world">The world: its flagship, whose modules the talks read, and the host's fleet.</param>
+    public AnswererTalkShip(Func<Player> answerer, GameStrings strings, GameWorld world)
     {
         _answerer = answerer;
         _strings = strings;
-        _flagship = flagship;
+        _world = world;
+        _flagship = world.Host.Ship;
     }
 
     /// <summary>What the talks changed on each player's ship, by player.</summary>
@@ -45,7 +47,7 @@ internal sealed class AnswererTalkShip : ITalkShip
 
     private Player Answerer => _answerer();
 
-    private PlayerTalkShip Ship => new(Answerer, _strings, _flagship);
+    private PlayerTalkShip Ship => new(Answerer, _strings, _world);
 
     private TalkChanges Of(Player p)
     {
@@ -124,11 +126,16 @@ internal sealed class AnswererTalkShip : ITalkShip
 
     public IReadOnlyList<string?> ModuleSlots => _flagship.Modules.ModuleNames;
 
-    public int EscortsWorth => 0;
+    // The host's fleet (stage 4b item 6): its worth for the host's talks, none for a guest's (a guest has no fleet,
+    // decision 3); its room and the ships given whoever answers (decision 3: they join the host's fleet).
+    public int EscortsWorth => Answerer.IsHost && _world.Story is { } story ? _world.Fleet.Worth(story.Rules) : 0;
 
-    public int EscortRoom => 0;
+    public int EscortRoom => _world.Fleet.Room;
 
-    public int AddEscorts(int race, int count) => 0;
+    public int AddEscorts(int race, int count, Func<uint> random) =>
+        _world.Story is { } story && race >= 0 && race < story.Rules.Races.Count
+            ? _world.Fleet.Add(story.Rules, story.Rules.Races[race], count, random)
+            : 0;
 
     // The answerer's minerals, which a talk may sell (set to 0) but not add to.
     private sealed class AnswererMinerals : IList<int>

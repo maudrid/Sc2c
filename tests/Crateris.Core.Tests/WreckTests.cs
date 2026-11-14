@@ -387,7 +387,7 @@ public class WreckTests
         var world = NewWorld(2);
         Wrecked(world);
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
-        Assert.Equal(11, (int)node["version"]!);
+        Assert.Equal(HostSave.Version, (int)node["version"]!);
         JsonNode G1(JsonNode n) => n["players"]!.AsArray().Single(p => (string)p!["id"]! == "g1")!;
         Assert.True((bool)G1(node)["wrecked"]!);
 

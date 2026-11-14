@@ -492,6 +492,10 @@ public partial class Main : Node2D
                 Log(host.StartWithUnits(units));
             if (_options.StartDevices is { } devices)
                 Log(host.StartWithDevices(devices));
+            if (_options.StartAllied is { } allied)
+                Log(host.StartAllied(allied));
+            if (_options.StartFleet is { } fleet)
+                Log(host.StartWithFleet(fleet));
             if (_options.StartDocked)
                 Log(host.StartDocked());
             if (_options.StartBattle is { } race)
@@ -1314,6 +1318,8 @@ public partial class Main : Node2D
                 },
                 battle = _player?.Battle is { } b ? new { id = b.Id, enemy = b.Enemy.Ship, ships = b.Fighters.Count, elements = b.Elements.Count } : null,
                 battle_notices = _player?.BattleNotices.Select(n => n.Kind.ToString()).ToList(),
+                // The host's fleet, on the host (stage 4b item 6; the wire sends it with item 9).
+                fleet = _host?.World.Fleet.Ships.Select(f => new { race = f.Race, crew = f.Crew, captain = f.Captain, slot = f.Slot }).ToList(),
             };
             File.WriteAllText(_options.ReportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
         }

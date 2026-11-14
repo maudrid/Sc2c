@@ -65,6 +65,11 @@ public interface ITalkShip
     /// <summary>How many more ships the escort fleet has room for (EscortFeasibilityStudy).</summary>
     int EscortRoom { get; }
 
-    /// <summary>Ships of a race (races.h's number) join the escort fleet, as many as it has room for; returns how many did (AddEscortShips).</summary>
-    int AddEscorts(int race, int count);
+    /// <summary>
+    /// Ships of a race (races.h's number) join the escort fleet, as many as
+    /// it has room for; returns how many did (AddEscortShips). Their
+    /// captains' names are drawn from <paramref name="random"/> (TFB_Random:
+    /// the talk's generator).
+    /// </summary>
+    int AddEscorts(int race, int count, Func<uint> random);
 }

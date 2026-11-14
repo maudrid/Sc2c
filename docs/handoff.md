@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-14, stage 4b item 5 (enemy fleets) built and reviewed in five rounds (round 5: nothing to fix).
+**Last updated:** 2026-11-15, stage 4b item 6 (the host's fleet) built; its review rounds under way.
 
 ## Where things are
 
@@ -11,8 +11,9 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Stage 4b item 1 is built and reviewed** (its Progress row): every ship's content, and the traces `tests/golden/battle-races-1.json` to `-3.json` (items 2 to 4); notes for items 3 and 4 are under them in the plan.
 - **Stage 4b items 2 to 4 are built and reviewed** (their Progress rows): all 24 race ships are ported, in `src/Crateris.Core/Combat/` (`RaceShips.Ported`, so `--start-battle` takes them), every trace matched (`RaceShipBattleTests`); co-op, seam and branch tests in `RaceShipCoopTests` (a partial class, by item).
 - **Stage 4b item 5 (enemy fleets) is built and reviewed** (its Progress row; five rounds: the Ur-Quan, Kohr-Ah and Earthling's salvage, the client's enemy status on a ship's return, a cap of 14 ships, the joining notice, tests on the real path; round 5 found nothing): `EnemyFleet`/`EnemyFleetShip` and `GameWorld.StartBattle(id, EnemyFleet, ...)` (one ship at a time, at most 14; infinite fleets via `Battle`'s `infiniteEnemy`), salvage the first race's bounty for each ship (`BattleKit.RaceOf`), `WorldBattle.EnemyFleetLeft` for 3b, `--start-battle RACE,RACE,...`; the markers' race is noted for items 9 and 10; tests in `EnemyFleetTests` and `BattleScreenTests`.
+- **Stage 4b item 6 (the host's fleet) is built** (its Progress row), review rounds under way: `HostFleet` (`GameWorld.Fleet`, build.c's functions), the talks' ships giving to the host's fleet whoever answers (`EscortsWorth` 0 for a guest), the Arilou's gift (row 43 closed), saves version 12, `--start-fleet` and `--start-allied`; tests in `FleetTests` (topic `fleet`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
-- **Last checks:** with item 5's review round 4 fixes, all topics 1,858 passed, 0 failed, 0 skipped with the content set; each new test seen failing on its mutation (the Progress row lists them); `tests/topic-map.json` remade with item 5's round 1 (rounds 2 to 4 added no files); the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle zoqfot,arilou,spathi --script "none:40,fire:300" --quit-after 400` ran (in battle against the zoqfot). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 5 changed nothing in `data/`).
+- **Last checks:** with item 6, all topics 1,874 passed, 0 failed, 0 skipped with the content set; 49 of item 6's 51 mutations caught (2 equivalent, the Progress row lists them); `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1092, `game/scripts/ReportView.cs` 78); a headless `--start-fleet arilou,spathi:5 --start-allied spathi --quit-after 60 --report FILE` ran (the report listing the Arilou with 6 crew in slot 0, the Spathi with 5 in slot 1). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 6 changed nothing in `data/`).
 
 ## Open items
 
@@ -37,7 +38,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 5 is done; wait for the owner's go-ahead for item 6 (the host's fleet).
+Finish item 6's review rounds (CLAUDE.md), report, then wait for the owner's go-ahead for item 7.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

@@ -50,7 +50,8 @@ public class TalkTests
         public int EscortsWorth { get; set; }
         public int EscortRoom { get; set; }
 
-        public int AddEscorts(int race, int count)
+        // UQM's recorder stubs AddEscortShips (comm.c): no captains' names drawn.
+        public int AddEscorts(int race, int count, Func<uint> random)
         {
             int added = Math.Min(count, EscortRoom);
             EscortRoom -= added;

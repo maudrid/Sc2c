@@ -64,6 +64,9 @@
     },
     "combat": {
       "weight": 3
+    },
+    "fleet": {
+      "weight": 1
     }
   }
 }

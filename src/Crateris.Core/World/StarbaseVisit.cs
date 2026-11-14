@@ -121,6 +121,7 @@ public sealed class StarbaseVisit
         Replier = starter;
         var story = world.Story!;
         StoryBefore = story.Save();
+        FleetBefore = world.Fleet.Ships.ToList();
         HoldBefore = starter.Ship.Hold.Save();
         FuelBefore = starter.Ship.Flight.Fuel;
         MetBefore = world.CommanderMet;
@@ -185,6 +186,9 @@ public sealed class StarbaseVisit
 
     /// <summary>The story state when the visit started.</summary>
     public StoryState.Saved StoryBefore { get; }
+
+    /// <summary>The host's fleet as the visit began: what a save during an opening visit keeps, and its undo puts back.</summary>
+    public IReadOnlyList<FleetShip> FleetBefore { get; }
 
     /// <summary>The starter's hold when the visit started.</summary>
     public HoldState HoldBefore { get; }
@@ -276,7 +280,7 @@ public sealed class StarbaseVisit
         _talkIsStory = Comm.TalkRules.IsStory(script, _world.Story!);
         WasStory |= _talkIsStory;
         var library = _world.TalkLibrary!;
-        _ship ??= new AnswererTalkShip(() => Replier, library.Strings, _world.Host.Ship);
+        _ship ??= new AnswererTalkShip(() => Replier, library.Strings, _world);
         Talk = library.Create(script, _world.Story!, own, _ship, _world.Clock, seed);
         Talks.Add(Talk);
         Talk.Start();
@@ -500,8 +504,8 @@ public sealed class StarbaseVisit
 
     /// <summary>
     /// The opening is undone: what its talks wrote, the starter's ship,
-    /// what the talks changed on any other answerer's ship, and the two
-    /// weeks put back. A starter wrecked in the Ilwrath's fight
+    /// what the talks changed on any other answerer's ship, the host's
+    /// fleet as it began, and the two weeks put back. A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
     /// crew; one that disconnected from it was settled as it left
     /// (<see cref="SettleStarter"/>: its hold as before the visit with the
@@ -514,6 +518,7 @@ public sealed class StarbaseVisit
             throw new InvalidOperationException("only the opening is taken back");
         foreach (var (field, value) in WrittenBefore())
             _world.Story!.Set(field, value);
+        _world.Fleet.Restore(_world.Story!.Rules, FleetBefore);
         if (!StarterSettled)
         {
             Starter.Ship.Hold.Restore(HoldBefore);

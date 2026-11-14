@@ -514,14 +514,16 @@ public sealed class Talk
     }
 
     /// <summary>
-    /// AddEscortShips: ships of a race (races.h's number) join the starter's
-    /// escort fleet, as many as it has room for; then DeltaSISGauges
-    /// redraws everything. Returns how many joined.
+    /// AddEscortShips: ships of a race (races.h's number) join the escort
+    /// fleet (the host's, whoever answers: stage 4b, decision 3), as many
+    /// as it has room for, their captains named from the talk's generator
+    /// (NameCaptain's TFB_Random); then DeltaSISGauges redraws everything.
+    /// Returns how many joined.
     /// </summary>
     public int AddEscortShips(int race, int count)
     {
         Check();
-        int added = Ship.AddEscorts(race, count);
+        int added = Ship.AddEscorts(race, count, Random);
         _events.Add(new EscortsAdded(race, count, added));
         Check();
         DeltaSISGauges(UndefinedDelta, UndefinedDelta, UndefinedDelta);

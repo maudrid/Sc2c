@@ -508,7 +508,7 @@ public class OutfittingTests
         // A version 11 escort that sold its gun keeps none: the version decides, not having no weapon.
         guest.Modules.SetModule(15, ShipModules.EmptyModule);
         var json = HostSave.ToJson(world);
-        Assert.Equal(11, (int)JsonNode.Parse(json)!["version"]!);
+        Assert.Equal(HostSave.Version, (int)JsonNode.Parse(json)!["version"]!);
         Assert.False(HostSave.FromJson(json).Find("guest")!.Ship.Modules.HasWeapon);
         // A flagship that sold its gun keeps none, from any version.
         world.Host.Ship.Modules.SetModule(15, ShipModules.EmptyModule);

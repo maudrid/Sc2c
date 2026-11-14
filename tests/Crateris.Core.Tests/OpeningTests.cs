@@ -1261,7 +1261,7 @@ public class OpeningTests
 
         // A lander given to a ship already full (offered for one short of them) leaves it full.
         world.Host.Ship.Hold.SetLanders(ShipHold.MaxLanders);
-        var ship = new AnswererTalkShip(() => world.Host, Library.Value.Strings, world.Host.Ship);
+        var ship = new AnswererTalkShip(() => world.Host, Library.Value.Strings, world);
         ship.Landers++;
         Assert.Equal(ShipHold.MaxLanders, world.Host.Ship.Hold.Landers);
     }
@@ -1274,7 +1274,7 @@ public class OpeningTests
         var world = WithTalks();
         var hold = world.Host.Ship.Hold;
         hold.SetLanders(0);
-        var ship = new AnswererTalkShip(() => world.Host, Library.Value.Strings, world.Host.Ship);
+        var ship = new AnswererTalkShip(() => world.Host, Library.Value.Strings, world);
         ship.Landers++;
         ship.Crew += 4;
         hold.LanderLeaves();

@@ -83,8 +83,12 @@ public static class HostSave
     /// fight was settled as it left (StarbaseVisit.SettleStarter: its hold
     /// as before the visit with the crew it left with, its fuel as before
     /// it less the retreat's 5 units) and is saved as it is from then on.
+    /// 12 has the host's fleet (stage 4b item 6: each ship's race, crew,
+    /// captain and hangar slot); an older save loads with none, and one
+    /// with a fleet is refused. During a visit taken back if unfinished (the
+    /// opening's), the fleet is saved as it was before it.
     /// </summary>
-    public const int Version = 11;
+    public const int Version = 12;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -96,7 +100,8 @@ public static class HostSave
 
     public sealed record SaveFile(
         int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players,
-        List<WorldState>? Worlds = null, StoryState.Saved? Story = null, bool CommanderMet = false);
+        List<WorldState>? Worlds = null, StoryState.Saved? Story = null, bool CommanderMet = false,
+        List<FleetShip>? Fleet = null);
 
     /// <summary>
     /// One planet or moon with stored state: moon null for the planet itself;
@@ -178,7 +183,7 @@ public static class HostSave
         var (year, month, day) = visit?.DateWithout() ?? (c.Year, c.Month, c.Day);
         var save = new SaveFile(Version, world.Settings, new ClockState(year, month, day, c.FramesIntoDay),
             world.Frame, players, worlds, visit is null ? (world.Story is null ? null : world.StoryForSave()) : visit.StoryWithout(),
-            visit?.MetBefore ?? world.CommanderMet);
+            visit?.MetBefore ?? world.CommanderMet, (visit?.FleetBefore ?? world.Fleet.Ships).ToList());
         return JsonSerializer.Serialize(save, Options);
     }
 
@@ -249,6 +254,10 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have ship slots.");
         if (save.Version < 10 && (save.Players ?? new()).Any(p => p.Wrecked))
             throw new InvalidDataException($"A version {save.Version} save can't have wrecks.");
+        if (save.Version < 12 && save.Fleet is { Count: > 0 })
+            throw new InvalidDataException($"A version {save.Version} save can't have a fleet.");
+        if ((save.Fleet ?? new()).Any(s => s is null || s.Race is null))
+            throw new InvalidDataException("The save has a fleet ship that is null or of no race.");
         // A setting a save leaves out is the default, and so is the ship's
         // name or the escort's kit given as null; a number given as null
         // isn't a number, and the save is refused (above).
@@ -395,6 +404,19 @@ public static class HostSave
         }
         else if (save.Story is not null)
             throw new InvalidDataException("The save has a story state, but no data was given to load it with.");
+        if (save.Fleet is { Count: > 0 } fleet)
+        {
+            if (systems?.StoryRules is not { } fleetRules)
+                throw new InvalidDataException("The save has a fleet, but no data was given to load it with.");
+            try
+            {
+                world.Fleet.Restore(fleetRules, fleet);
+            }
+            catch (ArgumentException e)
+            {
+                throw new InvalidDataException($"Bad fleet in save: {e.Message}", e);
+            }
+        }
         var seen = new HashSet<WorldId>();
         foreach (var w in save.Worlds ?? new List<WorldState>())
         {

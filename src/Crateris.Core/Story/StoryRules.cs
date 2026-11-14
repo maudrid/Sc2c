@@ -17,11 +17,23 @@ namespace Crateris.Core.Story;
 public sealed record InitialEvent(string Event, bool Relative, int Months, int Days, int Years);
 
 /// <summary>
+/// A race's ship, as its FLEET_INFO in avail_race_q holds it
+/// (InitGameStructures, globdata.c): its race (races.h's ARILOU_SHIP, ...),
+/// its ship (data/ships.json's id; the Yehat rebels' is the Yehat's, the
+/// Ur-Quan drone's the probe), what one costs (RACE_SHIP_COST, which the
+/// shipyard charges and CalculateEscortsWorth adds; 0 for the drone, which
+/// has none), and its crew as one is made and at most (crew_level,
+/// max_crew).
+/// </summary>
+public sealed record RaceShip(string Race, string Ship, int Cost, int Crew, int MaxCrew);
+
+/// <summary>
 /// What the story state is made from, all from data/: the game-state
 /// fields (game-state.json), a new game's prices and events
 /// (new-game.json), the races in avail_race_q's order (races.json), the
 /// event ids (events.json), the modules (modules.json) and
-/// CREW_EXPENSE_THRESHOLD (constants.json), and the devices (devices.json).
+/// CREW_EXPENSE_THRESHOLD (constants.json), the devices (devices.json),
+/// and each race's ship (races.json and ships.json: <see cref="RaceShips"/>).
 /// </summary>
 public sealed class StoryRules
 {
@@ -55,6 +67,24 @@ public sealed class StoryRules
 
     /// <summary>The devices the group may carry (data/devices.json; none if the rules are made otherwise).</summary>
     public DeviceTable Devices { get; init; } = new(Array.Empty<Device>());
+
+    /// <summary>
+    /// Each race's ship, in <see cref="Races"/>' order (data/races.json and
+    /// data/ships.json; none if the rules are made otherwise).
+    /// </summary>
+    public IReadOnlyList<RaceShip> RaceShips { get; init; } = Array.Empty<RaceShip>();
+
+    /// <summary>A race's ship, by its race (ARILOU_SHIP, ...).</summary>
+    public RaceShip RaceShip(string race) => RaceShips[RaceIndex(race)];
+
+    /// <summary>
+    /// The race a ship (data/ships.json's id) is of, a race that can have
+    /// a fleet (not the Yehat rebels', whose ship is the Yehat's, nor the
+    /// drone's), or null for a ship of none (the flagship, the Androsynth,
+    /// Chenjesu, Mmrnmhrm, the Sa-Matra, the probe).
+    /// </summary>
+    public RaceShip? RaceOfShip(string ship) =>
+        RaceShips.FirstOrDefault(r => r.Ship == ship && r.Race is not ("YEHAT_REBEL_SHIP" or "URQUAN_DRONE_SHIP"));
 
     public StoryRules(GameStateTable table, int crewCost, int fuelCost, int moduleCostScale,
         IReadOnlyDictionary<string, int> moduleCost, IReadOnlyList<string> modules, IReadOnlyList<int> elementWorth,
@@ -122,7 +152,29 @@ public sealed class StoryRules
             constants.RootElement.GetProperty("constants").GetProperty("CREW_EXPENSE_THRESHOLD").GetProperty("value").GetInt32())
         {
             Devices = DeviceTable.Load(dataDirectory),
+            RaceShips = LoadRaceShips(races.RootElement, Combat.ShipDescriptions.Load(dataDirectory)),
         };
+    }
+
+    // Each race's ship: the ship whose species is the race's (BattleKit.RaceOf), the Yehat rebels' the Yehat's,
+    // the drone's the probe (InitGameStructures' YEHAT_ID and UR_QUAN_PROBE_ID).
+    private static List<RaceShip> LoadRaceShips(JsonElement races, Combat.ShipDescriptions ships)
+    {
+        var list = new List<RaceShip>();
+        foreach (var r in races.GetProperty("races").EnumerateArray())
+        {
+            string race = r.GetProperty("race").GetString()!;
+            var ship = race switch
+            {
+                "YEHAT_REBEL_SHIP" => ships["yehat"],
+                "URQUAN_DRONE_SHIP" => ships["probe"],
+                _ => ships.All.SingleOrDefault(s => World.BattleKit.RaceOf(s) == race)
+                    ?? throw new InvalidDataException($"races.json: no ship in ships.json is of {race}"),
+            };
+            int cost = r.TryGetProperty("ship_cost", out var c) ? c.GetInt32() : 0;
+            list.Add(new RaceShip(race, ship.Id, cost, ship.Crew, ship.MaxCrew));
+        }
+        return list;
     }
 
     private static List<string> ModuleNames(JsonElement root)

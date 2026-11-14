@@ -14,24 +14,25 @@ namespace Crateris.Core.World;
 /// <summary>
 /// A player's ship as a talk sees it (stage 3, decision 4): their names,
 /// their crew, fuel, landers, resource units and minerals (which the
-/// allied commander buys), and its escort fleet; but the flagship's
-/// modules, as the allied commander grades them (decision 4: the
-/// flagship carries the mission and its upgrades). Ships have
-/// no escort fleets of UQM's kind until combat (stage 4) brings ships to
-/// buy and win: until then a fleet is worth nothing and has no room, so
-/// the Arilou's gift of ships waits (docs/differences.md).
+/// allied commander buys); but the flagship's modules, as the allied
+/// commander grades them (decision 4: the flagship carries the mission
+/// and its upgrades); and the escort fleet, the host's (stage 4b,
+/// decision 3: only the host has one): worth what it is for the host,
+/// nothing for a guest, and the ships talks give join it whoever answers.
 /// </summary>
 internal sealed class PlayerTalkShip : ITalkShip
 {
     private readonly Player _player;
+    private readonly GameWorld _world;
     private readonly PlayerShip _flagship;
     private readonly IList<int> _minerals;
 
-    /// <param name="flagship">The flagship, whose modules the talk reads.</param>
-    public PlayerTalkShip(Player player, GameStrings strings, PlayerShip flagship)
+    /// <param name="world">The world: its flagship, whose modules the talk reads, and the host's fleet.</param>
+    public PlayerTalkShip(Player player, GameStrings strings, GameWorld world)
     {
         _player = player;
-        _flagship = flagship;
+        _world = world;
+        _flagship = world.Host.Ship;
         CaptainName = ShipNames.Captain(player, strings);
         ShipName = ShipNames.Ship(player, strings);
         _minerals = new HoldMinerals(player.Ship.Hold);
@@ -83,11 +84,16 @@ internal sealed class PlayerTalkShip : ITalkShip
 
     public IReadOnlyList<string?> ModuleSlots => _flagship.Modules.ModuleNames;
 
-    public int EscortsWorth => 0;
+    // The host's fleet (stage 4b item 6): its worth for the host's talks, none for a guest's (a guest has no fleet,
+    // decision 3); its room and the ships given whoever answers (decision 3: they join the host's fleet).
+    public int EscortsWorth => _player.IsHost && _world.Story is { } story ? _world.Fleet.Worth(story.Rules) : 0;
 
-    public int EscortRoom => 0;
+    public int EscortRoom => _world.Fleet.Room;
 
-    public int AddEscorts(int race, int count) => 0;
+    public int AddEscorts(int race, int count, Func<uint> random) =>
+        _world.Story is { } story && race >= 0 && race < story.Rules.Races.Count
+            ? _world.Fleet.Add(story.Rules, story.Rules.Races[race], count, random)
+            : 0;
 
     // The hold's minerals, which a talk may sell (set to 0) but not add to.
     private sealed class HoldMinerals : IList<int>

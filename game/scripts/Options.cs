@@ -40,6 +40,9 @@ namespace Crateris.Game;
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
+/// --start-fleet SHIP[:CREW][,SHIP[:CREW]] (host: the host's fleet is these ships, up to 12, by data/ships.json's id,
+/// each with that crew or its race's starting crew), --start-allied SHIP[,SHIP] (host: these ships' races are allied,
+/// by data/ships.json's id),
 /// --guests-in-orbit (host: guests joining for the first time start in
 /// orbit where the host is), --guests-in-battle (host: guests joining for the first time join the battle by the host,
 /// as if they'd flown into its marker), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
@@ -48,7 +51,8 @@ namespace Crateris.Game;
 /// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
 /// --start-at, --start-orbit, --start-visit, --start-docked and --start-battle never load the default save
 /// nor write over it: a new game unless --load names one (then they apply to it), saved only to a --save file;
-/// --start-minerals, --start-units and --start-devices alone change whatever game is loaded, and are saved with it.
+/// --start-minerals, --start-units, --start-devices, --start-fleet and --start-allied alone change whatever game is
+/// loaded, and are saved with it.
 /// With no options the game starts as a solo host.
 /// </summary>
 public sealed class Options
@@ -106,6 +110,12 @@ public sealed class Options
 
     /// <summary>--start-devices DEVICE[,DEVICE]: the group carries these devices, by name (ROSY_SPHERE_DEVICE) or number (testing: the Manifest's Devices list).</summary>
     public string[]? StartDevices { get; private set; }
+
+    /// <summary>--start-fleet SHIP[:CREW][,...]: the host's fleet is these ships (testing).</summary>
+    public string[]? StartFleet { get; private set; }
+
+    /// <summary>--start-allied SHIP[,...]: these ships' races are allied (testing: the shipyard builds their ships).</summary>
+    public string[]? StartAllied { get; private set; }
 
     /// <summary>--guests-in-orbit: guests joining for the first time are put in orbit where the host is (testing).</summary>
     public bool GuestsInOrbit { get; private set; }
@@ -187,6 +197,8 @@ public sealed class Options
                     break;
                 case "--start-units": o.StartUnits = uint.Parse(Next()); break;
                 case "--start-devices": o.StartDevices = Next().Split(',', StringSplitOptions.TrimEntries); break;
+                case "--start-fleet": o.StartFleet = Next().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries); break;
+                case "--start-allied": o.StartAllied = Next().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries); break;
                 case "--show-report": o.ShowReport = Next(); break;
                 case "--start-orbit":
                 {
