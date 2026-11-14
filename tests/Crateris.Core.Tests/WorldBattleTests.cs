@@ -32,11 +32,16 @@ public class WorldBattleTests
     private static readonly StoryRules Rules = StoryRules.Load(DataDir);
     internal const string Ilwrath = ShipDescriptions.Ilwrath;
 
-    /// <summary>The battle's sheets: solid squares, ships' hulls 20 pixels, everything else smaller.</summary>
+    /// <summary>
+    /// The battle's sheets: solid squares, ships' hulls and status icons
+    /// (whose silhouette the VUX's limpets are put on) 20 pixels,
+    /// everything else smaller.
+    /// </summary>
     internal sealed class SolidGraphics : IBattleGraphics
     {
         private static readonly HashSet<string> Hulls = Ships.All
-            .Select(s => ShipGraphics.Sheets(s.Graphics.Ship)?[0]).OfType<string>().ToHashSet();
+            .Select(s => ShipGraphics.Sheets(s.Graphics.Ship)?[0]).Concat(Ships.All.Select(s => s.Graphics.Icons))
+            .OfType<string>().ToHashSet();
         private readonly Dictionary<string, Views> _views = new();
 
         public Views? Views(IReadOnlyList<string?> resources)

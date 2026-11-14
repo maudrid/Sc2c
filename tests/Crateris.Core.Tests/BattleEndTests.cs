@@ -246,5 +246,10 @@ public class BattleEndTests
         Enumerable.Range(0, count).Select(_ => new IntersectFrame(size, size, size / 2, size / 2,
             Enumerable.Repeat((byte)1, size * size).ToArray())).ToList());
 
-    internal static Views Three(Sheet big) => new(big, new Sheet(big.Id + ".medium", big.Count), new Sheet(big.Id + ".small", big.Count));
+    // The medium and small sizes the big one's size (their frames' sizes, GetFrameRect's, read by some ships' code).
+    internal static Views Three(Sheet big)
+    {
+        var rects = big.Shapes?.Select(s => new FrameRect(s.Width, s.Height, s.HotSpotX, s.HotSpotY)).ToList();
+        return new(big, new Sheet(big.Id + ".medium", big.Count, rects: rects), new Sheet(big.Id + ".small", big.Count, rects: rects));
+    }
 }

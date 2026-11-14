@@ -15,7 +15,7 @@ namespace Crateris.Core.Tests;
 
 /// <summary>
 /// Stage 4b's race ships with several players (stage 4's co-op rules), each
-/// ported ship of items 2 and 3 (<see cref="Ships"/>) on the content's own sheets:
+/// ported ship of items 2 to 4 (<see cref="Ships"/>) on the content's own sheets:
 /// flown by the computer as the enemy against two and four players (its AI
 /// takes the nearest player ship every frame; no player's element ever
 /// touches a teammate's), its homing (the Arilou's laser, the Spathi's
@@ -24,13 +24,14 @@ namespace Crateris.Core.Tests;
 /// each other), and a battle in the world started against it. UQM's traces
 /// (<see cref="RaceShipBattleTests"/>) check one ship a side. Each item's
 /// own cases (the paths its traces don't reach, the seam) are in this
-/// class too: item 3's in RaceShipCoopTests.Item3.cs.
+/// class too: item 3's in RaceShipCoopTests.Item3.cs, item 4's in
+/// RaceShipCoopTests.Item4.cs.
 /// </summary>
 [Trait("Topic", "combat")]
 public partial class RaceShipCoopTests
 {
-    /// <summary>The ships of stage 4b items 2 and 3.</summary>
-    public static readonly string[] Ships = RaceBattleTraceTests.Parts[0].Concat(RaceBattleTraceTests.Parts[1]).ToArray();
+    /// <summary>The ships of stage 4b items 2 to 4.</summary>
+    public static readonly string[] Ships = RaceBattleTraceTests.Parts.SelectMany(p => p).ToArray();
 
     private static readonly ShipDescription Sis = BattleReplay.Ships[ShipDescriptions.Flagship];
 
@@ -40,7 +41,7 @@ public partial class RaceShipCoopTests
     public static IEnumerable<object[]> EachShip() => Ships.Select(s => new object[] { s });
 
     [Fact]
-    public void ItemTwoAndThreesShipsArePortedAndCanBeFought()
+    public void ItemTwoToFoursShipsArePortedAndCanBeFought()
     {
         foreach (string id in Ships)
         {
