@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-14, stage 4b item 3 (ships, part 2) built and reviewed in three rounds (round 1: a co-op gap, kept targets without crew, and four test gaps; round 2: two untested branches of that fix; round 3: nothing to fix).
+**Last updated:** 2026-11-14, stage 4b item 4 (ships, part 3) built, not yet reviewed.
 
 ## Where things are
 
@@ -10,18 +10,10 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet): eleven items, approved by the owner on 2026-11-13 with all six recommendations accepted. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
 - **Stage 4b item 1 is built and reviewed** (its Progress row): every ship's content, and the traces `tests/golden/battle-races-1.json` to `-3.json` (items 2 to 4); notes for items 3 and 4 are under them in the plan.
 - **Stage 4b item 2 is built and reviewed** (its Progress row): the Arilou, Spathi, Supox, Druuge, Yehat, Zoq-Fot-Pik, Thraddash and Umgah.
-- **Stage 4b item 3 is built** (its Progress row), review rounds 1 and 2's findings fixed (round 2: tests for the drop's cloak exclusion and the fighters' immediate track; round 1: fighters and blades leave a target without crew for the nearest opposing ship with crew; tests for the Mmrnmhrm's weapon after a transform, the Utwig AI's halving, the fighter's head-on bounce, north-south seam cases): the Utwig, Mycon, Androsynth, Mmrnmhrm, Chenjesu, Slylandro, Ur-Quan and Kohr-Ah in `src/Crateris.Core/Combat/` (in `RaceShips.Ported`, so `--start-battle` takes them), all 16 of their traces matched (`RaceShipBattleTests`); co-op, seam and branch tests in `RaceShipCoopTests` (a partial class, item 3's in `RaceShipCoopTests.Item3.cs`), each new one checked to fail on its mutation (the row lists them, and the few equivalent or untested).
-- **Last checks:** with item 3 and review rounds 1 and 2's fixes, all topics 1,668 passed (combat 433), 0 failed, 0 skipped with the content set; `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle urquan --script "none:40,fire:100,special:20,none:200" --quit-after 400` ran (in battle against the urquan, which destroyed the flagship at frame 337: game over). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 3 changed nothing in `data/`).
-
-## In progress: stage 4b item 4
-
-- **Built so far** (committed and pushed): all eight ships in `src/Crateris.Core/Combat/` (`HumanShip.cs`, `ChmmrShip.cs`, `ShofixtiShip.cs`, the recruited one, `SyreenShip.cs`, `OrzShip.cs`, `MelnormeShip.cs`, `VuxShip.cs`, `PkunkShip.cs`), in `RaceShips.Ported`; all 17 traces of `battle-races-3.json` match (`RaceShipBattleTests`), `pkunk-rebirth` among them; the combat topic passes. Engine additions: `Starship.Icons` and `Starship.Silhouette` (`Battle.ModifySilhouette`'s marks, for the client), `Sheet.Rects`/`Frame.Rect` (GetFrameRect at every zoom), `Element.Tag` (an Orz marine's boarded ship), `Battle.ShipState` (the Pkunk's last insult per battle), the winner and explosion helpers internal.
-- **Debugging aid:** a UQM run of one recorded battle with full frames can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings`, `images`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
-- **Tests so far:** `RaceShipCoopTests`' theories take item 4's ships; `RaceShipCoopTests.Item4.cs` has point defence, the Glory Device and the song with two and four players (mutations caught so far: the Earthling's and the Glory Device's teammate checks, ORZ_MARINE, the song's side check and its crew cap).
-- **Orz tests done** (the marines' nearest target, staying aboard, flying home, the count, the captain's window, the kept target, the seam, the turret, the AI; each probed).
-- **Pkunk, VUX and Melnorme tests done** (each probed).
-- **Chmmr, seam, homing and AI tests written** (the seam measures each probed raw, X and Y).
-- **Left:** probing the AIs' and the remaining branches; mutation probes; `Options.cs`'s usage; `differences.md`; the topic map; the Progress row; a headless `--start-battle`.
+- **Stage 4b item 3 is built and reviewed** (its Progress row; round 3 found nothing), review rounds 1 and 2's findings fixed (round 2: tests for the drop's cloak exclusion and the fighters' immediate track; round 1: fighters and blades leave a target without crew for the nearest opposing ship with crew; tests for the Mmrnmhrm's weapon after a transform, the Utwig AI's halving, the fighter's head-on bounce, north-south seam cases): the Utwig, Mycon, Androsynth, Mmrnmhrm, Chenjesu, Slylandro, Ur-Quan and Kohr-Ah in `src/Crateris.Core/Combat/` (in `RaceShips.Ported`, so `--start-battle` takes them), all 16 of their traces matched (`RaceShipBattleTests`); co-op, seam and branch tests in `RaceShipCoopTests` (a partial class, item 3's in `RaceShipCoopTests.Item3.cs`), each new one checked to fail on its mutation (the row lists them, and the few equivalent or untested).
+- **Stage 4b item 4 is built** (its Progress row), not yet reviewed: the Earthling, Chmmr, Shofixti (the recruited one), Syreen, Orz, Melnorme, VUX and Pkunk in `src/Crateris.Core/Combat/` (in `RaceShips.Ported`, so `--start-battle` takes them), all 17 of their traces matched (`RaceShipBattleTests`, `pkunk-rebirth` among them); co-op, seam and branch tests in `RaceShipCoopTests.Item4.cs` and the shared theories, each new one checked to fail on its mutation (the row lists them, and the few equivalent or untested). Engine additions: `Starship.Icons` and `Starship.Silhouette` (`Battle.ModifySilhouette`), `Sheet.Rects`/`Frame.Rect`, `Element.Tag`, `Battle.ShipState`. `differences.md` rows 48, 49 and 53 brought up to date, new rows 59 (the Orz's marines) and 60 (the Melnorme's confusion).
+- **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
+- **Last checks:** with item 4, all topics 1,828 passed (combat 593), 0 failed, 0 skipped with the content set; `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle orz --script "none:40,fire:100,special:20,none:200" --quit-after 400` ran (in battle against the orz to the end). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 4 changed nothing in `data/`).
 
 ## Open items
 
@@ -46,7 +38,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 4 (ships, part 3) is being built (the owner's go-ahead, 2026-11-14): see "In progress" below. When it's built, the next step is the review of item 4.
+Stage 4b item 4 is built: the review of item 4 (the owner's, then the subagent review loop of `CLAUDE.md` as the owner directs). Item 5 (enemy fleets) waits for the owner's go-ahead.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
