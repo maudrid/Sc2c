@@ -135,7 +135,11 @@ public class BattleScreenTests
         Show(Status with { Ship = "ilwrath", Captain = 5, Crew = 3 });   // the same ship: updated, not drawn afresh
         Show(Status with { Ship = "spathi", Captain = 5 });
         Show(Status with { Ship = "spathi", Captain = 9 });
-        Assert.Equal(new[] { ("ilwrath", 5), ("spathi", 5), ("spathi", 9) }, shown);
+        // An infinite fleet's ship gone and back with the same captain drawn again (1 in 16): shown afresh all the same.
+        for (int i = 0; i < 3; ++i)
+            Show(Status with { Ship = "spathi", Captain = 9, Crew = 0, Gone = true });   // gone: not drawn afresh
+        Show(Status with { Ship = "spathi", Captain = 9 });
+        Assert.Equal(new[] { ("ilwrath", 5), ("spathi", 5), ("spathi", 9), ("spathi", 9) }, shown);
     }
 
     // The stars a frame draws, in the space window.

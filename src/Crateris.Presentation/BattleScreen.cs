@@ -165,7 +165,8 @@ public sealed class BattleScreen
     private int _frame;
     private bool _wasOwn;
     private bool _enemyShown, _mineShown;
-    // The enemy ship whose status is shown: its ship and captain (the next of a fleet, or an infinite fleet's back with a new captain, is shown afresh).
+    // The enemy ship whose status is shown: its ship and captain (the next of a fleet is shown afresh; so is one with crew
+    // again once its status has stopped, as an infinite fleet's brought back, whose new captain may be the old one's).
     private (string Ship, int Captain) _enemyShownAs;
 
     /// <param name="canvas">Where the status panel's calls go (<see cref="Status"/>).</param>
@@ -233,7 +234,8 @@ public sealed class BattleScreen
     {
         StatusState State(BattleShipStatus s) => new(s.Crew, s.Energy, s.Flags, s.ElementCrew, s.LifeSpan, s.Gone);
         // spawn_ship's InitShipStatus: each enemy ship coming in has its status drawn afresh.
-        if (!_enemyShown || _enemyShownAs != (b.Enemy.Ship, b.Enemy.Captain))
+        if (!_enemyShown || _enemyShownAs != (b.Enemy.Ship, b.Enemy.Captain)
+            || _status.Stopped(BattleStatus.EnemySlot) && b.Enemy.Crew > 0 && !b.Enemy.Gone)
         {
             _status.Init(BattleStatus.EnemySlot, _statusShip(b.Enemy, null), State(b.Enemy));
             _enemyShown = true;

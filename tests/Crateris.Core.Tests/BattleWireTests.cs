@@ -106,6 +106,36 @@ public class BattleWireTests
     }
 
     [ContentFact]
+    public void AFleetsNoticesNameTheShipJoinedAgainstAndTheEncounterRace()
+    {
+        // Stage 4b item 5: joining mid-fleet names the ship fighting then; the end, the encounter's race (the first's).
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
+            WorldBattleTests.Systems.Value, TestContent.Shapes);
+        host.World.BattleKit = Kit();
+        host.StartBattle("ilwrath,spathi");
+        host.Hello(1, "g1", "Guest 1", Protocol.Version);
+        var wb = host.World.Battles.Single();
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            host.Step(ShipInput.None);
+        Kill(wb.Battle, wb.Enemy);
+        for (int i = 0; i < 200 && wb.EnemyShipNow.Id != "spathi"; ++i)
+        {
+            wb.Enemy.WeaponCounter = wb.Enemy.SpecialCounter = 2;
+            host.Step(ShipInput.None);
+        }
+        WreckTests.JoinedInSol(host, "g1");
+        var (own, guests) = host.TakeBattleNotices();
+        Assert.Equal(new BattleNotice(BattleNoticeKind.Joined, wb.Id, Ilwrath), Assert.Single(own));
+        Assert.Equal((1L, new BattleNotice(BattleNoticeKind.Joined, wb.Id, "spathi")), Assert.Single(guests));
+        Kill(wb.Battle, wb.Enemy);
+        for (int i = 0; i < 600 && wb.Outcome is null; ++i)
+            host.Step(ShipInput.None);
+        (own, guests) = host.TakeBattleNotices();
+        Assert.Equal((BattleNoticeKind.Ended, BattleOutcome.Won, Ilwrath), (own[0].Kind, own[0].Outcome, own[0].Enemy));
+        Assert.Equal((BattleNoticeKind.Ended, Ilwrath, 125u), (guests[0].Notice.Kind, guests[0].Notice.Enemy, guests[0].Notice.Salvage));
+    }
+
+    [ContentFact]
     public void TheGameOverIsToldToEveryone()
     {
         var host = Host();

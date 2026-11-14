@@ -137,8 +137,8 @@ public sealed partial class GameWorld
     /// frame and number (UQM seeds from the clock). Refused (an
     /// <see cref="InvalidOperationException"/>) without the battle's content,
     /// during a story talk, after the game is over, or for a ship not
-    /// present and in flight, or already in a battle, or destroyed; an
-    /// empty fleet, a ship not ported, a crew out of its ship's range, an
+    /// present and in flight, or already in a battle, or destroyed; a
+    /// fleet empty or of more than MAX_SHIPS_PER_SIDE's 14, a ship not ported, a crew out of its ship's range, an
     /// infinite fleet of more than one ship or with a crew, or
     /// <see cref="BattleStart.EnemyCrew"/> given with a fleet are argument errors.
     /// </summary>
@@ -149,8 +149,8 @@ public sealed partial class GameWorld
     private WorldBattle StartBattle(string id, EnemyFleet fleet, BattleStart start, bool crewInStart)
     {
         var kit = BattleKit ?? throw new InvalidOperationException("battles need the battle's content");
-        if (fleet.Ships.Count == 0)
-            throw new ArgumentException("an enemy fleet has a ship at least", nameof(fleet));
+        if (fleet.Ships.Count is 0 or > EnemyFleet.MostShips)
+            throw new ArgumentException($"an enemy fleet has 1 to {EnemyFleet.MostShips} ships", nameof(fleet));
         if (fleet.Infinite && (fleet.Ships.Count != 1 || fleet.Ships[0].Crew is not null))
             throw new ArgumentException("an infinite fleet is one ship, with full crew", nameof(fleet));
         if (start.EnemyCrew is not null && !crewInStart)

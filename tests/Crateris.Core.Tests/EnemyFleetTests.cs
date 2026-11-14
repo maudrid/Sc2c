@@ -101,16 +101,16 @@ public class EnemyFleetTests
     public void AFleetsShipsOfOneRaceHaveCaptainsOfTheirOwn()
     {
         var world = NewWorld();
-        var wb = world.StartBattle("host", EnemyFleet.Of(Enumerable.Repeat(Ilwrath, 16).ToArray()));
+        var wb = world.StartBattle("host", EnemyFleet.Of(Enumerable.Repeat(Ilwrath, EnemyFleet.MostShips).ToArray()));
         var names = wb.Enemies.Select(e => (int)e.Starship.CaptainsNameIndex).ToList();
-        Assert.Equal(16, names.Distinct().Count());   // NameCaptain: drawn again while another of its race has the name
+        Assert.Equal(14, names.Distinct().Count());   // NameCaptain: drawn again while another of its race has the name
         Assert.All(names, n => Assert.InRange(n, Battle.CaptainNameOffset, Battle.CaptainNameOffset + Battle.NumCaptainsNames - 1));
 
         // Of other races, a name may come again (NameCaptain looks only at its own race's).
-        var mixed = NewWorld().StartBattle("host", EnemyFleet.Of(Enumerable.Range(0, 16).Select(i => i % 2 == 0 ? Ilwrath : "spathi").ToArray()));
+        var mixed = NewWorld().StartBattle("host", EnemyFleet.Of(Enumerable.Range(0, 14).Select(i => i % 2 == 0 ? Ilwrath : "spathi").ToArray()));
         var ilwrath = mixed.Enemies.Where(e => e.Ship.Id == Ilwrath).Select(e => e.Starship.CaptainsNameIndex).ToList();
         var spathi = mixed.Enemies.Where(e => e.Ship.Id == "spathi").Select(e => e.Starship.CaptainsNameIndex).ToList();
-        Assert.Equal((8, 8), (ilwrath.Distinct().Count(), spathi.Distinct().Count()));
+        Assert.Equal((7, 7), (ilwrath.Distinct().Count(), spathi.Distinct().Count()));
         Assert.NotEmpty(ilwrath.Intersect(spathi));
 
         // One ship's is the first draw, as before fleets.
@@ -187,6 +187,39 @@ public class EnemyFleetTests
     }
 
     [Fact]
+    public void EveryRaceShipPaysItsRacesBounty()
+    {
+        // races.h's RACE_SHIP_COST / 8, by ship: the Earthling's is HUMAN_SHIP's, the Ur-Quan's URQUAN_SHIP's,
+        // the Kohr-Ah's BLACK_URQUAN_SHIP's; the three races with no fleet in the full game pay none.
+        var expected = new Dictionary<string, int>
+        {
+            ["arilou"] = 200, ["chmmr"] = 375, ["human"] = 137, ["orz"] = 287, ["pkunk"] = 250, ["shofixti"] = 62,
+            ["spathi"] = 225, ["supox"] = 200, ["thradd"] = 125, ["utwig"] = 275, ["vux"] = 150, ["yehat"] = 287,
+            ["melnorme"] = 450, ["druuge"] = 212, ["ilwrath"] = 125, ["mycon"] = 262, ["slylandr"] = 550, ["umgah"] = 87,
+            ["urquan"] = 375, ["zoqfot"] = 75, ["syreen"] = 162, ["blackurq"] = 375,
+            ["androsyn"] = 0, ["chenjesu"] = 0, ["mmrnmhrm"] = 0,
+        };
+        var kit = Kit();
+        Assert.Equal(expected.Keys.Order(), BattleKit.Enemies.Order());
+        Assert.All(BattleKit.Enemies, id => Assert.Equal(expected[id], kit.Salvage(Ships[id])));
+        // The flagship, the Sa-Matra and the probe are no race's: an error, not a ship paying nothing.
+        Assert.Throws<ArgumentException>(() => kit.Salvage(Ships[ShipDescriptions.Flagship]));
+        Assert.Throws<ArgumentException>(() => kit.Salvage(Ships["probe"]));
+        // A race in the data without its cost is an error too.
+        var costless = new BattleKit(Ships, new SolidGraphics(), new Dictionary<string, int>());
+        Assert.Throws<KeyNotFoundException>(() => costless.Salvage(Ships[Ilwrath]));
+        Assert.Equal(0, costless.Salvage(Ships["androsyn"]));
+
+        // In a battle: a fleet of Ur-Quan, Spathi, won, pays the Ur-Quan's twice.
+        var world = NewWorld();
+        var wb = StartedAgainst(world, EnemyFleet.Of("urquan", "spathi"));
+        KillAndNext(world, wb);
+        Kill(wb.Battle, wb.Enemy);
+        RunOut(world, wb);
+        Assert.Equal((BattleOutcome.Won, 750u), (wb.Outcome, wb.SalvagePaid));
+    }
+
+    [Fact]
     public void AFirstRaceWithoutAShipCostPaysNoSalvage()
     {
         // The Androsynth are no race of the full game's (not in avail_race_q): UQM shows no tally and pays nothing.
@@ -219,6 +252,83 @@ public class EnemyFleetTests
         FlyIn(world, "g1");
         Assert.Equal(new[] { "host", "g1" }, wb.Fighters.Select(f => f.Player.Id));
         Assert.Equal(2, wb.Battle.BattleCounter[0]);
+
+        // And while an enemy ship that isn't the last is dying (not yet replaced).
+        world = NewWorld(2);
+        wb = world.StartBattle("host", EnemyFleet.Of(Ilwrath, "spathi"));
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            Run(world, 1);
+        var first = wb.Enemy;
+        Kill(wb.Battle, first);
+        RunDisarmed(world, wb, 1);
+        Assert.Same(first, wb.Enemy);   // exploding
+        Assert.Equal(1, wb.Battle.BattleCounter[1]);
+        FlyIn(world, "g1");
+        Assert.Equal(new[] { "host", "g1" }, wb.Fighters.Select(f => f.Player.Id));
+    }
+
+    [Fact]
+    public void ABattleLostByDeathsMidFleetLeavesTheRest()
+    {
+        // A guest's escort starts it alone: its death loses the battle (the flagship's would end the game).
+        var world = NewWorld(2);
+        world.Find("g1")!.Ship.Flight.LogX += 5000;   // out of the host's reach
+        var wb = world.StartBattle("g1", EnemyFleet.Of(Ilwrath, "spathi", "arilou"));
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            Run(world, 1);
+        var spathi = KillAndNext(world, wb);
+        wb.Battle.DeltaCrew(spathi.Ship!, -4);
+        Kill(wb.Battle, Fighter(wb, "g1").Starship);
+        RunOut(world, wb);
+        Assert.Equal((BattleOutcome.Lost, BattleExit.Destroyed), (wb.Outcome, Fighter(wb, "g1").Exit));
+        Assert.Equal(new EnemyFleet(new[] { new EnemyFleetShip("spathi", Ships["spathi"].Crew - 4), new EnemyFleetShip("arilou", Ships["arilou"].Crew) }),
+            wb.EnemyFleetLeft);
+    }
+
+    [Fact]
+    public void ADisconnectMidFleetLeavesTheOthersFightingTheNext()
+    {
+        var world = NewWorld(2);
+        var wb = StartedAgainst(world, EnemyFleet.Of(Ilwrath, "spathi"));
+        var spathi = KillAndNext(world, wb);
+        world.Leave("g1");
+        Assert.Equal(BattleExit.Disconnected, Fighter(wb, "g1").Exit);
+        Assert.Same(spathi, wb.Enemy);
+        Assert.Null(wb.Outcome);
+        Kill(wb.Battle, spathi);
+        RunOut(world, wb);
+        Assert.Equal((BattleOutcome.Won, 250u), (wb.Outcome, wb.SalvagePaid));   // the Ilwrath's twice, all to the host
+        Assert.Equal(250u, Fighter(wb, "host").Salvage);
+
+        // Against an infinite fleet, the last player disconnecting loses it, the fleet as it was.
+        world = NewWorld(2);
+        wb = StartedAgainst(world, EnemyFleet.InfiniteOf("syreen"));
+        KillAndNext(world, wb);
+        world.Leave("g1");
+        Assert.Null(wb.Outcome);
+        for (int i = 0; i < 600 && wb.Outcome is null; ++i)
+            RunDisarmed(world, wb, 1, _ => i == 0 ? ShipInput.TakeOff : ShipInput.None);
+        Assert.Equal(BattleOutcome.Lost, wb.Outcome);
+        Assert.Equal(EnemyFleet.InfiniteOf("syreen"), wb.EnemyFleetLeft);
+    }
+
+    [Fact]
+    public void EachPkunkOfAFleetStartsItsInsultsAfresh()
+    {
+        // pkunk.c's LastSound, set back as each Pkunk ship is made (init_pkunk), not as one is reborn.
+        var world = NewWorld();
+        var wb = StartedAgainst(world, EnemyFleet.Of("pkunk", "pkunk"));
+        var second = wb.Enemies[1].Starship;
+        var insults = wb.Battle.ShipState<PkunkShip.Insults>();
+        for (int i = 0; i < 20 && wb.Enemy != second; ++i)
+        {
+            insults.LastSound = 5;
+            KillAndNext(world, wb);   // reborn (keeping it) or the next
+            if (wb.Enemy != second)
+                Assert.Equal(5, insults.LastSound);
+        }
+        Assert.Same(second, wb.Enemy);
+        Assert.Equal(0, insults.LastSound);
     }
 
     [Fact]
@@ -228,6 +338,8 @@ public class EnemyFleetTests
         var world = NewWorld();
         world.Host.Ship.Flight.Velocity.SetComponents(8, 0);
         Assert.Throws<ArgumentException>(() => world.StartBattle("host", new EnemyFleet(Array.Empty<EnemyFleetShip>())));
+        // MAX_SHIPS_PER_SIDE's 14 at most (and 15 of one race couldn't each have a name of their own's 16 ... nor more).
+        Assert.Throws<ArgumentException>(() => world.StartBattle("host", EnemyFleet.Of(Enumerable.Repeat(Ilwrath, 15).ToArray())));
         Assert.Throws<ArgumentException>(() => world.StartBattle("host", EnemyFleet.Of(Ilwrath, "probe")));
         Assert.Throws<ArgumentException>(() => world.StartBattle("host",
             new EnemyFleet(new[] { new EnemyFleetShip(Ilwrath), new EnemyFleetShip(Ilwrath) }, Infinite: true)));
@@ -241,6 +353,12 @@ public class EnemyFleetTests
         Assert.Empty(world.Battles);
         Assert.Null(world.Host.Ship.Battle);
         Assert.False(world.Host.Ship.Flight.Velocity.IsZero, "still flying");
+
+        // A fleet is its own: the list it was made from changed later changes nothing.
+        var list = new List<EnemyFleetShip> { new(Ilwrath) };
+        var fleet = new EnemyFleet(list);
+        list.Add(new("spathi"));
+        Assert.Equal(EnemyFleet.Of(Ilwrath), fleet);
 
         // The one-ship start keeps its crew in its BattleStart, as the Earth fight's.
         var wb = world.StartBattle("host", Ilwrath, new BattleStart(EnemyCrew: 7));

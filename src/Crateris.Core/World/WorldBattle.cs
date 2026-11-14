@@ -76,17 +76,41 @@ public sealed class BattleKit
     /// The salvage for a ship destroyed (UninitEncounter's bounty): its
     /// race's RACE_SHIP_COST / 8 resource units (an Ilwrath, 1,000, pays
     /// 125). A ship of no race of the full game's (not in avail_race_q: the
-    /// Androsynth, Chenjesu and Mmrnmhrm, which have no ship cost) pays
-    /// none, as UQM suppresses the tally and salvage for a battle whose
-    /// encounter race isn't one (encount.c's VictoryState = -1).
+    /// Androsynth, Chenjesu and Mmrnmhrm) pays none, as UQM suppresses the
+    /// tally and salvage for a battle whose encounter race isn't one
+    /// (encount.c's VictoryState = -1); any other ship without a cost is
+    /// an error in the data.
     /// </summary>
     public int Salvage(ShipDescription ship)
     {
-        string race = ship.Species is { } species && species.EndsWith("_ID", StringComparison.Ordinal)
-            ? species[..^3] + "_SHIP"
-            : throw new ArgumentException($"{ship.Id} has no race");
-        return _shipCosts.TryGetValue(race, out int cost) ? cost >> 3 : 0;
+        string race = RaceOf(ship) ?? (NoRace.Contains(ship.Species ?? "") ? "" : throw new ArgumentException($"{ship.Id} has no race"));
+        if (race.Length == 0)
+            return 0;
+        return _shipCosts.TryGetValue(race, out int cost) ? cost >> 3
+            : throw new KeyNotFoundException($"no ship cost for {race}");
     }
+
+    /// <summary>
+    /// A ship's race in UQM's race enum (races.h: ARILOU_SHIP, ...), which
+    /// data/races.json names, from its species (ships.json's SPECIES_ID):
+    /// the species' name but for three (the Earthling's HUMAN_SHIP, the
+    /// Ur-Quan's URQUAN_SHIP, the Kohr-Ah's BLACK_URQUAN_SHIP); null for a
+    /// ship of no race of the full game's (<see cref="NoRace"/>, the
+    /// flagship, the Sa-Matra, the probe).
+    /// </summary>
+    public static string? RaceOf(ShipDescription ship) => ship.Species switch
+    {
+        "EARTHLING_ID" => "HUMAN_SHIP",
+        "UR_QUAN_ID" => "URQUAN_SHIP",
+        "KOHR_AH_ID" => "BLACK_URQUAN_SHIP",
+        "SIS_SHIP_ID" or "SA_MATRA_ID" or "UR_QUAN_PROBE_ID" or null => null,
+        { } s when NoRace.Contains(s) => null,
+        { } s when s.EndsWith("_ID", StringComparison.Ordinal) => s[..^3] + "_SHIP",
+        _ => null,
+    };
+
+    /// <summary>The species that fight but have no race in the full game (no fleet in avail_race_q, no ship cost).</summary>
+    public static readonly IReadOnlySet<string> NoRace = new HashSet<string> { "ANDROSYNTH_ID", "CHENJESU_ID", "MMRNMHRM_ID" };
 
     /// <summary>RACE_SHIP_COST by race, from data/races.json's ship_cost.</summary>
     public static IReadOnlyDictionary<string, int> LoadShipCosts(string dataDirectory)
@@ -120,6 +144,12 @@ public sealed record EnemyFleetShip(string Ship, int? Crew = null);
 /// </summary>
 public sealed record EnemyFleet(IReadOnlyList<EnemyFleetShip> Ships, bool Infinite = false)
 {
+    /// <summary>MAX_SHIPS_PER_SIDE: the most ships a fleet in a battle has.</summary>
+    public const int MostShips = 14;
+
+    /// <summary>The ships, copied: a list changed later doesn't change the fleet.</summary>
+    public IReadOnlyList<EnemyFleetShip> Ships { get; init; } = Ships.ToArray();
+
     /// <summary>A fleet of one ship.</summary>
     public static EnemyFleet Of(string ship, int? crew = null) => new(new[] { new EnemyFleetShip(ship, crew) });
 

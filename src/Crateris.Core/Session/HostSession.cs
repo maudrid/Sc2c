@@ -620,7 +620,8 @@ public sealed class HostSession
             if (p.Ship.Battle is { } wb && (!_inBattle.TryGetValue(p.Id, out int was) || was != wb.Id))
             {
                 _inBattle[p.Id] = wb.Id;
-                Tell(p.Id, new BattleNotice(BattleNoticeKind.Joined, wb.Id, wb.EnemyShip.Id));
+                // Joining, the enemy ship fighting then; after, the encounter's race (a fleet's first ship's).
+                Tell(p.Id, new BattleNotice(BattleNoticeKind.Joined, wb.Id, wb.EnemyShipNow.Id));
             }
             else if (p.Ship.Battle is null)
                 _inBattle.Remove(p.Id);
