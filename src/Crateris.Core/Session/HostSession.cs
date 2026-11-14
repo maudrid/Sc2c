@@ -219,14 +219,17 @@ public sealed class HostSession
     /// cloaks here, as everywhere but in the Earth fight), each with its
     /// race's starting crew, coming in one at a time in the order given
     /// (stage 4b item 5), whose marker the others may fly into. Needs the
-    /// content (InvalidOperationException); a race not ported (or none
-    /// between two commas) is an ArgumentException.
+    /// content (InvalidOperationException); more than 14 ships, or a race
+    /// not ported (or none between two commas), is an ArgumentException,
+    /// before anything changes.
     /// </summary>
     public string StartBattle(string races)
     {
         if (World.BattleKit is null || World.Systems is null || World.Story is null)
             throw new InvalidOperationException("a battle needs the content");
         var fleet = races.Split(',', StringSplitOptions.TrimEntries);
+        if (fleet.Length > EnemyFleet.MostShips)
+            throw new ArgumentException($"{fleet.Length} ships: a fleet has {EnemyFleet.MostShips} at most");
         foreach (var race in fleet)
             if (!BattleKit.Enemies.Contains(race))
                 throw new ArgumentException($"{race} isn't a ship that can be fought (ported: {string.Join(", ", BattleKit.Enemies)})");

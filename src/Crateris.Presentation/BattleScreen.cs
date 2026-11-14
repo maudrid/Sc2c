@@ -233,16 +233,22 @@ public sealed class BattleScreen
     private void StatusFrame(BattleSnapshot b, string viewer)
     {
         StatusState State(BattleShipStatus s) => new(s.Crew, s.Energy, s.Flags, s.ElementCrew, s.LifeSpan, s.Gone);
-        // spawn_ship's InitShipStatus: each enemy ship coming in has its status drawn afresh.
-        if (!_enemyShown || _enemyShownAs != (b.Enemy.Ship, b.Enemy.Captain)
-            || _status.Stopped(BattleStatus.EnemySlot) && b.Enemy.Crew > 0 && !b.Enemy.Gone)
+        // spawn_ship's InitShipStatus (ship_preprocess's first frame): each enemy ship coming in has its status drawn
+        // afresh, another ship or captain, or, once the slot's ship has stopped, one with crew there again (an infinite
+        // fleet's back with its element, its new captain maybe the old one's; a Pkunk reborn, new_pkunk's APPEARING),
+        // in the frame it's first seen with crew.
+        bool fresh = !_enemyShown || _enemyShownAs != (b.Enemy.Ship, b.Enemy.Captain);
+        if (!fresh)
+        {
+            _status.Update(BattleStatus.EnemySlot, State(b.Enemy));
+            fresh = _status.Stopped(BattleStatus.EnemySlot) && b.Enemy.Crew > 0 && !b.Enemy.Gone;
+        }
+        if (fresh)
         {
             _status.Init(BattleStatus.EnemySlot, _statusShip(b.Enemy, null), State(b.Enemy));
             _enemyShown = true;
             _enemyShownAs = (b.Enemy.Ship, b.Enemy.Captain);
         }
-        else
-            _status.Update(BattleStatus.EnemySlot, State(b.Enemy));
         if (b.FighterOf(viewer) is not { } me)
             return;
         if (!_mineShown)

@@ -10,6 +10,7 @@ using Crateris.Core.Combat;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.World;
+using Crateris.Presentation;
 using static Crateris.Core.Tests.WorldBattleTests;
 
 namespace Crateris.Core.Tests;
@@ -300,7 +301,7 @@ public class EnemyFleetTests
         Assert.Equal((BattleOutcome.Won, 250u), (wb.Outcome, wb.SalvagePaid));   // the Ilwrath's twice, all to the host
         Assert.Equal(250u, Fighter(wb, "host").Salvage);
 
-        // Against an infinite fleet, the last player disconnecting loses it, the fleet as it was.
+        // Against an infinite fleet, a guest disconnecting leaves the host fighting; the host retreating then loses it, the fleet as it was.
         world = NewWorld(2);
         wb = StartedAgainst(world, EnemyFleet.InfiniteOf("syreen"));
         KillAndNext(world, wb);
@@ -312,23 +313,125 @@ public class EnemyFleetTests
         Assert.Equal(EnemyFleet.InfiniteOf("syreen"), wb.EnemyFleetLeft);
     }
 
+    // A battle against two Pkunk, started after the frames that make its seed one where the first is reborn
+    // (pkunk_preprocess's phoenix drawn at warp-in), run until its first Pkunk is back, warped in again.
+    private static readonly Lazy<int> RebornSkip = new(() =>
+        Enumerable.Range(0, 40).FirstOrDefault(skip => PkunkBattle(skip).Reborn, -1) is var s and >= 0 ? s
+            : throw new InvalidOperationException("no seed found where the first Pkunk is reborn"));
+
+    private static (GameWorld World, WorldBattle Battle, bool Reborn) PkunkBattle(int skip, Action<GameWorld, WorldBattle>? eachFrame = null)
+    {
+        var world = NewWorld();
+        Run(world, skip);
+        var wb = StartedAgainst(world, EnemyFleet.Of("pkunk", "pkunk"));
+        eachFrame?.Invoke(world, wb);
+        var first = wb.Enemy;
+        Kill(wb.Battle, first);
+        for (int i = 0; i < 200 && (wb.Enemy.RaceDesc is not { CrewLevel: > 0 } || !Warped(wb.Battle)); ++i)
+        {
+            RunDisarmed(world, wb, 1);
+            eachFrame?.Invoke(world, wb);
+        }
+        return (world, wb, wb.Enemy == first);
+    }
+
+    private static (GameWorld, WorldBattle) FirstPkunkReborn(Action<GameWorld, WorldBattle>? eachFrame = null)
+    {
+        var (world, wb, reborn) = PkunkBattle(RebornSkip.Value, eachFrame);
+        Assert.True(reborn);
+        return (world, wb);
+    }
+
     [Fact]
     public void EachPkunkOfAFleetStartsItsInsultsAfresh()
     {
-        // pkunk.c's LastSound, set back as each Pkunk ship is made (init_pkunk), not as one is reborn.
-        var world = NewWorld();
-        var wb = StartedAgainst(world, EnemyFleet.Of("pkunk", "pkunk"));
-        var second = wb.Enemies[1].Starship;
-        var insults = wb.Battle.ShipState<PkunkShip.Insults>();
-        for (int i = 0; i < 20 && wb.Enemy != second; ++i)
+        // pkunk.c's LastSound, set back as each Pkunk ship is made (init_pkunk), not as one is reborn (new_pkunk).
+        int lastBefore = -1;
+        var (world, wb) = FirstPkunkReborn((_, b) =>
         {
-            insults.LastSound = 5;
-            KillAndNext(world, wb);   // reborn (keeping it) or the next
-            if (wb.Enemy != second)
-                Assert.Equal(5, insults.LastSound);
+            if (b.Enemy.RaceDesc is not { CrewLevel: > 0 })
+                b.Battle.ShipState<PkunkShip.Insults>().LastSound = lastBefore = 5;
+        });
+        var insults = wb.Battle.ShipState<PkunkShip.Insults>();
+        Assert.Equal((5, 5), (lastBefore, insults.LastSound));   // reborn: kept
+        var second = KillAndNextWith(world, wb, () => insults.LastSound = 5);
+        Assert.Same(wb.Enemies[1].Starship, second);
+        Assert.Equal(0, insults.LastSound);   // the next ship made: afresh
+    }
+
+    // KillAndNext, with something done each frame while the enemy is dying.
+    private static Starship KillAndNextWith(GameWorld world, WorldBattle wb, Action dying)
+    {
+        var dead = wb.Enemy;
+        Kill(wb.Battle, dead);
+        for (int i = 0; i < 200 && (wb.Enemy.RaceDesc is not { CrewLevel: > 0 } || !Warped(wb.Battle)); ++i)
+        {
+            if (wb.Enemy.RaceDesc is not { CrewLevel: > 0 })
+                dying();
+            RunDisarmed(world, wb, 1);
         }
-        Assert.Same(second, wb.Enemy);
-        Assert.Equal(0, insults.LastSound);
+        return wb.Enemy;
+    }
+
+    // A client's battle screen fed the world's snapshot each frame, noting the frames its enemy status is drawn afresh in.
+    private sealed class Watcher
+    {
+        private readonly BattleScreen _screen;
+        private int _frame;
+        public readonly List<int> Fresh = new();
+        public readonly List<int> Crew = new();
+
+        public Watcher() => _screen = new BattleScreen(new UqmCanvas(_ => 1, (_, _) => default, new Dictionary<string, int>()),
+            (s, id) =>
+            {
+                if (id is null)
+                    Fresh.Add(_frame);
+                return new StatusShip(null, null, s.MaxCrew, s.MaxEnergy, false, false, id != null, "n", "c");
+            });
+
+        public void See(GameWorld world, WorldBattle wb)
+        {
+            var b = world.Snapshot().Battles!.Single(x => x.Id == wb.Id);
+            _frame = Crew.Count;
+            Crew.Add(b.Enemy.Crew);
+            _screen.Frame(b, "host", BattleSpace.SizeOf);
+        }
+
+        // Every fresh drawing but the first is in the first frame with crew after frames without.
+        public void AssertEachFreshIsAnArrival(int count)
+        {
+            Assert.Equal(count, Fresh.Count);
+            Assert.All(Fresh.Skip(1), f => Assert.True(Crew[f] > 0 && Crew[f - 1] == 0, $"frame {f}: crew {Crew[f - 1]} then {Crew[f]}"));
+            for (int f = 1; f < Crew.Count; ++f)
+                if (Crew[f] > 0 && Crew[f - 1] == 0)
+                    Assert.Contains(f, Fresh);
+        }
+    }
+
+    [Fact]
+    public void TheEnemysStatusIsDrawnAfreshInTheFrameEachShipComesBack()
+    {
+        // An infinite fleet's ship, back with its element (never gone): drawn afresh each time, and not while it waits dead.
+        var world = NewWorld();
+        var wb = StartedAgainst(world, EnemyFleet.InfiniteOf("syreen"));
+        var watcher = new Watcher();
+        watcher.See(world, wb);
+        for (int round = 0; round < 2; ++round)
+        {
+            Kill(wb.Battle, wb.Enemy);
+            for (int i = 0; i < 200 && (wb.Enemy.RaceDesc is not { CrewLevel: > 0 } || !Warped(wb.Battle)); ++i)
+            {
+                RunDisarmed(world, wb, 1);
+                watcher.See(world, wb);
+            }
+        }
+        Assert.All(world.Snapshot().Battles!, b => Assert.False(b.Enemy.Gone));
+        watcher.AssertEachFreshIsAnArrival(3);
+
+        // A Pkunk reborn: new_pkunk's APPEARING, ship_preprocess's InitShipStatus.
+        var pkunk = new Watcher();
+        var (w2, b2) = FirstPkunkReborn((w, b) => pkunk.See(w, b));
+        pkunk.AssertEachFreshIsAnArrival(2);
     }
 
     [Fact]
@@ -338,7 +441,7 @@ public class EnemyFleetTests
         var world = NewWorld();
         world.Host.Ship.Flight.Velocity.SetComponents(8, 0);
         Assert.Throws<ArgumentException>(() => world.StartBattle("host", new EnemyFleet(Array.Empty<EnemyFleetShip>())));
-        // MAX_SHIPS_PER_SIDE's 14 at most (and 15 of one race couldn't each have a name of their own's 16 ... nor more).
+        // MAX_SHIPS_PER_SIDE's 14 at most (17 of one race couldn't each have a name of their own, of 16).
         Assert.Throws<ArgumentException>(() => world.StartBattle("host", EnemyFleet.Of(Enumerable.Repeat(Ilwrath, 15).ToArray())));
         Assert.Throws<ArgumentException>(() => world.StartBattle("host", EnemyFleet.Of(Ilwrath, "probe")));
         Assert.Throws<ArgumentException>(() => world.StartBattle("host",
@@ -359,6 +462,10 @@ public class EnemyFleetTests
         var fleet = new EnemyFleet(list);
         list.Add(new("spathi"));
         Assert.Equal(EnemyFleet.Of(Ilwrath), fleet);
+        var other = new List<EnemyFleetShip> { new("arilou") };
+        var changed = fleet with { Ships = other };
+        other.Add(new("spathi"));
+        Assert.Equal(EnemyFleet.Of("arilou"), changed);
 
         // The one-ship start keeps its crew in its BattleStart, as the Earth fight's.
         var wb = world.StartBattle("host", Ilwrath, new BattleStart(EnemyCrew: 7));
@@ -385,7 +492,9 @@ public class EnemyFleetTests
         host.World.BattleKit = BattleReplay.Kit.Value;
         Assert.Throws<ArgumentException>(() => host.StartBattle("ilwrath,probe"));
         Assert.Throws<ArgumentException>(() => host.StartBattle("ilwrath,"));
+        Assert.Throws<ArgumentException>(() => host.StartBattle(string.Join(",", Enumerable.Repeat("spathi", 15))));
         Assert.Empty(host.World.Battles);
+        Assert.Equal(0, host.World.Story!.Get("STARBASE_AVAILABLE"));   // refused before the opening is put behind it
         Assert.Equal("Starting in a battle against a fleet of 3 (spathi, ilwrath, spathi) by Earth", host.StartBattle("spathi, ilwrath,spathi"));
         var wb = Assert.Single(host.World.Battles);
         Assert.Equal(EnemyFleet.Of("spathi", Ilwrath, "spathi"), wb.EnemyFleet);

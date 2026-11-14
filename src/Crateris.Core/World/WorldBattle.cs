@@ -147,8 +147,10 @@ public sealed record EnemyFleet(IReadOnlyList<EnemyFleetShip> Ships, bool Infini
     /// <summary>MAX_SHIPS_PER_SIDE: the most ships a fleet in a battle has.</summary>
     public const int MostShips = 14;
 
-    /// <summary>The ships, copied: a list changed later doesn't change the fleet.</summary>
-    public IReadOnlyList<EnemyFleetShip> Ships { get; init; } = Ships.ToArray();
+    private readonly IReadOnlyList<EnemyFleetShip> _ships = Ships.ToArray();
+
+    /// <summary>The ships, copied (made or set with <c>with</c>): a list changed later doesn't change the fleet.</summary>
+    public IReadOnlyList<EnemyFleetShip> Ships { get => _ships; init => _ships = value.ToArray(); }
 
     /// <summary>A fleet of one ship.</summary>
     public static EnemyFleet Of(string ship, int? crew = null) => new(new[] { new EnemyFleetShip(ship, crew) });
