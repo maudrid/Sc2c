@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-14, stage 4b item 5 (enemy fleets) built, review rounds 1 to 4's findings fixed, round 5 running.
+**Last updated:** 2026-11-14, stage 4b item 5 (enemy fleets) built and reviewed in five rounds (round 5: nothing to fix).
 
 ## Where things are
 
@@ -10,7 +10,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet): eleven items, approved by the owner on 2026-11-13 with all six recommendations accepted. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
 - **Stage 4b item 1 is built and reviewed** (its Progress row): every ship's content, and the traces `tests/golden/battle-races-1.json` to `-3.json` (items 2 to 4); notes for items 3 and 4 are under them in the plan.
 - **Stage 4b items 2 to 4 are built and reviewed** (their Progress rows): all 24 race ships are ported, in `src/Crateris.Core/Combat/` (`RaceShips.Ported`, so `--start-battle` takes them), every trace matched (`RaceShipBattleTests`); co-op, seam and branch tests in `RaceShipCoopTests` (a partial class, by item).
-- **Stage 4b item 5 (enemy fleets) is built** (its Progress row), review round 1's findings fixed (the Ur-Quan, Kohr-Ah and Earthling's salvage, the status after an infinite fleet's return, a cap of 14 ships, the joining notice, docs), round 2's fixed (tests on a real battle's path for the status and the Pkunk's rebirth, the status redrawn in the frame a ship is back, the cap before the opening), round 3's fixed (the status redrawn for a reborn Pkunk though frames were missed), round 4's fixed (a comment, a test of a crew rise), round 5 not yet run: `EnemyFleet`/`EnemyFleetShip` and `GameWorld.StartBattle(id, EnemyFleet, ...)` (one ship at a time; infinite fleets via `Battle`'s `infiniteEnemy`), salvage the first race's bounty for each ship, `WorldBattle.EnemyFleetLeft` for 3b, `--start-battle RACE,RACE,...`; tests in `EnemyFleetTests` and `BattleScreenTests`.
+- **Stage 4b item 5 (enemy fleets) is built and reviewed** (its Progress row; five rounds: the Ur-Quan, Kohr-Ah and Earthling's salvage, the client's enemy status on a ship's return, a cap of 14 ships, the joining notice, tests on the real path; round 5 found nothing): `EnemyFleet`/`EnemyFleetShip` and `GameWorld.StartBattle(id, EnemyFleet, ...)` (one ship at a time, at most 14; infinite fleets via `Battle`'s `infiniteEnemy`), salvage the first race's bounty for each ship (`BattleKit.RaceOf`), `WorldBattle.EnemyFleetLeft` for 3b, `--start-battle RACE,RACE,...`; the markers' race is noted for items 9 and 10; tests in `EnemyFleetTests` and `BattleScreenTests`.
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
 - **Last checks:** with item 5's review round 4 fixes, all topics 1,858 passed, 0 failed, 0 skipped with the content set; each new test seen failing on its mutation (the Progress row lists them); `tests/topic-map.json` remade with item 5's round 1 (rounds 2 to 4 added no files); the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1088, `game/scripts/ReportView.cs` 78); a headless `--start-battle zoqfot,arilou,spathi --script "none:40,fire:300" --quit-after 400` ran (in battle against the zoqfot). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 5 changed nothing in `data/`).
 
@@ -37,7 +37,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Finish item 5's review rounds (`CLAUDE.md`'s rule), then report and wait for the owner's go-ahead for item 6 (the host's fleet).
+Stage 4b item 5 is done; wait for the owner's go-ahead for item 6 (the host's fleet).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
