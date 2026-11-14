@@ -484,7 +484,7 @@ public partial class Main : Node2D
                 Log(host.StartAt(at.X, at.Y));
             if (_options.StartOrbit is { } o)
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
-            // What the host starts with before the visit, which keeps the hold and fleet as it began for its saves and Undo.
+            // What the host starts with before the visit, which keeps the hold, story and fleet as they began for its saves and Undo.
             if (_options.StartAllied is { } allied)
                 Log(host.StartAllied(allied));
             if (_options.StartFleet is { } fleet)
