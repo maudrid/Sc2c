@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-14, stage 4b item 4 (ships, part 3) built, review rounds 1 to 3's findings fixed; round 4 next.
+**Last updated:** 2026-11-14, stage 4b item 4 (ships, part 3) built and reviewed in five rounds (round 4: two stale doc spots, fixed; round 5: nothing to fix). All 24 race ships are ported.
 
 ## Where things are
 
@@ -38,7 +38,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 4 is built and review rounds 1 to 3's findings are fixed: review round 4 (a fresh subagent reviewing round 3's commits, as `CLAUDE.md`'s loop). Item 5 (enemy fleets) waits for the owner's go-ahead.
+Stage 4b item 4 is done; wait for the owner's go-ahead for item 5 (enemy fleets).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
