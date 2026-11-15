@@ -773,16 +773,18 @@ public class SnapshotCodecTests
     public void AMarksSheetIsSentOnceWithTheElementsAndItsMarksPastTheLimitArent()
     {
         var mark = new SilhouetteMarkSnapshot("ship.vux.graphics.limpets.large", 5, -3, 40, false);
+        // Past the limit, the newest are sent (the oldest are under them).
+        var many = Enumerable.Range(0, SnapshotCodec.MostSilhouetteMarks + 5).Select(i => mark with { X = (short)i }).ToArray();
         var b = Battle() with
         {
-            Enemy = Battle().Enemy with { Marks = Enumerable.Repeat(mark, SnapshotCodec.MostSilhouetteMarks + 5).ToArray() },
+            Enemy = Battle().Enemy with { Marks = many },
             Elements = new[] { Battle().Elements[0] with { Sheet = mark.Sheet } },
         };
         var w = new WireWriter(16);
         SnapshotCodec.Encode(w, new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { b }), null, "a");
         var bytes = w.Written.ToArray();
         var got = Assert.Single(SnapshotCodec.Decode(bytes).Battles!);
-        Assert.Equal(SnapshotCodec.MostSilhouetteMarks, got.Enemy.Marks!.Count);
+        Assert.Equal(many.Skip(5), got.Enemy.Marks!);
         Assert.Equal(b.Elements, got.Elements);
         // The sheet's name once in the message.
         var name = System.Text.Encoding.UTF8.GetBytes(mark.Sheet);
@@ -791,11 +793,12 @@ public class SnapshotCodecTests
         // The battle's sheets full with its elements': a mark of another sheet is left out, the others sent.
         var full = Battle() with
         {
-            Enemy = Battle().Enemy with { Marks = new[] { mark with { Sheet = "another" }, mark with { Sheet = "s0", Frame = 9 } } },
+            Enemy = Battle().Enemy with { Marks = new[] { mark with { Sheet = "s0", Frame = 8 }, mark with { Sheet = "another" }, mark with { Sheet = "s0", Frame = 9 } } },
             Elements = Enumerable.Range(0, SnapshotCodec.MostBattleSheets).Select(i => Battle().Elements[0] with { Sheet = "s" + i }).ToArray(),
         };
         SnapshotCodec.Encode(w, new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { full }), null, "a");
-        Assert.Equal(new[] { mark with { Sheet = "s0", Frame = 9 } }, SnapshotCodec.Decode(w.Written).Battles![0].Enemy.Marks);
+        Assert.Equal(new[] { mark with { Sheet = "s0", Frame = 8 }, mark with { Sheet = "s0", Frame = 9 } },
+            SnapshotCodec.Decode(w.Written).Battles![0].Enemy.Marks);
     }
 
     [Fact]

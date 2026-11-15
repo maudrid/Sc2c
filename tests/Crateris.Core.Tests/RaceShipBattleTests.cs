@@ -23,7 +23,8 @@ namespace Crateris.Core.Tests;
 /// wire (stage 4b item 9): its elements and its ships' status panels and
 /// captain's windows as the snapshot sends them, encoded and decoded whole,
 /// every stamp's sheet one the client loads, at each zoom's size, with the
-/// frame in it.
+/// frame in it; the captain's windows' marks sent (those still showing)
+/// drawing what every mark made draws, and costing little.
 /// </summary>
 [Trait("Topic", "combat")]
 public class RaceShipBattleTests
@@ -65,9 +66,36 @@ public class RaceShipBattleTests
 
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !sis.Any(s => s.BombCarrier);
         var shipIds = input.GetProperty("ships").EnumerateArray().Select(s => s.GetProperty("ship").GetString()!).ToArray();
-        int frame = 0;
-        var battle = BattleReplay.Run(reference, name, fleets, runaway, colours: true, ai, b => OnTheWire(name, frame++, b, shipIds));
+        int frame = 0, mostMarks = 0, mostShown = 0, mostBytes = 0;
+        var battle = BattleReplay.Run(reference, name, fleets, runaway, colours: true, ai, b =>
+        {
+            var (marks, shown, bytes) = OnTheWire(name, frame++, b, shipIds);
+            (mostMarks, mostShown, mostBytes) = (Math.Max(mostMarks, marks), Math.Max(mostShown, shown), Math.Max(mostBytes, bytes));
+        });
         ShipBattleTests.CheckFreed(reference, name, battle, sis);
+        // The captain's windows' marks still showing, as sent: well within a snapshot's budget (1,500 bytes, the
+        // network test's) at the busiest frame. The most made are orz-keys' marines' 124, of which 8 still show
+        // (66 bytes); vux-keys' 13 limpets, all showing, cost the most (89 bytes).
+        Assert.True(mostBytes < 150, $"{name}: the marks cost {mostBytes} bytes in a frame ({mostShown} sent of {mostMarks} made)");
+    }
+
+    // A captain's window's marks drawn in order on a window with nothing on it: each pixel, the frame and the place in
+    // it whose pixel is drawn there (a stamp's solid pixels; an erase clears its rectangle).
+    internal static Dictionary<(int, int), (string?, int, int, int)> Picture(IEnumerable<SilhouetteMark> marks)
+    {
+        var picture = new Dictionary<(int, int), (string?, int, int, int)>();
+        foreach (var m in marks)
+        {
+            var r = m.Frame.Rect;
+            int x0 = m.X - r.HotSpotX, y0 = m.Y - r.HotSpotY;
+            for (int y = 0; y < r.Height; ++y)
+                for (int x = 0; x < r.Width; ++x)
+                    if (m.Erase)
+                        picture.Remove((x0 + x, y0 + y));
+                    else if (m.Frame.Shape.Solid(x, y))
+                        picture[(x0 + x, y0 + y)] = (m.Frame.Sheet?.Id, m.Frame.Index, x, y);
+        }
+        return picture;
     }
 
     // Every battle resource the client loads (BattleSprites: BattleResources.All), with its frames as UQM's loader loads them.
@@ -76,7 +104,8 @@ public class RaceShipBattleTests
 
     // The frame as a snapshot sends it, each side's ship a player's (side 0's, "p") or the enemy (side 1's): through the
     // codec whole, every sheet a stamp or a captain's window's mark draws one the client loads, with the frame in it.
-    private static void OnTheWire(string name, int frame, Battle battle, string[] shipIds)
+    // Returns the marks made on the side's windows, those sent, and what they cost in the message.
+    private static (int Marks, int Shown, int Bytes) OnTheWire(string name, int frame, Battle battle, string[] shipIds)
     {
         string at = $"{name} frame {frame}";
         BattleShipStatus Status(int side) => battle.Fleet(side).FirstOrDefault(s => s.RaceDesc != null) is { } s
@@ -102,5 +131,23 @@ public class RaceShipBattleTests
             Assert.True(Resources.Value.TryGetValue(m.Sheet, out int count), $"{at}: a captain's window's mark of {m.Sheet}, which the client doesn't load");
             Assert.True(m.Frame < count, $"{at}: a mark of {m.Sheet} frame {m.Frame} of {count}");
         }
+        // The marks sent, those still showing, draw what every mark made draws.
+        foreach (var s in battle.Fleet(0).Concat(battle.Fleet(1)).Where(s => s.Silhouette.Count > 0))
+        {
+            var all = Picture(s.Silhouette);
+            var shown = Picture(s.Silhouette.Shown);
+            Assert.True(all.Count == shown.Count && all.All(p => shown.TryGetValue(p.Key, out var q) && q == p.Value),
+                $"{at}: the marks shown draw another picture than every mark made");
+        }
+        var bare = snapshot with
+        {
+            Enemy = snapshot.Enemy with { Marks = null },
+            Fighters = snapshot.Fighters.Select(f => f with { Status = f.Status with { Marks = null } }).ToArray(),
+        };
+        Net.SnapshotCodec.Encode(w, new WorldSnapshot(frame + 1, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { bare }), null, "p");
+        int without = w.Length;
+        Net.SnapshotCodec.Encode(w, new WorldSnapshot(frame + 1, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { snapshot }), null, "p");
+        var ships = battle.Fleet(0).Concat(battle.Fleet(1)).ToList();
+        return (ships.Sum(s => s.Silhouette.Count), ships.Sum(s => s.Silhouette.Shown.Count), w.Length - without);
     }
 }

@@ -727,29 +727,30 @@ public sealed partial class GameWorld
             e.Current.FrameArray is { } views ? views[0].Sheet!.Id : e.Current.Frame.Sheet?.Id ?? "",
             e.Current.Frame.Index, e.PrimColor);
 
-    // A battle as the snapshot holds it: its ships' status and places (the
-    // host's fleet ships and pick screen with the host's), and its elements
-    // as they're drawn this frame.
     /// <summary>
     /// A ship's status panel as the snapshot sends it (<paramref name="ship"/>
     /// its id in data/ships.json): its crew and energy (its description's,
     /// or, out of the battle, its own crew), captain, keys, element's crew
     /// and life; and its captain's window as the ship's code changed it (its
     /// special key's frame where the code keeps its own, and the marks on
-    /// it since it was drawn, which stay on a ship gone: its panel stands
-    /// as it last was).
+    /// it since it was drawn that still show, <see cref="SilhouetteMarks.Shown"/>:
+    /// both stay on a ship gone, its panel standing as it last was).
     /// </summary>
     internal static BattleShipStatus StatusSnapshot(string ship, Starship s)
     {
-        var marks = s.Silhouette.Count == 0 ? Array.Empty<SilhouetteMarkSnapshot>()
-            : s.Silhouette.Select(m => new SilhouetteMarkSnapshot(m.Frame.Sheet?.Id ?? "", m.Frame.Index, m.X, m.Y, m.Erase)).ToArray();
+        var shown = s.Silhouette.Shown;
+        var marks = shown.Count == 0 ? Array.Empty<SilhouetteMarkSnapshot>()
+            : shown.Select(m => new SilhouetteMarkSnapshot(m.Frame.Sheet?.Id ?? "", m.Frame.Index, m.X, m.Y, m.Erase)).ToArray();
         return s.RaceDesc is { } r
             ? new BattleShipStatus(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy, s.CaptainsNameIndex, s.CurStatusFlags,
-                s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null, r.CaptainSpecial.Index, marks)
+                s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null, s.CaptainSpecial.Index, marks)
             : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0, s.CaptainsNameIndex, s.CurStatusFlags, Gone: s.Ship is null,
-                Marks: marks);
+                CaptainSpecial: s.CaptainSpecial.Index, Marks: marks);
     }
 
+    // A battle as the snapshot holds it: its ships' status and places (the
+    // host's fleet ships and pick screen with the host's), and its elements
+    // as they're drawn this frame.
     private BattleSnapshot BattleSnapshotOf(WorldBattle wb)
     {
         static BattleShipStatus Status(string ship, Starship s) => StatusSnapshot(ship, s);

@@ -96,14 +96,6 @@ public sealed class RaceDesc
     /// </summary>
     public Views? Special;
 
-    /// <summary>
-    /// ship_data.captain_control.special, where the ship's own code keeps
-    /// it: the captain's window's frame its special key shows (the
-    /// Shofixti's Glory Device steps it, shofixti_postprocess); the null
-    /// frame for every other ship, whose window shows DrawCaptainsWindow's.
-    /// The snapshot sends it for the client (stage 4b item 9).
-    /// </summary>
-    public Frame CaptainSpecial;
 
     /// <summary>preprocess_func and postprocess_func: the ship's own steps, before ship.c's.</summary>
     public ElementProcess? Preprocess, Postprocess;
@@ -213,9 +205,112 @@ public sealed class Starship
     /// it was last drawn (DrawCaptainsWindow, as the ship warps in or is
     /// reborn), in order: the Orz's marines aboard and the VUX's limpets
     /// stuck on it. Kept for the client (stage 4b item 10), as the status
-    /// panel's crew and energy are; the battle doesn't read it.
+    /// panel's crew and energy are; the battle doesn't read it. Its
+    /// <see cref="SilhouetteMarks.Shown"/> are those still showing, which
+    /// the snapshot sends.
     /// </summary>
-    public List<SilhouetteMark> Silhouette { get; } = new();
+    public SilhouetteMarks Silhouette { get; } = new();
+
+    /// <summary>
+    /// ship_data.captain_control.special, where the ship's own code keeps
+    /// it: the captain's window's frame its special key shows (the
+    /// Shofixti's Glory Device steps it, shofixti_postprocess, from the
+    /// frame DrawCaptainsWindow sets as the ship comes in); the null frame
+    /// for every other ship, whose window shows DrawCaptainsWindow's. Kept
+    /// here, not in the ship's RaceDesc, so a ship gone keeps it: its panel
+    /// stands as it last was. The snapshot sends it for the client (stage
+    /// 4b item 9).
+    /// </summary>
+    public Frame CaptainSpecial;
+}
+
+/// <summary>
+/// The marks ModifySilhouette made on a ship's captain's window since it
+/// was last drawn (<see cref="Starship.Silhouette"/>), in order, every one
+/// as UQM made it; and those of them still showing (<see cref="Shown"/>):
+/// each mark that a later one covers completely left out, so drawing them
+/// in order draws the same picture as drawing every mark. A later erase
+/// (the window drawn afresh within its rectangle) covers a mark whose
+/// rectangle is within its own; a later stamp at the same place covers a
+/// stamp whose pixels are all among its own (the same frame, or by their
+/// masks); an erase is never covered by a stamp (what it erased would show
+/// again where the stamp is clear). The Orz's marines fight on one place
+/// many times over (each fight a mark, then the rest frame over it), and
+/// die with an erase there, so most of their marks are covered.
+/// </summary>
+public sealed class SilhouetteMarks : IReadOnlyList<SilhouetteMark>
+{
+    private readonly List<SilhouetteMark> _all = new();
+    private readonly List<SilhouetteMark> _shown = new();
+
+    /// <summary>The marks still showing, in order.</summary>
+    public IReadOnlyList<SilhouetteMark> Shown => _shown;
+
+    public int Count => _all.Count;
+
+    public SilhouetteMark this[int index] => _all[index];
+
+    /// <summary>A mark made: any shown mark it covers completely stops showing.</summary>
+    public void Add(SilhouetteMark mark)
+    {
+        _all.Add(mark);
+        _shown.RemoveAll(earlier => Covers(mark, earlier));
+        _shown.Add(mark);
+    }
+
+    /// <summary>The window drawn afresh (DrawCaptainsWindow): no marks.</summary>
+    public void Clear()
+    {
+        _all.Clear();
+        _shown.Clear();
+    }
+
+    public IEnumerator<SilhouetteMark> GetEnumerator() => _all.GetEnumerator();
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+    /// <summary>
+    /// Whether <paramref name="later"/>, drawn after <paramref name="earlier"/>,
+    /// leaves nothing of it showing (see <see cref="SilhouetteMarks"/>); false
+    /// where a frame's size or mask isn't known.
+    /// </summary>
+    public static bool Covers(SilhouetteMark later, SilhouetteMark earlier)
+    {
+        if (later.Erase)
+        {
+            if (Box(later) is not { } l || Box(earlier) is not { } e)
+                return false;
+            return e.X >= l.X && e.Y >= l.Y && e.X + e.W <= l.X + l.W && e.Y + e.H <= l.Y + l.H;
+        }
+        if (earlier.Erase || (later.X, later.Y) != (earlier.X, earlier.Y))
+            return false;
+        if (later.Frame == earlier.Frame)
+            return true;
+        if (later.Frame.Sheet?.Shapes?[later.Frame.Index] is not { Mask: { } } top
+                || earlier.Frame.Sheet?.Shapes?[earlier.Frame.Index] is not { Mask: { } } under)
+            return false;
+        // Each of the earlier frame's pixels under one of the later's, their hot spots at the one place.
+        int dx = top.HotSpotX - under.HotSpotX, dy = top.HotSpotY - under.HotSpotY;
+        for (int y = 0; y < under.Height; ++y)
+            for (int x = 0; x < under.Width; ++x)
+            {
+                if (!under.Solid(x, y))
+                    continue;
+                int tx = x + dx, ty = y + dy;
+                if (tx < 0 || ty < 0 || tx >= top.Width || ty >= top.Height || !top.Solid(tx, ty))
+                    return false;
+            }
+        return true;
+    }
+
+    // A mark's rectangle (GetFrameRect's at its place: its corner minus the hot spot), or null where its size isn't known.
+    private static (int X, int Y, int W, int H)? Box(SilhouetteMark m)
+    {
+        if (m.Frame.Sheet is not { } sheet || (sheet.Rects is null && sheet.Shapes is null))
+            return null;
+        var r = m.Frame.Rect;
+        return (m.X - r.HotSpotX, m.Y - r.HotSpotY, r.Width, r.Height);
+    }
 }
 
 /// <summary>

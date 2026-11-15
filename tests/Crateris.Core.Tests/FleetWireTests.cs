@@ -221,6 +221,104 @@ public class FleetWireTests
     }
 
     [Fact]
+    public void AGoneShofixtisPanelKeepsItsGloryDevicesFrame()
+    {
+        var world = WithFleet(2, (Shofixti, 6), (Spathi, 20));
+        var wb = world.StartBattle("g1", Ilwrath);
+        FlyIn(world, "host");
+        Assert.Equal(PickOutcome.Chosen, PickAt(world, 0));
+        WarpIn(world, wb);
+        // The special pressed and let go twice: frame 16 (12, then one a press and one a release).
+        for (int i = 0; i < 2; ++i)
+        {
+            RunDisarmed(world, wb, 1, id => id == "host" ? ShipInput.Special : ShipInput.None);
+            RunDisarmed(world, wb, 1);
+        }
+        Assert.Equal(16, Sent(world.Snapshot(), "g1").Battles!.Single().FighterOf("host")!.Status.CaptainSpecial);
+        // It dies: the host chooses again, their status the Shofixti's, gone, its window as it last was.
+        Kill(wb.Battle, Fighter(wb, "host").FleetShips[0].Starship);
+        UntilPicking(world, wb);
+        var status = Sent(world.Snapshot(), "g1").Battles!.Single().FighterOf("host")!.Status;
+        Assert.Equal(("shofixti", true, 16), (status.Ship, status.Gone, status.CaptainSpecial));
+    }
+
+    // A sheet of our own with these frames' masks (each a width, a height and its solid pixels, the hot spot at 1, 1).
+    private static Sheet Masks(string id, params (int W, int H, (int X, int Y)[] Solid)[] frames) => new(id, frames.Length,
+        frames.Select(f =>
+        {
+            var mask = new byte[f.W * f.H];
+            foreach (var (x, y) in f.Solid)
+                mask[y * f.W + x] = 1;
+            return new Uqm.IntersectFrame(f.W, f.H, 1, 1, mask);
+        }).ToList());
+
+    [Fact]
+    public void AMarkCoveredByALaterOneIsntShownAndTheShownDrawTheSamePicture()
+    {
+        // Frame 0 a 3x3 square, 1 its centre, 2 its centre and bottom right corner, 3 a 2x2 square (top left, by the hot spot).
+        var all = new (int, int)[] { (0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2) };
+        var sheet = Masks("m", (3, 3, all), (3, 3, new[] { (1, 1) }), (3, 3, new[] { (2, 2), (1, 1) }), (2, 2, new[] { (0, 0), (1, 0), (0, 1), (1, 1) }));
+        SilhouetteMark At(int frame, int x, int y, bool erase = false) => new(new Frame(sheet, (ushort)frame), (short)x, (short)y, erase);
+        // A stamp at the same place covering its pixels: the same frame, or one whose solid pixels hold the other's.
+        Assert.True(SilhouetteMarks.Covers(At(1, 5, 5), At(1, 5, 5)));
+        Assert.True(SilhouetteMarks.Covers(At(0, 5, 5), At(1, 5, 5)));
+        Assert.True(SilhouetteMarks.Covers(At(2, 5, 5), At(1, 5, 5)));
+        Assert.False(SilhouetteMarks.Covers(At(1, 5, 5), At(2, 5, 5)));   // the corner shows
+        Assert.False(SilhouetteMarks.Covers(At(0, 5, 6), At(1, 5, 5)));   // elsewhere
+        Assert.True(SilhouetteMarks.Covers(At(3, 5, 5), At(1, 5, 5)));    // the 2x2's (1, 1), hot spots aligned, over the centre
+        Assert.False(SilhouetteMarks.Covers(At(3, 5, 5), At(2, 5, 5)));   // not over the corner, which is outside it
+        // An erase covers what's within its rectangle, an erase too; a stamp never covers an erase.
+        Assert.True(SilhouetteMarks.Covers(At(0, 5, 5, true), At(1, 5, 5)));
+        Assert.True(SilhouetteMarks.Covers(At(0, 5, 5, true), At(3, 5, 5)));
+        Assert.True(SilhouetteMarks.Covers(At(0, 5, 5, true), At(3, 6, 6)));
+        Assert.False(SilhouetteMarks.Covers(At(0, 5, 5, true), At(3, 7, 7)));
+        Assert.True(SilhouetteMarks.Covers(At(0, 5, 5, true), At(3, 6, 6, true)));
+        Assert.False(SilhouetteMarks.Covers(At(0, 5, 5), At(1, 5, 5, true)));
+        // A frame of no known mask or size is never covered nor covers by its pixels.
+        var bare = new Frame(new Sheet("bare", 2), 0);
+        Assert.True(SilhouetteMarks.Covers(new SilhouetteMark(bare, 5, 5, false), new SilhouetteMark(bare, 5, 5, false)));   // the same frame
+        Assert.False(SilhouetteMarks.Covers(At(0, 5, 5), new SilhouetteMark(bare.SetAbs(1), 5, 5, false)));
+        Assert.False(SilhouetteMarks.Covers(At(0, 5, 5, true), new SilhouetteMark(bare, 5, 5, false)));
+
+        // Random marks, as the Orz's marines and the VUX's limpets might make them: the shown draw every mark's picture,
+        // fewer of them; cleared, none.
+        var r = new Random(14);
+        for (int n = 0; n < 500; ++n)
+        {
+            var marks = new SilhouetteMarks();
+            for (int i = r.Next(40); i > 0; --i)
+            {
+                marks.Add(At(r.Next(4), 4 + r.Next(4), 4 + r.Next(4), r.Next(5) == 0));
+                var full = RaceShipBattleTests.Picture(marks);
+                var shown = RaceShipBattleTests.Picture(marks.Shown);
+                Assert.True(full.Count == shown.Count && full.All(p => shown.TryGetValue(p.Key, out var q) && q == p.Value));
+                // Some of the marks made, in their order: the last of them always.
+                int j = 0;
+                foreach (var m in marks)
+                    if (j < marks.Shown.Count && marks.Shown[j] == m)
+                        ++j;
+                Assert.Equal(marks.Shown.Count, j);
+                Assert.Equal(marks[^1], marks.Shown[^1]);
+            }
+            marks.Clear();
+            Assert.Empty(marks);
+            Assert.Empty(marks.Shown);
+        }
+        // The Orz's: the marine, then fights (the fight frame, the rest frame over it) at its place, then its death's erase.
+        var orz = new SilhouetteMarks();
+        orz.Add(At(1, 5, 5));
+        for (int i = 0; i < 20; ++i)
+        {
+            orz.Add(At(2, 5, 5));
+            orz.Add(At(0, 5, 5));
+        }
+        Assert.Equal(new[] { At(0, 5, 5) }, orz.Shown);
+        orz.Add(At(0, 5, 5, true));
+        Assert.Equal(new[] { At(0, 5, 5, true) }, orz.Shown);
+        Assert.Equal(42, orz.Count);   // every mark made, as UQM made them
+    }
+
+    [Fact]
     public void TheVuxsLimpetsOnTheEnemysCaptainsWindowGoOnTheWire()
     {
         var world = WithFleet(2, (Vux, 20));

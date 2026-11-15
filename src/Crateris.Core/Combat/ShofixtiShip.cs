@@ -68,17 +68,17 @@ public sealed class ShofixtiShip : IShipCode
 
     // captain_control.special: the captain window's frame the Glory
     // Device counts on (DrawCaptainsWindow sets it to frame 12 as the ship
-    // warps in); its sheet's frame count. Kept in the ship's RaceDesc
-    // (RaceDesc.CaptainSpecial), where the snapshot reads it.
+    // warps in); its sheet's frame count. Kept on the ship's Starship
+    // (Starship.CaptainSpecial), where the snapshot reads it, a ship gone too.
     private sealed class Glory
     {
-        public required RaceDesc Desc;
+        public required Starship Ship;
         public required int DestructRange, MaxDestruction;
 
         public Frame Special
         {
-            get => Desc.CaptainSpecial;
-            set => Desc.CaptainSpecial = value;
+            get => Ship.CaptainSpecial;
+            set => Ship.CaptainSpecial = value;
         }
 
         public int Left => Special.Count - Special.Index;
@@ -97,8 +97,8 @@ public sealed class ShofixtiShip : IShipCode
             BlastOffs = (short)d.Define("MISSILE_OFFSET"),
         };
         // DrawCaptainsWindow: background, turn (+1), thrust (+5), weapon (+3), special (+3).
-        rd.CaptainSpecial = _captain is { } captain ? captain[0].SetAbs(1 + 5 + 3 + 3) : default;
-        var g = new Glory { Desc = rd, DestructRange = d.Define("DESTRUCT_RANGE"), MaxDestruction = d.Define("MAX_DESTRUCTION") };
+        starship.CaptainSpecial = _captain is { } captain ? captain[0].SetAbs(1 + 5 + 3 + 3) : default;
+        var g = new Glory { Ship = starship, DestructRange = d.Define("DESTRUCT_RANGE"), MaxDestruction = d.Define("MAX_DESTRUCTION") };
         rd.InitWeapon = e => InitializeStandardMissile(battle, e, dart);
         rd.Postprocess = e => Postprocess(battle, e, g);
         rd.Intelligence = (ship, concerns, count) => Intelligence(battle, ship, concerns, count, g);

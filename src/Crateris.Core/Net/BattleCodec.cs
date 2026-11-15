@@ -87,7 +87,8 @@ public static partial class SnapshotCodec
     }
 
     // A ship's status; its captain's window's marks by their sheets' places
-    // in the battle's (those of sheets past its limit left out, none in practice).
+    // in the battle's (those of sheets past its limit left out, none in
+    // practice), the newest past the limit of marks (the oldest are under them).
     private static void WriteStatus(WireWriter w, BattleShipStatus s, Dictionary<string, int> sheets)
     {
         w.String(s.Ship);
@@ -104,16 +105,19 @@ public static partial class SnapshotCodec
         var marks = s.Marks ?? Array.Empty<SilhouetteMarkSnapshot>();
         int count = 0;
         foreach (var m in marks)
-            if (sheets.ContainsKey(m.Sheet) && count < MostSilhouetteMarks)
+            if (sheets.ContainsKey(m.Sheet))
                 ++count;
-        w.UInt((ulong)count);
+        int skip = Math.Max(0, count - MostSilhouetteMarks);
+        w.UInt((ulong)(count - skip));
         foreach (var m in marks)
         {
-            if (count == 0)
-                break;
             if (!sheets.TryGetValue(m.Sheet, out int sheet))
                 continue;
-            --count;
+            if (skip > 0)
+            {
+                --skip;
+                continue;
+            }
             w.UInt((ulong)sheet);
             w.UInt(m.Frame);
             w.Int(m.X);
@@ -157,8 +161,9 @@ public static partial class SnapshotCodec
         w.Byte(1);
         int count = Math.Min(a.Ships.Count, HostFleet.MaxShips);   // the decoder's limit, the fleet's
         w.UInt((ulong)count);
-        foreach (var s in a.Ships.Take(count))
+        for (int i = 0; i < count; ++i)
         {
+            var s = a.Ships[i];
             w.UInt((ulong)s.Slot);
             w.String(s.Ship);
             w.UInt((ulong)s.Captain);
