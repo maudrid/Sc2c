@@ -211,7 +211,7 @@ public sealed partial class Battle
     {
         var dead = deadShip.Parent!;
         if (deadShip.MassPoints <= MaxShipMass)
-            BattleCounter[dead.PlayerNr]--;   // a ship running away was counted when it ran
+            Uncount(dead);   // a ship running away was counted when it ran
     }
 
     // StartShipExplosion: still, without energy, blowing up for 36 frames (the

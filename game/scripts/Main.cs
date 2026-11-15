@@ -458,7 +458,10 @@ public partial class Main : Node2D
         _host.World.BattleKit = _battleKit;
         _host.World.DialogueLocks = DialogueLocks.Load(_dataDir);
         if (_player != null)
+        {
             _player.Fleet = _host.World.RosterFor(_host.HostId);   // the roster acts on the host's own fleet (stage 4b item 7)
+            _player.PickScreen = _host.World.PickScreenFor(_host.HostId);   // the host's pick screen in a battle (item 8)
+        }
         ApplyStartOptions(_host);
         _inputDelay = _host.World.Settings.InputDelayFrames;
 
@@ -1083,7 +1086,12 @@ public partial class Main : Node2D
             return;
         }
         if (key is MenuKey mk)
+        {
+            // The pick screen's keys are its own: held on, they mustn't fly the ship picked (Enter fires).
+            if (_player.Picking)
+                _taken.Take((long)k.Keycode);
             _player.PressMenu(mk);
+        }
     }
 
     private LineEdit? _naming;

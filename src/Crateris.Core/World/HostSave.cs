@@ -190,7 +190,8 @@ public static class HostSave
             visit?.MetBefore ?? world.CommanderMet,
             // A fleet ship of no crew (the shipyard's, its crew all sent away and its cost given back) is saved
             // scrapped, as leaving the crew editing would scrap it (stage 4b item 7): the save loads out of the shipyard.
-            (visit?.FleetBefore ?? world.Fleet.Ships).Where(s => s.Crew > 0).ToList());
+            // In a battle, the fleet ships are as they joined it, those destroyed gone (item 8: FleetForSave).
+            (visit?.FleetBefore ?? world.FleetForSave()).Where(s => s.Crew > 0).ToList());
         return JsonSerializer.Serialize(save, Options);
     }
 

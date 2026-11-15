@@ -133,7 +133,9 @@ public sealed partial class GameWorld
     /// system the planet closest on the screen, as UQM names the place of
     /// an encounter), in hyperspace a random type's, as BuildBattle's; the
     /// arena's size and the list's cap are the settings'. The ship warps in
-    /// as the enemy does, the enemy first. Each battle is seeded by its
+    /// as the enemy does, the enemy first; the host with fleet ships brings
+    /// them too and chooses the first on the pick screen (stage 4b item 8:
+    /// <see cref="PickShipKey"/>), the battle waiting meanwhile. Each battle is seeded by its
     /// frame and number (UQM seeds from the clock). Refused (an
     /// <see cref="InvalidOperationException"/>) without the battle's content,
     /// during a story talk, after the game is over, or for a ship not
@@ -210,8 +212,9 @@ public sealed partial class GameWorld
         }
         var fighter = NewFighter(player);
         // Retreat is the world's to allow, per player and frame (RetreatAllowed): the battle lets side 0 run.
+        // The host with fleet ships brings them all (race_q[0]), and picks the first (stage 4b item 8).
         var battle = new Battle(kit.Graphics.Arena(battlePlanet),
-            new[] { new[] { fighter.Starship }, enemies.Select(e => e.Item1).ToArray() },
+            new[] { fighter.Armada?.Ships ?? new[] { fighter.Starship }, enemies.Select(e => e.Item1).ToArray() },
             seed, runAwayAllowed: true, size: ArenaSize.Scaled(Settings.BattleArenaScale), maxElements: Settings.BattleMaxElements,
             infiniteEnemy: fleet.Infinite);
         var wb = new WorldBattle(number, place, battlePlanet, battle, enemies, fleet, start, id, Frame)
@@ -220,6 +223,7 @@ public sealed partial class GameWorld
             PlaceStarJustLeft = ship.Ip is null ? ship.Flight.StarJustLeft : null,
         };
         wb.Add(fighter);
+        Joined(wb, fighter);
         // Those there already join only once they've been out of its reach and come back (JoinBattles).
         _battles.Add(wb);
         ship.Battle = wb;
@@ -259,7 +263,8 @@ public sealed partial class GameWorld
     // A player's ship for a battle: the flagship's battle code with this
     // ship's slots and crew (decision 3), the bomb aboard the flagship from
     // CHMMR_BOMB_STATE 3, and a Starship with no crew of its own, new for
-    // each battle (SisShip.Load); what it had as it joined, for a save.
+    // each battle (SisShip.Load); what it had as it joined, for a save; the
+    // host's fleet ships with it (stage 4b item 8).
     private BattleFighter NewFighter(Player player)
     {
         var kit = BattleKit!;
@@ -269,7 +274,17 @@ public sealed partial class GameWorld
         var code = new SisShip(sis, kit.Graphics.Views(sis.Graphics.Ship), kit.Graphics.Views(sis.Graphics.Weapon),
             SisLoadout.From(ship.Kind, ship.Modules, ship.Hold.Crew, bomb));
         return new BattleFighter(player, code, new Starship(code, 0, 0, 0) { Icons = RaceShips.Icons(sis, kit.Graphics.Views) },
-            ship.Hold.Save(), ship.Flight.Fuel, Frame);
+            ship.Hold.Save(), ship.Flight.Fuel, Frame, FleetShipsFor(player));
+    }
+
+    // A player in a battle: one with an armada picks its first ship (the
+    // pick screen opens), watching from where the enemy is meanwhile.
+    private static void Joined(WorldBattle wb, BattleFighter fighter)
+    {
+        if (fighter.Armada is null)
+            return;
+        (fighter.LastX, fighter.LastY) = wb.Enemy.Ship is { } enemy ? (enemy.Current.X, enemy.Current.Y) : (wb.EnemyLastX, wb.EnemyLastY);
+        UpdatePicks(wb);
     }
 
     /// <summary>
@@ -286,7 +301,10 @@ public sealed partial class GameWorld
     /// A battle it has left (retreated or disconnected), a destroyed ship, a
     /// battle decided (the enemy has no ship left able to fight) or over
     /// can't be joined; one whose list is full can't now, which its player
-    /// is told once, and is tried again while the ship stays in it.
+    /// is told once, and is tried again while the ship stays in it; one
+    /// waiting for the host's pick (<see cref="WaitsForPick"/>) is joined
+    /// once the host has chosen. The host with fleet ships brings them in
+    /// and chooses the first (stage 4b item 8).
     /// </summary>
     private void JoinBattles()
     {
@@ -310,11 +328,18 @@ public sealed partial class GameWorld
                     continue;
                 }
                 var battle = wb.Battle;
+                // Not while it waits for the host's pick (stage 4b decision 2): it joins once the host has chosen.
                 if (!wb.SeenOutOfReach.Contains(player.Id) || wb.Left.Contains(player.Id) || !battle.InBattle
-                    || battle.BattleCounter[1] == 0 || battle.BattleCounter[0] == byte.MaxValue)
+                    || battle.BattleCounter[1] == 0 || battle.BattleCounter[0] == byte.MaxValue || WaitsForPick(wb))
                     continue;
                 var fighter = NewFighter(player);
-                if (!battle.Join(fighter.Starship))
+                if (fighter.Armada is { } armada)
+                {
+                    if (battle.BattleCounter[0] + armada.Ships.Count > byte.MaxValue)
+                        continue;
+                    battle.JoinArmada(armada);
+                }
+                else if (!battle.Join(fighter.Starship))
                 {
                     // Still seen out of its reach: tried again next frame.
                     if (_toldFull.Add((player.Id, wb.Id)))
@@ -323,6 +348,7 @@ public sealed partial class GameWorld
                 }
                 wb.SeenOutOfReach.Remove(player.Id);
                 wb.Add(fighter);
+                Joined(wb, fighter);
                 ship.Battle = wb;
                 ship.Flight.Stop();
                 ship.Ip?.Stop();
@@ -388,7 +414,9 @@ public sealed partial class GameWorld
     /// (COMPUTER_CONTROL | AWESOME_RATING). Then who is out: a ship whose
     /// crew has run out is destroyed (its player watches the battle on, to
     /// its end), one that has warped out has retreated and is back in
-    /// flight; and a battle over ends.
+    /// flight (the host's fleet ship: gone, or out of this battle, and the
+    /// host chooses the next, stage 4b item 8); and a battle over ends. A
+    /// battle waiting for the host's pick doesn't step.
     /// </summary>
     private void StepBattles()
     {
@@ -401,10 +429,14 @@ public sealed partial class GameWorld
         _battleInput.Clear();
     }
 
+    // A battle's frame: the host's pick waiting for room comes in first;
+    // the battle doesn't step while it waits for the host's pick
+    // (WaitsForPick, stage 4b decision 2).
     private void StepBattle(WorldBattle wb)
     {
         var battle = wb.Battle;
-        if (battle.InBattle)
+        PlaceWaitingPicks(wb);
+        if (battle.InBattle && !WaitsForPick(wb))
             battle.Step(ship => ship.PlayerNr == 0 ? PlayerBattleInput(wb, ship) : battle.ComputerIntelligence(ship));
         AfterBattleFrame(wb);
     }
@@ -412,10 +444,11 @@ public sealed partial class GameWorld
     // The battle whose flagship's crew has run out (it's exploding: its
     // crew stays 0 until new_ship frees it, and the game is over then), if any.
     private WorldBattle? FlagshipDying() => _battles.FirstOrDefault(wb => wb.Fighters.Any(f =>
-        f.Player.Ship.Kind == ShipKind.Flagship && f.Player.Ship.Battle == wb && f.Starship.RaceDesc is { CrewLevel: 0 }));
+        f.Player.Ship.Kind == ShipKind.Flagship && f.Player.Ship.Battle == wb && f.OwnStarship.RaceDesc is { CrewLevel: 0 }));
 
     private BattleInput PlayerBattleInput(WorldBattle wb, Starship ship)
     {
+        // The player flying it: their own ship, or a fleet ship of the host's (the one flown now, Starship).
         var fighter = wb.Fighters.First(f => f.Starship == ship);
         if (!fighter.Player.Present || !_battleInput.TryGetValue(fighter.Player.Id, out var input))
             return BattleInput.None;
@@ -433,7 +466,8 @@ public sealed partial class GameWorld
     /// (stage 4a item 6). A disconnect leaves all the same (decision 10).
     /// </summary>
     private bool RetreatAllowed(WorldBattle wb, BattleFighter fighter) =>
-        wb.Start.RetreatAllowed && (Story is null || Story.Get("STARBASE_AVAILABLE") != 0) && !fighter.Code.BombCarrier;
+        wb.Start.RetreatAllowed && (Story is null || Story.Get("STARBASE_AVAILABLE") != 0)
+        && !(fighter.FlyingOwnShip && fighter.Code.BombCarrier);   // a fleet ship flown isn't the bomb's carrier
 
     // The keys in battle: turn, thrust, the weapon (Fire), the special,
     // and Escape (the key taking off uses) where a retreat is allowed.
@@ -455,7 +489,8 @@ public sealed partial class GameWorld
         foreach (var f in wb.Fighters)
             if (f.Player.Ship.Battle == wb)
                 (f.LastX, f.LastY) = Follow(f.Starship.Ship, f.LastX, f.LastY);
-        foreach (var fighter in wb.Fighters.Where(f => f.Exit is null).ToList())
+        SettleFleetShips(wb);   // a fleet ship dead is gone; one warped out is out for this battle
+        foreach (var fighter in wb.Fighters.Where(f => f.Exit is null && f.FlyingOwnShip).ToList())
         {
             var starship = fighter.Starship;
             if (starship.RaceDesc is { CrewLevel: 0 })
@@ -474,13 +509,15 @@ public sealed partial class GameWorld
         // ~0) and the battle over; here others may still fight in it, and
         // the battle stops with the world, unfinished (this port's).
         if (wb.Fighters.FirstOrDefault(f => f.Exit == BattleExit.Destroyed && f.Player.Ship.Kind == ShipKind.Flagship
-                && f.Starship.RaceDesc is null && f.Player.Ship.Battle == wb) is { } flagship && wb.Battle.InBattle)
+                && f.OwnStarship.RaceDesc is null && f.Player.Ship.Battle == wb) is { } flagship && wb.Battle.InBattle)
         {
             EndGame(flagship);
             return;
         }
         if (!wb.Battle.InBattle)
             EndBattle(wb);
+        else
+            UpdatePicks(wb);   // the host picks as a fleet ship is freed; the pick screen closes once the enemy has none left
     }
 
     // A player's ship whose crew has run out: it watches the battle on, and
@@ -505,11 +542,16 @@ public sealed partial class GameWorld
 
     // A player's ship leaving a battle mid-battle with its crew (a retreat,
     // or a disconnect): its crew back aboard, 5 units of fuel paid (its
-    // last ship: in 4a, its only one), and back in flight where it joined.
+    // last ship: in 4a, its only one; the host's flagship, picked last,
+    // stage 4b item 8), and back in flight where it joined; the host's
+    // fleet ships' crews written to the fleet.
     private void LeaveBattle(WorldBattle wb, BattleFighter fighter, BattleExit exit, int crew)
     {
         fighter.Exit = exit;
         fighter.CrewLeft = crew;
+        fighter.Pick = null;
+        fighter.PickedWaiting = null;
+        WriteBackFleet(fighter);
         wb.Leaves(fighter.Player.Id);
         var ship = fighter.Player.Ship;
         ship.Hold.SetCrew(crew);
@@ -540,8 +582,23 @@ public sealed partial class GameWorld
     {
         if (player.Ship.Battle is not { } wb || wb.FighterOf(player.Id) is not { Exit: null } fighter)
             return;
-        wb.Battle.Leave(fighter.Starship);
-        LeaveBattle(wb, fighter, BattleExit.Disconnected, fighter.Code.Result!.Value.CrewLeft);
+        if (fighter.Armada is { } armada)
+        {
+            // The host with fleet ships (stage 4b item 8): the armada leaves
+            // whole; a fleet ship flown leaves with its crew (one dying dies:
+            // gone as it's freed), and the flagship's crew is as it joined
+            // unless it was flown.
+            bool own = fighter.FlyingOwnShip;
+            wb.Battle.LeaveArmada(armada);
+            SettleFleetShips(wb);
+            LeaveBattle(wb, fighter, BattleExit.Disconnected,
+                own ? fighter.Code.Result!.Value.CrewLeft : player.Ship.Hold.Crew);
+        }
+        else
+        {
+            wb.Battle.Leave(fighter.Starship);
+            LeaveBattle(wb, fighter, BattleExit.Disconnected, fighter.Code.Result!.Value.CrewLeft);
+        }
         // The Ilwrath's fight's starter: its part of the visit settled now,
         // its hold as before the visit with the crew it left with, its fuel
         // as before it, the fuel paid after (stage 4a item 9), so what it
@@ -558,11 +615,15 @@ public sealed partial class GameWorld
     /// player's ship still in it: destroyed (its crew 0: a wreck at the
     /// battle's place, item 7; the flagship's is the game over), still
     /// running away (cut short: retreated, its fuel paid, item 5's rule),
-    /// or alive, its crew back aboard. Won if the
-    /// enemy is out and a player's ship still in it (decision 9), and a
+    /// or alive, its crew back aboard. The host flying a fleet ship or on
+    /// the pick screen is still in it (stage 4b item 8, decision 2): the
+    /// flagship waits, counted; the fleet ship flown keeps its crew, or is
+    /// gone; the fleet's crews are written back. Won if the
+    /// enemy is out and a player still in it (decision 9), and a
     /// battle that pays salvage pays the encounter race's RACE_SHIP_COST / 8
     /// for each enemy ship (none for a race without a ship cost), split
-    /// equally between those ships, the remainder to the one that joined
+    /// equally between those players, one share each whatever they fly
+    /// (stage 4b decision 5), the remainder to the one that joined
     /// first. The enemy's fleet left is recorded (<see cref="WorldBattle.EnemyFleetLeft"/>).
     /// The marker goes, and those still in it are back in flight.
     /// </summary>
@@ -571,10 +632,32 @@ public sealed partial class GameWorld
         var battle = wb.Battle;
         var runningAway = wb.Fighters.Where(f => f.Exit is null && battle.RunningAway(f.Starship)).ToList();
         battle.UninitShips();
+        // The host's fleet ship in it at the end (stage 4b item 8): its crew
+        // as UninitShips recorded it, kept (UninitEncounter); still running
+        // away, it retreated; with none, it's gone (decision 4).
+        foreach (var fighter in wb.Fighters)
+            foreach (var fs in fighter.FleetShips.Where(s => s.Flown && s.Exit is null))
+                SettleFleetShip(fs, runningAway.Any(f => f.Starship == fs.Starship) ? BattleExit.Retreated : BattleExit.Fought);
         var survivors = new List<BattleFighter>();
         foreach (var fighter in wb.Fighters.Where(f => f.Exit is null || f.Exit == BattleExit.Destroyed && f.Player.Ship.Battle == wb).ToList())
         {
             var ship = fighter.Player.Ship;
+            if (fighter.Exit is null && !fighter.FlyingOwnShip)
+            {
+                // The host flying a fleet ship, or on the pick screen: the
+                // flagship, not picked yet, is counted among the ships able to
+                // fight (battle_counter[0]), so the host is in the battle at
+                // its end (decision 2: a win closes the pick screen), with one
+                // share of the salvage whatever they flew (decision 5).
+                fighter.Exit = BattleExit.Fought;
+                fighter.CrewLeft = ship.Hold.Crew;
+                fighter.Pick = null;
+                fighter.PickedWaiting = null;
+                WriteBackFleet(fighter);
+                BackInFlight(ship);
+                survivors.Add(fighter);
+                continue;
+            }
             var freed = fighter.Code.Result ?? throw new InvalidOperationException("a ship in the battle wasn't freed");
             if (fighter.Exit == BattleExit.Destroyed || freed.Destroyed)
             {
@@ -593,6 +676,7 @@ public sealed partial class GameWorld
                 fighter.Exit = BattleExit.Fought;
                 fighter.CrewLeft = freed.CrewLeft;
                 ship.Hold.SetCrew(freed.CrewLeft);
+                WriteBackFleet(fighter);
                 BackInFlight(ship);
                 survivors.Add(fighter);
             }
@@ -656,8 +740,8 @@ public sealed partial class GameWorld
         // player still watches), kept after each frame (AfterBattleFrame).
         var fighters = present
             .Select(f => f.Starship.Ship is { } ship
-                ? new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), ship.Current.X, ship.Current.Y, f == viewer)
-                : new BattleFighterSnapshot(f.Player.Id, Status(ShipDescriptions.Flagship, f.Starship), f.LastX, f.LastY, f == viewer))
+                ? new BattleFighterSnapshot(f.Player.Id, Status(f.ShipId, f.Starship), ship.Current.X, ship.Current.Y, f == viewer)
+                : new BattleFighterSnapshot(f.Player.Id, Status(f.ShipId, f.Starship), f.LastX, f.LastY, f == viewer))
             .ToList();
         var (ex, ey) = wb.Enemy.Ship is { } enemy ? (enemy.Current.X, enemy.Current.Y) : (wb.EnemyLastX, wb.EnemyLastY);
         var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(ElementSnapshot).ToList();

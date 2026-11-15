@@ -127,6 +127,12 @@ public sealed class BattleRandom
 /// frame, follows one ship a side (<see cref="FollowedElement"/>). With one ship a
 /// side and UQM's arena, the battle is UQM's, frame for frame.
 /// </para>
+/// <para>
+/// The host's fleet ships (stage 4b item 8): a player's <see cref="Armada"/>
+/// joins whole (<see cref="JoinArmada"/>, or as side 0 at the start), its
+/// ships counted, and its player picks each in turn (<see cref="Pick"/>,
+/// between frames) as UQM's pick screen does, the flagship last.
+/// </para>
 /// </summary>
 public sealed partial class Battle
 {
@@ -262,13 +268,27 @@ public sealed partial class Battle
         InfiniteEnemy = infiniteEnemy;
         Random = new BattleRandom(seed) { Places = randomPlaces };
 
+        // Side 0 may be one armada (stage 4b item 8): its player picks its first ship.
+        var armada = _fleets[0].Count > 0 ? _fleets[0][0].Armada : null;
+        if (_fleets[1].Any(s => s.Armada != null) || _fleets[0].Any(s => s.Armada != armada)
+            || armada != null && !armada.Ships.SequenceEqual(_fleets[0]))
+            throw new ArgumentException("side 0 is one armada's ships, in its order, or ships of no armada; side 1's are of none");
+        if (armada != null && (armada.Counted.Count > 0 || armada.Ships.Any(s => !s.Available || s.Ship != null || s.RaceDesc != null)))
+            throw new ArgumentException("an armada's ship isn't free to fight: in a battle or spent by one");
+
         InitShips();
         InBattle = true;
         for (int side = 0; side < NumSides; ++side)
             BattleCounter[side] = (byte)_fleets[side].Count;
-        // GetInitialStarShips outside Super Melee: the last side first.
+        if (armada != null)
+        {
+            BattleCounter[0] = 0;
+            AddArmada(armada);
+        }
+        // GetInitialStarShips outside Super Melee: the last side first (an
+        // armada's player picks its first after, between frames: GetArmadaStarShip).
         for (int side = NumSides; side > 0; --side)
-            if (!GetNextStarShip(null, side - 1))
+            if (!(side - 1 == 0 && armada != null) && !GetNextStarShip(null, side - 1))
                 throw new InvalidOperationException($"side {side - 1} has no ship to fight with");
     }
 
@@ -386,6 +406,8 @@ public sealed partial class Battle
             throw new ArgumentException($"a ship of side {ship.PlayerNr} can't join");
         if (_fleets.Any(f => f.Contains(ship)))
             throw new ArgumentException("the ship is already in the battle");
+        if (ship.Armada != null)
+            throw new ArgumentException("an armada's ship comes in with its armada (JoinArmada) and is picked (Pick)");
         if (!ship.Available || ship.Ship != null || ship.RaceDesc != null)
             throw new ArgumentException("the ship isn't free to fight: in a battle or spent by one");
         if (BattleCounter[ship.PlayerNr] == byte.MaxValue)
@@ -429,7 +451,8 @@ public sealed partial class Battle
     /// it was running away (already counted out), and its side's next ship
     /// comes in, if it has one; with none, a side with no ship left able to
     /// fight ends the battle, as new_ship ends it. A ship dying (no crew) or
-    /// gone already, or not in the battle, is refused: its death stands.
+    /// gone already, or not in the battle, is refused: its death stands. An
+    /// armada's ship is refused: its armada leaves whole (<see cref="LeaveArmada"/>).
     /// </summary>
     public void Leave(Starship ship)
     {
@@ -439,11 +462,20 @@ public sealed partial class Battle
             throw new InvalidOperationException("the battle is over");
         if (ship.PlayerNr is < 0 or >= NumSides || !_fleets[ship.PlayerNr].Contains(ship))
             throw new ArgumentException("the ship isn't in the battle");
-        if (ship.Ship is not { } element || ship.RaceDesc is not { CrewLevel: > 0 } rd)
+        if (ship.Armada != null)
+            throw new ArgumentException("an armada leaves whole (LeaveArmada)");
+        if (ship.Ship is null || ship.RaceDesc is not { CrewLevel: > 0 })
             throw new InvalidOperationException("the ship isn't in the battle with crew: dying, or gone");
+        LeaveNow(ship);
+    }
 
+    // Leave's: the ship, in the battle with crew, out at once.
+    private void LeaveNow(Starship ship)
+    {
+        var element = ship.Ship!;
+        var rd = ship.RaceDesc!;
         if (element.MassPoints != MaxShipMass * 10)
-            BattleCounter[ship.PlayerNr]--;   // a ship running away was counted when it ran
+            Uncount(ship);   // a ship running away was counted when it ran
         ship.CrewLevel = rd.CrewLevel;   // cleanup_dead_ship: the crew left after the battle
         Untarget(element);
         for (var e = List.Head; e != null; e = e.Succ)
@@ -469,7 +501,10 @@ public sealed partial class Battle
         ship.RaceDesc = null;
         ship.Available = false;
         ship.Ship = null;
-        if (!GetNextStarShip(null, ship.PlayerNr) && (BattleCounter[0] == 0 || BattleCounter[1] == 0))
+        // An armada's ship leaves with its armada (LeaveArmada): none of it is picked.
+        if (ship.Armada == null && GetNextStarShip(null, ship.PlayerNr))
+            return;
+        if (BattleCounter[0] == 0 || BattleCounter[1] == 0)
             InBattle = false;
     }
 
@@ -579,7 +614,7 @@ public sealed partial class Battle
         if (e.Prim == PrimType.Stamp && e.LifeSpan == NormalLife && (e.StateFlags & ElementFlags.FiniteLife) == 0
             && e.MassPoints != MaxShipMass * 10 && (e.StateFlags & ElementFlags.Appearing) == 0)
         {
-            BattleCounter[0]--;
+            Uncount(starShip);   // battle_counter[0]--
             e.TurnWait = 3;
             e.ThrustWait = 4;
             e.ColorCycleIndex = 0;
@@ -652,9 +687,11 @@ public sealed partial class Battle
 
     // ship.c's GetNextStarShip: the side's next ship warps in, taking the
     // last one's element. pickship.c's GetEncounterStarShip is a menu for
-    // the player; here each side takes its first ship still able to fight
-    // and not fighting already (with several ships of a side at once, a
-    // teammate in the battle isn't the next ship).
+    // the player: an armada's ship freed sets its player picking (Pick
+    // brings the choice in, between frames; NextOfArmada); otherwise each
+    // side takes its first ship still able to fight, of no armada, and not
+    // fighting already (with several ships of a side at once, a teammate in
+    // the battle isn't the next ship).
     // An infinite fleet's side (GetEncounterStarShip's FleetIsInfinite)
     // takes its one ship each time, the dead one brought back with full
     // crew and a new captain (PickCaptainName, the battle's TFB_Random),
@@ -674,8 +711,14 @@ public sealed partial class Battle
             if (next == last)
                 last = null;   // recycled: it keeps its element
         }
+        else if (last?.Armada is { } armada)
+        {
+            // GetEncounterStarShip for the full game's player: its pick screen (GetArmadaStarShip).
+            NextOfArmada(last, armada, BattleCounter[1] != 0);
+            return false;
+        }
         else
-            next = _fleets[side].FirstOrDefault(s => s.Available && s.Ship == null);
+            next = _fleets[side].FirstOrDefault(s => s.Available && s.Ship == null && s.Armada == null);
         if (next != null)
         {
             if (last != null)

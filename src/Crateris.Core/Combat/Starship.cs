@@ -183,6 +183,13 @@ public sealed class Starship
     public short PlayerNr { get; }
 
     /// <summary>
+    /// The armada it's one of (a player's ships picked one at a time on the
+    /// pick screen, <see cref="Combat.Armada"/>), or null: a ship that comes
+    /// in by itself (the enemy's, a player's only ship).
+    /// </summary>
+    public Armada? Armada { get; internal set; }
+
+    /// <summary>
     /// The status panel's icons (ship_info.icons, data/ships.json's
     /// graphics.icons), whose frame 1, the ship's silhouette, the VUX's
     /// limpets are placed on (<see cref="Battle.ModifySilhouette"/>); null

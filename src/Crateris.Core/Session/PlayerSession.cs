@@ -873,6 +873,14 @@ public sealed class PlayerSession
                 _gifts.Enqueue(gift);
             return;
         }
+        if (PickScreen?.Menu is not null)
+        {
+            // The host's pick screen in a battle (stage 4b item 8): the host's own world runs it.
+            var picked = PickScreen.Lit;
+            if (PickScreen.Press(key) == PickOutcome.Chosen && picked is not null)
+                Log((picked.Slot is int slot ? $"Picked the {picked.Ship} in slot {slot + 1}" : "Picked the flagship") + $", crew {picked.Crew}");
+            return;
+        }
         if (Me?.Activity == Activity.Starbase && !StoryPaused)
         {
             _starbaseKeys.Enqueue(key);
@@ -940,6 +948,17 @@ public sealed class PlayerSession
     /// before). Taken by each orbit menu as it opens.
     /// </summary>
     public IRosterFleet? Fleet { get; set; }
+
+    /// <summary>
+    /// The host's pick screen in a battle (stage 4b item 8): the host's own
+    /// world's (set by the host's game, as <see cref="Fleet"/>); null for a
+    /// guest, who has no fleet. While it's open (<see cref="Picking"/>) the
+    /// menu keys go to it.
+    /// </summary>
+    public IPickShipScreen? PickScreen { get; set; }
+
+    /// <summary>Whether the host is choosing a ship on the pick screen.</summary>
+    public bool Picking => PickScreen?.Menu is not null;
 
     // The roster's lit ship and what to do, in words (its drawing is stage 4b item 10's).
     private string RosterMessage(RosterMenu roster, MenuOutcome outcome)
@@ -1174,6 +1193,16 @@ public sealed class PlayerSession
             lines.AddRange(StarbaseLines(sb));
         else if (Me?.Activity == Activity.Planetside)
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
+        else if (Battle is not null && PickScreen?.Menu is { } pick)
+        {
+            // The pick screen in words until stage 4b item 10 draws it.
+            var lit = PickScreen.Lit;
+            string under = lit is null ? "no ship that can fight"
+                : (lit.Slot is int slot ? $"the {lit.Ship} in slot {slot + 1}" : "the flagship")
+                  + $", crew {(lit.Crew >= lit.MaxCrew ? $"{lit.Crew}" : $"{lit.Crew}/{lit.MaxCrew}")}";
+            lines.Add($"Choose a ship: {under}" + (pick.OnFlagship ? " (the last choice)" : ""));
+            lines.Add("Arrows: another ship; Enter: send it in");
+        }
         else if (Battle is { } battle)
         {
             // The status panel in words until item 12 draws the battle.
