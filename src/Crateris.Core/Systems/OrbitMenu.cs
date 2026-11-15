@@ -161,7 +161,24 @@ public sealed class OrbitMenu
     /// </summary>
     public IRosterFleet? Fleet { get; set; }
 
-    /// <summary>The Manifest's Roster, while it's open (RosterMenu); null when closed.</summary>
+    // The fleet ships the open roster was opened on: each one's race, slot and captain, in the queue's order.
+    private IReadOnlyList<(string Race, int Slot, byte Captain)> _rosterShips = Array.Empty<(string, int, byte)>();
+
+    private List<(string Race, int Slot, byte Captain)> RosterShips() =>
+        Fleet!.Ships.Take(RosterMenu.ShipPoints.Count).Select(s => (s.Race, s.Slot, s.Captain)).ToList();
+
+    // RosterMenu on the fleet as it is (none, closed, with no ships), the cursor on the first.
+    private void OpenRoster()
+    {
+        _rosterShips = RosterShips();
+        Roster = _rosterShips.Count == 0 ? null : new RosterMenu(_rosterShips.Count);
+    }
+
+    /// <summary>
+    /// The Manifest's Roster, while it's open (RosterMenu); null when closed. It opens afresh on the next key
+    /// when the fleet's ships have changed (a talk's), so between that change and the key it's the fleet's as
+    /// it was: whatever draws it (stage 4b item 10) reads its ships by <see cref="RosterMenu.Selected"/> with care.
+    /// </summary>
     public RosterMenu? Roster { get; private set; }
 
     /// <summary>The Manifest's Devices list, while it's open (DevicesMenu); null when closed.</summary>
@@ -235,11 +252,12 @@ public sealed class OrbitMenu
         if (Roster is not null)
         {
             // A talk (a guest's, in co-op) may add or take fleet ships while the roster is open, which UQM's can't:
-            // the roster opens afresh on the fleet as it is (closing if none are left), the key taken by it.
-            int count = Math.Min(Fleet!.Count, RosterMenu.ShipPoints.Count);
-            if (count != Roster.Count)
+            // the roster opens afresh on the fleet as it is (closing if none are left), the key taken by it. The
+            // ships are told by race, slot and captain (their crew is the roster's to change), so one taken and
+            // another given in its place between two keys counts too.
+            if (!RosterShips().SequenceEqual(_rosterShips))
             {
-                Roster = count == 0 ? null : new RosterMenu(count);
+                OpenRoster();
                 return MenuOutcome.Moved;
             }
             var outcome = Roster.Press(key, Fleet!);
@@ -358,7 +376,7 @@ public sealed class OrbitMenu
                 // RosterMenu: with no fleet ships, nothing opens.
                 if (Fleet.Count == 0)
                     return MenuOutcome.None;
-                Roster = new RosterMenu(Math.Min(Fleet.Count, RosterMenu.ShipPoints.Count));
+                OpenRoster();
                 return MenuOutcome.Moved;
             case OrbitMenuItem.ExitManifest:
                 Open(MenuPage.Orbit, OrbitMenuItem.Manifest);

@@ -428,10 +428,21 @@ public class ShipyardTests
         Assert.Equal((5, 28), (fleet.InSlot(0)!.Crew, crew));   // no crew moved
         Press(menu, MenuKey.Right);   // two ships, a column each: across to the other
         Assert.Equal(1, menu.Roster!.State);
+        // One taken and another given in its place: the same count, but another ship there.
+        Press(menu, MenuKey.Select);
+        fleet.Restore(Rules, new[] { new FleetShip(Spathi, 5, 5, 0), new FleetShip(Arilou, 6, 9, 1) });
+        Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Down, _ => 0));
+        Assert.Equal((2, 0, false), (menu.Roster!.Count, menu.Roster.State, menu.Roster.ModifyingCrew));
+        Assert.Equal((5, 6, 28), (fleet.InSlot(0)!.Crew, fleet.InSlot(1)!.Crew, crew));   // no crew moved
+        // A crew move changes no ship's place: the roster stays as it is.
+        Press(menu, MenuKey.Select);
+        Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Up, _ => 0));
+        Assert.Equal((6, 27, true), (fleet.InSlot(0)!.Crew, crew, menu.Roster!.ModifyingCrew));
+        Press(menu, MenuKey.Select);
         fleet.Restore(Rules, Array.Empty<FleetShip>());
         Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Down, _ => 0));
         Assert.Null(menu.Roster);
-        Assert.Equal(OrbitMenu.MenuPage.Manifest, menu.Page);
+        Assert.Equal((OrbitMenu.MenuPage.Manifest, OrbitMenuItem.Roster), (menu.Page, menu.Selected));
     }
 
     private static void Press(OrbitMenu menu, params MenuKey[] keys)
