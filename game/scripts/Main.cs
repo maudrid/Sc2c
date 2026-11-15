@@ -370,6 +370,7 @@ public partial class Main : Node2D
                 _givingView.UseContent(content, sheets);
                 _devicesView.UseContent(content, sheets);
                 _battleView.UseContent(content, sheets, _ships, planetTypes);
+                _view.RaceLook = _systemView.RaceLook = _battleView.RaceLook;
                 _rescueView.UseContent(content);
             }
         }

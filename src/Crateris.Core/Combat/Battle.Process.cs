@@ -702,6 +702,7 @@ public sealed partial class Battle
     // zoom draws picked, and each one's step after moving.
     private void PostProcessQueue(int viewState, short scrollX, short scrollY)
     {
+        ++_drawPass;
         var element = List.Head;
         while (element != null)
         {
@@ -784,12 +785,22 @@ public sealed partial class Battle
                 }
 
                 PostProcess(e);
+                e.DrawnPass = _drawPass;   // InsertPrim: in this frame's display list
                 nextElement = e.Succ;
             }
 
             element = nextElement;
         }
     }
+
+    private int _drawPass;
+
+    /// <summary>
+    /// Whether an element is drawn this frame: it has a primitive and the
+    /// last PostProcessQueue put it in the display list (UQM's DrawBatch
+    /// draws only those).
+    /// </summary>
+    public bool Drawn(Element e) => e.Prim != PrimType.None && e.DrawnPass == _drawPass;
 
     // RedrawQueue, without the drawing.
     private void RedrawQueue()

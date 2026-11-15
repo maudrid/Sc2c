@@ -54,6 +54,9 @@ public partial class HyperspaceView : Control
     /// <summary>The sprites (set once the content is open, before the game starts).</summary>
     public SpriteTextures? Sprites { get; set; }
 
+    /// <summary>A race ship's icon and name for a battle's marker (<see cref="BattleScreenView.RaceLook"/>).</summary>
+    public Func<string, (SpriteImage Icon, string Name)?>? RaceLook { get; set; }
+
     /// <summary>A snapshot to draw, and the entries into stars it shows.</summary>
     public void Show(WorldSnapshot? snapshot, string me, StarEntryTracker entries)
     {
@@ -120,7 +123,7 @@ public partial class HyperspaceView : Control
             if (b.Star is not null || !StarContact.InReach(Units.LogXToUniverse(b.X), Units.LogYToUniverse(b.Y), ux, uy))
                 continue;
             var (x, y) = HyperScreen.Sprite(b.X, b.Y, logX, logY);
-            SisScreen.BattleMarker(this, new Vector2(x, y) * SisScreen.Scale);
+            SisScreen.BattleMarker(this, new Vector2(x, y) * SisScreen.Scale, Sprites, RaceLook?.Invoke(b.EnemyShip));
         }
 
         // Ships entering a star: turning and drifting onto it, as UQM plays

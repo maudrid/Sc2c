@@ -15,6 +15,7 @@
 
 using Crateris.Core.Combat;
 using Crateris.Core.Systems;
+using Crateris.Core.World;
 
 namespace Crateris.Presentation;
 
@@ -35,9 +36,16 @@ public sealed record StatusShip(string? Icons, string? Captain, int MaxCrew, int
 /// (cur_status_flags: <see cref="StatusFlags"/>), and its element's crew
 /// and life (a ship whose crew ran out explodes, its captain's window
 /// flashing as its life runs down); and whether its element is gone (its
-/// explosion over: the panel stands as it last was).
+/// explosion over: the panel stands as it last was). Since stage 4b item
+/// 10, what its own code did to its panel: the frame of its captain's
+/// window its special key shows (<see cref="Special"/>: the Shofixti's
+/// Glory Device stepping it; 0 for DrawCaptainsWindow's 12), and the marks
+/// ModifySilhouette made on it still showing, in order
+/// (<see cref="Marks"/>: <see cref="SilhouetteMarkSnapshot"/>, the Orz's
+/// marines, the VUX's limpets; null for none).
 /// </summary>
-public readonly record struct StatusState(int Crew, int Energy, StatusFlags Flags, int ElementCrew, int LifeSpan, bool Gone = false);
+public readonly record struct StatusState(int Crew, int Energy, StatusFlags Flags, int ElementCrew, int LifeSpan, bool Gone = false,
+    int Special = 0, IReadOnlyList<SilhouetteMarkSnapshot>? Marks = null);
 
 /// <summary>
 /// UQM's battle status panel, as status.c and shipstat.c draw it in the
@@ -102,6 +110,9 @@ public sealed class BattleStatus
         // of frames missed are drawn as the next is seen, or as the slot stops.
         public int FlashedTo = NumExplosionFrames * 3;
         public bool Done;
+        // The special key's frame of its captain's window as last drawn (0: DrawCaptainsWindow's), and the marks drawn.
+        public int Special;
+        public IReadOnlyList<SilhouetteMarkSnapshot> Marks = Array.Empty<SilhouetteMarkSnapshot>();
     }
 
     private readonly Dictionary<int, Slot> _slots = new();
@@ -114,10 +125,11 @@ public sealed class BattleStatus
     /// <summary>A ship arrives in a slot: InitShipStatus, then DrawCaptainsWindow (spawn_ship's), with its state now.</summary>
     public void Init(int y, StatusShip ship, StatusState state)
     {
-        var slot = _slots[y] = new Slot { Ship = ship, OldFlags = state.Flags };
+        var slot = _slots[y] = new Slot { Ship = ship, OldFlags = state.Flags, Special = state.Special };
         var old = _c.SetContext(_c.Status);
         InitShipStatus(slot, y, state);
         DrawCaptainsWindow(slot, y);
+        DrawMarks(slot, y, state.Marks);
         _c.SetContext(old);
     }
 
@@ -154,19 +166,70 @@ public sealed class BattleStatus
         }
         slot.LastLife = state.LifeSpan;
         var old = _c.SetContext(_c.Status);
-        // The first frame after the ship's crew ran out, its keys are as they
-        // were: UQM clears them in that frame's PostProcessStatus, after
-        // reading them, so the window turns back only on the next.
-        // Only that frame itself (its explosion's first life, 35): after frames missed the keys' change is drawn
-        // as PostProcessStatus orders it against the steps caught up.
-        if (slot.ElementCrew == 0 && !slot.Flashing && !(state.Crew == 0 && state.LifeSpan < NumExplosionFrames * 3 - 1))
-            state = state with { Flags = (state.Flags & ~Keys) | (slot.OldFlags & Keys) };
+        // A ship out of crew has its keys as its PostProcessStatus read them (stage 4b item 10: the snapshot sends
+        // them so, GameWorld.StatusSnapshot), before it clears them: the frame after its crew ran out they're as they
+        // were, and the window turns back on the next; the Shofixti's, its crew gone in its own postprocess, draws
+        // that frame's keys and turns back on the next.
         var keysChanged = (slot.OldFlags ^ state.Flags) & Keys;
         if (keysChanged != 0)
-            CaptainsWindow(slot, y, keysChanged, state.Flags, 1);
+            CaptainsWindow(slot, y, keysChanged, state.Flags, 1);   // the special's frame as it was (PreProcessStatus)
         DeltaStatistics(slot, y, state.Crew - slot.Crew, state.Energy - slot.Energy);
+        // The marks the frame made (ModifySilhouette, in the frame's elements' processing), each over the last; then
+        // the ship's postprocess_func (the Shofixti's steps its special's frame) before PostProcessStatus.
+        DrawMarks(slot, y, state.Marks);
+        slot.Special = state.Special;
         PostProcessStatus(slot, y, state);
         _c.SetContext(old);
+    }
+
+    /// <summary>
+    /// The marks of <paramref name="marks"/> not drawn yet, in order: those
+    /// after the last of them already drawn (the list as sent keeps the
+    /// marks still showing in their order, the newest last, so those drawn
+    /// before are a run of it from the start, less any a later mark
+    /// covered).
+    /// </summary>
+    public static int FirstNew(IReadOnlyList<SilhouetteMarkSnapshot> drawn, IReadOnlyList<SilhouetteMarkSnapshot> marks)
+    {
+        int j = 0, i = 0;
+        for (; i < marks.Count; ++i, ++j)
+        {
+            while (j < drawn.Count && drawn[j] != marks[i])
+                ++j;
+            if (j == drawn.Count)
+                break;
+        }
+        return i;
+    }
+
+    // ModifySilhouette's drawing of each mark not drawn yet: a frame stamped at its place, or (MODIFY_SWAP) the panel
+    // drawn afresh within the frame's rectangle there.
+    private void DrawMarks(Slot slot, int y, IReadOnlyList<SilhouetteMarkSnapshot>? marks)
+    {
+        marks ??= Array.Empty<SilhouetteMarkSnapshot>();
+        for (int i = FirstNew(slot.Marks, marks); i < marks.Count; ++i)
+        {
+            var m = marks[i];
+            if (!m.Erase)
+                _c.Stamp(m.Sheet, m.Frame, m.X, m.Y + y);
+            else
+            {
+                var r = _c.FrameRect(m.Sheet, m.Frame);
+                EraseWithin(slot, y, new URect(m.X + r.X, m.Y + y + r.Y, r.W, r.H));
+            }
+        }
+        slot.Marks = marks;
+    }
+
+    // InitShipStatus with a clip rectangle (in the panel's coordinates): the panel drawn afresh within it, its top
+    // rounded down to even and its height one more then (shipstat.c), the gauges as they stand.
+    private void EraseWithin(Slot slot, int y, URect r)
+    {
+        var status = _c.ClipRect;
+        _c.Status.Within = new URect(status.X + r.X, status.Y + (r.Y & ~1), r.W, r.H + (r.Y & 1));
+        int crew = slot.Crew, energy = slot.Energy;
+        InitShipStatus(slot, y, new StatusState(crew, energy, StatusFlags.None, 0, 0));
+        _c.Status.Within = null;
     }
 
     private void Rect(int x, int y, int w, int h) => _c.FillRect(new URect(x, y, w, h));
@@ -359,7 +422,8 @@ public sealed class BattleStatus
         int x = CaptainXOffs, sy = y + CaptainYOffs;
         int count = _c.FrameCount(captain);
         int Rel(int f, int n) => ((f + n) % count + count) % count;
-        const int turn = 1, thrust = 6, weapon = 9, special = 12;   // DrawCaptainsWindow's frames, from the background (0)
+        const int turn = 1, thrust = 6, weapon = 9;   // DrawCaptainsWindow's frames, from the background (0)
+        int special = slot.Special != 0 ? slot.Special : 12;   // its 12, unless the ship's code moved it
         if ((delta & StatusFlags.Left) != 0)
         {
             int f = turn;

@@ -55,7 +55,9 @@ long font_DrawText () { return 0; }
 #endif
 long free_gravity_well () { return 0; }
 long FreeHyperspace () { return 0; }
+#ifndef RECORD_DRAW
 long GetContextClipRect () { return 0; }
+#endif
 long GetInitialMeleeStarShips () { return 0; }
 #ifndef RECORD_DRAW
 long GetStringAddress () { return 0; }
@@ -87,7 +89,9 @@ long SetAbsStringTableIndex () { return 0; }
 long SetContext () { return 0; }
 #endif
 long SetContextBackGroundColor () { return 0; }
+#ifndef RECORD_DRAW
 long SetContextClipRect () { return 0; }
+#endif
 long SetContextFGFrame () { return 0; }
 #ifndef RECORD_DRAW
 long SetContextFont () { return 0; }

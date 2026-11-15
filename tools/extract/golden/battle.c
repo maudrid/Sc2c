@@ -475,6 +475,49 @@ put_text (Buf *b, const UNICODE *str, COUNT count)
 
 static int status_drawing (void) { return cur_context == StatusContext; }
 
+/* The status panel's clip rectangle (stage 4b item 10): InitShipStatus
+ * with a rectangle (ModifySilhouette's MODIFY_SWAP) draws the panel afresh
+ * clipped to it, its top rounded down to even and its height one more
+ * then. Kept in the panel's own coordinates (its origin offset so the
+ * drawing stays put, SetContextOrigin, which needs nothing here); a call
+ * drawn clipped ends with the rectangle, [x, y, w, h]. */
+static int status_clipped;
+static RECT status_clip;
+
+BOOLEAN
+GetContextClipRect (RECT *r)
+{
+	if (cur_context == StatusContext && status_clipped)
+		*r = status_clip;
+	else
+	{
+		r->corner.x = r->corner.y = 0;
+		r->extent.width = STATUS_WIDTH;
+		r->extent.height = STATUS_HEIGHT;
+	}
+	return TRUE;
+}
+
+BOOLEAN
+SetContextClipRect (RECT *r)
+{
+	if (cur_context != StatusContext)
+		return TRUE;
+	status_clipped = r && (r->corner.x != 0 || r->corner.y != 0 || r->extent.width != STATUS_WIDTH
+			|| r->extent.height != STATUS_HEIGHT);
+	if (status_clipped)
+		status_clip = *r;
+	return TRUE;
+}
+
+static void
+put_clip (Buf *b)
+{
+	if (status_clipped)
+		buf_printf (b, ", [%d, %d, %d, %d]", status_clip.corner.x, status_clip.corner.y,
+				status_clip.extent.width, status_clip.extent.height);
+}
+
 CONTEXT SetContext (CONTEXT c) { CONTEXT old = cur_context; cur_context = c; return old; }
 Color SetContextForeGroundColor (Color c) { Color old = cur_fg; cur_fg = c; return old; }
 FONT SetContextFont (FONT f) { FONT old = cur_font; cur_font = f; return old; }
@@ -488,7 +531,9 @@ DrawStamp (STAMP *st)
 	buf_item (&frame_status);
 	buf_printf (&frame_status, "[\"s\", ");
 	put_frame (&frame_status, st->frame);
-	buf_printf (&frame_status, ", %d, %d]", st->origin.x, st->origin.y);
+	buf_printf (&frame_status, ", %d, %d", st->origin.x, st->origin.y);
+	put_clip (&frame_status);
+	buf_printf (&frame_status, "]");
 }
 
 void
@@ -501,6 +546,7 @@ DrawFilledStamp (STAMP *st)
 	put_frame (&frame_status, st->frame);
 	buf_printf (&frame_status, ", %d, %d, ", st->origin.x, st->origin.y);
 	put_color (&frame_status, cur_fg);
+	put_clip (&frame_status);
 	buf_printf (&frame_status, "]");
 }
 
@@ -513,6 +559,7 @@ rect_call (const char *kind, RECT *r)
 	buf_printf (&frame_status, "[\"%s\", %d, %d, %d, %d, ", kind, r->corner.x, r->corner.y,
 			r->extent.width, r->extent.height);
 	put_color (&frame_status, cur_fg);
+	put_clip (&frame_status);
 	buf_printf (&frame_status, "]");
 }
 
@@ -530,6 +577,7 @@ font_DrawText (TEXT *t)
 	put_text (&frame_status, t->pStr, t->CharCount);
 	buf_printf (&frame_status, ", ");
 	put_color (&frame_status, cur_fg);
+	put_clip (&frame_status);
 	buf_printf (&frame_status, "]");
 }
 
@@ -1315,6 +1363,7 @@ fight (const char *name, int scale, int runaway)
 	buf_clear (&frame_status);
 	buf_clear (&frame_space);
 	cur_context = NULL;
+	status_clipped = 0;
 #endif
 	printf ("{\"name\": \"%s\", \"stars\": ", name);
 	Battle (NULL);

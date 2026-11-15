@@ -287,6 +287,15 @@ public sealed class Element
     /// </summary>
     public short LineStartX, LineStartY;
 
+    /// <summary>
+    /// The pass of <see cref="Battle"/>'s PostProcessQueue that last put it in
+    /// the display list (InsertPrim; -1 none): an element added after the
+    /// queue went past its place (the Chmmr's tractor beam's shadows, put
+    /// at the list's head in its postprocess) isn't drawn until the next
+    /// frame (<see cref="Battle.Drawn"/>).
+    /// </summary>
+    public int DrawnPass = -1;
+
     /// <summary>next_turn: <see cref="ThrustWait"/>'s other name, for an animation.</summary>
     public byte NextTurn
     {

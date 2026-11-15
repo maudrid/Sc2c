@@ -3769,6 +3769,64 @@ def record_battle_draw(uqm, battle_exe, draw_exe, strings_exe, images_exe, packa
     return data
 
 
+# Every race ship's views (stage 4b item 10): its keys battle drawn.
+RACE_DRAW_SPACE_EVERY = 60
+
+
+def record_battle_races_draw(uqm, draw_exe, strings_exe, images_exe, package):
+    """What UQM draws in each race ship's battle by keys (battle-races-N's
+    RACE-keys, and pkunk-rebirth), replayed from its recorded input in the
+    draw build: each frame's status panel, and the space at every
+    RACE_DRAW_SPACE_EVERY-th frame."""
+    ships, _ = battle_ships()
+    out = []
+    for n, part in enumerate(RACE_SHIP_PARTS, 1):
+        with open(os.path.join(REPO, "tests", "golden", f"battle-races-{n}.json")) as f:
+            recorded = json.load(f)
+        ids = list(dict.fromkeys(race_program_sheets(part) + [ships["sis_ship"]["graphics"]["captain"],
+                                                             "graphics.status"]))
+        scenarios = [dict(name=b["name"], full=0, **b["input"]) for b in recorded["battles"]
+                     if b["name"].endswith("-keys") or b["name"] == "pkunk-rebirth"]
+        with tempfile.TemporaryDirectory() as tmp:
+            masks, hashes = write_masks(strings_exe, images_exe, package, tmp, list(enumerate(ids)))
+            sheets_file = os.path.join(tmp, "sheets.txt")
+            with open(sheets_file, "w") as f:
+                for i, key in enumerate(ids):
+                    f.write(f"{i} {key} {len(hashes[key])}\n")
+            program = BattleProgram(draw_exe, sheets_file, masks, ids=ids, sounds=pkunk_sound_count(strings_exe, package))
+            battles = [program.run([s], colours=True)[0] for s in scenarios]
+        traced = {b["name"]: b for b in recorded["battles"]}
+        for scenario, battle in zip(scenarios, battles):
+            name = scenario["name"]
+            if len(battle["drawn"]) != len(battle["frames"]):
+                raise RuntimeError(f"{name}: {len(battle['drawn'])} frames drawn, {len(battle['frames'])} run")
+            if battle["inputs"] != traced[name]["inputs"] or len(battle["frames"]) != len(traced[name]["frames"]):
+                raise RuntimeError(f"{name}: the draw build's battle isn't battle-races-{n}'s")
+            drawn = [[status, space if t % RACE_DRAW_SPACE_EVERY == 0 else None]
+                     for t, (status, space) in enumerate(battle["drawn"])]
+            out.append({"name": name, "part": n, "sheets": ids, "drawn": drawn})
+    data = header(uqm, ["tools/extract/golden/battle.c", "tools/extract/golden/battle_stubs.c"]
+                  + [f"src/{f}" for f in BATTLE_LINK] + ["src/uqm/battle.c", "src/uqm/galaxy.c",
+                                                         "src/libs/graphics/frame.c"], [
+        "What UQM 0.8.0 draws in each race ship's battle by keys (stage 4b "
+        "item 10): battle-races-1.json to -3.json's RACE-keys battles and "
+        "pkunk-rebirth, each run again from its recorded input in the battle "
+        "program built with RECORD_DRAW (battle-draw.json's notes), checked "
+        "to run the same battle (the same inputs and frames).",
+        "part: the battle-races file the battle is from. sheets: that part's "
+        "battle program's sheets, then the flagship's captain's window and "
+        "graphics.status, numbered.",
+        "drawn: each frame's [status, space] "
+        "as battle-draw.json's, the space only at every "
+        f"{RACE_DRAW_SPACE_EVERY}th frame (null otherwise). A status call "
+        "drawn clipped (InitShipStatus with a rectangle: ModifySilhouette's "
+        "MODIFY_SWAP, the Orz's marines leaving a place) ends with the clip "
+        "rectangle, [x, y, w, h] in the panel's coordinates.",
+    ])
+    data["battles"] = out
+    return data
+
+
 def record_battle_ai(uqm, battle_exe, strings_exe, images_exe, package):
     """The Ilwrath (and the flagship) flown by UQM's own AI (intel.c,
     cyborg.c, ilwrath_intelligence, sis_intelligence) in UQM's own battle
@@ -6079,6 +6137,8 @@ def main():
                      ("battle-ships", lambda: record_battle_ships(uqm, battle, strings, images, args.content)),
                      ("battle-ai", lambda: record_battle_ai(uqm, battle, strings, images, args.content)),
                      ("battle-races", lambda: record_battle_races(uqm, battle, strings, images, args.content)),
+                     ("battle-races-draw", lambda: record_battle_races_draw(uqm, battle_draw, strings, images,
+                                                                            args.content)),
                      ("lander-pickups", lambda: record_lander_pickups(uqm, lander, strings, images, args.content)),
                      ("lander-creatures", lambda: record_lander_creatures(uqm, lander, strings, images, args.content)),
                      ("lander-hazards", lambda: record_lander_hazards(uqm, lander, strings, images, args.content)),

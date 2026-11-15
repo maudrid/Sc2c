@@ -77,6 +77,28 @@ public partial class BattleScreenView : Node2D
         return table is not null && index >= 0 && index < table.Count ? table[index] : "";
     }
 
+    /// <summary>
+    /// A race ship's small icon (its status icons' frame 0, as the pick
+    /// screen and the roster show a fleet ship) and its race's name (its
+    /// race strings' 1, as its status panel shows it), for a battle's
+    /// marker (stage 4b item 10); null without the content or for a ship
+    /// not known.
+    /// </summary>
+    public (SpriteImage Icon, string Name)? RaceLook(string ship)
+    {
+        if (_sprites is null || _ships is null)
+            return null;
+        try
+        {
+            var d = _ships[ship];
+            return d.Graphics.Icons is { } icons ? (_sprites.Image(icons, 0), RaceString(d, 1)) : null;
+        }
+        catch (Exception e) when (e is KeyNotFoundException or ContentPackageException or IndexOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
     // A ship's look in the status panel: a player's flagship by its own names (status.c's SIS branch), the
     // enemy by its race's name and its captain's.
     private StatusShip StatusShip(BattleShipStatus s, string? playerId, WorldSnapshot? snapshot)
@@ -85,7 +107,7 @@ public partial class BattleScreenView : Node2D
         bool sis = playerId is not null && s.Captain == 0;
         var ship = playerId is null ? null : snapshot?.Ships.FirstOrDefault(x => x.Id == playerId);
         return new StatusShip(d.Graphics.Icons, d.Graphics.Captain, s.MaxCrew, s.MaxEnergy,
-            (d.Flags & ShipFlags.CrewImmune) != 0, (d.Flags & ShipFlags.PlayerCaptain) != 0, sis,
+            (d.Flags & ShipFlags.CrewImmune) != 0, BattleScreen.PlayerCaptain(s.Ship, d.Flags), sis,
             sis ? ship?.ShipName ?? ship?.Name ?? "" : RaceString(d, 1),
             sis ? ship?.CaptainName ?? "" : RaceString(d, s.Captain));
     }

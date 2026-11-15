@@ -99,6 +99,14 @@ public sealed class UqmCanvas
     public sealed class Context
     {
         public URect? Clip;
+        /// <summary>
+        /// A clip rectangle within <see cref="Clip"/> that leaves the
+        /// drawing's origin where it is (SetContextClipRect with
+        /// SetContextOrigin taking the corner back, as shipstat.c's
+        /// InitShipStatus does with a rectangle), in the screen's
+        /// coordinates; null for none.
+        /// </summary>
+        public URect? Within;
         public Rgb Fg, Bg;
         public string Font = "";
         public int Effect = -1;
@@ -176,7 +184,7 @@ public sealed class UqmCanvas
     public void SetClipRect(URect? r) => _cur.Clip = r;
 
     /// <summary>GetContextClipRect: the screen when not clipped.</summary>
-    public URect ClipRect => _cur.Clip ?? new URect(0, 0, ScreenWidth, ScreenHeight);
+    public URect ClipRect => _cur.Within ?? _cur.Clip ?? new URect(0, 0, ScreenWidth, ScreenHeight);
 
     public int Leading => _leading.GetValueOrDefault(_cur.Font);
 

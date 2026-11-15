@@ -88,14 +88,28 @@ public static class SisScreen
     /// <summary>The radar box in the status area (RADAR_X, RADAR_Y less the status area's place): the lander's gauges.</summary>
     public const int RadarX = 4, RadarY = 10 + IpGeometry.ScreenHeight - 53;
 
-    /// <summary>A battle's marker (stage 4a item 6): a red ring with a cross, and the word, at its place (the window's pixels).</summary>
-    public static void BattleMarker(CanvasItem c, Vector2 at)
+    /// <summary>
+    /// A battle's marker (stage 4a item 6): a red ring at its place (the
+    /// window's pixels), and the race it's against (stage 4b item 10: the
+    /// enemy fleet's first race, <see cref="BattleMarkerSnapshot.EnemyShip"/>):
+    /// its ship's icon in the ring and its name beside it; without them a
+    /// cross and the word.
+    /// </summary>
+    public static void BattleMarker(CanvasItem c, Vector2 at, SpriteTextures? textures = null,
+        (SpriteImage Icon, string Name)? race = null)
     {
         var red = new Color(1f, 0.25f, 0.2f);
-        c.DrawArc(at, 10, 0, Mathf.Tau, 24, red, 2);
+        c.DrawArc(at, 14, 0, Mathf.Tau, 24, red, 2);
+        if (race is { } r && textures is not null)
+        {
+            var size = new Vector2(r.Icon.Width, r.Icon.Height) * 1.5f;
+            c.DrawTextureRect(textures.Texture(r.Icon), new Rect2(at - size / 2, size), false);
+            c.DrawString(ThemeDB.FallbackFont, at + new Vector2(17, 5), $"battle: {r.Name}", HorizontalAlignment.Left, -1, 13, red);
+            return;
+        }
         c.DrawLine(at + new Vector2(-6, -6), at + new Vector2(6, 6), red, 2);
         c.DrawLine(at + new Vector2(-6, 6), at + new Vector2(6, -6), red, 2);
-        c.DrawString(ThemeDB.FallbackFont, at + new Vector2(13, 5), "battle", HorizontalAlignment.Left, -1, 13, red);
+        c.DrawString(ThemeDB.FallbackFont, at + new Vector2(17, 5), "battle", HorizontalAlignment.Left, -1, 13, red);
     }
 
     public static Color ShipColor(ShipSnapshot s, string me) =>
@@ -128,6 +142,9 @@ public partial class SystemView : Control
 
     /// <summary>The sprites (set once the content is open, before the game starts).</summary>
     public SpriteTextures? Sprites { get; set; }
+
+    /// <summary>A race ship's icon and name for a battle's marker (<see cref="BattleScreenView.RaceLook"/>).</summary>
+    public Func<string, (SpriteImage Icon, string Name)?>? RaceLook { get; set; }
 
     public SystemView(SystemCatalog systems)
     {
@@ -269,7 +286,7 @@ public partial class SystemView : Control
             if (b.Star != star || b.InnerPlanet != me.InnerPlanet || markerZoom <= 0)
                 continue;
             var (x, y) = At(b.X, b.Y, markerZoom);
-            SisScreen.BattleMarker(this, new Vector2((float)x, (float)y) * SisScreen.Scale);
+            SisScreen.BattleMarker(this, new Vector2((float)x, (float)y) * SisScreen.Scale, Sprites, RaceLook?.Invoke(b.EnemyShip));
         }
     }
 

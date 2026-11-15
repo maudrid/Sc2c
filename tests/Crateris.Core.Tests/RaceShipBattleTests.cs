@@ -110,7 +110,7 @@ public class RaceShipBattleTests
         string at = $"{name} frame {frame}";
         BattleShipStatus Status(int side) => battle.Fleet(side).FirstOrDefault(s => s.RaceDesc != null) is { } s
             ? GameWorld.StatusSnapshot(shipIds[side], s) : new BattleShipStatus(shipIds[side], 0, 0, 0, 0, Gone: true);
-        var elements = battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(GameWorld.ElementSnapshot).ToList();
+        var elements = battle.List.Elements.Where(battle.Drawn).Select(GameWorld.ElementSnapshot).ToList();
         var snapshot = new BattleSnapshot(1, battle.Size.Width, battle.Size.Height, Status(1), 0, 0,
             new[] { new BattleFighterSnapshot("p", Status(0), 0, 0, true) }, elements, battle.Camera, battle.StarSeed);
         var w = new Net.WireWriter();

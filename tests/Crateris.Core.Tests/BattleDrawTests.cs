@@ -32,9 +32,9 @@ public class BattleDrawTests
 
     public static IEnumerable<object[]> Battles() => BattleReplay.Names("battle-draw");
 
-    private static readonly Lazy<Pictures> Pics = new(() => TestContent.With(p => new Pictures(p)));
+    internal static readonly Lazy<Pictures> Pics = new(() => TestContent.With(p => new Pictures(p)));
 
-    private sealed class Pictures
+    internal sealed class Pictures
     {
         private readonly AnimationSheets _sheets;
         private readonly ColorMaps _main;
@@ -59,16 +59,22 @@ public class BattleDrawTests
         public ScreenRaster Raster() => new(Frame, f => _fonts[f]);
     }
 
-    private static readonly Dictionary<string, int> Leading = new() { ["starcon"] = 11, ["tiny"] = 10, ["micro"] = 15 };
+    internal static readonly Dictionary<string, int> Leading = new() { ["starcon"] = 11, ["tiny"] = 10, ["micro"] = 15 };
 
-    // A recorded status call as the port's canvas would make it, in the screen's coordinates.
-    private static UqmDraw StatusCall(JsonElement e, IReadOnlyList<string> sheets)
+    // A recorded status call as the port's canvas would make it, in the screen's coordinates (one drawn clipped,
+    // InitShipStatus with a rectangle, ends with its clip rectangle in the panel's coordinates).
+    internal static UqmDraw StatusCall(JsonElement e, IReadOnlyList<string> sheets)
     {
         var a = e.EnumerateArray().ToArray();
         int I(int k) => a[k].GetInt32();
         Rgb C(int k) => new((byte)I(k), (byte)I(k + 1), (byte)I(k + 2));
         const int x0 = UqmCanvas.SpaceWidth;   // StatusContext's corner, and its clip
         var clip = new URect(x0, 0, UqmCanvas.StatusWidth, UqmCanvas.StatusHeight);
+        if (a[^1].ValueKind == JsonValueKind.Array)
+        {
+            var r = a[^1].Ints();
+            clip = new URect(x0 + r[0], r[1], r[2], r[3]);
+        }
         return (a[0].GetString() switch
         {
             "s" => new UqmDraw(UqmDrawKind.Stamp, x0 + I(3), I(4), Sheet: sheets[I(1)], Frame: I(2)),
@@ -116,9 +122,10 @@ public class BattleDrawTests
             sis ? "Vindicator" : "string 1", sis ? "Zelnick" : $"string {s.CaptainsNameIndex}");
     }
 
+    // Its state as the snapshot sends it (GameWorld.StatusSnapshot: the keys and the energy's label as its panel drew them).
     private static StatusState StateOf(Starship s) =>
-        new(s.RaceDesc!.CrewLevel, s.RaceDesc.EnergyLevel, s.CurStatusFlags, s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0,
-            s.Ship is null);
+        new(s.RaceDesc!.CrewLevel, s.RaceDesc.EnergyLevel, GameWorld.StatusSnapshot(ShipDescriptions.Flagship, s).Flags,
+            s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null);
 
     [ContentTheory]
     [MemberData(nameof(Battles))]
@@ -191,7 +198,7 @@ public class BattleDrawTests
                 Assert.Equal(galaxy.Prims, placed.Prims);
             }
             var ours = galaxy.Prims
-                .Concat(battle.List.Elements.Where(e => e.Prim != PrimType.None)
+                .Concat(battle.List.Elements.Where(battle.Drawn)
                     .Select(e => BattleSpace.Of(GameWorld.ElementSnapshot(e), cam, BattleSpace.SizeOf)))
                 .ToList();
             var theirs = drawn[frame][1].EnumerateArray().ToList();
@@ -214,22 +221,19 @@ public class BattleDrawTests
     // The frame as the host sends it to the player whose ship the camera follows (side 0's, "p").
     private static BattleSnapshot Snapshot(Battle battle, IReadOnlyList<Starship> own)
     {
-        static BattleShipStatus Status(string ship, Starship s) => s.RaceDesc is { } r
-            ? new(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy, s.CaptainsNameIndex, s.CurStatusFlags,
-                s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null)
-            : new(ship, s.CrewLevel, s.MaxCrew, 0, 0, s.CaptainsNameIndex, s.CurStatusFlags, Gone: s.Ship is null);
+        static BattleShipStatus Status(string ship, Starship s) => GameWorld.StatusSnapshot(ship, s);
         var me = own[0];
         var fighter = new BattleFighterSnapshot("p", Status(ShipDescriptions.Flagship, me), me.Ship?.Current.X ?? 0, me.Ship?.Current.Y ?? 0,
             true);   // the one player: their view is the battle's camera
         var enemy = own[1];
         return new BattleSnapshot(1, battle.Size.Width, battle.Size.Height, Status(ShipDescriptions.Ilwrath, enemy),
             enemy.Ship?.Current.X ?? 0, enemy.Ship?.Current.Y ?? 0, new[] { fighter },
-            battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(GameWorld.ElementSnapshot).ToList(),
+            battle.List.Elements.Where(battle.Drawn).Select(GameWorld.ElementSnapshot).ToList(),
             battle.Camera, battle.StarSeed);
     }
 
     // A recorded space primitive as the screen draws it.
-    private static UqmDraw SpaceCall(int[] a, IReadOnlyList<string> sheets, int scale)
+    internal static UqmDraw SpaceCall(int[] a, IReadOnlyList<string> sheets, int scale)
     {
         var clip = BattleScreen.SpaceClip;
         var c = a[7] < 0 ? default : BattleScreen.FromRgb15(a[7]);
@@ -355,8 +359,9 @@ public class BattleDrawTests
             var held = keysHeld ? StatusFlags.Thrust | StatusFlags.Weapon | StatusFlags.Left : StatusFlags.None;
             if (lives != All || outSeen)
                 status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, held, 0, 0));
+            // The keys as PostProcessStatus reads them (the snapshot's): still held on the explosion's first life.
             foreach (int life in lives)
-                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, life));
+                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, life == 35 ? held : StatusFlags.None, 0, life));
             status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, 72));   // its life going again: the end
             var raster = pics.Raster();
             raster.Paint(canvas.Drawn);
@@ -395,8 +400,8 @@ public class BattleDrawTests
             var status = new BattleStatus(canvas);
             status.Init(BattleStatus.EnemySlot, ship, new StatusState(22, 16, held, 22, 1));
             status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, held, 0, 0));   // its crew seen out, the keys held
-            foreach (int life in lives)   // the engine clears them as its explosion starts
-                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, StatusFlags.None, 0, life));
+            foreach (int life in lives)   // the engine clears them as its explosion starts, read so on its second life
+                status.Update(BattleStatus.EnemySlot, new StatusState(0, 16, life == 35 ? held : StatusFlags.None, 0, life));
             var raster = pics.Raster();
             raster.Paint(canvas.Drawn);
             return raster;
@@ -406,9 +411,9 @@ public class BattleDrawTests
     }
 
     // The status area's pixels that differ.
-    private static List<(int X, int Y)> Diff(ScreenRaster a, ScreenRaster b) => Diff(a.Rgba, b.Rgba);
+    internal static List<(int X, int Y)> Diff(ScreenRaster a, ScreenRaster b) => Diff(a.Rgba, b.Rgba);
 
-    private static List<(int X, int Y)> Diff(byte[] a, byte[] b)
+    internal static List<(int X, int Y)> Diff(byte[] a, byte[] b)
     {
         var out_ = new List<(int, int)>();
         for (int y = 0; y < ScreenRaster.Height; ++y)

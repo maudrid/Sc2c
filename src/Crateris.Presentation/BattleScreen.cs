@@ -170,6 +170,10 @@ public sealed class BattleScreen
     private (string Ship, int Captain) _enemyShownAs;
     // The enemy's crew last seen (0 while gone): 0 to more is a ship back.
     private int _enemyCrewSeen;
+    // The player's own ship as its slot shows it, and its crew last seen (0 while gone), as the enemy's: the host's
+    // fleet ship or flagship picked after another (stage 4b item 10) is shown afresh.
+    private (string Ship, int Captain) _mineShownAs;
+    private int _mineCrewSeen;
 
     /// <param name="canvas">Where the status panel's calls go (<see cref="Status"/>).</param>
     /// <param name="statusShip">A ship's look in the panel from its status (and its player, null for the enemy): its icons, captain and names.</param>
@@ -234,7 +238,8 @@ public sealed class BattleScreen
 
     private void StatusFrame(BattleSnapshot b, string viewer)
     {
-        StatusState State(BattleShipStatus s) => new(s.Crew, s.Energy, s.Flags, s.ElementCrew, s.LifeSpan, s.Gone);
+        static StatusState State(BattleShipStatus s) => new(s.Crew, s.Energy, s.Flags, s.ElementCrew, s.LifeSpan, s.Gone,
+            s.CaptainSpecial, s.Marks);
         // spawn_ship's InitShipStatus (ship_preprocess's first frame): each enemy ship coming in has its status drawn
         // afresh, in the frame it's first seen: another ship or captain, or one with crew after frames seen without (an
         // infinite fleet's back with its element, its new captain maybe the old one's; a Pkunk reborn, new_pkunk's
@@ -252,14 +257,29 @@ public sealed class BattleScreen
         }
         if (b.FighterOf(viewer) is not { } me)
             return;
-        if (!_mineShown)
+        // The player's slot likewise: a ship of theirs coming in after another (the host's next pick: another ship or
+        // captain, or one with crew after frames of their last gone; while they choose, the snapshot keeps the last
+        // ship's status, gone) is drawn afresh as it comes in.
+        bool mineFresh = !_mineShown || _mineShownAs != (me.Status.Ship, me.Status.Captain)
+            || _mineCrewSeen == 0 && me.Status.Crew > 0 && !me.Status.Gone;
+        _mineCrewSeen = me.Status.Gone ? 0 : me.Status.Crew;
+        if (mineFresh)
         {
             _status.Init(BattleStatus.PlayerSlot, _statusShip(me.Status, viewer), State(me.Status));
             _mineShown = true;
+            _mineShownAs = (me.Status.Ship, me.Status.Captain);
         }
         else
             _status.Update(BattleStatus.PlayerSlot, State(me.Status));
     }
+
+    /// <summary>
+    /// Whether a ship's panel shows its captain (PLAYER_CAPTAIN: the crew as
+    /// a number, the captain's own unit): its description's flag, or the
+    /// flagship's, which init_sis sets outside Super Melee (sis_ship.c).
+    /// </summary>
+    public static bool PlayerCaptain(string ship, ShipFlags flags) =>
+        (flags & ShipFlags.PlayerCaptain) != 0 || ship == ShipDescriptions.Flagship;
 
     /// <summary>A colour as an element keeps it (RGB15) on the screen (each 5 bits to 8, as UQM's).</summary>
     public static Rgb FromRgb15(int c)

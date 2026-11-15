@@ -741,10 +741,18 @@ public sealed partial class GameWorld
         var shown = s.Silhouette.Shown;
         var marks = shown.Count == 0 ? Array.Empty<SilhouetteMarkSnapshot>()
             : shown.Select(m => new SilhouetteMarkSnapshot(m.Frame.Sheet?.Id ?? "", m.Frame.Index, m.X, m.Y, m.Erase)).ToArray();
+        // The energy's label as the panel last drew it (PostProcessStatus: old_status_flags): energy taken or given
+        // after it in the frame (another element's DeltaEnergy, the Earthling's point defence) shows on the next. A
+        // ship out of crew has its keys as PostProcessStatus read them before clearing them (the Shofixti's Glory
+        // Device going off in its own postprocess draws the keys pressed in that frame).
+        var drawn = StatusFlags.LowOnEnergy;
+        if (s.Ship is { CrewLevel: 0 })
+            drawn |= StatusFlags.Left | StatusFlags.Right | StatusFlags.Thrust | StatusFlags.Weapon | StatusFlags.Special;
+        var flags = (s.CurStatusFlags & ~drawn) | (s.OldStatusFlags & drawn);
         return s.RaceDesc is { } r
-            ? new BattleShipStatus(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy, s.CaptainsNameIndex, s.CurStatusFlags,
+            ? new BattleShipStatus(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy, s.CaptainsNameIndex, flags,
                 s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null, s.CaptainSpecial.Index, marks)
-            : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0, s.CaptainsNameIndex, s.CurStatusFlags, Gone: s.Ship is null,
+            : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0, s.CaptainsNameIndex, flags, Gone: s.Ship is null,
                 CaptainSpecial: s.CaptainSpecial.Index, Marks: marks);
     }
 
@@ -770,7 +778,7 @@ public sealed partial class GameWorld
                 : new BattleFighterSnapshot(f.Player.Id, Status(f.ShipId, f.Starship), f.LastX, f.LastY, f == viewer, ArmadaSnapshot(f)))
             .ToList();
         var (ex, ey) = wb.Enemy.Ship is { } enemy ? (enemy.Current.X, enemy.Current.Y) : (wb.EnemyLastX, wb.EnemyLastY);
-        var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(ElementSnapshot).ToList();
+        var elements = wb.Battle.List.Elements.Where(wb.Battle.Drawn).Select(ElementSnapshot).ToList();
         var enemyNow = wb.Enemy;
         return new BattleSnapshot(wb.Id, wb.Battle.Size.Width, wb.Battle.Size.Height, Status(wb.EnemyShipOf(enemyNow).Id, enemyNow),
             ex, ey, fighters, elements, wb.Battle.Camera, wb.Battle.StarSeed);
