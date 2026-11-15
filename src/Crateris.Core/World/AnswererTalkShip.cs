@@ -132,10 +132,25 @@ internal sealed class AnswererTalkShip : ITalkShip
 
     public int EscortRoom => _world.Fleet.Room;
 
-    public int AddEscorts(int race, int count, Func<uint> random) =>
-        _world.Story is { } story && race >= 0 && race < story.Rules.Races.Count
-            ? _world.Fleet.Add(story.Rules, story.Rules.Races[race], count, random)
-            : 0;
+    public int AddEscorts(int race, int count, Func<uint> random)
+    {
+        if (_world.Story is not { } story || race < 0 || race >= story.Rules.Races.Count)
+            return 0;
+        var before = _world.Fleet.Ships.ToList();
+        int added = _world.Fleet.Add(story.Rules, story.Rules.Races[race], count, random);
+        _escortsAdded.AddRange(_world.Fleet.Ships.Except(before));
+        return added;
+    }
+
+    private readonly List<FleetShip> _escortsAdded = new();
+
+    /// <summary>
+    /// The ships the talks gave the host's fleet, as they joined it (each
+    /// told by its slot, race and captain: its crew may change since, in a
+    /// battle or the roster): what an opening taken back takes from the
+    /// fleet, and a save during it leaves out. The talks take no ships yet.
+    /// </summary>
+    public IReadOnlyList<FleetShip> EscortsAdded => _escortsAdded;
 
     // The answerer's minerals, which a talk may sell (set to 0) but not add to.
     private sealed class AnswererMinerals : IList<int>

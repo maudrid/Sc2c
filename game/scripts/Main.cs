@@ -1075,8 +1075,8 @@ public partial class Main : Node2D
             Key.Pagedown => MenuKey.PageDown,
             _ => null,
         };
-        // A held Enter mustn't say one reply after another.
-        if (key == MenuKey.Select && k.Echo && _player.Talk is not null)
+        // A held Enter mustn't say one reply after another, nor a held Enter or Space (firing) pick a ship.
+        if (key == MenuKey.Select && k.Echo && _player.IgnoresRepeatedSelect)
             return;
         // The communication screen takes UQM's keys first (skipping the
         // lines, playing them again, the summary); the replies' are the session's.

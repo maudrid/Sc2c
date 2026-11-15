@@ -861,7 +861,7 @@ public class OpeningTests
     // The errands done (the radioactives given, the Lunar base taken and
     // aboard, the commander met), with the talks and the battle's kit; the
     // host and guests g1 ... in Earth's inner system, by the starbase.
-    private static GameWorld Reported(int players = 1)
+    internal static GameWorld Reported(int players = 1)
     {
         var world = WorldBattleTests.InSol(players);
         world.TalkLibrary = Library.Value;
@@ -873,7 +873,7 @@ public class OpeningTests
 
     // The starter reports the base and answers the Ilwrath: its fight
     // starts, the starter warping in.
-    private static WorldBattle ToTheFight(GameWorld world, string starter)
+    internal static WorldBattle ToTheFight(GameWorld world, string starter)
     {
         world.VisitStarbase(world.Find(starter)!);
         Say(world, "comandr", "base_was_abandoned");

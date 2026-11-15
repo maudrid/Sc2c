@@ -873,7 +873,11 @@ public sealed class PlayerSession
                 _gifts.Enqueue(gift);
             return;
         }
-        if (PickScreen?.Menu is not null)
+        // A story talk comes first: the pick screen waits while the story
+        // does (the world refuses its keys), and a host on it to whom the
+        // replies have passed (the starter disconnecting, or the Ilwrath's
+        // fight won by another) answers with the same keys.
+        if (PickScreen?.Menu is not null && Me?.Activity != Activity.Talk && !StoryPaused)
         {
             // The host's pick screen in a battle (stage 4b item 8): the host's own world runs it.
             var picked = PickScreen.Lit;
@@ -959,6 +963,15 @@ public sealed class PlayerSession
 
     /// <summary>Whether the host is choosing a ship on the pick screen.</summary>
     public bool Picking => PickScreen?.Menu is not null;
+
+    /// <summary>
+    /// Whether a held Select's repeats are ignored (the game's keyboard
+    /// passes them on as menu keys): a talk's (a held Enter mustn't say one
+    /// reply after another) and the pick screen's (an Enter or Space held
+    /// since before it opened, firing, mustn't pick the flagship under the
+    /// cursor, for good; UQM's own menu would take it).
+    /// </summary>
+    public bool IgnoresRepeatedSelect => Talk is not null || Picking;
 
     // The roster's lit ship and what to do, in words (its drawing is stage 4b item 10's).
     private string RosterMessage(RosterMenu roster, MenuOutcome outcome)

@@ -404,7 +404,7 @@ public class FleetTests
     }
 
     [ContentFact]
-    public void TheOpeningVisitIsSavedAndTakenBackWithTheFleetAsItBegan()
+    public void TheOpeningVisitIsSavedAndTakenBackWithoutTheShipsItsTalksGave()
     {
         var host = Session.HostSession.New(new GameSettings(), NewGameData.Load(DataDir, Systems.Value.Map), "host", "Host",
             Systems.Value, TestContent.Shapes);
@@ -415,11 +415,18 @@ public class FleetTests
         host.StartVisit();
         var visit = host.World.Visit!;
         Assert.True(visit.Opening);
-        host.World.AddFleetShips(Arilou, 2);   // as a talk in it might
+        var rules = host.World.Story!.Rules;
+        Assert.Equal(2, visit.Talk!.AddEscortShips(rules.Races.ToList().IndexOf(Arilou), 2));   // as a talk in it might
+        // What else changes the fleet meanwhile isn't the visit's: kept (a guest's talk elsewhere, a battle, the roster).
+        host.World.AddFleetShips(Spathi, 1);
+        host.World.Fleet.SetCrew(rules, 0, 7);
+        var kept = host.World.Fleet.Ships.Where(s => s.Race == Spathi).ToList();
+        Assert.Equal(new[] { 0, 3 }, kept.Select(s => s.Slot));
         var saved = HostSave.FromJson(HostSave.ToJson(host.World), Systems.Value, TestContent.Shapes);
-        Assert.Equal(before, saved.Fleet.Ships);
+        Assert.Equal(kept, saved.Fleet.Ships);
         visit.Undo();
-        Assert.Equal(before, host.World.Fleet.Ships);
+        Assert.Equal(kept, host.World.Fleet.Ships);
+        Assert.NotEqual(before, kept);
     }
 
     [ContentFact]

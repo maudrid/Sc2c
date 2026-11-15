@@ -596,6 +596,7 @@ public class FleetBattleTests
         Assert.Null(world.PickScreenFor("nobody"));
         session.Observe(world.Snapshot());
         Assert.True(session.Picking);
+        Assert.True(session.IgnoresRepeatedSelect);   // a held Enter or Space (firing) mustn't pick the flagship
         Assert.Contains(session.StatusLines(), l => l.StartsWith("Choose a ship: the flagship", StringComparison.Ordinal));
         session.PressMenu(MenuKey.Left);
         session.PressMenu(MenuKey.Left);
@@ -603,6 +604,7 @@ public class FleetBattleTests
         Assert.Contains(session.StatusLines(), l => l == "Choose a ship: the spathi in slot 1, crew 20/30");
         session.PressMenu(MenuKey.Select);
         Assert.False(session.Picking);
+        Assert.False(session.IgnoresRepeatedSelect);
         Assert.Same(Fighter(wb, "host").FleetShips[0].Starship, Fighter(wb, "host").Starship);
     }
 
@@ -809,5 +811,109 @@ public class FleetBattleTests
         Assert.Equal("arilou", fighter.ShipId);
         host.Step(ShipInput.None);
         Assert.Equal("arilou", host.World.Snapshot().Battles!.Single().FighterOf("host")!.Status.Ship);
+    }
+
+    [ContentFact]
+    public void TheHostOnThePickScreenRepliesToAStoryTalkPassedToThem()
+    {
+        // A guest's story talk while the host chooses; the guest disconnects and the replies pass to the host, whose
+        // menu keys must reach the talk (the pick screen waits while the story does: nothing else could go on).
+        var world = InSol(2);
+        world.TalkLibrary = TestContent.With(p => Comm.TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
+        world.AddFleetShips(Spathi, 1);
+        var wb = world.StartBattle("host", Ilwrath);
+        world.VisitStarbase(world.Find("g1")!);
+        world.Leave("g1");
+        Run(world, 1);
+        Assert.Equal("host", world.Visit!.Replier.Id);
+        var me = new PlayerSession(WorldBattleTests.Systems.Value, null, "host", 1) { PickScreen = world.PickScreenFor("host") };
+        me.Observe(world.Snapshot());
+        me.ShowTalk(world.TalkFor("host"));
+        Assert.True(me.Picking && me.StoryPaused && me.Replying);
+        me.PressMenu(MenuKey.Select);
+        Assert.NotNull(me.TakeReply());
+        Assert.NotNull(Fighter(wb, "host").Pick);   // still choosing, the cursor where it was
+        Assert.Equal(PickShipMenu.FlagshipColumn, Fighter(wb, "host").Pick!.Column);
+    }
+
+    [Fact]
+    public void WhileTheBattleWaitsForThePickTheHostsPlaceStaysPut()
+    {
+        // The Spathi flown off at speed and killed: the camera scrolled on its last frames; the battle then waits
+        // for the host's pick, and the place the host watches from (the ship's last) stays where it was.
+        var world = WithFleet(1, (Spathi, 30));
+        var wb = world.StartBattle("host", Ilwrath);
+        PickAt(world, 0);
+        WarpIn(world, wb);
+        RunDisarmed(world, wb, 40, _ => ShipInput.Thrust);
+        Kill(wb.Battle, Fighter(wb, "host").Starship);
+        UntilPicking(world, wb, _ => ShipInput.Thrust);
+        Assert.True(GameWorld.WaitsForPick(wb));
+        Assert.NotEqual((0, 0), ((int)wb.Battle.ScrollX, (int)wb.Battle.ScrollY));   // the last frame's scroll
+        var me = world.Snapshot().Battles!.Single().FighterOf("host")!;
+        var enemy = world.Snapshot().Battles!.Single();
+        Run(world, 5);
+        var later = world.Snapshot().Battles!.Single();
+        Assert.Equal((me.X, me.Y), (later.FighterOf("host")!.X, later.FighterOf("host")!.Y));
+        Assert.Equal((enemy.EnemyX, enemy.EnemyY), (later.EnemyX, later.EnemyY));
+    }
+
+    [ContentFact]
+    public void DuringTheOpeningsFightASaveAndItsUndoKeepTheHostsBattleLosses()
+    {
+        // A guest fights the opening's Ilwrath (nothing paused) while the host fights elsewhere with fleet ships.
+        var world = OpeningTests.Reported(2);
+        world.AddFleetShips(Spathi, 1);
+        world.AddFleetShips(Arilou, 1);
+        var fight = OpeningTests.ToTheFight(world, "g1");
+        var visit = world.Visit!;
+        Assert.Equal(VisitStep.IlwrathFight, visit.Step);
+        var wb = world.StartBattle("host", Ilwrath);
+        Assert.NotSame(fight, wb);
+        PickAt(world, 0);
+        for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
+            BothDisarmed(world, fight, wb);
+        Kill(wb.Battle, Fighter(wb, "host").Starship);
+        for (int i = 0; i < 400 && Fighter(wb, "host").Pick is null; ++i)
+            BothDisarmed(world, fight, wb);
+        var arilou = world.Fleet.Ships.Single();
+        Assert.Equal(Arilou, arilou.Race);   // the Spathi destroyed is gone (decision 4)
+        // The save is the game without the visit, but the Spathi's death isn't the visit's: it stays gone.
+        Assert.Equal(new[] { (Arilou, arilou.Crew, arilou.Slot) }, SavedFleet(world));
+        // The guest leaves the fight with the Ilwrath alive: the opening is taken back, the Spathi still gone.
+        world.Leave("g1");
+        for (int i = 0; i < 5 && !visit.Undone; ++i)
+            Run(world, 1);
+        Assert.True(visit.Undone);
+        Assert.Equal(new[] { arilou }, world.Fleet.Ships);
+    }
+
+    // A frame of two battles, each enemy unable to fire.
+    private static void BothDisarmed(GameWorld world, WorldBattle a, WorldBattle b)
+    {
+        foreach (var wb in new[] { a, b })
+            if (wb.Outcome is null)
+                wb.Enemy.WeaponCounter = wb.Enemy.SpecialCounter = 2;
+        Run(world, 1);
+    }
+
+    [Fact]
+    public void AShipATalkTakesWhileItsPickWaitsForRoomDoesntComeIn()
+    {
+        var world = WithFleet(1, (Spathi, 20), (Arilou, 4));
+        var wb = world.StartBattle("host", Ilwrath);
+        Fill(wb.Battle);
+        var host = Fighter(wb, "host");
+        Assert.Equal(PickOutcome.Chosen, PickAt(world, 0));
+        Assert.NotNull(host.PickedWaiting);
+        world.Fleet.Remove(Spathi);   // as a guest's talk might, meanwhile
+        Run(world, 5);
+        Assert.Null(host.FleetShips[0].Starship.Ship);
+        Assert.False(host.FleetShips[0].Flown);
+        Assert.NotSame(host.FleetShips[0].Starship, host.Starship);
+        Assert.Null(host.PickedWaiting);
+        Assert.NotNull(host.Pick);   // the host chooses again
+        Assert.Equal(PickOutcome.None, PickAt(world, 0));
+        Assert.Equal(PickOutcome.Chosen, PickAt(world, 1));
     }
 }

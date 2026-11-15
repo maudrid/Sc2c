@@ -436,9 +436,10 @@ public sealed partial class GameWorld
     {
         var battle = wb.Battle;
         PlaceWaitingPicks(wb);
-        if (battle.InBattle && !WaitsForPick(wb))
+        bool stepped = battle.InBattle && !WaitsForPick(wb);
+        if (stepped)
             battle.Step(ship => ship.PlayerNr == 0 ? PlayerBattleInput(wb, ship) : battle.ComputerIntelligence(ship));
-        AfterBattleFrame(wb);
+        AfterBattleFrame(wb, stepped);
     }
 
     // The battle whose flagship's crew has run out (it's exploding: its
@@ -477,18 +478,23 @@ public sealed partial class GameWorld
         | ((input & ShipInput.Special) != 0 ? BattleInput.Special : 0)
         | (retreat && (input & ShipInput.TakeOff) != 0 ? BattleInput.Escape : 0);
 
-    private void AfterBattleFrame(WorldBattle wb)
+    private void AfterBattleFrame(WorldBattle wb, bool stepped)
     {
         // Each ship's place, or its last moved with the frame's scroll as
         // every element is (the snapshot's, for a ship gone once its
-        // explosion is over: its player watches from there).
+        // explosion is over: its player watches from there). Only after a
+        // frame stepped: a battle waiting for the host's pick has no scroll
+        // of its own (its last frame's mustn't move the places again).
         var battle = wb.Battle;
         (short, short) Follow(Element? ship, short x, short y) => ship is not null ? (ship.Current.X, ship.Current.Y)
             : ((short)battle.WrapX(x + battle.ScrollX), (short)battle.WrapY(y + battle.ScrollY));
-        (wb.EnemyLastX, wb.EnemyLastY) = Follow(wb.Enemy.Ship, wb.EnemyLastX, wb.EnemyLastY);
-        foreach (var f in wb.Fighters)
-            if (f.Player.Ship.Battle == wb)
-                (f.LastX, f.LastY) = Follow(f.Starship.Ship, f.LastX, f.LastY);
+        if (stepped)
+        {
+            (wb.EnemyLastX, wb.EnemyLastY) = Follow(wb.Enemy.Ship, wb.EnemyLastX, wb.EnemyLastY);
+            foreach (var f in wb.Fighters)
+                if (f.Player.Ship.Battle == wb)
+                    (f.LastX, f.LastY) = Follow(f.Starship.Ship, f.LastX, f.LastY);
+        }
         SettleFleetShips(wb);   // a fleet ship dead is gone; one warped out is out for this battle
         foreach (var fighter in wb.Fighters.Where(f => f.Exit is null && f.FlyingOwnShip).ToList())
         {

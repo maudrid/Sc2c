@@ -140,14 +140,21 @@ public sealed partial class GameWorld
 
     // The ship picked comes in (Battle.Pick), unless the battle's list is
     // full: then it waits, and is tried again before each of its frames
-    // (the battle runs on meanwhile, so room comes).
-    private static void PlacePick(WorldBattle wb, BattleFighter fighter)
+    // (the battle runs on meanwhile, so room comes). A fleet ship a talk
+    // takes from the fleet while it waits doesn't come in: the pick screen
+    // opens again after the frame (UpdatePicks), as for a ship freed.
+    private void PlacePick(WorldBattle wb, BattleFighter fighter)
     {
         if (fighter.PickedWaiting is not { } ship || !wb.Battle.InBattle)
             return;
         if (wb.Battle.BattleCounter[1] == 0 || !fighter.Armada!.CanPick(ship))
         {
             fighter.PickedWaiting = null;   // the battle is decided: no ship comes in
+            return;
+        }
+        if (fighter.FleetShipOf(ship) is { } chosen && InFleet(chosen.Joined) is null)
+        {
+            fighter.PickedWaiting = null;   // no longer the host's: they choose again
             return;
         }
         if (!wb.Battle.Pick(ship))
@@ -159,7 +166,7 @@ public sealed partial class GameWorld
     }
 
     // Before a battle's frame: the picks waiting for room.
-    private static void PlaceWaitingPicks(WorldBattle wb)
+    private void PlaceWaitingPicks(WorldBattle wb)
     {
         foreach (var f in wb.Fighters.Where(f => f.Exit is null && f.PickedWaiting is not null))
             PlacePick(wb, f);

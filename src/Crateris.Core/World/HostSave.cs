@@ -86,7 +86,9 @@ public static class HostSave
     /// 12 has the host's fleet (stage 4b item 6: each ship's race, crew,
     /// captain and hangar slot); an older save loads with none, and one
     /// with a fleet is refused. During a visit taken back if unfinished (the
-    /// opening's), the fleet is saved as it was before it. A ship of no crew
+    /// opening's), the fleet is saved without the ships its talks gave it
+    /// (what else changed it meanwhile, a battle's deaths and crews, kept;
+    /// StarbaseVisit.FleetWithout). A ship of no crew
     /// (the shipyard's while its crew is edited) isn't saved: it would be
     /// scrapped as the editing ends (stage 4b item 7), and the save loads
     /// out of the shipyard; one in a save loads, and is scrapped in the
@@ -190,8 +192,9 @@ public static class HostSave
             visit?.MetBefore ?? world.CommanderMet,
             // A fleet ship of no crew (the shipyard's, its crew all sent away and its cost given back) is saved
             // scrapped, as leaving the crew editing would scrap it (stage 4b item 7): the save loads out of the shipyard.
-            // In a battle, the fleet ships are as they joined it, those destroyed gone (item 8: FleetForSave).
-            (visit?.FleetBefore ?? world.FleetForSave()).Where(s => s.Crew > 0).ToList());
+            // In a battle, the fleet ships are as they joined it, those destroyed gone (item 8: FleetForSave); during
+            // an opening visit, without the ships its talks gave (StarbaseVisit.FleetWithout).
+            (visit?.FleetWithout(world.FleetForSave()) ?? world.FleetForSave()).Where(s => s.Crew > 0).ToList());
         return JsonSerializer.Serialize(save, Options);
     }
 
