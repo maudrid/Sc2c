@@ -96,6 +96,15 @@ public sealed class RaceDesc
     /// </summary>
     public Views? Special;
 
+    /// <summary>
+    /// ship_data.captain_control.special, where the ship's own code keeps
+    /// it: the captain's window's frame its special key shows (the
+    /// Shofixti's Glory Device steps it, shofixti_postprocess); the null
+    /// frame for every other ship, whose window shows DrawCaptainsWindow's.
+    /// The snapshot sends it for the client (stage 4b item 9).
+    /// </summary>
+    public Frame CaptainSpecial;
+
     /// <summary>preprocess_func and postprocess_func: the ship's own steps, before ship.c's.</summary>
     public ElementProcess? Preprocess, Postprocess;
 

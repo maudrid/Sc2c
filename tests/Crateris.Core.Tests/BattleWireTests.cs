@@ -54,7 +54,7 @@ public class BattleWireTests
         // The world's battle holds every element; g1 is sent those near its ship.
         Assert.Equal(last.Battles!.Single().SeenBy("g1").Elements, seen.Elements);
         Assert.Null(g2.Battles);   // by the marker, not in it (its message isn't g1's)
-        Assert.Equal(new BattleMarkerSnapshot(wb.Id, wb.Place.Star, wb.Place.InnerPlanet, wb.Place.X, wb.Place.Y),
+        Assert.Equal(new BattleMarkerSnapshot(wb.Id, wb.Place.Star, wb.Place.InnerPlanet, wb.Place.X, wb.Place.Y, Ilwrath),
             Assert.Single(g2.Markers!));
         // The status lines say it, until item 12 draws it.
         var session = new PlayerSession(WorldBattleTests.Systems.Value, null, "g1", TestContent.Shapes.HyperFlagship.Count);

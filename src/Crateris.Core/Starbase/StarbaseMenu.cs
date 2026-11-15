@@ -51,8 +51,9 @@ public enum YardMode : byte
     /// <summary>
     /// DoModifyShips choosing a ship to build into the empty slot under the
     /// cursor (DMS_Mode_addEscort): the allied races' ships, the host's only.
-    /// Not sent to guests (who never have it) until the wire carries the
-    /// fleet (stage 4b item 9).
+    /// Guests never have it; the wire carries it with the race lit
+    /// (<see cref="StarbaseView.YardBuildRace"/>) since stage 4b item 9, so
+    /// a client of the host's state can draw the host's shipyard.
     /// </summary>
     Build,
 }
@@ -494,8 +495,9 @@ public sealed class StarbaseMenu
 /// reliable message when it changes): the screen, the menu's cursor,
 /// outfitting's cursor (<see cref="OutfitMenu.State"/> and
 /// <see cref="OutfitMenu.Item"/>, UQM's numbers), the shipyard's (its
-/// menu, its mode and DoModifyShips' cursor), who's talking to the
-/// commander if Talk was refused, and the refusals so far.
+/// menu, its mode and DoModifyShips' cursor, and the race lit in the list
+/// of ships to build), who's talking to the commander if Talk was refused,
+/// and the refusals so far.
 /// </summary>
 public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte OutfitState, int OutfitItem, bool Installing,
     byte YardState, YardMode YardMode, byte YardCursor, string Busy, int Refusals)
@@ -504,9 +506,10 @@ public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte Outfit
     public bool CrewMode => YardMode == YardMode.Crew;
 
     /// <summary>
-    /// The race whose ship is lit in the shipyard's list to build (the host's
-    /// own screen, which isn't sent: guests never build); null otherwise. Not
-    /// encoded: the wire carries the fleet's screens from stage 4b item 9.
+    /// The race whose ship is lit in the shipyard's list to build
+    /// (<see cref="YardMode.Build"/>: the host's own screen, as guests never
+    /// build), or null (otherwise, or past the list's end). Encoded since
+    /// stage 4b item 9, for a client of the host's state.
     /// </summary>
     public string? YardBuildRace { get; init; }
 
@@ -523,6 +526,7 @@ public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte Outfit
         w.UInt(YardCursor);
         w.String(Busy);
         w.UInt((ulong)Refusals);
+        w.String(YardBuildRace);
         return w.Written.ToArray();
     }
 
@@ -539,19 +543,26 @@ public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte Outfit
         ulong yardState = r.UInt(), yardMode = r.UInt(), yardCursor = r.UInt();
         string busy = r.String() ?? "";
         ulong refusals = r.UInt();
+        string? buildRace = r.String();
         // Outfitting's slot within its row (the screen indexes the row's slots by it); off Modules, the menu's
-        // entries; the shipyard's cursor a hangar slot or the flagship (its column kept in the low nibble).
+        // entries; the shipyard's cursor a hangar slot or the flagship (its column kept in the low nibble); building
+        // into a hangar slot, the race lit (if any) a race's, and none lit otherwise.
         int slots = installing == 1 && outfitState <= World.ShipModules.EmptyLander
             ? OutfitMenu.SlotCount(OutfitMenu.RowOf((byte)outfitState)) : World.ShipModules.ModuleSlotCount;
         bool cursorOk = yardCursor >> 4 == 0 ? yardCursor < ShipyardMenu.HangarShipsRow * ShipyardMenu.HangarRows
             : yardCursor >> 4 == 0xF && (yardCursor & 0xF) < ShipyardMenu.HangarShipsRow;
         if (state > StarbaseMenu.DepartBase || outfitState > World.ShipModules.EmptyLander || outfitItem >= (ulong)slots
                 || installing > 1 || (installing == 0 && outfitState > OutfitMenu.DoFuel) || yardState > ShipyardMenu.Exit
-                || yardMode > (ulong)YardMode.Crew || !cursorOk || refusals > int.MaxValue)
+                || yardMode > (ulong)YardMode.Build || !cursorOk || refusals > int.MaxValue
+                || (yardMode == (ulong)YardMode.Build ? ShipyardMenu.OnFlagship((byte)yardCursor) || buildRace is { Length: 0 }
+                    : buildRace is not null))
             throw new InvalidDataException("Bad starbase screen state.");
         if (!r.AtEnd)
             throw new InvalidDataException("A starbase screen has bytes after its end.");
         return new StarbaseView((StarbaseScreen)(int)(screen - 1), (byte)state, (byte)outfitState, (int)outfitItem,
-            installing == 1, (byte)yardState, (YardMode)(int)yardMode, (byte)yardCursor, busy, (int)refusals);
+            installing == 1, (byte)yardState, (YardMode)(int)yardMode, (byte)yardCursor, busy, (int)refusals)
+        {
+            YardBuildRace = buildRace,
+        };
     }
 }

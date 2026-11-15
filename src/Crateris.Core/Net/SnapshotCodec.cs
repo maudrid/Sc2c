@@ -23,8 +23,8 @@ namespace Crateris.Core.Net;
 /// since the base), a bitmask of the fields that changed, and those fields.
 /// Numbers are written as their difference from the base ship's (so a ship
 /// moving a little costs a byte or two a field, and one standing still
-/// nothing but its mask); the id, the name, the star entry, the hold and
-/// the ship's and captain's names whole. A full snapshot is the same, measured from a base of zeros, with
+/// nothing but its mask); the id, the name, the star entry, the hold, the
+/// ship's and captain's names, its slots and the host's fleet whole. A full snapshot is the same, measured from a base of zeros, with
 /// every field written. Ships whose fields didn't change are the base's own
 /// records when decoded, so a delta builds little.
 /// </summary>
@@ -45,8 +45,8 @@ public static partial class SnapshotCodec
 
     // The fields written whole.
     private const int BitId = Numbers, BitName = Numbers + 1, BitEntry = Numbers + 2, BitHold = Numbers + 3,
-        BitNames = Numbers + 4, BitModules = Numbers + 5;
-    private const ulong AllFields = (1UL << (Numbers + 6)) - 1;
+        BitNames = Numbers + 4, BitModules = Numbers + 5, BitFleet = Numbers + 6;
+    private const ulong AllFields = (1UL << (Numbers + 7)) - 1;
 
     /// <summary>
     /// Writes <paramref name="snapshot"/> into <paramref name="writer"/>
@@ -137,6 +137,8 @@ public static partial class SnapshotCodec
                     mask |= 1UL << BitNames;
                 if (!Equals(ship.Modules, old.Modules))
                     mask |= 1UL << BitModules;
+                if (!Equals(ship.Fleet, old.Fleet))
+                    mask |= 1UL << BitFleet;
             }
             writer.UInt(mask);
             for (int f = 0; f < Numbers; ++f)
@@ -159,7 +161,50 @@ public static partial class SnapshotCodec
             }
             if ((mask & (1UL << BitModules)) != 0)
                 WriteModules(writer, ship.Modules);
+            if ((mask & (1UL << BitFleet)) != 0)
+                WriteFleet(writer, ship.Fleet);
         }
+    }
+
+    // The host's fleet (stage 4b item 9): none (0), or its count plus one and
+    // each ship's slot, race, crew and captain, in their slots' order.
+    private static void WriteFleet(WireWriter w, FleetSnapshot? fleet)
+    {
+        if (fleet is null)
+        {
+            w.UInt(0);
+            return;
+        }
+        int count = Math.Min(fleet.Ships.Count, HostFleet.MaxShips);   // the decoder's limit, the fleet's
+        w.UInt((ulong)count + 1);
+        for (int i = 0; i < count; ++i)   // without allocating, as the rest of the encoding
+        {
+            var s = fleet.Ships[i];
+            w.UInt((ulong)s.Slot);
+            w.String(s.Race);
+            w.UInt((ulong)s.Crew);
+            w.UInt(s.Captain);
+        }
+    }
+
+    private static FleetSnapshot? ReadFleet(ref WireReader r)
+    {
+        ulong n = r.UInt();
+        if (n == 0)
+            return null;
+        var ships = new FleetShip[Count(n - 1, HostFleet.MaxShips)];
+        for (int i = 0; i < ships.Length; ++i)
+        {
+            ulong slot = r.UInt();
+            if (slot >= HostFleet.MaxShips || (i > 0 && (int)slot <= ships[i - 1].Slot))
+                throw new InvalidDataException("A fleet ship's slot is out of range or out of order.");
+            string race = r.String() is { Length: > 0 } s ? s : throw new InvalidDataException("A fleet ship has no race.");
+            ulong crew = r.UInt(), captain = r.UInt();
+            if (crew > ushort.MaxValue || captain > byte.MaxValue)
+                throw new InvalidDataException("Bad fleet ship.");
+            ships[i] = new FleetShip(race, (int)crew, (byte)captain, (int)slot);
+        }
+        return new FleetSnapshot(ships);
     }
 
     // A ship's slots: none, or its drive, jet and module slots and its kit's crew.
@@ -332,7 +377,8 @@ public static partial class SnapshotCodec
                 captainName = Name(r.String());
             }
             var modules = (mask & (1UL << BitModules)) != 0 ? ReadModules(ref r) : old?.Modules;
-            ships[i] = FromNumbers(v, id, name, entry, hold, shipName, captainName, modules);
+            var fleet = (mask & (1UL << BitFleet)) != 0 ? ReadFleet(ref r) : old?.Fleet;
+            ships[i] = FromNumbers(v, id, name, entry, hold, shipName, captainName, modules, fleet);
         }
         for (int i = 1; i < count; ++i)
         {
@@ -377,11 +423,13 @@ public static partial class SnapshotCodec
     }
 
     private static ShipSnapshot FromNumbers(ReadOnlySpan<long> v, string id, string name, StarEntryState? entry, HoldSnapshot? hold,
-        string? shipName = null, string? captainName = null, ModulesState? modules = null)
+        string? shipName, string? captainName, ModulesState? modules, FleetSnapshot? fleet)
     {
         long flags = v[Flags];
         if (flags < 0 || flags >= 1 << 10)
             throw new InvalidDataException("Bad ship flags.");
+        if (fleet is not null && (flags & 1) == 0)
+            throw new InvalidDataException("Only the host's ship has a fleet.");
         var kind = (ShipKind)((flags >> 3) & 3);
         var activity = (Activity)((flags >> 5) & 15);
         if (!Enum.IsDefined(kind) || !Enum.IsDefined(activity))
@@ -393,7 +441,7 @@ public static partial class SnapshotCodec
             activity, ToOptional(v[SystemStar]), ToOptional(v[InnerPlanet]),
             ToInt(v[IpX]), ToInt(v[IpY]), ToInt(v[ScreenX]), ToInt(v[ScreenY]), ToInt(v[IpFacing]), ToInt(v[ZoomRadius]),
             ToOptional(v[OrbitPlanet]), ToOptional(v[OrbitMoon]), ToInt(v[IpVelocityX]), ToInt(v[IpVelocityY]),
-            ToShort(v[ViewX]), ToShort(v[ViewY]), entry, hold, shipName, captainName, modules, (flags & (1 << 9)) != 0);
+            ToShort(v[ViewX]), ToShort(v[ViewY]), entry, hold, shipName, captainName, modules, (flags & (1 << 9)) != 0, fleet);
     }
 
     private static void WriteEntry(WireWriter w, StarEntryState? e)

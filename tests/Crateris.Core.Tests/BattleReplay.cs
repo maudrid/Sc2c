@@ -68,10 +68,11 @@ internal static class BattleReplay
     /// their primitive's colour. A side with a rating in <paramref name="ai"/>
     /// is flown by the AI (<see cref="Battle.ComputerIntelligence"/>), the
     /// rest by the steps' keys; when the battle recorded each frame's inputs,
-    /// they're compared too.
+    /// they're compared too. <paramref name="eachFrame"/>, if given, is
+    /// shown the battle after each frame is compared (the first before any).
     /// </summary>
     public static Battle Run(JsonElement reference, string name, IReadOnlyList<IReadOnlyList<Starship>> fleets,
-        bool runAwayAllowed, bool colours, IReadOnlyList<CyborgRating?>? ai = null)
+        bool runAwayAllowed, bool colours, IReadOnlyList<CyborgRating?>? ai = null, Action<Battle>? eachFrame = null)
     {
         var recorded = Recorded(reference, name);
         var input = recorded.GetProperty("input");
@@ -89,6 +90,7 @@ internal static class BattleReplay
 
         var frames = recorded.GetProperty("frames").EnumerateArray().ToList();
         Check(name, 0, frames[0], battle, places, sheetNumbers, colours);
+        eachFrame?.Invoke(battle);
         var events = input.TryGetProperty("events", out var ev)
             ? ev.EnumerateArray().Select(e => e.Ints()).ToList() : new List<int[]>();
         var recordedInputs = recorded.TryGetProperty("inputs", out var ins)
@@ -116,6 +118,7 @@ internal static class BattleReplay
                     Assert.True(recordedInputs[frame + 1].SequenceEqual(inputs),
                         $"{name} frame {frame + 1}: inputs [{string.Join(",", inputs)}], UQM [{string.Join(",", recordedInputs[frame + 1])}]");
                 Check(name, frame + 1, frames[frame + 1], battle, places, sheetNumbers, colours);
+                eachFrame?.Invoke(battle);
             }
         }
         Assert.Equal(frames.Count - 1, frame);

@@ -421,7 +421,17 @@ public class StarbaseTests
         // Off Modules, the menu's entries and the fuel.
         Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { Installing = false, OutfitState = 5, OutfitItem = 0 }).Encode()));
         // The shipyard's mode and cursor: a hangar slot (0 to 11) or the flagship with a column.
-        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardMode = (YardMode)3 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardMode = (YardMode)4 }).Encode()));
+        // The list of ships to build (stage 4b item 9): on a hangar slot, the race lit or none past the list's end;
+        // no race lit in any other mode, nor building on the flagship, nor a race of no name.
+        var build = view with { Screen = StarbaseScreen.Shipyard, YardMode = YardMode.Build, YardCursor = 7, YardBuildRace = "SPATHI_SHIP" };
+        Assert.Equal(build, StarbaseView.Decode(build.Encode()));
+        Assert.Equal("SPATHI_SHIP", StarbaseView.Decode(build.Encode())!.YardBuildRace);
+        Assert.Equal(build with { YardBuildRace = null }, StarbaseView.Decode((build with { YardBuildRace = null }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((build with { YardCursor = 0xF3 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((build with { YardBuildRace = "" }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((build with { YardMode = YardMode.Crew }).Encode()));
+        Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardBuildRace = "SPATHI_SHIP" }).Encode()));
         Assert.Equal(11, StarbaseView.Decode((view with { YardCursor = 11 }).Encode())!.YardCursor);
         Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardCursor = 12 }).Encode()));
         Assert.Throws<InvalidDataException>(() => StarbaseView.Decode((view with { YardCursor = 0xF6 }).Encode()));

@@ -59,7 +59,11 @@ public sealed class PickShipMenu
     /// The hangar slot under the cursor (ship_index: the row's six, the
     /// columns past the flagship's one less), or null on the flagship.
     /// </summary>
-    public int? Slot => OnFlagship ? null : Row * Columns + (Column > FlagshipColumn ? Column - 1 : Column);
+    public int? Slot => SlotAt(Row, Column);
+
+    /// <summary>The hangar slot at a row and column of the pick screen, or null on the flagship's column.</summary>
+    public static int? SlotAt(int row, int column) =>
+        column == FlagshipColumn ? null : row * Columns + (column > FlagshipColumn ? column - 1 : column);
 
     /// <summary>
     /// A key: the arrows move the cursor (DoPickBattleShip's dx and dy, the

@@ -727,14 +727,32 @@ public sealed partial class GameWorld
             e.Current.FrameArray is { } views ? views[0].Sheet!.Id : e.Current.Frame.Sheet?.Id ?? "",
             e.Current.Frame.Index, e.PrimColor);
 
-    // A battle as the snapshot holds it: its ships' status and places, and
-    // its elements as they're drawn this frame.
-    private static BattleSnapshot BattleSnapshotOf(WorldBattle wb)
+    // A battle as the snapshot holds it: its ships' status and places (the
+    // host's fleet ships and pick screen with the host's), and its elements
+    // as they're drawn this frame.
+    /// <summary>
+    /// A ship's status panel as the snapshot sends it (<paramref name="ship"/>
+    /// its id in data/ships.json): its crew and energy (its description's,
+    /// or, out of the battle, its own crew), captain, keys, element's crew
+    /// and life; and its captain's window as the ship's code changed it (its
+    /// special key's frame where the code keeps its own, and the marks on
+    /// it since it was drawn, which stay on a ship gone: its panel stands
+    /// as it last was).
+    /// </summary>
+    internal static BattleShipStatus StatusSnapshot(string ship, Starship s)
     {
-        static BattleShipStatus Status(string ship, Starship s) => s.RaceDesc is { } r
+        var marks = s.Silhouette.Count == 0 ? Array.Empty<SilhouetteMarkSnapshot>()
+            : s.Silhouette.Select(m => new SilhouetteMarkSnapshot(m.Frame.Sheet?.Id ?? "", m.Frame.Index, m.X, m.Y, m.Erase)).ToArray();
+        return s.RaceDesc is { } r
             ? new BattleShipStatus(ship, r.CrewLevel, r.MaxCrew, r.EnergyLevel, r.MaxEnergy, s.CaptainsNameIndex, s.CurStatusFlags,
-                s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null)
-            : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0, s.CaptainsNameIndex, s.CurStatusFlags, Gone: s.Ship is null);
+                s.Ship?.CrewLevel ?? 0, s.Ship?.LifeSpan ?? 0, s.Ship is null, r.CaptainSpecial.Index, marks)
+            : new BattleShipStatus(ship, s.CrewLevel, s.MaxCrew, 0, 0, s.CaptainsNameIndex, s.CurStatusFlags, Gone: s.Ship is null,
+                Marks: marks);
+    }
+
+    private BattleSnapshot BattleSnapshotOf(WorldBattle wb)
+    {
+        static BattleShipStatus Status(string ship, Starship s) => StatusSnapshot(ship, s);
         // The player whose view is the battle's camera, UQM's: the one whose ship it follows, when it follows
         // only one of theirs; when it follows none (the frame a ship stops being one, or none left), the
         // first player still in the battle, as with one player UQM's camera is theirs whatever it follows.
@@ -746,13 +764,32 @@ public sealed partial class GameWorld
         // player still watches), kept after each frame (AfterBattleFrame).
         var fighters = present
             .Select(f => f.Starship.Ship is { } ship
-                ? new BattleFighterSnapshot(f.Player.Id, Status(f.ShipId, f.Starship), ship.Current.X, ship.Current.Y, f == viewer)
-                : new BattleFighterSnapshot(f.Player.Id, Status(f.ShipId, f.Starship), f.LastX, f.LastY, f == viewer))
+                ? new BattleFighterSnapshot(f.Player.Id, Status(f.ShipId, f.Starship), ship.Current.X, ship.Current.Y, f == viewer,
+                    ArmadaSnapshot(f))
+                : new BattleFighterSnapshot(f.Player.Id, Status(f.ShipId, f.Starship), f.LastX, f.LastY, f == viewer, ArmadaSnapshot(f)))
             .ToList();
         var (ex, ey) = wb.Enemy.Ship is { } enemy ? (enemy.Current.X, enemy.Current.Y) : (wb.EnemyLastX, wb.EnemyLastY);
         var elements = wb.Battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(ElementSnapshot).ToList();
         var enemyNow = wb.Enemy;
         return new BattleSnapshot(wb.Id, wb.Battle.Size.Width, wb.Battle.Size.Height, Status(wb.EnemyShipOf(enemyNow).Id, enemyNow),
             ex, ey, fighters, elements, wb.Battle.Camera, wb.Battle.StarSeed);
+    }
+
+    // The host's fleet ships in the battle and the pick screen, as the
+    // snapshot sends them (stage 4b item 9): each ship's crew now (its
+    // element's while it flies: RaceDesc's; else its own, as it joined or
+    // came out), and whether it can be picked (DoPickBattleShip's CurFrame,
+    // as PickShipKey picks); null for a player with no fleet ships. (A
+    // player whose own ship is out, Exit set, is never choosing: the pick
+    // screen is closed then, UpdatePicks.)
+    private BattleArmadaSnapshot? ArmadaSnapshot(BattleFighter f)
+    {
+        if (f.Armada is null)
+            return null;
+        var ships = f.FleetShips.Select(fs => new BattleFleetShipSnapshot(fs.Joined.Slot, fs.Ship.Id, fs.Joined.Captain,
+                fs.Starship.RaceDesc?.CrewLevel ?? fs.Starship.CrewLevel, fs.Starship.MaxCrew, fs.Exit, fs.Flown,
+                PickableAt(f, fs.Joined.Slot) == fs.Starship))
+            .ToArray();
+        return new BattleArmadaSnapshot(ships, f.Pick is { } menu ? new BattlePickSnapshot(menu.Row, menu.Column) : null);
     }
 }

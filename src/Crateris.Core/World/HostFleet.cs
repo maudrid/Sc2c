@@ -27,6 +27,22 @@ namespace Crateris.Core.World;
 public sealed record FleetShip(string Race, int Crew, byte Captain, int Slot);
 
 /// <summary>
+/// The host's fleet as snapshots send it (stage 4b item 9; the host's ship's
+/// <see cref="ShipSnapshot.Fleet"/>): its ships by their slots, each with its
+/// race, crew, captain and slot, for what the shipyard's hangar, the roster
+/// and the pick screen show. Equal by value.
+/// </summary>
+public sealed record FleetSnapshot(IReadOnlyList<FleetShip> Ships)
+{
+    public bool Equals(FleetSnapshot? other) => other is not null && Ships.SequenceEqual(other.Ships);
+
+    public override int GetHashCode() => Ships.Count;
+
+    /// <summary>The fleet ship in a slot, or null.</summary>
+    public FleetShip? InSlot(int slot) => Ships.FirstOrDefault(s => s.Slot == slot);
+}
+
+/// <summary>
 /// The host's fleet (stage 4b item 6; stage 4b, decision 3: only the host
 /// has one): UQM's built_ship_q, up to MAX_BUILT_SHIPS' 12 ships of allied
 /// races, each in a hangar slot, kept in the order of their slots, with
@@ -225,6 +241,9 @@ public sealed class HostFleet
 
     /// <summary>The fleet ship in a slot, or null.</summary>
     public FleetShip? InSlot(int slot) => _ships.FirstOrDefault(s => s.Slot == slot);
+
+    /// <summary>The fleet as snapshots send it: its ships as they are now.</summary>
+    public FleetSnapshot Snapshot() => new(_ships.ToArray());
 
     /// <summary>
     /// The fleet as a save holds it, or as a test sets it: every ship's

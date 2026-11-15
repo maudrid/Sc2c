@@ -230,7 +230,7 @@ public class FleetBattleTests
 
     // A world of hyperspace (WorldBattleTests'), with the story (the fleet's rules; the starbase available, so retreats
     // are allowed), and the host's fleet of these ships, each in the next slot with its crew.
-    private static GameWorld WithFleet(int players, params (string Race, int Crew)[] ships)
+    internal static GameWorld WithFleet(int players, params (string Race, int Crew)[] ships)
     {
         var world = NewWorld(players);
         world.Story = StoryState.NewGame(Rules, world.Clock);
@@ -244,7 +244,7 @@ public class FleetBattleTests
     }
 
     // The host's pick screen's cursor taken to a slot (null: the flagship), then select.
-    private static PickOutcome PickAt(GameWorld world, int? slot)
+    internal static PickOutcome PickAt(GameWorld world, int? slot)
     {
         var menu = world.Host.Ship.Battle!.FighterOf("host")!.Pick!;
         int row = slot is int s ? s / PickShipMenu.Columns : menu.Row;
@@ -261,7 +261,7 @@ public class FleetBattleTests
     private static List<(short, short)> Places(Battle battle) => battle.List.Elements.Select(e => (e.Current.X, e.Current.Y)).ToList();
 
     // Frames (the enemy disarmed) until the host's ship flown is in, warped in.
-    private static void WarpIn(GameWorld world, WorldBattle wb)
+    internal static void WarpIn(GameWorld world, WorldBattle wb)
     {
         for (int i = 0; i < 60 && !Warped(wb.Battle); ++i)
             RunDisarmed(world, wb, 1);
@@ -269,7 +269,7 @@ public class FleetBattleTests
     }
 
     // Frames (the enemy disarmed) until the host is on the pick screen again (or the battle is over).
-    private static void UntilPicking(GameWorld world, WorldBattle wb, Func<string, ShipInput>? keys = null)
+    internal static void UntilPicking(GameWorld world, WorldBattle wb, Func<string, ShipInput>? keys = null)
     {
         for (int i = 0; i < 400 && wb.Outcome is null && wb.FighterOf("host")!.Pick is null; ++i)
             RunDisarmed(world, wb, 1, keys);

@@ -55,7 +55,20 @@ public class SnapshotCodecTests
 
     private static string? AnyName(Random r) => r.Next(3) == 0 ? null : ShipNames.Fit(AnyText(r));
 
-    private static ShipSnapshot AnyShip(Random r, string id) => new ShipSnapshot(
+    // The host's fleet (stage 4b item 9): up to 12 ships in some of the slots, in their order.
+    private static FleetSnapshot AnyFleet(Random r) => new(Enumerable.Range(0, HostFleet.MaxShips).Where(_ => r.Next(3) == 0)
+        .Select(slot => new FleetShip(r.Next(4) == 0 ? AnyText(r) + "x" : "SPATHI_SHIP", r.Next(3) == 0 ? ushort.MaxValue : r.Next(43),
+            (byte)r.Next(256), slot))
+        .ToArray());
+
+    // A ship, the host's with a fleet (or none) now and then.
+    private static ShipSnapshot AnyShip(Random r, string id)
+    {
+        var ship = AnyShipWithoutFleet(r, id);
+        return ship.IsHost && r.Next(3) != 0 ? ship with { Fleet = AnyFleet(r) } : ship;
+    }
+
+    private static ShipSnapshot AnyShipWithoutFleet(Random r, string id) => new ShipSnapshot(
         id, AnyText(r), r.Next(2) == 0, (ShipKind)r.Next(2),
         AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r), AnyInt(r),
         (uint)r.NextInt64(0, uint.MaxValue + 1L), (uint)r.NextInt64(0, uint.MaxValue + 1L), r.Next(2) == 0, r.Next(2) == 0,
@@ -78,7 +91,7 @@ public class SnapshotCodecTests
         with { StoryPause = r.Next(3) == 0 ? AnyText(r) : null, HostPaused = r.Next(3) == 0, Markers = AnyMarkers(r) };
 
     private static BattleMarkerSnapshot[]? AnyMarkers(Random r) => r.Next(3) == 0 ? null
-        : Enumerable.Range(0, r.Next(4)).Select(i => new BattleMarkerSnapshot(r.Next(1000), AnyOptional(r), AnyOptional(r), AnyInt(r), AnyInt(r)))
+        : Enumerable.Range(0, r.Next(4)).Select(i => new BattleMarkerSnapshot(r.Next(1000), AnyOptional(r), AnyOptional(r), AnyInt(r), AnyInt(r), AnyText(r)))
             .ToArray();
 
     // A snapshot a little on from another: most ships move a little, some
@@ -90,6 +103,12 @@ public class SnapshotCodecTests
             0 => AnyShip(r, sh.Id),
             1 => sh with { Hold = r.Next(2) == 0 ? null : new HoldSnapshot(r.Next(50), 1, 500, new int[8], r.Next(50)) },
             2 => sh with { Name = AnyText(r), Entry = null, ShipName = r.Next(2) == 0 ? sh.ShipName : AnyName(r) },
+            9 when sh.IsHost => sh with
+            {
+                Fleet = sh.Fleet is { Ships.Count: > 0 } f && r.Next(2) == 0
+                    ? new FleetSnapshot(f.Ships.Select((x, i) => i == 0 ? x with { Crew = x.Crew ^ 1 } : x).ToArray())
+                    : r.Next(3) == 0 ? null : AnyFleet(r),
+            },
             3 => sh,
             _ => sh with { LogX = sh.LogX + r.Next(-20, 21), LogY = unchecked(sh.LogY + r.Next(-20, 21)), Facing = r.Next(16) },
         }).ToList();
@@ -399,6 +418,7 @@ public class SnapshotCodecTests
     public void EncodingDoesntAllocateAndBothWaysTakeMicroseconds()
     {
         var host = FourPlayers(out _);
+        host.World.AddFleetShips("ARILOU_SHIP", 3);   // the host's fleet in the host's ship (stage 4b item 9)
         WorldSnapshot before = host.Step(ShipInput.Thrust), snap = before;
         for (int i = 0; i < 50; ++i)
             (before, snap) = (snap, host.Step(ShipInput.Thrust | ShipInput.Right));
@@ -491,7 +511,7 @@ public class SnapshotCodecTests
     {
         var battle = Battle();
         var s = new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { battle },
-            Markers: new[] { new BattleMarkerSnapshot(3, 0, 2, 5, 6) });
+            Markers: new[] { new BattleMarkerSnapshot(3, 0, 2, 5, 6, "spathi") });
         WorldSnapshot For(string viewer, WorldSnapshot snap, WorldSnapshot? b = null)
         {
             var w = new WireWriter(16);
@@ -537,6 +557,245 @@ public class SnapshotCodecTests
         // Cut short anywhere.
         for (int n = good.Length - 1; n > good.Length - 40; --n)
             Assert.ThrowsAny<Exception>(() => SnapshotCodec.Decode(good.AsSpan(0, n)));
+    }
+
+    // ---- Stage 4b item 9: the host's fleet, the markers' race, the captain's windows, the pick screen ----
+
+    private static readonly string[] SomeSheets = { "ship.vux.graphics.limpets.large", "ship.orz.graphics.turret.large", "", "x" };
+
+    private static BattleShipStatus AnyStatus(Random r) => new(r.Next(2) == 0 ? "sis_ship" : "shofixti", r.Next(43), 42, r.Next(30), 30,
+        r.Next(256), (StatusFlags)r.Next(64), r.Next(43), r.Next(30), r.Next(2) == 0, r.Next(3) == 0 ? ushort.MaxValue : r.Next(20),
+        r.Next(3) == 0 ? null : Enumerable.Range(0, r.Next(6)).Select(_ => new SilhouetteMarkSnapshot(SomeSheets[r.Next(SomeSheets.Length)],
+            (ushort)r.Next(ushort.MaxValue + 1), (short)r.Next(short.MinValue, short.MaxValue + 1), (short)r.Next(short.MinValue, short.MaxValue + 1),
+            r.Next(2) == 0)).ToArray());
+
+    private static BattleArmadaSnapshot AnyArmada(Random r) => new(
+        Enumerable.Range(0, HostFleet.MaxShips).Where(_ => r.Next(3) == 0).Select(slot => new BattleFleetShipSnapshot(slot,
+            r.Next(2) == 0 ? "spathi" : AnyText(r), r.Next(256), r.Next(3) == 0 ? ushort.MaxValue : r.Next(43), r.Next(43),
+            r.Next(3) == 0 ? null : (BattleExit)r.Next(4), r.Next(2) == 0, r.Next(2) == 0)).ToArray(),
+        r.Next(3) == 0 ? null : new BattlePickSnapshot(r.Next(PickShipMenu.Rows), r.Next(PickShipMenu.Columns + 1)));
+
+    // A battle whose ships are all by one place, so each is sent every element.
+    private static BattleSnapshot AnyBattle(Random r) => Battle() with
+    {
+        Enemy = AnyStatus(r),
+        Fighters = Enumerable.Range(0, 1 + r.Next(4)).Select(i => new BattleFighterSnapshot("p" + i, AnyStatus(r), 100, 100, r.Next(2) == 0,
+            r.Next(2) == 0 ? AnyArmada(r) : null)).ToArray(),
+        Elements = Battle().Elements.Take(2).ToArray(),
+    };
+
+    private static WorldSnapshot For(string viewer, WorldSnapshot snap, WorldSnapshot? b = null)
+    {
+        var w = new WireWriter(16);
+        SnapshotCodec.Encode(w, snap, b, viewer);
+        return SnapshotCodec.Decode(w.Written, b);
+    }
+
+    [Fact]
+    public void EveryBattleFieldSurvives()
+    {
+        var r = new Random(11);
+        for (int i = 0; i < 2000; ++i)
+        {
+            var battle = AnyBattle(r);
+            var s = new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { battle });
+            var got = Assert.Single(For("p0", s).Battles!);
+            Assert.Equal(battle, got);
+            // Equal field by field, not only as the records compare.
+            Assert.Equal(battle.Enemy.Marks ?? Array.Empty<SilhouetteMarkSnapshot>(), got.Enemy.Marks!);
+            Assert.Equal(battle.Enemy.CaptainSpecial, got.Enemy.CaptainSpecial);
+            for (int f = 0; f < battle.Fighters.Count; ++f)
+            {
+                Assert.Equal(battle.Fighters[f].Status.Marks ?? Array.Empty<SilhouetteMarkSnapshot>(), got.Fighters[f].Status.Marks!);
+                Assert.Equal(battle.Fighters[f].Armada?.Ships, got.Fighters[f].Armada?.Ships);
+                Assert.Equal(battle.Fighters[f].Armada?.Pick, got.Fighters[f].Armada?.Pick);
+            }
+        }
+    }
+
+    [Fact]
+    public void TheNewFieldsAreComparedByValue()
+    {
+        var mark = new SilhouetteMarkSnapshot("s", 3, 4, 5, false);
+        var status = new BattleShipStatus("vux", 1, 2, 3, 4, Marks: new[] { mark });
+        Assert.Equal(status, status with { Marks = new[] { mark } });
+        Assert.NotEqual(status, status with { Marks = new[] { mark with { Erase = true } } });
+        Assert.NotEqual(status, status with { CaptainSpecial = 13 });
+        Assert.Equal(status with { Marks = null }, status with { Marks = Array.Empty<SilhouetteMarkSnapshot>() });
+        var ship = new BattleFleetShipSnapshot(1, "spathi", 5, 6, 30, null, false, true);
+        var armada = new BattleArmadaSnapshot(new[] { ship }, new BattlePickSnapshot(1, 2));
+        Assert.Equal(armada, armada with { Ships = new[] { ship } });
+        Assert.NotEqual(armada, armada with { Ships = new[] { ship with { CanPick = false } } });
+        Assert.NotEqual(armada, armada with { Pick = null });
+        Assert.Same(ship, armada.InSlot(1));
+        Assert.Null(armada.InSlot(2));
+        var fleet = new FleetSnapshot(new[] { new FleetShip("SPATHI_SHIP", 3, 5, 2) });
+        Assert.Equal(fleet, new FleetSnapshot(new[] { new FleetShip("SPATHI_SHIP", 3, 5, 2) }));
+        Assert.NotEqual(fleet, new FleetSnapshot(new[] { new FleetShip("SPATHI_SHIP", 4, 5, 2) }));
+        Assert.Equal(3, fleet.InSlot(2)!.Crew);
+        Assert.Null(fleet.InSlot(3));
+        // The pick's cursor as the pick screen's: its slot, none on the flagship's column.
+        Assert.Equal((int?)8, new BattlePickSnapshot(1, 2).Slot);
+        Assert.Equal((int?)9, new BattlePickSnapshot(1, 4).Slot);
+        Assert.Null(new BattlePickSnapshot(1, 3).Slot);
+        Assert.True(new BattlePickSnapshot(0, 3).OnFlagship);
+        Assert.False(new BattlePickSnapshot(0, 4).OnFlagship);
+    }
+
+    [Fact]
+    public void AShipsFleetIsSentWhenItAloneChanges()
+    {
+        var r = new Random(12);
+        var fleet = new FleetSnapshot(new[] { new FleetShip("SPATHI_SHIP", 5, 7, 0), new FleetShip("ARILOU_SHIP", 6, 9, 3) });
+        var host = AnyShipWithoutFleet(r, "host") with { IsHost = true, Fleet = fleet };
+        var b = new WorldSnapshot(10, 2155, 1, 1, new[] { host, AnyShipWithoutFleet(r, "g") with { IsHost = false } });
+        var crewed = b with { Frame = 11, Ships = new[] { host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0], fleet.Ships[1] with { Crew = 2 } }) }, b.Ships[1] } };
+        var got = SnapshotCodec.Decode(Encode(crewed, b), b);
+        Assert.Equal(crewed.Ships[0].Fleet, got.Ships[0].Fleet);
+        Assert.Equal(2, got.Ships[0].Fleet!.InSlot(3)!.Crew);
+        Assert.Null(got.Ships[1].Fleet);
+        // Unchanged, it costs nothing and is the base's.
+        var still = b with { Frame = 12 };
+        Assert.Same(b.Ships[0].Fleet, SnapshotCodec.Decode(Encode(still, b), b).Ships[0].Fleet);
+        // Gone (a host's ship sent without one) is sent too.
+        Assert.Null(SnapshotCodec.Decode(Encode(b with { Frame = 13, Ships = new[] { host with { Fleet = null }, b.Ships[1] } }, b), b).Ships[0].Fleet);
+        // An empty fleet is a fleet, not none.
+        Assert.Empty(SnapshotCodec.Decode(Encode(b with { Ships = new[] { host with { Fleet = new FleetSnapshot(Array.Empty<FleetShip>()) } } })).Ships[0].Fleet!.Ships);
+    }
+
+    // The bytes of a message with one field changed: the place where two messages, differing only there, differ.
+    private static byte[] Changed(byte[] good, byte[] other, byte to)
+    {
+        Assert.Equal(good.Length, other.Length);
+        int at = Enumerable.Range(0, good.Length).Single(i => good[i] != other[i]);
+        var bad = good.ToArray();
+        bad[at] = to;
+        return bad;
+    }
+
+    [Fact]
+    public void BadFleetsMarkersAndArmadasAreRefused()
+    {
+        var r = new Random(13);
+        var host = AnyShipWithoutFleet(r, "host") with { IsHost = true };
+        var fleet = new FleetSnapshot(new[] { new FleetShip("SPATHI_SHIP", 5, 7, 0), new FleetShip("ARILOU_SHIP", 6, 9, 3) });
+        byte[] Ships(params ShipSnapshot[] ships) => Encode(new WorldSnapshot(1, 2155, 1, 1, ships));
+        Assert.Equal(fleet, SnapshotCodec.Decode(Ships(host with { Fleet = fleet })).Ships[0].Fleet);
+        // A fleet on a ship not the host's; slots out of order, twice, or past the hangar's; a race of no name; a crew or captain too big.
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Ships(host with { IsHost = false, Fleet = fleet })));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Ships(host with { Fleet = new FleetSnapshot(fleet.Ships.Reverse().ToArray()) })));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Ships(host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0], fleet.Ships[0] }) })));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Ships(host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0] with { Slot = 12 } }) })));
+        Assert.Equal(11, SnapshotCodec.Decode(Ships(host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0] with { Slot = 11 } }) })).Ships[0].Fleet!.Ships[0].Slot);
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Ships(host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0] with { Race = "" } }) })));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Ships(host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0] with { Race = null! } }) })));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Ships(host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0] with { Crew = ushort.MaxValue + 1 } }) })));
+        Assert.Equal(255, SnapshotCodec.Decode(Ships(host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0] with { Captain = 255 } }) }))
+            .Ships[0].Fleet!.Ships[0].Captain);
+        // More than the hangar's 12 ships: only 12 are sent.
+        var thirteen = new FleetSnapshot(Enumerable.Range(0, 13).Select(i => fleet.Ships[0] with { Slot = i }).ToArray());
+        Assert.Equal(12, SnapshotCodec.Decode(Ships(host with { Fleet = thirteen })).Ships[0].Fleet!.Ships.Count);
+
+        // A marker with no race.
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Encode(new WorldSnapshot(1, 2155, 1, 1, Array.Empty<ShipSnapshot>(),
+            Markers: new[] { new BattleMarkerSnapshot(1, null, null, 2, 3, null!) }))));
+
+        // The battle's: a fleet ship's slots, exit, flags; the pick's row and column; a mark's sheet and flag; the captain's window's frame.
+        var ship = new BattleFleetShipSnapshot(2, "spathi", 5, 6, 30, BattleExit.Retreated, true, false);
+        var armada = new BattleArmadaSnapshot(new[] { ship, ship with { Slot = 4 } }, new BattlePickSnapshot(1, 6));
+        var mark = new SilhouetteMarkSnapshot("ship.vux.graphics.limpets.large", 5, -3, 40, false);
+        var good = Battle() with
+        {
+            Fighters = new[] { Battle().Fighters[0] with { Armada = armada, Status = Battle().Fighters[0].Status with { Marks = new[] { mark }, CaptainSpecial = 12 } } },
+            Elements = Array.Empty<BattleElementSnapshot>(),
+        };
+        byte[] Of(BattleSnapshot b) { var w = new WireWriter(16); SnapshotCodec.Encode(w, new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { b }), null, "a"); return w.Written.ToArray(); }
+        BattleSnapshot With(BattleArmadaSnapshot? a = null, SilhouetteMarkSnapshot? m = null, int special = 12) => good with
+        {
+            Fighters = new[] { good.Fighters[0] with { Armada = a ?? armada, Status = good.Fighters[0].Status with { Marks = new[] { m ?? mark }, CaptainSpecial = special } } },
+        };
+        var bytes = Of(good);
+        Assert.Equal(good, Assert.Single(SnapshotCodec.Decode(bytes).Battles!));
+        void Refused(BattleSnapshot b) => Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Of(b)));
+        Refused(With(armada with { Ships = new[] { ship with { Slot = 4 }, ship } }));
+        Refused(With(armada with { Ships = new[] { ship, ship } }));
+        Refused(With(armada with { Ships = new[] { ship with { Slot = 12 } } }));
+        Refused(With(armada with { Ships = new[] { ship with { Ship = null! } } }));
+        Refused(With(armada with { Ships = new[] { ship with { Exit = (BattleExit)4 } } }));
+        Refused(With(armada with { Ships = new[] { ship with { Captain = 256 } } }));
+        Refused(With(armada with { Ships = new[] { ship with { Crew = ushort.MaxValue + 1 } } }));
+        Refused(With(armada with { Ships = new[] { ship with { MaxCrew = ushort.MaxValue + 1 } } }));
+        Refused(With(armada with { Pick = new BattlePickSnapshot(2, 0) }));
+        Refused(With(armada with { Pick = new BattlePickSnapshot(0, 7) }));
+        Refused(With(special: ushort.MaxValue + 1));
+        Assert.Equal(BattleExit.Destroyed, SnapshotCodec.Decode(Of(With(armada with { Ships = new[] { ship with { Exit = BattleExit.Destroyed, Slot = 11 } } })))
+            .Battles![0].Fighters[0].Armada!.Ships[0].Exit);
+        var twelve = Enumerable.Range(0, 12).Select(i => ship with { Slot = i }).ToArray();
+        Assert.Equal(twelve, Assert.Single(SnapshotCodec.Decode(Of(With(armada with { Ships = twelve.Append(ship with { Slot = 12 }).ToArray() })))
+            .Battles!).Fighters[0].Armada!.Ships);   // only the hangar's 12 are sent
+        // Bytes the encoder never writes: a fleet ship's flags past flown and pickable, a mark's flag past 1, a mark's
+        // sheet past the battle's; and a pick's row past the rows.
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Changed(bytes, Of(With(armada with { Ships = new[] { ship with { CanPick = true }, ship with { Slot = 4 } } })), 4)));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Changed(bytes, Of(With(armada with { Pick = new BattlePickSnapshot(0, 6) })), 2)));
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Changed(bytes, Of(With(m: mark with { Erase = true })), 2)));
+        var sheetAt = Changed(bytes, Of(With(m: mark with { Frame = 6 })), 0);   // the frame's byte; the sheet's is before it
+        int frameAt = Enumerable.Range(0, bytes.Length).Single(i => bytes[i] != sheetAt[i]);
+        var badSheet = bytes.ToArray();
+        badSheet[frameAt - 1] = 1;   // the battle has one sheet, the mark's
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(badSheet));
+        badSheet[frameAt - 1] = 0;
+        Assert.Equal("ship.vux.graphics.limpets.large", SnapshotCodec.Decode(badSheet).Battles![0].Fighters[0].Status.Marks![0].Sheet);
+        // A mark's frame past a frame's 65535 (as a number of three bytes).
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Spliced(bytes, frameAt, 0x80, 0x80, 0x04)));
+        Assert.Equal(65535, SnapshotCodec.Decode(Spliced(bytes, frameAt, 0xFF, 0xFF, 0x03)).Battles![0].Fighters[0].Status.Marks![0].Frame);
+        // The armada's presence and the pick's past 1: the byte after the fighter's Followed, and the byte before the pick's row.
+        var followed = Of(good with { Fighters = new[] { good.Fighters[0] with { Followed = !good.Fighters[0].Followed } } });
+        int followedAt = Enumerable.Range(0, bytes.Length).Single(i => bytes[i] != followed[i]);
+        Assert.Equal(1, bytes[followedAt + 1]);
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Changed(bytes, bytes.Select((b, i) => i == followedAt + 1 ? (byte)7 : b).ToArray(), 2)));
+        var row = Of(With(armada with { Pick = new BattlePickSnapshot(0, 6) }));
+        int rowAt = Enumerable.Range(0, bytes.Length).Single(i => bytes[i] != row[i]);
+        Assert.Equal(1, bytes[rowAt - 1]);
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Changed(bytes, bytes.Select((b, i) => i == rowAt - 1 ? (byte)7 : b).ToArray(), 2)));
+
+        // A fleet ship's captain past a byte's (as a number of two bytes).
+        var fleetBytes = Ships(host with { Fleet = fleet });
+        var otherCaptain = Ships(host with { Fleet = new FleetSnapshot(new[] { fleet.Ships[0] with { Captain = 8 }, fleet.Ships[1] }) });
+        int captainAt = Enumerable.Range(0, fleetBytes.Length).Single(i => fleetBytes[i] != otherCaptain[i]);
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(Spliced(fleetBytes, captainAt, 0x80, 0x02)));
+        Assert.Equal(255, SnapshotCodec.Decode(Spliced(fleetBytes, captainAt, 0xFF, 0x01)).Ships[0].Fleet!.Ships[0].Captain);
+    }
+
+    // The bytes with the one at a place replaced by others.
+    private static byte[] Spliced(byte[] bytes, int at, params byte[] with) => bytes[..at].Concat(with).Concat(bytes[(at + 1)..]).ToArray();
+
+    [Fact]
+    public void AMarksSheetIsSentOnceWithTheElementsAndItsMarksPastTheLimitArent()
+    {
+        var mark = new SilhouetteMarkSnapshot("ship.vux.graphics.limpets.large", 5, -3, 40, false);
+        var b = Battle() with
+        {
+            Enemy = Battle().Enemy with { Marks = Enumerable.Repeat(mark, SnapshotCodec.MostSilhouetteMarks + 5).ToArray() },
+            Elements = new[] { Battle().Elements[0] with { Sheet = mark.Sheet } },
+        };
+        var w = new WireWriter(16);
+        SnapshotCodec.Encode(w, new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { b }), null, "a");
+        var bytes = w.Written.ToArray();
+        var got = Assert.Single(SnapshotCodec.Decode(bytes).Battles!);
+        Assert.Equal(SnapshotCodec.MostSilhouetteMarks, got.Enemy.Marks!.Count);
+        Assert.Equal(b.Elements, got.Elements);
+        // The sheet's name once in the message.
+        var name = System.Text.Encoding.UTF8.GetBytes(mark.Sheet);
+        Assert.Single(Enumerable.Range(0, bytes.Length - name.Length).Where(i => bytes.AsSpan(i, name.Length).SequenceEqual(name)));
+
+        // The battle's sheets full with its elements': a mark of another sheet is left out, the others sent.
+        var full = Battle() with
+        {
+            Enemy = Battle().Enemy with { Marks = new[] { mark with { Sheet = "another" }, mark with { Sheet = "s0", Frame = 9 } } },
+            Elements = Enumerable.Range(0, SnapshotCodec.MostBattleSheets).Select(i => Battle().Elements[0] with { Sheet = "s" + i }).ToArray(),
+        };
+        SnapshotCodec.Encode(w, new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { full }), null, "a");
+        Assert.Equal(new[] { mark with { Sheet = "s0", Frame = 9 } }, SnapshotCodec.Decode(w.Written).Battles![0].Enemy.Marks);
     }
 
     [Fact]

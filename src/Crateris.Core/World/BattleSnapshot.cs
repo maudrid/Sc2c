@@ -14,9 +14,12 @@ namespace Crateris.Core.World;
 /// A battle's marker where it's fought (stage 4a item 6): its place, for
 /// the players flying there to see and fly into. Every battle's is in the
 /// snapshot; a client shows those at its own place (the host's rule for
-/// which may be flown into is <see cref="GameWorld.MarkersFor"/>).
+/// which may be flown into is <see cref="GameWorld.MarkersFor"/>), and the
+/// race it's against (stage 4b item 9): the encounter race's ship, the
+/// enemy fleet's first ship's id in data/ships.json
+/// (<see cref="WorldBattle.EnemyShip"/>), which the marker shows.
 /// </summary>
-public sealed record BattleMarkerSnapshot(int Id, int? Star, int? InnerPlanet, int X, int Y);
+public sealed record BattleMarkerSnapshot(int Id, int? Star, int? InnerPlanet, int X, int Y, string EnemyShip);
 
 /// <summary>
 /// A ship's status panel as UQM's shows it: its kind (a ship description's
@@ -24,10 +27,35 @@ public sealed record BattleMarkerSnapshot(int Id, int? Star, int? InnerPlanet, i
 /// in its race's strings, <see cref="Starship.CaptainsNameIndex"/>); the
 /// keys its captain's window shows (<see cref="Starship.CurStatusFlags"/>);
 /// and its element's crew and life, or that it's gone (the panel stops as
-/// the ship's explosion ends, status.c's).
+/// the ship's explosion ends, status.c's). Since stage 4b item 9, what the
+/// ship's own code does to its captain's window: the frame its special key
+/// shows there where the code keeps its own (<see cref="CaptainSpecial"/>,
+/// the Shofixti's Glory Device's cover; 0 for DrawCaptainsWindow's), and
+/// the marks ModifySilhouette made on it since it was drawn
+/// (<see cref="Marks"/>: the Orz's marines aboard, the VUX's limpets).
+/// Equal by value.
 /// </summary>
 public sealed record BattleShipStatus(string Ship, int Crew, int MaxCrew, int Energy, int MaxEnergy, int Captain = 0,
-    StatusFlags Flags = StatusFlags.None, int ElementCrew = 0, int LifeSpan = 0, bool Gone = false);
+    StatusFlags Flags = StatusFlags.None, int ElementCrew = 0, int LifeSpan = 0, bool Gone = false, int CaptainSpecial = 0,
+    IReadOnlyList<SilhouetteMarkSnapshot>? Marks = null)
+{
+    public bool Equals(BattleShipStatus? other) =>
+        other is not null && (Ship, Crew, MaxCrew, Energy, MaxEnergy, Captain, Flags, ElementCrew, LifeSpan, Gone, CaptainSpecial)
+            == (other.Ship, other.Crew, other.MaxCrew, other.Energy, other.MaxEnergy, other.Captain, other.Flags, other.ElementCrew,
+                other.LifeSpan, other.Gone, other.CaptainSpecial)
+        && (Marks ?? Array.Empty<SilhouetteMarkSnapshot>()).SequenceEqual(other.Marks ?? Array.Empty<SilhouetteMarkSnapshot>());
+
+    public override int GetHashCode() => HashCode.Combine(Ship, Crew, Energy, Captain, Flags, Marks?.Count ?? 0);
+}
+
+/// <summary>
+/// A mark ModifySilhouette made on a ship's captain's window
+/// (<see cref="SilhouetteMark"/>), as the snapshot sends it: the frame
+/// stamped (its sheet and index), its place in the ship's status panel,
+/// and whether it's the window drawn afresh within the frame's rectangle
+/// (MODIFY_SWAP) instead.
+/// </summary>
+public sealed record SilhouetteMarkSnapshot(string Sheet, ushort Frame, short X, short Y, bool Erase);
 
 /// <summary>
 /// One player's ship in a battle, still in it (fighting, or destroyed in a
@@ -35,9 +63,59 @@ public sealed record BattleShipStatus(string Ship, int Crew, int MaxCrew, int En
 /// disconnected) isn't listed. Its status and its place (world units, as
 /// the elements'; a destroyed ship's last, where it exploded); whether
 /// the battle's camera followed it this frame (<see cref="BattleSnapshot.Camera"/>
-/// is then its player's own, UQM's exactly).
+/// is then its player's own, UQM's exactly). The host with fleet ships in
+/// the battle (stage 4b items 8 and 9): their ships to pick from and the
+/// pick screen (<see cref="Armada"/>); null for a player who came in with
+/// their own ship alone.
 /// </summary>
-public sealed record BattleFighterSnapshot(string PlayerId, BattleShipStatus Status, short X, short Y, bool Followed = false);
+public sealed record BattleFighterSnapshot(string PlayerId, BattleShipStatus Status, short X, short Y, bool Followed = false,
+    BattleArmadaSnapshot? Armada = null);
+
+/// <summary>
+/// The host's fleet ships in a battle and the pick screen (stage 4b item 9;
+/// <see cref="BattleFighter.FleetShips"/>, <see cref="BattleFighter.Pick"/>):
+/// each fleet ship as it stands in the battle, in the fleet's order, and
+/// the pick screen's cursor while the host chooses (null otherwise). The
+/// flagship, always pickable while the host chooses, isn't listed: it's
+/// the host's own ship. Equal by value.
+/// </summary>
+public sealed record BattleArmadaSnapshot(IReadOnlyList<BattleFleetShipSnapshot> Ships, BattlePickSnapshot? Pick)
+{
+    public bool Equals(BattleArmadaSnapshot? other) =>
+        other is not null && Pick == other.Pick && Ships.SequenceEqual(other.Ships);
+
+    public override int GetHashCode() => HashCode.Combine(Ships.Count, Pick);
+
+    /// <summary>The fleet ship in a hangar slot, or null.</summary>
+    public BattleFleetShipSnapshot? InSlot(int slot) => Ships.FirstOrDefault(s => s.Slot == slot);
+}
+
+/// <summary>
+/// One of the host's fleet ships in a battle (<see cref="BattleFleetShip"/>),
+/// as the pick screen shows it (DrawArmadaPickShip, DoPickBattleShip): its
+/// hangar slot, its ship's id in data/ships.json, its captain's name (an
+/// index in its race's strings), its crew now (as it joined, while it
+/// waits; as it came out, once out) and most; how it came out
+/// (<see cref="BattleFleetShip.Exit"/>: null while it waits or flies),
+/// whether it has flown (<see cref="BattleFleetShip.Flown"/>), and whether
+/// the host can pick it now (<see cref="Combat.Armada.CanPick"/>, and still
+/// in the host's fleet).
+/// </summary>
+public sealed record BattleFleetShipSnapshot(int Slot, string Ship, int Captain, int Crew, int MaxCrew, BattleExit? Exit,
+    bool Flown, bool CanPick);
+
+/// <summary>
+/// The pick screen's cursor (<see cref="Systems.PickShipMenu"/>'s
+/// <see cref="Systems.PickShipMenu.Row"/> and <see cref="Systems.PickShipMenu.Column"/>).
+/// </summary>
+public sealed record BattlePickSnapshot(int Row, int Column)
+{
+    /// <summary>Whether the cursor is on the flagship.</summary>
+    public bool OnFlagship => Column == Systems.PickShipMenu.FlagshipColumn;
+
+    /// <summary>The hangar slot under the cursor, or null on the flagship (<see cref="Systems.PickShipMenu.Slot"/>).</summary>
+    public int? Slot => Systems.PickShipMenu.SlotAt(Row, Column);
+}
 
 /// <summary>
 /// One of a battle's elements as it's drawn this frame (the element's

@@ -8,6 +8,7 @@
 
 using System.Text.Json;
 using Crateris.Core.Combat;
+using Crateris.Core.World;
 
 namespace Crateris.Core.Tests;
 
@@ -18,7 +19,11 @@ namespace Crateris.Core.Tests;
 /// its two battles, by keys against the flagship and flown by the AI
 /// against the flagship's AI, every frame compared (the elements' colours,
 /// the random draws under UQM's names, each side's input) and the crew
-/// each side had left when the battle ended.
+/// each side had left when the battle ended. Each frame also goes on the
+/// wire (stage 4b item 9): its elements and its ships' status panels and
+/// captain's windows as the snapshot sends them, encoded and decoded whole,
+/// every stamp's sheet one the client loads, at each zoom's size, with the
+/// frame in it.
 /// </summary>
 [Trait("Topic", "combat")]
 public class RaceShipBattleTests
@@ -59,7 +64,43 @@ public class RaceShipBattleTests
             }).ToList()).ToList();
 
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !sis.Any(s => s.BombCarrier);
-        var battle = BattleReplay.Run(reference, name, fleets, runaway, colours: true, ai);
+        var shipIds = input.GetProperty("ships").EnumerateArray().Select(s => s.GetProperty("ship").GetString()!).ToArray();
+        int frame = 0;
+        var battle = BattleReplay.Run(reference, name, fleets, runaway, colours: true, ai, b => OnTheWire(name, frame++, b, shipIds));
         ShipBattleTests.CheckFreed(reference, name, battle, sis);
+    }
+
+    // Every battle resource the client loads (BattleSprites: BattleResources.All), with its frames as UQM's loader loads them.
+    private static readonly Lazy<IReadOnlyDictionary<string, int>> Resources = new(() =>
+        Golden.Load("battle-masks").GetProperty("frames").EnumerateObject().ToDictionary(f => f.Name, f => f.Value.GetInt32()));
+
+    // The frame as a snapshot sends it, each side's ship a player's (side 0's, "p") or the enemy (side 1's): through the
+    // codec whole, every sheet a stamp or a captain's window's mark draws one the client loads, with the frame in it.
+    private static void OnTheWire(string name, int frame, Battle battle, string[] shipIds)
+    {
+        string at = $"{name} frame {frame}";
+        BattleShipStatus Status(int side) => battle.Fleet(side).FirstOrDefault(s => s.RaceDesc != null) is { } s
+            ? GameWorld.StatusSnapshot(shipIds[side], s) : new BattleShipStatus(shipIds[side], 0, 0, 0, 0, Gone: true);
+        var elements = battle.List.Elements.Where(e => e.Prim != PrimType.None).Select(GameWorld.ElementSnapshot).ToList();
+        var snapshot = new BattleSnapshot(1, battle.Size.Width, battle.Size.Height, Status(1), 0, 0,
+            new[] { new BattleFighterSnapshot("p", Status(0), 0, 0, true) }, elements, battle.Camera, battle.StarSeed);
+        var w = new Net.WireWriter();
+        Net.SnapshotCodec.Encode(w, new WorldSnapshot(frame + 1, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { snapshot }),
+            null, "p");
+        var got = Assert.Single(Net.SnapshotCodec.Decode(w.Written).Battles!);
+        Assert.True(snapshot.Equals(got), $"{at}: the battle changed on the wire");
+        Assert.Equal(elements.Count, got.Elements.Count);
+        foreach (var e in elements.Where(e => e.Prim is PrimType.Stamp or PrimType.StampFill))
+            for (int size = 0; size < 3; ++size)
+            {
+                string sheet = Crateris.Presentation.BattleSpace.SizeOf(e.Sheet, size);
+                Assert.True(Resources.Value.TryGetValue(sheet, out int count), $"{at}: a stamp of {sheet}, which the client doesn't load");
+                Assert.True(e.Frame < count, $"{at}: {sheet} frame {e.Frame} of {count}");
+            }
+        foreach (var m in got.Fighters.Select(f => f.Status).Append(got.Enemy).SelectMany(s => s.Marks!))
+        {
+            Assert.True(Resources.Value.TryGetValue(m.Sheet, out int count), $"{at}: a captain's window's mark of {m.Sheet}, which the client doesn't load");
+            Assert.True(m.Frame < count, $"{at}: a mark of {m.Sheet} frame {m.Frame} of {count}");
+        }
     }
 }

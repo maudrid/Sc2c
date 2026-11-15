@@ -529,10 +529,12 @@ public class ShipyardTests
         Keys(world, "guest", MenuKey.Up, MenuKey.Select, MenuKey.Down);
         Assert.Equal(crew - 1, guest.Ship.Hold.Crew);
         Assert.Equal(10000u + 3, guest.Ship.Hold.ResourceUnits);
-        // The host's view carries the race lit in the list (not encoded: the wire is item 9).
+        // The host's view carries the race lit in the list, which the wire carries too (stage 4b item 9).
         Keys(world, "host", MenuKey.Right, MenuKey.Select);
         var view = world.StarbaseFor("host")!;
         Assert.Equal((YardMode.Build, Human), (view.YardMode, view.YardBuildRace));
+        Assert.Equal(view, StarbaseView.Decode(view.Encode()));
+        Assert.Equal(Human, StarbaseView.Decode(view.Encode())!.YardBuildRace);
     }
 
     [ContentFact]

@@ -105,7 +105,21 @@ public static class Protocol
     /// scroll added up) and which player ship it followed, its stars'
     /// seed, and each ship's captain, captain's-window keys and element's
     /// crew and life for the status panel.
-    public const int Version = 22;
+    /// 23: the host's fleet (stage 4b item 9): the host's ship carries its
+    /// fleet ships (ShipSnapshot.Fleet: each one's slot, race, crew and
+    /// captain); each battle's marker the race it's against (its enemy
+    /// fleet's first ship's); a battle's sheets come before its ships, and
+    /// each ship's status carries its captain's window as its code changed
+    /// it (the special key's frame the Shofixti steps, the marks of the
+    /// Orz's marines and the VUX's limpets, by their sheets there); the host
+    /// in a battle with fleet ships carries them and the pick screen
+    /// (BattleArmadaSnapshot: each ship's slot, ship, captain, crew and most,
+    /// how it came out, whether it has flown and can be picked; the
+    /// cursor while choosing); a starbase screen may be the shipyard's list
+    /// of ships to build (YardMode.Build, with the race lit). No new
+    /// message: the host's shipyard, roster and pick screen run in the
+    /// host's own world, and guests have no fleet.
+    public const int Version = 23;
     public const int DefaultPort = 24642;
 
     /// <summary>

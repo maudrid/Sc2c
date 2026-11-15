@@ -1327,9 +1327,25 @@ public partial class Main : Node2D
                     bytes = _snapshotBytes,
                     in_battle = _battleSnapshots,
                 },
-                battle = _player?.Battle is { } b ? new { id = b.Id, enemy = b.Enemy.Ship, ships = b.Fighters.Count, elements = b.Elements.Count } : null,
+                battle = _player?.Battle is { } b
+                    ? new
+                    {
+                        id = b.Id, enemy = b.Enemy.Ship, ships = b.Fighters.Count, elements = b.Elements.Count,
+                        // The host's fleet ships and pick screen, as this player is sent them (stage 4b item 9).
+                        armadas = b.Fighters.Where(f => f.Armada is not null).Select(f => new
+                        {
+                            player = f.PlayerId,
+                            ship = f.Status.Ship,
+                            picking = f.Armada!.Pick is not null,
+                            ships = f.Armada.Ships.Select(s => new
+                            {
+                                slot = s.Slot, ship = s.Ship, crew = s.Crew, exit = s.Exit?.ToString(), flown = s.Flown, can_pick = s.CanPick,
+                            }).ToList(),
+                        }).ToList(),
+                    }
+                    : null,
                 battle_notices = _player?.BattleNotices.Select(n => n.Kind.ToString()).ToList(),
-                // The host's fleet, on the host (stage 4b item 6; the wire sends it with item 9).
+                // The host's fleet, on the host (stage 4b item 6; the wire sends it in the host's ship since item 9).
                 fleet = _host?.World.Fleet.Ships.Select(f => new { race = f.Race, crew = f.Crew, captain = f.Captain, slot = f.Slot }).ToList(),
             };
             File.WriteAllText(_options.ReportPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));

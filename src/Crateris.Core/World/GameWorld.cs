@@ -47,6 +47,9 @@ public enum JoinResult
 /// (stage 4a item 7; <see cref="PlayerShip.Destroyed"/>): the snapshot's
 /// codec doesn't carry it yet (item 11 widens the ship flags for it), so
 /// only the host's own snapshot has it.
+/// The host's ship carries the host's fleet (<see cref="Fleet"/>, stage
+/// 4b item 9: what the shipyard's hangar, the roster and the pick screen
+/// show); every other ship none.
 /// Clients generate systems themselves from the star number.
 /// </summary>
 public sealed record ShipSnapshot(
@@ -60,7 +63,8 @@ public sealed record ShipSnapshot(
     int? OrbitPlanet = null, int? OrbitMoon = null, int IpVelocityX = 0, int IpVelocityY = 0,
     short ViewX = Crateris.Core.Hyperspace.HyperFlight.CenterX, short ViewY = Crateris.Core.Hyperspace.HyperFlight.CenterY,
     StarEntryState? Entry = null, HoldSnapshot? Hold = null,
-    string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null, bool Wrecked = false);
+    string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null, bool Wrecked = false,
+    FleetSnapshot? Fleet = null);
 
 /// <summary>A world someone is orbiting, with its taken nodes (the masks of <see cref="PlanetWorldState"/>).</summary>
 public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint MineralTaken, uint EnergyTaken, uint BiologicalTaken);
@@ -1342,7 +1346,7 @@ public sealed partial class GameWorld
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,
                 ip?.Facing ?? 0, ip?.ZoomRadius ?? 0, ip?.Orbit?.Planet, ip?.Orbit?.Moon, ivx, ivy, f.ViewX, f.ViewY,
                 p.Ship.Entry is { } e && e.PlayingAt(Frame) ? e : null, p.Ship.Hold.Snapshot(),
-                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save(), p.Ship.Wreck);
+                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save(), p.Ship.Wreck, p.IsHost ? Fleet.Snapshot() : null);
         }).ToList();
 
         // Worlds being orbited, with what has been taken from them, so an
@@ -1371,6 +1375,7 @@ public sealed partial class GameWorld
         return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces,
             Story is null ? null : _storySnapshot, StoryPaused ? Visit!.Replier.Id : null, HostPaused,
             _battles.Select(BattleSnapshotOf).ToList(),
-            _battles.Select(b => new BattleMarkerSnapshot(b.Id, b.Place.Star, b.Place.InnerPlanet, b.Place.X, b.Place.Y)).ToList());
+            _battles.Select(b => new BattleMarkerSnapshot(b.Id, b.Place.Star, b.Place.InnerPlanet, b.Place.X, b.Place.Y, b.EnemyShip.Id))
+                .ToList());
     }
 }

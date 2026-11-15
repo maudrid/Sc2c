@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-15, stage 4b item 8 (fleet ships in battle) built and reviewed in three rounds (round 3: a wording fix only).
+**Last updated:** 2026-11-15, stage 4b item 9 (the wire) built, awaiting review.
 
 ## Where things are
 
@@ -14,8 +14,9 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Stage 4b item 6 (the host's fleet) is built and reviewed** (its Progress row; round 1: a ship of 0 crew refused on load, `--start-*` gifts lost under `--start-visit`; round 2: wording, a test that couldn't fail, the start order for minerals and units; round 3 found nothing): `HostFleet` (`GameWorld.Fleet`, build.c's functions), the talks' ships giving to the host's fleet whoever answers (`EscortsWorth` 0 for a guest), the Arilou's gift (row 43 closed), saves version 12, `--start-fleet` and `--start-allied`; tests in `FleetTests` (topic `fleet`).
 - **Stage 4b item 7 (the shipyard and the roster) is built and reviewed** (its Progress row; round 1: the roster going stale when a talk changes the fleet, docs; round 2: the roster telling its ships apart; round 3 found nothing): the host's shipyard builds allied races' ships into the slot under the cursor, crews them with UQM's refunds, the last crew's refund and the buy-back, and scraps a ship left with no crew as its crew editing ends (`ShipyardMenu`'s `YardMode.Build` and fleet crew mode, `Outfitting`'s `BuildShip`, `HireShipCrew`, `DismissShipCrew`, `ScrapShip`; `HostFleet.Build`, `Scrap`, `MoveRosterCrew`; `GameWorld.ScrapUnmannedFleetShips` each frame and as a visit changes; a save leaves such a ship out); guests are refused the hangar's slots; the roster (`Systems/RosterMenu.cs`) from the host's orbit menu's Manifest (`OrbitMenu.Fleet`, `PlayerSession.Fleet`, `GameWorld.RosterFor`/`MoveRosterCrew`); recorded against UQM's own `DoModifyShips` and `DoModifyRoster` (`golden/outfit.c` extended, `outfit.json`'s `shipyard`, `ShipyardGoldenTests`); tests in `ShipyardTests` (topic `fleet`); `--script` gains `menuleft` and `menuright`.
 - **Stage 4b item 8 (fleet ships in battle) is built and reviewed** (its Progress row; round 1 fixed: a story talk's replies reaching a host on the pick screen, places drifting while the battle waits for the pick, a held Enter's repeat picking the flagship, the opening visit's save and `Undo` now leaving out only the ships its talks gave (`StarbaseVisit.FleetWithout`), a waiting pick of a ship a talk took; docs): the host with fleet ships brings them into a battle (`Combat/Battle.Armada.cs`: `Armada`, race_q[0], `JoinArmada`, `Pick`, `LeaveArmada`) and chooses each on the pick screen (`Systems/PickShipMenu.cs`, DoPickBattleShip's cursor; `World/GameWorld.FleetBattles.cs`: `PickShipKey`, `WaitsForPick`, `PickScreenFor`), the flagship the last choice; the battle waits only while nobody else fights (decision 2, `differences.md` row 61); a fleet ship that dies is gone, one that retreats keeps its crew; one share per player; saves; `PlayerSession.PickScreen` for the host's own keys and `--script`'s menu keys; tests in `FleetBattleTests` (topic `fleet`). Notes for items 9, 10 and 11 are under them in the plan.
+- **Stage 4b item 9 (the wire) is built, awaiting review** (its Progress row): protocol 23; the host's fleet in the host's ship (`ShipSnapshot.Fleet`, `FleetSnapshot`), each marker's race (`BattleMarkerSnapshot.EnemyShip`), the host's fleet ships and pick screen in the battle (`BattleFighterSnapshot.Armada`), each ship's captain's window as its code changes it (`BattleShipStatus.CaptainSpecial`, `Marks`: the Shofixti's Glory Device, the Orz's marines, the VUX's limpets), `YardMode.Build` encoded with its race; no new message (the reading below). Tests in `FleetWireTests` (topic `fleet`), `SnapshotCodecTests`, and every race battle's frames through the codec in `RaceShipBattleTests`; `tools/test_network.py` has a fleet battle run.
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
-- **Last checks:** with item 8's review round 2, all topics 2,015 passed, 0 failed, 0 skipped with the content set (round 1's new tests each seen failing with its fix undone); 60 of item 8's 64 mutations caught at its build (4 equivalent, simplified away: the Progress row lists them); `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` 1103, `game/scripts/ReportView.cs` 78); headless `--start-fleet spathi:5,arilou --start-battle ilwrath` with a script picking the Arilou, its retreat, then the flagship and its retreat ran as the Progress row says; `tools/test_network.py` passed; data checks on 4a item 9's last commit (items 1 to 8 changed nothing in `data/`).
+- **Last checks:** with item 9's build, all topics 2,027 passed, 0 failed, 0 skipped with the content set; 74 mutations of item 9's code, all caught (one after a test was added; none equivalent); `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` 1103, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed (75 checks, with item 9's fleet run); data checks on 4a item 9's last commit (items 1 to 9 changed nothing in `data/`).
 
 ## Open items
 
@@ -32,6 +33,8 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Decisions waiting on the owner
 
+- **Item 9's reading on messages** (its Progress row): the plan listed the pick screen's choice and the shipyard's and roster's actions as reliable messages; none was built, as the host's game sends its input to its own world directly and guests have no fleet (decision 3), so they'd have no sender. Needed only if guests may act on the host's fleet or the host's game becomes a client of its own world. Also decided there: `YardMode.Build` is encoded (with the race lit), for a client of the host's state.
+
 - The escorts' upgrade caps (placeholders suggested: thrusters 8, turning jets 6, fuel tanks 4, crew pods 2), and whether that small item is built on its own or added to stage 4b.
 
 ## Decided, not built
@@ -41,7 +44,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 8 is done; wait for the owner's go-ahead for item 9 (the wire).
+Review stage 4b item 9 (the wire); then wait for the owner's go-ahead for item 10 (client views).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

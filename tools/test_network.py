@@ -46,6 +46,10 @@ drive and fire, take off and are back in orbit with their crew. Then guest E joi
 relay that loses a fifth of the packets each way: it joins, turns by its
 own input, sees the host fly, and rebuilds the snapshots from deltas
 with none bad.
+
+The host's fleet (stage 4b, item 9): a host in a battle with fleet ships
+picks one, which retreats while guest R fights; R sees the host's fleet,
+the marker's race and the host's pick screen.
 """
 
 import json
@@ -474,6 +478,37 @@ def main():
     check(battle is not None and battle["enemy"] == "ilwrath" and battle["ships"] >= 2 and battle["elements"] > 0,
           "Q's battle has the enemy, both ships and their elements")
     check(per < 1500, f"a battle's snapshot costs under 1,500 bytes ({per:.0f})")
+
+    # Stage 4b, item 9: the host starts in a battle with two fleet ships
+    # and picks the Arilou; guest R joins into the battle (once the host
+    # has chosen) and fights on while the Arilou retreats and the host is
+    # on the pick screen again. R sees the host's fleet in the host's ship,
+    # the battle's marker with its race, and the host's fleet ships and
+    # pick screen in its battle.
+    host10 = start(out, "host10", "--host", "--no-upnp", "--port", PORT,
+                   "--name", "Host", "--id", "host", "--save", os.path.join(out, "save10.json"),
+                   "--start-fleet", "spathi:5,arilou", "--start-battle", "ilwrath", "--guests-in-battle",
+                   "--script", "none:60,menuleft:1,menuleft:1,select:1,none:40,takeoff:150,none:400", "--quit-after", "420")
+    time.sleep(1)
+    gr = start(out, "r", "--join", f"127.0.0.1:{PORT}", "--name", "R",
+               "--id", "guest-r", "--quit-after", "330")
+    for proc in (gr, host10):
+        proc.wait(timeout=90)
+    h10, rr = report(out, "host10"), report(out, "r")
+    hl10 = [line.split("] ", 1)[1] for line in h10["log"]]
+    check(any(l.startswith("Picked the arilou") for l in hl10), "the host picked the Arilou")
+    check(rr["welcome"] == "Joined" and "Joined" in (rr.get("battle_notices") or []), "R joined the host's battle")
+    r_host = ship(rr["snapshot"], "host")
+    r_fleet = [(s["Race"], s["Crew"], s["Slot"]) for s in ((r_host or {}).get("Fleet") or {}).get("Ships", [])]
+    check(r_fleet == [("SPATHI_SHIP", 5, 0), ("ARILOU_SHIP", 6, 1)], f"R saw the host's fleet in the host's ship ({r_fleet})")
+    r_markers = [m.get("EnemyShip") for m in (rr["snapshot"] or {}).get("Markers") or []]
+    check(r_markers == ["ilwrath"], f"R saw the battle's marker with its race ({r_markers})")
+    armadas = ((rr.get("battle") or {}).get("armadas")) or []
+    a = armadas[0] if len(armadas) == 1 else {}
+    a_ships = [(s["ship"], s["exit"], s["flown"], s["can_pick"]) for s in a.get("ships", [])]
+    check(a.get("player") == "host" and a.get("picking") is True
+          and a_ships == [("spathi", None, False, True), ("arilou", "Retreated", True, False)],
+          f"R saw the host on the pick screen, the Arilou retreated and the Spathi to pick ({a.get('picking')}, {a_ships})")
 
     print(f"\nlogs and reports in {out}")
     if failures:

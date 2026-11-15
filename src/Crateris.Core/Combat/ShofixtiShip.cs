@@ -68,11 +68,18 @@ public sealed class ShofixtiShip : IShipCode
 
     // captain_control.special: the captain window's frame the Glory
     // Device counts on (DrawCaptainsWindow sets it to frame 12 as the ship
-    // warps in); its sheet's frame count.
+    // warps in); its sheet's frame count. Kept in the ship's RaceDesc
+    // (RaceDesc.CaptainSpecial), where the snapshot reads it.
     private sealed class Glory
     {
-        public required Frame Special;
+        public required RaceDesc Desc;
         public required int DestructRange, MaxDestruction;
+
+        public Frame Special
+        {
+            get => Desc.CaptainSpecial;
+            set => Desc.CaptainSpecial = value;
+        }
 
         public int Left => Special.Count - Special.Index;
     }
@@ -90,11 +97,8 @@ public sealed class ShofixtiShip : IShipCode
             BlastOffs = (short)d.Define("MISSILE_OFFSET"),
         };
         // DrawCaptainsWindow: background, turn (+1), thrust (+5), weapon (+3), special (+3).
-        var g = new Glory
-        {
-            Special = _captain is { } captain ? captain[0].SetAbs(1 + 5 + 3 + 3) : default,
-            DestructRange = d.Define("DESTRUCT_RANGE"), MaxDestruction = d.Define("MAX_DESTRUCTION"),
-        };
+        rd.CaptainSpecial = _captain is { } captain ? captain[0].SetAbs(1 + 5 + 3 + 3) : default;
+        var g = new Glory { Desc = rd, DestructRange = d.Define("DESTRUCT_RANGE"), MaxDestruction = d.Define("MAX_DESTRUCTION") };
         rd.InitWeapon = e => InitializeStandardMissile(battle, e, dart);
         rd.Postprocess = e => Postprocess(battle, e, g);
         rd.Intelligence = (ship, concerns, count) => Intelligence(battle, ship, concerns, count, g);
