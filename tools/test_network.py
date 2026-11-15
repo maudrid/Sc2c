@@ -529,10 +529,10 @@ def main():
     rs = report(out, "s")
     n = rs["snapshots"]
     per = n["bytes"] / max(1, n["full"] + n["deltas"])
-    print(f"     limpets: S had up to {n['most_marks']} marks in a snapshot; {n['in_battle']} with its battle, "
-          f"{per:.0f} bytes a snapshot, {n['most_battle_bytes']} the most")
+    print(f"     limpets: up to {n['most_marks']} marks on one ship in a snapshot S was sent ({n['most_own_marks']} on S's own); "
+          f"{n['in_battle']} with its battle, {per:.0f} bytes a snapshot, {n['most_battle_bytes']} the most")
     check(rs["welcome"] == "Joined" and n["in_battle"] > 100, "S joined the VUX's battle and was sent it")
-    check(n["most_marks"] > 0, f"the VUX's limpets went on the wire ({n['most_marks']} marks at most)")
+    check(n["most_marks"] > 0, f"the VUX's limpets went on the wire ({n['most_marks']} marks on one ship at most)")
     check(per < 1500 and n["most_battle_bytes"] < 1500,
           f"a battle with limpets costs under 1,500 bytes a snapshot ({per:.0f}, {n['most_battle_bytes']} at most)")
 

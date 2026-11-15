@@ -740,7 +740,8 @@ public sealed partial class GameWorld
     {
         var shown = s.Silhouette.Shown;
         var marks = shown.Count == 0 ? Array.Empty<SilhouetteMarkSnapshot>()
-            : shown.Select(m => new SilhouetteMarkSnapshot(m.Frame.Sheet?.Id ?? "", m.Frame.Index, m.X, m.Y, m.Erase)).ToArray();
+            : shown.Select((m, i) => new SilhouetteMarkSnapshot(m.Frame.Sheet?.Id ?? "", m.Frame.Index, m.X, m.Y, m.Erase,
+                s.Silhouette.ShownOrdinals[i])).ToArray();
         // The energy's label as the panel last drew it (PostProcessStatus: old_status_flags): energy taken or given
         // after it in the frame (another element's DeltaEnergy, the Earthling's point defence) shows on the next. A
         // ship out of crew has its keys as PostProcessStatus read them before clearing them (the Shofixti's Glory

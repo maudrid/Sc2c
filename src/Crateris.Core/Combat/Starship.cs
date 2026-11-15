@@ -247,9 +247,21 @@ public sealed class SilhouetteMarks : IReadOnlyList<SilhouetteMark>
 {
     private readonly List<SilhouetteMark> _all = new();
     private readonly List<SilhouetteMark> _shown = new();
+    private readonly List<int> _shownOrdinals = new();
+    private int _made;
 
     /// <summary>The marks still showing, in order.</summary>
     public IReadOnlyList<SilhouetteMark> Shown => _shown;
+
+    /// <summary>
+    /// Each shown mark's ordinal (stage 4b item 10, review round 1): how
+    /// many marks the ship had had made before it, counted from the ship's
+    /// first and never reset (a window drawn afresh clears the marks, not
+    /// the count), so a client draws exactly those newer than the last it
+    /// drew, however the earlier ones were pruned and whatever snapshots
+    /// it missed. Ascending.
+    /// </summary>
+    public IReadOnlyList<int> ShownOrdinals => _shownOrdinals;
 
     public int Count => _all.Count;
 
@@ -259,8 +271,14 @@ public sealed class SilhouetteMarks : IReadOnlyList<SilhouetteMark>
     public void Add(SilhouetteMark mark)
     {
         _all.Add(mark);
-        _shown.RemoveAll(earlier => Covers(mark, earlier));
+        for (int i = _shown.Count - 1; i >= 0; --i)
+            if (Covers(mark, _shown[i]))
+            {
+                _shown.RemoveAt(i);
+                _shownOrdinals.RemoveAt(i);
+            }
         _shown.Add(mark);
+        _shownOrdinals.Add(_made++);
     }
 
     /// <summary>The window drawn afresh (DrawCaptainsWindow): no marks.</summary>
@@ -268,6 +286,7 @@ public sealed class SilhouetteMarks : IReadOnlyList<SilhouetteMark>
     {
         _all.Clear();
         _shown.Clear();
+        _shownOrdinals.Clear();
     }
 
     public IEnumerator<SilhouetteMark> GetEnumerator() => _all.GetEnumerator();

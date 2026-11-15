@@ -763,8 +763,9 @@ public partial class Main : Node2D
     // What the snapshots have cost (the report's, for the network test).
     private long _snapshotBytes;
     private int _battleSnapshots;
-    // The battle snapshots' busiest: the most bytes one cost, and the most captain's-window marks it had (stage 4b item 10).
-    private int _mostBattleBytes, _mostMarks;
+    // The battle snapshots' busiest (stage 4b item 10): the most bytes one cost, the most captain's-window marks one ship had
+    // in one, and the most the player's own ship had.
+    private int _mostBattleBytes, _mostMarks, _mostOwnMarks;
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
     private void ReceiveSnapshot(byte[] data)
@@ -777,7 +778,8 @@ public partial class Main : Node2D
             {
                 _battleSnapshots++;
                 _mostBattleBytes = Math.Max(_mostBattleBytes, data.Length);
-                _mostMarks = Math.Max(_mostMarks, battle.Fighters.Select(f => f.Status).Append(battle.Enemy).Sum(st => st.Marks?.Count ?? 0));
+                _mostMarks = Math.Max(_mostMarks, battle.Fighters.Select(f => f.Status).Append(battle.Enemy).Max(st => st.Marks?.Count ?? 0));
+                _mostOwnMarks = Math.Max(_mostOwnMarks, battle.FighterOf(_player.PlayerId)?.Status.Marks?.Count ?? 0);
             }
         }
         catch (InvalidDataException e)
@@ -1349,6 +1351,7 @@ public partial class Main : Node2D
                     in_battle = _battleSnapshots,
                     most_battle_bytes = _mostBattleBytes,
                     most_marks = _mostMarks,
+                    most_own_marks = _mostOwnMarks,
                 },
                 battle = _player?.Battle is { } b
                     ? new

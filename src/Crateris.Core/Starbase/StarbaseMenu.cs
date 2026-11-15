@@ -341,6 +341,26 @@ public sealed class ShipyardMenu
         return OutfitOutcome.None;
     }
 
+    /// <summary>
+    /// Another player changed the ship in the slot under an open list of
+    /// ships to build or a fleet ship's crew editing (stage 4b item 10,
+    /// review round 1; a talk's gift into the empty slot, a talk taking the
+    /// ship edited): the mode is left as cancel leaves it (the list: the menu
+    /// drawn where it was; the crew editing: nothing drawn), back on the
+    /// slot's cursor, rather than building into a slot now taken or crewing
+    /// a ship nobody chose. UQM's one player can't meet this.
+    /// </summary>
+    internal List<ScreenOp> SlotChanged(HangarShip? was, HangarShip? now)
+    {
+        var ops = new List<ScreenOp>();
+        if (_inMenu || !_modify || OnFlagship(Cursor) || was?.Race == now?.Race && (was is null) == (now is null))
+            return ops;
+        _modify = false;
+        if (was is null)
+            ops.Add(new(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew));   // the list was open: DMS_AddEscortShip's cancel
+        return ops;
+    }
+
     // A race's number in avail_race_q (races.h's order), as the drawing names it.
     private int RaceNumber(string race) => _rules.Story.Rules.RaceIndex(race);
 
@@ -455,8 +475,15 @@ public sealed class StarbaseMenu
         {
             // The host's fleet changed by another (stage 4b item 10: a talk's gift, the host at the shipyard): the
             // hangar's slots as they changed, a ship come or gone through its doors, its crew count drawn again.
-            if (fleet && Yard is not null)
+            if (fleet && Yard is { } yard)
+            {
+                if (!ShipyardMenu.OnFlagship(yard.Cursor))
+                {
+                    int a = IndexOfSlot(fleetWas, yard.Cursor), b = IndexOfSlot(fleetNow, yard.Cursor);
+                    ops.AddRange(yard.SlotChanged(a < 0 ? null : fleetWas[a], b < 0 ? null : fleetNow[b]));
+                }
                 ops.AddRange(HangarChanges(fleetWas, fleetNow));
+            }
             if (minerals || fleet)
             {
                 ops.Add(new(ScreenOpKind.SisDisplay));   // the status area shows the minerals and the fleet's ships

@@ -133,10 +133,10 @@ public partial class StarbaseScreenView : Node2D
     /// <summary>
     /// A status area of its own to draw on (stage 4b item 10: the roster's
     /// in flight), painted from this view's content: its canvas, its
-    /// painter and the screens' drawing on it (with <paramref name="races"/>);
-    /// null without the content.
+    /// painter, the screens' drawing on it (with <paramref name="races"/>)
+    /// and the game's strings; null without the content.
     /// </summary>
-    public (UqmCanvas Canvas, ScreenRaster Raster, StarbaseScreens Screens)? NewStatusArea(Func<int, YardRace?> races)
+    public (UqmCanvas Canvas, ScreenRaster Raster, StarbaseScreens Screens, GameStrings Strings)? NewStatusArea(Func<int, YardRace?> races)
     {
         if (_content is null || _strings is null)
             return null;
@@ -146,7 +146,7 @@ public partial class StarbaseScreenView : Node2D
             return new URect(-f.HotSpotX, -f.HotSpotY, f.Width, f.Height);
         }, _fonts.ToDictionary(f => f.Key, f => f.Value.Leading));
         var raster = new ScreenRaster((s, i) => Frame(s, i, -1), f => _fonts[f]);
-        return (canvas, raster, new StarbaseScreens(canvas, i => _strings[i], races));
+        return (canvas, raster, new StarbaseScreens(canvas, i => _strings[i], races), _strings);
     }
 
     // A black picture, waiting for a screen drawn afresh.

@@ -291,18 +291,18 @@ public class BattleScreenTests
     [Fact]
     public void OnlyTheMarksNotDrawnYetAreDrawn()
     {
-        static SilhouetteMarkSnapshot M(int frame, int x, int y = 30, bool erase = false) =>
-            new("marks", (ushort)frame, (short)x, (short)y, erase);
-        var a = M(1, 20);
-        var b = M(2, 24);
-        var c = M(3, 28);
-        Assert.Equal(0, BattleStatus.FirstNew(Array.Empty<SilhouetteMarkSnapshot>(), new[] { a, b }));
-        Assert.Equal(1, BattleStatus.FirstNew(new[] { a }, new[] { a, b }));
-        Assert.Equal(2, BattleStatus.FirstNew(new[] { a, b }, new[] { a, b }));
-        Assert.Equal(1, BattleStatus.FirstNew(new[] { a, b }, new[] { b, c }));             // a covered by c
-        Assert.Equal(1, BattleStatus.FirstNew(new[] { a, b }, new[] { b, a with { } }));    // a again over itself: new
-        Assert.Equal(2, BattleStatus.FirstNew(new[] { a, b, c }, new[] { a, c, b with { X = 99 } }));
-        Assert.Equal(0, BattleStatus.FirstNew(new[] { a, b }, new[] { c }));
+        static SilhouetteMarkSnapshot M(int ordinal, int x) => new("marks", 1, (short)x, 30, false, ordinal);
+        var a = M(0, 20);
+        var b = M(1, 24);
+        var c = M(5, 28);
+        Assert.Equal(0, BattleStatus.FirstNew(-1, new[] { a, b }));
+        Assert.Equal(1, BattleStatus.FirstNew(0, new[] { a, b }));
+        Assert.Equal(2, BattleStatus.FirstNew(1, new[] { a, b }));
+        Assert.Equal(1, BattleStatus.FirstNew(1, new[] { b, c }));   // a pruned, c new
+        Assert.Equal(1, BattleStatus.FirstNew(3, new[] { a, c }));   // marks between missed and pruned
+        Assert.Equal(0, BattleStatus.FirstNew(4, new[] { c }));
+        // A mark equal by value to one drawn before is still new by its ordinal.
+        Assert.Equal(1, BattleStatus.FirstNew(1, new[] { b, a with { Ordinal = 2 } }));
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public class BattleScreenTests
         var ship = new StatusShip("icons", "captain", 20, 10, false, false, false, "Orz", "captain");
         var state = new StatusState(12, 6, StatusFlags.None, 12, 0);
         status.Init(BattleStatus.EnemySlot, ship, state);
-        var stamp = new SilhouetteMarkSnapshot("marines", 4, 30, 33, false);
+        var stamp = new SilhouetteMarkSnapshot("marines", 4, 30, 33, false, 0);
         canvas.Drawn.Clear();
         status.Update(BattleStatus.EnemySlot, state with { Marks = new[] { stamp } });
         var drawn = Assert.Single(canvas.Drawn);
@@ -324,7 +324,7 @@ public class BattleScreenTests
         Assert.Empty(canvas.Drawn);
         // An erase at an odd y: the panel drawn within the frame's rectangle there, its top one row up (shipstat.c's
         // corner.y & ~1, its height one more), the gauges as they stand, the drawing's origin kept.
-        var erase = stamp with { Erase = true };
+        var erase = stamp with { Erase = true, Ordinal = 1 };
         canvas.Drawn.Clear();
         status.Update(BattleStatus.EnemySlot, state with { Marks = new[] { erase } });
         Assert.NotEmpty(canvas.Drawn);
@@ -333,15 +333,15 @@ public class BattleScreenTests
         Assert.Contains(canvas.Drawn, d => d.Kind == UqmDrawKind.Rect && d.X == UqmCanvas.SpaceWidth && d.Y == 1 && d.Width == 64);
         // An even y: the rectangle as it is.
         canvas.Drawn.Clear();
-        status.Update(BattleStatus.EnemySlot, state with { Marks = new[] { erase, erase with { Y = 34 } } });
+        status.Update(BattleStatus.EnemySlot, state with { Marks = new[] { erase, erase with { Y = 34, Ordinal = 2 } } });
         Assert.All(canvas.Drawn, d => Assert.Equal(new URect(UqmCanvas.SpaceWidth + 28, 32, 5, 5), d.Clip));
         // The panel's own clip is back afterwards.
         canvas.Drawn.Clear();
-        status.Update(BattleStatus.EnemySlot, state with { Crew = 11, Marks = new[] { erase, erase with { Y = 34 } } });
+        status.Update(BattleStatus.EnemySlot, state with { Crew = 11, Marks = new[] { erase, erase with { Y = 34, Ordinal = 2 } } });
         Assert.All(canvas.Drawn, d => Assert.Equal(new URect(UqmCanvas.SpaceWidth, 0, 64, UqmCanvas.StatusHeight), d.Clip));
         // A slot drawn afresh draws every mark sent after the window, in order.
         canvas.Drawn.Clear();
-        status.Init(BattleStatus.PlayerSlot, ship, state with { Marks = new[] { stamp, stamp with { Frame = 5, X = 20 } } });
+        status.Init(BattleStatus.PlayerSlot, ship, state with { Marks = new[] { stamp, stamp with { Frame = 5, X = 20, Ordinal = 3 } } });
         var marks = canvas.Drawn.Where(d => d.Sheet == "marines").ToList();
         Assert.Equal(new[] { (4, UqmCanvas.SpaceWidth + 30, BattleStatus.PlayerSlot + 33), (5, UqmCanvas.SpaceWidth + 20, BattleStatus.PlayerSlot + 33) },
             marks.Select(d => (d.Frame, d.X, d.Y)));

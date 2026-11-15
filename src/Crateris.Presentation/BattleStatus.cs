@@ -112,7 +112,7 @@ public sealed class BattleStatus
         public bool Done;
         // The special key's frame of its captain's window as last drawn (0: DrawCaptainsWindow's), and the marks drawn.
         public int Special;
-        public IReadOnlyList<SilhouetteMarkSnapshot> Marks = Array.Empty<SilhouetteMarkSnapshot>();
+        public int LastMark = -1;   // the ordinal of the newest mark drawn
     }
 
     private readonly Dictionary<int, Slot> _slots = new();
@@ -183,22 +183,16 @@ public sealed class BattleStatus
     }
 
     /// <summary>
-    /// The marks of <paramref name="marks"/> not drawn yet, in order: those
-    /// after the last of them already drawn (the list as sent keeps the
-    /// marks still showing in their order, the newest last, so those drawn
-    /// before are a run of it from the start, less any a later mark
-    /// covered).
+    /// The first of <paramref name="marks"/> not drawn yet: the first whose
+    /// ordinal is past <paramref name="lastDrawn"/>'s (the list as sent keeps
+    /// the marks still showing in their order, their ordinals ascending), so
+    /// a mark is drawn once whatever was pruned or missed between.
     /// </summary>
-    public static int FirstNew(IReadOnlyList<SilhouetteMarkSnapshot> drawn, IReadOnlyList<SilhouetteMarkSnapshot> marks)
+    public static int FirstNew(int lastDrawn, IReadOnlyList<SilhouetteMarkSnapshot> marks)
     {
-        int j = 0, i = 0;
-        for (; i < marks.Count; ++i, ++j)
-        {
-            while (j < drawn.Count && drawn[j] != marks[i])
-                ++j;
-            if (j == drawn.Count)
-                break;
-        }
+        int i = 0;
+        while (i < marks.Count && marks[i].Ordinal <= lastDrawn)
+            ++i;
         return i;
     }
 
@@ -207,7 +201,7 @@ public sealed class BattleStatus
     private void DrawMarks(Slot slot, int y, IReadOnlyList<SilhouetteMarkSnapshot>? marks)
     {
         marks ??= Array.Empty<SilhouetteMarkSnapshot>();
-        for (int i = FirstNew(slot.Marks, marks); i < marks.Count; ++i)
+        for (int i = FirstNew(slot.LastMark, marks); i < marks.Count; ++i)
         {
             var m = marks[i];
             if (!m.Erase)
@@ -218,7 +212,8 @@ public sealed class BattleStatus
                 EraseWithin(slot, y, new URect(m.X + r.X, m.Y + y + r.Y, r.W, r.H));
             }
         }
-        slot.Marks = marks;
+        if (marks.Count > 0)
+            slot.LastMark = Math.Max(slot.LastMark, marks[^1].Ordinal);
     }
 
     // InitShipStatus with a clip rectangle (in the panel's coordinates): the panel drawn afresh within it, its top

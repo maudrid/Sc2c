@@ -179,18 +179,18 @@ public sealed class RosterDrawing
     private readonly UqmCanvas _c;
     private readonly StarbaseScreens _screens;
     private readonly Func<int, YardRace?> _races;
-    // flashSupportShip's statics: its colour and when it next steps.
-    private Rgb _color = new(0xFF, 0x00, 0x00);
-    private long _next;
+    private readonly RosterFlash _flash;
     private (int X, int Y) _lit;
     private string? _litIcons;
 
     /// <param name="screens">The status area's drawing (the message, the gauges), on the same canvas, with the ship and fleet as they stand.</param>
-    public RosterDrawing(UqmCanvas canvas, StarbaseScreens screens, Func<int, YardRace?> races)
+    /// <param name="flash">flashSupportShip's statics, kept from one opening to the next as UQM's are (none: afresh, as a new game's).</param>
+    public RosterDrawing(UqmCanvas canvas, StarbaseScreens screens, Func<int, YardRace?> races, RosterFlash? flash = null)
     {
         _c = canvas;
         _screens = screens;
         _races = races;
+        _flash = flash ?? new RosterFlash();
     }
 
     /// <summary>Where the flashing highlight is (flashSupportShipCrew: the status message while the crew is changed), in the screen's pixels.</summary>
@@ -247,16 +247,19 @@ public sealed class RosterDrawing
     /// cursor's place and crew mode before it, <paramref name="outcome"/>
     /// what the menu did (<see cref="RosterMenu.Press"/>), the ship and
     /// fleet as the key left them (the screens' <see cref="StarbaseScreens.Ship"/>),
-    /// at <paramref name="now"/> (UQM's ticks).
+    /// at <paramref name="now"/> (UQM's ticks). <paramref name="modifying"/>
+    /// is the crew mode a select or cancel left, where it isn't the menu's
+    /// now (a client drawing two keys that came between its frames).
     /// </summary>
-    public void Key(RosterMenu menu, (int State, bool Modifying) was, MenuKey key, MenuOutcome outcome, int crewMoved, long now)
+    public void Key(RosterMenu menu, (int State, bool Modifying) was, MenuKey key, MenuOutcome outcome, int crewMoved, long now,
+        bool? modifying = null)
     {
         var old = _c.SetContext(_c.Status);
         if (menu.Left)
             DrawLit(filled: false);   // RosterMenu's tail: the last ship unlit
         else if (key is MenuKey.Select or MenuKey.Cancel)
         {
-            if (!menu.ModifyingCrew)
+            if (!(modifying ?? menu.ModifyingCrew))
                 Flash = null;
             else
             {   // drawModifiedSupportShip, flashSupportShipCrew
@@ -300,12 +303,206 @@ public sealed class RosterDrawing
     // then red again (8-bit steps, as UQM's 24-bit code makes them).
     private void FlashLit(long now)
     {
-        if (now < _next)
+        if (now < _flash.Next)
             return;
-        _next = now + FlashTicks;
+        _flash.Next = now + FlashTicks;
         const int five = (0x19 << 3) | (0x19 >> 2), step = (0x02 << 3) | (0x02 >> 2);   // CC5TO8 (0x19), CC5TO8 (0x02)
-        _color = _color.G >= five ? new Rgb(0xFF, 0x00, 0x00) : new Rgb(_color.R, (byte)(_color.G + step), (byte)(_color.B + step));
-        _c.SetForeground(_color);
+        var c = _flash.Color;
+        _flash.Color = c.G >= five ? new Rgb(0xFF, 0x00, 0x00) : new Rgb(c.R, (byte)(c.G + step), (byte)(c.B + step));
+        _c.SetForeground(_flash.Color);
         DrawLit(filled: true);
     }
+}
+
+/// <summary>flashSupportShip's static colour and the time it next steps (roster.c), which outlive a roster's opening.</summary>
+public sealed class RosterFlash
+{
+    public Rgb Color = new(0xFF, 0x00, 0x00);
+    public long Next;
+}
+
+/// <summary>
+/// The roster as the client follows it (stage 4b item 10; review round 1:
+/// the game's roster panel's logic, here to be tested): each frame the
+/// open roster (<see cref="RosterMenu"/>, whose keys the session took) and
+/// the host's ship and fleet as the snapshot has them; what its keys drew
+/// worked out from what they changed (the cursor, the crew mode, the lit
+/// ship's crew, in DoModifyRoster's order whichever came between frames),
+/// and the status area drawn afresh as the roster opens afresh or the
+/// fleet's ships change.
+/// </summary>
+public sealed class RosterFollower
+{
+    private readonly Func<(UqmCanvas Canvas, StarbaseScreens Screens)?> _newArea;
+    private readonly Func<int, YardRace?> _races;
+    private readonly RosterFlash _flash = new();
+    private RosterMenu? _menu;
+    private (int State, bool Modifying) _seen;
+    private List<(int Slot, int Race, int Captain)> _ships = new();
+    private int[] _crews = Array.Empty<int>();
+    private StarbaseScreens? _screens;
+    private RosterDrawing? _drawing;
+
+    /// <param name="newArea">A status area of its own to draw on: a canvas and the screens' drawing on it.</param>
+    public RosterFollower(Func<(UqmCanvas, StarbaseScreens)?> newArea, Func<int, YardRace?> races)
+    {
+        _newArea = newArea;
+        _races = races;
+    }
+
+    /// <summary>Whether a roster is shown.</summary>
+    public bool Open => _menu is not null;
+
+    /// <summary>
+    /// The host's ship as the status area draws it, from the snapshot, with
+    /// the fleet's ships: its names as <see cref="Crateris.Core.World.ShipNames"/>
+    /// gives them (UQM's for a flagship never renamed), its modules, crew,
+    /// fuel, landers and hold.
+    /// </summary>
+    public static SisState Sis(Crateris.Core.World.ShipSnapshot host, Crateris.Core.Content.GameStrings strings, Func<string, int> raceIndex)
+    {
+        var modules = Crateris.Core.World.ShipModules.Restore(host.Modules!);
+        var hold = host.Hold!;
+        const Crateris.Core.World.LanderUpgrades shields = Crateris.Core.World.LanderUpgrades.BioShield
+            | Crateris.Core.World.LanderUpgrades.QuakeShield | Crateris.Core.World.LanderUpgrades.LightningShield
+            | Crateris.Core.World.LanderUpgrades.LavaShield;
+        return new SisState(modules.ModuleSlots.ToArray(), modules.DriveSlots.ToArray(), modules.JetSlots.ToArray(), hold.Crew,
+            host.Fuel, hold.Landers, hold.ResourceUnits, hold.MineralMass, Crateris.Core.World.ShipNames.Ship(host, strings),
+            Crateris.Core.World.ShipNames.Captain(host, strings), 0, (int)(hold.Upgrades & shields), 0, 0, _ => 0, 50,
+            (host.Fleet?.Ships ?? Array.Empty<Crateris.Core.World.FleetShip>())
+                .Select(s => new HangarShip(s.Slot, raceIndex(s.Race), s.Crew)).ToArray());
+    }
+
+    /// <summary>The fleet's ships as they're told apart (each one's slot, race and captain).</summary>
+    public static List<(int Slot, int Race, int Captain)> Ships(Crateris.Core.World.FleetSnapshot fleet, Func<string, int> raceIndex) =>
+        fleet.Ships.Select(s => (s.Slot, raceIndex(s.Race), (int)s.Captain)).ToList();
+
+    /// <summary>Whether the last update drew the status area afresh (on a new canvas: paint it on a clean picture).</summary>
+    public bool Fresh { get; private set; }
+
+    /// <summary>The canvas the roster draws on (its calls taken by whoever paints them).</summary>
+    public UqmCanvas? Canvas { get; private set; }
+
+    /// <summary>Where the highlight flashes, in the screen's pixels.</summary>
+    public URect? Flash => _menu is null ? null : _drawing?.Flash;
+
+    /// <summary>
+    /// A frame: the roster as it stands (null when closed) over the host's
+    /// ship (<paramref name="sis"/>, with the fleet: <see cref="SisState.Fleet"/>)
+    /// and the fleet's ships (<paramref name="ships"/>: each one's slot,
+    /// race and captain, which tell its ships apart), at <paramref name="now"/>.
+    /// </summary>
+    public void Update(RosterMenu? menu, SisState? sis, IReadOnlyList<(int Slot, int Race, int Captain)>? ships, long now)
+    {
+        Fresh = false;
+        if (menu is null || menu.Left || sis is null || ships is null)
+        {
+            _menu = null;
+            return;
+        }
+        var crews = (sis.Fleet ?? Array.Empty<HangarShip>()).Select(f => f.Crew).ToArray();
+        if (!ReferenceEquals(menu, _menu) || !ships.SequenceEqual(_ships) || _drawing is null)
+        {
+            if (_newArea() is not { } area)
+                return;
+            (Canvas, _screens) = area;
+            _screens.Ship = sis;
+            // The status area as the roster opens over it: the flagship and the fleet's ships (DeltaSISGauges).
+            _screens.Apply(new ScreenOp(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined));
+            _drawing = new RosterDrawing(Canvas, _screens, _races, _flash);
+            _drawing.Open(menu);
+            (_menu, _ships, _crews, _seen, Fresh) = (menu, ships.ToList(), crews, (menu.State, menu.ModifyingCrew), true);
+            return;
+        }
+        _screens!.Ship = sis;
+        if (menu.State != _seen.State)
+        {
+            _drawing.Key(menu, _seen, MenuKey.Down, MenuOutcome.Moved, 0, now);
+            _seen = (menu.State, _seen.Modifying);
+        }
+        int lit = menu.Selected;
+        int moved = lit >= 0 && lit < crews.Length && lit < _crews.Length ? crews[lit] - _crews[lit] : 0;
+        if (moved != 0)
+        {
+            // A crew move needs the crew mode: if it came on and the move came between frames, the mode first.
+            if (!_seen.Modifying)
+            {
+                _drawing.Key(menu, _seen, MenuKey.Select, MenuOutcome.Moved, 0, now, modifying: true);
+                _seen = (_seen.State, true);
+            }
+            _drawing.Key(menu, _seen, MenuKey.Up, MenuOutcome.Moved, moved, now);
+        }
+        if (menu.ModifyingCrew != _seen.Modifying)
+            _drawing.Key(menu, _seen, MenuKey.Select, MenuOutcome.Moved, 0, now);
+        _drawing.Tick(menu, now);
+        (_crews, _seen) = (crews, (menu.State, menu.ModifyingCrew));
+    }
+}
+
+/// <summary>
+/// The battle's looks a client takes from the snapshot and the content
+/// (stage 4b item 10, review round 1): a ship's look in the status panel
+/// (<see cref="StatusShip"/>) and the pick screen's (<see cref="IPickLook"/>).
+/// A player's flagship goes by its ship's and captain's names as
+/// <see cref="Crateris.Core.World.ShipNames"/> gives them, UQM's own for a
+/// flagship never renamed (GLOBAL_SIS's ShipName and CommanderName, which
+/// status.c's panel and pickship.c show), as the starbase's screens do; a
+/// race ship by its race's strings.
+/// </summary>
+public sealed class BattleLooks : IPickLook
+{
+    private readonly Crateris.Core.Combat.ShipDescriptions _ships;
+    private readonly Crateris.Core.Content.GameStrings _strings;
+    private readonly Func<Crateris.Core.Combat.ShipDescription, int, string> _raceString;
+
+    /// <param name="raceString">A race's string by its index (its race strings' table).</param>
+    public BattleLooks(Crateris.Core.Combat.ShipDescriptions ships, Crateris.Core.Content.GameStrings strings,
+        Func<Crateris.Core.Combat.ShipDescription, int, string> raceString)
+    {
+        _ships = ships;
+        _strings = strings;
+        _raceString = raceString;
+    }
+
+    /// <summary>The snapshot the players' ships are read from (the last received).</summary>
+    public Crateris.Core.World.WorldSnapshot? Snapshot { get; set; }
+
+    private Crateris.Core.World.ShipSnapshot? ShipOf(string? player) =>
+        player is null ? null : Snapshot?.Ships.FirstOrDefault(s => s.Id == player);
+
+    /// <summary>
+    /// A ship's look in the status panel: a player's flagship (captain 0:
+    /// status.c's SIS branch) by its ship's name and its captain's, any
+    /// other by its race's name and its captain's.
+    /// </summary>
+    public StatusShip StatusShip(Crateris.Core.World.BattleShipStatus s, string? player)
+    {
+        var d = _ships[s.Ship];
+        bool sis = player is not null && s.Captain == 0;
+        var ship = ShipOf(player);
+        return new StatusShip(d.Graphics.Icons, d.Graphics.Captain, s.MaxCrew, s.MaxEnergy,
+            (d.Flags & Crateris.Core.Combat.ShipFlags.CrewImmune) != 0, BattleScreen.PlayerCaptain(s.Ship, d.Flags), sis,
+            sis ? ShipName(player!) : _raceString(d, 1),
+            sis ? CaptainName(player!) : _raceString(d, s.Captain));
+    }
+
+    private string CaptainName(string player) =>
+        ShipOf(player) is { } s ? Crateris.Core.World.ShipNames.Captain(s, _strings) : "";
+
+    /// <inheritdoc/>
+    public string ShipName(string player) => ShipOf(player) is { } s ? Crateris.Core.World.ShipNames.Ship(s, _strings) : "";
+
+    /// <inheritdoc/>
+    public PickShipLit Flagship(string player)
+    {
+        var s = ShipOf(player);
+        int room = s?.Modules is { } m ? Crateris.Core.World.ShipModules.Restore(m).CrewCapacity : 0;
+        return new PickShipLit(CaptainName(player), s?.Hold?.Crew ?? 0, room);
+    }
+
+    /// <inheritdoc/>
+    public string? Icons(string ship) => _ships[ship].Graphics.Icons;
+
+    /// <inheritdoc/>
+    public string Captain(string ship, int captain) => _raceString(_ships[ship], captain);
 }

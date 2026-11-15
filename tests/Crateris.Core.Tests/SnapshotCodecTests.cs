@@ -565,9 +565,9 @@ public class SnapshotCodecTests
 
     private static BattleShipStatus AnyStatus(Random r) => new(r.Next(2) == 0 ? "sis_ship" : "shofixti", r.Next(43), 42, r.Next(30), 30,
         r.Next(256), (StatusFlags)r.Next(64), r.Next(43), r.Next(30), r.Next(2) == 0, r.Next(3) == 0 ? ushort.MaxValue : r.Next(20),
-        r.Next(3) == 0 ? null : Enumerable.Range(0, r.Next(6)).Select(_ => new SilhouetteMarkSnapshot(SomeSheets[r.Next(SomeSheets.Length)],
+        r.Next(3) == 0 ? null : Enumerable.Range(0, r.Next(6)).Select(i => new SilhouetteMarkSnapshot(SomeSheets[r.Next(SomeSheets.Length)],
             (ushort)r.Next(ushort.MaxValue + 1), (short)r.Next(short.MinValue, short.MaxValue + 1), (short)r.Next(short.MinValue, short.MaxValue + 1),
-            r.Next(2) == 0)).ToArray());
+            r.Next(2) == 0, i * 1000 + r.Next(1000))).ToArray());   // their ordinals ascending
 
     private static BattleArmadaSnapshot AnyArmada(Random r) => new(
         Enumerable.Range(0, HostFleet.MaxShips).Where(_ => r.Next(3) == 0).Select(slot => new BattleFleetShipSnapshot(slot,
@@ -774,7 +774,7 @@ public class SnapshotCodecTests
     {
         var mark = new SilhouetteMarkSnapshot("ship.vux.graphics.limpets.large", 5, -3, 40, false);
         // Past the limit, the newest are sent (the oldest are under them).
-        var many = Enumerable.Range(0, SnapshotCodec.MostSilhouetteMarks + 5).Select(i => mark with { X = (short)i }).ToArray();
+        var many = Enumerable.Range(0, SnapshotCodec.MostSilhouetteMarks + 5).Select(i => mark with { X = (short)i, Ordinal = i }).ToArray();
         var b = Battle() with
         {
             Enemy = Battle().Enemy with { Marks = many },
@@ -793,11 +793,11 @@ public class SnapshotCodecTests
         // The battle's sheets full with its elements': a mark of another sheet is left out, the others sent.
         var full = Battle() with
         {
-            Enemy = Battle().Enemy with { Marks = new[] { mark with { Sheet = "s0", Frame = 8 }, mark with { Sheet = "another" }, mark with { Sheet = "s0", Frame = 9 } } },
+            Enemy = Battle().Enemy with { Marks = new[] { mark with { Sheet = "s0", Frame = 8 }, mark with { Sheet = "another", Ordinal = 1 }, mark with { Sheet = "s0", Frame = 9, Ordinal = 2 } } },
             Elements = Enumerable.Range(0, SnapshotCodec.MostBattleSheets).Select(i => Battle().Elements[0] with { Sheet = "s" + i }).ToArray(),
         };
         SnapshotCodec.Encode(w, new WorldSnapshot(10, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { full }), null, "a");
-        Assert.Equal(new[] { mark with { Sheet = "s0", Frame = 8 }, mark with { Sheet = "s0", Frame = 9 } },
+        Assert.Equal(new[] { mark with { Sheet = "s0", Frame = 8 }, mark with { Sheet = "s0", Frame = 9, Ordinal = 2 } },
             SnapshotCodec.Decode(w.Written).Battles![0].Enemy.Marks);
     }
 

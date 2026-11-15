@@ -53,10 +53,12 @@ public sealed record BattleShipStatus(string Ship, int Crew, int MaxCrew, int En
 /// A mark ModifySilhouette made on a ship's captain's window
 /// (<see cref="SilhouetteMark"/>), as the snapshot sends it: the frame
 /// stamped (its sheet and index), its place in the ship's status panel,
-/// and whether it's the window drawn afresh within the frame's rectangle
-/// (MODIFY_SWAP) instead.
+/// whether it's the window drawn afresh within the frame's rectangle
+/// (MODIFY_SWAP) instead, and its ordinal among the ship's marks
+/// (<see cref="SilhouetteMarks.ShownOrdinals"/>: a client draws those newer
+/// than the last it drew).
 /// </summary>
-public sealed record SilhouetteMarkSnapshot(string Sheet, ushort Frame, short X, short Y, bool Erase);
+public sealed record SilhouetteMarkSnapshot(string Sheet, ushort Frame, short X, short Y, bool Erase, int Ordinal = 0);
 
 /// <summary>
 /// One player's ship in a battle, still in it (fighting, or destroyed in a

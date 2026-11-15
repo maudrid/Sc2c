@@ -362,8 +362,61 @@ public class FleetWireTests
         var gone = new Starship(wb.Enemy.Code, 1, 3, 22);
         gone.Silhouette.Add(mark);
         gone.Silhouette.Add(mark with { Erase = true, X = (short)(mark.X + 1) });
-        Assert.Equal(new[] { enemy.Marks![0], enemy.Marks[0] with { Erase = true, X = (short)(mark.X + 1) } },
+        Assert.Equal(new[] { enemy.Marks![0] with { Ordinal = 0 }, enemy.Marks[0] with { Erase = true, X = (short)(mark.X + 1), Ordinal = 1 } },
             GameWorld.StatusSnapshot(Ilwrath, gone).Marks);
         Assert.True(GameWorld.StatusSnapshot(Ilwrath, gone).Gone);
+    }
+
+    // A ship's code for a status alone (nothing loads it).
+    private sealed class NoCode : IShipCode
+    {
+        public RaceDesc Load(Battle battle, Starship starship) => throw new InvalidOperationException();
+    }
+
+    [Fact]
+    public void AMarkAtAPlaceUsedBeforeIsDrawnOnceThePrunedListLooksAsItDidBefore()
+    {
+        // An Orz marine boarding takes the lowest free place (count_marines), and its turret's fight frames share one
+        // mask, so the marks still showing go [E] -> [E, S22] -> [E, S31] -> [E, S30] -> [E]: the last erase equals the
+        // first by value. Told apart by their ordinals, the client draws it, and the last fight frame doesn't stay.
+        var frames = Enumerable.Range(0, 32).Select(_ => (5, 5, 2, 2, Solid(5, 5))).ToArray();
+        var sheet = Masks("turret", frames);
+        var ship = new Starship(new NoCode(), 1, 10, 20);
+        var canvas = new Crateris.Presentation.UqmCanvas(_ => 32, (_, _) => new Crateris.Presentation.URect(-2, -2, 5, 5),
+            new Dictionary<string, int> { ["starcon"] = 11, ["tiny"] = 10 });
+        var status = new Crateris.Presentation.BattleStatus(canvas);
+        var look = new Crateris.Presentation.StatusShip("icons", "captain", 20, 10, false, false, false, "Orz", "captain");
+        Crateris.Presentation.StatusState State() =>
+            new(10, 5, StatusFlags.None, 10, 0, Marks: GameWorld.StatusSnapshot("orz", ship).Marks);
+        void Mark(int frame, bool erase) => ship.Silhouette.Add(new SilhouetteMark(new Frame(sheet, (ushort)frame), 30, 33, erase));
+
+        Mark(22, erase: true);
+        status.Init(Crateris.Presentation.BattleStatus.EnemySlot, look, State());
+        foreach (var (frame, erase) in new[] { (22, false), (31, false), (30, false), (22, true) })
+        {
+            Mark(frame, erase);
+            canvas.Drawn.Clear();
+            status.Update(Crateris.Presentation.BattleStatus.EnemySlot, State());
+            if (erase)
+                Assert.Contains(canvas.Drawn, d => d.Clip.W == 5 && d.Kind == Crateris.Presentation.UqmDrawKind.Rect);   // the window afresh there
+            else
+                Assert.Equal((frame, 1), (canvas.Drawn.Single(d => d.Sheet == "turret").Frame, canvas.Drawn.Count(d => d.Sheet == "turret")));
+        }
+        Assert.Single(ship.Silhouette.Shown);
+        Assert.Equal(new[] { 4 }, ship.Silhouette.ShownOrdinals);
+        // Sent with their ordinals, ascending; a list out of order is refused.
+        var sent = GameWorld.StatusSnapshot("orz", ship).Marks!;
+        Assert.Equal(4, sent.Single().Ordinal);
+        var w = new WireWriter();
+        var battle = new BattleSnapshot(1, 8192, 7680, new BattleShipStatus("orz", 10, 20, 5, 10, 5,
+                Marks: new[] { sent[0] with { Ordinal = 7 }, sent[0] with { Ordinal = 9 } }), 0, 0,
+            new[] { new BattleFighterSnapshot("p", new BattleShipStatus(ShipDescriptions.Flagship, 10, 20, 5, 10), 0, 0, true) },
+            Array.Empty<BattleElementSnapshot>());
+        SnapshotCodec.Encode(w, new WorldSnapshot(1, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { battle }), null, "p");
+        Assert.Equal(new[] { 7, 9 }, SnapshotCodec.Decode(w.Written).Battles!.Single().Enemy.Marks!.Select(m => m.Ordinal));
+        w = new WireWriter();
+        SnapshotCodec.Encode(w, new WorldSnapshot(1, 2155, 1, 1, Array.Empty<ShipSnapshot>(), Battles: new[] { battle with
+            { Enemy = battle.Enemy with { Marks = new[] { sent[0] with { Ordinal = 9 }, sent[0] with { Ordinal = 9 } } } } }), null, "p");
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(w.Written));
     }
 }

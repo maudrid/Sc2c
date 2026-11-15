@@ -137,7 +137,16 @@ public sealed class StarbasePicture
     {
         foreach (var d in drawings)
             foreach (var op in d.Ops)
+            {
+                // A screen drawn afresh draws over everything: doors still moving (left running when the player left the
+                // shipyard, or undocked, and the view was put away) and what waited behind them aren't drawn.
+                if (op.Kind is ScreenOpKind.MenuOpened or ScreenOpKind.OutfitOpened or ScreenOpKind.YardOpened)
+                {
+                    _pending.Clear();
+                    _doors = null;
+                }
                 _pending.Enqueue((d.Ship, op));
+            }
         Run(now, flush: false);
         return Take();
     }

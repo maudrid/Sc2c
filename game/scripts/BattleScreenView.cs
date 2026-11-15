@@ -28,7 +28,7 @@ namespace Crateris.Game;
 /// kept from frame to frame. A battle frame already drawn (the host's
 /// pause sends the same one again) draws nothing new.
 /// </summary>
-public partial class BattleScreenView : Node2D, IPickLook
+public partial class BattleScreenView : Node2D
 {
     /// <summary>The screen's scale, as the starbase's.</summary>
     public const float Px = StarbaseScreenView.Px;
@@ -41,6 +41,7 @@ public partial class BattleScreenView : Node2D, IPickLook
     private readonly Dictionary<string, UqmFont> _fonts = new();
     private readonly Dictionary<string, StringTable?> _raceStrings = new();
     private BattleScreen? _screen;
+    private BattleLooks? _looks;
     private UqmCanvas? _canvas;
     private ScreenRaster? _raster;
     private ImageTexture? _texture;
@@ -55,6 +56,7 @@ public partial class BattleScreenView : Node2D, IPickLook
         _ships = ships;
         _sprites = new BattleSprites(content, sheets, BattleKit.Fighters(ships), planets);
         _raceStrings.Clear();
+        _looks = new BattleLooks(ships, GameStrings.Load(content), RaceString);
         foreach (var f in new[] { "starcon", "tiny" })
             _fonts[f] = UqmFont.Load(content, "font." + f);
         Reset();
@@ -99,19 +101,6 @@ public partial class BattleScreenView : Node2D, IPickLook
         }
     }
 
-    // A ship's look in the status panel: a player's flagship by its own names (status.c's SIS branch), the
-    // enemy by its race's name and its captain's.
-    private StatusShip StatusShip(BattleShipStatus s, string? playerId, WorldSnapshot? snapshot)
-    {
-        var d = _ships![s.Ship];
-        bool sis = playerId is not null && s.Captain == 0;
-        var ship = playerId is null ? null : snapshot?.Ships.FirstOrDefault(x => x.Id == playerId);
-        return new StatusShip(d.Graphics.Icons, d.Graphics.Captain, s.MaxCrew, s.MaxEnergy,
-            (d.Flags & ShipFlags.CrewImmune) != 0, BattleScreen.PlayerCaptain(s.Ship, d.Flags), sis,
-            sis ? ship?.ShipName ?? ship?.Name ?? "" : RaceString(d, 1),
-            sis ? ship?.CaptainName ?? "" : RaceString(d, s.Captain));
-    }
-
     /// <summary>Draws the player's battle as the host last sent it, if it's a frame not drawn yet: whether it's shown.</summary>
     public bool Show(PlayerSession player)
     {
@@ -128,10 +117,10 @@ public partial class BattleScreenView : Node2D, IPickLook
                     var f = _sprites.Image(sheet, i);
                     return new URect(-f.HotSpotX, -f.HotSpotY, f.Width, f.Height);
                 }, _fonts.ToDictionary(f => f.Key, f => f.Value.Leading));
-                _snapshot = player.Snapshot;
-                _screen = new BattleScreen(_canvas, (s, id) => StatusShip(s, id, _snapshot), this);
+                _looks!.Snapshot = player.Snapshot;
+                _screen = new BattleScreen(_canvas, _looks.StatusShip, _looks);
             }
-            _snapshot = snapshot;
+            _looks!.Snapshot = snapshot;
             var space = _screen.Frame(battle, player.PlayerId, BattleSpace.SizeOf);
             _frame = snapshot.Frame;
             if (space is null)
@@ -157,24 +146,6 @@ public partial class BattleScreenView : Node2D, IPickLook
             return false;
         }
     }
-
-    private WorldSnapshot? _snapshot;
-
-    private ShipSnapshot? ShipOf(string player) => _snapshot?.Ships.FirstOrDefault(s => s.Id == player);
-
-    // The pick screen's looks (IPickLook): the host's flagship from its ship in the snapshot, a fleet ship's race's.
-    string IPickLook.ShipName(string player) => ShipOf(player) is { } s ? s.ShipName ?? s.Name : "";
-
-    PickShipLit IPickLook.Flagship(string player)
-    {
-        var s = ShipOf(player);
-        int room = s?.Modules is { } m ? ShipModules.Restore(m).CrewCapacity : 0;
-        return new PickShipLit(s?.CaptainName ?? "", s?.Hold?.Crew ?? 0, room);
-    }
-
-    string? IPickLook.Icons(string ship) => _ships is not null ? _ships[ship].Graphics.Icons : null;
-
-    string IPickLook.Captain(string ship, int captain) => _ships is not null ? RaceString(_ships[ship], captain) : "";
 
     /// <summary>The battle's screen is put away (another screen is up): the next battle starts afresh.</summary>
     public void Leave()

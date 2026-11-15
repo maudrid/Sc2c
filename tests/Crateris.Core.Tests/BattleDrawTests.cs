@@ -309,6 +309,7 @@ public class BattleDrawTests
             for (int i = 0; i < expected.Count; ++i)
                 Assert.True(i < ours.Count && Drawn(ours[i]) == Drawn(expected[i]),
                     $"{name} frame {frame} call {i}: UQM {expected[i]}, the screen {(i < ours.Count ? ours[i] : null)}");
+            MinimapFollows(space, expected.Count, battle.Size, $"{name} frame {frame}");
             uqm.Paint(drawn[frame][0].EnumerateArray().Select(c => StatusCall(c, sheets)));
             port.Paint(screen.Status);
             uqmSeen[frame % 3] = (byte[])uqm.Rgba.Clone();
@@ -408,6 +409,36 @@ public class BattleDrawTests
         }
         var diff = Diff(Run(Enumerable.Range(seen[^1], 36 - seen[^1]).Reverse()), Run(seen));
         Assert.True(diff.Count == 0, $"seen {string.Join(",", seen)}: {diff.Count} pixels differ, first at {diff.FirstOrDefault()}");
+    }
+
+    /// <summary>
+    /// The space window's calls after UQM's <paramref name="elements"/>
+    /// (and the clear before them) are the minimap's alone: its box first.
+    /// </summary>
+    internal static void MinimapFollows(List<UqmDraw> space, int elements, ArenaSize arena, string at)
+    {
+        var box = BattleScreen.MinimapRect(arena.Width, arena.Height);
+        Assert.True(space.Count > 1 + elements, $"{at}: no minimap after the elements");
+        var next = space[1 + elements];
+        Assert.True(next.Kind == UqmDrawKind.Rect && (next.X, next.Y, next.Width, next.Height) == (box.X, box.Y, box.W, box.H),
+            $"{at}: after UQM's {elements} calls the screen drew {next}, not the minimap's box");
+    }
+
+    /// <summary>The clip rectangles of the status calls drawn clipped within the panel (the erases'), in order, UQM's.</summary>
+    internal static void SameClips(IEnumerable<UqmDraw> uqm, IEnumerable<UqmDraw> port, string at)
+    {
+        static List<URect> Clips(IEnumerable<UqmDraw> calls)
+        {
+            var panel = new URect(UqmCanvas.SpaceWidth, 0, UqmCanvas.StatusWidth, UqmCanvas.StatusHeight);
+            var list = new List<URect>();
+            foreach (var c in calls.Where(c => !c.Clip.Equals(panel)))
+                if (list.Count == 0 || !list[^1].Equals(c.Clip))
+                    list.Add(c.Clip);
+            return list;
+        }
+        var want = Clips(uqm);
+        var got = Clips(port);
+        Assert.True(want.SequenceEqual(got), $"{at}: erases clipped to [{string.Join(" ", want)}], the port's [{string.Join(" ", got)}]");
     }
 
     // The status area's pixels that differ.

@@ -125,7 +125,10 @@ public static class Protocol
     /// area's support ships show, and new drawing operations (a ship built
     /// or scrapped behind the hangar's doors, a ship's crew count, the list
     /// of ships to build).
-    public const int Version = 24;
+    /// 25: each captain's window's mark carries its ordinal among the
+    /// ship's marks (stage 4b item 10, review round 1), so a client draws
+    /// exactly the marks newer than the last it drew.
+    public const int Version = 25;
     public const int DefaultPort = 24642;
 
     /// <summary>

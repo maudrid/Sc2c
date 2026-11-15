@@ -125,8 +125,14 @@ public class RaceDrawTests
                 for (int i = 0; i < expected.Count; ++i)
                     Assert.True(i < ours.Count && Drawn(ours[i]) == Drawn(expected[i]),
                         $"{name} frame {n} call {i}: UQM {expected[i]}, the screen {(i < ours.Count ? ours[i] : null)}");
+                // Nothing more in the space but the minimap after it (its box first).
+                BattleDrawTests.MinimapFollows(space, expected.Count, battle.Size, $"{name} frame {n}");
             }
-            uqm.Paint(drawn[n][0].EnumerateArray().Select(c => BattleDrawTests.StatusCall(c, sheets)));
+            var theirCalls = drawn[n][0].EnumerateArray().Select(c => BattleDrawTests.StatusCall(c, sheets)).ToList();
+            // Each erase drawn within the rectangle UQM's was (InitShipStatus' clip, its top rounded down to even),
+            // in order: the pixels alone can't tell a row the same either way.
+            BattleDrawTests.SameClips(theirCalls, screen.Status, $"{name} frame {n}");
+            uqm.Paint(theirCalls);
             port.Paint(screen.Status);
             var diff = BattleDrawTests.Diff(uqm, port);
             // The one known difference (docs/differences.md): a ship whose crew runs out in its own postprocess (the

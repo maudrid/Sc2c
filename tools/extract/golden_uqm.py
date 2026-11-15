@@ -3800,7 +3800,12 @@ def record_battle_races_draw(uqm, draw_exe, strings_exe, images_exe, package):
             name = scenario["name"]
             if len(battle["drawn"]) != len(battle["frames"]):
                 raise RuntimeError(f"{name}: {len(battle['drawn'])} frames drawn, {len(battle['frames'])} run")
-            if battle["inputs"] != traced[name]["inputs"] or len(battle["frames"]) != len(traced[name]["frames"]):
+            # The same battle as battle-races-N's: its inputs, and every frame as that file keeps it (whole up to its
+            # full, then the frame's ships with its elements' count and hash).
+            full = traced[name]["full"]
+            frames = [f if i <= full else f[:F_SHIPS] + [len(f[F_ELEMENTS]), battle_frame_hash(f)]
+                      for i, f in enumerate(battle["frames"])]
+            if battle["inputs"] != traced[name]["inputs"] or frames != traced[name]["frames"]:
                 raise RuntimeError(f"{name}: the draw build's battle isn't battle-races-{n}'s")
             drawn = [[status, space if t % RACE_DRAW_SPACE_EVERY == 0 else None]
                      for t, (status, space) in enumerate(battle["drawn"])]
@@ -3812,7 +3817,8 @@ def record_battle_races_draw(uqm, draw_exe, strings_exe, images_exe, package):
         "item 10): battle-races-1.json to -3.json's RACE-keys battles and "
         "pkunk-rebirth, each run again from its recorded input in the battle "
         "program built with RECORD_DRAW (battle-draw.json's notes), checked "
-        "to run the same battle (the same inputs and frames).",
+        "to run the same battle (the same inputs, and every frame as that "
+        "file keeps it).",
         "part: the battle-races file the battle is from. sheets: that part's "
         "battle program's sheets, then the flagship's captain's window and "
         "graphics.status, numbered.",

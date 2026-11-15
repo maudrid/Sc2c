@@ -123,6 +123,7 @@ public static partial class SnapshotCodec
             w.Int(m.X);
             w.Int(m.Y);
             w.Byte(m.Erase ? (byte)1 : (byte)0);
+            w.UInt((ulong)m.Ordinal);
         }
     }
 
@@ -141,7 +142,9 @@ public static partial class SnapshotCodec
             if (sheet >= (ulong)sheets.Length)
                 throw new InvalidDataException("A captain's window's mark's sheet isn't in the battle's.");
             marks[i] = new SilhouetteMarkSnapshot(sheets[sheet], (ushort)Small(r.UInt(), ushort.MaxValue, "mark frame"),
-                ToShort(r.Int()), ToShort(r.Int()), Flag(r.Byte()));
+                ToShort(r.Int()), ToShort(r.Int()), Flag(r.Byte()), Small(r.UInt(), int.MaxValue, "mark ordinal"));
+            if (i > 0 && marks[i].Ordinal <= marks[i - 1].Ordinal)
+                throw new InvalidDataException("A captain's window's marks aren't in their order.");
         }
         return status with { Marks = marks };
     }
