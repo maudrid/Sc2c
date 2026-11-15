@@ -31,9 +31,10 @@ public sealed record BattleMarkerSnapshot(int Id, int? Star, int? InnerPlanet, i
 /// ship's own code does to its captain's window: the frame its special key
 /// shows there where the code keeps its own (<see cref="CaptainSpecial"/>,
 /// the Shofixti's Glory Device's cover; 0 for DrawCaptainsWindow's), and
-/// the marks ModifySilhouette made on it since it was drawn
-/// (<see cref="Marks"/>: the Orz's marines aboard, the VUX's limpets).
-/// Equal by value.
+/// of the marks ModifySilhouette made on it since it was drawn, those still
+/// showing, in order (<see cref="Marks"/>: <see cref="SilhouetteMarks.Shown"/>,
+/// the Orz's marines aboard, the VUX's limpets; on the wire the newest
+/// 1,024 at most). Equal by value.
 /// </summary>
 public sealed record BattleShipStatus(string Ship, int Crew, int MaxCrew, int Energy, int MaxEnergy, int Captain = 0,
     StatusFlags Flags = StatusFlags.None, int ElementCrew = 0, int LifeSpan = 0, bool Gone = false, int CaptainSpecial = 0,

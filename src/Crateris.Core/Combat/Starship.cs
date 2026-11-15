@@ -236,7 +236,11 @@ public sealed class Starship
 /// masks); an erase is never covered by a stamp (what it erased would show
 /// again where the stamp is clear). The Orz's marines fight on one place
 /// many times over (each fight a mark, then the rest frame over it), and
-/// die with an erase there, so most of their marks are covered.
+/// die with an erase there, so most of their marks are covered. The rule
+/// takes a frame's mask to be exactly the opaque pixels it draws: so it is
+/// for every mark frame in the content (the Orz's turret's big sheet keyed
+/// on palette index 1, the VUX's slime on index 0), but it wouldn't be for
+/// an alpha-blended frame, or a paletted one with no key that draws index 0.
 /// </summary>
 public sealed class SilhouetteMarks : IReadOnlyList<SilhouetteMark>
 {

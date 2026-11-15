@@ -242,22 +242,26 @@ public class FleetWireTests
         Assert.Equal(("shofixti", true, 16), (status.Ship, status.Gone, status.CaptainSpecial));
     }
 
-    // A sheet of our own with these frames' masks (each a width, a height and its solid pixels, the hot spot at 1, 1).
-    private static Sheet Masks(string id, params (int W, int H, (int X, int Y)[] Solid)[] frames) => new(id, frames.Length,
+    // A sheet of our own with these frames' masks (each a width, a height, its hot spot and its solid pixels).
+    private static Sheet Masks(string id, params (int W, int H, int HotX, int HotY, (int X, int Y)[] Solid)[] frames) => new(id, frames.Length,
         frames.Select(f =>
         {
             var mask = new byte[f.W * f.H];
             foreach (var (x, y) in f.Solid)
                 mask[y * f.W + x] = 1;
-            return new Uqm.IntersectFrame(f.W, f.H, 1, 1, mask);
+            return new Uqm.IntersectFrame(f.W, f.H, f.HotX, f.HotY, mask);
         }).ToList());
+
+    private static (int, int)[] Solid(int w, int h) => Enumerable.Range(0, w * h).Select(i => (i % w, i / w)).ToArray();
 
     [Fact]
     public void AMarkCoveredByALaterOneIsntShownAndTheShownDrawTheSamePicture()
     {
-        // Frame 0 a 3x3 square, 1 its centre, 2 its centre and bottom right corner, 3 a 2x2 square (top left, by the hot spot).
-        var all = new (int, int)[] { (0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2) };
-        var sheet = Masks("m", (3, 3, all), (3, 3, new[] { (1, 1) }), (3, 3, new[] { (2, 2), (1, 1) }), (2, 2, new[] { (0, 0), (1, 0), (0, 1), (1, 1) }));
+        // Frame 0 a 3x3 square, 1 its centre, 2 its centre and bottom right corner, 3 a 2x2 square (top left, by the hot
+        // spot), each with its hot spot at (1, 1); and, the hot spots mixed as the VUX's slime's are, 4 a 5x4 square at
+        // (2, 1), 5 a 5x5 square at (2, 2), 6 a pixel at (0, 0).
+        var sheet = Masks("m", (3, 3, 1, 1, Solid(3, 3)), (3, 3, 1, 1, new[] { (1, 1) }), (3, 3, 1, 1, new[] { (2, 2), (1, 1) }),
+            (2, 2, 1, 1, Solid(2, 2)), (5, 4, 2, 1, Solid(5, 4)), (5, 5, 2, 2, Solid(5, 5)), (1, 1, 0, 0, Solid(1, 1)));
         SilhouetteMark At(int frame, int x, int y, bool erase = false) => new(new Frame(sheet, (ushort)frame), (short)x, (short)y, erase);
         // A stamp at the same place covering its pixels: the same frame, or one whose solid pixels hold the other's.
         Assert.True(SilhouetteMarks.Covers(At(1, 5, 5), At(1, 5, 5)));
@@ -267,6 +271,22 @@ public class FleetWireTests
         Assert.False(SilhouetteMarks.Covers(At(0, 5, 6), At(1, 5, 5)));   // elsewhere
         Assert.True(SilhouetteMarks.Covers(At(3, 5, 5), At(1, 5, 5)));    // the 2x2's (1, 1), hot spots aligned, over the centre
         Assert.False(SilhouetteMarks.Covers(At(3, 5, 5), At(2, 5, 5)));   // not over the corner, which is outside it
+        // Hot spots differing: the frames placed by them. The 5x5 square covers the 5x4 (one row short at the top) at
+        // their place, not the other way; the 3x3's centre and the pixel each cover the other at one place, not the
+        // whole 3x3.
+        Assert.True(SilhouetteMarks.Covers(At(5, 5, 5), At(4, 5, 5)));
+        Assert.False(SilhouetteMarks.Covers(At(4, 5, 5), At(5, 5, 5)));
+        Assert.True(SilhouetteMarks.Covers(At(1, 5, 5), At(6, 5, 5)));
+        Assert.True(SilhouetteMarks.Covers(At(6, 5, 5), At(1, 5, 5)));
+        Assert.False(SilhouetteMarks.Covers(At(6, 5, 5), At(0, 5, 5)));
+        // An erase covers what's within its rectangle, its corner the place less the hot spot: the 5x5's at (5, 5)
+        // is (3, 3) to (7, 7), which holds the 5x4 at (5, 5) ((3, 4) to (7, 7)) and the pixel at (3, 3), but not the
+        // 5x4 at (5, 6) ((3, 5) to (7, 8)) nor the pixel at (8, 8).
+        Assert.True(SilhouetteMarks.Covers(At(5, 5, 5, true), At(4, 5, 5)));
+        Assert.True(SilhouetteMarks.Covers(At(5, 5, 5, true), At(6, 3, 3)));
+        Assert.False(SilhouetteMarks.Covers(At(5, 5, 5, true), At(4, 5, 6)));
+        Assert.False(SilhouetteMarks.Covers(At(5, 5, 5, true), At(6, 8, 8)));
+        Assert.True(SilhouetteMarks.Covers(At(5, 5, 5, true), At(4, 5, 5, true)));
         // An erase covers what's within its rectangle, an erase too; a stamp never covers an erase.
         Assert.True(SilhouetteMarks.Covers(At(0, 5, 5, true), At(1, 5, 5)));
         Assert.True(SilhouetteMarks.Covers(At(0, 5, 5, true), At(3, 5, 5)));
@@ -288,7 +308,7 @@ public class FleetWireTests
             var marks = new SilhouetteMarks();
             for (int i = r.Next(40); i > 0; --i)
             {
-                marks.Add(At(r.Next(4), 4 + r.Next(4), 4 + r.Next(4), r.Next(5) == 0));
+                marks.Add(At(r.Next(7), 4 + r.Next(4), 4 + r.Next(4), r.Next(5) == 0));
                 var full = RaceShipBattleTests.Picture(marks);
                 var shown = RaceShipBattleTests.Picture(marks.Shown);
                 Assert.True(full.Count == shown.Count && full.All(p => shown.TryGetValue(p.Key, out var q) && q == p.Value));
