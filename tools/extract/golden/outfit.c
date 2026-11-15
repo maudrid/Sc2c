@@ -29,17 +29,42 @@
  *     "hire" and "dismiss" are the shipyard's up and down on the
  *     flagship's crew (DMS_ModifyCrew).
  *
+ *
+ * Then, for the host's fleet (stage 4b item 7), three more lines, all
+ * given or none (none: no fleet, every race BAD_GUY but the Shofixti as
+ * above):
+ *   TFB_SeedRandom's seed (the captains' names CloneShipFragment draws);
+ *   each race of avail_race_q (races.h's order): its standing
+ *     (allied_state: 0 DEAD_GUY, 1 GOOD_GUY, 2 BAD_GUY), its ship's
+ *     starting and most crew (the template's crew_level and max_crew),
+ *     three numbers a race (the Shofixti's standing here overrides the
+ *     line above);
+ *   the fleet (built_ship_q), by slot: race, crew, captain's name (its
+ *     index), slot, four numbers a ship (none: an empty fleet).
+ *   And steps for them: "yard" opens DoModifyShips freshly (DoShipyard's
+ *   Crew); "roster" opens the roster (RosterMenu's setup, at once
+ *   left if the fleet is empty); while either is open, the keys u, d, l,
+ *   r, s and c go to it (DoModifyShips; DoModifyRoster), until it's left.
+ *
  * Output: one JSON line a step: the step, whether it was refused, whether
  * outfitting was left (DoOutfit gave FALSE), the menu's state and item
  * (CurState, delta_item), and the ship and prices after it:
  *   {"step": s, "refused": 0|1, "left": 0|1, "state": n, "item": n,
  *    "ship": [crew, fuel, landers, ru], "modules": [16], "drives": [11],
  *    "jets": [8], "crew_cost": n, "crew_bought": n}
+ * With the fleet's lines, also "fleet": [[race, crew, captain, slot], ...]
+ * (built_ship_q's order) and "screen": 0 none, 1 outfitting, 2 the
+ * shipyard's DoModifyShips, 3 the roster; the state and item are the open
+ * screen's (the roster's: CurState and modifyingCrew, with "point": its
+ * lit ship's [x, y], curShipPt); left is set when the shipyard or the
+ * roster is left.
  */
 
 #include "uqm/outfit.c"
 #include "uqm/shipyard.c"
+#include "uqm/planets/roster.c"
 #include "uqm/races.h"
+#include "libs/math/random.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,6 +80,12 @@ STRING GameStrings;
 
 static int refused;
 static int shofixti;
+static int fleet_mode;
+
+/* The queues' tables (displist.c's AllocQueueTab). */
+void *HMalloc (size_t size) { return calloc (1, size ? size : 1); }
+void *HCalloc (size_t size) { return calloc (1, size ? size : 1); }
+void HFree (void *p) { free (p); }
 
 /* globdata.c's state access. */
 BYTE
@@ -77,12 +108,6 @@ setGameState (BYTE *state, int startBit, int endBit, BYTE val)
 		state[endBit >> 3] = (state[endBit >> 3]
 				& (BYTE)~((1 << ((endBit & 7) + 1)) - 1))
 				| (BYTE)((val) >> (endBit - startBit - (endBit & 7)));
-}
-
-COUNT
-CheckAlliance (COUNT race)
-{
-	return race == SHOFIXTI_SHIP && shofixti ? GOOD_GUY : BAD_GUY;
 }
 
 /* The sounds: a refusal is recorded. */
@@ -152,6 +177,55 @@ print_bytes (const char *key, const BYTE *b, int n)
 	printf ("]");
 }
 
+/* InitGameStructures' species for each race of avail_race_q. */
+static SPECIES_ID
+race_species (int race)
+{
+	if (race == YEHAT_REBEL_SHIP)
+		return YEHAT_ID;
+	if (race == URQUAN_DRONE_SHIP)
+		return UR_QUAN_PROBE_ID;
+	return (SPECIES_ID) (ARILOU_ID + race);
+}
+
+/* avail_race_q: each race's standing, starting and most crew. */
+static void
+make_races (const int *allied, const int *crew, const int *max_crew)
+{
+	int i;
+	InitQueue (&GLOBAL (avail_race_q), NUM_AVAILABLE_RACES, sizeof (FLEET_INFO));
+	for (i = 0; i < NUM_AVAILABLE_RACES; ++i)
+	{
+		HFLEETINFO hFleet = AllocLink (&GLOBAL (avail_race_q));
+		FLEET_INFO *FleetPtr = LockFleetInfo (&GLOBAL (avail_race_q), hFleet);
+		FleetPtr->SpeciesID = race_species (i);
+		FleetPtr->allied_state = allied[i];
+		FleetPtr->crew_level = crew[i];
+		FleetPtr->max_crew = max_crew[i];
+		UnlockFleetInfo (&GLOBAL (avail_race_q), hFleet);
+		PutQueue (&GLOBAL (avail_race_q), hFleet);
+	}
+}
+
+static void
+print_fleet (void)
+{
+	HSHIPFRAG hStarShip, hNextShip;
+	int first = 1;
+	printf (", \"fleet\": [");
+	for (hStarShip = GetHeadLink (&GLOBAL (built_ship_q)); hStarShip; hStarShip = hNextShip)
+	{
+		SHIP_FRAGMENT *FragPtr = LockShipFrag (&GLOBAL (built_ship_q), hStarShip);
+		printf ("%s[%u, %u, %u, %u]", first ? "" : ", ", (unsigned) FragPtr->race_id,
+				(unsigned) FragPtr->crew_level, (unsigned) FragPtr->captains_name_index,
+				(unsigned) FragPtr->index);
+		first = 0;
+		hNextShip = _GetSuccLink (FragPtr);
+		UnlockShipFrag (&GLOBAL (built_ship_q), hStarShip);
+	}
+	printf ("]");
+}
+
 static void
 print_step (const char *step, int left, MENU_STATE *ms)
 {
@@ -163,18 +237,22 @@ print_step (const char *step, int left, MENU_STATE *ms)
 	print_bytes ("modules", GLOBAL_SIS (ModuleSlots), NUM_MODULE_SLOTS);
 	print_bytes ("drives", GLOBAL_SIS (DriveSlots), NUM_DRIVE_SLOTS);
 	print_bytes ("jets", GLOBAL_SIS (JetSlots), NUM_JET_SLOTS);
-	printf (", \"crew_cost\": %u, \"crew_bought\": %u}\n", (unsigned) GLOBAL (CrewCost),
+	printf (", \"crew_cost\": %u, \"crew_bought\": %u", (unsigned) GLOBAL (CrewCost),
 			(unsigned) MAKE_WORD (GET_GAME_STATE (CREW_PURCHASED0), GET_GAME_STATE (CREW_PURCHASED1)));
 }
+
+enum { SCREEN_NONE, SCREEN_OUTFIT, SCREEN_YARD, SCREEN_ROSTER };
 
 int
 main (void)
 {
-	static char line[65536];
-	MENU_STATE ms;
-	int i, n, outfitting = 0;
+	static char line[65536], steps[65536];
+	MENU_STATE ms, yard, roster;
+	ROSTER_STATE rs;
+	int i, n, screen = SCREEN_NONE;
 	unsigned v;
 	char *p, *tok;
+	int allied[NUM_AVAILABLE_RACES], crew[NUM_AVAILABLE_RACES], max_crew[NUM_AVAILABLE_RACES];
 
 	read_line (line, sizeof line);
 	for (i = 0; i < (int) sizeof (GlobData.Game_state.GameState) && line[2 * i]; ++i)
@@ -226,14 +304,63 @@ main (void)
 	}
 	read_line (line, sizeof line);
 	shofixti = atoi (line) == GOOD_GUY;
-	read_line (line, sizeof line);
+	read_line (steps, sizeof steps);
+
+	/* The races, as InitGameStructures makes avail_race_q: none allied
+	 * but the Shofixti as given, unless the fleet's lines say otherwise. */
+	for (i = 0; i < NUM_AVAILABLE_RACES; ++i)
+	{
+		allied[i] = i == SHOFIXTI_SHIP && shofixti ? GOOD_GUY : BAD_GUY;
+		crew[i] = max_crew[i] = 0;
+	}
+	InitQueue (&GLOBAL (built_ship_q), MAX_BUILT_SHIPS, sizeof (SHIP_FRAGMENT));
+	if (fgets (line, sizeof line, stdin))
+	{
+		fleet_mode = 1;
+		TFB_SeedRandom ((DWORD) strtoul (line, NULL, 10));
+		read_line (line, sizeof line);
+		p = line;
+		for (i = 0; i < NUM_AVAILABLE_RACES; ++i)
+		{
+			if (sscanf (p, "%d %d %d%n", &allied[i], &crew[i], &max_crew[i], &n) != 3)
+			{
+				printf ("{\"error\": \"races\"}\n");
+				return 1;
+			}
+			p += n;
+		}
+		make_races (allied, crew, max_crew);
+		read_line (line, sizeof line);
+		p = line;
+		{
+			int race, c, captain, slot;
+			while (sscanf (p, "%d %d %d %d%n", &race, &c, &captain, &slot, &n) == 4)
+			{
+				HSHIPFRAG hFrag = Build (&GLOBAL (built_ship_q), race_species (race));
+				SHIP_FRAGMENT *FragPtr = LockShipFrag (&GLOBAL (built_ship_q), hFrag);
+				FragPtr->race_id = race;
+				FragPtr->crew_level = c;
+				FragPtr->max_crew = max_crew[race];
+				FragPtr->captains_name_index = captain;
+				FragPtr->index = slot;
+				UnlockShipFrag (&GLOBAL (built_ship_q), hFrag);
+				p += n;
+			}
+		}
+	}
+	else
+		make_races (allied, crew, max_crew);
 
 	/* The starbase's status line shows the resource units (DoStarBase). */
 	SetStatusMessageMode (SMM_RES_UNITS);
 	memset (&ms, 0, sizeof ms);
-	for (tok = strtok (line, " "); tok; tok = strtok (NULL, " "))
+	memset (&yard, 0, sizeof yard);
+	memset (&roster, 0, sizeof roster);
+	memset (&rs, 0, sizeof rs);
+	for (tok = strtok (steps, " "); tok; tok = strtok (NULL, " "))
 	{
 		int left = 0;
+		MENU_STATE *shown = &ms;
 		refused = 0;
 		memset (&PulsedInputState, 0, sizeof PulsedInputState);
 		if (!strcmp (tok, "outfit"))
@@ -241,7 +368,37 @@ main (void)
 			memset (&ms, 0, sizeof ms);
 			ms.InputFunc = DoOutfit;
 			DoOutfit (&ms);
-			outfitting = 1;
+			screen = SCREEN_OUTFIT;
+		}
+		else if (!strcmp (tok, "yard"))
+		{
+			/* DoShipyard's select on Crew: DoModifyShips, freshly. */
+			memset (&yard, 0, sizeof yard);
+			yard.Initialized = FALSE;
+			DoModifyShips (&yard);
+			screen = SCREEN_YARD;
+			shown = &yard;
+		}
+		else if (!strcmp (tok, "roster"))
+		{
+			/* RosterMenu's setup, up to DoInput. */
+			memset (&roster, 0, sizeof roster);
+			memset (&rs, 0, sizeof rs);
+			roster.privData = &rs;
+			rs.count = CountLinks (&GLOBAL (built_ship_q));
+			shown = &roster;
+			if (!rs.count)
+			{
+				left = 1;
+				screen = SCREEN_NONE;
+			}
+			else
+			{
+				memcpy (rs.shipPos, ship_pos, sizeof (ship_pos));
+				qsort (rs.shipPos, rs.count, sizeof (rs.shipPos[0]), compShipPos);
+				selectSupportShip (&rs, roster.CurState);
+				screen = SCREEN_ROSTER;
+			}
 		}
 		else if (!strcmp (tok, "hire") || !strcmp (tok, "dismiss"))
 		{
@@ -256,19 +413,57 @@ main (void)
 					: !strcmp (tok, "s") ? KEY_MENU_SELECT : !strcmp (tok, "c") ? KEY_MENU_CANCEL
 					: !strcmp (tok, "pu") ? KEY_MENU_PAGE_UP : !strcmp (tok, "pd") ? KEY_MENU_PAGE_DOWN
 					: -1;
-			if (key < 0 || !outfitting)
+			if (key < 0 || screen == SCREEN_NONE)
 			{
 				printf ("{\"error\": \"step %s\"}\n", tok);
 				return 1;
 			}
 			PulsedInputState.menu[key] = 1;
-			if (!(*ms.InputFunc) (&ms))
+			if (screen == SCREEN_OUTFIT)
 			{
-				left = 1;
-				outfitting = 0;
+				if (!(*ms.InputFunc) (&ms))
+				{
+					left = 1;
+					screen = SCREEN_NONE;
+				}
+			}
+			else if (screen == SCREEN_YARD)
+			{
+				shown = &yard;
+				DoModifyShips (&yard);
+				if (yard.InputFunc == DoShipyard)
+				{
+					/* Cancel on the cursor: back at DoShipyard's menu. */
+					left = 1;
+					screen = SCREEN_NONE;
+				}
+			}
+			else
+			{
+				shown = &roster;
+				if (!DoModifyRoster (&roster))
+				{
+					left = 1;
+					screen = SCREEN_NONE;
+				}
 			}
 		}
-		print_step (tok, left, &ms);
+		if (shown == &roster)
+		{
+			/* The roster's state: CurState, modifyingCrew and the lit ship's point. */
+			MENU_STATE r = roster;
+			r.delta_item = rs.modifyingCrew ? 1 : 0;
+			print_step (tok, left, &r);
+			printf (", \"point\": [%d, %d]", rs.curShipPt.x, rs.curShipPt.y);
+		}
+		else
+			print_step (tok, left, shown);
+		if (fleet_mode)
+		{
+			print_fleet ();
+			printf (", \"screen\": %d", screen);
+		}
+		printf ("}\n");
 	}
 	return 0;
 }

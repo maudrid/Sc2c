@@ -86,7 +86,11 @@ public static class HostSave
     /// 12 has the host's fleet (stage 4b item 6: each ship's race, crew,
     /// captain and hangar slot); an older save loads with none, and one
     /// with a fleet is refused. During a visit taken back if unfinished (the
-    /// opening's), the fleet is saved as it was before it.
+    /// opening's), the fleet is saved as it was before it. A ship of no crew
+    /// (the shipyard's while its crew is edited) isn't saved: it would be
+    /// scrapped as the editing ends (stage 4b item 7), and the save loads
+    /// out of the shipyard; one in a save loads, and is scrapped in the
+    /// world's first frame (<see cref="GameWorld.ScrapUnmannedFleetShips"/>).
     /// </summary>
     public const int Version = 12;
     public const int OldestReadableVersion = 1;
@@ -183,7 +187,10 @@ public static class HostSave
         var (year, month, day) = visit?.DateWithout() ?? (c.Year, c.Month, c.Day);
         var save = new SaveFile(Version, world.Settings, new ClockState(year, month, day, c.FramesIntoDay),
             world.Frame, players, worlds, visit is null ? (world.Story is null ? null : world.StoryForSave()) : visit.StoryWithout(),
-            visit?.MetBefore ?? world.CommanderMet, (visit?.FleetBefore ?? world.Fleet.Ships).ToList());
+            visit?.MetBefore ?? world.CommanderMet,
+            // A fleet ship of no crew (the shipyard's, its crew all sent away and its cost given back) is saved
+            // scrapped, as leaving the crew editing would scrap it (stage 4b item 7): the save loads out of the shipyard.
+            (visit?.FleetBefore ?? world.Fleet.Ships).Where(s => s.Crew > 0).ToList());
         return JsonSerializer.Serialize(save, Options);
     }
 

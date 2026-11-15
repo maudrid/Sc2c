@@ -355,7 +355,7 @@ public class FleetTests
         world.AddFleetShips(Arilou, 2);
         world.AddFleetShips("SYREEN_SHIP", 1);
         world.Fleet.SetCrew(Rules, 2, 30);
-        world.Fleet.SetCrew(Rules, 1, 0);   // a save while the shipyard edits its crew: saved and loaded as it is
+        world.Fleet.SetCrew(Rules, 1, 1);
         string json = HostSave.ToJson(world);
         var node = JsonNode.Parse(json)!;
         Assert.Equal(12, node["version"]!.GetValue<int>());
@@ -363,6 +363,11 @@ public class FleetTests
         Assert.Equal("ARILOU_SHIP", node["fleet"]![0]!["race"]!.GetValue<string>());
         var loaded = HostSave.FromJson(json, Systems.Value, TestContent.Shapes);
         Assert.Equal(world.Fleet.Ships, loaded.Fleet.Ships);
+        // A ship of no crew (the shipyard's, while its crew is edited) is saved scrapped, as leaving would scrap it
+        // (stage 4b item 7; ShipyardTests).
+        world.Fleet.SetCrew(Rules, 1, 0);
+        Assert.Equal(new[] { 0, 2 }, HostSave.FromJson(HostSave.ToJson(world), Systems.Value, TestContent.Shapes).Fleet.Ships
+            .Select(s => s.Slot));
 
         // An older save with one, refused; an older save loads with none.
         var old = JsonNode.Parse(json)!;

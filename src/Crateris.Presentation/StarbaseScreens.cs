@@ -379,7 +379,9 @@ public sealed class StarbaseScreens
     /// Where the flashing highlight is in the shipyard, in the screen's
     /// pixels, with DoModifyShips' <paramref name="mode"/> and
     /// <paramref name="cursor"/>: the flagship, a hangar slot, the crew
-    /// gauge; on the menu, none (SFR_MENU_3DO).
+    /// gauge, a fleet ship's crew count; on the menu, none (SFR_MENU_3DO),
+    /// and none in the list of ships to build (SFR_MENU_ANY: stage 4b
+    /// item 10).
     /// </summary>
     public static URect? YardFlash(YardMode mode, byte cursor) => mode switch
     {
@@ -387,6 +389,9 @@ public sealed class StarbaseScreens
             new URect(UqmCanvas.SisOrgX, UqmCanvas.SisOrgY, UqmCanvas.SisScreenWidth, 61),   // DMS_FlashFlagShip
         YardMode.Ships => new URect(UqmCanvas.SisOrgX + HangarX[cursor % ShipyardMenu.HangarShipsRow],
             UqmCanvas.SisOrgY + HangarY + HangarDy * (cursor / ShipyardMenu.HangarShipsRow), ShipWinWidth, ShipWinHeight),
+        YardMode.Crew when !ShipyardMenu.OnFlagship(cursor) =>   // DMS_FlashEscortShipCrewCount: the slot's crew count
+            new URect(UqmCanvas.SisOrgX + HangarX[cursor % ShipyardMenu.HangarShipsRow],
+                UqmCanvas.SisOrgY + HangarY + HangarDy * (cursor / ShipyardMenu.HangarShipsRow) + ShipWinHeight - 6, ShipWinWidth, 5),
         YardMode.Crew => StatusToScreen(GaugeRect(crew: true)),   // DMS_FlashFlagShipCrewCount
         _ => null,
     };

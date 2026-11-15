@@ -602,7 +602,7 @@ public class StarbaseTests
         Assert.Equal(6, yard.Cursor);
         yard.Key(MenuKey.Left);
         Assert.Equal(11, yard.Cursor);
-        Assert.Equal(OutfitOutcome.Refused, yard.Key(MenuKey.Select));   // building fleet ships: stage 4
+        Assert.Equal(OutfitOutcome.Refused, yard.Key(MenuKey.Select));   // no fleet (a guest's): nothing to build or crew
         yard.Key(MenuKey.Down);
         Assert.Equal(0xF5, yard.Cursor);   // the flagship, the column kept
         Assert.True(ShipyardMenu.OnFlagship(yard.Cursor));

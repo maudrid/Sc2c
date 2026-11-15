@@ -62,6 +62,10 @@ public class SessionTests
             (ShipInput.None, null, true), (ShipInput.None, null, false), (ShipInput.None, MenuKey.PageUp, false),
             (ShipInput.None, MenuKey.PageDown, true), (ShipInput.None, null, false),
         }, steps);
+        // The menus' left and right (the shipyard's hangar, stage 4b item 7), apart from the ship's.
+        script = InputScript.Parse("menuleft:1,left+menuright:1");
+        Assert.Equal((ShipInput.None, (MenuKey?)MenuKey.Left), (script.Next(out var l), l));
+        Assert.Equal((ShipInput.Left, (MenuKey?)MenuKey.Right), (script.Next(out var r), r));
     }
 
     [ContentFact]

@@ -422,6 +422,7 @@ public sealed partial class GameWorld
         if (GameOver)
             return;   // the world stops (decision 12)
         Frame++;
+        ScrapUnmannedFleetShips();   // the shipyard's ship of no crew, once its crew editing has ended any way
         bool paused = StoryPaused || HostPaused;
         if (_wasPaused && !paused)
         {
@@ -796,17 +797,23 @@ public sealed partial class GameWorld
     /// <summary>
     /// Outfitting or the shipyard's crew, for a player docked at the
     /// starbase's menu, by UQM's rules (<see cref="Starbase.Outfitting"/>):
-    /// false, changing nothing, if refused or not docked.
+    /// false, changing nothing, if refused or not docked. The host's fleet
+    /// ships are built, crewed and scrapped only by the host (stage 4b,
+    /// decision 3): a guest's are refused.
     /// </summary>
     public bool Outfit(string id, Starbase.OutfitAction action)
     {
         if (StoryPaused || Held || Story is null || Find(id) is not { Present: true, Ship.Visit.AtMenu: true } player)
             return false;
-        if (!new Starbase.Outfitting(new OutfitShip(player.Ship), Story).Apply(action))
+        if (!OutfittingFor(player).Apply(action))
             return false;
         player.Ship.Refit();
         return true;
     }
+
+    // A player's outfitting and shipyard rules: their own ship, and for the host the fleet (stage 4b, decision 3).
+    private Starbase.Outfitting OutfittingFor(Player player) =>
+        new(new OutfitShip(player.Ship), Story!, player.IsHost ? Fleet : null, FleetRandom);
 
     /// <summary>
     /// A docked player's key on their starbase screen (DoStarBase, DoOutfit,
@@ -850,8 +857,7 @@ public sealed partial class GameWorld
                             m.Drew(StarbaseShipOf(player), m.Outfit.TakeOps());
                             break;
                         case Starbase.StarbaseMenu.Shipyard:
-                            m.Yard = new Starbase.ShipyardMenu(new Starbase.Outfitting(new OutfitShip(player.Ship), Story),
-                                a => Outfit(id, a));
+                            m.Yard = new Starbase.ShipyardMenu(OutfittingFor(player), a => Outfit(id, a));
                             m.Drew(StarbaseShipOf(player), m.Yard.TakeOps());
                             m.Screen = Starbase.StarbaseScreen.Shipyard;
                             break;
@@ -940,6 +946,18 @@ public sealed partial class GameWorld
     // those who watched it), a talk with the commander that's over lets go
     // of his lock, and a visit that's over leaves its ship.
     private void AfterVisit(StarbaseVisit v)
+    {
+        try
+        {
+            AfterVisitChanged(v);
+        }
+        finally
+        {
+            ScrapUnmannedFleetShips();   // a visit that ended under the host's shipyard ends its crew editing
+        }
+    }
+
+    private void AfterVisitChanged(StarbaseVisit v)
     {
         _rounds = Math.Max(_rounds, v.Round);
         if (v.Step != VisitStep.MenuTalk)

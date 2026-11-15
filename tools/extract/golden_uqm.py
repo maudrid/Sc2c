@@ -4624,10 +4624,11 @@ def record_talks(uqm, strings_exe, package):
 
 # ------------------------------------------------------------ outfitting
 
-# The outfitting recording program (golden/outfit.c): UQM's outfit.c and
-# shipyard.c included, sis.c and menu.c linked, the rest stubbed.
+# The outfitting recording program (golden/outfit.c): UQM's outfit.c,
+# shipyard.c and planets/roster.c included, sis.c, menu.c, build.c,
+# displist.c and random.c linked, the rest stubbed.
 OUTFIT_PROGRAM = os.path.join(HERE, "golden", "outfit.c")
-OUTFIT_LINK = ["uqm/sis.c", "uqm/menu.c"]
+OUTFIT_LINK = ["uqm/sis.c", "uqm/menu.c", "uqm/build.c", "uqm/displist.c", "libs/math/random.c"]
 OUTFIT_STUBS = os.path.join(HERE, "golden", "outfit_stubs.c")
 # A new game's prices (data/new-game.json), by module number.
 MODULE_NAMES = ["PLANET_LANDER", "FUSION_THRUSTER", "TURNING_JETS", "CREW_POD", "STORAGE_BAY", "FUEL_TANK",
@@ -4759,6 +4760,128 @@ def outfit_scenarios():
     return out
 
 
+def race_crews():
+    """Each race of avail_race_q (races.h's order): its ship's starting
+    and most crew, by InitGameStructures' species (the rebels the Yehat's,
+    the drone the probe's), from data/ships.json."""
+    with open(os.path.join(REPO, "data", "ships.json")) as f:
+        ships = json.load(f)
+    by_species = {s["species"]: s for s in ships["ships"]}
+    species = sorted(((v, k) for k, v in ships["species_ids"].items()))
+    out = []
+    for i, race in enumerate(RACES):
+        sid = ("YEHAT_ID" if race == "YEHAT_REBEL_SHIP" else "UR_QUAN_PROBE_ID" if race == "URQUAN_DRONE_SHIP"
+               else species[ships["species_ids"]["ARILOU_ID"] + i][1])
+        out.append((by_species[sid]["crew"], by_species[sid]["max_crew"]))
+    return out
+
+
+def shipyard_scenarios():
+    """Starts and keys for the host's fleet at the shipyard
+    (DoModifyShips: building, crewing and scrapping fleet ships, the
+    cursor) and in the roster (DoModifyRoster): each rule on purpose, then
+    seeded random walks. A fleet ship is [race, crew, captain, slot]."""
+    import random
+    out = []
+
+    def add(name, steps, ship=None, allied=("HUMAN_SHIP",), fleet=(), state=None, crew_cost=3, seed=12345,
+            reopen="yard"):
+        out.append({"name": name, "ship": ship or talk_ship(ru=20000), "state": state or {}, "costs": {},
+                    "fuel_cost": 20, "crew_cost": crew_cost, "shofixti": "SHOFIXTI_SHIP" in allied,
+                    "seed": seed, "allied": list(allied), "fleet": [list(f) for f in fleet],
+                    "reopen": reopen, "steps": steps.split()})
+
+    def ship(**kw):
+        return talk_ship(**{"ru": 20000, **kw})
+
+    many = ("ARILOU_SHIP", "HUMAN_SHIP", "SPATHI_SHIP", "SYREEN_SHIP", "SHOFIXTI_SHIP", "ZOQFOTPIK_SHIP", "URQUAN_SHIP")
+    # The cursor: round the hangar, the flagship's row, its crew.
+    add("cursor", "yard " + "r " * 7 + "d " + "l " * 8 + "d d u u u " + "r " * 3 + "d s u u d s c c")
+    add("cursor-flagship-crew", "yard s u u d d d c d d s c", ship(crew=48))
+    # Building: into slots by the cursor, each allied race in order, the list wrapping round.
+    add("build-slot-0", "yard d s s c", allied=many)
+    add("build-slots", "yard d r r r s r s c r r s d d s c u l s l l s c d s s c", allied=many)
+    add("build-list-wraps", "yard u s l l r r r r r r r r d d u c s " + "d " * 9 + "s c", allied=many)
+    add("build-each", " ".join(["yard"] + [f"{'r ' * (i % 6)}{'u ' if i >= 6 else 'd '}s {'r ' * i}s c c yard"
+                                         for i in range(7)]), ship(ru=100000), allied=many)
+    add("build-among-ships", "yard d s s c r r s s c l s c r s c",
+        fleet=[["SPATHI_SHIP", 30, 7, 1], ["ARILOU_SHIP", 6, 9, 3]], allied=many)
+    add("build-too-poor", "yard d s s c s r s c", ship(ru=1099), allied=("HUMAN_SHIP", "SHOFIXTI_SHIP"))
+    add("build-exactly", "yard d s s u c", ship(ru=1100))
+    add("build-none-allied-but-humans", "yard u s r l u d s c")
+    # The hangar full: every slot a ship, select crews it.
+    full = [["SPATHI_SHIP" if i % 2 else "ARILOU_SHIP", 3 + i % 4, 5 + i, i] for i in range(12)]
+    add("hangar-full", "yard d s u u d c r s d c u s c " + "r " * 5 + "s u c c", fleet=full, allied=many)
+    # Crew: up to the most (a Syreen to its starting 12, not its 42), the wallet, down to none and the refund.
+    add("hire-to-most", "yard d s s " + "u " * 20 + "c", ship(ru=100000))
+    add("hire-syreen", "yard d s " + "r " * 3 + "s " + "u " * 14 + "d c", ship(ru=100000), allied=many)
+    add("hire-poor", "yard d s s u u u u u c", ship(ru=1105))
+    add("hire-crew-of-max", "yard d s u d c", fleet=[["SYREEN_SHIP", 42, 5, 0]], allied=many)
+    add("dismiss-to-none", "yard d s s u u d d d d s", ship(ru=5000))
+    add("dismiss-and-cancel", "yard d s s u d d c u s", ship(ru=5000))
+    add("buy-back", "yard d s s u u d d d u u u d d d d c", ship(ru=5000))
+    add("buy-back-short", "yard d s u u d c", ship(ru=10), fleet=[["HUMAN_SHIP", 0, 6, 0]])
+    add("dismiss-fleet-ship", "yard r d s " + "d " * 7 + "u c",
+        fleet=[["SPATHI_SHIP", 5, 7, 1]], allied=many)
+    add("scrap-on-select", "yard d s d d s d s s c",
+        fleet=[["SPATHI_SHIP", 2, 7, 0], ["ARILOU_SHIP", 6, 9, 1]], allied=many)
+    add("scrap-then-build", "yard d s d d c s s c", fleet=[["SPATHI_SHIP", 2, 7, 0]], allied=many)
+    # The crew price's threshold and the Shofixti, on fleet ships.
+    t = {"CREW_PURCHASED0": 998 & 0xFF, "CREW_PURCHASED1": 998 >> 8}
+    add("threshold", "yard d s s u u u d d d d d d u u c", ship(ru=10000), state=t)
+    add("threshold-buy-back", "yard d s s d u u d d c", ship(ru=10000),
+        state={"CREW_PURCHASED0": 1000 & 0xFF, "CREW_PURCHASED1": 1000 >> 8})
+    add("threshold-shofixti", "yard d s s u u u d d d d d c", ship(ru=10000), state=t,
+        allied=("HUMAN_SHIP", "SHOFIXTI_SHIP"))
+    add("crew-bought-none", "yard d s d c", fleet=[["SPATHI_SHIP", 5, 7, 0]], allied=many)
+    # The race lit kept past a cancel and a crew change (delta_item's low byte).
+    add("item-kept", "yard d s r r c s r r s c s d c r s s c", allied=many,
+        fleet=[["SPATHI_SHIP", 5, 7, 0]])
+    # The roster: no fleet, one ship, several; the cursor round the points; crew both ways and its limits.
+    add("roster-none", "roster", reopen="roster")
+    add("roster-one", "roster u d l r s u u d d d c c", ship(crew=40), fleet=[["SPATHI_SHIP", 28, 7, 4]],
+        allied=many, reopen="roster")
+    crews = race_crews()
+    for n in (2, 3, 4, 5, 7, 12):
+        fl = [[RACES[(3 * i) % 22], min(1 + i, crews[(3 * i) % 22][0]), 5 + i, i] for i in range(n)]
+        add(f"roster-{n}", "roster " + "d " * 13 + "u " * 13 + "r l " * 7 + "d r u l r d r " * 3 + "c",
+            fleet=fl, allied=many, reopen="roster")
+    add("roster-crew", "roster s u u u d d d d d d s r s u d c c", ship(crew=40),
+        fleet=[["HUMAN_SHIP", 16, 7, 0], ["SPATHI_SHIP", 2, 7, 5]], allied=many, reopen="roster")
+    add("roster-flagship-empty", "roster s u d u c c", ship(crew=0), fleet=[["HUMAN_SHIP", 10, 7, 0]],
+        reopen="roster")
+    add("roster-flagship-full", "roster s d u d c c", ship(crew=50), fleet=[["HUMAN_SHIP", 10, 7, 0]],
+        reopen="roster")
+    add("roster-syreen-over", "roster s d u d d c", ship(crew=20), fleet=[["SYREEN_SHIP", 20, 7, 0]],
+        allied=many, reopen="roster")
+    add("roster-at-start", "roster s u d u c", ship(crew=20), fleet=[["ARILOU_SHIP", 6, 7, 0]], reopen="roster")
+    add("roster-sparse", "roster r d s u c d d r s d c c", ship(crew=30),
+        fleet=[["ARILOU_SHIP", 3, 7, 2], ["SPATHI_SHIP", 10, 7, 7], ["HUMAN_SHIP", 5, 8, 11]], allied=many,
+        reopen="roster")
+
+    # Seeded random walks: fleets, allies and wallets of every kind; a walk
+    # that leaves the screen opens it again (the recorder puts it in).
+    keys = ["u", "d", "l", "r", "s", "c", "u", "d", "s"]
+    for seed in range(40):
+        rnd = random.Random(1000 + seed)
+        allied = sorted({"HUMAN_SHIP"} | set(rnd.sample(RACES[:22], rnd.randint(0, 8))), key=RACES.index)
+        slots = sorted(rnd.sample(range(12), rnd.randint(0, 12 if seed % 5 == 4 else 6)))
+        crews = race_crews()
+        fleet = []
+        for k, slot in enumerate(slots):
+            race = rnd.choice(RACES[:22])
+            fleet.append([race, rnd.randint(1, crews[RACES.index(race)][0]), 5 + k, slot])
+        roster = seed % 3 == 2
+        ru = rnd.choice([0, 500, 1300, 3000, 20000, 100000])
+        steps = [("roster" if roster else "yard")] + [rnd.choice(keys) for _ in range(250)]
+        state = {}
+        if seed % 4 == 1:
+            state = {"CREW_PURCHASED0": 995 & 0xFF, "CREW_PURCHASED1": 995 >> 8}
+        add(f"walk-{seed}", " ".join(steps), ship(ru=ru, crew=rnd.randint(0, 50)), allied=tuple(allied),
+            fleet=fleet, state=state, crew_cost=3 + seed % 2, seed=seed + 1, reopen="roster" if roster else "yard")
+    return out
+
+
 def outfit_head(scenario, fields, state_bytes, prices):
     """golden/outfit.c's and golden/screens.c's first lines: the game
     state, the prices, the ship."""
@@ -4801,6 +4924,32 @@ def run_outfit(exe, scenario, fields, state_bytes, prices):
         return steps, lines
 
 
+def run_yard(exe, scenario, fields, state_bytes, prices):
+    """Runs one shipyard or roster scenario (golden/outfit.c with the
+    fleet's lines); a key after its screen was left gets the screen put
+    before it again (scenario's reopen). Returns the steps as run and
+    their lines."""
+    crews = race_crews()
+    standing = {r: ALLIED["good"] if r in scenario["allied"] else ALLIED["bad"] for r in RACES}
+    head = "\n".join(outfit_head(scenario, fields, state_bytes, prices) + ["1" if scenario["shofixti"] else "2"])
+    tail = "\n".join([
+        str(scenario["seed"]),
+        " ".join(f"{standing[r]} {crews[i][0]} {crews[i][1]}" for i, r in enumerate(RACES)),
+        " ".join(f"{RACES.index(r)} {c} {cap} {slot}" for r, c, cap, slot in sorted(scenario["fleet"], key=lambda f: f[3])),
+    ])
+    steps = list(scenario["steps"])
+    while True:
+        out = subprocess.run([exe], input=head + "\n" + " ".join(steps) + "\n" + tail + "\n",
+                             capture_output=True, text=True)
+        lines = [json.loads(line) for line in out.stdout.splitlines()]
+        if out.returncode == 1 and lines and "error" in lines[-1] and len(lines) > 1 and lines[-2]["screen"] == 0:
+            steps.insert(len(lines) - 1, scenario["reopen"])
+            continue
+        if out.returncode or any("error" in x for x in lines):
+            raise RuntimeError(f"shipyard {scenario['name']}: {out.stdout[-300:]}{out.stderr}")
+        return steps, lines
+
+
 def record_outfit(uqm, exe):
     """Outfitting and the shipyard's crew, as UQM's own outfit.c and
     shipyard.c run them (golden/outfit.c), key by key."""
@@ -4823,8 +4972,22 @@ def record_outfit(uqm, exe):
                     last[k] = x[k]
             del x["step"]
         scenarios.append({**scenario, "steps": steps, "results": lines})
-    data = header(uqm, ["tools/extract/golden/outfit.c", "src/uqm/outfit.c", "src/uqm/shipyard.c",
-                        "src/uqm/sis.c", "src/uqm/menu.c"], [
+    shipyard = []
+    for scenario in shipyard_scenarios():
+        steps, lines = run_yard(exe, scenario, fields, state_bytes, prices)
+        # The fleet only where it changes (and on the first step); the slots never change here.
+        last = None
+        for x in lines:
+            for k in ("modules", "drives", "jets", "step"):
+                del x[k]
+            if x["fleet"] == last:
+                del x["fleet"]
+            else:
+                last = x["fleet"]
+        shipyard.append({**scenario, "steps": steps, "results": lines})
+    data = header(uqm, ["tools/extract/golden/outfit.c", "tools/extract/golden/outfit_stubs.c", "src/uqm/outfit.c",
+                        "src/uqm/shipyard.c", "src/uqm/planets/roster.c", "src/uqm/build.c", "src/uqm/displist.c",
+                        "src/uqm/sis.c", "src/uqm/menu.c", "src/libs/math/random.c"], [
         "Outfitting and the shipyard's crew, recorded by running UQM 0.8.0's "
         "own DoOutfit, DoInstallModule and ChangeFuelQuantity (outfit.c) and "
         "DMS_ModifyCrew and CrewTransaction (shipyard.c) with sis.c and "
@@ -4842,8 +5005,28 @@ def record_outfit(uqm, exe):
         "1/100 units, landers, resource units), its module, drive and jet "
         "slots (sis.h's numbers; each only where it changed, and after the "
         "first step), and the crew price and crew bought.",
+        "shipyard: the host's fleet at the shipyard and in the roster "
+        "(stage 4b item 7), recorded by running UQM's own DoModifyShips "
+        "and its DMS_ functions (shipyard.c), DoModifyRoster (planets/"
+        "roster.c), and build.c's CloneShipFragment and NameCaptain on "
+        "real queues (displist.c) with TFB_Random (random.c). Each "
+        "scenario: as above, and the seed of TFB_Random (the captains' "
+        "names drawn), the races allied (GOOD_GUY; the rest BAD_GUY; each "
+        "race's ship's starting and most crew from data/ships.json), and "
+        "the fleet (built_ship_q: race, crew, captain's name index, hangar "
+        "slot). Steps: yard opens DoModifyShips freshly (DoShipyard's "
+        "Crew), roster opens the roster (RosterMenu, left at once with no "
+        "fleet), and u, d, l, r, s and c are keys to the screen open (a "
+        "key after it was left has it opened again, reopen). results: "
+        "after each step, as above but the slots, and the fleet (each "
+        "ship's race as races.h's number, crew, captain and slot, in the "
+        "queue's order; only where it changed, and after the first step), "
+        "the screen open (0 none, 2 the shipyard, 3 the roster), and for "
+        "the roster its state (CurState), item (modifyingCrew) and point "
+        "(the lit ship's curShipPt).",
     ])
     data["scenarios"] = scenarios
+    data["shipyard"] = shipyard
     return data
 
 

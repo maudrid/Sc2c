@@ -1,9 +1,9 @@
 /*
  * Attack on Crateris: the rest of UQM that outfit.c, shipyard.c, sis.c and
  * menu.c call, for the outfitting recording program (golden/outfit.c).
- * They only draw, flash, load or wait, or serve the escort fleet's ships
- * and the input loop, none of which the recording drives: each does
- * nothing and gives 0. Declared without UQM's headers (each is called
+ * They only draw, flash, load or wait, or serve the input loop, none of
+ * which the recording drives: each does nothing and gives 0 (the fleet's
+ * queues are UQM's own build.c and displist.c, linked). Declared without UQM's headers (each is called
  * through its own prototype; 0 is a null pointer, FALSE or 0 for all).
  *
  * Copyright (C) 2026 Attack on Crateris contributors.
@@ -21,8 +21,6 @@ NOTHING (Alarm_remove)
 NOTHING (AnyButtonPress)
 NOTHING (CaptureDrawable)
 NOTHING (CaptureStringTable)
-NOTHING (CloneShipFragment)
-NOTHING (CountLinks)
 NOTHING (DestroyDrawable)
 NOTHING (DestroyStringTable)
 NOTHING (DoShipSpin)
@@ -40,21 +38,15 @@ NOTHING (Flash_setSpeed)
 NOTHING (Flash_start)
 NOTHING (Flash_terminate)
 NOTHING (FlushInput)
-NOTHING (FreeLink)
 NOTHING (GetClusterName)
 NOTHING (GetColorMapAddress)
 NOTHING (GetContextFontLeading)
-NOTHING (GetEscortByStarShipIndex)
-NOTHING (GetIndexFromStarShip)
-NOTHING (GetStarShipFromIndex)
 NOTHING (GetStringAddress)
 NOTHING (GetTimeCounter)
-NOTHING (InsertQueue)
 NOTHING (LoadStringTableInstance)
 NOTHING (PlayFrame)
 NOTHING (ReleaseDrawable)
 NOTHING (ReleaseStringTable)
-NOTHING (RemoveQueue)
 NOTHING (SetAbsStringTableIndex)
 NOTHING (SetColorMap)
 NOTHING (SetInputCallback)

@@ -3,7 +3,9 @@
 // Follows The Ur-Quan Masters 0.8.0 (src/uqm/build.c: AddEscortShips,
 // CalculateEscortsWorth, CountEscortShips, EscortFeasibilityStudy,
 // RemoveSomeEscortShips, RemoveEscortShips, CloneShipFragment,
-// NameCaptain; build.h: PickCaptainName; races.h: MAX_BUILT_SHIPS),
+// NameCaptain; build.h: PickCaptainName; races.h: MAX_BUILT_SHIPS;
+// shipyard.c's ShowCombatShip and DMS_ScrapEscortShip; planets/roster.c's
+// DeltaSupportCrew),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and
 // the UQM contributors.
 //
@@ -93,6 +95,50 @@ public sealed class HostFleet
     }
 
     /// <summary>
+    /// The shipyard's build (DMS_TryAddEscortShip): a ship of a race made
+    /// as CloneShipFragment makes it with <paramref name="crew"/> crew (the
+    /// shipyard's 1), its captain named by NameCaptain from
+    /// <paramref name="random"/>, put in the empty <paramref name="slot"/>
+    /// under the cursor (ShowCombatShip moves the queue's new tail before
+    /// the first ship of a later slot and gives it the slot). UQM's Build
+    /// fails with the fleet full (after the name is drawn), which the
+    /// shipyard can't reach: an empty slot means room. A slot out of range
+    /// or taken, a crew out of range (1 to the race's most), or a race that
+    /// can't have a fleet ship is an <see cref="ArgumentException"/>,
+    /// nothing drawn.
+    /// </summary>
+    public FleetShip Build(StoryRules rules, string race, int slot, int crew, Func<uint> random)
+    {
+        if (slot is < 0 or >= MaxShips)
+            throw new ArgumentOutOfRangeException(nameof(slot), $"hangar slot {slot}: 0 to {MaxShips - 1}");
+        if (InSlot(slot) is not null)
+            throw new ArgumentException($"hangar slot {slot} has a ship", nameof(slot));
+        var raceShip = Fleetable(rules, race);
+        if (crew < 1 || crew > raceShip.MaxCrew)
+            throw new ArgumentOutOfRangeException(nameof(crew), $"{crew} crew for a ship of {raceShip.MaxCrew}");
+        byte captain = NameCaptain(rules, raceShip.Race, random);
+        int at = 0;
+        while (at < _ships.Count && _ships[at].Slot <= slot)
+            ++at;
+        var ship = new FleetShip(raceShip.Race, crew, captain, slot);
+        _ships.Insert(at, ship);
+        return ship;
+    }
+
+    /// <summary>
+    /// The ship in a slot leaves the fleet (DMS_ScrapEscortShip: the
+    /// shipyard's ship of no crew, scrapped as its crew editing ends). An
+    /// <see cref="ArgumentException"/> for a slot with no ship.
+    /// </summary>
+    public void Scrap(int slot)
+    {
+        int at = _ships.FindIndex(s => s.Slot == slot);
+        if (at < 0)
+            throw new ArgumentException($"no fleet ship in slot {slot}", nameof(slot));
+        _ships.RemoveAt(at);
+    }
+
+    /// <summary>
     /// NameCaptain: a captain's name for a new ship of a race,
     /// PickCaptainName drawn again while another ship of its species in the
     /// fleet has it (the Yehat rebels' ships are the Yehat's species).
@@ -149,6 +195,34 @@ public sealed class HostFleet
         _ships[at] = _ships[at] with { Crew = crew };
     }
 
+    /// <summary>
+    /// The roster's crew move (planets/roster.c's DoModifyRoster and
+    /// DeltaSupportCrew) for the ship at <paramref name="index"/> in the
+    /// queue: <paramref name="delta"/> 1 takes a crew member from the
+    /// flagship (which must have one, <paramref name="flagshipCrew"/>), -1
+    /// gives one back (the flagship must have room: below
+    /// <paramref name="flagshipRoom"/>, GetCrewPodCapacity). The ship keeps
+    /// at least one, and takes none past its race's starting crew (the
+    /// template's crew_level, not its most: a Syreen's 12 of 42); one over
+    /// it (a Syreen's that picked up crew in a battle) may still give crew
+    /// back. True if the ship's crew changed; the caller moves the
+    /// flagship's by -<paramref name="delta"/> (DeltaSISGauges). A delta
+    /// other than 1 or -1, or no ship there, is refused (false). UQM's
+    /// ship of no crew giving one back (its crew_level wrapping round to
+    /// 65535) can't happen here: no such ship is out of the shipyard.
+    /// </summary>
+    public bool MoveRosterCrew(StoryRules rules, int index, int delta, int flagshipCrew, int flagshipRoom)
+    {
+        if (delta is not (1 or -1) || index < 0 || index >= _ships.Count)
+            return false;
+        var ship = _ships[index];
+        if (delta > 0 ? flagshipCrew == 0 || ship.Crew + 1 > rules.RaceShip(ship.Race).Crew
+                : flagshipCrew >= flagshipRoom || ship.Crew <= 1)
+            return false;
+        _ships[index] = ship with { Crew = ship.Crew + delta };
+        return true;
+    }
+
     /// <summary>The fleet ship in a slot, or null.</summary>
     public FleetShip? InSlot(int slot) => _ships.FirstOrDefault(s => s.Slot == slot);
 
@@ -182,6 +256,9 @@ public sealed class HostFleet
         _ships.Clear();
         _ships.AddRange(list);
     }
+
+    /// <summary>Whether a race can have fleet ships: one of avail_race_q's but the Ur-Quan drone (whose ship never fights).</summary>
+    public static bool CanHave(StoryRules rules, string race) => rules.Races.Contains(race) && race != "URQUAN_DRONE_SHIP";
 
     // A race that can have a fleet ship: one of avail_race_q's but the drone (whose ship never fights).
     private static RaceShip Fleetable(StoryRules rules, string race)

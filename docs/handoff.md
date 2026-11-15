@@ -2,18 +2,19 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-15, stage 4b item 6 (the host's fleet) built and reviewed in three rounds (round 3: nothing to fix but a comment).
+**Last updated:** 2026-11-15, stage 4b item 7 (the shipyard and the roster) built; its review rounds next.
 
 ## Where things are
 
-- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
+- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Item 7 is committed, not yet pushed (the owner's session pushes and runs the review rounds).
 - **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet): eleven items, approved by the owner on 2026-11-13 with all six recommendations accepted. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
 - **Stage 4b item 1 is built and reviewed** (its Progress row): every ship's content, and the traces `tests/golden/battle-races-1.json` to `-3.json` (items 2 to 4); notes for items 3 and 4 are under them in the plan.
 - **Stage 4b items 2 to 4 are built and reviewed** (their Progress rows): all 24 race ships are ported, in `src/Crateris.Core/Combat/` (`RaceShips.Ported`, so `--start-battle` takes them), every trace matched (`RaceShipBattleTests`); co-op, seam and branch tests in `RaceShipCoopTests` (a partial class, by item).
 - **Stage 4b item 5 (enemy fleets) is built and reviewed** (its Progress row; five rounds: the Ur-Quan, Kohr-Ah and Earthling's salvage, the client's enemy status on a ship's return, a cap of 14 ships, the joining notice, tests on the real path; round 5 found nothing): `EnemyFleet`/`EnemyFleetShip` and `GameWorld.StartBattle(id, EnemyFleet, ...)` (one ship at a time, at most 14; infinite fleets via `Battle`'s `infiniteEnemy`), salvage the first race's bounty for each ship (`BattleKit.RaceOf`), `WorldBattle.EnemyFleetLeft` for 3b, `--start-battle RACE,RACE,...`; the markers' race is noted for items 9 and 10; tests in `EnemyFleetTests` and `BattleScreenTests`.
 - **Stage 4b item 6 (the host's fleet) is built and reviewed** (its Progress row; round 1: a ship of 0 crew refused on load, `--start-*` gifts lost under `--start-visit`; round 2: wording, a test that couldn't fail, the start order for minerals and units; round 3 found nothing): `HostFleet` (`GameWorld.Fleet`, build.c's functions), the talks' ships giving to the host's fleet whoever answers (`EscortsWorth` 0 for a guest), the Arilou's gift (row 43 closed), saves version 12, `--start-fleet` and `--start-allied`; tests in `FleetTests` (topic `fleet`).
+- **Stage 4b item 7 (the shipyard and the roster) is built, not yet reviewed** (its Progress row): the host's shipyard builds allied races' ships into the slot under the cursor, crews them with UQM's refunds, the last crew's refund and the buy-back, and scraps a ship left with no crew as its crew editing ends (`ShipyardMenu`'s `YardMode.Build` and fleet crew mode, `Outfitting`'s `BuildShip`, `HireShipCrew`, `DismissShipCrew`, `ScrapShip`; `HostFleet.Build`, `Scrap`, `MoveRosterCrew`; `GameWorld.ScrapUnmannedFleetShips` each frame and as a visit changes; a save leaves such a ship out); guests are refused the hangar's slots; the roster (`Systems/RosterMenu.cs`) from the host's orbit menu's Manifest (`OrbitMenu.Fleet`, `PlayerSession.Fleet`, `GameWorld.RosterFor`/`MoveRosterCrew`); recorded against UQM's own `DoModifyShips` and `DoModifyRoster` (`golden/outfit.c` extended, `outfit.json`'s `shipyard`, `ShipyardGoldenTests`); tests in `ShipyardTests` (topic `fleet`); `--script` gains `menuleft` and `menuright`.
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
-- **Last checks:** with item 6's review round 2 fixes (round 3 changed a comment only), all topics 1,875 passed, 0 failed, 0 skipped with the content set; 49 of item 6's 51 mutations caught (2 equivalent, the Progress row lists them); `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1093, `game/scripts/ReportView.cs` 78); a headless `--start-fleet arilou,spathi:5 --start-allied spathi --quit-after 60 --report FILE` ran (the report listing the Arilou with 6 crew in slot 0, the Spathi with 5 in slot 1). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 6 changed nothing in `data/`).
+- **Last checks:** with item 7, all topics 1,975 passed, 0 failed, 0 skipped with the content set; 56 of item 7's 57 mutations caught (1 equivalent, the Progress row lists them); `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` 1095, `game/scripts/ReportView.cs` 78); `golden_uqm.py --only outfit` re-recorded `outfit.json` (its old scenarios unchanged, `shipyard` new); headless `--start-docked --start-allied spathi --start-units 5000` with a building script, and `--start-orbit 82:2:1 --start-fleet spathi:5,arilou:6` with the Manifest's Roster, ran as the Progress row says. `tools/test_network.py` passed with item 7; data checks on 4a item 9's last commit (items 1 to 7 changed nothing in `data/`).
 
 ## Open items
 
@@ -39,7 +40,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 6 is done; wait for the owner's go-ahead for item 7 (the shipyard and the roster)
+Review rounds for stage 4b item 7 (CLAUDE.md's rule); then report to the owner and wait for the go-ahead for item 8 (fleet ships in battle)
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

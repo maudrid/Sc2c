@@ -656,6 +656,8 @@ public sealed class PlayerSession
             Notify("Close the cargo display first.");
         else if (OrbitMenu?.DeviceList is not null)
             Notify("Close the Devices list first.");
+        else if (OrbitMenu?.Roster is not null)
+            Notify("Close the roster first.");
         else if (Rescue is not null)
             Notify("Close the rescue first.");
         else if (Me?.Wrecked == true)
@@ -887,9 +889,12 @@ public sealed class PlayerSession
         if (HostPaused)
             return;   // the menu waits for the host's pause to lift, as the world does
         OrbitMenuItem item = OrbitMenu.Selected;
+        bool roster = OrbitMenu.Roster is not null;
         MenuOutcome outcome = OrbitMenu.Press(key, Taken, Kit);
         OrbitMessage = outcome switch
         {
+            _ when OrbitMenu.Roster is { } open => RosterMessage(open, outcome),
+            _ when roster => "",   // the roster left
             MenuOutcome.NotYet when OrbitMenu.DeviceList is not null => "Using devices comes in a later stage (3c).",
             MenuOutcome.NotYet => $"{MenuLabel(item)} comes in a later stage.",
             MenuOutcome.Refused when item == OrbitMenuItem.DispatchLander => RefusalMessage(OrbitMenu.LastRefusal),
@@ -926,6 +931,28 @@ public sealed class PlayerSession
         }
         // A key can finish the last scan type: log it as when it runs out.
         NoteScanEnd();
+    }
+
+    /// <summary>
+    /// The host's fleet, for the Manifest's Roster (stage 4b item 7): the
+    /// host's own world's, set by the host's game (the host plays locally);
+    /// null for a guest, who has no fleet (their Roster comes later, as
+    /// before). Taken by each orbit menu as it opens.
+    /// </summary>
+    public IRosterFleet? Fleet { get; set; }
+
+    // The roster's lit ship and what to do, in words (its drawing is stage 4b item 10's).
+    private string RosterMessage(RosterMenu roster, MenuOutcome outcome)
+    {
+        var ships = Fleet?.Ships ?? Array.Empty<FleetShip>();
+        string lit = roster.Selected < ships.Count
+            ? $"{ships[roster.Selected].Race} in slot {ships[roster.Selected].Slot + 1}, crew {ships[roster.Selected].Crew}"
+            : "no ship";
+        if (outcome == MenuOutcome.Refused)
+            return $"Roster: {lit}. That crew can't move.";
+        return roster.ModifyingCrew
+            ? $"Roster: {lit}. Up: a crew member to it from the flagship; down: one back; Enter: done"
+            : $"Roster: {lit}. Arrows: another ship; Enter: its crew; Esc: back";
     }
 
     /// <summary>The ship's fuel, landers and crew as the host last said, for Dispatch lander's checks.</summary>
@@ -1252,16 +1279,29 @@ public sealed class PlayerSession
                 yield return "The shipyard:";
                 yield return sb.YardMode switch
                 {
+                    YardMode.Crew when !ShipyardMenu.OnFlagship(sb.YardCursor) =>
+                        FleetShipIn(sb.YardCursor) is { } crewed
+                            ? $"{crewed.Race} in slot {sb.YardCursor + 1}: crew {crewed.Crew}, {Snapshot?.Story?.CrewCost} RU each: up hires, down sends away (the last gives its cost back); Enter: done (a ship of no crew is scrapped)"
+                            : $"Hangar slot {sb.YardCursor + 1}",
                     YardMode.Crew =>
                         $"Crew {me.Hold?.Crew} of {CrewRoom(me)}, {Snapshot?.Story?.CrewCost} RU each: up hires, down sends away; Enter: done",
+                    YardMode.Build =>
+                        $"Build into slot {sb.YardCursor + 1}: {sb.YardBuildRace ?? "?"} (arrows: another ship; Enter: build; Esc: back)",
                     YardMode.Ships => ShipyardMenu.OnFlagship(sb.YardCursor)
                         ? "The flagship (arrows: the hangar's slots; Enter: its crew; Esc: back)"
-                        : $"Hangar slot {(sb.YardCursor & 0xF) + 1}, empty: fleet ships come with combat (arrows: move; Esc: back)",
+                        : Fleet is null
+                            ? $"Hangar slot {(sb.YardCursor & 0xF) + 1}: the host's fleet (arrows: move; Esc: back)"
+                            : FleetShipIn(sb.YardCursor) is { } ship
+                                ? $"Hangar slot {sb.YardCursor + 1}: {ship.Race}, crew {ship.Crew} (arrows: move; Enter: its crew; Esc: back)"
+                                : $"Hangar slot {sb.YardCursor + 1}, empty (arrows: move; Enter: build a ship; Esc: back)",
                     _ => Menu(YardItems, sb.YardState),
                 };
                 break;
         }
     }
+
+    // The host's fleet ship in a hangar slot (the host's own fleet; none for a guest).
+    private FleetShip? FleetShipIn(byte slot) => Fleet?.Ships.FirstOrDefault(s => s.Slot == slot);
 
     /// <summary>MODULE_COST_SCALE (data/modules.json): resource units a unit of a module's cost.</summary>
     public int ModuleCostScale { get; set; } = 50;
@@ -1305,7 +1345,7 @@ public sealed class PlayerSession
             if (OrbitMenu?.World != world)
             {
                 // A new visit: the menu starts afresh, nothing found yet.
-                OrbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon)) { Inventory = Devices };
+                OrbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon)) { Inventory = Devices, Fleet = Fleet };
                 OrbitMessage = "";
                 _wasSweeping = false;
             }

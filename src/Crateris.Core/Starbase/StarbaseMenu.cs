@@ -7,7 +7,7 @@
 // (at your option) any later version.
 //
 // Follows The Ur-Quan Masters 0.8.0 (src/uqm/starbase.c's DoStarBase,
-// shipyard.c's DoShipyard and DoModifyShips for the flagship's crew),
+// shipyard.c's DoShipyard and DoModifyShips with its DMS_ functions),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and
 // the UQM contributors, under the GNU GPL 2 or later.
 
@@ -38,23 +38,40 @@ public enum YardMode : byte
     /// <summary>DoShipyard's menu: Crew, Save/Load, Exit.</summary>
     Menu,
 
-    /// <summary>DoModifyShips navigating: the cursor on the flagship or one of the hangar's slots.</summary>
+    /// <summary>DoModifyShips navigating (DMS_Mode_navigate): the cursor on the flagship or one of the hangar's slots.</summary>
     Ships,
 
-    /// <summary>DoModifyShips editing the flagship's crew: up hires, down sends away.</summary>
+    /// <summary>
+    /// DoModifyShips editing a ship's crew (DMS_Mode_editCrew): the
+    /// flagship's, or the host's fleet ship's under the cursor; up hires,
+    /// down sends away.
+    /// </summary>
     Crew,
+
+    /// <summary>
+    /// DoModifyShips choosing a ship to build into the empty slot under the
+    /// cursor (DMS_Mode_addEscort): the allied races' ships, the host's only.
+    /// Not sent to guests (who never have it) until the wire carries the
+    /// fleet (stage 4b item 9).
+    /// </summary>
+    Build,
 }
 
 /// <summary>
-/// The shipyard's screen, for the player's own ship, as UQM's keys move
-/// round it: DoShipyard's menu (Crew, Save/Load, Exit); on Crew,
-/// DoModifyShips with the cursor on the flagship, moved round the
-/// hangar's twelve slots and back (DMS_MoveCursor); select on the
-/// flagship edits its crew (up hires one, down sends one away,
-/// DMS_ModifyCrew; select or cancel goes back to the cursor), and cancel
-/// goes back to the menu. The escort fleet's ships come with combat
-/// (stage 4): select on a slot is refused, where UQM would open the list
-/// of ships to build (docs/differences.md row 44).
+/// The shipyard's screen, as UQM's keys move round it: DoShipyard's menu
+/// (Crew, Save/Load, Exit); on Crew, DoModifyShips with the cursor on the
+/// flagship, moved round the hangar's twelve slots and back
+/// (DMS_MoveCursor); select on the flagship edits its crew (up hires one,
+/// down sends one away, DMS_ModifyCrew; select or cancel goes back to the
+/// cursor), and cancel goes back to the menu. For the host, whose fleet
+/// it is (stage 4b, decision 3), select on an empty slot opens the list of
+/// the allied races' ships to build (DMS_AddEscortShip: the arrows go
+/// round it, select builds, cancel goes back), and select on a fleet ship
+/// (or building one) edits its crew (DMS_EditCrewMode), a ship left at no
+/// crew scrapped as it ends (DMS_ScrapEscortShip). Whether a slot is being
+/// built into or crewed follows the fleet, as UQM's does
+/// (GetEscortByStarShipIndex at each key: a ship a talk puts in the slot
+/// meanwhile is crewed). A guest has no fleet: select on a slot is refused.
 /// </summary>
 public sealed class ShipyardMenu
 {
@@ -67,12 +84,17 @@ public sealed class ShipyardMenu
     /// <summary>DoModifyShips' CurState for the flagship: MAKE_BYTE (0, 0xF).</summary>
     public const byte Flagship = 0xF0;
 
+    /// <summary>MODIFY_CREW_FLAG: delta_item's flag for building or crewing.</summary>
+    public const int ModifyCrewFlag = 1 << 8;
+
     private readonly Outfitting _rules;
     private readonly Func<OutfitAction, bool> _act;
     private readonly List<ScreenOp> _ops = new();
+    private bool _inMenu = true;
+    private bool _modify;
 
     /// <summary>The shipyard opened (DoShipyard's first drawing).</summary>
-    /// <param name="rules">The player's ship and the prices, as this side sees them.</param>
+    /// <param name="rules">The player's ship, the host's fleet for the host, and the prices, as this side sees them.</param>
     /// <param name="act">Does an action (sends it, and applies it here); false if refused.</param>
     public ShipyardMenu(Outfitting rules, Func<OutfitAction, bool> act)
     {
@@ -107,7 +129,15 @@ public sealed class ShipyardMenu
     /// <summary>The menu's cursor.</summary>
     public byte State { get; private set; } = Crew;
 
-    public YardMode Mode { get; private set; } = YardMode.Menu;
+    /// <summary>
+    /// Where the keys go: the menu; or DoModifyShips' mode, which, as
+    /// UQM's, follows MODIFY_CREW_FLAG and the slot under the cursor (with
+    /// the flag, an empty slot is built into, a ship crewed).
+    /// </summary>
+    public YardMode Mode => _inMenu ? YardMode.Menu
+        : !_modify ? YardMode.Ships
+        : OnFlagship(Cursor) || _rules.Fleet?.InSlot(Cursor) is not null ? YardMode.Crew
+        : YardMode.Build;
 
     /// <summary>
     /// DoModifyShips' cursor: a hangar slot (0 to 11), or the flagship
@@ -115,10 +145,26 @@ public sealed class ShipyardMenu
     /// </summary>
     public byte Cursor { get; private set; } = Flagship;
 
+    /// <summary>
+    /// The ship lit in the list to build (delta_item's low byte, an index
+    /// into <see cref="Outfitting.BuildList"/>; kept, as UQM keeps it, until
+    /// the list opens again or a fleet ship's crew is changed).
+    /// </summary>
+    public byte RaceItem { get; private set; }
+
+    /// <summary>The race whose ship <see cref="RaceItem"/> lights (null past the list's end).</summary>
+    public string? BuildRace => _rules.BuildList is var list && RaceItem < list.Count ? list[RaceItem] : null;
+
+    /// <summary>UQM's delta_item: <see cref="RaceItem"/> with <see cref="ModifyCrewFlag"/> while building or crewing.</summary>
+    public int Item => (_modify ? ModifyCrewFlag : 0) | RaceItem;
+
+    /// <summary>The hangar slot whose fleet ship's crew is being changed; null if none.</summary>
+    public int? EditingSlot => Mode == YardMode.Crew && !OnFlagship(Cursor) ? Cursor : null;
+
     /// <summary>Whether <paramref name="cursor"/> is on the flagship (HINIBBLE (CurState) != 0).</summary>
     public static bool OnFlagship(byte cursor) => cursor >> 4 != 0;
 
-    /// <summary>Changing the crew (DoModifyShips' crew mode on the flagship).</summary>
+    /// <summary>Changing a ship's crew (DoModifyShips' crew mode).</summary>
     public bool CrewMode => Mode == YardMode.Crew;
 
     /// <summary>
@@ -133,23 +179,38 @@ public sealed class ShipyardMenu
             case YardMode.Crew:
                 switch (key)
                 {
-                    case MenuKey.Up or MenuKey.Down:
+                    case MenuKey.Up or MenuKey.Down when OnFlagship(Cursor):
                         return ModifyCrew(key == MenuKey.Up);
+                    case MenuKey.Up or MenuKey.Down:
+                        return ModifyShipCrew(key == MenuKey.Up);
                     case MenuKey.Select or MenuKey.Cancel:
-                        Mode = YardMode.Ships;
+                        // DMS_EditCrewMode: a fleet ship left with no crew is scrapped as the editing ends.
+                        if (!OnFlagship(Cursor) && _rules.Fleet?.InSlot(Cursor) is { Crew: 0 } && _act(new ScrapShip(Cursor)))
+                            Draw(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined, ScreenOp.Undefined);   // the SIS display refreshed
+                        _modify = false;
                         break;
                 }
                 return OutfitOutcome.None;
+            case YardMode.Build:
+                return AddShip(key);
             case YardMode.Ships:
                 switch (key)
                 {
                     case MenuKey.Select when OnFlagship(Cursor):
-                        Mode = YardMode.Crew;
+                        _modify = true;
+                        return OutfitOutcome.None;
+                    case MenuKey.Select when _rules.Fleet is null:
+                        return OutfitOutcome.Refused;   // a guest has no fleet (stage 4b, decision 3)
+                    case MenuKey.Select when _rules.Fleet.InSlot(Cursor) is not null:
+                        _modify = true;   // the fleet ship's crew (delta_item |= MODIFY_CREW_FLAG)
                         return OutfitOutcome.None;
                     case MenuKey.Select:
-                        return OutfitOutcome.Refused;   // building fleet ships: stage 4
+                        if (_rules.BuildList.Count == 0)
+                            return OutfitOutcome.Refused;   // no allied race (UQM's always has the Earthlings)
+                        (_modify, RaceItem) = (true, 0);   // the list of ships to build, on its first
+                        return OutfitOutcome.None;
                     case MenuKey.Cancel:
-                        (Mode, State) = (YardMode.Menu, Crew);
+                        (_inMenu, State) = (true, Crew);
                         Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
                         return OutfitOutcome.None;
                     case MenuKey.Left:
@@ -179,7 +240,8 @@ public sealed class ShipyardMenu
                 Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, SaveLoad);
                 return OutfitOutcome.SaveLoad;
             }
-            (Mode, Cursor) = (YardMode.Ships, Flagship);
+            // DoModifyShips, freshly: the cursor on the flagship, delta_item 0.
+            (_inMenu, _modify, Cursor, RaceItem) = (false, false, Flagship, 0);
             return OutfitOutcome.None;
         }
         // DoMenuChooser (PM_CREW): three entries, wrapping round, the menu drawn on any arrow.
@@ -210,6 +272,51 @@ public sealed class ShipyardMenu
         if (_rules.Story.CrewCost != cost)
             Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
         return OutfitOutcome.Acted;
+    }
+
+    // DMS_ModifyCrew for a fleet ship: a crew member hired or sent away (the resource units' gauge, and
+    // CrewTransaction's menu drawn again if the price changed; the ship's crew count, ShowShipCrew, is the client's
+    // to draw: stage 4b item 10), and delta_item's ship to build forgotten, refused or not.
+    private OutfitOutcome ModifyShipCrew(bool hire)
+    {
+        var (ru, cost) = (_rules.Ship.ResourceUnits, _rules.Story.CrewCost);
+        bool done = _act(hire ? new HireShipCrew(Cursor) : new DismissShipCrew(Cursor));
+        RaceItem = 0;
+        if (!done)
+            return OutfitOutcome.Refused;
+        Draw(ScreenOpKind.Gauges, 0, 0, (int)(_rules.Ship.ResourceUnits - (long)ru));
+        if (_rules.Story.CrewCost != cost)
+            Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
+        return OutfitOutcome.Acted;
+    }
+
+    // DMS_AddEscortShip: cancel goes back to the cursor (the menu drawn where the list was); select builds the ship lit
+    // (DMS_TryAddEscortShip: its crew edited next); the arrows go round the list (left and up back, right and down on).
+    // The hangar's doors and the list's ship are the client's to draw (stage 4b item 10).
+    private OutfitOutcome AddShip(MenuKey key)
+    {
+        var list = _rules.BuildList;
+        switch (key)
+        {
+            case MenuKey.Cancel:
+                _modify = false;
+                Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
+                return OutfitOutcome.None;
+            case MenuKey.Select:
+                long ru = _rules.Ship.ResourceUnits;
+                if (RaceItem >= list.Count || !_act(new BuildShip(Cursor, list[RaceItem])))
+                    return OutfitOutcome.Refused;
+                Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
+                Draw(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined, (int)(_rules.Ship.ResourceUnits - ru));
+                return OutfitOutcome.Acted;
+            case MenuKey.Left or MenuKey.Up:
+                RaceItem = (byte)(RaceItem == 0 ? list.Count - 1 : RaceItem - 1);
+                return OutfitOutcome.None;
+            case MenuKey.Right or MenuKey.Down:
+                RaceItem = (byte)(RaceItem + 1 >= list.Count ? 0 : RaceItem + 1);
+                return OutfitOutcome.None;
+        }
+        return OutfitOutcome.None;
     }
 
     /// <summary>DMS_MoveCursor: the flagship is a row of its own below the hangar's; rows and columns wrap round.</summary>
@@ -375,7 +482,10 @@ public sealed class StarbaseMenu
 
     /// <summary>The screen as sent to its player.</summary>
     public StarbaseView View() => new(Screen, State, Outfit?.State ?? 0, Outfit?.Item ?? 0, Outfit?.Installing ?? false,
-        Yard?.State ?? 0, Yard?.Mode ?? YardMode.Menu, Yard?.Cursor ?? ShipyardMenu.Flagship, Busy ?? "", Refusals);
+        Yard?.State ?? 0, Yard?.Mode ?? YardMode.Menu, Yard?.Cursor ?? ShipyardMenu.Flagship, Busy ?? "", Refusals)
+    {
+        YardBuildRace = Yard is { Mode: YardMode.Build } yard ? yard.BuildRace : null,
+    };
 }
 
 /// <summary>
@@ -389,8 +499,15 @@ public sealed class StarbaseMenu
 public sealed record StarbaseView(StarbaseScreen Screen, byte State, byte OutfitState, int OutfitItem, bool Installing,
     byte YardState, YardMode YardMode, byte YardCursor, string Busy, int Refusals)
 {
-    /// <summary>Changing the flagship's crew in the shipyard.</summary>
+    /// <summary>Changing a ship's crew in the shipyard.</summary>
     public bool CrewMode => YardMode == YardMode.Crew;
+
+    /// <summary>
+    /// The race whose ship is lit in the shipyard's list to build (the host's
+    /// own screen, which isn't sent: guests never build); null otherwise. Not
+    /// encoded: the wire carries the fleet's screens from stage 4b item 9.
+    /// </summary>
+    public string? YardBuildRace { get; init; }
 
     public byte[] Encode()
     {

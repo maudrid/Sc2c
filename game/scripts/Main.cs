@@ -457,6 +457,8 @@ public partial class Main : Node2D
         _host.World.TalkLibrary = _talks;
         _host.World.BattleKit = _battleKit;
         _host.World.DialogueLocks = DialogueLocks.Load(_dataDir);
+        if (_player != null)
+            _player.Fleet = _host.World.RosterFor(_host.HostId);   // the roster acts on the host's own fleet (stage 4b item 7)
         ApplyStartOptions(_host);
         _inputDelay = _host.World.Settings.InputDelayFrames;
 

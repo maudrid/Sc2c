@@ -140,6 +140,9 @@ public sealed class OrbitMenu
     /// <summary>
     /// Whether an entry does something in this stage. The others are
     /// shown but say they come later (<see cref="MenuOutcome.NotYet"/>).
+    /// The Roster works for the host since stage 4b item 7 (with
+    /// <see cref="Fleet"/>), but isn't drawn yet (item 10), so it's still
+    /// marked as coming later.
     /// </summary>
     public static bool Available(OrbitMenuItem item) => item is not
         (OrbitMenuItem.Starmap or OrbitMenuItem.GameMenu or OrbitMenuItem.Roster);
@@ -150,6 +153,16 @@ public sealed class OrbitMenu
     /// not given.
     /// </summary>
     public Func<IReadOnlyList<int>>? Inventory { get; set; }
+
+    /// <summary>
+    /// The host's fleet, for the Manifest's Roster (stage 4b item 7); null
+    /// for a guest, who has none (stage 4b, decision 3): their Roster says
+    /// it comes later, as before.
+    /// </summary>
+    public IRosterFleet? Fleet { get; set; }
+
+    /// <summary>The Manifest's Roster, while it's open (RosterMenu); null when closed.</summary>
+    public RosterMenu? Roster { get; private set; }
 
     /// <summary>The Manifest's Devices list, while it's open (DevicesMenu); null when closed.</summary>
     public DevicesMenu? Devices { get; private set; }
@@ -219,6 +232,13 @@ public sealed class OrbitMenu
         }
         if (Devices is not null)
             return PressDevices(key);
+        if (Roster is not null)
+        {
+            var outcome = Roster.Press(key, Fleet!);
+            if (Roster.Left)
+                Roster = null;   // RosterMenu returns: back at the Manifest
+            return outcome;
+        }
         if (CargoOpen)
         {
             // DoDiscardCargo: the categories wrap round; bio data can't be chosen.
@@ -326,6 +346,12 @@ public sealed class OrbitMenu
                 Devices = new DevicesMenu(list);
                 return MenuOutcome.Moved;
             }
+            case OrbitMenuItem.Roster when Fleet is not null:
+                // RosterMenu: with no fleet ships, nothing opens.
+                if (Fleet.Count == 0)
+                    return MenuOutcome.None;
+                Roster = new RosterMenu(Math.Min(Fleet.Count, RosterMenu.ShipPoints.Count));
+                return MenuOutcome.Moved;
             case OrbitMenuItem.ExitManifest:
                 Open(MenuPage.Orbit, OrbitMenuItem.Manifest);
                 return MenuOutcome.Moved;

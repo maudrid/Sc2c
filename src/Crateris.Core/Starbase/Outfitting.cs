@@ -8,8 +8,10 @@
 //
 // Follows The Ur-Quan Masters 0.8.0 (src/uqm/outfit.c's DoOutfit,
 // DoInstallModule and ChangeFuelQuantity; shipyard.c's
-// DMS_HireFlagShipCrew, DMS_DismissFlagShipCrew and CrewTransaction;
-// sis.c's DeltaSISGauges), Copyright Paul Reiche, Fred Ford and Toys for
+// DMS_HireFlagShipCrew, DMS_DismissFlagShipCrew, CrewTransaction, and for
+// the host's fleet DMS_TryAddEscortShip, DMS_HireEscortShipCrew,
+// DMS_DismissEscortShipCrew, DMS_ScrapEscortShip and
+// GetAvailableRaceFromIndex; sis.c's DeltaSISGauges), Copyright Paul Reiche, Fred Ford and Toys for
 // Bob, Inc. 1992-2002, and the UQM contributors, under the GNU GPL 2 or
 // later.
 
@@ -71,6 +73,18 @@ public sealed record HireCrew : OutfitAction;
 /// <summary>A crew member sent away (the shipyard).</summary>
 public sealed record DismissCrew : OutfitAction;
 
+/// <summary>A fleet ship of a race (ARILOU_SHIP, ...) built into an empty hangar slot (the shipyard, the host's only).</summary>
+public sealed record BuildShip(int Slot, string Race) : OutfitAction;
+
+/// <summary>A crew member hired for the fleet ship in a hangar slot (the host's only).</summary>
+public sealed record HireShipCrew(int Slot) : OutfitAction;
+
+/// <summary>A crew member sent away from the fleet ship in a hangar slot (the host's only).</summary>
+public sealed record DismissShipCrew(int Slot) : OutfitAction;
+
+/// <summary>The fleet ship of no crew in a hangar slot scrapped, as its crew editing ends (the host's only).</summary>
+public sealed record ScrapShip(int Slot) : OutfitAction;
+
 /// <summary>
 /// The starbase's outfitting and shipyard crew, by UQM's rules (stage 3a,
 /// item 8): what a player may buy and sell, at the story's prices
@@ -95,15 +109,35 @@ public sealed class Outfitting
     /// <summary>FUEL_VOLUME_PER_ROW: a bar of the fuel gauge (HEFUEL_TANK_CAPACITY / MAX_FUEL_BARS).</summary>
     public const int FuelBar = (int)(Hyperspace.Fuel.HighEfficiencyTankSize / 10);
 
-    public Outfitting(IOutfitShip ship, StoryState story)
+    /// <param name="ship">The player's own ship.</param>
+    /// <param name="story">The prices, the alliances.</param>
+    /// <param name="fleet">The host's fleet, for the host (stage 4b, decision 3); null for a guest, who has none.</param>
+    /// <param name="random">TFB_Random, for the captains' names of the ships built; needed with a fleet.</param>
+    public Outfitting(IOutfitShip ship, StoryState story, HostFleet? fleet = null, Func<uint>? random = null)
     {
         Ship = ship;
         Story = story;
+        Fleet = fleet;
+        _random = random;
     }
+
+    private readonly Func<uint>? _random;
 
     public IOutfitShip Ship { get; }
 
     public StoryState Story { get; }
+
+    /// <summary>The host's fleet the shipyard builds, crews and scraps (the host's own); null for a guest.</summary>
+    public HostFleet? Fleet { get; }
+
+    /// <summary>
+    /// The ships the shipyard builds (GetAvailableRaceCount and
+    /// GetAvailableRaceFromIndex): the allied races' (GOOD_GUY), in
+    /// avail_race_q's order; none without a fleet (a guest). The Ur-Quan
+    /// drone, which UQM never allies, isn't one even if allied.
+    /// </summary>
+    public IReadOnlyList<string> BuildList => Fleet is null ? Array.Empty<string>()
+        : Story.Rules.Races.Where(r => Story.Alliance(r) == Allied.Good && HostFleet.CanHave(Story.Rules, r)).ToList();
 
     /// <summary>A module's price in resource units (GLOBAL (ModuleCost[piece]) * MODULE_COST_SCALE).</summary>
     public int Price(byte piece) => Cost(piece) * Story.Rules.ModuleCostScale;
@@ -141,6 +175,10 @@ public sealed class Outfitting
         Remove r => Sell(r.Kind, r.Slot),
         HireCrew => Hire(),
         DismissCrew => Dismiss(),
+        BuildShip b => Build(b.Slot, b.Race),
+        HireShipCrew h => HireFleetCrew(h.Slot),
+        DismissShipCrew d => DismissFleetCrew(d.Slot),
+        ScrapShip s => Scrap(s.Slot),
         _ => false,
     };
 
@@ -326,6 +364,74 @@ public sealed class Outfitting
         DeltaCrew(-1);
         DeltaResourceUnits(refund);
         Story.CrewTransaction(-1);
+        return true;
+    }
+
+    /// <summary>
+    /// DMS_TryAddEscortShip: a ship of an allied race built into an empty
+    /// hangar slot, if the wallet has its cost (RACE_SHIP_COST): one crew
+    /// aboard, its captain named (CloneShipFragment), the cost paid. The
+    /// crew bought doesn't count it (no CrewTransaction). The host's only.
+    /// </summary>
+    private bool Build(int slot, string race)
+    {
+        if (Fleet is null || slot is < 0 or >= HostFleet.MaxShips || Fleet.InSlot(slot) is not null || !BuildList.Contains(race))
+            return false;
+        int cost = Story.Rules.RaceShip(race).Cost;
+        if (Ship.ResourceUnits < (uint)cost)
+            return false;
+        Fleet.Build(Story.Rules, race, slot, 1, _random ?? throw new InvalidOperationException("building needs TFB_Random"));
+        DeltaResourceUnits(-cost);
+        return true;
+    }
+
+    /// <summary>
+    /// DMS_HireEscortShipCrew: a crew member for a fleet ship, if the
+    /// wallet has the crew price and the ship is below its most and its
+    /// race's starting crew (the template's crew_level: a Syreen takes 12
+    /// here, not its 42). Hiring for a ship of no crew buys it back at its
+    /// cost instead of the crew price (the wallet still checked against the
+    /// crew price, and emptied if short, as DeltaSISGauges does); either way
+    /// it counts as crew bought.
+    /// </summary>
+    private bool HireFleetCrew(int slot)
+    {
+        if (Fleet?.InSlot(slot) is not { } ship)
+            return false;
+        var race = Story.Rules.RaceShip(ship.Race);
+        if (Ship.ResourceUnits < (uint)Story.CrewCost || ship.Crew >= race.MaxCrew || ship.Crew >= race.Crew)
+            return false;
+        DeltaResourceUnits(-(ship.Crew > 0 ? Story.CrewCost : race.Cost));
+        Fleet.SetCrew(Story.Rules, slot, ship.Crew + 1);
+        Story.CrewTransaction(1);
+        return true;
+    }
+
+    /// <summary>
+    /// DMS_DismissEscortShipCrew: a crew member sent away from a fleet
+    /// ship, the crew price paid back (2 less as the count stands on the
+    /// threshold); the last one gives back the ship's cost instead, leaving
+    /// it in its slot with no crew (scrapped as its crew editing ends). It
+    /// counts as crew sent away.
+    /// </summary>
+    private bool DismissFleetCrew(int slot)
+    {
+        if (Fleet?.InSlot(slot) is not { Crew: > 0 } ship)
+            return false;
+        DeltaResourceUnits(ship.Crew > 1
+            ? Story.CrewCost - (Story.CrewPurchased == Story.Rules.CrewExpenseThreshold ? 2 : 0)
+            : Story.Rules.RaceShip(ship.Race).Cost);
+        Fleet.SetCrew(Story.Rules, slot, ship.Crew - 1);
+        Story.CrewTransaction(-1);
+        return true;
+    }
+
+    /// <summary>DMS_ScrapEscortShip: a fleet ship of no crew leaves the fleet (its cost was given back with its last crew).</summary>
+    private bool Scrap(int slot)
+    {
+        if (Fleet?.InSlot(slot) is not { Crew: 0 })
+            return false;
+        Fleet.Scrap(slot);
         return true;
     }
 

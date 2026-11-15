@@ -15,8 +15,10 @@ namespace Crateris.Core.Session;
 /// Scripted input instead of keys (--script, for tests): steps like
 /// "thrust:40,right+thrust:10,down:2,none:20", each held for some frames.
 /// left, right, thrust, action, fire, takeoff, special and none are ship
-/// input; up, down, select, cancel, pageup and pagedown press an orbit menu
-/// key once as their step starts, give opens or closes the giving screen
+/// input; up, down, select, cancel, pageup, pagedown, menuleft and
+/// menuright press a menu key once as their step starts (the orbit menu's,
+/// the starbase's: menuleft and menuright are the menus' left and right,
+/// as left and right are the ship's), give opens or closes the giving screen
 /// (as T does) then, and pause is the host's pause key.
 /// </summary>
 public sealed class InputScript
@@ -74,6 +76,8 @@ public sealed class InputScript
                     "cancel" => MenuKey.Cancel,
                     "pageup" => MenuKey.PageUp,
                     "pagedown" => MenuKey.PageDown,
+                    "menuleft" => MenuKey.Left,
+                    "menuright" => MenuKey.Right,
                     _ => null,
                 };
                 if (mk != null)
