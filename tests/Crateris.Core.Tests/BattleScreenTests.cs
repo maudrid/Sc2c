@@ -270,6 +270,9 @@ public class BattleScreenTests
             Assert.NotNull(screen.Frame(b, "me", BattleSpace.SizeOf));
             return PlayersSlotDrawnAfresh(canvas.Drawn);
         }
+        // Before the host's first pick, their status is gone (no ship of theirs in it): the slot isn't drawn yet.
+        Assert.False(Show(new BattleShipStatus(ShipDescriptions.Flagship, 0, 50, 0, 10, Gone: true)));
+        Assert.False(Show(new BattleShipStatus(ShipDescriptions.Flagship, 0, 50, 0, 10, Gone: true)));
         var spathi = new BattleShipStatus("spathi", 5, 30, 10, 10, Captain: 7);
         Assert.True(Show(spathi));                                    // the first ship picked
         Assert.False(Show(spathi with { Crew = 4 }));                 // flying on

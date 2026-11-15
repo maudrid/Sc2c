@@ -5443,6 +5443,8 @@ def fleet_screens_scenarios():
             [(spathi, 30), (arilou, 6), (human, 18), (orz, 16), (syreen, 12), (urquan, 42), (vux, 20), (shofixti, 6),
              (yehat, 20), (pkunk, 8), (spathi, 1), (human, 3)])])
     add("roster-one", "roster d u r s u d s c", fleet=[(pkunk, 4, 9, 6)])
+    # The lit ship's flash through its colours and round to red again (flashSupportShip's 8-bit steps).
+    add("roster-flash", "roster " + " ".join(f"t:{60 * k}" for k in range(1, 36)) + " c", fleet=some)
     return out
 
 

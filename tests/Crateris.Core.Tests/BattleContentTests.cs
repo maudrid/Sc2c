@@ -44,7 +44,9 @@ public class BattleContentTests
     {
         var sprites = TestContent.With(p => new BattleSprites(p, Sheets.Value, Fighters, Planets));
         var all = BattleResources.All(Fighters, Planets);
-        Assert.Equal(all.OrderBy(r => r), sprites.Resources.OrderBy(r => r));
+        // The battle's resources, and the pick screen's frame drawn over it (stage 4b item 10: its two frames).
+        Assert.Equal(all.Append(PickScreenDrawing.PickSheet).OrderBy(r => r), sprites.Resources.OrderBy(r => r));
+        Assert.Equal(2, sprites.Count(PickScreenDrawing.PickSheet));
         // The flagship and 25 race ships, each with its ship sheets, a
         // captain's window and icons.
         Assert.Equal(26, Fighters.Length);

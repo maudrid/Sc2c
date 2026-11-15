@@ -403,11 +403,11 @@ public sealed class StarbaseMenu
     private StarbaseShip? _shown;
 
     /// <summary>
-    /// The story's version and the hold's units and minerals when the host
-    /// last looked for others' changes (null after the player's own key
+    /// The story's version, the hold's units and minerals and the host's
+    /// fleet's version when the host last looked for others' changes (null after the player's own key
     /// drew the ship: a change since can bring them back to what they were).
     /// </summary>
-    internal (long Story, uint ResourceUnits, int MineralMass)? NoticedAt { get; set; }
+    internal (long Story, uint ResourceUnits, int MineralMass, long Fleet)? NoticedAt { get; set; }
 
     /// <summary>A key's drawing (none: nothing kept), with the ship as the key left it (null: the drawing doesn't read it).</summary>
     internal void Drew(StarbaseShip? ship, List<ScreenOp> ops)

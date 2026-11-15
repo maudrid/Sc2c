@@ -763,6 +763,8 @@ public partial class Main : Node2D
     // What the snapshots have cost (the report's, for the network test).
     private long _snapshotBytes;
     private int _battleSnapshots;
+    // The battle snapshots' busiest: the most bytes one cost, and the most captain's-window marks it had (stage 4b item 10).
+    private int _mostBattleBytes, _mostMarks;
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.UnreliableOrdered)]
     private void ReceiveSnapshot(byte[] data)
@@ -771,8 +773,12 @@ public partial class Main : Node2D
         {
             _player?.ReceiveSnapshot(data);
             _snapshotBytes += data.Length;
-            if (_player?.Battle is not null)
+            if (_player?.Battle is { } battle)
+            {
                 _battleSnapshots++;
+                _mostBattleBytes = Math.Max(_mostBattleBytes, data.Length);
+                _mostMarks = Math.Max(_mostMarks, battle.Fighters.Select(f => f.Status).Append(battle.Enemy).Sum(st => st.Marks?.Count ?? 0));
+            }
         }
         catch (InvalidDataException e)
         {
@@ -1341,6 +1347,8 @@ public partial class Main : Node2D
                     bad = _badSnapshots,
                     bytes = _snapshotBytes,
                     in_battle = _battleSnapshots,
+                    most_battle_bytes = _mostBattleBytes,
+                    most_marks = _mostMarks,
                 },
                 battle = _player?.Battle is { } b
                     ? new

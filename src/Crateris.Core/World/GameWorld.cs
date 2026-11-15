@@ -903,10 +903,10 @@ public sealed partial class GameWorld
     {
         if (Find(id) is not { Ship.Visit.Menu: { } m } player || Story is null)
             return new();
-        // What others changed since: only the story (the prices, the bomb) and the hold (the units, the
-        // minerals) change what Noticed draws, so the ship is looked at again only when one has.
+        // What others changed since: only the story (the prices, the bomb), the hold (the units, the minerals) and
+        // the host's fleet change what Noticed draws, so the ship is looked at again only when one has.
         var hold = player.Ship.Hold;
-        var stamp = (Story.Version, hold.ResourceUnits, hold.MineralMass);
+        var stamp = (Story.Version, hold.ResourceUnits, hold.MineralMass, Fleet.Version);
         if (m.NoticedAt != stamp)
         {
             m.Noticed(StarbaseShipOf(player));

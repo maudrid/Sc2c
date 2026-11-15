@@ -510,6 +510,32 @@ def main():
           and a_ships == [("spathi", None, False, True), ("arilou", "Retreated", True, False)],
           f"R saw the host on the pick screen, the Arilou retreated and the Spathi to pick ({a.get('picking')}, {a_ships})")
 
+    # Stage 4b, item 10: the VUX's limpets on a guest's captain's window
+    # (the marks grow as they stick: item 9's note). The host starts in a
+    # battle against a VUX; guest S joins through the lossy relay and flies
+    # at it, collecting limpets; what its snapshots cost is measured, with
+    # the most marks a snapshot carried.
+    relay = LossyRelay(RELAY_PORT, PORT, 0.2)
+    host11 = start(out, "host11", "--host", "--no-upnp", "--port", PORT,
+                   "--name", "Host", "--id", "host", "--save", os.path.join(out, "save11.json"),
+                   "--start-battle", "vux", "--guests-in-battle",
+                   "--script", "none:700", "--quit-after", "700")
+    time.sleep(1)
+    gs = start(out, "s", "--join", f"127.0.0.1:{RELAY_PORT}", "--name", "S",
+               "--id", "guest-s", "--script", "thrust:600", "--quit-after", "620")
+    for proc in (gs, host11):
+        proc.wait(timeout=120)
+    relay.close()
+    rs = report(out, "s")
+    n = rs["snapshots"]
+    per = n["bytes"] / max(1, n["full"] + n["deltas"])
+    print(f"     limpets: S had up to {n['most_marks']} marks in a snapshot; {n['in_battle']} with its battle, "
+          f"{per:.0f} bytes a snapshot, {n['most_battle_bytes']} the most")
+    check(rs["welcome"] == "Joined" and n["in_battle"] > 100, "S joined the VUX's battle and was sent it")
+    check(n["most_marks"] > 0, f"the VUX's limpets went on the wire ({n['most_marks']} marks at most)")
+    check(per < 1500 and n["most_battle_bytes"] < 1500,
+          f"a battle with limpets costs under 1,500 bytes a snapshot ({per:.0f}, {n['most_battle_bytes']} at most)")
+
     print(f"\nlogs and reports in {out}")
     if failures:
         print(f"{len(failures)} check(s) failed")

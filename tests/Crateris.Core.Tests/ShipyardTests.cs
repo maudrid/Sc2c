@@ -28,7 +28,7 @@ namespace Crateris.Core.Tests;
 /// The rules key by key against UQM are <see cref="ShipyardGoldenTests"/>.
 /// </summary>
 [Trait("Topic", "fleet")]
-public class ShipyardTests
+public partial class ShipyardTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
     private static StoryRules Rules => OutfitTests.Rules;

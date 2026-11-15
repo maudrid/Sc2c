@@ -58,6 +58,20 @@ public class StarbaseScreensTests
 
     internal static string Placeholder(int index) => $"{{gs:{index}}}";
 
+    /// <summary>Each race's look, from data/races.json and data/ships.json as the game makes it.</summary>
+    internal static YardRace? TestRace(int race)
+    {
+        var rules = OutfitTests.Rules;
+        if (race < 0 || race >= rules.RaceShips.Count)
+            return null;
+        var r = rules.RaceShips[race];
+        var g = BattleReplay.Ships[r.Ship].Graphics;
+        return new YardRace(g.Icons, g.MeleeIcon, r.Crew, r.Cost);
+    }
+
+    /// <summary>A starbase drawing's ship with the host's fleet.</summary>
+    internal static StarbaseShip Ship(IReadOnlyList<HangarShip>? fleet) => TestStarbaseShip() with { Fleet = fleet };
+
     // A drawing call as golden/screens.c writes it.
     internal static string Json(UqmDraw d)
     {
@@ -230,16 +244,7 @@ public class StarbaseScreensTests
             _fleetCanvas.Drawn.Clear();
         }
 
-        /// <summary>Each race's look, from data/races.json and data/ships.json as the game makes it.</summary>
-        internal static YardRace? Race(int race)
-        {
-            var rules = OutfitTests.Rules;
-            if (race < 0 || race >= rules.RaceShips.Count)
-                return null;
-            var r = rules.RaceShips[race];
-            var g = BattleReplay.Ships[r.Ship].Graphics;
-            return new YardRace(g.Icons, g.MeleeIcon, r.Crew, r.Cost);
-        }
+        private static YardRace? Race(int race) => TestRace(race);
 
         public StarbasePicture Picture { get; }
 

@@ -59,6 +59,9 @@ public sealed class HostFleet
 
     private readonly List<FleetShip> _ships = new();
 
+    /// <summary>A count of the fleet's changes (a ship come, gone or its crew changed), to look for them cheaply.</summary>
+    public long Version { get; private set; }
+
     /// <summary>The ships, by their slots (built_ship_q's order).</summary>
     public IReadOnlyList<FleetShip> Ships => _ships;
 
@@ -106,6 +109,7 @@ public sealed class HostFleet
             while (at < _ships.Count && _ships[at].Slot <= at)
                 ++at;
             _ships.Insert(at, new FleetShip(raceShip.Race, raceShip.Crew, captain, at));
+            ++Version;
         }
         return i;
     }
@@ -138,6 +142,7 @@ public sealed class HostFleet
             ++at;
         var ship = new FleetShip(raceShip.Race, crew, captain, slot);
         _ships.Insert(at, ship);
+        ++Version;
         return ship;
     }
 
@@ -152,6 +157,7 @@ public sealed class HostFleet
         if (at < 0)
             throw new ArgumentException($"no fleet ship in slot {slot}", nameof(slot));
         _ships.RemoveAt(at);
+        ++Version;
     }
 
     /// <summary>
@@ -184,6 +190,7 @@ public sealed class HostFleet
             if (_ships[at].Race == race)
             {
                 _ships.RemoveAt(at);
+                ++Version;
                 --count;
             }
             else
@@ -209,6 +216,7 @@ public sealed class HostFleet
         if (crew < 0 || crew > most)
             throw new ArgumentOutOfRangeException(nameof(crew), $"{crew} crew for a ship of {most}");
         _ships[at] = _ships[at] with { Crew = crew };
+        ++Version;
     }
 
     /// <summary>
@@ -236,6 +244,7 @@ public sealed class HostFleet
                 : flagshipCrew >= flagshipRoom || ship.Crew <= 1)
             return false;
         _ships[index] = ship with { Crew = ship.Crew + delta };
+        ++Version;
         return true;
     }
 
@@ -274,6 +283,7 @@ public sealed class HostFleet
             throw new ArgumentException("two fleet ships in one slot");
         _ships.Clear();
         _ships.AddRange(list);
+        ++Version;
     }
 
     /// <summary>Whether a race can have fleet ships: one of avail_race_q's but the Ur-Quan drone (whose ship never fights).</summary>
