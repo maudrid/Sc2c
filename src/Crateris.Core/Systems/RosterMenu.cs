@@ -49,10 +49,10 @@ public enum RosterStep
     /// <summary>The cursor's keys (flashSupportShip's turn): from <see cref="RosterEvent.From"/> to <see cref="RosterEvent.To"/>, maybe the same.</summary>
     Navigated,
 
-    /// <summary>Select or cancel: the crew changed from now (drawModifiedSupportShip, flashSupportShipCrew).</summary>
+    /// <summary>Select: the crew changed from now (drawModifiedSupportShip, flashSupportShipCrew).</summary>
     ModeOn,
 
-    /// <summary>Select or cancel: back to the cursor.</summary>
+    /// <summary>Select or cancel while the crew is changed: back to the cursor.</summary>
     ModeOff,
 
     /// <summary>A crew member moved (DeltaSupportCrew): the ship and flagship's crews as it left them.</summary>
@@ -120,7 +120,17 @@ public sealed class RosterMenu
     public (int X, int Y) Point => _sorted[State];
 
     /// <summary>The lit ship's place in the fleet's queue (LockSupportShip: its point's place in SUPPORT_SHIP_PTS).</summary>
-    public int Selected => Array.IndexOf(ShipPoints.ToArray(), Point);
+    public int Selected
+    {
+        get
+        {
+            var point = Point;
+            for (int i = 0; i < ShipPoints.Count; ++i)
+                if (ShipPoints[i] == point)
+                    return i;
+            return -1;
+        }
+    }
 
     /// <summary>Cancel left the roster (DoModifyRoster gave FALSE).</summary>
     public bool Left { get; private set; }
@@ -128,9 +138,11 @@ public sealed class RosterMenu
     private readonly List<RosterEvent> _events = new();
 
     /// <summary>The steps the keys took since the last take, in order, for the drawing (stage 4b item 10).</summary>
-    public List<RosterEvent> TakeEvents()
+    public IReadOnlyList<RosterEvent> TakeEvents()
     {
-        var events = new List<RosterEvent>(_events);
+        if (_events.Count == 0)
+            return Array.Empty<RosterEvent>();   // the usual frame: nothing made
+        var events = _events.ToArray();
         _events.Clear();
         return events;
     }

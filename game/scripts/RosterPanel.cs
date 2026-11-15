@@ -19,9 +19,10 @@ namespace Crateris.Game;
 /// <summary>
 /// The roster in flight (stage 4b item 10): the status area as UQM shows
 /// it while the roster is open, with the roster's drawing over it, as
-/// <see cref="RosterFollower"/> works it out each frame from the open
-/// roster and the host's ship and fleet in the snapshot; painted here. The
-/// orbit view shows it where its status area is, above the menu box.
+/// <see cref="RosterFollower"/> draws it each frame (the roster's steps as
+/// its keys were taken, the fleet's and flagship's crews from the host's
+/// own live world); painted here. The orbit view shows it where its status
+/// area is, above the menu box.
 /// </summary>
 public sealed class RosterPanel
 {
@@ -31,7 +32,8 @@ public sealed class RosterPanel
     private GameStrings? _strings;
     private ImageTexture? _texture;
 
-    public RosterPanel(Func<(UqmCanvas, ScreenRaster, StarbaseScreens, GameStrings)?> newArea, Func<int, YardRace?> races)
+    public RosterPanel(Func<(UqmCanvas, ScreenRaster, StarbaseScreens, GameStrings)?> newArea, Func<int, YardRace?> races,
+        Func<string, int> raceIndex)
     {
         _newArea = newArea;
         _follower = new RosterFollower(() =>
@@ -40,7 +42,7 @@ public sealed class RosterPanel
                 return null;
             (_nextRaster, _strings) = (area.Raster, area.Strings);
             return (area.Canvas, area.Screens);
-        }, races);
+        }, races, raceIndex);
         // The names need the content's strings before the first roster: taken with the first area.
         if (_newArea() is { } first)
             _strings = first.Strings;
@@ -52,14 +54,18 @@ public sealed class RosterPanel
     /// <summary>Where the highlight flashes (the status message while the crew is changed), in the screen's pixels.</summary>
     public URect? Flash => _follower.Flash;
 
-    /// <summary>A frame: the roster as it stands (<paramref name="menu"/>, null when closed) over the host's ship, at <paramref name="now"/> (UQM's ticks).</summary>
-    public void Update(RosterMenu? menu, ShipSnapshot? host, Func<string, int> raceIndex, long now)
+    /// <summary>
+    /// A frame: the roster as it stands (<paramref name="menu"/>, null when
+    /// closed) and the fleet it acts on (<paramref name="fleet"/>, the
+    /// host's live world's), over the host's ship as the snapshot has it,
+    /// at <paramref name="now"/> (UQM's ticks).
+    /// </summary>
+    public void Update(RosterMenu? menu, IRosterFleet? fleet, ShipSnapshot? host, Func<string, int> raceIndex, long now)
     {
-        if (_strings is null && _newArea() is { } a)
+        if (_strings is null && menu is not null && _newArea() is { } a)
             _strings = a.Strings;
-        bool ready = menu is not null && host is { Fleet: not null, Modules: not null, Hold: not null } && _strings is not null;
-        _follower.Update(menu, ready ? RosterFollower.Sis(host!, _strings!, raceIndex) : null,
-            ready ? RosterFollower.Ships(host!.Fleet!, raceIndex) : null, now);
+        _follower.Update(menu, fleet, () => host is { Modules: not null, Hold: not null } && _strings is not null && fleet is not null
+            ? RosterFollower.Sis(host, fleet, _strings, raceIndex) : null, now);
         if (!_follower.Open || _follower.Canvas is not { } canvas)
             return;
         if (_follower.Fresh)

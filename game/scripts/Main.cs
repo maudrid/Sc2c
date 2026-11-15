@@ -372,7 +372,8 @@ public partial class Main : Node2D
                 _battleView.UseContent(content, sheets, _ships, planetTypes);
                 _view.RaceLook = _systemView.RaceLook = _battleView.RaceLook;
                 _starbaseView.Races = YardRace;
-                _orbitView.Roster = new RosterPanel(() => _starbaseView.NewStatusArea(YardRace), YardRace);
+                _orbitView.Roster = new RosterPanel(() => _starbaseView.NewStatusArea(YardRace), YardRace,
+                    race => _systems.StoryRules?.RaceIndex(race) ?? -1);
                 _rescueView.UseContent(content);
             }
         }

@@ -358,20 +358,19 @@ public partial class ShipyardTests
         var roster = new TestFleet(fleet, () => crew, c => crew = c, () => 50);
         var canvas = StarbaseScreensTests.Canvas();
         var follower = new RosterFollower(() => (canvas, new StarbaseScreens(canvas, StarbaseScreensTests.Placeholder,
-            StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace);
+            StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace, RaceOf);
         SisState Sis() => SisState.Of(StarbaseScreensTests.Ship(fleet.Ships.Select(f => new HangarShip(f.Slot, RaceOf(f.Race), f.Crew))
             .ToArray()) with { Crew = crew }, "", "");
-        List<(int, int, int)> Ships() => fleet.Ships.Select(f => (f.Slot, RaceOf(f.Race), (int)f.Captain)).ToList();
         string Message() => canvas.Drawn.Last(d => d.Kind == UqmDrawKind.Text && d.Clip.Y == 130).Text;
         var menu = new RosterMenu(fleet.Count);
-        follower.Update(menu, Sis(), Ships(), 0);
+        follower.Update(menu, roster, Sis, 0);
         Assert.True(follower.Fresh);
         Assert.Equal("20/30", Message());
         // Select, then up, between two frames: the mode's drawing (white), then the crew's, the message flashing.
         menu.Press(MenuKey.Select, roster);
         menu.Press(MenuKey.Up, roster);
         canvas.Drawn.Clear();
-        follower.Update(menu, Sis(), Ships(), 10);
+        follower.Update(menu, roster, Sis, 10);
         Assert.Equal("21/30", Message());
         Assert.Contains(canvas.Drawn, d => d.Kind == UqmDrawKind.FilledStamp && d.Color == new Rgb(255, 255, 255));
         Assert.NotNull(follower.Flash);
@@ -379,7 +378,7 @@ public partial class ShipyardTests
         menu.Press(MenuKey.Up, roster);
         menu.Press(MenuKey.Select, roster);
         canvas.Drawn.Clear();
-        follower.Update(menu, Sis(), Ships(), 20);
+        follower.Update(menu, roster, Sis, 20);
         Assert.Equal("22/30", Message());
         Assert.Null(follower.Flash);
         // Select, up and select between two frames: the move drawn all the same.
@@ -387,20 +386,20 @@ public partial class ShipyardTests
         menu.Press(MenuKey.Down, roster);
         menu.Press(MenuKey.Select, roster);
         canvas.Drawn.Clear();
-        follower.Update(menu, Sis(), Ships(), 30);
+        follower.Update(menu, roster, Sis, 30);
         Assert.Equal("21/30", Message());
         // The cursor moved: the other ship's crew, its race's starting crew alone when full.
         menu.Press(MenuKey.Right, roster);
         canvas.Drawn.Clear();
-        follower.Update(menu, Sis(), Ships(), 40);
+        follower.Update(menu, roster, Sis, 40);
         Assert.Equal("6", Message());
         Assert.False(follower.Fresh);
         // The fleet's ships changed (a talk): drawn afresh.
         fleet.Restore(Rules, new[] { new FleetShip(Spathi, 21, 5, 0), new FleetShip(Human, 18, 7, 1) });
-        follower.Update(menu, Sis(), Ships(), 50);
+        follower.Update(menu, roster, Sis, 50);
         Assert.True(follower.Fresh);
         // Closed.
-        follower.Update(null, Sis(), Ships(), 60);
+        follower.Update(null, roster, Sis, 60);
         Assert.False(follower.Open);
         Assert.Null(follower.Flash);
     }
@@ -414,20 +413,19 @@ public partial class ShipyardTests
         var roster = new TestFleet(fleet, () => crew, c => crew = c, () => 50);
         var canvas = StarbaseScreensTests.Canvas();
         var follower = new RosterFollower(() => (canvas, new StarbaseScreens(canvas, StarbaseScreensTests.Placeholder,
-            StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace);
+            StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace, RaceOf);
         SisState Sis() => SisState.Of(StarbaseScreensTests.Ship(fleet.Ships.Select(f => new HangarShip(f.Slot, RaceOf(f.Race), f.Crew))
             .ToArray()) with { Crew = crew }, "", "");
-        List<(int, int, int)> Ships() => fleet.Ships.Select(f => (f.Slot, RaceOf(f.Race), (int)f.Captain)).ToList();
         List<string> Messages() => canvas.Drawn.Where(d => d.Kind == UqmDrawKind.Text && d.Clip.Y == 130).Select(d => d.Text).ToList();
         var menu = new RosterMenu(fleet.Count);
-        follower.Update(menu, Sis(), Ships(), 0);
+        follower.Update(menu, roster, Sis, 0);
         menu.Press(MenuKey.Select, roster);   // the mode on, a frame
-        follower.Update(menu, Sis(), Ships(), 10);
+        follower.Update(menu, roster, Sis, 10);
         // The mode off and the cursor across in one frame: the Arilou lit, its crew shown, no flash on the message.
         menu.Press(MenuKey.Select, roster);
         menu.Press(MenuKey.Right, roster);
         canvas.Drawn.Clear();
-        follower.Update(menu, Sis(), Ships(), 1000);
+        follower.Update(menu, roster, Sis, 1000);
         Assert.Contains("6", Messages());
         Assert.Null(follower.Flash);
         // The flash is on the Arilou's icon now (its point, SUPPORT_SHIP_PTS' second), not the Spathi's.
@@ -436,13 +434,13 @@ public partial class ShipyardTests
         // A move not yet shown: back to the Spathi, the mode on, up; then the mode off and across, all before the crews
         // show the move. The Spathi's move is drawn (its crew, the flagship's gauge), then the cursor's.
         menu.Press(MenuKey.Left, roster);
-        follower.Update(menu, Sis(), Ships(), 1100);
+        follower.Update(menu, roster, Sis, 1100);
         menu.Press(MenuKey.Select, roster);
         menu.Press(MenuKey.Up, roster);
         menu.Press(MenuKey.Select, roster);
         menu.Press(MenuKey.Right, roster);
         canvas.Drawn.Clear();
-        follower.Update(menu, Sis(), Ships(), 1200);
+        follower.Update(menu, roster, Sis, 1200);
         var messages = Messages();
         Assert.Equal(new[] { "21/30", "6" }, messages);
         Assert.Contains(canvas.Drawn, d => d.Kind == UqmDrawKind.Text && d.Text == "29");   // the flagship's crew gauge
@@ -465,7 +463,7 @@ public partial class ShipyardTests
             Fleet = new TestFleet(_fleet, () => _crew, c => _crew = c, () => 50);
             Canvas = StarbaseScreensTests.Canvas();
             Follower = new RosterFollower(() => (Canvas, new StarbaseScreens(Canvas, StarbaseScreensTests.Placeholder,
-                StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace);
+                StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace, RaceOf);
             Menu = new RosterMenu(_fleet.Count);
             Snap();
         }
@@ -488,7 +486,7 @@ public partial class ShipyardTests
         public List<UqmDraw> Frame(long now)
         {
             Canvas.Drawn.Clear();
-            Follower.Update(Menu, _snap, _fleet.Ships.Select(f => (f.Slot, RaceOf(f.Race), (int)f.Captain)).ToList(), now);
+            Follower.Update(Menu, Fleet, () => _snap, now);   // the snapshot's ship as last taken, the crews live
             return Canvas.Drawn.ToList();
         }
 
@@ -567,6 +565,106 @@ public partial class ShipyardTests
         Assert.NotNull(r.Follower.Flash);
     }
 
+    // ---- review round 4: the roster's crews from the live fleet; steps made before a change of ships dropped
+
+    // The reviewer's probe: a fleet, the flagship's crew, and the snapshot's ship as last taken (Snap()).
+    private sealed class Probe
+    {
+        public readonly HostFleet Fleet = new();
+        public SisState? Snapped;
+        public int Crew = 30;
+        public TestFleet Roster;
+        public UqmCanvas Canvas = StarbaseScreensTests.Canvas();
+        public RosterFollower Follower;
+
+        public Probe(params FleetShip[] ships)
+        {
+            Fleet.Restore(Rules, ships);
+            Roster = new TestFleet(Fleet, () => Crew, c => Crew = c, () => 50);
+            Follower = new RosterFollower(() => (Canvas, new StarbaseScreens(Canvas, StarbaseScreensTests.Placeholder,
+                StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace, RaceOf);
+            Snap();
+        }
+
+        public void Snap() => Snapped = SisState.Of(StarbaseScreensTests.Ship(Fleet.Ships
+            .Select(f => new HangarShip(f.Slot, RaceOf(f.Race), f.Crew)).ToArray()) with { Crew = Crew }, "", "");
+
+        // A frame: the follower given the snapshot's ship as last taken and the live fleet the roster acts on.
+        public List<string> Frame(RosterMenu? menu, long now)
+        {
+            Canvas.Drawn.Clear();
+            Follower.Update(menu, Roster, () => Snapped, now);
+            return Canvas.Drawn.Where(d => d.Kind == UqmDrawKind.Text && d.Clip.Y == 130).Select(d => d.Text).ToList();
+        }
+
+        public List<string> Gauges() => Canvas.Drawn.Where(d => d.Kind == UqmDrawKind.Text && d.Clip.Y != 130 && d.Y == 117 + 5)
+            .Select(d => d.Text).ToList();
+    }
+
+    [Fact]
+    public void StepsMadeBeforeATalkChangesTheFleetArentDrawnAgainstTheNewFleet()
+    {
+        var p = new Probe(new FleetShip(Spathi, 20, 5, 0), new FleetShip(Human, 10, 7, 1), new FleetShip(Spathi, 15, 6, 2));
+        var menu = new RosterMenu(3);
+        p.Frame(menu, 0);
+        menu.Press(MenuKey.Right, p.Roster);
+        Assert.Equal(1, menu.Selected);
+        p.Frame(menu, 10);
+        menu.Press(MenuKey.Select, p.Roster);
+        menu.Press(MenuKey.Up, p.Roster);   // Human 11
+        // A talk takes the first Spathi before the frame; the snapshot shows it.
+        p.Fleet.Restore(Rules, new[] { new FleetShip(Human, 11, 7, 1), new FleetShip(Spathi, 15, 6, 2) });
+        p.Snap();
+        var msgs = p.Frame(menu, 20);
+        Assert.Equal(new[] { "15/30" }, msgs);   // the Spathi now at that point, its own crew
+    }
+
+    [Fact]
+    public void ARosterReopenedInsideOneWorldStepShowsTheCrewsAsTheyAre()
+    {
+        var p = new Probe(new FleetShip(Spathi, 20, 5, 0));
+        var menu = new RosterMenu(1);
+        p.Frame(menu, 0);
+        menu.Press(MenuKey.Select, p.Roster);
+        menu.Press(MenuKey.Up, p.Roster);       // 21, flagship 29
+        menu.Press(MenuKey.Cancel, p.Roster);
+        menu.Press(MenuKey.Cancel, p.Roster);   // left
+        p.Frame(null, 5);                       // closed (OrbitMenu drops it)
+        var again = new RosterMenu(1);          // reopened from the Manifest, the snapshot not yet caught up
+        var msgs = p.Frame(again, 10);
+        var g = p.Gauges();
+        p.Snap();
+        var later = p.Frame(again, 20);
+        Assert.Equal("21/30 | 29 | later=", string.Join(",", msgs) + " | " + string.Join(",", g) + " | later=" + string.Join(",", later));
+    }
+
+    [Fact]
+    public void StepsBeforeTheRostersFirstFrameAreShownByItsFreshDrawing()
+    {
+        var p = new Probe(new FleetShip(Spathi, 20, 5, 0));
+        var menu = new RosterMenu(1);
+        menu.Press(MenuKey.Select, p.Roster);
+        menu.Press(MenuKey.Up, p.Roster);       // 21, before any frame; snapshot lagging
+        var msgs = p.Frame(menu, 10);
+        Assert.Equal("21/30 | 29", string.Join(",", msgs) + " | " + string.Join(",", p.Gauges()));
+        // The steps it showed aren't drawn again.
+        Assert.Empty(p.Frame(menu, 20));
+        // With nothing to draw on, the steps wait (none taken) and the roster isn't shown.
+        var nothing = new RosterFollower(() => null, StarbaseScreensTests.TestRace, RaceOf);
+        menu.Press(MenuKey.Up, p.Roster);
+        nothing.Update(menu, p.Roster, () => p.Snapped, 30);
+        Assert.False(nothing.Open);
+        Assert.Single(menu.TakeEvents());
+    }
+
+    [Fact]
+    public void TheRostersStepsAreTakenWithoutMakingAListOnAQuietFrame()
+    {
+        var menu = new RosterMenu(2);
+        Assert.Same(menu.TakeEvents(), menu.TakeEvents());   // the shared empty one
+        Assert.Equal(1, new RosterMenu(2).Selected is 0 or 1 ? 1 : 0);
+    }
+
     [Fact]
     public void TheRostersFlashGoesOnFromWhereItWasAsItOpensAgain()
     {
@@ -575,22 +673,23 @@ public partial class ShipyardTests
         fleet.Restore(Rules, new[] { new FleetShip(Spathi, 20, 5, 0) });
         var canvas = StarbaseScreensTests.Canvas();
         var follower = new RosterFollower(() => (canvas, new StarbaseScreens(canvas, StarbaseScreensTests.Placeholder,
-            StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace);
+            StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace, RaceOf);
         var sis = SisState.Of(StarbaseScreensTests.Ship(new[] { new HangarShip(0, RaceOf(Spathi), 20) }), "", "");
-        var ships = new List<(int, int, int)> { (0, RaceOf(Spathi), 5) };
+        int crew = 30;
+        var ships = new TestFleet(fleet, () => crew, c => crew = c, () => 50);
         Rgb? Flashed() => canvas.Drawn.Where(d => d.Kind == UqmDrawKind.FilledStamp).Select(d => (Rgb?)d.Color).LastOrDefault();
         var menu = new RosterMenu(1);
-        follower.Update(menu, sis, ships, 100);
+        follower.Update(menu, ships, () => sis, 100);
         canvas.Drawn.Clear();
-        follower.Update(menu, sis, ships, 100);
+        follower.Update(menu, ships, () => sis, 100);
         Assert.Equal(new Rgb(255, 16, 16), Flashed());   // the first step
-        follower.Update(null, sis, ships, 120);
+        follower.Update(null, ships, () => sis, 120);
         menu = new RosterMenu(1);
-        follower.Update(menu, sis, ships, 130);   // opened again before the next step is due: nothing flashes yet
+        follower.Update(menu, ships, () => sis, 130);   // opened again before the next step is due: nothing flashes yet
         canvas.Drawn.Clear();
-        follower.Update(menu, sis, ships, 130);
+        follower.Update(menu, ships, () => sis, 130);
         Assert.Null(Flashed());
-        follower.Update(menu, sis, ships, 100 + RosterDrawing.FlashTicks);
+        follower.Update(menu, ships, () => sis, 100 + RosterDrawing.FlashTicks);
         Assert.Equal(new Rgb(255, 32, 32), Flashed());   // and on from its last colour
     }
 
@@ -623,9 +722,13 @@ public partial class ShipyardTests
         Assert.Equal(("spathi 1", "spathi 7"), (looks.StatusShip(new BattleShipStatus("spathi", 5, 30, 10, 10, 7), null).Name,
             looks.StatusShip(new BattleShipStatus("spathi", 5, 30, 10, 10, 7), null).CaptainName));
         // The roster's status area.
-        var rosterSis = RosterFollower.Sis(looks.Snapshot.Ships[0], strings, RaceOf);
+        var live = new HostFleet();
+        live.Restore(Rules, new[] { new FleetShip(Spathi, 7, 6, 0) });
+        var rosterSis = RosterFollower.Sis(looks.Snapshot.Ships[0], new TestFleet(live, () => 28, _ => { }, () => 50), strings, RaceOf);
         Assert.Equal((flagship, commander), (rosterSis.ShipName, rosterSis.Captain));
-        Assert.Equal(new[] { new HangarShip(0, RaceOf(Spathi), 5) }, rosterSis.Fleet);
+        // Its crews the live fleet's, not the snapshot's (the Spathi's 5, the hold's 30): the roster acts on the live world.
+        Assert.Equal(new[] { new HangarShip(0, RaceOf(Spathi), 7) }, rosterSis.Fleet);
+        Assert.Equal(28, rosterSis.Crew);
     }
 
     // A ship's code for a status alone (nothing loads it).

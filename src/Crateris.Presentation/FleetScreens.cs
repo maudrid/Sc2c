@@ -168,9 +168,8 @@ public sealed class PickScreenDrawing
 /// in the status message, drawn white while its crew is changed, the
 /// flagship's crew gauge as crew moves. It draws the roster's steps as its
 /// keys took them (<see cref="Apply"/>: <see cref="RosterEvent"/>, recorded
-/// by <see cref="RosterMenu"/>), each with the crews it left, so nothing is
-/// worked out from what changed (review round 3), and the clock's passes
-/// (<see cref="Tick"/>).
+/// by <see cref="RosterMenu"/>), each with the crews it left (review rounds
+/// 3 and 4), and the clock's passes (<see cref="Tick"/>).
 /// </summary>
 public sealed class RosterDrawing
 {
@@ -186,10 +185,6 @@ public sealed class RosterDrawing
     private (int X, int Y) _lit;
     private string? _litIcons;
     private bool _modifying;
-    // The crews the roster's own steps left (by the ship's place in the fleet's queue), and the flagship's: newer than
-    // the snapshot's, which comes a world step later.
-    private readonly Dictionary<int, int> _crews = new();
-    private int? _flagshipCrew;
 
     /// <param name="screens">The status area's drawing (the message, the gauges), on the same canvas, with the ship and fleet as they stand.</param>
     /// <param name="flash">flashSupportShip's statics, kept from one opening to the next as UQM's are (none: afresh, as a new game's).</param>
@@ -203,16 +198,6 @@ public sealed class RosterDrawing
 
     /// <summary>Where the flashing highlight is (flashSupportShipCrew: the status message while the crew is changed), in the screen's pixels.</summary>
     public URect? Flash { get; private set; }
-
-    /// <summary>
-    /// The ship and fleet to draw with (the snapshot's), with the crews the
-    /// roster's own steps left, which the snapshot shows a world step later.
-    /// </summary>
-    public SisState Ship(SisState sis)
-    {
-        var fleet = sis.Fleet?.Select((f, i) => _crews.TryGetValue(i, out int c) ? f with { Crew = c } : f).ToArray();
-        return sis with { Crew = _flagshipCrew ?? sis.Crew, Fleet = fleet ?? sis.Fleet };
-    }
 
     private IReadOnlyList<HangarShip> Fleet => _screens.Ship.Fleet ?? Array.Empty<HangarShip>();
 
@@ -250,15 +235,6 @@ public sealed class RosterDrawing
         _lit = point;
         _litIcons = ShipAt(point) is { } ship ? _races(ship.Race)?.Icons : null;
         CrewMessage(crewThen);
-    }
-
-    /// <summary>A step's crews kept without drawing it (the status area about to be drawn afresh with them).</summary>
-    public void Remember(RosterEvent e)
-    {
-        if (e.Step != RosterStep.CrewMoved)
-            return;
-        _crews[e.Ship] = e.Crew;
-        _flagshipCrew = e.FlagshipCrew;
     }
 
     /// <summary>RosterMenu's opening (in StatusContext): the cursor's ship lit, its crew in the message; in the crew mode already (drawn afresh mid-edit), white and the message flashing.</summary>
@@ -306,9 +282,9 @@ public sealed class RosterDrawing
                 Flash = null;
                 break;
             case RosterStep.CrewMoved:
-                Remember(e);
-                _screens.Ship = Ship(_screens.Ship);
-                CrewMessage();
+                // The ship's crew and the flagship's as the move left them (the gauge draws the flagship's as it stands).
+                CrewMessage(e.Crew);
+                _screens.Ship = _screens.Ship with { Crew = e.FlagshipCrew };
                 _screens.Apply(new ScreenOp(ScreenOpKind.Gauges, -e.Delta));
                 Flash = StarbaseScreens.StatusToScreen(StarbaseScreens.StatusMessageRect);
                 break;
@@ -357,15 +333,19 @@ public sealed class RosterFlash
 }
 
 /// <summary>
-/// The roster as the client follows it (stage 4b item 10; the game's
-/// roster panel's logic, here to be tested): each frame the open roster
-/// (<see cref="RosterMenu"/>, which records each of its steps as its key is
-/// taken: <see cref="RosterMenu.TakeEvents"/>) is drawn step by step in
-/// their order (<see cref="RosterDrawing.Apply"/>), each step with the
-/// crews it left, so a step drawn before the snapshot shows its crews is
-/// drawn right (review round 3: nothing is worked out from what changed).
-/// The status area is drawn afresh, from the snapshot with the crews the
-/// steps left, as the roster opens afresh or the fleet's ships change.
+/// The roster as the host's client follows it (stage 4b item 10; the game's
+/// roster panel's logic, here to be tested). The roster is the host's own
+/// and the host's world is local, so it's drawn from the same live source
+/// the roster acts on (review round 4: <see cref="IRosterFleet"/>, the
+/// fleet's ships and crews and the flagship's crew as they are, not the
+/// snapshot's, which comes a world step later): each frame the open
+/// roster's steps since the last (<see cref="RosterMenu.TakeEvents"/>,
+/// recorded as each key was taken, each with the crews it left) are drawn
+/// in order (<see cref="RosterDrawing.Apply"/>), then the clock's pass. As
+/// the roster opens (afresh too: a talk changing the fleet's ships reopens
+/// it) or the fleet's ships change, the status area is drawn afresh as
+/// things are, and the steps not drawn yet are dropped: the fresh drawing
+/// shows what they did, and they mustn't be drawn against another fleet.
 /// </summary>
 public sealed class RosterFollower
 {
@@ -373,43 +353,48 @@ public sealed class RosterFollower
     private readonly Func<int, YardRace?> _races;
     private readonly RosterFlash _flash = new();
     private RosterMenu? _menu;
-    private List<(int Slot, int Race, int Captain)> _ships = new();
+    private readonly List<(int Slot, string Race, byte Captain)> _ships = new();
     private StarbaseScreens? _screens;
     private RosterDrawing? _drawing;
 
+    private readonly Func<string, int> _raceIndex;
+
     /// <param name="newArea">A status area of its own to draw on: a canvas and the screens' drawing on it.</param>
-    public RosterFollower(Func<(UqmCanvas, StarbaseScreens)?> newArea, Func<int, YardRace?> races)
+    /// <param name="raceIndex">A race's number in avail_race_q, by its name (the fleet's ships' races).</param>
+    public RosterFollower(Func<(UqmCanvas, StarbaseScreens)?> newArea, Func<int, YardRace?> races, Func<string, int> raceIndex)
     {
         _newArea = newArea;
         _races = races;
+        _raceIndex = raceIndex;
     }
 
     /// <summary>Whether a roster is shown.</summary>
     public bool Open => _menu is not null;
 
     /// <summary>
-    /// The host's ship as the status area draws it, from the snapshot, with
-    /// the fleet's ships: its names as <see cref="Crateris.Core.World.ShipNames"/>
-    /// gives them (UQM's for a flagship never renamed), its modules, crew,
-    /// fuel, landers and hold.
+    /// The host's ship as the status area draws it: from the snapshot what
+    /// the roster doesn't change (its names as <see cref="Crateris.Core.World.ShipNames"/>
+    /// gives them, UQM's for a flagship never renamed; its modules, fuel,
+    /// landers and hold), and from <paramref name="fleet"/> the live crews:
+    /// the flagship's and each fleet ship's.
     /// </summary>
-    public static SisState Sis(Crateris.Core.World.ShipSnapshot host, Crateris.Core.Content.GameStrings strings, Func<string, int> raceIndex)
+    public static SisState Sis(Crateris.Core.World.ShipSnapshot host, IRosterFleet fleet, Crateris.Core.Content.GameStrings strings,
+        Func<string, int> raceIndex)
     {
         var modules = Crateris.Core.World.ShipModules.Restore(host.Modules!);
         var hold = host.Hold!;
         const Crateris.Core.World.LanderUpgrades shields = Crateris.Core.World.LanderUpgrades.BioShield
             | Crateris.Core.World.LanderUpgrades.QuakeShield | Crateris.Core.World.LanderUpgrades.LightningShield
             | Crateris.Core.World.LanderUpgrades.LavaShield;
-        return new SisState(modules.ModuleSlots.ToArray(), modules.DriveSlots.ToArray(), modules.JetSlots.ToArray(), hold.Crew,
+        return new SisState(modules.ModuleSlots.ToArray(), modules.DriveSlots.ToArray(), modules.JetSlots.ToArray(), fleet.FlagshipCrew,
             host.Fuel, hold.Landers, hold.ResourceUnits, hold.MineralMass, Crateris.Core.World.ShipNames.Ship(host, strings),
             Crateris.Core.World.ShipNames.Captain(host, strings), 0, (int)(hold.Upgrades & shields), 0, 0, _ => 0, 50,
-            (host.Fleet?.Ships ?? Array.Empty<Crateris.Core.World.FleetShip>())
-                .Select(s => new HangarShip(s.Slot, raceIndex(s.Race), s.Crew)).ToArray());
+            Live(fleet, raceIndex));
     }
 
-    /// <summary>The fleet's ships as they're told apart (each one's slot, race and captain).</summary>
-    public static List<(int Slot, int Race, int Captain)> Ships(Crateris.Core.World.FleetSnapshot fleet, Func<string, int> raceIndex) =>
-        fleet.Ships.Select(s => (s.Slot, raceIndex(s.Race), (int)s.Captain)).ToList();
+    /// <summary>The fleet's ships with their crews as they are, as the status area draws them.</summary>
+    public static HangarShip[] Live(IRosterFleet fleet, Func<string, int> raceIndex) =>
+        fleet.Ships.Select(s => new HangarShip(s.Slot, raceIndex(s.Race), s.Crew)).ToArray();
 
     /// <summary>Whether the last update drew the status area afresh (on a new canvas: paint it on a clean picture).</summary>
     public bool Fresh { get; private set; }
@@ -420,40 +405,53 @@ public sealed class RosterFollower
     /// <summary>Where the highlight flashes, in the screen's pixels.</summary>
     public URect? Flash => _menu is null ? null : _drawing?.Flash;
 
+    // Whether the fleet's ships (each one's slot, race and captain, which tell them apart) are those drawn.
+    private bool SameShips(IRosterFleet fleet)
+    {
+        var ships = fleet.Ships;
+        if (ships.Count != _ships.Count)
+            return false;
+        for (int i = 0; i < ships.Count; ++i)
+            if (_ships[i] != (ships[i].Slot, ships[i].Race, ships[i].Captain))
+                return false;
+        return true;
+    }
+
     /// <summary>
     /// A frame: the roster as it stands (null when closed) over the host's
-    /// ship (<paramref name="sis"/>, with the fleet: <see cref="SisState.Fleet"/>,
-    /// as the snapshot has them) and the fleet's ships (<paramref name="ships"/>:
-    /// each one's slot, race and captain, which tell its ships apart), at
-    /// <paramref name="now"/>: the roster's steps since the last frame drawn.
+    /// ship (<paramref name="sis"/>: what the snapshot gives, made only when
+    /// the area is drawn afresh; its crews and fleet taken from the live
+    /// fleet), the fleet as it is
+    /// (<paramref name="fleet"/>, which the roster acts on), at
+    /// <paramref name="now"/>.
     /// </summary>
-    public void Update(RosterMenu? menu, SisState? sis, IReadOnlyList<(int Slot, int Race, int Captain)>? ships, long now)
+    public void Update(RosterMenu? menu, IRosterFleet? fleet, Func<SisState?> sis, long now)
     {
         Fresh = false;
-        if (menu is null || menu.Left || sis is null || ships is null)
+        if (menu is null || menu.Left || fleet is null)
         {
             _menu = null;
             return;
         }
-        var steps = menu.TakeEvents();
-        if (!ReferenceEquals(menu, _menu) || !ships.SequenceEqual(_ships) || _drawing is null)
+        if (!ReferenceEquals(menu, _menu) || !SameShips(fleet) || _drawing is null)
         {
-            if (_newArea() is not { } area)
-                return;
+            if (sis() is not { } ship || _newArea() is not { } area)
+                return;   // nothing to draw on yet: the steps wait
+            menu.TakeEvents();   // what they did is drawn afresh below, against the fleet as it is
             (Canvas, _screens) = area;
             _drawing = new RosterDrawing(Canvas, _screens, _races, _flash);
-            // Drawn afresh as the roster stands, with the crews its steps so far left (the snapshot may not show them yet).
-            foreach (var e in steps)
-                _drawing.Remember(e);
-            _screens.Ship = _drawing.Ship(sis);
+            _screens.Ship = ship with { Crew = fleet.FlagshipCrew, Fleet = Live(fleet, _raceIndex) };   // the crews as they are
             // The status area as the roster opens over it: the flagship and the fleet's ships (DeltaSISGauges).
             _screens.Apply(new ScreenOp(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined));
             _drawing.Open(menu);
-            (_menu, _ships, Fresh) = (menu, ships.ToList(), true);
+            _menu = menu;
+            _ships.Clear();
+            foreach (var s in fleet.Ships)
+                _ships.Add((s.Slot, s.Race, s.Captain));
+            Fresh = true;
             return;
         }
-        _screens!.Ship = _drawing.Ship(sis);
-        foreach (var e in steps)
+        foreach (var e in menu.TakeEvents())
             _drawing.Apply(e, now);
         _drawing.Tick(now);
     }

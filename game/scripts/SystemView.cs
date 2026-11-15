@@ -422,7 +422,7 @@ public partial class OrbitView : Control
         _me = me;
         _message = message;
         if (Roster is not null && _systems.StoryRules is { } rules)
-            Roster.Update(menu?.Roster, snapshot?.Ships.FirstOrDefault(s => s.Id == me), rules.RaceIndex,
+            Roster.Update(menu?.Roster, menu?.Fleet, snapshot?.Ships.FirstOrDefault(s => s.Id == me), rules.RaceIndex,
                 (long)(Time.GetTicksMsec() * 840 / 1000));
         QueueRedraw();
     }
