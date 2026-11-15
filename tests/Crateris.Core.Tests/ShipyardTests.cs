@@ -416,6 +416,22 @@ public class ShipyardTests
         Press(menu, MenuKey.Cancel, MenuKey.Cancel);
         Assert.Null(menu.Roster);
         Assert.Equal((OrbitMenu.MenuPage.Manifest, OrbitMenuItem.Roster), (menu.Page, menu.Selected));   // back at the Manifest
+
+        // A talk adding or taking ships while it's open: the roster opens afresh on the fleet as it is, the key
+        // taken by it (not a crew move for a ship now in another place), and closes when none are left.
+        Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Select, _ => 0));
+        Press(menu, MenuKey.Select);
+        Assert.True(menu.Roster!.ModifyingCrew);
+        fleet.Restore(Rules, new[] { new FleetShip(Spathi, 5, 5, 0), new FleetShip(Human, 12, 5, 1) });
+        Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Up, _ => 0));
+        Assert.Equal((2, 0, false), (menu.Roster!.Count, menu.Roster.State, menu.Roster.ModifyingCrew));
+        Assert.Equal((5, 28), (fleet.InSlot(0)!.Crew, crew));   // no crew moved
+        Press(menu, MenuKey.Right);   // two ships, a column each: across to the other
+        Assert.Equal(1, menu.Roster!.State);
+        fleet.Restore(Rules, Array.Empty<FleetShip>());
+        Assert.Equal(MenuOutcome.Moved, menu.Press(MenuKey.Down, _ => 0));
+        Assert.Null(menu.Roster);
+        Assert.Equal(OrbitMenu.MenuPage.Manifest, menu.Page);
     }
 
     private static void Press(OrbitMenu menu, params MenuKey[] keys)

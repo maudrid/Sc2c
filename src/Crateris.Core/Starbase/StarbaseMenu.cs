@@ -148,7 +148,8 @@ public sealed class ShipyardMenu
     /// <summary>
     /// The ship lit in the list to build (delta_item's low byte, an index
     /// into <see cref="Outfitting.BuildList"/>; kept, as UQM keeps it, until
-    /// the list opens again or a fleet ship's crew is changed).
+    /// the list opens again, the hangar opens from the menu, or a fleet
+    /// ship's crew is changed, refused or not).
     /// </summary>
     public byte RaceItem { get; private set; }
 

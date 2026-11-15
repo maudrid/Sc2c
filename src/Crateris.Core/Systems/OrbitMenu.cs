@@ -234,6 +234,14 @@ public sealed class OrbitMenu
             return PressDevices(key);
         if (Roster is not null)
         {
+            // A talk (a guest's, in co-op) may add or take fleet ships while the roster is open, which UQM's can't:
+            // the roster opens afresh on the fleet as it is (closing if none are left), the key taken by it.
+            int count = Math.Min(Fleet!.Count, RosterMenu.ShipPoints.Count);
+            if (count != Roster.Count)
+            {
+                Roster = count == 0 ? null : new RosterMenu(count);
+                return MenuOutcome.Moved;
+            }
             var outcome = Roster.Press(key, Fleet!);
             if (Roster.Left)
                 Roster = null;   // RosterMenu returns: back at the Manifest
