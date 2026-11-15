@@ -11,7 +11,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Stage 4b item 1 is built and reviewed** (its Progress row): every ship's content, and the traces `tests/golden/battle-races-1.json` to `-3.json` (items 2 to 4); notes for items 3 and 4 are under them in the plan.
 - **Stage 4b items 2 to 4 are built and reviewed** (their Progress rows): all 24 race ships are ported, in `src/Crateris.Core/Combat/` (`RaceShips.Ported`, so `--start-battle` takes them), every trace matched (`RaceShipBattleTests`); co-op, seam and branch tests in `RaceShipCoopTests` (a partial class, by item).
 - **Stage 4b item 5 (enemy fleets) is built and reviewed** (its Progress row; five rounds: the Ur-Quan, Kohr-Ah and Earthling's salvage, the client's enemy status on a ship's return, a cap of 14 ships, the joining notice, tests on the real path; round 5 found nothing): `EnemyFleet`/`EnemyFleetShip` and `GameWorld.StartBattle(id, EnemyFleet, ...)` (one ship at a time, at most 14; infinite fleets via `Battle`'s `infiniteEnemy`), salvage the first race's bounty for each ship (`BattleKit.RaceOf`), `WorldBattle.EnemyFleetLeft` for 3b, `--start-battle RACE,RACE,...`; the markers' race is noted for items 9 and 10; tests in `EnemyFleetTests` and `BattleScreenTests`.
-- **Stage 4b item 6 (the host's fleet) is built and reviewed** (its Progress row; round 1: a ship of 0 crew refused on load, `--start-*` gifts lost under `--start-visit`; round 2: wording, a test that couldn't fail, the start order for minerals and units; round 3 found nothing): `HostFleet` (`GameWorld.Fleet`, build.c's functions), the talks' ships giving to the host's fleet whoever answers (`EscortsWorth` 0 for a guest), the Arilou's gift (row 43 closed), saves version 12, `--start-fleet` and `--start-allied`; tests in `FleetTests` (topic `fleet`). For the owner to confirm in the report: the plan's "none for guests" read with decision 3 as the worth only (a guest gets the host's fleet's room, so can hear the Arilou's bulletin).
+- **Stage 4b item 6 (the host's fleet) is built and reviewed** (its Progress row; round 1: a ship of 0 crew refused on load, `--start-*` gifts lost under `--start-visit`; round 2: wording, a test that couldn't fail, the start order for minerals and units; round 3 found nothing): `HostFleet` (`GameWorld.Fleet`, build.c's functions), the talks' ships giving to the host's fleet whoever answers (`EscortsWorth` 0 for a guest), the Arilou's gift (row 43 closed), saves version 12, `--start-fleet` and `--start-allied`; tests in `FleetTests` (topic `fleet`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input); it found the Orz's turret flash firing off its own howitzer's blast.
 - **Last checks:** with item 6's review round 2 fixes (round 3 changed a comment only), all topics 1,875 passed, 0 failed, 0 skipped with the content set; 49 of item 6's 51 mutations caught (2 equivalent, the Progress row lists them); `tests/topic-map.json` remade; the game build has only the two long-standing warnings (`game/scripts/Main.cs` ~1093, `game/scripts/ReportView.cs` 78); a headless `--start-fleet arilou,spathi:5 --start-allied spathi --quit-after 60 --report FILE` ran (the report listing the Arilou with 6 crew in slot 0, the Spathi with 5 in slot 1). `tools/test_network.py` was last run on 4a item 12's first commit; data checks on 4a item 9's last commit (items 1 to 6 changed nothing in `data/`).
 
@@ -25,6 +25,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 - **A talk is the answerer's ship's.** The group as a whole starts the story; whoever answers speaks for it with their own ship (names, hold, crew, fuel), and when the replies pass on, the talk goes on with the new answerer's ship. An opening taken back takes back what the talks changed on each ship; a save during it is without them.
 - **Only battle salvage is split**, between the players in the battle when it's won (online: a disconnect leaves the battle). The starbase's 2,500 RU go to the answerer; players can give units to each other.
+- **A guest's talk gives to the host's fleet (2026-11-15).** A guest who talks to the commander can bring the Arilou's ships (and any talk's ships) into the host's fleet; only the fleet's worth counts as 0 for a guest.
 - **No ranks.** Guests as "Commander" was considered and dropped: UQM's lines and voices say "Captain".
 
 ## Decisions waiting on the owner
@@ -38,7 +39,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 6 is done; wait for the owner's go-ahead for item 7 (the shipyard and the roster), and their answer on the guests' reading above.
+Stage 4b item 6 is done; wait for the owner's go-ahead for item 7 (the shipyard and the roster)
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
