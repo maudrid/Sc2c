@@ -657,12 +657,47 @@ public partial class ShipyardTests
         Assert.Single(menu.TakeEvents());
     }
 
+    // ---- review round 5: test gaps
+
+    [Fact]
+    public void TheCursorBackOnAShipWhoseCrewMovedShowsItsCrewAsTheKeyFoundIt()
+    {
+        var p = new Probe(new FleetShip(Spathi, 20, 5, 0), new FleetShip(Human, 10, 7, 1));
+        var menu = new RosterMenu(2);
+        p.Frame(menu, 0);
+        menu.Press(MenuKey.Select, p.Roster);
+        menu.Press(MenuKey.Up, p.Roster);       // Spathi 21
+        menu.Press(MenuKey.Select, p.Roster);   // the crew mode off
+        p.Frame(menu, 10);
+        menu.Press(MenuKey.Right, p.Roster);
+        p.Frame(menu, 20);
+        menu.Press(MenuKey.Left, p.Roster);     // back on the Spathi
+        var msgs = p.Frame(menu, 30);
+        Assert.Equal("21/30", msgs.Last());     // its crew as the move left it, not as the roster opened on it
+    }
+
+    [Fact]
+    public void AShipReplacedByOneOfTheSameRaceUnderAnotherCaptainIsDrawnAfresh()
+    {
+        var p = new Probe(new FleetShip(Spathi, 20, 5, 0));
+        var menu = new RosterMenu(1);
+        p.Frame(menu, 0);
+        p.Frame(menu, 10);
+        Assert.False(p.Follower.Fresh);
+        // A talk takes the Spathi and gives another, in the same slot under a new captain.
+        p.Fleet.Restore(Rules, new[] { new FleetShip(Spathi, 25, 9, 0) });
+        p.Snap();
+        var msgs = p.Frame(menu, 20);
+        Assert.True(p.Follower.Fresh);
+        Assert.Equal(new[] { "25/30" }, msgs);
+    }
+
     [Fact]
     public void TheRostersStepsAreTakenWithoutMakingAListOnAQuietFrame()
     {
         var menu = new RosterMenu(2);
         Assert.Same(menu.TakeEvents(), menu.TakeEvents());   // the shared empty one
-        Assert.Equal(1, new RosterMenu(2).Selected is 0 or 1 ? 1 : 0);
+        Assert.Equal(0, new RosterMenu(2).Selected);   // the cursor opens on the first ship
     }
 
     [Fact]
