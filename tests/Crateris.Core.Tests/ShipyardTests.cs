@@ -106,7 +106,7 @@ public class ShipyardTests
         Assert.Equal(20000u - 1800, ship.ResourceUnits);
         Assert.Equal(0, story.CrewPurchased);   // the ship's one crew isn't counted as bought
         Assert.Equal((YardMode.Crew, 3), (yard.Mode, yard.EditingSlot));
-        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.Crew),
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.ShipBuilt, 3), new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.Crew),
             new ScreenOp(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined, -1800) }, yard.TakeOps());
         // Its captain is named as NameCaptain names them: one of the 16, drawn again while a Spathi has it.
         Assert.InRange(fleet.InSlot(3)!.Captain, HostFleet.CaptainNameOffset, HostFleet.CaptainNameOffset + 15);
@@ -149,7 +149,10 @@ public class ShipyardTests
         var crew = Crateris.Presentation.StarbaseScreens.YardFlash(YardMode.Crew, 7)!.Value;
         Assert.Equal((slot.X, slot.Y + slot.H - 6, slot.W, 5), (crew.X, crew.Y, crew.W, crew.H));
         Assert.NotEqual(crew, Crateris.Presentation.StarbaseScreens.YardFlash(YardMode.Crew, ShipyardMenu.Flagship));
-        Assert.Null(Crateris.Presentation.StarbaseScreens.YardFlash(YardMode.Build, 7));
+        // The list of ships to build flashes the radar's box, where its ship shows (SFR_MENU_ANY).
+        Assert.Equal(new Crateris.Presentation.URect(Crateris.Presentation.UqmCanvas.RadarX, Crateris.Presentation.UqmCanvas.RadarY,
+            Crateris.Presentation.UqmCanvas.RadarWidth, Crateris.Presentation.UqmCanvas.RadarHeight),
+            Crateris.Presentation.StarbaseScreens.YardFlash(YardMode.Build, 7));
     }
 
     [Fact]
@@ -220,7 +223,7 @@ public class ShipyardTests
         yard.TakeOps();
         Assert.Equal(OutfitOutcome.Acted, yard.Key(MenuKey.Up));   // the thousandth: the price rises after this one
         Assert.Equal((5, 1000, 9997u), (story.CrewCost, story.CrewPurchased, ship.ResourceUnits));
-        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.Gauges, 0, 0, -3),
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.Gauges, 0, 0, -3), new ScreenOp(ScreenOpKind.ShipCrew, 0),
             new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.Crew) }, yard.TakeOps());
         Assert.Equal(OutfitOutcome.Acted, yard.Key(MenuKey.Down));   // on the threshold: 5 - 2 back, and the price falls
         Assert.Equal((3, 999, 10000u), (story.CrewCost, story.CrewPurchased, ship.ResourceUnits));
@@ -269,8 +272,8 @@ public class ShipyardTests
         Assert.Null(fleet.InSlot(0));
         Assert.Equal(1800u, ship.ResourceUnits);   // its cost came back with its last crew
         Assert.Equal((YardMode.Ships, 0), (yard.Mode, (int)yard.Cursor));
-        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined, ScreenOp.Undefined) },
-            yard.TakeOps());
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.ShipScrapped, 0, Rules.RaceIndex(Spathi)),
+            new ScreenOp(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined, ScreenOp.Undefined) }, yard.TakeOps());
         // A ship with crew left as it is; and scrapping is only for a ship of none.
         Press(yard, MenuKey.Right, MenuKey.Select, MenuKey.Down, leave);
         Assert.Equal(2, fleet.InSlot(1)!.Crew);

@@ -1,9 +1,9 @@
 /*
  * Attack on Crateris: the rest of UQM that outfit.c, shipyard.c, sis.c and
  * menu.c call, for the starbase screens' recording program (golden/screens.c).
- * They only draw, flash, load or wait, or serve the escort fleet's ships
- * and the input loop, none of which the recording drives: each does
- * nothing and gives 0. Declared without UQM's headers (each is called
+ * They only flash, load or wait, or serve the input loop, none of which
+ * the recording drives: each does nothing and gives 0 (the fleet's
+ * queues are UQM's own, build.c and displist.c, since stage 4b item 10). Declared without UQM's headers (each is called
  * through its own prototype; 0 is a null pointer, FALSE or 0 for all).
  *
  * Copyright (C) 2026 Attack on Crateris contributors.
@@ -19,8 +19,6 @@
 NOTHING (Alarm_addAbsoluteMs)
 NOTHING (Alarm_remove)
 NOTHING (AnyButtonPress)
-NOTHING (CloneShipFragment)
-NOTHING (CountLinks)
 NOTHING (DestroyStringTable)
 NOTHING (DoShipSpin)
 NOTHING (FindMasterShipIndex)
@@ -33,14 +31,8 @@ NOTHING (Flash_setMergeFactors)
 NOTHING (Flash_setSpeed)
 NOTHING (Flash_start)
 NOTHING (FlushInput)
-NOTHING (FreeLink)
 NOTHING (GetClusterName)
-NOTHING (GetEscortByStarShipIndex)
-NOTHING (GetIndexFromStarShip)
-NOTHING (GetStarShipFromIndex)
-NOTHING (InsertQueue)
 NOTHING (ReleaseStringTable)
-NOTHING (RemoveQueue)
 NOTHING (SetInputCallback)
 NOTHING (SleepThreadUntil)
 NOTHING (TextRect)

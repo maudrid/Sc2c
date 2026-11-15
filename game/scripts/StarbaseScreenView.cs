@@ -13,6 +13,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Crateris.Core.Content;
 using Crateris.Core.Starbase;
 using Crateris.Core.World;
@@ -68,6 +69,9 @@ public partial class StarbaseScreenView : Node2D
     /// <summary>The client's clock, in UQM's ticks (ONE_SECOND 840).</summary>
     private static long Now => (long)(Time.GetTicksMsec() * 840 / 1000);
 
+    /// <summary>Each race's look by its number (the hangar's ships, the list to build, the support ships: stage 4b item 10).</summary>
+    public Func<int, YardRace?>? Races { get; set; }
+
     /// <summary>The content: the screens' sheets, colour tables, fonts and the game's strings.</summary>
     public void UseContent(ContentPackage content, AnimationSheets sheets)
     {
@@ -122,8 +126,27 @@ public partial class StarbaseScreenView : Node2D
         });
         string flagship = ShipNames.FlagshipDefault(_strings!), commander = ShipNames.CommanderDefault(_strings!);
         _picture = new StarbasePicture(canvas, i => _strings![i], Sheet(StarbaseScreens.StarbaseSheet).Count, _hangar!.Count,
-            s => SisState.Of(s, flagship, commander));
+            s => SisState.Of(s, flagship, commander), race => Races?.Invoke(race));
         Blank();
+    }
+
+    /// <summary>
+    /// A status area of its own to draw on (stage 4b item 10: the roster's
+    /// in flight), painted from this view's content: its canvas, its
+    /// painter and the screens' drawing on it (with <paramref name="races"/>);
+    /// null without the content.
+    /// </summary>
+    public (UqmCanvas Canvas, ScreenRaster Raster, StarbaseScreens Screens)? NewStatusArea(Func<int, YardRace?> races)
+    {
+        if (_content is null || _strings is null)
+            return null;
+        var canvas = new UqmCanvas(s => Sheet(s).Count, (s, i) =>
+        {
+            var f = Frame(s, i, -1);
+            return new URect(-f.HotSpotX, -f.HotSpotY, f.Width, f.Height);
+        }, _fonts.ToDictionary(f => f.Key, f => f.Value.Leading));
+        var raster = new ScreenRaster((s, i) => Frame(s, i, -1), f => _fonts[f]);
+        return (canvas, raster, new StarbaseScreens(canvas, i => _strings[i], races));
     }
 
     // A black picture, waiting for a screen drawn afresh.

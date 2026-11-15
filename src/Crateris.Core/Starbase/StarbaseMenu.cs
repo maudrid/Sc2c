@@ -186,9 +186,13 @@ public sealed class ShipyardMenu
                     case MenuKey.Up or MenuKey.Down:
                         return ModifyShipCrew(key == MenuKey.Up);
                     case MenuKey.Select or MenuKey.Cancel:
-                        // DMS_EditCrewMode: a fleet ship left with no crew is scrapped as the editing ends.
-                        if (!OnFlagship(Cursor) && _rules.Fleet?.InSlot(Cursor) is { Crew: 0 } && _act(new ScrapShip(Cursor)))
-                            Draw(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined, ScreenOp.Undefined);   // the SIS display refreshed
+                        // DMS_EditCrewMode: a fleet ship left with no crew is scrapped as the editing ends (DMS_ScrapEscortShip:
+                        // its hangar's doors closing on it, then the SIS display refreshed).
+                        if (!OnFlagship(Cursor) && _rules.Fleet?.InSlot(Cursor) is { Crew: 0 } scrapped && _act(new ScrapShip(Cursor)))
+                        {
+                            Draw(ScreenOpKind.ShipScrapped, Cursor, RaceNumber(scrapped.Race));
+                            Draw(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined, ScreenOp.Undefined);
+                        }
                         _modify = false;
                         break;
                 }
@@ -210,6 +214,7 @@ public sealed class ShipyardMenu
                         if (_rules.BuildList.Count == 0)
                             return OutfitOutcome.Refused;   // no allied race (UQM's always has the Earthlings)
                         (_modify, RaceItem) = (true, 0);   // the list of ships to build, on its first
+                        Draw(ScreenOpKind.RaceStrings, RaceNumber(_rules.BuildList[0]));
                         return OutfitOutcome.None;
                     case MenuKey.Cancel:
                         (_inMenu, State) = (true, Crew);
@@ -276,26 +281,40 @@ public sealed class ShipyardMenu
         return OutfitOutcome.Acted;
     }
 
-    // DMS_ModifyCrew for a fleet ship: a crew member hired or sent away (the resource units' gauge, and
-    // CrewTransaction's menu drawn again if the price changed; the ship's crew count, ShowShipCrew, is the client's
-    // to draw: stage 4b item 10), and delta_item's ship to build forgotten, refused or not.
+    // DMS_ModifyCrew for a fleet ship: a crew member hired or sent away (the resource units' gauge, then the ship's
+    // crew count, ShowShipCrew, drawn again for a dismissal refused too; and CrewTransaction's menu drawn again if the
+    // price changed), and delta_item's ship to build forgotten, refused or not.
     private OutfitOutcome ModifyShipCrew(bool hire)
     {
         var (ru, cost) = (_rules.Ship.ResourceUnits, _rules.Story.CrewCost);
         bool done = _act(hire ? new HireShipCrew(Cursor) : new DismissShipCrew(Cursor));
         RaceItem = 0;
         if (!done)
+        {
+            if (!hire && _rules.Fleet?.InSlot(Cursor) is not null)
+                Draw(ScreenOpKind.ShipCrew, Cursor);   // DMS_DismissEscortShipCrew shows the crew it couldn't send away
             return OutfitOutcome.Refused;
+        }
         Draw(ScreenOpKind.Gauges, 0, 0, (int)(_rules.Ship.ResourceUnits - (long)ru));
+        Draw(ScreenOpKind.ShipCrew, Cursor);
         if (_rules.Story.CrewCost != cost)
             Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
         return OutfitOutcome.Acted;
     }
 
     // DMS_AddEscortShip: cancel goes back to the cursor (the menu drawn where the list was); select builds the ship lit
-    // (DMS_TryAddEscortShip: its crew edited next); the arrows go round the list (left and up back, right and down on).
-    // The hangar's doors and the list's ship are the client's to draw (stage 4b item 10).
+    // (DMS_TryAddEscortShip: its hangar's doors opening on it, then its crew edited); the arrows go round the list (left
+    // and up back, right and down on), DrawRaceStrings showing the ship lit when it changes.
     private OutfitOutcome AddShip(MenuKey key)
+    {
+        byte was = RaceItem;
+        var outcome = AddShipKey(key);
+        if (RaceItem != was && _modify && Mode == YardMode.Build && RaceItem < _rules.BuildList.Count)
+            Draw(ScreenOpKind.RaceStrings, RaceNumber(_rules.BuildList[RaceItem]));
+        return outcome;
+    }
+
+    private OutfitOutcome AddShipKey(MenuKey key)
     {
         var list = _rules.BuildList;
         switch (key)
@@ -308,6 +327,7 @@ public sealed class ShipyardMenu
                 long ru = _rules.Ship.ResourceUnits;
                 if (RaceItem >= list.Count || !_act(new BuildShip(Cursor, list[RaceItem])))
                     return OutfitOutcome.Refused;
+                Draw(ScreenOpKind.ShipBuilt, Cursor);
                 Draw(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Crew);
                 Draw(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined, (int)(_rules.Ship.ResourceUnits - ru));
                 return OutfitOutcome.Acted;
@@ -320,6 +340,9 @@ public sealed class ShipyardMenu
         }
         return OutfitOutcome.None;
     }
+
+    // A race's number in avail_race_q (races.h's order), as the drawing names it.
+    private int RaceNumber(string race) => _rules.Story.Rules.RaceIndex(race);
 
     /// <summary>DMS_MoveCursor: the flagship is a row of its own below the hangar's; rows and columns wrap round.</summary>
     public static byte MoveCursor(byte cur, int dx, int dy)
@@ -423,14 +446,21 @@ public sealed class StarbaseMenu
             return;
         var ops = new List<ScreenOp>();
         bool minerals = now.MineralMass != was.MineralMass;
+        var fleetWas = was.Fleet ?? Array.Empty<HangarShip>();
+        var fleetNow = now.Fleet ?? Array.Empty<HangarShip>();
+        bool fleet = !fleetWas.SequenceEqual(fleetNow);
         if (now.BombState != was.BombState)
             ops.AddRange(Redraw());   // the bomb shows in the landers' place, hides the shields, changes the status message
         else
         {
-            if (minerals)
+            // The host's fleet changed by another (stage 4b item 10: a talk's gift, the host at the shipyard): the
+            // hangar's slots as they changed, a ship come or gone through its doors, its crew count drawn again.
+            if (fleet && Yard is not null)
+                ops.AddRange(HangarChanges(fleetWas, fleetNow));
+            if (minerals || fleet)
             {
-                ops.Add(new(ScreenOpKind.SisDisplay));
-                if (Yard is not null)
+                ops.Add(new(ScreenOpKind.SisDisplay));   // the status area shows the minerals and the fleet's ships
+                if (minerals && Yard is not null)
                     ops.Add(new(ScreenOpKind.Blueprint));   // its storage bays show the minerals too
             }
             else if (now.ResourceUnits != was.ResourceUnits)
@@ -442,6 +472,36 @@ public sealed class StarbaseMenu
                 ops.Add(new(ScreenOpKind.ModuleStrings, piece));
         }
         Drew(now, ops);
+    }
+
+    /// <summary>
+    /// The hangar's drawing for the fleet changing from <paramref name="was"/>
+    /// to <paramref name="now"/>, slot by slot: a ship gone (or replaced by
+    /// another race's) behind its doors closing, one come through them
+    /// opening, a crew changed drawn again.
+    /// </summary>
+    public static IEnumerable<ScreenOp> HangarChanges(IReadOnlyList<HangarShip> was, IReadOnlyList<HangarShip> now)
+    {
+        for (int slot = 0; slot < HangarShip.MostShips; ++slot)
+        {
+            int a = IndexOfSlot(was, slot), b = IndexOfSlot(now, slot);
+            if (a < 0 && b < 0 || a >= 0 && b >= 0 && was[a] == now[b])
+                continue;
+            if (a >= 0 && (b < 0 || now[b].Race != was[a].Race))
+                yield return new(ScreenOpKind.ShipScrapped, slot, was[a].Race);
+            if (b >= 0 && (a < 0 || now[b].Race != was[a].Race))
+                yield return new(ScreenOpKind.ShipBuilt, slot);
+            else if (b >= 0)
+                yield return new(ScreenOpKind.ShipCrew, slot);
+        }
+    }
+
+    private static int IndexOfSlot(IReadOnlyList<HangarShip> fleet, int slot)
+    {
+        for (int i = 0; i < fleet.Count; ++i)
+            if (fleet[i].Slot == slot)
+                return i;
+        return -1;
     }
 
     /// <summary>The player's client lost its picture: the next drawing taken is the screen drawn afresh.</summary>

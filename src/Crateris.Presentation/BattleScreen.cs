@@ -141,6 +141,27 @@ public sealed class BattleView
 }
 
 /// <summary>
+/// What the pick screen shows that the battle's snapshot doesn't (stage 4b
+/// item 10): the choosing player's flagship's name, and as the cursor's
+/// ship its commander, crew and crew pods' room (GLOBAL_SIS's), and a fleet
+/// ship's race's icons and its captain's name (its race strings').
+/// </summary>
+public interface IPickLook
+{
+    /// <summary>The player's flagship's name (GLOBAL_SIS (ShipName)).</summary>
+    string ShipName(string player);
+
+    /// <summary>The player's flagship as the cursor lights it: its commander, crew enlisted and crew pods' room.</summary>
+    PickShipLit Flagship(string player);
+
+    /// <summary>A ship's (data/ships.json's id) status icons' sheet, or null.</summary>
+    string? Icons(string ship);
+
+    /// <summary>A captain's name: <paramref name="captain"/> of the ship's race's strings.</summary>
+    string Captain(string ship, int captain);
+}
+
+/// <summary>
 /// A battle drawn for one player as UQM draws it (stage 4a item 12): the
 /// space window each frame (the stars' three planes, then every element at
 /// the zoom's size, from <see cref="BattleView"/>'s camera), the status
@@ -175,14 +196,28 @@ public sealed class BattleScreen
     private (string Ship, int Captain) _mineShownAs;
     private int _mineCrewSeen;
 
-    /// <param name="canvas">Where the status panel's calls go (<see cref="Status"/>).</param>
+    /// <param name="canvas">Where the status panel's calls go (<see cref="Status"/>), and the pick screen's.</param>
     /// <param name="statusShip">A ship's look in the panel from its status (and its player, null for the enemy): its icons, captain and names.</param>
-    public BattleScreen(UqmCanvas canvas, Func<BattleShipStatus, string?, StatusShip> statusShip)
+    /// <param name="pick">The pick screen's looks (none: the pick screen isn't drawn).</param>
+    public BattleScreen(UqmCanvas canvas, Func<BattleShipStatus, string?, StatusShip> statusShip, IPickLook? pick = null)
     {
         _canvas = canvas;
         _status = new BattleStatus(canvas);
         _statusShip = statusShip;
+        _pickLook = pick;
+        _pick = new PickScreenDrawing(canvas);
     }
+
+    private readonly IPickLook? _pickLook;
+    private readonly PickScreenDrawing _pick;
+    private BattleArmadaSnapshot? _armadaDrawn;
+
+    /// <summary>
+    /// Where the pick screen's highlight flashes (DoPickBattleShip's, on
+    /// the cursor), in the screen's pixels, while the player chooses; null
+    /// otherwise.
+    /// </summary>
+    public URect? PickFlash { get; private set; }
 
     public BattleView View => _view;
 
@@ -209,7 +244,13 @@ public sealed class BattleScreen
     {
         Fresh = _battle != b.Id;
         if (!Fresh && b.Camera.Frame == _frame)
-            return null;
+        {
+            // The battle held (the host's pause, or the host choosing alone): the pick screen as its cursor moves.
+            if (Equals(b.FighterOf(viewer)?.Armada, _armadaDrawn))
+                return null;
+            PickScreen(b, viewer);
+            return new List<UqmDraw>();
+        }
         if (Fresh)
         {
             _battle = b.Id;
@@ -233,7 +274,36 @@ public sealed class BattleScreen
         drawn.AddRange(prims.Select(p => Draw(p, cam.Scale)));
         StatusFrame(b, viewer);
         Minimap(b, viewer, drawn);
+        PickScreen(b, viewer);
         return drawn;
+    }
+
+    /// <summary>
+    /// The pick screen over the space window while <paramref name="viewer"/>
+    /// chooses their next ship (stage 4b item 10; GetArmadaStarShip): the
+    /// pick frame with their fleet ships (DrawArmadaPickShip), the cursor's
+    /// ship's captain and crew (DoPickBattleShip), drawn after the space
+    /// window's calls (into <see cref="Status"/>'s), every frame the battle
+    /// moves (it runs on while another player fights: decision 2), or as
+    /// the cursor moves while it's held. Only the player choosing sees it.
+    /// </summary>
+    private void PickScreen(BattleSnapshot b, string viewer)
+    {
+        var armada = b.FighterOf(viewer)?.Armada;
+        _armadaDrawn = armada;
+        if (armada?.Pick is not { } cursor || _pickLook is null)
+        {
+            PickFlash = null;
+            return;
+        }
+        _pick.Draw(_pickLook.ShipName(viewer),
+            armada.Ships.Select(s => new PickShip(s.Slot, _pickLook.Icons(s.Ship), s.Exit is not null, s.Crew)));
+        PickShipLit? lit = cursor.OnFlagship ? _pickLook.Flagship(viewer)
+            : armada.InSlot(cursor.Slot!.Value) is { CanPick: true } ship
+                ? new PickShipLit(_pickLook.Captain(ship.Ship, ship.Captain), ship.Crew, ship.MaxCrew)
+                : null;
+        _pick.Select(cursor.Row, cursor.Column, lit);
+        PickFlash = _pick.Flash;
     }
 
     private void StatusFrame(BattleSnapshot b, string viewer)
@@ -263,6 +333,8 @@ public sealed class BattleScreen
         bool mineFresh = !_mineShown || _mineShownAs != (me.Status.Ship, me.Status.Captain)
             || _mineCrewSeen == 0 && me.Status.Crew > 0 && !me.Status.Gone;
         _mineCrewSeen = me.Status.Gone ? 0 : me.Status.Crew;
+        if (!_mineShown && me.Status.Gone)
+            return;   // no ship of theirs in it yet (the host choosing their first): the slot is drawn as one comes in
         if (mineFresh)
         {
             _status.Init(BattleStatus.PlayerSlot, _statusShip(me.Status, viewer), State(me.Status));

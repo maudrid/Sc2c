@@ -33,7 +33,8 @@ public sealed class BattleSprites
         {
             var maps = new ColorMaps();
             maps.Set(BinaryTable.Load(package, "colortable.main")[0]);
-            foreach (string resource in BattleResources.All(ships, planets))
+            // The battle's own resources, and the pick screen's frame (stage 4b item 10), drawn over the space window.
+            foreach (string resource in BattleResources.All(ships, planets).Append(PickScreenDrawing.PickSheet).Distinct())
             {
                 var frames = SpriteSheet.Load(sheets, resource);
                 _sheets[resource] = Enumerable.Range(0, frames.Count).Select(f => frames.Render(f, maps)).ToArray();

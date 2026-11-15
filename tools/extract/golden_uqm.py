@@ -4818,6 +4818,18 @@ def outfit_scenarios():
     return out
 
 
+def race_ships():
+    """Each race of avail_race_q (races.h's order): its ship in
+    data/ships.json, by InitGameStructures' species (the rebels the
+    Yehat's, the drone the probe's)."""
+    with open(os.path.join(REPO, "data", "ships.json")) as f:
+        ships = json.load(f)
+    by_species = {s["species"]: s for s in ships["ships"]}
+    species = sorted(((v, k) for k, v in ships["species_ids"].items()))
+    return [by_species["YEHAT_ID" if race == "YEHAT_REBEL_SHIP" else "UR_QUAN_PROBE_ID" if race == "URQUAN_DRONE_SHIP"
+                       else species[ships["species_ids"]["ARILOU_ID"] + i][1]] for i, race in enumerate(RACES)]
+
+
 def race_crews():
     """Each race of avail_race_q (races.h's order): its ship's starting
     and most crew, by InitGameStructures' species (the rebels the Yehat's,
@@ -5310,11 +5322,12 @@ def record_cmap(uqm, exe):
 
 
 SCREENS_PROGRAM = os.path.join(HERE, "golden", "screens.c")
-SCREENS_LINK = ["uqm/sis.c", "uqm/menu.c", "uqm/border.c", "uqm/util.c", "libs/graphics/pixmap.c"]
+SCREENS_LINK = ["uqm/sis.c", "uqm/menu.c", "uqm/border.c", "uqm/util.c", "libs/graphics/pixmap.c",
+                "uqm/build.c", "uqm/displist.c", "libs/math/random.c"]
 SCREENS_STUBS = os.path.join(HERE, "golden", "screens_stubs.c")
 SCREENS_FRAMES = ["graphics.starbase", "graphics.modulesmenu", "graphics.outfit", "graphics.playmenu",
                   "graphics.shipyard", "graphics.outfitmodules", "graphics.fontgradient",
-                  "graphics.flagshipstatus", "graphics.blueprints"]
+                  "graphics.flagshipstatus", "graphics.blueprints", "graphics.status", "graphics.pickship"]
 # The fonts' leading, as UQM's loader gives it (UqmFont, checked against
 # it by fonts.json): StarCon, Tiny, Micro.
 SCREENS_LEADING = "11 10 15"
@@ -5360,7 +5373,103 @@ def screens_scenarios():
         out.append({**menu, "name": name, "state": {"LANDER_SHIELDS": shields},
                     "steps": ["outfit", "d", "s", "d", "s", "s", "c", "c", "c"]})
     out += shipyard_screens_scenarios()
+    out += fleet_screens_scenarios()
     return out
+
+
+def fleet_screens_scenarios():
+    """The host's fleet drawn (stage 4b item 10): the shipyard's hangar
+    with fleet ships (the doors opening on them as it opens, on a ship
+    built, closing on one scrapped; each one's crew count, or SCRAP), the
+    list of ships to build (DrawRaceStrings), the support ships round the
+    flagship in the status area; the pick screen (DrawArmadaPickShip,
+    DoPickBattleShip's cursor, its name and crew); and the roster (the
+    icons, the lit one flashing on the clock, its crew)."""
+    out = []
+    human, spathi, arilou, orz, syreen, urquan, vux, shofixti, yehat, pkunk = (
+        RACES.index(r) for r in ("HUMAN_SHIP", "SPATHI_SHIP", "ARILOU_SHIP", "ORZ_SHIP", "SYREEN_SHIP", "URQUAN_SHIP",
+                                 "VUX_SHIP", "SHOFIXTI_SHIP", "YEHAT_SHIP", "PKUNK_SHIP"))
+
+    def add(name, steps, fleet=(), allied=("HUMAN_SHIP",), armada=(), ship=None, crew_cost=3, seed=4242, state=None):
+        out.append({"name": name, "ship": ship or talk_ship(ru=5000), "state": state or {}, "costs": {}, "fuel_cost": 20,
+                    "crew_cost": crew_cost, "shofixti": False, "steps": steps.split(),
+                    "fleet": [[RACES[r], *rest] for r, *rest in fleet], "allied": list(allied),
+                    "armada": [[RACES[r], *rest] for r, *rest in armada], "seed": seed})
+
+    some = [(spathi, 30, 6, 0), (arilou, 4, 7, 3), (human, 18, 5, 7), (orz, 9, 8, 11)]
+    add("fleet-yard-open", "shipyard t:40 d u c", fleet=some)
+    add("fleet-yard-open-full", "shipyard",
+        fleet=[(r, c, 5 + i % 16, i) for i, (r, c) in enumerate(
+            [(spathi, 30), (arilou, 6), (human, 18), (orz, 16), (syreen, 12), (urquan, 42), (vux, 20), (shofixti, 6),
+             (yehat, 20), (pkunk, 8), (spathi, 1), (human, 3)])])
+    add("fleet-yard-build", "shipyard s d s r r l s u u d c d r s",
+        allied=("ARILOU_SHIP", "HUMAN_SHIP", "ORZ_SHIP", "SPATHI_SHIP"))
+    add("fleet-yard-build-list-wraps", "shipyard s d r s l l l r c s s",
+        allied=("ARILOU_SHIP", "HUMAN_SHIP", "SPATHI_SHIP"), fleet=[(spathi, 30, 6, 0)])
+    add("fleet-yard-build-alone", "shipyard s d s r l s c", fleet=[(human, 18, 5, 1)])
+    add("fleet-yard-build-poor", "shipyard s d s s c c", ship=talk_ship(ru=50), allied=("HUMAN_SHIP", "SPATHI_SHIP"))
+    add("fleet-yard-crew", "shipyard s d s u u u d d d s c", fleet=some, allied=("HUMAN_SHIP", "SPATHI_SHIP", "ARILOU_SHIP"))
+    add("fleet-yard-crew-full", "shipyard s d s u d s r r r s u u d s c", fleet=some,
+        allied=("HUMAN_SHIP", "SPATHI_SHIP", "ARILOU_SHIP"))
+    add("fleet-yard-scrap", "shipyard s d s d s c", fleet=[(spathi, 1, 6, 0), (arilou, 6, 7, 1)],
+        allied=("SPATHI_SHIP", "ARILOU_SHIP"))
+    add("fleet-yard-scrap-cancel", "shipyard s d s d d u d c c", fleet=[(spathi, 2, 6, 0)], allied=("SPATHI_SHIP",))
+    add("fleet-yard-buy-back", "shipyard s d s d u u c c", fleet=[(spathi, 1, 6, 0)], allied=("SPATHI_SHIP",))
+    add("fleet-yard-threshold", "shipyard s d s u d d c", fleet=[(human, 5, 6, 0)],
+        state={"CREW_PURCHASED0": 999 & 255, "CREW_PURCHASED1": 999 >> 8})
+    add("fleet-yard-flagship", "shipyard s s u d s c c", fleet=some)
+    # The pick screen: waiting, destroyed (an X) and fled (blue) fleet ships round the flagship.
+    armada = [(spathi, 30, 6, 0, 0), (arilou, 0, 7, 2, 1), (human, 10, 5, 4, 2), (urquan, 20, 9, 6, 0),
+              (vux, 20, 10, 8, 0), (orz, 5, 11, 11, 0)]
+    add("pick-cursor", "pick r r r r l l l l l l l u u d d r r r d l l l l", armada=armada)
+    add("pick-select", "pick l s r r s", armada=armada)
+    add("pick-flagship", "pick s", armada=armada)
+    add("pick-flagship-crew", "pick r l s", armada=[(spathi, 30, 6, 1, 0)],
+        ship=talk_ship(crew=12, modules=["CREW_POD"] * 2 + ["EMPTY"] * 13 + ["GUN_WEAPON"],
+                       ship="The Long Voyage", captain="Captain Quinlan"))
+    add("pick-all-gone", "pick r d l l s", armada=[(spathi, 0, 6, 0, 1), (arilou, 6, 7, 5, 2), (human, 0, 5, 9, 1)])
+    add("pick-full", "pick r r r d d l l l l l l l l s",
+        armada=[(r, c, 5 + i, i, st) for i, (r, c, st) in enumerate(
+            [(spathi, 30, 0), (arilou, 6, 0), (human, 18, 1), (orz, 16, 0), (syreen, 12, 2), (urquan, 42, 0),
+             (vux, 20, 0), (shofixti, 6, 0), (yehat, 20, 1), (pkunk, 8, 0), (spathi, 1, 0), (human, 3, 2)])])
+    # The roster: the lit ship flashing on the clock, its crew moved both ways and to each limit.
+    add("roster-cursor", "roster t:10 t:60 t:61 t:120 d t:200 d d u r l r t:400 u u l c", fleet=some)
+    add("roster-crew", "roster s u u d t:90 d s d s d d u s c", fleet=[(spathi, 28, 6, 0), (arilou, 6, 7, 3)],
+        ship=talk_ship(crew=3))
+    add("roster-limits", "roster s u u u s r s d d d d s c", fleet=[(human, 18, 5, 0), (orz, 1, 8, 1)],
+        ship=talk_ship(crew=49))
+    add("roster-twelve", "roster " + "d " * 14 + "r " * 3 + "u " * 13 + "l t:500 s u s c",
+        fleet=[(r, c, 5 + i, i) for i, (r, c) in enumerate(
+            [(spathi, 30), (arilou, 6), (human, 18), (orz, 16), (syreen, 12), (urquan, 42), (vux, 20), (shofixti, 6),
+             (yehat, 20), (pkunk, 8), (spathi, 1), (human, 3)])])
+    add("roster-one", "roster d u r s u d s c", fleet=[(pkunk, 4, 9, 6)])
+    return out
+
+
+def fleet_lines(sc):
+    """golden/screens.c's fleet lines for a scenario: the seed, the races
+    (standing, starting and most crew, icons and melee icon), the fleet and
+    the armada."""
+    crews = race_crews()
+    ships = race_ships()
+    races = []
+    for i, r in enumerate(RACES):
+        g = ships[i]["graphics"]
+        races += [str(ALLIED["good"] if r in sc["allied"] else ALLIED["bad"]), str(crews[i][0]), str(crews[i][1]),
+                  g.get("icons") or "-", g.get("melee_icon") or "-"]
+    return [str(sc["seed"]), " ".join(races),
+            " ".join(f"{RACES.index(r)} {c} {cap} {slot}" for r, c, cap, slot in sorted(sc["fleet"], key=lambda f: f[3])),
+            " ".join(f"{RACES.index(r)} {c} {cap} {slot} {st}" for r, c, cap, slot, st in sc["armada"])]
+
+
+def screens_frames():
+    """The resources the screens recording loads: the starbase's own, and
+    every race ship's status icons and melee icon (the fleet's)."""
+    out = list(SCREENS_FRAMES)
+    for ship in race_ships():
+        g = ship["graphics"]
+        out += [r for r in (g.get("icons"), g.get("melee_icon")) if r]
+    return list(dict.fromkeys(out))
 
 
 def shipyard_screens_scenarios():
@@ -5437,7 +5546,7 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
         cmaps = len(json.loads(subprocess.run([strings_exe, "bintab", hangar], capture_output=True, text=True,
                                               check=True).stdout)[0])
         counts, rects = [], []
-        for res in SCREENS_FRAMES:
+        for res in screens_frames():
             ani_path = index[res][1]
             lines = [l.split() for l in z.read(ani_path).decode("latin-1").splitlines() if l.strip()]
             counts += [res, str(len(lines))]
@@ -5448,17 +5557,19 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
     scenarios = []
     for sc in screens_scenarios():
         steps = sc["steps"]
-        if steps[0] not in ("outfit", "shipyard") and not steps[0].startswith("base:"):
+        if steps[0] not in ("outfit", "shipyard", "pick", "roster") and not steps[0].startswith("base:"):
             raise RuntimeError(f"screens {sc['name']}: starts with {steps[0]}")
-        if steps[0] == "outfit":
+        if steps[0] == "outfit" and "fleet" not in sc:
             steps, _ = run_outfit(outfit_exe, {**sc, "shofixti": sc.get("shofixti", False)}, fields, state_bytes,
                                   prices)
         ship = sc["ship"]
         head = outfit_head(sc, fields, state_bytes, prices) + [
             f"{ship['ship']}|{ship['captain']}", " ".join(counts), " ".join(rects), SCREENS_LEADING, str(cmaps)]
-        out = subprocess.run([exe], input="\n".join(head + [" ".join(steps)]) + "\n", capture_output=True, text=True)
+        tail = fleet_lines(sc) if "fleet" in sc else []
+        out = subprocess.run([exe], input="\n".join(head + [" ".join(steps)] + tail) + "\n", capture_output=True,
+                             text=True)
         if out.returncode:
-            raise RuntimeError(f"screens {sc['name']}: {out.stdout[-300:]}{out.stderr}")
+            raise RuntimeError(f"screens {sc['name']} ({out.returncode}): {out.stdout[-300:]}{out.stderr}")
         lines = [json.loads(x) for x in out.stdout.splitlines()]
         if len(lines) != len(steps):
             raise RuntimeError(f"screens {sc['name']}: {len(lines)} of {len(steps)} steps")
@@ -5467,7 +5578,8 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
             "cmap": [x["cmap"] for x in lines]})
     data = header(uqm, ["tools/extract/golden/screens.c", "tools/extract/golden/screens_stubs.c",
                         "src/uqm/starbase.c", "src/uqm/outfit.c", "src/uqm/shipyard.c", "src/uqm/sis.c",
-                        "src/uqm/menu.c", "src/uqm/border.c", "src/uqm/util.c"], [
+                        "src/uqm/menu.c", "src/uqm/border.c", "src/uqm/util.c", "src/uqm/pickship.c",
+                        "src/uqm/planets/roster.c", "src/uqm/build.c", "src/uqm/displist.c"], [
         "What UQM 0.8.0's own starbase screens draw, recorded by running its "
         "DoStarBase, DoOutfit and DoShipyard (with sis.c, menu.c, border.c and util.c's "
         "drawing) with each drawing call recorded in the screen's "
@@ -5491,8 +5603,27 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
         "or -1).",
         "The shipyard (\"shipyard\" opens DoShipyard as DoStarBase does, "
         "with its menu on SHIPYARD; each later step runs on_input_frame, "
-        "then the screen, as DoInput does) has the flagship alone: fleet "
-        "ships come with stage 4.",
+        "then the screen, as DoInput does).",
+        "The host's fleet (stage 4b item 10; the scenarios with fleet): "
+        "allied (the races GOOD_GUY in avail_race_q, each with its ship's "
+        "starting and most crew, its status icons and melee icon), fleet "
+        "(built_ship_q: [race, crew, captain's name, slot], races.h's race "
+        "names), armada (race_q[0] for the pick screen, the flagship last: "
+        "[race, crew, captain's name, slot, state], 0 waiting, 1 destroyed, "
+        "2 fled) and seed (TFB_SeedRandom's, the captains CloneShipFragment "
+        "names). In the shipyard, ShowCombatShip's doors (every frame of "
+        "their opening or closing in the one step: the program's clock "
+        "doesn't run in it), ShowShipCrew, DrawRaceStrings and the support "
+        "ships in the status area (DrawSupportShips) are UQM's own. \"pick\" "
+        "draws the pick screen as GetArmadaStarShip does (DrawArmadaPickShip, "
+        "then DoPickBattleShip freshly, in the battle's SpaceContext: the "
+        "space window), the keys going to DoPickBattleShip until select "
+        "picks; the captains' names read {gs:N}, N the race strings' index. "
+        "\"roster\" opens the roster (RosterMenu's setup in StatusContext, "
+        "over whatever the status area shows), the keys and t:N going to "
+        "DoModifyRoster until it's left: then the lit ship drawn unlit "
+        "(RosterMenu's tail; its DrawStatusMessage (NULL), the flight's "
+        "location, left out).",
         "frames: each resource's number of frames; hangar_maps: how many "
         "colour maps colortable.hangar has; rects: each frame's "
         "GetFrameRect, [x, y, width, height] (its corner less the hot "
@@ -5500,7 +5631,7 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
     ])
     data["frames"] = dict(zip(counts[::2], map(int, counts[1::2])))
     data["hangar_maps"] = cmaps
-    data["rects"] = {res: [] for res in SCREENS_FRAMES}
+    data["rects"] = {res: [] for res in screens_frames()}
     for r in rects:
         res, i, hx, hy, w, h = r.rsplit(":", 5)
         data["rects"][res].append([-int(hx), -int(hy), int(w), int(h)])

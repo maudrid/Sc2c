@@ -57,11 +57,12 @@ public sealed class StarbasePicture
     /// <param name="starbaseFrames">How many frames graphics.starbase has.</param>
     /// <param name="hangarMaps">How many maps colortable.hangar has.</param>
     /// <param name="sis">The ship as the screens read it, from the host's.</param>
+    /// <param name="races">Each race's look (<see cref="YardRace"/>), by its number in avail_race_q.</param>
     public StarbasePicture(UqmCanvas canvas, Func<int, string> gameString, int starbaseFrames, int hangarMaps,
-        Func<StarbaseShip, SisState> sis)
+        Func<StarbaseShip, SisState> sis, Func<int, YardRace?>? races = null)
     {
         _canvas = canvas;
-        Screens = new StarbaseScreens(canvas, gameString);
+        Screens = new StarbaseScreens(canvas, gameString, races);
         _turning = new StarbaseTurning(starbaseFrames);
         _lines = new PowerLines(hangarMaps);
         _sis = sis;
@@ -79,8 +80,22 @@ public sealed class StarbasePicture
     public void Reset()
     {
         _on = On.Nothing;
+        _pending.Clear();
+        _doors = null;
         _canvas.Drawn.Clear();   // what a drawing that failed part way drew isn't painted over the next
     }
+
+    /// <summary>ONE_SECOND / 24 in UQM's ticks: ShowCombatShip's frames.</summary>
+    public const long DoorsTicks = 840 / 24;
+
+    // The drawing waiting behind the hangar's doors (ShowCombatShip holds UQM's screen until they're done), in order,
+    // and the doors going with the time their next frame is due.
+    private readonly Queue<(StarbaseShip? Ship, ScreenOp Op)> _pending = new();
+    private HangarDoors? _doors;
+    private long _doorsDue;
+
+    /// <summary>Whether the hangar's doors are moving (the drawing after them waits).</summary>
+    public bool Animating => _doors is not null || _pending.Count > 0;
 
     /// <summary>
     /// Whether to ask the host to draw the screen afresh, the host saying
@@ -111,33 +126,71 @@ public sealed class StarbasePicture
         return true;
     }
 
-    /// <summary>The host's drawings, in order, drawn at <paramref name="now"/> (UQM's ticks); the calls drawn.</summary>
+    /// <summary>
+    /// The host's drawings, in order, drawn at <paramref name="now"/> (UQM's
+    /// ticks); the calls drawn. Drawing that sets the hangar's doors going
+    /// (ShowCombatShip) holds what comes after it until they're done: their
+    /// frames, and the rest, come with <see cref="Tick"/> (or at once,
+    /// <see cref="Flush"/>).
+    /// </summary>
     public List<UqmDraw> Draw(IEnumerable<StarbaseDrawing> drawings, long now)
     {
         foreach (var d in drawings)
-        {
-            if (d.Ship is { } ship)
-                Screens.Ship = _sis(ship);
             foreach (var op in d.Ops)
-            {
-                switch (op.Kind)
-                {
-                    case ScreenOpKind.MenuOpened:
-                        _on = On.Menu;
-                        _turning.Open(now);   // the menu's drawing stamps frame 0
-                        break;
-                    case ScreenOpKind.OutfitOpened:
-                        _on = On.Outfit;
-                        break;
-                    case ScreenOpKind.YardOpened:
-                        _on = On.Yard;
-                        _lines.Open(now);   // the shipyard's drawing shows the first map
-                        break;
-                }
-                Screens.Apply(op);
-            }
-        }
+                _pending.Enqueue((d.Ship, op));
+        Run(now, flush: false);
         return Take();
+    }
+
+    /// <summary>Everything held behind the hangar's doors drawn now, the doors' frames all at <paramref name="now"/>.</summary>
+    public List<UqmDraw> Flush(long now)
+    {
+        Run(now, flush: true);
+        return Take();
+    }
+
+    private void Run(long now, bool flush)
+    {
+        while (true)
+        {
+            if (_doors is { } doors)
+            {
+                if (doors.Done)
+                {
+                    _doors = null;
+                    continue;
+                }
+                if (!flush && now < _doorsDue)
+                    return;
+                Screens.DoorsFrame(doors);
+                if (_on == On.Yard && _lines.Frame(now))
+                    Screens.PowerLines(_lines.Map);   // ShowCombatShip's animatePowerLines, on its clock
+                _doorsDue = now + DoorsTicks;
+                continue;
+            }
+            if (_pending.Count == 0)
+                return;
+            var (ship, op) = _pending.Dequeue();
+            if (ship is not null)
+                Screens.Ship = _sis(ship);
+            switch (op.Kind)
+            {
+                case ScreenOpKind.MenuOpened:
+                    _on = On.Menu;
+                    _turning.Open(now);   // the menu's drawing stamps frame 0
+                    break;
+                case ScreenOpKind.OutfitOpened:
+                    _on = On.Outfit;
+                    break;
+                case ScreenOpKind.YardOpened:
+                    _on = On.Yard;
+                    _lines.Open(now);   // the shipyard's drawing shows the first map
+                    break;
+            }
+            Screens.Apply(op);
+            if (Screens.TakeDoors() is { } started && !started.Done)
+                (_doors, _doorsDue) = (started, now + DoorsTicks);   // SleepThreadUntil before the first frame too
+        }
     }
 
     /// <summary>
@@ -147,6 +200,11 @@ public sealed class StarbasePicture
     /// </summary>
     public List<UqmDraw> Tick(long now)
     {
+        if (Animating)
+        {   // the doors hold the screen: their own frames (and power lines), then what waited
+            Run(now, flush: false);
+            return Take();
+        }
         if (_on == On.Menu && _turning.Pass(now))
             Screens.Turn(_turning.Frame);
         else if (_on == On.Yard && _lines.Frame(now))

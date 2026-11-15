@@ -19,11 +19,13 @@ namespace Crateris.Core.Starbase;
 /// UQM names, which the client reads from its content),
 /// CHMMR_BOMB_STATE, the ship's lander shields (LANDER_SHIELDS), the
 /// prices (a module's by its number, before
-/// <see cref="ModuleCostScale"/>).
+/// <see cref="ModuleCostScale"/>); and the host's fleet (stage 4b item
+/// 10: built_ship_q, which the shipyard's hangar and the status area's
+/// support ships show, every player's screen the host's; null for none).
 /// </summary>
 public sealed record StarbaseShip(byte[] Modules, byte[] Drives, byte[] Jets, int Crew, uint Fuel, int Landers,
     uint ResourceUnits, int MineralMass, string? ShipName, string? Captain, int BombState, int LanderShields,
-    int FuelCost, int CrewCost, int[] ModuleCosts, int ModuleCostScale)
+    int FuelCost, int CrewCost, int[] ModuleCosts, int ModuleCostScale, IReadOnlyList<HangarShip>? Fleet = null)
 {
     // Bounds a message from the host is held to (the screens loop over the crew, the minerals, the landers and the fuel).
     private const int MostCrew = 10_000, MostMass = 100_000, MostCost = byte.MaxValue, MostScale = 10_000;
@@ -50,6 +52,15 @@ public sealed record StarbaseShip(byte[] Modules, byte[] Drives, byte[] Jets, in
         foreach (int c in ModuleCosts)
             w.UInt((ulong)c);
         w.UInt((ulong)ModuleCostScale);
+        var fleet = Fleet ?? Array.Empty<HangarShip>();
+        int n = Math.Min(fleet.Count, HangarShip.MostShips);
+        w.UInt((ulong)n);
+        for (int i = 0; i < n; ++i)
+        {
+            w.UInt((ulong)fleet[i].Slot);
+            w.UInt((ulong)fleet[i].Race);
+            w.UInt((ulong)fleet[i].Crew);
+        }
     }
 
     internal static StarbaseShip Read(ref WireReader r)
@@ -81,9 +92,29 @@ public sealed record StarbaseShip(byte[] Modules, byte[] Drives, byte[] Jets, in
         for (int i = 0; i < costs.Length; ++i)
             costs[i] = Upto(r.UInt(), MostCost);
         int scale = Upto(r.UInt(), MostScale);
+        int ships = Upto(r.UInt(), HangarShip.MostShips);
+        var fleet = new HangarShip[ships];
+        for (int i = 0; i < ships; ++i)
+        {
+            fleet[i] = new HangarShip(Upto(r.UInt(), HangarShip.MostShips - 1), Upto(r.UInt(), ScreenOp.MostRaces - 1),
+                Upto(r.UInt(), ushort.MaxValue));
+            if (i > 0 && fleet[i].Slot <= fleet[i - 1].Slot)
+                throw new InvalidDataException("Bad starbase fleet.");
+        }
         return new StarbaseShip(modules, drives, jets, crew, (uint)fuel, landers, (uint)ru, mass, ship, captain, bomb,
-            shields, fuelCost, crewCost, costs, scale);
+            shields, fuelCost, crewCost, costs, scale, ships == 0 ? null : fleet);
     }
+}
+
+/// <summary>
+/// One of the host's fleet ships as the starbase's screens show it (stage
+/// 4b item 10: a SHIP_FRAGMENT's hangar slot, race (avail_race_q's number)
+/// and crew), in the fleet's order (by slot).
+/// </summary>
+public readonly record struct HangarShip(int Slot, int Race, int Crew)
+{
+    /// <summary>MAX_BUILT_SHIPS: the hangar's slots.</summary>
+    public const int MostShips = World.HostFleet.MaxShips;
 }
 
 /// <summary>
@@ -177,6 +208,9 @@ public sealed record StarbaseDrawing(StarbaseShip? Ship, IReadOnlyList<ScreenOp>
         ScreenOpKind.ShipPiece => op.A is >= 0 and <= ShipModules.EmptyLander && op.B >= 0
             && op.B < OutfitMenu.SlotCount(OutfitMenu.RowOf((byte)op.A)),
         ScreenOpKind.CrewPoint => op.A is 0 or 1 && op.B >= 0,
+        ScreenOpKind.ShipBuilt or ScreenOpKind.ShipCrew => op.A is >= 0 and < HangarShip.MostShips,
+        ScreenOpKind.ShipScrapped => op.A is >= 0 and < HangarShip.MostShips && op.B is >= 0 and < ScreenOp.MostRaces,
+        ScreenOpKind.RaceStrings => op.A is >= -1 and < ScreenOp.MostRaces,
         ScreenOpKind.YardOpened or ScreenOpKind.ClearRadar or ScreenOpKind.SisDisplay or ScreenOpKind.RedistributeFuel
             or ScreenOpKind.DisplayLanders or ScreenOpKind.FlagshipStats or ScreenOpKind.Gauges
             or ScreenOpKind.FlagshipName or ScreenOpKind.CaptainsName or ScreenOpKind.Blueprint => true,

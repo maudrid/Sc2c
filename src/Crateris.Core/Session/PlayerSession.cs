@@ -1208,7 +1208,7 @@ public sealed class PlayerSession
             lines.Add("Arrows: turn and thrust; Space: fire; Esc: take off");
         else if (Battle is not null && PickScreen?.Menu is { } pick)
         {
-            // The pick screen in words until stage 4b item 10 draws it.
+            // The pick screen (drawn over the battle since stage 4b item 10), said in words too.
             var lit = PickScreen.Lit;
             string under = lit is null ? "no ship that can fight"
                 : (lit.Slot is int slot ? $"the {lit.Ship} in slot {slot + 1}" : "the flagship")
@@ -1222,6 +1222,10 @@ public sealed class PlayerSession
             var mine = battle.FighterOf(PlayerId)!.Status;
             lines.Add($"In battle against the {battle.Enemy.Ship}: crew {mine.Crew}/{mine.MaxCrew}, energy {mine.Energy}/{mine.MaxEnergy}; "
                 + $"the enemy's crew {battle.Enemy.Crew}/{battle.Enemy.MaxCrew}");
+            // Another player choosing their next ship (the host's pick screen, stage 4b item 10): only they see it drawn;
+            // the battle runs on for the others.
+            if (battle.Fighters.FirstOrDefault(f => f.PlayerId != PlayerId && f.Armada?.Pick is not null) is { } chooser)
+                lines.Add($"{Snapshot?.Ships.FirstOrDefault(s => s.Id == chooser.PlayerId)?.Name ?? chooser.PlayerId} is choosing their next ship.");
             lines.Add("Arrows: turn and thrust; Space: fire; Shift: special; Esc: retreat, where allowed");
         }
         else if (Me?.Activity != Activity.Orbit && !Entering && Me?.Wrecked != true)

@@ -28,7 +28,7 @@ namespace Crateris.Game;
 /// kept from frame to frame. A battle frame already drawn (the host's
 /// pause sends the same one again) draws nothing new.
 /// </summary>
-public partial class BattleScreenView : Node2D
+public partial class BattleScreenView : Node2D, IPickLook
 {
     /// <summary>The screen's scale, as the starbase's.</summary>
     public const float Px = StarbaseScreenView.Px;
@@ -128,8 +128,10 @@ public partial class BattleScreenView : Node2D
                     var f = _sprites.Image(sheet, i);
                     return new URect(-f.HotSpotX, -f.HotSpotY, f.Width, f.Height);
                 }, _fonts.ToDictionary(f => f.Key, f => f.Value.Leading));
-                _screen = new BattleScreen(_canvas, (s, id) => StatusShip(s, id, player.Snapshot));
+                _snapshot = player.Snapshot;
+                _screen = new BattleScreen(_canvas, (s, id) => StatusShip(s, id, _snapshot), this);
             }
+            _snapshot = snapshot;
             var space = _screen.Frame(battle, player.PlayerId, BattleSpace.SizeOf);
             _frame = snapshot.Frame;
             if (space is null)
@@ -156,6 +158,24 @@ public partial class BattleScreenView : Node2D
         }
     }
 
+    private WorldSnapshot? _snapshot;
+
+    private ShipSnapshot? ShipOf(string player) => _snapshot?.Ships.FirstOrDefault(s => s.Id == player);
+
+    // The pick screen's looks (IPickLook): the host's flagship from its ship in the snapshot, a fleet ship's race's.
+    string IPickLook.ShipName(string player) => ShipOf(player) is { } s ? s.ShipName ?? s.Name : "";
+
+    PickShipLit IPickLook.Flagship(string player)
+    {
+        var s = ShipOf(player);
+        int room = s?.Modules is { } m ? ShipModules.Restore(m).CrewCapacity : 0;
+        return new PickShipLit(s?.CaptainName ?? "", s?.Hold?.Crew ?? 0, room);
+    }
+
+    string? IPickLook.Icons(string ship) => _ships is not null ? _ships[ship].Graphics.Icons : null;
+
+    string IPickLook.Captain(string ship, int captain) => _ships is not null ? RaceString(_ships[ship], captain) : "";
+
     /// <summary>The battle's screen is put away (another screen is up): the next battle starts afresh.</summary>
     public void Leave()
     {
@@ -169,5 +189,17 @@ public partial class BattleScreenView : Node2D
         if (_texture is null || _screen is null)
             return;
         DrawTextureRect(_texture, new Rect2(Vector2.Zero, Size), false);
+        // The pick screen's highlight (SetFlashRect): half again as bright, then as drawn, a sixteenth of a second each.
+        if (_screen.PickFlash is { } f && (long)(Time.GetTicksMsec() * 16 / 1000) % 2 == 0)
+        {
+            var r = new Rect2(f.X, f.Y, f.W, f.H);
+            DrawTextureRectRegion(_texture, new Rect2(r.Position * Px, r.Size * Px), r, new Color(1.5f, 1.5f, 1.5f));
+        }
+    }
+
+    public override void _Process(double delta)
+    {
+        if (Visible && _screen?.PickFlash is not null)
+            QueueRedraw();   // the highlight flashes on the clock
     }
 }

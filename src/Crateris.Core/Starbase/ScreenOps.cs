@@ -88,6 +88,30 @@ public enum ScreenOpKind : byte
     /// here, for minerals another player gave while it's open.
     /// </summary>
     Blueprint,
+
+    /// <summary>
+    /// ShowCombatShip for a ship built (stage 4b item 10): the fleet ship
+    /// in slot <see cref="ScreenOp.A"/> (the drawing's ship's fleet) seen
+    /// as its hangar's doors open.
+    /// </summary>
+    ShipBuilt,
+
+    /// <summary>
+    /// ShowCombatShip for a ship scrapped: the doors closing over slot
+    /// <see cref="ScreenOp.A"/>'s ship of race <see cref="ScreenOp.B"/>
+    /// (avail_race_q's number), its crew none (SCRAP).
+    /// </summary>
+    ShipScrapped,
+
+    /// <summary>ShowShipCrew: the crew count of slot <see cref="ScreenOp.A"/>'s fleet ship, in its hangar window.</summary>
+    ShipCrew,
+
+    /// <summary>
+    /// DrawRaceStrings: the list of ships to build showing race
+    /// <see cref="ScreenOp.A"/>'s (avail_race_q's number: its name, its
+    /// ship, its cost), or none (-1).
+    /// </summary>
+    RaceStrings,
 }
 
 /// <summary>
@@ -103,6 +127,9 @@ public enum ScreenOpKind : byte
 /// </summary>
 public readonly record struct ScreenOp(ScreenOpKind Kind, int A = 0, int B = 0, int C = 0)
 {
+    /// <summary>The most races a race number may name (NUM_AVAILABLE_RACES is 24).</summary>
+    public const int MostRaces = 64;
+
     /// <summary>UNDEFINED_DELTA: a gauge drawn afresh.</summary>
     public const int Undefined = 0x7FFF;
 

@@ -42,6 +42,25 @@
  *     sets the clock to N and gives the screen a pass with no key; u, d,
  *     l, r, s, c, pu and pd are a key given to it.
  *
+ * Then, for the host's fleet (stage 4b item 10), four more lines, all
+ * given or none (none: no fleet, every race BAD_GUY):
+ *   TFB_SeedRandom's seed (the captains' names CloneShipFragment draws);
+ *   each race of avail_race_q (races.h's order): its standing (0
+ *     DEAD_GUY, 1 GOOD_GUY, 2 BAD_GUY), its ship's starting and most
+ *     crew, its status icons' and melee icon's resources ("-" none),
+ *     five a race;
+ *   the fleet (built_ship_q), by slot: race, crew, captain's name, slot;
+ *   the armada for the pick screen (race_q[0], the flagship last): each
+ *     fleet ship's race, crew, captain's name, slot and state (0 waiting,
+ *     1 destroyed, 2 fled: SpeciesID NO_ID either way).
+ * And steps for them: "pick" draws the pick screen (GetArmadaStarShip:
+ * DrawArmadaPickShip, then DoPickBattleShip freshly, in the battle's
+ * SpaceContext) and the keys go to DoPickBattleShip until select picks;
+ * "roster" opens the roster (RosterMenu's setup, in StatusContext) and
+ * the keys and "t:N" go to DoModifyRoster until it's left (then the lit
+ * ship drawn unlit, RosterMenu's tail; its DrawStatusMessage (NULL), the
+ * flight's location, left out).
+ *
  * Output: one JSON line a step: {"step": s, "draw": [...], "flash":
  * [x, y, width, height] or null, "cmap": the colour map last set or -1},
  * each drawing call one of
@@ -62,6 +81,10 @@
 #include "uqm/outfit.c"
 #include "uqm/shipyard.c"
 #include "uqm/starbase.c"
+#include "uqm/planets/roster.c"
+#include "uqm/pickship.c"
+#include "uqm/races.h"
+#include "libs/math/random.h"
 #include "libs/graphics/drawable.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,6 +96,8 @@ int optWhichFonts = OPT_PC;
 CONTROLLER_INPUT_STATE PulsedInputState;
 FRAME Screen, FontGradFrame, FlagStatFrame;
 FRAME PlayFrame;
+FRAME StatusFrame;   /* setup.c's: graphics.status (the pick screen's X) */
+QUEUE race_q[NUM_PLAYERS];   /* setup.c's: the battle's sides' ships */
 STRING GameStrings;
 ACTIVITY LastActivity;
 
@@ -100,7 +125,6 @@ setGameState (BYTE *state, int startBit, int endBit, BYTE val)
 				| (BYTE)((val) >> (endBit - startBit - (endBit & 7)));
 }
 
-COUNT CheckAlliance (COUNT race) { (void) race; return BAD_GUY; }
 void PlayMenuSound (MENU_SOUND_EFFECT S) { (void) S; }
 void SetMenuSounds (MENU_SOUND_FLAGS s0, MENU_SOUND_FLAGS s1) { (void) s0; (void) s1; }
 
@@ -197,9 +221,9 @@ GetContextFontLeading (SIZE *h)
 }
 
 /* The frames: a drawable of COUNT frames for each resource. */
-static struct { char name[64]; int count; } counts[64];
+static struct { char name[64]; int count; } counts[128];
 static int count_n;
-static struct { const char *name; DRAWABLE_DESC *d; } loaded[64];
+static struct { const char *name; DRAWABLE_DESC *d; } loaded[128];
 static int loaded_n;
 
 void *
@@ -242,14 +266,68 @@ res_of (FRAME f)
 }
 
 /* Each frame's hot spot and size, from the content: GetFrameRect. */
-static struct { char name[64]; int index, hx, hy, w, h; } rects[1024];
+static struct { char name[64]; int index, hx, hy, w, h; } rects[4096];
 static int rect_n;
+
+/* Hot spots a frame was given (SetFrameHot: the pick screen's frame put
+ * at its corner, MAKE_HOT_SPOT (0, 0)). A stamp of such a frame is
+ * recorded where it would be drawn with its own hot spot, the content's,
+ * to put it at the same place. */
+static struct { const char *name; int index, hx, hy; } hots[16];
+static int hot_n;
+
+HOT_SPOT
+MAKE_HOT_SPOT (COORD x, COORD y)
+{
+	HOT_SPOT h;
+	h.x = x;
+	h.y = y;
+	return h;
+}
+
+static int
+hot_of (FRAME f)
+{
+	int i;
+	for (i = 0; i < hot_n; ++i)   /* none while hot_n is negative: GetFrameRect's own look-up */
+		if (!strcmp (hots[i].name, res_of (f)) && hots[i].index == GetFrameIndex (f))
+			return i;
+	return -1;
+}
+
+HOT_SPOT
+SetFrameHot (FRAME f, HOT_SPOT h)
+{
+	int i = hot_of (f);
+	HOT_SPOT old = MAKE_HOT_SPOT (0, 0);
+	if (i < 0)
+	{
+		i = hot_n++;
+		hots[i].name = res_of (f);
+		hots[i].index = GetFrameIndex (f);
+	}
+	else
+		old = MAKE_HOT_SPOT (hots[i].hx, hots[i].hy);
+	hots[i].hx = h.x;
+	hots[i].hy = h.y;
+	return old;
+}
 
 BOOLEAN
 GetFrameRect (FRAME f, RECT *r)
 {
 	int i;
 	memset (r, 0, sizeof *r);
+	if ((i = hot_of (f)) >= 0)
+	{	/* its size from the content, its corner from the hot spot given */
+		int h = hot_of (f);
+		hot_n = -hot_n - 1;   /* look it up as the content has it */
+		GetFrameRect (f, r);
+		hot_n = -hot_n - 1;
+		r->corner.x = -hots[h].hx;
+		r->corner.y = -hots[h].hy;
+		return TRUE;
+	}
 	for (i = 0; i < rect_n; ++i)
 		if (!strcmp (rects[i].name, res_of (f)) && rects[i].index == GetFrameIndex (f))
 		{
@@ -270,14 +348,36 @@ color3 (char *b, size_t n, Color c)
 	snprintf (b, n, "%d, %d, %d", c.r, c.g, c.b);
 }
 
+/* Where a stamp is recorded: its origin, moved for a hot spot given
+ * (SetFrameHot) so the content's puts the frame at the same place. */
+static POINT
+stamp_at (STAMP *s)
+{
+	POINT p = s->origin;
+	int i = hot_of (s->frame);
+	if (i >= 0)
+	{
+		RECT own;
+		int saved = hot_n;
+		hot_n = -hot_n - 1;
+		GetFrameRect (s->frame, &own);
+		hot_n = saved;
+		p.x += -hots[i].hx - own.corner.x;   /* its top left at origin - hot spot given */
+		p.y += -hots[i].hy - own.corner.y;
+	}
+	return p;
+}
+
 void
 DrawStamp (STAMP *s)
 {
 	char b[160];
+	POINT at;
 	if (!s->frame)
 		return;
+	at = stamp_at (s);
 	snprintf (b, sizeof b, "[\"s\", \"%s\", %d, %d, %d, %s]", res_of (s->frame), GetFrameIndex (s->frame),
-			ox () + s->origin.x, oy () + s->origin.y, clip4 ());
+			ox () + at.x, oy () + at.y, clip4 ());
 	emit (b);
 }
 
@@ -285,11 +385,13 @@ void
 DrawFilledStamp (STAMP *s)
 {
 	char b[200], c[40];
+	POINT at;
 	if (!s->frame)
 		return;
+	at = stamp_at (s);
 	color3 (c, sizeof c, cur->fg);
 	snprintf (b, sizeof b, "[\"f\", \"%s\", %d, %d, %d, %s, %s]", res_of (s->frame), GetFrameIndex (s->frame),
-			ox () + s->origin.x, oy () + s->origin.y, c, clip4 ());
+			ox () + at.x, oy () + at.y, c, clip4 ());
 	emit (b);
 }
 
@@ -400,6 +502,14 @@ SetColorMap (COLORMAPPTR p)
 	return TRUE;
 }
 
+/* The queues' memory (memlib's, which the recording doesn't link). */
+void *HMalloc (size_t size) { return calloc (1, size ? size : 1); }
+void *HCalloc (size_t size) { return calloc (1, size ? size : 1); }
+void HFree (void *p) { free (p); }
+
+/* A race string's length: all of it (GetStringLength). */
+COUNT GetStringLength (STRING s) { (void) s; return (COUNT) ~0; }
+
 /* The game's strings: "{gs:N}". */
 STRING
 SetAbsStringTableIndex (STRING t, COUNT i)
@@ -447,6 +557,76 @@ strupr (UNICODE *s)
 	return s;
 }
 
+/* ------------------------------------------------------------ the fleet */
+
+/* InitGameStructures' species for each race of avail_race_q. */
+static SPECIES_ID
+race_species (int race)
+{
+	if (race == YEHAT_REBEL_SHIP)
+		return YEHAT_ID;
+	if (race == URQUAN_DRONE_SHIP)
+		return UR_QUAN_PROBE_ID;
+	return (SPECIES_ID) (ARILOU_ID + race);
+}
+
+static FRAME race_icons[NUM_AVAILABLE_RACES], race_melee[NUM_AVAILABLE_RACES];
+static int race_max_crew[NUM_AVAILABLE_RACES];
+
+/* avail_race_q: each race's standing, starting and most crew, its icons. */
+static void
+make_races (const int *allied, const int *crew)
+{
+	int i;
+	InitQueue (&GLOBAL (avail_race_q), NUM_AVAILABLE_RACES, sizeof (FLEET_INFO));
+	for (i = 0; i < NUM_AVAILABLE_RACES; ++i)
+	{
+		HFLEETINFO hFleet = AllocLink (&GLOBAL (avail_race_q));
+		FLEET_INFO *FleetPtr = LockFleetInfo (&GLOBAL (avail_race_q), hFleet);
+		FleetPtr->SpeciesID = race_species (i);
+		FleetPtr->allied_state = allied[i];
+		FleetPtr->crew_level = crew[i];
+		FleetPtr->max_crew = race_max_crew[i];
+		FleetPtr->icons = race_icons[i];
+		FleetPtr->melee_icon = race_melee[i];
+		UnlockFleetInfo (&GLOBAL (avail_race_q), hFleet);
+		PutQueue (&GLOBAL (avail_race_q), hFleet);
+	}
+}
+
+/* A ship of the fleet, as the fleet's lines give it (CloneShipFragment's fields). */
+static void
+put_fleet_ship (int race, int crew, int captain, int slot)
+{
+	HSHIPFRAG hFrag = Build (&GLOBAL (built_ship_q), race_species (race));
+	SHIP_FRAGMENT *FragPtr = LockShipFrag (&GLOBAL (built_ship_q), hFrag);
+	FragPtr->race_id = race;
+	FragPtr->crew_level = crew;
+	FragPtr->max_crew = race_max_crew[race];
+	FragPtr->captains_name_index = captain;
+	FragPtr->index = slot;
+	FragPtr->icons = race_icons[race];
+	FragPtr->melee_icon = race_melee[race];
+	UnlockShipFrag (&GLOBAL (built_ship_q), hFrag);
+}
+
+/* race_q[0] as BuildBattle makes it for the pick screen: the fleet ships,
+ * then the flagship last (captains_name_index 0). */
+static void
+put_armada_ship (int race, int crew, int captain, int slot, int state)
+{
+	HSTARSHIP h = Build (&race_q[0], state ? NO_ID : race_species (race));
+	STARSHIP *StarShipPtr = LockStarShip (&race_q[0], h);
+	StarShipPtr->SpeciesID = state ? NO_ID : race_species (race);
+	StarShipPtr->crew_level = crew;
+	StarShipPtr->max_crew = race_max_crew[race];
+	StarShipPtr->captains_name_index = captain;
+	StarShipPtr->index = slot;
+	StarShipPtr->icons = race < 0 ? 0 : race_icons[race];
+	StarShipPtr->race_strings = 0;
+	UnlockStarShip (&race_q[0], h);
+}
+
 /* ------------------------------------------------------------ main */
 
 static void
@@ -468,7 +648,12 @@ main (void)
 	int i, n;
 	unsigned v;
 	char *p, *tok, *bar;
-	enum { NONE, BASE, OUTFIT, YARD } mode = NONE;
+	enum { NONE, BASE, OUTFIT, YARD, PICK, ROSTER } mode = NONE;
+	MENU_STATE pick;
+	RECT pick_r;
+	ROSTER_STATE rs;
+	int allied[NUM_AVAILABLE_RACES], crew[NUM_AVAILABLE_RACES];
+	static char steps[65536];
 
 	read_line (line, sizeof line);
 	for (i = 0; i < (int) sizeof (GlobData.Game_state.GameState) && line[2 * i]; ++i)
@@ -533,7 +718,7 @@ main (void)
 		counts[count_n++].count = tok ? atoi (tok) : 0;
 	}
 	read_line (line, sizeof line);
-	for (tok = strtok (line, " "); tok && rect_n < 1024; tok = strtok (NULL, " "), ++rect_n)
+	for (tok = strtok (line, " "); tok && rect_n < 4096; tok = strtok (NULL, " "), ++rect_n)
 	{
 		char *colon = strchr (tok, ':');
 		if (!colon)
@@ -549,7 +734,57 @@ main (void)
 	cmap_count = atoi (line);
 	if (cmap_count < 1)
 		return 2;
-	read_line (line, sizeof line);
+	read_line (steps, sizeof steps);
+
+	/* The races and the fleet: none allied, none built, unless given. */
+	for (i = 0; i < NUM_AVAILABLE_RACES; ++i)
+	{
+		allied[i] = BAD_GUY;
+		crew[i] = race_max_crew[i] = 0;
+	}
+	InitQueue (&GLOBAL (built_ship_q), MAX_BUILT_SHIPS, sizeof (SHIP_FRAGMENT));
+	InitQueue (&race_q[0], MAX_SHIPS_PER_SIDE, sizeof (STARSHIP));
+	if (fgets (line, sizeof line, stdin))
+	{
+		int race, c, captain, slot, state;
+		TFB_SeedRandom ((DWORD) strtoul (line, NULL, 10));
+		read_line (line, sizeof line);
+		p = line;
+		for (i = 0; i < NUM_AVAILABLE_RACES; ++i)
+		{
+			char icons[64], melee[64];
+			if (sscanf (p, "%d %d %d %63s %63s%n", &allied[i], &crew[i], &race_max_crew[i], icons, melee, &n) != 5)
+			{
+				printf ("{\"error\": \"races\"}\n");
+				return 1;
+			}
+			p += n;
+			race_icons[i] = strcmp (icons, "-") ? CaptureDrawable (LoadGraphic (strdup (icons))) : 0;
+			race_melee[i] = strcmp (melee, "-") ? CaptureDrawable (LoadGraphic (strdup (melee))) : 0;
+		}
+		read_line (line, sizeof line);
+		p = line;
+		while (sscanf (p, "%d %d %d %d%n", &race, &c, &captain, &slot, &n) == 4)
+		{
+			put_fleet_ship (race, c, captain, slot);
+			p += n;
+		}
+		read_line (line, sizeof line);
+		p = line;
+		while (sscanf (p, "%d %d %d %d %d%n", &race, &c, &captain, &slot, &state, &n) == 5)
+		{
+			put_armada_ship (race, c, captain, slot, state);
+			p += n;
+		}
+	}
+	make_races (allied, crew);
+	{	/* The flagship, last in race_q[0]. */
+		HSTARSHIP h = Build (&race_q[0], SIS_SHIP_ID);
+		STARSHIP *StarShipPtr = LockStarShip (&race_q[0], h);
+		StarShipPtr->captains_name_index = 0;
+		UnlockStarShip (&race_q[0], h);
+	}
+	strcpy (line, steps);
 
 	/* setup.c's InitContexts and border.c's InitSISContexts. */
 	status_ctx.clipped = 1;
@@ -565,6 +800,7 @@ main (void)
 	PlayFrame = CaptureDrawable (LoadGraphic (PLAYMENU_ANIM));
 	FontGradFrame = CaptureDrawable (LoadGraphic (FONTGRAD_PMAP_ANIM));
 	FlagStatFrame = CaptureDrawable (LoadGraphic (FLAGSTAT_MASK_PMAP_ANIM));
+	StatusFrame = CaptureDrawable (LoadGraphic (STATUS_MASK_PMAP_ANIM));
 	/* The starbase's status line shows the resource units (DoStarBase). */
 	SetStatusMessageMode (SMM_RES_UNITS);
 
@@ -586,6 +822,44 @@ main (void)
 			ms.InputFunc = DoOutfit;
 			DoOutfit (&ms);
 			mode = OUTFIT;
+		}
+		else if (!strcmp (tok, "pick"))
+		{
+			/* GetArmadaStarShip in the battle's SpaceContext (init.c's
+			 * clip: the space window). */
+			space_ctx.clip.corner.x = SAFE_X;
+			space_ctx.clip.corner.y = SAFE_Y;
+			space_ctx.clip.extent.width = SPACE_WIDTH;
+			space_ctx.clip.extent.height = SPACE_HEIGHT;
+			SetContext (SpaceContext);
+			DrawArmadaPickShip (FALSE, &pick_r);
+			memset (&pick, 0, sizeof pick);
+			pick.InputFunc = DoPickBattleShip;
+			pick.Initialized = FALSE;
+			pick.first_item.x = NUM_PICK_SHIP_COLUMNS >> 1;
+			pick.first_item.y = 0;
+			pick.CurFrame = 0;
+			pick.flash_rect1.corner = pick_r.corner;
+			pick.flash_rect1.extent.width = 0;
+			DoPickBattleShip (&pick);
+			mode = PICK;
+		}
+		else if (!strcmp (tok, "roster"))
+		{
+			/* RosterMenu's setup, up to DoInput. */
+			memset (&ms, 0, sizeof ms);
+			memset (&rs, 0, sizeof rs);
+			ms.privData = &rs;
+			rs.count = CountLinks (&GLOBAL (built_ship_q));
+			mode = NONE;
+			if (rs.count)
+			{
+				memcpy (rs.shipPos, ship_pos, sizeof (ship_pos));
+				qsort (rs.shipPos, rs.count, sizeof (rs.shipPos[0]), compShipPos);
+				SetContext (StatusContext);
+				selectSupportShip (&rs, ms.CurState);
+				mode = ROSTER;
+			}
 		}
 		else if (!strcmp (tok, "shipyard"))
 		{
@@ -611,7 +885,8 @@ main (void)
 						: !strcmp (tok, "s") ? KEY_MENU_SELECT : !strcmp (tok, "c") ? KEY_MENU_CANCEL
 						: !strcmp (tok, "pu") ? KEY_MENU_PAGE_UP : !strcmp (tok, "pd") ? KEY_MENU_PAGE_DOWN
 						: -2;
-			if (key == -2 || mode == NONE || (mode == BASE && (key == KEY_MENU_SELECT || key == KEY_MENU_CANCEL)))
+			if (key == -2 || mode == NONE || (mode == BASE && (key == KEY_MENU_SELECT || key == KEY_MENU_CANCEL))
+					|| (mode == PICK && key == -1))
 			{
 				printf ("{\"error\": \"step %s\"}\n", tok);
 				return 1;
@@ -623,6 +898,23 @@ main (void)
 				on_input_frame ();
 			if (mode == BASE)
 				DoStarBase (&ms);
+			else if (mode == PICK)
+			{
+				if (!DoPickBattleShip (&pick))
+				{
+					SetFlashRect (NULL);
+					mode = NONE;
+				}
+			}
+			else if (mode == ROSTER)
+			{
+				if (!DoModifyRoster (&ms))
+				{
+					SetContext (StatusContext);
+					drawSupportShip (&rs, FALSE);
+					mode = NONE;
+				}
+			}
 			else if (!(*ms.InputFunc) (&ms))
 				mode = NONE;
 		}

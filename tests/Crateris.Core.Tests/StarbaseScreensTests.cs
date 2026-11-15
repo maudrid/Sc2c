@@ -14,6 +14,7 @@ using Crateris.Core.Content;
 using Crateris.Core.Starbase;
 using Crateris.Core.Story;
 using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
 using Crateris.Core.World;
 using Crateris.Presentation;
 
@@ -95,7 +96,7 @@ public class StarbaseScreensTests
     /// </summary>
     private sealed class Replay
     {
-        private enum On { Nothing, Base, Outfit, Yard }
+        private enum On { Nothing, Base, Outfit, Yard, Pick, Roster }
 
         private readonly JsonElement _sc;
         private readonly OutfitTests.TestShip _ship;
@@ -111,10 +112,133 @@ public class StarbaseScreensTests
         public Replay(JsonElement sc)
         {
             _sc = sc;
-            (_ship, _story) = OutfitTests.Start(sc);
-            _rules = new Outfitting(_ship, _story);
+            if (sc.TryGetProperty("fleet", out _))
+            {   // the host's fleet (stage 4b item 10), its allies and captains as golden/screens.c is given them
+                TfbRandom random;
+                (_ship, _story, _fleet, random) = ShipyardGoldenTests.Start(sc);
+                _rules = new Outfitting(_ship, _story, _fleet, random.Next);
+            }
+            else
+            {
+                (_ship, _story) = OutfitTests.Start(sc);
+                _rules = new Outfitting(_ship, _story);
+            }
             Picture = new StarbasePicture(Canvas(), Placeholder, FrameCount(StarbaseScreens.StarbaseSheet),
-                Root.GetProperty("hangar_maps").GetInt32(), s => SisState.Of(s, "", ""));
+                Root.GetProperty("hangar_maps").GetInt32(), s => SisState.Of(s, "", ""), Race);
+        }
+
+        private readonly HostFleet? _fleet;
+
+        // ---- the pick screen (stage 4b item 10): the armada as golden/screens.c is given it, the flagship last.
+
+        private readonly UqmCanvas _fleetCanvas = Canvas();
+        private PickShipMenu? _pickMenu;
+        private PickScreenDrawing? _pickDrawing;
+        private List<(string Race, int Crew, int Captain, int Slot, int State)> _armada = new();
+
+        private void OpenPick()
+        {
+            _armada = _sc.GetProperty("armada").EnumerateArray()
+                .Select(a => (a[0].GetString()!, a[1].GetInt32(), a[2].GetInt32(), a[3].GetInt32(), a[4].GetInt32())).ToList();
+            _pickMenu = new PickShipMenu();
+            _pickDrawing = new PickScreenDrawing(_fleetCanvas);
+            _pickDrawing.Draw(_sc.GetProperty("ship").GetProperty("ship").GetString()!, _armada.Select(a => new PickShip(a.Slot,
+                Race(OutfitTests.Rules.RaceIndex(a.Race))?.Icons, a.State != 0, a.Crew)));
+            _pickDrawing.Select(_pickMenu.Row, _pickMenu.Column, Lit());
+            _on = On.Pick;
+            TakeFleetDrawing();
+        }
+
+        // The ship under the cursor that can be picked (DoPickBattleShip's CurFrame): the flagship, or a waiting fleet ship.
+        private PickShipLit? Lit()
+        {
+            if (_pickMenu!.OnFlagship)
+                return new PickShipLit(_sc.GetProperty("ship").GetProperty("captain").GetString()!, _ship.Crew, _ship.Modules.CrewCapacity);
+            var a = _armada.FirstOrDefault(s => s.Slot == _pickMenu.Slot && s.State == 0);
+            return a.Race is null ? null
+                : new PickShipLit(Placeholder(a.Captain), a.Crew, OutfitTests.Rules.RaceShip(a.Race).MaxCrew);
+        }
+
+        private void PickKey(MenuKey key)
+        {
+            var outcome = _pickMenu!.Press(key, slot => slot is null || _armada.Any(a => a.Slot == slot && a.State == 0));
+            if (outcome == PickOutcome.Moved)
+                _pickDrawing!.Select(_pickMenu.Row, _pickMenu.Column, Lit());
+            else if (outcome == PickOutcome.Chosen)
+            {
+                _pickDrawing!.Flash = null;   // GetArmadaStarShip: SetFlashRect (NULL)
+                _on = On.Nothing;
+            }
+            TakeFleetDrawing();
+        }
+
+        // ---- the roster: the fleet's crews moved as the world moves them.
+
+        private RosterMenu? _roster;
+        private RosterDrawing? _rosterDrawing;
+        private StarbaseScreens? _rosterScreens;
+
+        private sealed class Crews : IRosterFleet
+        {
+            private readonly HostFleet _fleet;
+            private readonly OutfitTests.TestShip _ship;
+
+            public Crews(HostFleet fleet, OutfitTests.TestShip ship) => (_fleet, _ship) = (fleet, ship);
+
+            public IReadOnlyList<FleetShip> Ships => _fleet.Ships;
+
+            public bool MoveCrew(int index, int delta)
+            {
+                if (!_fleet.MoveRosterCrew(OutfitTests.Rules, index, delta, _ship.Crew, _ship.Modules.CrewCapacity))
+                    return false;
+                _ship.Crew -= delta;
+                return true;
+            }
+        }
+
+        private void OpenRoster()
+        {
+            _rosterScreens = new StarbaseScreens(_fleetCanvas, Placeholder, Race) { Ship = SisState.Of(Ship(), "", "") };
+            _rosterDrawing = new RosterDrawing(_fleetCanvas, _rosterScreens, Race);
+            _roster = _fleet!.Count == 0 ? null : new RosterMenu(_fleet.Count);
+            _on = _roster is null ? On.Nothing : On.Roster;
+            if (_roster is not null)
+                _rosterDrawing.Open(_roster);
+            TakeFleetDrawing();
+        }
+
+        private void RosterKey(MenuKey? key)
+        {
+            if (key is not { } k)
+                _rosterDrawing!.Tick(_roster!, _now);
+            else
+            {
+                var was = (_roster!.State, _roster.ModifyingCrew);
+                int crew = _ship.Crew;
+                var outcome = _roster.Press(k, new Crews(_fleet!, _ship));
+                _rosterScreens!.Ship = SisState.Of(Ship(), "", "");
+                _rosterDrawing!.Key(_roster, was, k, outcome, crew - _ship.Crew, _now);
+                if (_roster.Left)
+                    _on = On.Nothing;
+            }
+            TakeFleetDrawing();
+        }
+
+        private void TakeFleetDrawing()
+        {
+            _drawn.AddRange(_fleetCanvas.Drawn);
+            _fleetCanvas.Drawn.Clear();
+        }
+
+        /// <summary>Each race's look, from data/races.json and data/ships.json as the game makes it.</summary>
+        internal static YardRace? Race(int race)
+        {
+            var rules = OutfitTests.Rules;
+            if (race < 0 || race >= rules.RaceShips.Count)
+                return null;
+            var r = rules.RaceShips[race];
+            var g = BattleReplay.Ships[r.Ship].Graphics;
+            return new YardRace(g.Icons, g.MeleeIcon, r.Crew, r.Cost);
         }
 
         public StarbasePicture Picture { get; }
@@ -147,6 +271,16 @@ public class StarbaseScreensTests
                 _outfit.Open();
                 _on = On.Outfit;
                 Send(Ship(), _outfit.TakeOps());
+                return;
+            }
+            if (step == "pick")
+            {
+                OpenPick();
+                return;
+            }
+            if (step == "roster")
+            {
+                OpenRoster();
                 return;
             }
             if (step == "shipyard")
@@ -190,6 +324,12 @@ public class StarbaseScreensTests
                         _on = On.Nothing;
                     Send(Ship(), _outfit.TakeOps());
                     break;
+                case On.Pick when key is { } p:
+                    PickKey(p);
+                    break;
+                case On.Roster:
+                    RosterKey(key);
+                    break;
                 case On.Yard:
                     _drawn.AddRange(Picture.Tick(_now));   // on_input_frame, then the screen
                     if (key is { } y && _yard!.Key(y) == OutfitOutcome.Left)
@@ -204,11 +344,14 @@ public class StarbaseScreensTests
         {
             var sent = StarbaseDrawing.Decode(StarbaseDrawing.Encode(new[] { new StarbaseDrawing(ship, ops) }));
             _drawn.AddRange(Picture.Draw(sent, _now));
+            _drawn.AddRange(Picture.Flush(_now));   // UQM's step runs ShowCombatShip's frames on its stopped clock
         }
 
         /// <summary>Where the flashing highlight is now (none on the starbase's menu).</summary>
         public URect? Flash => _on switch
         {
+            On.Pick => _pickDrawing!.Flash,
+            On.Roster => _rosterDrawing!.Flash,
             On.Outfit => StarbaseScreens.OutfitFlash(_outfit!.State, _outfit.Item, _outfit.Installing),
             On.Yard => StarbaseScreens.YardFlash(_yard!.Mode, _yard.Cursor),
             _ => null,
@@ -225,7 +368,9 @@ public class StarbaseScreensTests
                 ship.GetProperty("ship").GetString()!, ship.GetProperty("captain").GetString()!, State("CHMMR_BOMB_STATE"),
                 State("LANDER_SHIELDS"), _story.FuelCost, _story.CrewCost,
                 ShipModules.Names.Select(m => OutfitTests.Rules.Modules.Contains(m) ? _story.ModuleCost(m) : 0).ToArray(),
-                OutfitTests.Rules.ModuleCostScale);
+                OutfitTests.Rules.ModuleCostScale,
+                _fleet is null || _fleet.Count == 0 ? null
+                    : _fleet.Ships.Select(f => new HangarShip(f.Slot, OutfitTests.Rules.RaceIndex(f.Race), f.Crew)).ToArray());
         }
     }
 

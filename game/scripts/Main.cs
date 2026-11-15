@@ -371,6 +371,8 @@ public partial class Main : Node2D
                 _devicesView.UseContent(content, sheets);
                 _battleView.UseContent(content, sheets, _ships, planetTypes);
                 _view.RaceLook = _systemView.RaceLook = _battleView.RaceLook;
+                _starbaseView.Races = YardRace;
+                _orbitView.Roster = new RosterPanel(() => _starbaseView.NewStatusArea(YardRace), YardRace);
                 _rescueView.UseContent(content);
             }
         }
@@ -389,6 +391,16 @@ public partial class Main : Node2D
         }
         _systemView.Names = _orbitView.Names = _names;
         return true;
+    }
+
+    // A race's look by its number in avail_race_q (stage 4b item 10): its ship's icons and melee icon, starting crew, cost.
+    private YardRace? YardRace(int race)
+    {
+        if (_systems.StoryRules is not { } rules || race < 0 || race >= rules.RaceShips.Count)
+            return null;
+        var r = rules.RaceShips[race];
+        var g = _ships[r.Ship].Graphics;
+        return new YardRace(g.Icons, g.MeleeIcon, r.Crew, r.Cost);
     }
 
     private void StartGame()
@@ -1260,7 +1272,9 @@ public partial class Main : Node2D
         // Manifest's, and the minerals' count-down's), and the giving screen, laid out after it, and the
         // Manifest's Devices list.
         // (the cargo display only on the orbit screen: a story talk leaves it open, under the communication screen)
-        bool box = (_player?.Screen == PlayerScreen.Orbit && _player.OrbitMenu?.CargoOpen == true) || _devicesView.Visible;
+        // The roster's status area too (stage 4b item 10), over the orbit screen's status area.
+        bool box = (_player?.Screen == PlayerScreen.Orbit && (_player.OrbitMenu?.CargoOpen == true || _player.OrbitMenu?.Roster is not null))
+            || _devicesView.Visible;
         _hud.Visible = _firstRun == null && _contentError == null && !box && !_sellingView.Visible && !_givingView.Visible
             && !_rescueView.Visible;
         _boxNotice.Text = _player?.Notice ?? "";

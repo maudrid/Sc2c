@@ -119,7 +119,13 @@ public static class Protocol
     /// of ships to build (YardMode.Build, with the race lit). No new
     /// message: the host's shipyard, roster and pick screen run in the
     /// host's own world, and guests have no fleet.
-    public const int Version = 23;
+    /// 24: the starbase's drawing shows the host's fleet (stage 4b item 10):
+    /// a drawing's ship carries the host's fleet ships (StarbaseShip.Fleet:
+    /// each one's slot, race and crew), which the hangar and the status
+    /// area's support ships show, and new drawing operations (a ship built
+    /// or scrapped behind the hangar's doors, a ship's crew count, the list
+    /// of ships to build).
+    public const int Version = 24;
     public const int DefaultPort = 24642;
 
     /// <summary>

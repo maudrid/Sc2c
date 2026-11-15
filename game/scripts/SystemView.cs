@@ -355,6 +355,9 @@ public partial class OrbitView : Control
     /// </summary>
     public bool MenuCovered { get; set; }
 
+    /// <summary>The roster's status area (stage 4b item 10; set once the content is open): drawn while the Manifest's Roster is open.</summary>
+    public RosterPanel? Roster { get; set; }
+
     private readonly StampTextures _stamps = new();
 
     private PlanetSurface? _surface;     // the orbited world's surface, made once per visit
@@ -418,6 +421,9 @@ public partial class OrbitView : Control
         _snapshot = snapshot;
         _me = me;
         _message = message;
+        if (Roster is not null && _systems.StoryRules is { } rules)
+            Roster.Update(menu?.Roster, snapshot?.Ships.FirstOrDefault(s => s.Id == me), rules.RaceIndex,
+                (long)(Time.GetTicksMsec() * 840 / 1000));
         QueueRedraw();
     }
 
@@ -476,7 +482,25 @@ public partial class OrbitView : Control
         }
         // UQM shows the surface map below the planet throughout orbit; scans draw over it.
         DrawMap(font, mapTop, _menu.Scan.Visible);
+        DrawRoster();
         DrawMenu(font);
+    }
+
+    // The roster's status area (stage 4b item 10), above the menu box where the status area is, its highlight flashing.
+    private void DrawRoster()
+    {
+        if (Roster?.Texture is not { } texture)
+            return;
+        var origin = SisScreen.StatusOrigin(this);
+        int height = OrbitScreenText.MenuAreaY - 1;
+        var region = new Rect2(UqmCanvas.SpaceWidth, 0, UqmCanvas.StatusWidth, height);
+        DrawTextureRectRegion(texture, new Rect2(origin, region.Size * SisScreen.Scale), region);
+        if (Roster.Flash is { } f && (long)(Time.GetTicksMsec() * 16 / 1000) % 2 == 0)
+        {
+            var r = new Rect2(f.X, f.Y, f.W, f.H);
+            DrawTextureRectRegion(texture, new Rect2(origin + (r.Position - region.Position) * SisScreen.Scale, r.Size * SisScreen.Scale), r,
+                new Color(1.5f, 1.5f, 1.5f));
+        }
     }
 
     private void DrawMap(Font font, float mapTop, bool scanning)
@@ -591,7 +615,7 @@ public partial class OrbitView : Control
         float right = areaAt.X + (OrbitScreenText.MenuAreaWidth + 1) * SisScreen.Scale + 6;
         for (int i = 0; i < items.Count; ++i)
         {
-            if (!OrbitMenu.Available(items[i]) && menu.Texts[i].Layout.Glyphs.Count > 0)
+            if (!_menu.Offers(items[i]) && menu.Texts[i].Layout.Glyphs.Count > 0)
                 DrawString(font, new Vector2(right, origin.Y + menu.Texts[i].Layout.Glyphs[0].Y * SisScreen.Scale),
                     "(later)", HorizontalAlignment.Left, -1, 13, Colors.Gray);
         }

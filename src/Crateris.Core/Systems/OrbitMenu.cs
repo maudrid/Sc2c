@@ -138,14 +138,21 @@ public sealed class OrbitMenu
     public DispatchRefusal LastRefusal { get; private set; }
 
     /// <summary>
-    /// Whether an entry does something in this stage. The others are
-    /// shown but say they come later (<see cref="MenuOutcome.NotYet"/>).
-    /// The Roster works for the host since stage 4b item 7 (with
-    /// <see cref="Fleet"/>), but isn't drawn yet (item 10), so it's still
-    /// marked as coming later.
+    /// Whether an entry does something in this stage for anyone. The others
+    /// are shown but say they come later (<see cref="MenuOutcome.NotYet"/>).
+    /// The Roster is the host's (<see cref="Offers"/>).
     /// </summary>
     public static bool Available(OrbitMenuItem item) => item is not
         (OrbitMenuItem.Starmap or OrbitMenuItem.GameMenu or OrbitMenuItem.Roster);
+
+    /// <summary>
+    /// Whether an entry does something for this player: those
+    /// <see cref="Available"/>, and the Roster for the host (with
+    /// <see cref="Fleet"/>: worked since stage 4b item 7, drawn since item
+    /// 10); a guest's Roster still says it comes later (their own escorts
+    /// aren't a fleet).
+    /// </summary>
+    public bool Offers(OrbitMenuItem item) => Available(item) || item == OrbitMenuItem.Roster && Fleet is not null;
 
     /// <summary>
     /// The devices the group carries now (InventoryDevices, by the story

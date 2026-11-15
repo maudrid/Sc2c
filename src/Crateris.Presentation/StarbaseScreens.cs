@@ -38,7 +38,7 @@ namespace Crateris.Presentation;
 /// </summary>
 public sealed record SisState(byte[] Modules, byte[] Drives, byte[] Jets, int Crew, uint Fuel, int Landers, uint ResUnits,
     int MineralMass, string ShipName, string Captain, int BombState, int LanderShields, int FuelCost, int CrewCost,
-    Func<int, int> ModuleCost, int ModuleCostScale = 50)
+    Func<int, int> ModuleCost, int ModuleCostScale = 50, IReadOnlyList<HangarShip>? Fleet = null)
 {
     /// <summary>
     /// The ship as the host sent it with a drawing, its names null for
@@ -48,7 +48,52 @@ public sealed record SisState(byte[] Modules, byte[] Drives, byte[] Jets, int Cr
     public static SisState Of(StarbaseShip s, string flagshipName, string commanderName) =>
         new(s.Modules, s.Drives, s.Jets, s.Crew, s.Fuel, s.Landers, s.ResourceUnits, s.MineralMass,
             s.ShipName ?? flagshipName, s.Captain ?? commanderName, s.BombState, s.LanderShields, s.FuelCost, s.CrewCost,
-            m => m >= 0 && m < s.ModuleCosts.Length ? s.ModuleCosts[m] : 0, s.ModuleCostScale);
+            m => m >= 0 && m < s.ModuleCosts.Length ? s.ModuleCosts[m] : 0, s.ModuleCostScale, s.Fleet);
+}
+
+/// <summary>
+/// A race as the shipyard, the status area and the roster draw its ships
+/// (stage 4b item 10; avail_race_q's FLEET_INFO): its ship's status icons
+/// (frame 0 the small one) and melee icon (frame 0), its ship's starting
+/// crew (the template's crew_level) and its cost (RACE_SHIP_COST); null
+/// sheets for none.
+/// </summary>
+public sealed record YardRace(string? Icons, string? MeleeIcon, int Crew, int Cost);
+
+/// <summary>
+/// ShowCombatShip's animation in the shipyard's hangar (stage 4b item 10):
+/// the windows of the ships it shows, each with its doors, opening (the
+/// hangar opening, a ship built) or closing (a ship scrapped), a frame at a
+/// time (<see cref="StarbaseScreens.DoorsFrame"/>, SHIP_WIN_FRAMES of them
+/// at 24 a second).
+/// </summary>
+public sealed class HangarDoors
+{
+    /// <summary>SHIP_WIN_FRAMES: the frames the doors take.</summary>
+    public const int Frames = (34 >> 1) + 1;
+
+    internal sealed class Window
+    {
+        public HangarShip Ship;
+        public int Left, Right;
+    }
+
+    internal HangarDoors(IReadOnlyList<HangarShip> ships, bool closing)
+    {
+        Closing = closing;
+        Windows = ships.Select(s => new Window { Ship = s, Left = closing ? -(34 >> 1) : -1, Right = closing ? 34 >> 1 : 1 }).ToList();
+    }
+
+    /// <summary>Whether the doors close (a ship scrapped: YankedStarShipPtr).</summary>
+    public bool Closing { get; }
+
+    internal IReadOnlyList<Window> Windows { get; }
+
+    /// <summary>The frames drawn so far.</summary>
+    public int Drawn { get; internal set; }
+
+    /// <summary>Whether every frame has been drawn.</summary>
+    public bool Done => Drawn >= Frames || Windows.Count == 0;
 }
 
 /// <summary>
@@ -127,11 +172,18 @@ public sealed class StarbaseScreens
         set => _s = value;
     }
 
-    public StarbaseScreens(UqmCanvas canvas, Func<int, string> gameString)
+    /// <param name="races">Each race's look by its number in avail_race_q (<see cref="YardRace"/>; none: no race known, its ships not drawn).</param>
+    public StarbaseScreens(UqmCanvas canvas, Func<int, string> gameString, Func<int, YardRace?>? races = null)
     {
         _c = canvas;
         GameString = gameString;
+        _races = races ?? (_ => null);
     }
+
+    private readonly Func<int, YardRace?> _races;
+
+    /// <summary>The hangar's doors an operation drawn set going (ShowCombatShip), for the picture to animate; null for none.</summary>
+    public HangarDoors? Doors { get; private set; }
 
     public Func<int, string> GameString { get; }
 
@@ -261,7 +313,121 @@ public sealed class StarbaseScreens
                 ClearStorageBays();
                 BluePrint();
                 break;
+            case ScreenOpKind.ShipBuilt:
+                // DMS_TryAddEscortShip's ShowCombatShip: the ship built, its doors opening.
+                Doors = new HangarDoors(Fleet.Where(f => f.Slot == op.A).Take(1).ToList(), closing: false);
+                break;
+            case ScreenOpKind.ShipScrapped:
+                // DMS_ScrapEscortShip: SetFlashRect (NULL), then ShowCombatShip with the ship yanked, its doors closing.
+                Doors = new HangarDoors(new[] { new HangarShip(op.A, op.B, 0) }, closing: true);
+                break;
+            case ScreenOpKind.ShipCrew:
+                // DMS_HireEscortShipCrew's and DMS_DismissEscortShipCrew's ShowShipCrew, in the ship's hangar window.
+                _c.SetContext(_c.Space);
+                foreach (var ship in Fleet.Where(f => f.Slot == op.A).Take(1))
+                    ShowShipCrew(ship, EscortShipRect(ship.Slot));
+                break;
+            case ScreenOpKind.RaceStrings:
+                RaceStrings(op.A);
+                break;
         }
+    }
+
+    private IReadOnlyList<HangarShip> Fleet => _s.Fleet ?? Array.Empty<HangarShip>();
+
+    /// <summary>sis.h's SUPPORT_SHIP_PTS: the fleet's ships round the flagship in the status area, in the fleet's order.</summary>
+    public static readonly (int X, int Y)[] SupportShipPoints =
+    {
+        (3 + 0, 30 + 2 * 16), (3 + 42, 30 + 2 * 16), (3 + 0, 30 + 3 * 16), (3 + 42, 30 + 3 * 16), (3 + 0, 30 + 1 * 16),
+        (3 + 42, 30 + 1 * 16), (3 + 0, 30 + 4 * 16), (3 + 42, 30 + 4 * 16), (3 + 0, 30 + 0 * 16), (3 + 42, 30 + 0 * 16),
+        (3 + 0, 30 + 5 * 16), (3 + 42, 30 + 5 * 16),
+    };
+
+    // DMS_GetEscortShipRect: a hangar slot's window, in the space window.
+    private static URect EscortShipRect(int slot) =>
+        new(HangarX[slot % ShipyardMenu.HangarShipsRow], HangarY + HangarDy * (slot / ShipyardMenu.HangarShipsRow), ShipWinWidth,
+            ShipWinHeight);
+
+    // shipyard.c's ShowShipCrew: the crew count on the ship's (already drawn) window, its race's starting crew if full,
+    // crew/most if not, SCRAP for none; under it a black strip first unless the window is the doors' own (at 0, 0).
+    private void ShowShipCrew(HangarShip ship, URect r)
+    {
+        int most = _races(ship.Race)?.Crew ?? 0;
+        string text = ship.Crew >= most ? ship.Crew.ToString(CultureInfo.InvariantCulture)
+            : ship.Crew == 0 ? "SCRAP"
+            : $"{ship.Crew}/{most}";
+        int x = r.X + (r.W >> 1), y = r.Y + r.H - 1;
+        if (r.Y != 0)
+        {
+            _c.SetForeground(Black);
+            _c.FillRect(new URect(r.X, y - 6, ShipWinWidth, 6));
+        }
+        _c.SetForeground(ship.Crew != 0 ? C(0x00, 0x14, 0x00) : C(0x12, 0x00, 0x00));
+        _c.Text(x, y, TextAlign.Center, text);
+    }
+
+    /// <summary>
+    /// One frame of ShowCombatShip's doors: each window cleared and its ship
+    /// drawn with its crew, the doors over it, moved a pixel apart (or
+    /// together); the power lines' turn after it is the picture's
+    /// (animatePowerLines on its clock).
+    /// </summary>
+    public void DoorsFrame(HangarDoors doors)
+    {
+        if (doors.Done)
+            return;
+        var old = _c.SetContext(_c.Space);
+        var oldClip = _c.Space.Clip;
+        _c.SetBackground(Black);
+        foreach (var w in doors.Windows)
+        {
+            var r = EscortShipRect(w.Ship.Slot);
+            _c.SetClipRect(new URect(UqmCanvas.SisOrgX + r.X, UqmCanvas.SisOrgY + r.Y, ShipWinWidth, ShipWinHeight));
+            _c.Clear();
+            if (_races(w.Ship.Race)?.MeleeIcon is { } melee)
+                _c.Stamp(melee, 0, (ShipWinWidth >> 1) + 1, ShipWinWidth >> 1);
+            ShowShipCrew(w.Ship, new URect(0, 0, ShipWinWidth, ShipWinHeight));
+            _c.Stamp(ShipyardSheet, 1, w.Left, 0);
+            _c.Stamp(ShipyardSheet, 2, w.Right, 0);
+            (w.Left, w.Right) = doors.Closing ? (w.Left + 1, w.Right - 1) : (w.Left - 1, w.Right + 1);
+        }
+        _c.SetClipRect(oldClip);
+        _c.SetContext(old);
+        ++doors.Drawn;
+    }
+
+    /// <summary>Takes the doors an operation set going (<see cref="Doors"/>).</summary>
+    public HangarDoors? TakeDoors()
+    {
+        var d = Doors;
+        Doors = null;
+        return d;
+    }
+
+    // shipyard.c's DrawRaceStrings: the radar's box with the race's ship's name (graphics.shipyard's 3 on, by race), its
+    // melee icon and cost; none (-1) leaves it black.
+    private void RaceStrings(int race)
+    {
+        var old = _c.SetContext(_c.Status);
+        var clip = _c.ClipRect;
+        int sx = UqmCanvas.RadarX - clip.X, sy = UqmCanvas.RadarY - clip.Y;
+        ClearSisRect(clearRadar: true);
+        _c.SetForeground(MenuArea);
+        _c.FillRect(new URect(sx - 1, sy - 11, UqmCanvas.RadarWidth + 2, 11));
+        _c.SetForeground(Black);
+        _c.FillRect(new URect(sx, sy, UqmCanvas.RadarWidth, UqmCanvas.RadarHeight));
+        if (race >= 0)
+        {
+            _c.Stamp(ShipyardSheet, 3 + race, sx, sy);
+            var look = _races(race);
+            if (look?.MeleeIcon is { } melee)
+                _c.Stamp(melee, 0, sx + (UqmCanvas.RadarWidth >> 1), sy + (UqmCanvas.RadarHeight >> 1));
+            _c.SetFont("tiny");
+            _c.SetForeground(C(0x00, 0x1F, 0x00));
+            _c.Text(sx + UqmCanvas.RadarWidth - 2, sy + UqmCanvas.RadarHeight - 2, TextAlign.Right,
+                (look?.Cost ?? 0).ToString(CultureInfo.InvariantCulture));
+        }
+        _c.SetContext(old);
     }
 
     public void Apply(IEnumerable<ScreenOp> ops)
@@ -344,7 +510,7 @@ public sealed class StarbaseScreens
         return new URect(UqmCanvas.SisOrgX + r.X + w * item, UqmCanvas.SisOrgY + r.Y, r.W, r.H);
     }
 
-    private static URect StatusToScreen(URect r) =>
+    internal static URect StatusToScreen(URect r) =>
         new(UqmCanvas.SpaceWidth + UqmCanvas.SafeX + r.X, UqmCanvas.SafeY + r.Y, r.W, r.H);
 
     // ------------------------------------------------------------ the shipyard
@@ -379,9 +545,9 @@ public sealed class StarbaseScreens
     /// Where the flashing highlight is in the shipyard, in the screen's
     /// pixels, with DoModifyShips' <paramref name="mode"/> and
     /// <paramref name="cursor"/>: the flagship, a hangar slot, the crew
-    /// gauge, a fleet ship's crew count; on the menu, none (SFR_MENU_3DO),
-    /// and none in the list of ships to build (SFR_MENU_ANY: stage 4b
-    /// item 10).
+    /// gauge, a fleet ship's crew count; on the menu, none (SFR_MENU_3DO);
+    /// in the list of ships to build, the radar's box where the list shows
+    /// its ship (SFR_MENU_ANY, as outfitting's module list).
     /// </summary>
     public static URect? YardFlash(YardMode mode, byte cursor) => mode switch
     {
@@ -393,12 +559,13 @@ public sealed class StarbaseScreens
             new URect(UqmCanvas.SisOrgX + HangarX[cursor % ShipyardMenu.HangarShipsRow],
                 UqmCanvas.SisOrgY + HangarY + HangarDy * (cursor / ShipyardMenu.HangarShipsRow) + ShipWinHeight - 6, ShipWinWidth, 5),
         YardMode.Crew => StatusToScreen(GaugeRect(crew: true)),   // DMS_FlashFlagShipCrewCount
+        YardMode.Build => new URect(UqmCanvas.RadarX, UqmCanvas.RadarY, UqmCanvas.RadarWidth, UqmCanvas.RadarHeight),   // SFR_MENU_ANY
         _ => null,
     };
 
     // DoShipyard's first drawing: the SIS frame and status area, the blueprint (DrawBluePrint: the pieces, the crew
     // pods lit, the crew, the minerals and the fuel), the menu on Crew, the hangar and its power lines in
-    // colortable.hangar's first map. The flagship alone: fleet ships come with stage 4.
+    // colortable.hangar's first map; then ShowCombatShip's doors opening on every fleet ship (Doors).
     private void OpenShipyard()
     {
         SisFrame();
@@ -415,6 +582,7 @@ public sealed class StarbaseScreens
         _c.SetClipRect(old);
         PowerLines(0);
         _c.SetFont("tiny");
+        Doors = new HangarDoors(Fleet, closing: false);
     }
 
     /// <summary>animatePowerLines: the power lines over the hangar in colortable.hangar's <paramref name="map"/> (<see cref="Presentation.PowerLines"/>).</summary>
@@ -879,7 +1047,10 @@ public sealed class StarbaseScreens
             for (int i = 0; i < NumModuleSlots; ++i, y -= 3)
                 if (_s.Modules[i] < EmptySlot)
                     _c.Stamp(FlagStatSheet, _s.Modules[i] + 3, 1, y);
-            // No escorts in the support ships' places (3b).
+            // DrawSupportShips: the host's fleet ships round the flagship (stage 4b item 10).
+            for (int i = 0; i < Fleet.Count && i < SupportShipPoints.Length; ++i)
+                if (_races(Fleet[i].Race)?.Icons is { } icons)
+                    _c.Stamp(icons, 0, SupportShipPoints[i].X, SupportShipPoints[i].Y);
         }
         _c.SetFont("tiny");
         if (crewDelta != 0)
@@ -1072,7 +1243,16 @@ public sealed class StarbaseScreens
     /// starbase: the status area's message, the resource units (UNLIMITED
     /// once CHMMR_BOMB_STATE is 2 or more).
     /// </summary>
-    internal static void StatusMessage(UqmCanvas c, uint resUnits, int bombState, Func<int, string> gameString)
+    internal static void StatusMessage(UqmCanvas c, uint resUnits, int bombState, Func<int, string> gameString) =>
+        StatusMessage(c, bombState < 2
+            ? $"{resUnits} {gameString(GameStrings.StatusBase + 1)}"
+            : $"{gameString(GameStrings.StatusBase + 2)} {gameString(GameStrings.StatusBase + 1)}");
+
+    /// <summary>The status area's message box (GetStatusMessageRect), in the status area.</summary>
+    public static readonly URect StatusMessageRect = new(2, 130, StatusMessageWidth, StatusMessageHeight);
+
+    /// <summary>sis.c's DrawStatusMessage with a message of its own (the roster's crew).</summary>
+    public static void StatusMessage(UqmCanvas c, string text)
     {
         var old = c.SetContext(c.Status);
         var ctx = c.ClipRect;
@@ -1080,9 +1260,6 @@ public sealed class StarbaseScreens
         c.SetClipRect(new URect(2 + ctx.X, 130 + ctx.Y, StatusMessageWidth, StatusMessageHeight));
         c.SetBackground(StatusMessageBack);
         c.Clear();
-        string text = bombState < 2
-            ? $"{resUnits} {gameString(GameStrings.StatusBase + 1)}"
-            : $"{gameString(GameStrings.StatusBase + 2)} {gameString(GameStrings.StatusBase + 1)}";
         c.SetFont("tiny");
         c.SetForeground(StatusMessageText);
         c.Text(StatusMessageWidth >> 1, StatusMessageHeight - 1, TextAlign.Center, text);

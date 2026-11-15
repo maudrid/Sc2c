@@ -938,7 +938,10 @@ public sealed partial class GameWorld
                 | LanderUpgrades.LightningShield | LanderUpgrades.LavaShield)),
             story.FuelCost, story.CrewCost,
             ShipModules.Names.Select(n => story.Rules.Modules.Contains(n) ? story.ModuleCost(n) : 0).ToArray(),
-            story.Rules.ModuleCostScale);
+            story.Rules.ModuleCostScale,
+            // The host's fleet, which every player's hangar and status area show (stage 4b item 10).
+            Fleet.Count == 0 ? null
+                : Fleet.Ships.Select(s => new Starbase.HangarShip(s.Slot, story.Rules.RaceIndex(s.Race), s.Crew)).ToArray());
     }
 
     /// <summary>A docked player's starbase screen, as their client is shown it; null if not docked.</summary>
