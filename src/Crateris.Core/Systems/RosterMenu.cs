@@ -27,6 +27,9 @@ public interface IRosterFleet
     /// <summary>How many (CountLinks (&amp;GLOBAL (built_ship_q))).</summary>
     int Count => Ships.Count;
 
+    /// <summary>The flagship's crew (GLOBAL_SIS (CrewEnlisted)), as a crew move leaves it.</summary>
+    int FlagshipCrew { get; }
+
     /// <summary>
     /// A crew member moved (DoModifyRoster's up and down, DeltaSupportCrew):
     /// <paramref name="delta"/> 1 from the flagship to the ship at
@@ -35,6 +38,39 @@ public interface IRosterFleet
     /// </summary>
     bool MoveCrew(int index, int delta);
 }
+
+/// <summary>
+/// What a key did on the roster, as its drawing follows it (stage 4b item
+/// 10, review round 3): each step DoModifyRoster drew for, recorded as the
+/// key is taken, in order.
+/// </summary>
+public enum RosterStep
+{
+    /// <summary>The cursor's keys (flashSupportShip's turn): from <see cref="RosterEvent.From"/> to <see cref="RosterEvent.To"/>, maybe the same.</summary>
+    Navigated,
+
+    /// <summary>Select or cancel: the crew changed from now (drawModifiedSupportShip, flashSupportShipCrew).</summary>
+    ModeOn,
+
+    /// <summary>Select or cancel: back to the cursor.</summary>
+    ModeOff,
+
+    /// <summary>A crew member moved (DeltaSupportCrew): the ship and flagship's crews as it left them.</summary>
+    CrewMoved,
+
+    /// <summary>Cancel: the roster left (the lit ship drawn unlit).</summary>
+    Left,
+}
+
+/// <summary>
+/// One step of the roster's (<see cref="RosterStep"/>): the lit ship's
+/// point before and after it; for the cursor's, the ship lit after it (its
+/// place in the fleet's queue) and its crew then; for a crew move the
+/// ship's place, its crew and the flagship's as it left them, and the crew
+/// moved to the ship (1, or -1 back).
+/// </summary>
+public readonly record struct RosterEvent(RosterStep Step, (int X, int Y) From, (int X, int Y) To, int Ship = -1, int Crew = 0,
+    int FlagshipCrew = 0, int Delta = 0);
 
 /// <summary>
 /// The roster (roster.c), from the Manifest: the fleet ships' icons round
@@ -89,6 +125,16 @@ public sealed class RosterMenu
     /// <summary>Cancel left the roster (DoModifyRoster gave FALSE).</summary>
     public bool Left { get; private set; }
 
+    private readonly List<RosterEvent> _events = new();
+
+    /// <summary>The steps the keys took since the last take, in order, for the drawing (stage 4b item 10).</summary>
+    public List<RosterEvent> TakeEvents()
+    {
+        var events = new List<RosterEvent>(_events);
+        _events.Clear();
+        return events;
+    }
+
     /// <summary>
     /// A key, as DoModifyRoster takes it: Moved for the cursor or the crew
     /// mode changed, or the roster left (<see cref="Left"/>); Refused when a
@@ -104,11 +150,13 @@ public sealed class RosterMenu
         if (cancel && !ModifyingCrew)
         {
             Left = true;
+            _events.Add(new(RosterStep.Left, Point, Point));
             return MenuOutcome.Moved;
         }
         if (select || cancel)
         {
             ModifyingCrew = !ModifyingCrew;
+            _events.Add(new(ModifyingCrew ? RosterStep.ModeOn : RosterStep.ModeOff, Point, Point));
             return MenuOutcome.Moved;
         }
         if (ModifyingCrew)
@@ -117,7 +165,11 @@ public sealed class RosterMenu
             // ship's (at least one left, no more than its race's starting crew), are the world's to check.
             if (!up && !down)
                 return MenuOutcome.None;
-            return fleet.MoveCrew(Selected, up ? 1 : -1) ? MenuOutcome.Moved : MenuOutcome.Refused;
+            int delta = up ? 1 : -1, ship = Selected;
+            if (!fleet.MoveCrew(ship, delta))
+                return MenuOutcome.Refused;
+            _events.Add(new(RosterStep.CrewMoved, Point, Point, ship, fleet.Ships[ship].Crew, fleet.FlagshipCrew, delta));
+            return MenuOutcome.Moved;
         }
         int now = State, next = State;
         int topRight = (Count + 1) >> 1;
@@ -159,9 +211,11 @@ public sealed class RosterMenu
             else
                 --next;
         }
-        if (next == now)
-            return MenuOutcome.None;
+        var from = Point;
         State = next;
-        return MenuOutcome.Moved;
+        // flashSupportShip's turn, the cursor moved or not; the ship lit with its crew then.
+        int lit = Selected;
+        _events.Add(new(RosterStep.Navigated, from, Point, lit, lit < fleet.Count ? fleet.Ships[lit].Crew : 0));
+        return next == now ? MenuOutcome.None : MenuOutcome.Moved;
     }
 }

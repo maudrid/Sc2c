@@ -388,6 +388,8 @@ public partial class ShipyardTests
 
         public IReadOnlyList<FleetShip> Ships => _fleet.Ships;
 
+        public int FlagshipCrew => _crew();
+
         public bool MoveCrew(int index, int delta)
         {
             if (!_fleet.MoveRosterCrew(Rules, index, delta, _crew(), _room()))
@@ -608,6 +610,19 @@ public partial class ShipyardTests
         Assert.Equal(1, roster.Count);
         Assert.True(roster.MoveCrew(0, 1));
         Assert.Equal((21, crew - 1), (world.Fleet.InSlot(0)!.Crew, host.Ship.Hold.Crew));
+        Assert.Equal(crew - 1, roster.FlagshipCrew);   // the flagship's crew as the move left it, for the roster's drawing
+        // The roster's steps carry the crews each left (stage 4b item 10, review round 3).
+        var menu = new RosterMenu(1);
+        menu.Press(MenuKey.Select, roster);
+        menu.Press(MenuKey.Down, roster);
+        Assert.Equal(new[] { new RosterEvent(RosterStep.ModeOn, menu.Point, menu.Point),
+            new RosterEvent(RosterStep.CrewMoved, menu.Point, menu.Point, 0, 20, crew, -1) }, menu.TakeEvents());
+        Assert.Empty(menu.TakeEvents());
+        menu.Press(MenuKey.Select, roster);
+        menu.Press(MenuKey.Up, roster);   // the cursor's key with one ship: no move, flashSupportShip's turn
+        menu.Press(MenuKey.Cancel, roster);
+        Assert.Equal(new[] { RosterStep.ModeOff, RosterStep.Navigated, RosterStep.Left }, menu.TakeEvents().Select(e => e.Step));
+        Assert.True(roster.MoveCrew(0, 1));
         Assert.True(world.MoveRosterCrew("host", 0, -1));
         Assert.Equal((20, crew), (world.Fleet.InSlot(0)!.Crew, host.Ship.Hold.Crew));
         // Not a guest's; not with a bad delta or ship; not docked; not while paused.

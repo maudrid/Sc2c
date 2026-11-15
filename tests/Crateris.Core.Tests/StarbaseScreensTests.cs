@@ -201,6 +201,8 @@ public class StarbaseScreensTests
 
             public IReadOnlyList<FleetShip> Ships => _fleet.Ships;
 
+            public int FlagshipCrew => _ship.Crew;
+
             public bool MoveCrew(int index, int delta)
             {
                 if (!_fleet.MoveRosterCrew(OutfitTests.Rules, index, delta, _ship.Crew, _ship.Modules.CrewCapacity))
@@ -221,17 +223,16 @@ public class StarbaseScreensTests
             TakeFleetDrawing();
         }
 
+        // The roster's steps as its key took them, drawn in order (the crews each left with it).
         private void RosterKey(MenuKey? key)
         {
             if (key is not { } k)
-                _rosterDrawing!.Tick(_roster!, _now);
+                _rosterDrawing!.Tick(_now);
             else
             {
-                var was = (_roster!.State, _roster.ModifyingCrew);
-                int crew = _ship.Crew;
-                var outcome = _roster.Press(k, new Crews(_fleet!, _ship));
-                _rosterScreens!.Ship = SisState.Of(Ship(), "", "");
-                _rosterDrawing!.Key(_roster, was, k, outcome, crew - _ship.Crew, _now);
+                _roster!.Press(k, new Crews(_fleet!, _ship));
+                foreach (var e in _roster.TakeEvents())
+                    _rosterDrawing!.Apply(e, _now);
                 if (_roster.Left)
                     _on = On.Nothing;
             }

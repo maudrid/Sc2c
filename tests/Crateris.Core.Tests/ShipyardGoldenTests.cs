@@ -42,6 +42,8 @@ public class ShipyardGoldenTests
 
         public IReadOnlyList<FleetShip> Ships => _fleet.Ships;
 
+        public int FlagshipCrew => _ship.Crew;
+
         public bool MoveCrew(int index, int delta)
         {
             if (!_fleet.MoveRosterCrew(Rules, index, delta, _ship.Crew, _ship.Modules.CrewCapacity))

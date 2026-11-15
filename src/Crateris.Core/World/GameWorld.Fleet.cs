@@ -92,6 +92,8 @@ public sealed partial class GameWorld
         public IReadOnlyList<FleetShip> Ships => _world.Fleet.Ships;
 
         public bool MoveCrew(int index, int delta) => _world.MoveRosterCrew(_id, index, delta);
+
+        public int FlagshipCrew => _world.Find(_id)?.Ship.Hold.Crew ?? 0;
     }
 
     /// <summary>The world's own generator for captains' names (testing starts draw from it too).</summary>

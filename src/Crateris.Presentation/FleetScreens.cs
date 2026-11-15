@@ -166,8 +166,11 @@ public sealed class PickScreenDrawing
 /// flagship (DeltaSISGauges' DrawSupportShips): the lit ship flashing on
 /// the clock (flashSupportShip, a fifteenth of a second a step), its crew
 /// in the status message, drawn white while its crew is changed, the
-/// flagship's crew gauge as crew moves. Each call is what DoModifyRoster
-/// draws for a key or a pass, given the roster's state.
+/// flagship's crew gauge as crew moves. It draws the roster's steps as its
+/// keys took them (<see cref="Apply"/>: <see cref="RosterEvent"/>, recorded
+/// by <see cref="RosterMenu"/>), each with the crews it left, so nothing is
+/// worked out from what changed (review round 3), and the clock's passes
+/// (<see cref="Tick"/>).
 /// </summary>
 public sealed class RosterDrawing
 {
@@ -182,6 +185,11 @@ public sealed class RosterDrawing
     private readonly RosterFlash _flash;
     private (int X, int Y) _lit;
     private string? _litIcons;
+    private bool _modifying;
+    // The crews the roster's own steps left (by the ship's place in the fleet's queue), and the flagship's: newer than
+    // the snapshot's, which comes a world step later.
+    private readonly Dictionary<int, int> _crews = new();
+    private int? _flagshipCrew;
 
     /// <param name="screens">The status area's drawing (the message, the gauges), on the same canvas, with the ship and fleet as they stand.</param>
     /// <param name="flash">flashSupportShip's statics, kept from one opening to the next as UQM's are (none: afresh, as a new game's).</param>
@@ -195,6 +203,16 @@ public sealed class RosterDrawing
 
     /// <summary>Where the flashing highlight is (flashSupportShipCrew: the status message while the crew is changed), in the screen's pixels.</summary>
     public URect? Flash { get; private set; }
+
+    /// <summary>
+    /// The ship and fleet to draw with (the snapshot's), with the crews the
+    /// roster's own steps left, which the snapshot shows a world step later.
+    /// </summary>
+    public SisState Ship(SisState sis)
+    {
+        var fleet = sis.Fleet?.Select((f, i) => _crews.TryGetValue(i, out int c) ? f with { Crew = c } : f).ToArray();
+        return sis with { Crew = _flagshipCrew ?? sis.Crew, Fleet = fleet ?? sis.Fleet };
+    }
 
     private IReadOnlyList<HangarShip> Fleet => _screens.Ship.Fleet ?? Array.Empty<HangarShip>();
 
@@ -217,82 +235,99 @@ public sealed class RosterDrawing
     }
 
     // DeltaSupportCrew's message: the lit ship's crew, its race's starting crew if full, crew/starting if not.
-    private void CrewMessage()
+    private void CrewMessage(int? crewThen = null)
     {
-        if (ShipAt(_lit) is not { } ship)
+        if (ShipAt(_lit) is not { } at)
             return;
+        var ship = crewThen is int c ? at with { Crew = c } : at;
         int most = _races(ship.Race)?.Crew ?? 0;
         StarbaseScreens.StatusMessage(_c, ship.Crew >= most ? ship.Crew.ToString(CultureInfo.InvariantCulture) : $"{ship.Crew}/{most}");
     }
 
     // selectSupportShip: the point lit, its icon, its crew in the message (DeltaSupportCrew (0): no gauge, no flash).
-    private void Select((int X, int Y) point)
+    private void Select((int X, int Y) point, int? crewThen = null)
     {
         _lit = point;
         _litIcons = ShipAt(point) is { } ship ? _races(ship.Race)?.Icons : null;
-        CrewMessage();
+        CrewMessage(crewThen);
     }
 
-    /// <summary>RosterMenu's opening (in StatusContext): the cursor's ship lit, its crew in the message.</summary>
+    /// <summary>A step's crews kept without drawing it (the status area about to be drawn afresh with them).</summary>
+    public void Remember(RosterEvent e)
+    {
+        if (e.Step != RosterStep.CrewMoved)
+            return;
+        _crews[e.Ship] = e.Crew;
+        _flagshipCrew = e.FlagshipCrew;
+    }
+
+    /// <summary>RosterMenu's opening (in StatusContext): the cursor's ship lit, its crew in the message; in the crew mode already (drawn afresh mid-edit), white and the message flashing.</summary>
     public void Open(RosterMenu menu)
     {
         var old = _c.SetContext(_c.Status);
         Flash = null;
         Select(menu.Point);
+        _modifying = menu.ModifyingCrew;
+        if (_modifying)
+            ModeOn();
         _c.SetContext(old);
     }
 
+    // drawModifiedSupportShip, flashSupportShipCrew.
+    private void ModeOn()
+    {
+        _c.SetForeground(Modify);
+        DrawLit(filled: true);
+        Flash = StarbaseScreens.StatusToScreen(StarbaseScreens.StatusMessageRect);
+    }
+
     /// <summary>
-    /// What DoModifyRoster draws for a key: <paramref name="was"/> the
-    /// cursor's place and crew mode before it, <paramref name="outcome"/>
-    /// what the menu did (<see cref="RosterMenu.Press"/>), the ship and
-    /// fleet as the key left them (the screens' <see cref="StarbaseScreens.Ship"/>),
-    /// at <paramref name="now"/> (UQM's ticks). <paramref name="modifying"/>
-    /// is the crew mode a select or cancel left, where it isn't the menu's
-    /// now (a client drawing two keys that came between its frames).
+    /// What DoModifyRoster drew for one of its steps, at <paramref name="now"/>
+    /// (UQM's ticks): the cursor's (the old ship unlit, the new lit with
+    /// its crew, then flashSupportShip's turn), the crew mode on (the ship
+    /// white, the message flashing) or off, a crew member moved (the
+    /// message, the flagship's crew gauge, the message flashing), or the
+    /// roster left (the ship unlit).
     /// </summary>
-    public void Key(RosterMenu menu, (int State, bool Modifying) was, MenuKey key, MenuOutcome outcome, int crewMoved, long now,
-        bool? modifying = null)
+    public void Apply(RosterEvent e, long now)
     {
         var old = _c.SetContext(_c.Status);
-        if (menu.Left)
-            DrawLit(filled: false);   // RosterMenu's tail: the last ship unlit
-        else if (key is MenuKey.Select or MenuKey.Cancel)
+        switch (e.Step)
         {
-            if (!(modifying ?? menu.ModifyingCrew))
+            case RosterStep.Left:
+                DrawLit(filled: false);   // RosterMenu's tail: the last ship unlit
+                break;
+            case RosterStep.ModeOn:
+                _modifying = true;
+                ModeOn();
+                break;
+            case RosterStep.ModeOff:
+                _modifying = false;
                 Flash = null;
-            else
-            {   // drawModifiedSupportShip, flashSupportShipCrew
-                _c.SetForeground(Modify);
-                DrawLit(filled: true);
-                Flash = StarbaseScreens.StatusToScreen(StarbaseScreens.StatusMessageRect);
-            }
-        }
-        else if (was.Modifying)
-        {
-            if (outcome == MenuOutcome.Moved && crewMoved != 0)
-            {   // DeltaSupportCrew: the message, the flagship's crew gauge, the flash on the message
+                break;
+            case RosterStep.CrewMoved:
+                Remember(e);
+                _screens.Ship = Ship(_screens.Ship);
                 CrewMessage();
-                _screens.Apply(new ScreenOp(ScreenOpKind.Gauges, -crewMoved));
+                _screens.Apply(new ScreenOp(ScreenOpKind.Gauges, -e.Delta));
                 Flash = StarbaseScreens.StatusToScreen(StarbaseScreens.StatusMessageRect);
-            }
-        }
-        else
-        {
-            if (menu.State != was.State)
-            {
-                DrawLit(filled: false);
-                Select(menu.Point);
-            }
-            FlashLit(now);
+                break;
+            case RosterStep.Navigated:
+                if (e.To != e.From)
+                {
+                    DrawLit(filled: false);
+                    Select(e.To, e.Ship >= 0 ? e.Crew : null);   // its crew as the key found it
+                }
+                FlashLit(now);
+                break;
         }
         _c.SetContext(old);
     }
 
     /// <summary>DoModifyRoster's pass with no key at <paramref name="now"/>: the lit ship's flash, while the crew isn't being changed.</summary>
-    public void Tick(RosterMenu menu, long now)
+    public void Tick(long now)
     {
-        if (menu.Left || menu.ModifyingCrew)
+        if (_modifying)
             return;
         var old = _c.SetContext(_c.Status);
         FlashLit(now);
@@ -322,18 +357,15 @@ public sealed class RosterFlash
 }
 
 /// <summary>
-/// The roster as the client follows it (stage 4b item 10; review round 1:
-/// the game's roster panel's logic, here to be tested): each frame the
-/// open roster (<see cref="RosterMenu"/>, whose keys the session took) and
-/// the host's ship and fleet as the snapshot has them; what its keys drew
-/// worked out from what they changed since the last frame, in an order
-/// DoModifyRoster could have taken them (a crew move with the crew mode on,
-/// a cursor move with it off): the crew moved on the ship that was lit (the
-/// mode turned on first if it wasn't), the mode off and the cursor's move,
-/// the crew moved on the ship lit now (the mode on again), then the mode as
-/// it stands; and the status area drawn afresh as the roster opens afresh
-/// or the fleet's ships change. Several moves of one ship between frames
-/// are drawn as one, its crew as it stands.
+/// The roster as the client follows it (stage 4b item 10; the game's
+/// roster panel's logic, here to be tested): each frame the open roster
+/// (<see cref="RosterMenu"/>, which records each of its steps as its key is
+/// taken: <see cref="RosterMenu.TakeEvents"/>) is drawn step by step in
+/// their order (<see cref="RosterDrawing.Apply"/>), each step with the
+/// crews it left, so a step drawn before the snapshot shows its crews is
+/// drawn right (review round 3: nothing is worked out from what changed).
+/// The status area is drawn afresh, from the snapshot with the crews the
+/// steps left, as the roster opens afresh or the fleet's ships change.
 /// </summary>
 public sealed class RosterFollower
 {
@@ -341,10 +373,7 @@ public sealed class RosterFollower
     private readonly Func<int, YardRace?> _races;
     private readonly RosterFlash _flash = new();
     private RosterMenu? _menu;
-    private (int State, bool Modifying) _seen;
-    private int _selected;   // the lit ship's place in the fleet as last seen
     private List<(int Slot, int Race, int Captain)> _ships = new();
-    private int[] _crews = Array.Empty<int>();
     private StarbaseScreens? _screens;
     private RosterDrawing? _drawing;
 
@@ -393,9 +422,10 @@ public sealed class RosterFollower
 
     /// <summary>
     /// A frame: the roster as it stands (null when closed) over the host's
-    /// ship (<paramref name="sis"/>, with the fleet: <see cref="SisState.Fleet"/>)
-    /// and the fleet's ships (<paramref name="ships"/>: each one's slot,
-    /// race and captain, which tell its ships apart), at <paramref name="now"/>.
+    /// ship (<paramref name="sis"/>, with the fleet: <see cref="SisState.Fleet"/>,
+    /// as the snapshot has them) and the fleet's ships (<paramref name="ships"/>:
+    /// each one's slot, race and captain, which tell its ships apart), at
+    /// <paramref name="now"/>: the roster's steps since the last frame drawn.
     /// </summary>
     public void Update(RosterMenu? menu, SisState? sis, IReadOnlyList<(int Slot, int Race, int Captain)>? ships, long now)
     {
@@ -405,55 +435,27 @@ public sealed class RosterFollower
             _menu = null;
             return;
         }
-        var crews = (sis.Fleet ?? Array.Empty<HangarShip>()).Select(f => f.Crew).ToArray();
+        var steps = menu.TakeEvents();
         if (!ReferenceEquals(menu, _menu) || !ships.SequenceEqual(_ships) || _drawing is null)
         {
             if (_newArea() is not { } area)
                 return;
             (Canvas, _screens) = area;
-            _screens.Ship = sis;
+            _drawing = new RosterDrawing(Canvas, _screens, _races, _flash);
+            // Drawn afresh as the roster stands, with the crews its steps so far left (the snapshot may not show them yet).
+            foreach (var e in steps)
+                _drawing.Remember(e);
+            _screens.Ship = _drawing.Ship(sis);
             // The status area as the roster opens over it: the flagship and the fleet's ships (DeltaSISGauges).
             _screens.Apply(new ScreenOp(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined));
-            _drawing = new RosterDrawing(Canvas, _screens, _races, _flash);
             _drawing.Open(menu);
-            (_menu, _ships, _crews, _seen, _selected, Fresh) =
-                (menu, ships.ToList(), crews, (menu.State, menu.ModifyingCrew), menu.Selected, true);
+            (_menu, _ships, Fresh) = (menu, ships.ToList(), true);
             return;
         }
-        _screens!.Ship = sis;
-        // The keys since the last frame, in the order DoModifyRoster could have taken them: a crew move needs the
-        // crew mode on, a cursor move needs it off. So: the move of the ship that was lit (the mode on first if it
-        // wasn't), the mode off and the cursor's move, then a move of the ship lit now (the mode on again), then the
-        // mode as it stands.
-        int Moved(int i) => i >= 0 && i < crews.Length && i < _crews.Length ? crews[i] - _crews[i] : 0;
-        bool on = _seen.Modifying;
-        int state = _seen.State;
-        void Mode(bool to)
-        {
-            if (on == to)
-                return;
-            _drawing!.Key(menu, (state, on), MenuKey.Select, MenuOutcome.Moved, 0, now, modifying: to);
-            on = to;
-        }
-        if (Moved(_selected) is var before and not 0)
-        {
-            Mode(true);
-            _drawing.Key(menu, (state, true), MenuKey.Up, MenuOutcome.Moved, before, now);
-        }
-        if (menu.State != state)
-        {
-            Mode(false);
-            _drawing.Key(menu, (state, false), MenuKey.Down, MenuOutcome.Moved, 0, now);
-            state = menu.State;
-            if (Moved(menu.Selected) is var after and not 0)
-            {
-                Mode(true);
-                _drawing.Key(menu, (state, true), MenuKey.Up, MenuOutcome.Moved, after, now);
-            }
-        }
-        Mode(menu.ModifyingCrew);
-        _drawing.Tick(menu, now);
-        (_crews, _seen, _selected) = (crews, (menu.State, menu.ModifyingCrew), menu.Selected);
+        _screens!.Ship = _drawing.Ship(sis);
+        foreach (var e in steps)
+            _drawing.Apply(e, now);
+        _drawing.Tick(now);
     }
 }
 

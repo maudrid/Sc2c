@@ -449,6 +449,124 @@ public partial class ShipyardTests
         Assert.Null(follower.Flash);
     }
 
+    // ---- review round 3: the roster drawn from its steps, the snapshot a world step behind
+
+    // A roster over two ships with room (a Spathi 20 of 30, an Earthling 10 of 18), its follower, and the snapshot's
+    // ship and fleet as a world step left them (Snap() takes one; Sis() gives the last taken, lagging the keys).
+    private sealed class LaggingRoster
+    {
+        private readonly HostFleet _fleet = new();
+        private SisState? _snap;
+        private int _crew = 30;
+
+        public LaggingRoster()
+        {
+            _fleet.Restore(Rules, new[] { new FleetShip(Spathi, 20, 5, 0), new FleetShip(Human, 10, 7, 1) });
+            Fleet = new TestFleet(_fleet, () => _crew, c => _crew = c, () => 50);
+            Canvas = StarbaseScreensTests.Canvas();
+            Follower = new RosterFollower(() => (Canvas, new StarbaseScreens(Canvas, StarbaseScreensTests.Placeholder,
+                StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace);
+            Menu = new RosterMenu(_fleet.Count);
+            Snap();
+        }
+
+        public TestFleet Fleet { get; }
+        public UqmCanvas Canvas { get; }
+        public RosterFollower Follower { get; }
+        public RosterMenu Menu { get; }
+
+        public void Snap() => _snap = SisState.Of(StarbaseScreensTests.Ship(_fleet.Ships
+            .Select(f => new HangarShip(f.Slot, RaceOf(f.Race), f.Crew)).ToArray()) with { Crew = _crew }, "", "");
+
+        public void Keys(params MenuKey[] keys)
+        {
+            foreach (var k in keys)
+                Menu.Press(k, Fleet);
+        }
+
+        // A frame drawn with the snapshot as last taken: what it drew.
+        public List<UqmDraw> Frame(long now)
+        {
+            Canvas.Drawn.Clear();
+            Follower.Update(Menu, _snap, _fleet.Ships.Select(f => (f.Slot, RaceOf(f.Race), (int)f.Captain)).ToList(), now);
+            return Canvas.Drawn.ToList();
+        }
+
+        public static List<string> Messages(List<UqmDraw> drawn) =>
+            drawn.Where(d => d.Kind == UqmDrawKind.Text && d.Clip.Y == 130).Select(d => d.Text).ToList();
+
+        // The flagship's crew gauge's number (DeltaSISGauges' crew: the status area's text at the gauge's place).
+        public static List<string> Gauges(List<UqmDraw> drawn) =>
+            drawn.Where(d => d.Kind == UqmDrawKind.Text && d.Clip.Y != 130 && d.Y == 117 + 5).Select(d => d.Text).ToList();
+    }
+
+    [Fact]
+    public void TheRosterDrawsACrewMoveOnAShipItsCursorPassedThrough()
+    {
+        // Across, the mode on, up, the mode off, back, all in one frame: the Earthling's move drawn (its crew, the
+        // flagship's gauge), then the Spathi lit again.
+        var r = new LaggingRoster();
+        r.Frame(0);
+        r.Keys(MenuKey.Right, MenuKey.Select, MenuKey.Up, MenuKey.Select, MenuKey.Left);
+        r.Snap();
+        var drawn = r.Frame(100);
+        Assert.Equal(new[] { "10/18", "11/18", "20/30" }, LaggingRoster.Messages(drawn));
+        Assert.Equal(new[] { "29" }, LaggingRoster.Gauges(drawn));
+    }
+
+    [Fact]
+    public void TheRosterDrawsKeysInsideOneWorldStepWithTheCrewsLagging()
+    {
+        // The mode on (a frame), then up, the mode off and across inside one world step: the frame drawn before the
+        // snapshot shows the move still draws it (the Spathi's 21, the flagship's 29), then the Earthling lit.
+        var r = new LaggingRoster();
+        r.Frame(0);
+        r.Keys(MenuKey.Select);
+        r.Snap();
+        r.Frame(10);
+        r.Keys(MenuKey.Up, MenuKey.Select, MenuKey.Right);
+        var drawn = r.Frame(100);   // the snapshot still the last step's
+        Assert.Equal(new[] { "21/30", "10/18" }, LaggingRoster.Messages(drawn));
+        Assert.Equal(new[] { "29" }, LaggingRoster.Gauges(drawn));
+        Assert.Null(r.Follower.Flash);
+        // The snapshot catching up draws nothing more.
+        r.Snap();
+        Assert.Empty(LaggingRoster.Messages(r.Frame(110)));
+    }
+
+    [Fact]
+    public void TheRosterDrawsNoModeItsKeysDidntTake()
+    {
+        // The mode on (a frame), then up and the mode off in one frame: the move and the mode off, no white fill
+        // (UQM's draws white only as the mode comes on).
+        var r = new LaggingRoster();
+        r.Frame(0);
+        r.Keys(MenuKey.Select);
+        Assert.Contains(r.Frame(10), d => d.Kind == UqmDrawKind.FilledStamp && d.Color == new Rgb(255, 255, 255));
+        r.Keys(MenuKey.Up, MenuKey.Select);
+        var drawn = r.Frame(20);
+        Assert.Equal(new[] { "21/30" }, LaggingRoster.Messages(drawn));
+        Assert.DoesNotContain(drawn, d => d.Kind == UqmDrawKind.FilledStamp && d.Color == new Rgb(255, 255, 255));
+        Assert.Null(r.Follower.Flash);
+    }
+
+    [Fact]
+    public void TheRosterDrawsTwoShipsMovesAcrossOneFrameInTheirOrder()
+    {
+        // The mode on, up, off, across, on, up, all in one frame, the crews lagging: the Spathi's move, the Earthling
+        // lit, the Earthling's move, the flagship's gauge each time, the mode left on (white, the message flashing).
+        var r = new LaggingRoster();
+        r.Frame(0);
+        r.Keys(MenuKey.Select, MenuKey.Up, MenuKey.Select, MenuKey.Right, MenuKey.Select, MenuKey.Up);
+        var drawn = r.Frame(100);
+        Assert.Equal(new[] { "21/30", "10/18", "11/18" }, LaggingRoster.Messages(drawn));
+        Assert.Equal(new[] { "29", "28" }, LaggingRoster.Gauges(drawn));
+        var earthling = StarbaseScreens.SupportShipPoints[1];
+        Assert.Equal((UqmCanvas.SpaceWidth + earthling.X, earthling.Y),
+            drawn.Last(d => d.Kind == UqmDrawKind.FilledStamp && d.Color == new Rgb(255, 255, 255)) is var w ? (w.X, w.Y) : default);
+        Assert.NotNull(r.Follower.Flash);
+    }
+
     [Fact]
     public void TheRostersFlashGoesOnFromWhereItWasAsItOpensAgain()
     {
