@@ -326,10 +326,14 @@ public sealed class RosterFlash
 /// the game's roster panel's logic, here to be tested): each frame the
 /// open roster (<see cref="RosterMenu"/>, whose keys the session took) and
 /// the host's ship and fleet as the snapshot has them; what its keys drew
-/// worked out from what they changed (the cursor, the crew mode, the lit
-/// ship's crew, in DoModifyRoster's order whichever came between frames),
-/// and the status area drawn afresh as the roster opens afresh or the
-/// fleet's ships change.
+/// worked out from what they changed since the last frame, in an order
+/// DoModifyRoster could have taken them (a crew move with the crew mode on,
+/// a cursor move with it off): the crew moved on the ship that was lit (the
+/// mode turned on first if it wasn't), the mode off and the cursor's move,
+/// the crew moved on the ship lit now (the mode on again), then the mode as
+/// it stands; and the status area drawn afresh as the roster opens afresh
+/// or the fleet's ships change. Several moves of one ship between frames
+/// are drawn as one, its crew as it stands.
 /// </summary>
 public sealed class RosterFollower
 {
@@ -338,6 +342,7 @@ public sealed class RosterFollower
     private readonly RosterFlash _flash = new();
     private RosterMenu? _menu;
     private (int State, bool Modifying) _seen;
+    private int _selected;   // the lit ship's place in the fleet as last seen
     private List<(int Slot, int Race, int Captain)> _ships = new();
     private int[] _crews = Array.Empty<int>();
     private StarbaseScreens? _screens;
@@ -411,31 +416,44 @@ public sealed class RosterFollower
             _screens.Apply(new ScreenOp(ScreenOpKind.Gauges, ScreenOp.Undefined, ScreenOp.Undefined));
             _drawing = new RosterDrawing(Canvas, _screens, _races, _flash);
             _drawing.Open(menu);
-            (_menu, _ships, _crews, _seen, Fresh) = (menu, ships.ToList(), crews, (menu.State, menu.ModifyingCrew), true);
+            (_menu, _ships, _crews, _seen, _selected, Fresh) =
+                (menu, ships.ToList(), crews, (menu.State, menu.ModifyingCrew), menu.Selected, true);
             return;
         }
         _screens!.Ship = sis;
-        if (menu.State != _seen.State)
+        // The keys since the last frame, in the order DoModifyRoster could have taken them: a crew move needs the
+        // crew mode on, a cursor move needs it off. So: the move of the ship that was lit (the mode on first if it
+        // wasn't), the mode off and the cursor's move, then a move of the ship lit now (the mode on again), then the
+        // mode as it stands.
+        int Moved(int i) => i >= 0 && i < crews.Length && i < _crews.Length ? crews[i] - _crews[i] : 0;
+        bool on = _seen.Modifying;
+        int state = _seen.State;
+        void Mode(bool to)
         {
-            _drawing.Key(menu, _seen, MenuKey.Down, MenuOutcome.Moved, 0, now);
-            _seen = (menu.State, _seen.Modifying);
+            if (on == to)
+                return;
+            _drawing!.Key(menu, (state, on), MenuKey.Select, MenuOutcome.Moved, 0, now, modifying: to);
+            on = to;
         }
-        int lit = menu.Selected;
-        int moved = lit >= 0 && lit < crews.Length && lit < _crews.Length ? crews[lit] - _crews[lit] : 0;
-        if (moved != 0)
+        if (Moved(_selected) is var before and not 0)
         {
-            // A crew move needs the crew mode: if it came on and the move came between frames, the mode first.
-            if (!_seen.Modifying)
+            Mode(true);
+            _drawing.Key(menu, (state, true), MenuKey.Up, MenuOutcome.Moved, before, now);
+        }
+        if (menu.State != state)
+        {
+            Mode(false);
+            _drawing.Key(menu, (state, false), MenuKey.Down, MenuOutcome.Moved, 0, now);
+            state = menu.State;
+            if (Moved(menu.Selected) is var after and not 0)
             {
-                _drawing.Key(menu, _seen, MenuKey.Select, MenuOutcome.Moved, 0, now, modifying: true);
-                _seen = (_seen.State, true);
+                Mode(true);
+                _drawing.Key(menu, (state, true), MenuKey.Up, MenuOutcome.Moved, after, now);
             }
-            _drawing.Key(menu, _seen, MenuKey.Up, MenuOutcome.Moved, moved, now);
         }
-        if (menu.ModifyingCrew != _seen.Modifying)
-            _drawing.Key(menu, _seen, MenuKey.Select, MenuOutcome.Moved, 0, now);
+        Mode(menu.ModifyingCrew);
         _drawing.Tick(menu, now);
-        (_crews, _seen) = (crews, (menu.State, menu.ModifyingCrew));
+        (_crews, _seen, _selected) = (crews, (menu.State, menu.ModifyingCrew), menu.Selected);
     }
 }
 

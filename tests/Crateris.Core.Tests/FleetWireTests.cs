@@ -419,4 +419,42 @@ public class FleetWireTests
             { Enemy = battle.Enemy with { Marks = new[] { sent[0] with { Ordinal = 9 }, sent[0] with { Ordinal = 9 } } } } }), null, "p");
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(w.Written));
     }
+
+    [Fact]
+    public void AnotherShipInTheSlotDrawsItsMarksFromItsFirstAndARebirthsGoOnFromItsLast()
+    {
+        var sheet = Masks("marks", Enumerable.Range(0, 4).Select(_ => (5, 5, 2, 2, Solid(5, 5))).ToArray());
+        var canvas = new Crateris.Presentation.UqmCanvas(_ => 4, (_, _) => new Crateris.Presentation.URect(-2, -2, 5, 5),
+            new Dictionary<string, int> { ["starcon"] = 11, ["tiny"] = 10 });
+        var status = new Crateris.Presentation.BattleStatus(canvas);
+        var look = new Crateris.Presentation.StatusShip("icons", "captain", 20, 10, false, false, false, "Ship", "captain");
+        Crateris.Presentation.StatusState State(Starship ship) =>
+            new(10, 5, StatusFlags.None, 10, 0, Marks: GameWorld.StatusSnapshot("vux", ship).Marks);
+        int Stamps() => canvas.Drawn.Count(d => d.Sheet == "marks");
+        // The first ship: three marks drawn.
+        var first = new Starship(new NoCode(), 1, 10, 20);
+        status.Init(Crateris.Presentation.BattleStatus.EnemySlot, look, State(first));
+        for (int i = 0; i < 3; ++i)
+            first.Silhouette.Add(new SilhouetteMark(new Frame(sheet, (ushort)i), (short)(20 + 6 * i), 30, false));
+        status.Update(Crateris.Presentation.BattleStatus.EnemySlot, State(first));
+        Assert.Equal(3, Stamps());
+        // Another ship in the slot (the next enemy, the host's next pick), its marks counted from 0: drawn.
+        var second = new Starship(new NoCode(), 1, 10, 20);
+        second.Silhouette.Add(new SilhouetteMark(new Frame(sheet, 3), 40, 30, false));
+        canvas.Drawn.Clear();
+        status.Init(Crateris.Presentation.BattleStatus.EnemySlot, look, State(second));
+        Assert.Equal(1, Stamps());
+        second.Silhouette.Add(new SilhouetteMark(new Frame(sheet, 1), 44, 30, false));
+        canvas.Drawn.Clear();
+        status.Update(Crateris.Presentation.BattleStatus.EnemySlot, State(second));
+        Assert.Equal(1, Stamps());
+        // A ship reborn (its window drawn afresh, its marks cleared) whose death and rebirth the client missed, so its
+        // slot isn't drawn afresh: its ordinals go on from its last, and its new mark is drawn.
+        second.Silhouette.Clear();
+        second.Silhouette.Add(new SilhouetteMark(new Frame(sheet, 2), 30, 30, false));
+        Assert.Equal(new[] { 2 }, second.Silhouette.ShownOrdinals);
+        canvas.Drawn.Clear();
+        status.Update(Crateris.Presentation.BattleStatus.EnemySlot, State(second));
+        Assert.Equal(1, Stamps());
+    }
 }

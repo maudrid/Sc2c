@@ -406,6 +406,50 @@ public partial class ShipyardTests
     }
 
     [Fact]
+    public void TheRosterFollowedDrawsAModeOffAndACursorMoveBetweenFramesAndAMoveNotYetShown()
+    {
+        var fleet = new HostFleet();
+        fleet.Restore(Rules, new[] { new FleetShip(Spathi, 20, 5, 0), new FleetShip(Arilou, 6, 9, 1) });
+        int crew = 30;
+        var roster = new TestFleet(fleet, () => crew, c => crew = c, () => 50);
+        var canvas = StarbaseScreensTests.Canvas();
+        var follower = new RosterFollower(() => (canvas, new StarbaseScreens(canvas, StarbaseScreensTests.Placeholder,
+            StarbaseScreensTests.TestRace)), StarbaseScreensTests.TestRace);
+        SisState Sis() => SisState.Of(StarbaseScreensTests.Ship(fleet.Ships.Select(f => new HangarShip(f.Slot, RaceOf(f.Race), f.Crew))
+            .ToArray()) with { Crew = crew }, "", "");
+        List<(int, int, int)> Ships() => fleet.Ships.Select(f => (f.Slot, RaceOf(f.Race), (int)f.Captain)).ToList();
+        List<string> Messages() => canvas.Drawn.Where(d => d.Kind == UqmDrawKind.Text && d.Clip.Y == 130).Select(d => d.Text).ToList();
+        var menu = new RosterMenu(fleet.Count);
+        follower.Update(menu, Sis(), Ships(), 0);
+        menu.Press(MenuKey.Select, roster);   // the mode on, a frame
+        follower.Update(menu, Sis(), Ships(), 10);
+        // The mode off and the cursor across in one frame: the Arilou lit, its crew shown, no flash on the message.
+        menu.Press(MenuKey.Select, roster);
+        menu.Press(MenuKey.Right, roster);
+        canvas.Drawn.Clear();
+        follower.Update(menu, Sis(), Ships(), 1000);
+        Assert.Contains("6", Messages());
+        Assert.Null(follower.Flash);
+        // The flash is on the Arilou's icon now (its point, SUPPORT_SHIP_PTS' second), not the Spathi's.
+        var arilou = StarbaseScreens.SupportShipPoints[1];
+        Assert.All(canvas.Drawn.Where(d => d.Kind == UqmDrawKind.FilledStamp), d => Assert.Equal((UqmCanvas.SpaceWidth + arilou.X, arilou.Y), (d.X, d.Y)));
+        // A move not yet shown: back to the Spathi, the mode on, up; then the mode off and across, all before the crews
+        // show the move. The Spathi's move is drawn (its crew, the flagship's gauge), then the cursor's.
+        menu.Press(MenuKey.Left, roster);
+        follower.Update(menu, Sis(), Ships(), 1100);
+        menu.Press(MenuKey.Select, roster);
+        menu.Press(MenuKey.Up, roster);
+        menu.Press(MenuKey.Select, roster);
+        menu.Press(MenuKey.Right, roster);
+        canvas.Drawn.Clear();
+        follower.Update(menu, Sis(), Ships(), 1200);
+        var messages = Messages();
+        Assert.Equal(new[] { "21/30", "6" }, messages);
+        Assert.Contains(canvas.Drawn, d => d.Kind == UqmDrawKind.Text && d.Text == "29");   // the flagship's crew gauge
+        Assert.Null(follower.Flash);
+    }
+
+    [Fact]
     public void TheRostersFlashGoesOnFromWhereItWasAsItOpensAgain()
     {
         // flashSupportShip's colour and step time are statics: a roster opened again goes on from them, as UQM's.
