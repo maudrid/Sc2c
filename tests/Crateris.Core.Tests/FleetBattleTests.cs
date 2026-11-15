@@ -855,7 +855,7 @@ public class FleetBattleTests
         Run(world, 5);
         var later = world.Snapshot().Battles!.Single();
         Assert.Equal((me.X, me.Y), (later.FighterOf("host")!.X, later.FighterOf("host")!.Y));
-        Assert.Equal((enemy.EnemyX, enemy.EnemyY), (later.EnemyX, later.EnemyY));
+        Assert.Equal((enemy.EnemyX, enemy.EnemyY), (later.EnemyX, later.EnemyY));   // the battle frozen (decision 2)
     }
 
     [ContentFact]
