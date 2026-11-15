@@ -29,11 +29,10 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 - **A talk is the answerer's ship's.** The group as a whole starts the story; whoever answers speaks for it with their own ship (names, hold, crew, fuel), and when the replies pass on, the talk goes on with the new answerer's ship. An opening taken back takes back what the talks changed on each ship; a save during it is without them.
 - **Only battle salvage is split**, between the players in the battle when it's won (online: a disconnect leaves the battle). The starbase's 2,500 RU go to the answerer; players can give units to each other.
 - **A guest's talk gives to the host's fleet (2026-11-15).** A guest who talks to the commander can bring the Arilou's ships (and any talk's ships) into the host's fleet; only the fleet's worth counts as 0 for a guest.
+- **No messages for the host's fleet (2026-11-15).** Item 9 built none for the pick, the shipyard's fleet actions or the roster: the host's game acts on its own world and guests have no fleet. The owner agreed; needed only if guests may act on the host's fleet or the host's game becomes a client of its own world.
 - **No ranks.** Guests as "Commander" was considered and dropped: UQM's lines and voices say "Captain".
 
 ## Decisions waiting on the owner
-
-- **Item 9's reading on messages** (its Progress row): the plan listed the pick screen's choice and the shipyard's and roster's actions as reliable messages; none was built, as the host's game sends its input to its own world directly and guests have no fleet (decision 3), so they'd have no sender. Needed only if guests may act on the host's fleet or the host's game becomes a client of its own world. Also decided there: `YardMode.Build` is encoded (with the race lit), for a client of the host's state.
 
 - The escorts' upgrade caps (placeholders suggested: thrusters 8, turning jets 6, fuel tanks 4, crew pods 2), and whether that small item is built on its own or added to stage 4b.
 
@@ -44,7 +43,7 @@ Smaller items left by earlier work are recorded in the plan as notes under the i
 
 ## Next step
 
-Stage 4b item 9 is done; wait for the owner's answer on item 9's reading (below) and the go-ahead for item 10 (client views).
+Stage 4b item 10 (client views): building.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
