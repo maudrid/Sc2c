@@ -2,20 +2,20 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-16, stage 4b item 11 (docs) built, review rounds 1 and 2's findings fixed, awaiting the next review round.
+**Last updated:** 2026-11-16, stage 4b item 11 (docs) built and reviewed (round 3 found nothing); stage 4b is built.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
-- **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet), approved by the owner on 2026-11-13. Items 1 to 10 are built and reviewed; what each built and what its reviews found is in its Progress row. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
-- **Item 11 (docs) is built and in review** (its Progress row; review rounds 1 and 2's findings fixed; `tests/topic-map.json` remade): `docs/how-to-try/stage-4b.md` (every command in its shortcuts list run headless as written, its output quoted; four screenshots taken under Xvfb, `docs/screenshots/stage4b-*.png`), `differences.md` row 65 and rows 9, 13, 43 and 44, `design.md`, `porting-inventory.md`, `uqm-data.md`, `how-to-try/stage-3a.md`, `Options.cs`'s usage; `FleetWireTests.FiftyLimpetsOnOneShipFitASnapshotsBudget` measures item 9's watch note (50 limpets on one ship: 324 bytes).
+- **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet), approved by the owner on 2026-11-13. Items 1 to 11 are built and reviewed; what each built and what its reviews found is in its Progress row. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
+- **Item 11 (docs)** (its Progress row): `docs/how-to-try/stage-4b.md` (every command in its shortcuts list run headless as written, its output quoted; four screenshots taken under Xvfb, `docs/screenshots/stage4b-*.png`), `differences.md` row 65 and rows 9, 13, 43 and 44, `design.md`, `porting-inventory.md`, `uqm-data.md`, `how-to-try/stage-3a.md`, `Options.cs`'s usage; `FleetWireTests.FiftyLimpetsOnOneShipFitASnapshotsBudget` measures item 9's watch note (50 limpets on one ship: 324 bytes).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (item 11, review round 2): all topics 2,144 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed at item 11's build (78 checks); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
+- **Last checks** (item 11, review round 3): all topics 2,144 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed at item 11's build (78 checks); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
 
-- **The status panel's first line** still says "Attack on Crateris - stage 3a": a code string, the first of the status lines (`src/Crateris.Core/Session/PlayerSession.cs`, line 1160), shown on every screen. Found at item 11 and not changed, since item 11 is docs only; waiting on the owner ("Decisions waiting on the owner").
+None open beyond the decisions waiting on the owner below.
 
 Smaller items left for later stages are notes under the items that own them in the plans (`stage-3.md` for 3b and 3c; `stage-4b.md`'s notes, Tanaka's Shofixti scout among them, for 3b).
 
@@ -40,7 +40,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review item 11's fixes (the review loop in `CLAUDE.md`) until a round finds nothing. Then report item 11 to the owner with the two questions found in it (the status panel's "stage 3a" title, fixed with item 11 or later; a shortcut for the Arilou's gift), and stage 4b is done; the owner decides what's next.
+Stage 4b is built and reviewed. Wait for the owner: the two questions found at item 11 (the status panel's "stage 3a" title; a shortcut for the Arilou's gift), the escorts' caps, and what to build next.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
