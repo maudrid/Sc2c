@@ -67,7 +67,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Ships | Host flies the flagship; others captain escorts | Escorts need their own landers, fuel and cargo |
 | Escort abilities | Full: land, mine, talk to aliens | Escorts are effectively small flagships |
 | Escort upgrades | Smaller module list at the starbase | Flagship keeps its unique upgrades |
-| Host's AI fleet | Stays as in the original | Host can send one fleet ship into battle instead of the flagship |
+| Host's fleet | Stays as in the original: the allied races' ships UQM calls escorts, the host's only, built, crewed and scrapped by the host at the shipyard | The host flies them as UQM's player does: in a battle the host chooses which ship to send, a fleet ship or the flagship, and the next when it dies or retreats, the flagship the last choice (stage 4b, decision 1). Guests fly their own ships |
 | Key story items | Shared group inventory | Plot checks look at the group, not one ship |
 | Resource units | Separate wallets, transfers allowed | |
 | Cargo trading | Players can trade cargo (minerals and bio data) when both are in the same solar system | Not across hyperspace or between systems. The receiver's free storage limits the minerals (less what their lander that is out may still bring up); bio data has no limit, as in UQM |
@@ -85,7 +85,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Player death | Lose crew; ship becomes a wreck at the death location | Wreck persists for revival |
 | Revival | A rescuer flies to the wreck and transfers crew, keeping at least 1 | The rescuer can give all but 1 crew; no higher minimum |
 | Flagship destroyed | Game over for the whole group | Flagship can revive escorts, so the group can't get stuck |
-| Retreat | As in UQM 0.8.0: allowed only in encounters and the final battle, after the starbase is available, when not carrying the bomb. The ship warps out keeping its crew and can't rejoin that battle. When a player's last ship leaves, that player loses 5 fuel units, down to no lower than 0 | Each player retreats on their own. Host: AI fleet ships that retreat are out for that battle; the 5-unit cost applies when the flagship leaves |
+| Retreat | As in UQM 0.8.0: allowed only in encounters and the final battle, after the starbase is available, when not carrying the bomb. The ship warps out keeping its crew and can't rejoin that battle. When a player's last ship leaves, that player loses 5 fuel units, down to no lower than 0 | Each player retreats on their own. Host: fleet ships that retreat are out for that battle; the 5-unit cost applies when the flagship leaves |
 | Player count | Up to 4 | Keeps hosting feasible on a home connection |
 
 ## Architecture
@@ -106,7 +106,7 @@ Host machine
 
 Guests connect over the internet to the host's server; the host plays through their own client like everyone else.
 
-- **World state (server):** story flags, alliances, mined-out planets, the game date, alien fleet positions, the group inventory of key items, the host's AI fleet.
+- **World state (server):** story flags, alliances, mined-out planets, the game date, alien fleet positions, the group inventory of key items, the host's fleet.
 - **Player state (server):** stable player id, location, current activity, ship, modules, crew, fuel, cargo, wallet, alive or wreck. Saved in the host's save even while the player is away.
 - **Client:** rendering, input, audio, the battle camera and minimap, player chat.
 - **Planets:** generated deterministically from seeds, so the server sends seeds, not planet data.
@@ -203,7 +203,7 @@ Cover at least: ships and combat, hyperspace and QuasiSpace, solar systems and p
    - 3c. Story events and devices: the event calendar, energy nodes on story worlds, devices, time skips, cutscenes. After 3b.
 4. Combat, including joining battles, one enemy at a time, and the minimap. After 3a, before 3b, since most races' conversations can end in a battle. Plan: `docs/plans/stage-4.md`, in two parts:
    - 4a. The battle, together: the battle engine, the flagship and escorts in combat, the Ilwrath and its AI, several players against one enemy (markers, joining, each player's camera and minimap, retreat, wrecks and revival, salvage, game over), the Ilwrath fight in the opening and the host's pause. **Built** (see `docs/how-to-try/stage-4a.md`).
-   - 4b. Every race's ship and the host's fleet: the other 24 race ships and their AI, the host's AI fleet (the shipyard's fleet ships, the Arilou's gift, sending a fleet ship into battle), the enemy's fleets of several ships. After 4a.
+   - 4b. Every race's ship and the host's fleet: the other 24 race ships and their AI, the host's fleet (the shipyard's fleet ships, the roster, the Arilou's gift, the host choosing and flying a fleet ship in battle), the enemy's fleets of several ships. **Built** (plan: `docs/plans/stage-4b.md`; see `docs/how-to-try/stage-4b.md`).
    - The Sa-Matra and the final battle go with the endgame, after 3c.
 
 ### Working rules

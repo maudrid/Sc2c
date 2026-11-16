@@ -26,7 +26,8 @@ namespace Crateris.Game;
 /// --script "thrust:40,right:10,none:20" (scripted input instead of keys; left, right, thrust, action, fire, takeoff
 /// (Escape: in a battle, a retreat), special (a battle's special) and none are held for their frames;
 /// up, down, select, cancel, pageup, pagedown, menuleft and menuright press a menu key once as their step starts (the orbit
-/// menu's, the starbase's, the battle's pick screen's; menuleft and menuright are the menus' left and right), give opens or closes the giving screen,
+/// menu's and its Manifest's roster's, the starbase's and its shipyard's, the host's pick screen's in a battle with fleet
+/// ships; menuleft and menuright are the menus' left and right), give opens or closes the giving screen,
 /// pause is the host's pause key),
 /// --first-run-use FILE (the first-run screen acts as if the player chose
 /// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
@@ -44,8 +45,9 @@ namespace Crateris.Game;
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
 /// --start-fleet SHIP[:CREW][,SHIP[:CREW]] (host: the host's fleet is these ships, up to 12, by data/ships.json's id,
-/// each with that crew or its race's starting crew), --start-allied SHIP[,SHIP] (host: these ships' races are allied,
-/// by data/ships.json's id),
+/// each with that crew or its race's starting crew; not androsyn, chenjesu or mmrnmhrm, races with no fleet),
+/// --start-allied SHIP[,SHIP] (host: these ships' races are allied, so the shipyard builds their ships, by
+/// data/ships.json's id, as --start-fleet's),
 /// --guests-in-orbit (host: guests joining for the first time start in
 /// orbit where the host is), --guests-in-battle (host: guests joining for the first time join the battle by the host,
 /// as if they'd flown into its marker), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png

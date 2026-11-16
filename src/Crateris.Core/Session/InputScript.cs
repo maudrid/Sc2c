@@ -17,8 +17,9 @@ namespace Crateris.Core.Session;
 /// left, right, thrust, action, fire, takeoff, special and none are ship
 /// input; up, down, select, cancel, pageup, pagedown, menuleft and
 /// menuright press a menu key once as their step starts (the orbit menu's,
-/// the starbase's: menuleft and menuright are the menus' left and right,
-/// as left and right are the ship's), give opens or closes the giving screen
+/// the starbase's, the host's pick screen's in a battle: menuleft and
+/// menuright are the menus' left and right, as left and right are the
+/// ship's), give opens or closes the giving screen
 /// (as T does) then, and pause is the host's pause key.
 /// </summary>
 public sealed class InputScript
