@@ -1157,7 +1157,7 @@ public sealed class PlayerSession
     /// <summary>The status panel's lines.</summary>
     public IReadOnlyList<string> StatusLines()
     {
-        var lines = new List<string> { "Attack on Crateris - stage 3a", Status, Notice };
+        var lines = new List<string> { "Attack on Crateris", Status, Notice };
         if (HostPaused)
             lines.Add(Me?.IsHost == true ? "PAUSED - P or Pause: go on" : "PAUSED by the host");
         if (Snapshot != null)
