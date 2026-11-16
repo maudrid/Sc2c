@@ -107,9 +107,9 @@ public sealed record GameSettings
 
 /// <summary>
 /// The most of each of the flagship's modules an escort may hold
-/// (<see cref="GameSettings.EscortCaps"/>): fusion thrusters (of 11 drive
-/// slots), turning jets (of 8 jet slots), fuel tanks and crew pods (of 16
-/// module slots). The kit's count toward them. An escort past one (the host
+/// (<see cref="GameSettings.EscortCaps"/>), below the flagship's: fusion
+/// thrusters (at most 10 of 11 drive slots), turning jets (7 of 8 jet
+/// slots), fuel tanks and crew pods (15 of 16 module slots). The kit's count toward them. An escort past one (the host
 /// lowered it) keeps what it has and may sell, but buys no more.
 /// </summary>
 public sealed record EscortCaps(int Thrusters = 8, int Jets = 6, int FuelTanks = 4, int CrewPods = 2)
@@ -124,7 +124,7 @@ public sealed record EscortCaps(int Thrusters = 8, int Jets = 6, int FuelTanks =
         _ => int.MaxValue,
     };
 
-    /// <summary>Refuses caps out of range: each from 0 to the slots its module goes in.</summary>
+    /// <summary>Refuses caps out of range: each from 0 to one less than the slots its module goes in (below the flagship, which may fill them).</summary>
     public void Check()
     {
         foreach (var (name, cap, slots) in new[]
@@ -132,7 +132,8 @@ public sealed record EscortCaps(int Thrusters = 8, int Jets = 6, int FuelTanks =
                      ("thrusters", Thrusters, ShipModules.DriveSlotCount), ("turning jets", Jets, ShipModules.JetSlotCount),
                      ("fuel tanks", FuelTanks, ShipModules.ModuleSlotCount), ("crew pods", CrewPods, ShipModules.ModuleSlotCount),
                  })
-            if (cap < 0 || cap > slots)
-                throw new ArgumentOutOfRangeException(nameof(EscortCaps), $"an escort's most {name}, {cap}, isn't from 0 to {slots}");
+            if (cap < 0 || cap >= slots)
+                throw new ArgumentOutOfRangeException(nameof(EscortCaps),
+                    $"an escort's most {name}, {cap}, isn't from 0 to {slots - 1} (below the flagship's {slots})");
     }
 }

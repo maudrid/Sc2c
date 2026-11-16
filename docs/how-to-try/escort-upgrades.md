@@ -35,7 +35,7 @@ The host gives the guest some resource units (T opens the giving screen; Page Up
 4. **Selling.** Enter on a full slot sells it at its price, the kit's thrusters, jets and fuel tank too, as the flagship's; a crew pod the crew needs and a fuel tank the fuel needs are refused, as UQM refuses them.
 5. **What they do.** A crew pod makes room for 50 more crew, hired at the shipyard's Crew at the group's crew price (the kit holds 10: with both pods 110). A tank makes room for 50 more units of fuel. More thrusters and jets fly faster and turn quicker in hyperspace, in systems and in battle, where the escort is the flagship's ship with its own slots.
 
-The caps are host settings, saved with the game (`settings.escort_caps` in the save: `thrusters`, `jets`, `fuel_tanks`, `crew_pods`); there is no option for them yet. A save from before them has the placeholders. To change one, edit it in the save and load it; each is from 0 to the slots its module goes in (11 drive slots, 8 jet slots, 16 module slots), and a save with one outside that is refused.
+The caps are host settings, saved with the game (`settings.escort_caps` in the save: `thrusters`, `jets`, `fuel_tanks`, `crew_pods`); there is no option for them yet. A save from before them has the placeholders. To change one, edit it in the save and load it; each is from 0 to one less than the flagship's slots for it (at most 10 thrusters, 7 jets, 15 fuel tanks, 15 crew pods: below the flagship), and a save with one outside that isn't loaded.
 
 ## What was run
 
@@ -51,7 +51,7 @@ Each run this way, headless, with `--save` and `--report` files in a scratch fol
 
   The host logs "You gave Guest 5000 RU.", the guest docking ("Saw guest-1 Starbase at frame 387" on this run; the frame varies a little), then its outfitting keys: Outfit Starship, Modules, a crew pod into module slot 0 ("guest-1: starbase Select: Acted"), a second into slot 2 ("Acted"), a third into slot 3 refused at the cap ("Refused"; the guest is told "That can't be done."), Esc, up to the jets, turning jets into jet slot 1 ("Acted"), up to the drives, a thruster into drive slot 0 ("Acted"). The save (version 12, `escort_caps` the placeholders) has the guest's escort with 3 thrusters (drive slots 0, 5 and 6), 3 jets (0, 1 and 6), crew pods in module slots 0 and 2, the kit's fuel tank in 1, its storage bay in 8 and its gun in 15, and 0 resource units (2,000 + 2,000 + 500 + 500); the guest's report has its fuel capacity 6000 (the reserve and one tank, in hundredths).
 - That save with `crew_pods` set to 3, then `--host --name Host --load three.json --save three-out.json --report three-report.json --quit-after 30`: it loads ("Loaded ..."), and `three-out.json`'s caps are thrusters 8, jets 6, fuel tanks 4, crew pods 3.
-- That save with `crew_pods` set to 20, loaded the same way: refused, the host stopping with "Bad settings: escort caps: an escort's most crew pods, 20, isn't from 0 to 16".
+- That save with `crew_pods` set to 20, loaded the same way: not loaded. The error is logged ("ERROR: System.IO.InvalidDataException: Bad settings: escort caps: an escort's most crew pods, 20, isn't from 0 to 15 (below the flagship's 16) (Parameter 'EscortCaps')"), no host starts (the report's `mode` is `client`, and no save is written), and the game runs on to `--quit-after` and exits as usual, as with any other bad setting in a save.
 
 ## What's different from UQM
 
@@ -60,4 +60,4 @@ UQM's escorts are combat-only ships with no modules; guests' escorts are small f
 ## Known limits
 
 - **The caps are placeholders**, to be set by playtesting (`docs/design.md`'s open item), and set only in the save.
-- **Selling the kit** gives a new guest its thrusters', jets' and fuel tank's price (2,500 resource units at a new game's prices), as UQM's flagship sells its starting modules and as the kit's gun, lander and storage bay already sold.
+- **Selling the kit is a money source without end.** A new guest's escort costs nothing to make: any player id the host hasn't seen gets a fresh kit, and a client picks its own id (`--id`). The whole kit sells back as UQM's flagship sells its starting modules, so joining under new ids, selling the kit and giving the units to another player can be repeated without limit: about 6,000 resource units an id at a new game's prices (the thrusters, jets and fuel tank 2,500 of it since this item; the lander, storage bay, gun, fuel and crew already sold). It's left for the owner to decide (`docs/handoff.md`).

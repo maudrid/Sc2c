@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-16, the escorts' upgrades built, awaiting review.
+**Last updated:** 2026-11-16, the escorts' upgrades built, review round 1's findings fixed; two questions for the owner.
 
 ## Where things are
 
@@ -15,7 +15,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 ## Open items
 
-- **The escorts' upgrades: review.** Built (`docs/plans/escort-upgrades.md`, its Progress row); its review rounds are next.
+- **The escorts' upgrades: review.** Built (`docs/plans/escort-upgrades.md`, its Progress row); review round 1 found no correctness bugs, its doc and range fixes are in; round 2 is next.
 
 The escorts' caps are placeholders to be set by playtesting (`design.md`'s open item).
 
@@ -31,7 +31,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decisions waiting on the owner
 
-None.
+- **Selling a new escort's kit is money without end** (found reviewing the escorts' upgrades; not changed). A new guest's escort costs nothing: `GameWorld.Join` gives a fresh kit to any player id not seen before, and a client picks its own id (`--id`). The whole kit sells back as UQM's flagship sells its starting modules, so new ids, selling the kit and giving the units on make about 6,000 resource units an id at a new game's prices, without limit (2,500 of it the thrusters, jets and fuel tank the upgrades made sellable; the lander, storage bay, gun, fuel and crew sold before). Options:
+  1. *The kit's modules sell back for 0* (the kit is a gift; what's bought keeps UQM's refund). **Recommended**, as it closes the source wherever new ids come from without limiting who joins. Not possible as things stand: a ship's slots don't say which pieces were the kit's (`ShipModules` holds module numbers only; `PlayerShip.Loadout` keeps only the kit's counts). It needs a kit mark on each slot (set by `ShipModules.FromLoadout`, cleared when sold, kept in the save: save version 13, an older save's escort marked where its kit's pieces still are), a count for the kit's landers, and a choice for the kit's fuel and crew (about 230 more, sold at the fuel and crew prices): a small item.
+  2. *A cap on new escorts per game* (a setting; `Join` refuses a new id past it): simple, but bounds the source rather than closing it, and turns away real new players past the cap.
+  3. *Accept it* and record it in `design.md`'s open items (friends play together; a host can give a smaller kit, `GameSettings.EscortLoadout`).
+- **The commander's advice and an escort's drives (low).** `AnalyzeCondition` (`Comm/Scripts/StarbaseScript.cs`, through `PlayerTalkShip.Thrusters`/`Jets` and `AnswererTalkShip`'s) counts thrusters, jets and modules from the flagship (stage 3, decision 4, made when escorts couldn't buy them) but crew and fuel from the talker, so an escort asking is now told to improve the flagship's thrusters. Should the advice count the talker's own ship's thrusters and jets (and modules)?
 
 ## Decided, not built
 
@@ -40,7 +44,7 @@ None.
 
 ## Next step
 
-Review the escorts' upgrades (the commit that built them), fix what holds up, and repeat until a round finds nothing (`CLAUDE.md`); then report to the owner. After that, with the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
+Review round 2 of the escorts' upgrades (the round 1 fixes' commit), fix what holds up, and repeat until a round finds nothing (`CLAUDE.md`); then report to the owner, with the two questions above. After that, with the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

@@ -260,7 +260,7 @@ public class EscortUpgradeTests
     [Fact]
     public void TheCapsAreSavedAndASaveWithoutThemHasTheDefaults()
     {
-        var caps = new EscortCaps(Thrusters: 11, Jets: 0, FuelTanks: 16, CrewPods: 5);
+        var caps = new EscortCaps(Thrusters: 10, Jets: 0, FuelTanks: 15, CrewPods: 5);
         var world = GameWorld.NewGame(new GameSettings { EscortCaps = caps }, NewGameData.Load(DataDir), "host", "Host");
         var json = HostSave.ToJson(world);
         Assert.Equal(caps, HostSave.FromJson(json).Settings.EscortCaps);
@@ -279,11 +279,11 @@ public class EscortUpgradeTests
 
     [Theory]
     [InlineData("thrusters", -1)]
-    [InlineData("thrusters", 12)]
-    [InlineData("jets", 9)]
-    [InlineData("fuel_tanks", 17)]
+    [InlineData("thrusters", 11)]   // the flagship's 11 drive slots: no cap below it
+    [InlineData("jets", 8)]
+    [InlineData("fuel_tanks", 16)]
     [InlineData("crew_pods", -2)]
-    [InlineData("crew_pods", 17)]
+    [InlineData("crew_pods", 16)]
     public void CapsOutOfRangeAreRefused(string cap, int value)
     {
         var caps = cap switch
@@ -299,6 +299,17 @@ public class EscortUpgradeTests
         var node = JsonNode.Parse(HostSave.ToJson(GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir), "host", "Host")))!;
         node["settings"]!["escort_caps"]![cap] = value;
         Assert.Contains("escort caps", Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString())).Message);
+    }
+
+    [Fact]
+    public void TheHighestCapsAreOneBelowTheFlagshipsSlots()
+    {
+        var most = new EscortCaps(Thrusters: 10, Jets: 7, FuelTanks: 15, CrewPods: 15);
+        most.Check();
+        new EscortCaps(0, 0, 0, 0).Check();
+        _ = GameWorld.NewGame(new GameSettings { EscortCaps = most }, NewGameData.Load(DataDir), "host", "Host");
+        Assert.Contains("isn't from 0 to 10 (below the flagship's 11)",
+            Assert.Throws<ArgumentOutOfRangeException>(() => (most with { Thrusters = 11 }).Check()).Message);
     }
 
     [Fact]
