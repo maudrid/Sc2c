@@ -510,11 +510,14 @@ def main():
           and a_ships == [("spathi", None, False, True), ("arilou", "Retreated", True, False)],
           f"R saw the host on the pick screen, the Arilou retreated and the Spathi to pick ({a.get('picking')}, {a_ships})")
 
-    # Stage 4b, item 10: the VUX's limpets on a guest's captain's window
-    # (the marks grow as they stick: item 9's note). The host starts in a
-    # battle against a VUX; guest S joins through the lossy relay and flies
-    # at it, collecting limpets; what its snapshots cost is measured, with
-    # the most marks a snapshot carried.
+    # Stage 4b, item 10: the VUX's limpets' marks on the wire (they grow as
+    # they stick: item 9's note). The host starts in a battle against a VUX;
+    # guest S joins through the lossy relay and thrusts. The VUX's limpets
+    # go on whichever ship they hit (often the host's flagship, none on S's
+    # own): what S's snapshots cost is measured, with the most marks one
+    # ship's captain's window carried in them and those on S's own. A run
+    # reaches a few limpets; 50 on one ship are measured by FleetWireTests'
+    # FiftyLimpetsOnOneShipFitASnapshotsBudget.
     relay = LossyRelay(RELAY_PORT, PORT, 0.2)
     host11 = start(out, "host11", "--host", "--no-upnp", "--port", PORT,
                    "--name", "Host", "--id", "host", "--save", os.path.join(out, "save11.json"),

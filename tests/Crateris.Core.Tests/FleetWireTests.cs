@@ -367,6 +367,35 @@ public class FleetWireTests
         Assert.True(GameWorld.StatusSnapshot(Ilwrath, gone).Gone);
     }
 
+    [Fact]
+    public void FiftyLimpetsOnOneShipFitASnapshotsBudget()
+    {
+        // Item 9's note: the VUX's limpets are seldom covered, so a ship's marks grow with them, each sent in every
+        // snapshot of its battle. The host's VUX drops limpets on the Ilwrath until 50 show on its captain's window.
+        var world = WithFleet(2, (Vux, 20));
+        var wb = world.StartBattle("host", Ilwrath);
+        Assert.Equal(PickOutcome.Chosen, PickAt(world, 0));
+        WarpIn(world, wb);
+        FlyIn(world, "g1");
+        for (int i = 0; i < 20000 && wb.Enemy.Silhouette.Shown.Count < 50; ++i)
+            RunDisarmed(world, wb, 1, id => id == "host" ? ShipInput.Special : ShipInput.None);
+        Assert.Null(wb.Outcome);
+        Assert.True(wb.Enemy.Silhouette.Shown.Count >= 50, $"{wb.Enemy.Silhouette.Shown.Count} limpets showing");
+        // What they add to the snapshot a player in the battle is sent (whole, as each battle frame is: BattleCodec).
+        var snapshot = world.Snapshot();
+        var battle = snapshot.Battles!.Single();
+        var bare = snapshot with { Battles = new[] { battle with { Enemy = battle.Enemy with { Marks = null } } } };
+        var w = new WireWriter();
+        SnapshotCodec.Encode(w, bare, null, "g1");
+        int without = w.Length;
+        SnapshotCodec.Encode(w, snapshot, null, "g1");
+        int marks = w.Length - without;
+        // About 7 bytes a limpet: with the network test's busiest battle snapshot (633 bytes over the lossy relay),
+        // well under its 1,500-byte budget.
+        Assert.True(marks < 400, $"{wb.Enemy.Silhouette.Shown.Count} limpets cost {marks} bytes");
+        Assert.Equal(battle.Enemy.Marks, Sent(snapshot, "g1").Battles!.Single().Enemy.Marks);
+    }
+
     // A ship's code for a status alone (nothing loads it).
     private sealed class NoCode : IShipCode
     {

@@ -250,7 +250,7 @@ These UQM structures hold the game while it runs and in save files. They aren't 
 | `GAME_STATE` | `globdata.h` | Everything else: prices, current activity, clock, autopilot, location in a solar system, the queues below, story bits | Split into world state (prices, clock, queues, story) and per-player state (activity, location, autopilot) |
 | `CLOCK_STATE` + `EVENT` queue | `clock.h` | Date and scheduled story events | World state, one shared clock |
 | `FLEET_INFO` (`avail_race_q`) | `races.h` | Per race: allied or not, sphere of influence (centre, strength, growth, destination), what the player knows of it | World state |
-| `SHIP_FRAGMENT` (`built_ship_q`) | `races.h` | The flagship's escort ships (max 12): race, crew | The host's AI fleet |
+| `SHIP_FRAGMENT` (`built_ship_q`) | `races.h` | The flagship's escort ships (max 12): race, crew | The host's fleet, which the host flies (stage 4b decision 1; `HostFleet`) |
 | `SHIP_FRAGMENT` (`npc_built_ship_q`) | `races.h` | The enemy ships of the current encounter | Per battle |
 | `ENCOUNTER` (`encounter_q`) | `encount.h` | Hyperspace encounters (the black globes): race, ship count, position (max 16) | World state, shared by players in hyperspace |
 | `IP_GROUP` (`ip_group_q`) | `grpinfo.h` | Alien groups in the current solar system: race, task, destination, orbit, position | Per solar system, shared by the players there |
