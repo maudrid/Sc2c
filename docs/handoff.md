@@ -2,20 +2,20 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-16, the escorts' upgrades built, review round 1's findings fixed; two questions for the owner.
+**Last updated:** 2026-11-16, the escorts' upgrades built, review rounds 1 and 2's findings fixed; two questions for the owner.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
-- **Current plan:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built, not yet reviewed; its readings of what the decision left open are in the plan, its try-out in `docs/how-to-try/escort-upgrades.md`.
+- **Current plan:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and in review; its readings of what the decision left open are in the plan, its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (the escorts' upgrades, 2026-11-16; `tests/topic-map.json` remade): all topics 2,161 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed (78 checks); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
+- **Last checks** (the escorts' upgrades, review round 1's fixes, 2026-11-16; `tests/topic-map.json` remade): all topics 2,162 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed at the build (78 checks; no wire or session change since); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
 
-- **The escorts' upgrades: review.** Built (`docs/plans/escort-upgrades.md`, its Progress row); review round 1 found no correctness bugs, its doc and range fixes are in; round 2 is next.
+- **The escorts' upgrades: review.** Built (`docs/plans/escort-upgrades.md`, its Progress row); rounds 1 and 2 found no correctness bugs; their doc and range fixes are in; round 3 is next.
 
 The escorts' caps are placeholders to be set by playtesting (`design.md`'s open item).
 
@@ -32,10 +32,10 @@ Smaller items left for later stages are notes under the items that own them in t
 ## Decisions waiting on the owner
 
 - **Selling a new escort's kit is money without end** (found reviewing the escorts' upgrades; not changed). A new guest's escort costs nothing: `GameWorld.Join` gives a fresh kit to any player id not seen before, and a client picks its own id (`--id`). The whole kit sells back as UQM's flagship sells its starting modules, so new ids, selling the kit and giving the units on make about 6,000 resource units an id at a new game's prices, without limit (2,500 of it the thrusters, jets and fuel tank the upgrades made sellable; the lander, storage bay, gun, fuel and crew sold before). Options:
-  1. *The kit's modules sell back for 0* (the kit is a gift; what's bought keeps UQM's refund). **Recommended**, as it closes the source wherever new ids come from without limiting who joins. Not possible as things stand: a ship's slots don't say which pieces were the kit's (`ShipModules` holds module numbers only; `PlayerShip.Loadout` keeps only the kit's counts). It needs a kit mark on each slot (set by `ShipModules.FromLoadout`, cleared when sold, kept in the save: save version 13, an older save's escort marked where its kit's pieces still are), a count for the kit's landers, and a choice for the kit's fuel and crew (about 230 more, sold at the fuel and crew prices): a small item.
+  1. *The kit's modules sell back for 0* (the kit is a gift; what's bought keeps UQM's refund). **Recommended**, as it closes the source wherever new ids come from without limiting who joins. Not possible as things stand: a ship's slots don't say which pieces were the kit's (`ShipModules` holds module numbers and the kit's crew, nothing saying where a slot's piece came from; `PlayerShip.Loadout` keeps only the kit's counts). It needs a kit mark on each slot (set by `ShipModules.FromLoadout`, cleared when sold, kept in the save: save version 13, an older save's escort marked where its kit's pieces still are), a count for the kit's landers, and a choice for the kit's fuel and crew (about 230 more, sold at the fuel and crew prices): a small item.
   2. *A cap on new escorts per game* (a setting; `Join` refuses a new id past it): simple, but bounds the source rather than closing it, and turns away real new players past the cap.
   3. *Accept it* and record it in `design.md`'s open items (friends play together; a host can give a smaller kit, `GameSettings.EscortLoadout`).
-- **The commander's advice and an escort's drives (low).** `AnalyzeCondition` (`Comm/Scripts/StarbaseScript.cs`, through `PlayerTalkShip.Thrusters`/`Jets` and `AnswererTalkShip`'s) counts thrusters, jets and modules from the flagship (stage 3, decision 4, made when escorts couldn't buy them) but crew and fuel from the talker, so an escort asking is now told to improve the flagship's thrusters. Should the advice count the talker's own ship's thrusters and jets (and modules)?
+- **The commander's advice and an escort's drives (low).** `AnalyzeCondition` (`Comm/Scripts/StarbaseScript.cs`, through `PlayerTalkShip.Thrusters`/`Jets` and `AnswererTalkShip`'s) counts thrusters, jets and modules from the flagship (stage 3, decision 4, made when escorts couldn't buy them) but crew, fuel and landers from the talker, so an escort asking hears the thrusters' and jets' advice by the flagship's count, whatever its own ship holds. Should the advice count the talker's own ship's thrusters and jets (and modules)?
 
 ## Decided, not built
 
@@ -44,7 +44,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review round 2 of the escorts' upgrades (the round 1 fixes' commit), fix what holds up, and repeat until a round finds nothing (`CLAUDE.md`); then report to the owner, with the two questions above. After that, with the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
+Review round 3 of the escorts' upgrades (round 2's fixes' commit), fix what holds up, and repeat until a round finds nothing (`CLAUDE.md`); then report to the owner, with the two questions above. After that, with the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
