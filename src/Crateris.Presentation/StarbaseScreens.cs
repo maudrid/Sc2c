@@ -288,9 +288,11 @@ public sealed class StarbaseScreens
             case ScreenOpKind.CrewPoint:
             {
                 // GetCPodCapacity's point for the crew member: the one just hired, or where the one sent away was.
+                // An escort's crew past its crew pods is its kit's, which has no seats on the picture: no point.
                 _c.SetContext(_c.Space);
                 int x = 0, y = 0;
-                CPodPoint(op.B, ref x, ref y);
+                if (!CPodPoint(op.B, ref x, ref y))
+                    break;
                 if (op.A != 1)
                     _c.SetForeground(Black);
                 _c.Point(x, y);
@@ -620,12 +622,16 @@ public sealed class StarbaseScreens
         for (int i = 0; i < NumModuleSlots; ++i)
             if (_s.Modules[i] == ShipModules.CrewPod)
                 ShipPiece(BlueprintSheet, _s.Modules[i], i, true);
-        // The crew, a point each (a point that doesn't fit stays where the last one was, as UQM's does).
+        // The crew, a point each (a point that doesn't fit stays where the last one was, as UQM's does). The crew
+        // fill the crew pods first; an escort's past them are its kit's, with no seats on the picture: with no
+        // pod, no point.
         int px = 0, py = 0;
+        bool seated = false;
         for (int n = 0; n < _s.Crew; ++n)
         {
-            CPodPoint(n, ref px, ref py);
-            _c.Point(px, py);
+            seated |= CPodPoint(n, ref px, ref py);
+            if (seated)
+                _c.Point(px, py);
         }
         // The minerals, a row of a bay for each SBAY_MASS_PER_ROW.
         var r = new URect(0, 0, 9, 1);
@@ -660,7 +666,7 @@ public sealed class StarbaseScreens
     }
 
     // sis.c's GetCPodCapacity for crew member `crew` (from 0): the point, and the colour set.
-    private void CPodPoint(int crew, ref int x, ref int y)
+    private bool CPodPoint(int crew, ref int x, ref int y)
     {
         for (int slot = NumModuleSlots - 1, capacity = 0; slot >= 0; --slot)
         {
@@ -671,10 +677,11 @@ public sealed class StarbaseScreens
                 _c.SetForeground(CrewColors[row]);
                 x = 27 + slot * ShipPieceOffset - col * 2;
                 y = 34 - row * 2;
-                return;
+                return true;
             }
             capacity += c;
         }
+        return false;
     }
 
     // sis.c's GetSBayCapacity for the mass aboard `mass`: the point, and the colour set.

@@ -69,7 +69,7 @@ Without `--id`, each machine makes up its own player id once and keeps it in the
 
 - **No UQM content:** no star names, ship art or sound.
 - **Hyperspace only:** no solar systems, QuasiSpace, encounters or autopilot. The flagship starts in hyperspace at Sol, rather than inside the Sol system as in UQM.
-- **Placeholder escort:** a guest's escort has the flagship's starting drives, one fuel tank and 10 fuel, until the escort module set is decided.
+- **Placeholder escort:** a guest's escort has the flagship's starting drives, one fuel tank and 10 fuel (its kit, a host setting; since stage 3a it buys more at the starbase, `docs/how-to-try/escort-upgrades.md`).
 - **Placeholder undocking scene:** a 2-second message.
 - **No pause or chat yet.**
 

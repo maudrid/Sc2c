@@ -45,8 +45,12 @@ public enum OutfitOutcome
 /// empty slot, select opens the modules that may go there (left and right
 /// to choose, only those for sale, weapons only at the front and back),
 /// and select buys one; on a full one, select sells it. An escort is
-/// offered only what it may buy (stage 4a item 8): its choice opens on the
-/// first, and on an empty drive or jet slot doesn't open.
+/// offered only what it may buy (stage 4a item 8): since the escorts'
+/// upgrades every module the flagship is but the high-efficiency fuel
+/// system, which its choice skips; so its choice opens where the
+/// flagship's does. One it holds as many of as it may
+/// (<see cref="Outfitting.AtEscortCap"/>) is still offered, and buying it
+/// is refused, as one too dear is.
 /// <para>
 /// It runs on the host, from the keys the player's client sends (each
 /// docked player has their own: <see cref="StarbaseMenu"/>); each purchase
@@ -165,7 +169,8 @@ public sealed class OutfitMenu
     /// Whether choosing a module for the slot the cursor is on offers this
     /// one (DoInstallModule's skip): for sale, a weapon only in a weapon
     /// slot (0 and 13 to 15), and for an escort only what it may hold
-    /// (<see cref="Outfitting.EscortMayHold"/>, stage 4a item 8).
+    /// (<see cref="Outfitting.EscortMayHold"/>, stage 4a item 8; not the
+    /// high-efficiency fuel system).
     /// </summary>
     private bool Offered(byte item) => _rules.Cost(item) != 0
         && !(ShipModules.IsWeapon(item) && Item > 0 && Item < 13)
@@ -311,21 +316,8 @@ public sealed class OutfitMenu
                     newPiece = (byte)(newPiece - (ShipModules.EmptySlot - 1));
                     if (newPiece > ShipModules.CrewPod)
                         newPiece = ShipModules.PlanetLander;
-                    // An escort is offered only what it may hold (stage 4a item 8): in the
-                    // modules' row the first of them on offer; in a row with none (the
-                    // drives, the jets), or with none on offer (only with prices UQM
-                    // never sets: the dynamo is always for sale), nothing, refused as
-                    // buying it would be.
-                    if (Escort && !Outfitting.EscortMayHold(newPiece))
-                    {
-                        if (row != SlotKind.Module)
-                            return OutfitOutcome.Refused;
-                        int first = Enumerable.Range(newPiece, ShipModules.PurchaseModules - newPiece)
-                            .FirstOrDefault(i => Offered((byte)i), -1);
-                        if (first < 0)
-                            return OutfitOutcome.Refused;
-                        newPiece = (byte)first;
-                    }
+                    // An escort's choice opens here too: it may hold the lander, the thruster, the jets and
+                    // the crew pod each row opens on (the escorts' upgrades).
                 }
                 if (acted)
                 {

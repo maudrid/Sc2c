@@ -34,8 +34,9 @@ public sealed record GameSettings
     /// <summary>
     /// A new guest's escort, its kit. Placeholder: the flagship's starting
     /// drives, one fuel tank, 10 fuel, 10 crew, and for landing one lander
-    /// and one storage bay (stage 2b, decision 6); it holds 10 crew at most
-    /// (stage 3, decision 10); and for battle a gun in the nose, as a new
+    /// and one storage bay (stage 2b, decision 6); it holds 10 crew of its
+    /// own (stage 3, decision 10; more with the crew pods it buys,
+    /// <see cref="EscortCaps"/>); and for battle a gun in the nose, as a new
     /// flagship has (stage 4, decision 3: <see cref="ShipLoadout.Guns"/>,
     /// in the weapon slots in UQM's firing order). An escort saved before
     /// it had guns (before save version 11) is given the default kit's on
@@ -43,6 +44,16 @@ public sealed record GameSettings
     /// </summary>
     public ShipLoadout EscortLoadout { get; init; } = new(Thrusters: 2, Jets: 2, FuelTanks: 1,
         HighEfficiencyTanks: 0, Crew: 10, Fuel: 1000, Landers: 1, StorageBays: 1, CrewCapacity: 10, Guns: 1);
+
+    /// <summary>
+    /// The most of the flagship's crew pods, fuel tanks, thrusters and
+    /// turning jets an escort may hold (the escorts' upgrades, the owner,
+    /// 2026-11-13: each capped below the flagship), its kit's counted:
+    /// outfitting sells it more only below these. Placeholders, to be tuned
+    /// in playtesting: thrusters 8, turning jets 6, fuel tanks 4, crew pods
+    /// 2. A save without them has these.
+    /// </summary>
+    public EscortCaps EscortCaps { get; init; } = new();
 
     /// <summary>
     /// A new guest's escort's name, until they rename it (stage 3, decision
@@ -92,4 +103,36 @@ public sealed record GameSettings
 
     /// <summary>The most <see cref="BattleMarkerReach"/> may be.</summary>
     public const int MostBattleMarkerReach = 64;
+}
+
+/// <summary>
+/// The most of each of the flagship's modules an escort may hold
+/// (<see cref="GameSettings.EscortCaps"/>): fusion thrusters (of 11 drive
+/// slots), turning jets (of 8 jet slots), fuel tanks and crew pods (of 16
+/// module slots). The kit's count toward them. An escort past one (the host
+/// lowered it) keeps what it has and may sell, but buys no more.
+/// </summary>
+public sealed record EscortCaps(int Thrusters = 8, int Jets = 6, int FuelTanks = 4, int CrewPods = 2)
+{
+    /// <summary>The most an escort may hold of a module; <see cref="int.MaxValue"/> for one not capped here.</summary>
+    public int For(byte piece) => piece switch
+    {
+        ShipModules.FusionThruster => Thrusters,
+        ShipModules.TurningJets => Jets,
+        ShipModules.FuelTank => FuelTanks,
+        ShipModules.CrewPod => CrewPods,
+        _ => int.MaxValue,
+    };
+
+    /// <summary>Refuses caps out of range: each from 0 to the slots its module goes in.</summary>
+    public void Check()
+    {
+        foreach (var (name, cap, slots) in new[]
+                 {
+                     ("thrusters", Thrusters, ShipModules.DriveSlotCount), ("turning jets", Jets, ShipModules.JetSlotCount),
+                     ("fuel tanks", FuelTanks, ShipModules.ModuleSlotCount), ("crew pods", CrewPods, ShipModules.ModuleSlotCount),
+                 })
+            if (cap < 0 || cap > slots)
+                throw new ArgumentOutOfRangeException(nameof(EscortCaps), $"an escort's most {name}, {cap}, isn't from 0 to {slots}");
+    }
 }

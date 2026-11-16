@@ -92,16 +92,18 @@ public sealed record ScrapShip(int Slot) : OutfitAction;
 /// wallet. A refused action changes nothing, as UQM refuses with
 /// MENU_SOUND_FAILURE.
 /// <para>
-/// Escorts (decision 10) buy fuel, crew and landers within their kit, and
-/// storage bays; and (stage 4, decision 3) the combat modules: guns,
-/// blasters and cannons (in the weapon slots, as the flagship's), tracking,
-/// point defence, dynamos and furnaces, at the flagship's prices, and sell
-/// them back as the flagship does (<see cref="EscortMayHold"/>). The rest
-/// of their modules are their kit's (its thrusters, jets, fuel tank and
-/// crew); the flagship keeps its unique ones: crew pods, fuel tanks and
-/// high-efficiency fuel systems, thrusters and jets, and the bomb's parts
-/// (which outfitting never sells). The crew bought counts for the whole
-/// group (decision 5): it raises the crew price for everyone.
+/// Escorts (decision 10) buy fuel and crew within what their modules hold,
+/// landers and storage bays; (stage 4, decision 3) the combat modules:
+/// guns, blasters and cannons (in the weapon slots, as the flagship's),
+/// tracking, point defence, dynamos and furnaces; and (the escorts'
+/// upgrades, docs/plans/escort-upgrades.md) crew pods, fuel tanks, fusion
+/// thrusters and turning jets, each up to a setting
+/// (<see cref="EscortCaps"/>, the kit's counted). All at the flagship's
+/// prices, and sold back as the flagship sells them, the kit's too
+/// (<see cref="EscortMayHold"/>). The flagship keeps its unique ones:
+/// high-efficiency fuel systems, and the bomb's parts (which outfitting
+/// never sells). The crew bought counts for the whole group (decision 5):
+/// it raises the crew price for everyone.
 /// </para>
 /// </summary>
 public sealed class Outfitting
@@ -113,13 +115,19 @@ public sealed class Outfitting
     /// <param name="story">The prices, the alliances.</param>
     /// <param name="fleet">The host's fleet, for the host (stage 4b, decision 3); null for a guest, who has none.</param>
     /// <param name="random">TFB_Random, for the captains' names of the ships built; needed with a fleet.</param>
-    public Outfitting(IOutfitShip ship, StoryState story, HostFleet? fleet = null, Func<uint>? random = null)
+    /// <param name="escortCaps">The most of the flagship's modules an escort may hold (the host's setting); the defaults if null.</param>
+    public Outfitting(IOutfitShip ship, StoryState story, HostFleet? fleet = null, Func<uint>? random = null,
+        EscortCaps? escortCaps = null)
     {
         Ship = ship;
         Story = story;
         Fleet = fleet;
         _random = random;
+        EscortCaps = escortCaps ?? new EscortCaps();
     }
+
+    /// <summary>The most crew pods, fuel tanks, thrusters and turning jets an escort may hold, its kit's counted.</summary>
+    public EscortCaps EscortCaps { get; }
 
     private readonly Func<uint>? _random;
 
@@ -219,14 +227,32 @@ public sealed class Outfitting
 
     /// <summary>
     /// What an escort may buy and sell (stage 3, decision 10; stage 4,
-    /// decision 3): landers, storage bays, and the combat modules (dynamos,
-    /// furnaces, guns, blasters, cannons, tracking, point defence). Not the
-    /// flagship's unique ones: crew pods, fuel tanks, high-efficiency fuel
-    /// systems, thrusters and jets (an escort's are its kit's), nor the
-    /// bomb's parts.
+    /// decision 3; the escorts' upgrades): landers, storage bays, the
+    /// combat modules (dynamos, furnaces, guns, blasters, cannons, tracking,
+    /// point defence), and crew pods, fuel tanks, fusion thrusters and
+    /// turning jets (buying these up to <see cref="EscortCaps"/>). Not the
+    /// flagship's unique ones: high-efficiency fuel systems, nor the bomb's
+    /// parts.
     /// </summary>
-    public static bool EscortMayHold(byte piece) => piece is ShipModules.PlanetLander or ShipModules.StorageBay
+    public static bool EscortMayHold(byte piece) => piece is ShipModules.PlanetLander or ShipModules.FusionThruster
+        or ShipModules.TurningJets or ShipModules.CrewPod or ShipModules.StorageBay or ShipModules.FuelTank
         or (>= ShipModules.DynamoUnit and <= ShipModules.AntimissileDefense);
+
+    /// <summary>How many of a module the ship holds now: thrusters and jets in their slots, the rest in the module slots (CountSISPieces).</summary>
+    public int Held(byte piece) => piece switch
+    {
+        ShipModules.PlanetLander => Ship.Landers,
+        ShipModules.FusionThruster => Ship.Modules.Thrusters,
+        ShipModules.TurningJets => Ship.Modules.Jets,
+        _ => Ship.Modules.Count(piece),
+    };
+
+    /// <summary>
+    /// Whether an escort holds as many of a module as it may (<see cref="EscortCaps"/>:
+    /// crew pods, fuel tanks, thrusters and jets; its kit's counted), so may
+    /// buy no more; never for a flagship, or for a module not capped.
+    /// </summary>
+    public bool AtEscortCap(byte piece) => Ship.Kind == ShipKind.Escort && Held(piece) >= EscortCaps.For(piece);
 
     /// <summary>
     /// Whether a module may go in a slot, as DoInstallModule's choices
@@ -234,13 +260,14 @@ public sealed class Outfitting
     /// (CREW_POD to ANTIMISSILE_DEFENSE) in a module slot, weapons only in
     /// the front and back slots (0 and 13 to 15); one that's for sale; not
     /// in the bomb's slots, and no landers, once the bomb is in. An
-    /// escort's only those it may hold (<see cref="EscortMayHold"/>).
+    /// escort's only those it may hold (<see cref="EscortMayHold"/>), and
+    /// not past its caps (<see cref="AtEscortCap"/>).
     /// </summary>
     public bool CanHold(SlotKind kind, int slot, byte piece)
     {
         if (slot < 0 || slot >= Slots(kind) || piece >= ShipModules.EmptySlot || Cost(piece) == 0)
             return false;
-        if (Ship.Kind == ShipKind.Escort && !EscortMayHold(piece))
+        if (Ship.Kind == ShipKind.Escort && (!EscortMayHold(piece) || AtEscortCap(piece)))
             return false;
         return kind switch
         {

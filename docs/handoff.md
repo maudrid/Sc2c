@@ -2,20 +2,22 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-16, stage 4b built and reviewed; the status panel's title fixed; the owner's answers on item 11's questions recorded.
+**Last updated:** 2026-11-16, the escorts' upgrades built, awaiting review.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
-- **Current plan:** `docs/plans/stage-4b.md`, stage 4b (every race's ship and the host's fleet), approved by the owner on 2026-11-13. Items 1 to 11 are built and reviewed; what each built and what its reviews found is in its Progress row. Stage 4a's plan, `docs/plans/stage-4.md`, is built; its decisions hold in 4b.
-- **Item 11 (docs)** (its Progress row): `docs/how-to-try/stage-4b.md` (every command in its shortcuts list run headless as written, its output quoted; four screenshots taken under Xvfb, `docs/screenshots/stage4b-*.png`), `differences.md` row 65 and rows 9, 13, 43 and 44, `design.md`, `porting-inventory.md`, `uqm-data.md`, `how-to-try/stage-3a.md`, `Options.cs`'s usage; `FleetWireTests.FiftyLimpetsOnOneShipFitASnapshotsBudget` measures item 9's watch note (50 limpets on one ship: 324 bytes).
+- **Current plan:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built, not yet reviewed; its readings of what the decision left open are in the plan, its try-out in `docs/how-to-try/escort-upgrades.md`.
+- **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (the title fix, 2026-11-16; `tests/topic-map.json` remade): all topics 2,144 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed at item 11's build (78 checks); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
+- **Last checks** (the escorts' upgrades, 2026-11-16; `tests/topic-map.json` remade): all topics 2,161 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed (78 checks); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
 
-None open beyond the decisions waiting on the owner below.
+- **The escorts' upgrades: review.** Built (`docs/plans/escort-upgrades.md`, its Progress row); its review rounds are next.
+
+The escorts' caps are placeholders to be set by playtesting (`design.md`'s open item).
 
 Smaller items left for later stages are notes under the items that own them in the plans (`stage-3.md` for 3b and 3c; `stage-4b.md`'s notes, Tanaka's Shofixti scout among them, for 3b).
 
@@ -33,13 +35,12 @@ None.
 
 ## Decided, not built
 
-- **Escorts' upgrades (the owner, 2026-11-13; timing left to us, 2026-11-16):** escorts may buy crew pods, fuel tanks, thrusters and turning jets, each capped below the flagship by a setting; the flagship keeps high-efficiency fuel systems and the bomb's parts (`design.md`'s open item, `differences.md` row 9). Outfitting (`Starbase/Outfitting.cs`) refuses them to escorts now. Planned as a small item of its own, next, before stage 3b's plan: it is small, touches only outfitting, and 3b doesn't depend on it. The caps start at the placeholders (thrusters 8, turning jets 6, fuel tanks 4, crew pods 2) as settings, to be tuned in playtesting. Needs the owner's go-ahead to start (one item per go-ahead).
 - **A shortcut for the Arilou's gift: not now (the owner, 2026-11-16).** No shortcut reaches the commander's bulletin (`--start-docked` marks every bulletin told; `--start-devices PORTAL_SPAWNER_DEVICE` sets `PORTAL_SPAWNER_ON_SHIP`, not the `PORTAL_SPAWNER` the bulletin reads); `FleetTests` checks it and the how-to-try says so.
 - **Backlog:** guests' alien hulls (`design.md`, "Backlog"), not to be built now.
 
 ## Next step
 
-Stage 4b is built and reviewed; the status panel's title no longer names a stage ("Attack on Crateris"), the owner's choice of 2026-11-16. Next, with the owner's go-ahead: the escorts' upgrades as a small item, then stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
+Review the escorts' upgrades (the commit that built them), fix what holds up, and repeat until a round finds nothing (`CLAUDE.md`); then report to the owner. After that, with the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

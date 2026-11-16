@@ -22,8 +22,9 @@ namespace Crateris.Core.Tests;
 /// content: the escort's kit's gun in the nose (a setting); outfitting
 /// selling escorts the combat modules (guns, blasters and cannons in the
 /// weapon slots, tracking, point defence, dynamos and furnaces) at the
-/// flagship's prices, and refusing them the flagship's unique ones (crew
-/// pods, fuel tanks, thrusters, jets, the bomb's parts); what they bought
+/// flagship's prices, and refusing them the flagship's unique ones (since
+/// the escorts' upgrades only the high-efficiency fuel system and the
+/// bomb's parts: <see cref="EscortUpgradeTests"/>); what they bought
 /// flown in battle; and escorts saved before they had guns (save versions
 /// up to 10) given the default kit's gun on load, in the first free weapon
 /// slot UQM fires from (15, 14, 13, then 0), unless they already have a
@@ -209,25 +210,13 @@ public class OutfittingTests
     [Fact]
     public void AnEscortIsRefusedTheFlagshipsUniqueModules()
     {
+        // Since the escorts' upgrades: the high-efficiency fuel system and the bomb's parts.
         var story = AllForSale();
         var ship = Ship(ShipKind.Escort);
         var rules = new Outfitting(ship, story);
-        var refused = new (SlotKind Kind, int Slot, byte Piece)[]
-        {
-            (SlotKind.Module, 2, ShipModules.CrewPod), (SlotKind.Module, 2, ShipModules.FuelTank),
-            (SlotKind.Module, 2, ShipModules.HighEfficiencyFuelSystem), (SlotKind.Drive, 0, ShipModules.FusionThruster),
-            (SlotKind.Jet, 1, ShipModules.TurningJets),
-        };
         int version = ship.Modules.Version;
-        foreach (var (kind, slot, piece) in refused)
-        {
-            Assert.False(rules.CanHold(kind, slot, piece), ShipModules.Names[piece]);
-            Assert.False(rules.Apply(new Install(kind, slot, piece)), ShipModules.Names[piece]);
-        }
-        // Nor sold back: its kit's fuel tank, thrusters and jets.
-        Assert.False(rules.Apply(new Remove(SlotKind.Module, 1)));
-        Assert.False(rules.Apply(new Remove(SlotKind.Drive, ship.Modules.DriveSlots.ToList().IndexOf(ShipModules.FusionThruster))));
-        Assert.False(rules.Apply(new Remove(SlotKind.Jet, ship.Modules.JetSlots.ToList().IndexOf(ShipModules.TurningJets))));
+        Assert.False(rules.CanHold(SlotKind.Module, 2, ShipModules.HighEfficiencyFuelSystem));
+        Assert.False(rules.Apply(new Install(SlotKind.Module, 2, ShipModules.HighEfficiencyFuelSystem)));
         Assert.Equal((version, 100000u), (ship.Modules.Version, ship.ResourceUnits));
         // The bomb's parts: never sold, to anyone.
         var flagship = new Outfitting(Ship(ShipKind.Flagship), story);
@@ -237,13 +226,13 @@ public class OutfittingTests
             Assert.False(rules.CanHold(SlotKind.Module, 3, bomb));
             Assert.False(flagship.CanHold(SlotKind.Module, 3, bomb));
         }
-        // Landers and storage bays as before; the flagship may buy every one refused here.
+        // Landers and storage bays as before; the flagship may buy the fuel system.
         Assert.True(rules.CanHold(SlotKind.Lander, 1, ShipModules.PlanetLander));
         Assert.True(rules.CanHold(SlotKind.Module, 2, ShipModules.StorageBay));
-        foreach (var (kind, slot, piece) in refused)
-            Assert.True(flagship.CanHold(kind, slot, piece), ShipModules.Names[piece]);
-        // Exactly these: landers, storage bays and the combat modules.
-        Assert.Equal(new[] { ShipModules.PlanetLander, ShipModules.StorageBay }.Concat(CombatModules).Order(),
+        Assert.True(flagship.CanHold(SlotKind.Module, 0, ShipModules.HighEfficiencyFuelSystem));
+        // Exactly these: landers, the thrusters, the jets, crew pods, storage bays, fuel tanks and the combat modules.
+        Assert.Equal(new[] { ShipModules.PlanetLander, ShipModules.FusionThruster, ShipModules.TurningJets, ShipModules.CrewPod,
+                ShipModules.StorageBay, ShipModules.FuelTank }.Concat(CombatModules).Order(),
             Enumerable.Range(0, ShipModules.Modules).Select(i => (byte)i).Where(Outfitting.EscortMayHold));
     }
 
@@ -403,15 +392,16 @@ public class OutfittingTests
     public void TheMenuOffersAnEscortOnlyWhatItMayBuy()
     {
         var story = AllForSale();
-        // In a weapon slot (0) the escort is offered the storage bay first, then the combat modules; never a crew pod or a tank.
+        // In a weapon slot (0) the escort is offered the crew pod first, as the flagship, then all but the
+        // high-efficiency fuel system (the escorts' upgrades).
         var first = InModules(Ship(ShipKind.Escort), story, 0);
         first.TakeOps();
-        Assert.Equal(new[] { ShipModules.StorageBay }.Concat(CombatModules), Offers(first));
-        Assert.Equal(new ScreenOp(ScreenOpKind.ModuleStrings, ShipModules.StorageBay), first.TakeOps()[0]);   // the radar shows it
+        Assert.Equal(new[] { ShipModules.CrewPod, ShipModules.StorageBay, ShipModules.FuelTank }.Concat(CombatModules), Offers(first));
+        Assert.Equal(new ScreenOp(ScreenOpKind.ModuleStrings, ShipModules.CrewPod), first.TakeOps()[0]);   // the radar shows it
         // Elsewhere (slot 2), no weapons; going left round too.
         var menu = InModules(Ship(ShipKind.Escort), story, 2);
-        Assert.Equal(new[] { ShipModules.StorageBay, ShipModules.DynamoUnit, ShipModules.ShivaFurnace,
-            ShipModules.TrackingSystem, ShipModules.AntimissileDefense }, Offers(menu));
+        Assert.Equal(new[] { ShipModules.CrewPod, ShipModules.StorageBay, ShipModules.FuelTank, ShipModules.DynamoUnit,
+            ShipModules.ShivaFurnace, ShipModules.TrackingSystem, ShipModules.AntimissileDefense }, Offers(menu));
         menu.Key(MenuKey.Select);
         menu.Key(MenuKey.Left);
         Assert.Equal(ShipModules.AntimissileDefense, menu.State);
@@ -420,9 +410,10 @@ public class OutfittingTests
         menu.Key(MenuKey.Left);
         Assert.Equal(ShipModules.ShivaFurnace, menu.State);
         Assert.Equal(OutfitOutcome.Acted, menu.Key(MenuKey.Select));
-        // Before the Melnorme: the storage bay, the dynamo and the gun.
+        // Before the Melnorme: the crew pod, the storage bay, the fuel tank, the dynamo and the gun.
         var newGame = StoryState.NewGame(Rules, new GameClock(2155, 3, 4));
-        Assert.Equal(new[] { ShipModules.StorageBay, ShipModules.DynamoUnit, ShipModules.GunWeapon },
+        Assert.Equal(new[] { ShipModules.CrewPod, ShipModules.StorageBay, ShipModules.FuelTank, ShipModules.DynamoUnit,
+                ShipModules.GunWeapon },
             Offers(InModules(Ship(ShipKind.Escort), newGame, 0)));
         // The flagship is offered every module for sale, from the crew pod, as UQM's.
         Assert.Equal(new[] { ShipModules.CrewPod, ShipModules.StorageBay, ShipModules.FuelTank, ShipModules.HighEfficiencyFuelSystem }
@@ -431,8 +422,9 @@ public class OutfittingTests
     }
 
     [Fact]
-    public void TheMenuOpensNoChoiceForAnEscortOnAnEmptyDriveOrJetSlot()
+    public void TheMenuOpensAnEscortsChoiceOnAnEmptyDriveOrJetSlotAsTheFlagships()
     {
+        // Since the escorts' upgrades an escort may buy thrusters and jets: its choice opens as the flagship's.
         foreach (var kind in new[] { ShipKind.Escort, ShipKind.Flagship })
         {
             var ship = Ship(kind);
@@ -441,27 +433,14 @@ public class OutfittingTests
             Assert.Equal(ShipModules.EmptyJet, menu.State);
             menu.Key(MenuKey.Right);                  // slot 1: empty
             Assert.Equal(ShipModules.EmptyJet, ship.Modules.JetSlots[1]);
-            menu.TakeOps();
-            var outcome = menu.Key(MenuKey.Select);
-            if (kind == ShipKind.Escort)
-            {
-                Assert.Equal((OutfitOutcome.Refused, false, ShipModules.EmptyJet), (outcome, menu.Choosing, menu.State));
-                Assert.Empty(menu.TakeOps());
-            }
-            else
-            {
-                Assert.Equal((OutfitOutcome.None, true, ShipModules.TurningJets), (outcome, menu.Choosing, menu.State));
-                menu.Key(MenuKey.Cancel);
-            }
+            Assert.Equal((OutfitOutcome.None, true, ShipModules.TurningJets), (menu.Key(MenuKey.Select), menu.Choosing, menu.State));
+            menu.Key(MenuKey.Cancel);
             menu.Key(MenuKey.Up);                     // the drives
             Assert.Equal(ShipModules.EmptyDrive, menu.State);
             Assert.Equal(ShipModules.EmptyDrive, ship.Modules.DriveSlots[0]);
-            menu.TakeOps();
-            Assert.Equal(kind == ShipKind.Escort ? OutfitOutcome.Refused : OutfitOutcome.None, menu.Key(MenuKey.Select));
-            if (kind == ShipKind.Escort)
-                Assert.Equal((false, ShipModules.EmptyDrive, 0, 0), (menu.Choosing, menu.State, menu.Item, menu.TakeOps().Count));
-            if (kind == ShipKind.Flagship)
-                menu.Key(MenuKey.Cancel);
+            Assert.Equal((OutfitOutcome.None, true, ShipModules.FusionThruster), (menu.Key(MenuKey.Select), menu.Choosing, menu.State));
+            Assert.Equal(OutfitOutcome.Acted, menu.Key(MenuKey.Select));
+            Assert.Equal(ShipModules.FusionThruster, ship.Modules.DriveSlots[0]);
             // Landers: both may choose one.
             menu.Key(MenuKey.Up);
             Assert.Equal(ShipModules.EmptyLander, menu.State);
@@ -472,21 +451,19 @@ public class OutfittingTests
     }
 
     [Fact]
-    public void TheMenuOpensNoChoiceForAnEscortWithNothingOnOffer()
+    public void TheMenuOpensAnEscortsChoiceOnTheCrewPodAsTheFlagships()
     {
-        // Prices UQM never sets (the storage bay, the dynamo and the gun off sale): nothing for an escort in slot 2.
+        // Prices UQM never sets (the storage bay, the dynamo and the gun off sale): the escort's choice opens on the
+        // crew pod, as the flagship's (before the escorts' upgrades it had nothing on offer and didn't open).
         var story = StoryState.NewGame(Rules, new GameClock(2155, 3, 4));
         foreach (var module in new[] { "STORAGE_BAY", "DYNAMO_UNIT", "GUN_WEAPON" })
             story.SetModuleCost(module, 0);
-        var menu = InModules(Ship(ShipKind.Escort), story, 2);
-        menu.TakeOps();
-        Assert.Equal(OutfitOutcome.Refused, menu.Key(MenuKey.Select));
-        Assert.Equal((false, ShipModules.EmptyModule, 2), (menu.Choosing, menu.State, menu.Item));
-        Assert.Empty(menu.TakeOps());
-        // The flagship's opens on the crew pod, as UQM's.
-        var flagship = InModules(Ship(ShipKind.Flagship), story, 3);
-        Assert.Equal(OutfitOutcome.None, flagship.Key(MenuKey.Select));
-        Assert.Equal((true, ShipModules.CrewPod), (flagship.Choosing, flagship.State));
+        foreach (var kind in new[] { ShipKind.Escort, ShipKind.Flagship })
+        {
+            var menu = InModules(Ship(kind), story, 3);
+            Assert.Equal(OutfitOutcome.None, menu.Key(MenuKey.Select));
+            Assert.Equal((true, ShipModules.CrewPod), (menu.Choosing, menu.State));
+        }
     }
 
     [Fact]

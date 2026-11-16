@@ -35,9 +35,9 @@ public class StarbaseTests
 
     // An allied game: the host (and a guest) by the starbase in Earth's
     // inner system, the starbase ready long since.
-    private static GameWorld Allied(bool guest = false)
+    private static GameWorld Allied(bool guest = false, GameSettings? settings = null)
     {
-        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host",
+        var world = GameWorld.NewGame(settings ?? new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host",
             Systems, TestContent.Shapes);
         world.TalkLibrary = Library.Value;
         world.DialogueLocks = DialogueLocks.Load(DataDir);
@@ -254,30 +254,57 @@ public class StarbaseTests
     }
 
     [ContentFact]
-    public void AnEscortBuysOnlyFuelCrewLandersStorageBaysAndCombatModules()
+    public void AnEscortBuysFuelCrewLandersStorageBaysCombatModulesAndItsUpgrades()
     {
         var world = Allied(guest: true);
         var guest = Docked(world, "guest");
         guest.Ship.Hold.ResourceUnits = 100000;
         var slot = guest.Ship.Modules.ModuleSlots.ToList().IndexOf(ShipModules.EmptyModule);
-        Assert.False(world.Outfit("guest", new Install(SlotKind.Module, slot, ShipModules.CrewPod)));
-        Assert.False(world.Outfit("guest", new Install(SlotKind.Drive, 0, ShipModules.FusionThruster)));
         Assert.True(world.Outfit("guest", new Install(SlotKind.Module, slot, ShipModules.StorageBay)));
         Assert.Equal(1000, guest.Ship.Hold.StorageCapacity);
         Assert.True(world.Outfit("guest", new Install(SlotKind.Lander, 1, ShipModules.PlanetLander)));
-        Assert.False(world.Outfit("guest", new Remove(SlotKind.Module, guest.Ship.Modules.ModuleSlots.ToList().IndexOf(ShipModules.FuelTank))));
         Assert.True(world.Outfit("guest", new Remove(SlotKind.Module, slot)));
         // The combat modules for sale (stage 4a item 8): a gun in a weapon slot, a dynamo anywhere; sent with the ship.
         Assert.False(world.Outfit("guest", new Install(SlotKind.Module, 5, ShipModules.GunWeapon)));
         Assert.True(world.Outfit("guest", new Install(SlotKind.Module, 14, ShipModules.GunWeapon)));
         Assert.True(world.Outfit("guest", new Install(SlotKind.Module, 5, ShipModules.DynamoUnit)));
         Assert.Equal(100000u - 750 - 500 + 750 - 2000 - 2000, guest.Ship.Hold.ResourceUnits);
+        // The escorts' upgrades: a crew pod (2,000) and a thruster (500), the ship refitted: 60 crew, three thrusters in flight.
+        Assert.True(world.Outfit("guest", new Install(SlotKind.Module, 6, ShipModules.CrewPod)));
+        Assert.True(world.Outfit("guest", new Install(SlotKind.Drive, 0, ShipModules.FusionThruster)));
+        Assert.Equal((60, 3), (guest.Ship.Hold.CrewCapacity, guest.Ship.Modules.Thrusters));
+        Assert.Equal(ShipDrive.ForHyperspace(3, 2), guest.Ship.Flight.Drive);
+        Assert.Equal(100000u - 4500 - 2500, guest.Ship.Hold.ResourceUnits);
         Assert.Equal(guest.Ship.Modules.Save(), world.Snapshot().Ships.Single(s => s.Id == "guest").Modules);
-        // A flagship may buy them all.
+        // Not the flagship's high-efficiency fuel system; the flagship may buy it.
+        world.Story!.SetModuleCost("HIGHEFF_FUELSYS", 20);
+        Assert.False(world.Outfit("guest", new Install(SlotKind.Module, 7, ShipModules.HighEfficiencyFuelSystem)));
         Docked(world);
         world.Host.Ship.Hold.ResourceUnits = 100000;
-        Assert.True(world.Outfit("host", new Install(SlotKind.Module, 0, ShipModules.CrewPod)));
-        Assert.Equal(100, world.Host.Ship.Hold.CrewCapacity);
+        Assert.True(world.Outfit("host", new Install(SlotKind.Module, 0, ShipModules.HighEfficiencyFuelSystem)));
+    }
+
+    [ContentFact]
+    public void AnEscortsCapsAreTheHostsSettings()
+    {
+        // The host's caps (a setting): one crew pod and three thrusters, the kit's two counted.
+        var world = Allied(guest: true, new GameSettings { EscortCaps = new EscortCaps(Thrusters: 3, CrewPods: 1) });
+        var guest = Docked(world, "guest");
+        guest.Ship.Hold.ResourceUnits = 100000;
+        Assert.True(world.Outfit("guest", new Install(SlotKind.Drive, 0, ShipModules.FusionThruster)));
+        Assert.False(world.Outfit("guest", new Install(SlotKind.Drive, 1, ShipModules.FusionThruster)));
+        Assert.True(world.Outfit("guest", new Install(SlotKind.Module, 2, ShipModules.CrewPod)));
+        Assert.False(world.Outfit("guest", new Install(SlotKind.Module, 3, ShipModules.CrewPod)));
+        // Through the menu's keys too: Modules, up to the drives, right to slot 1, Enter opens the choice, Enter is refused.
+        Keys(world, "guest", MenuKey.Down, MenuKey.Select, MenuKey.Down, MenuKey.Select, MenuKey.Up, MenuKey.Up, MenuKey.Right);
+        Assert.Equal(ShipModules.EmptyDrive, guest.Ship.Modules.DriveSlots[1]);
+        Keys(world, "guest", MenuKey.Select);
+        int refusals = world.StarbaseFor("guest")!.Refusals;
+        Keys(world, "guest", MenuKey.Select);
+        Assert.Equal(refusals + 1, world.StarbaseFor("guest")!.Refusals);
+        Assert.Equal((3, 100000u - 500 - 2000), (guest.Ship.Modules.Thrusters, guest.Ship.Hold.ResourceUnits));
+        // Saved and loaded with the game.
+        Assert.Equal(new EscortCaps(Thrusters: 3, CrewPods: 1), HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Settings.EscortCaps);
     }
 
     [ContentFact]

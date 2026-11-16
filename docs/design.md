@@ -66,7 +66,7 @@ Every rule below is decided. Values still to set are listed under Open items and
 | Pausing | Only the host can pause | Pause freezes combat for everyone |
 | Ships | Host flies the flagship; others captain escorts | Escorts need their own landers, fuel and cargo |
 | Escort abilities | Full: land, mine, talk to aliens | Escorts are effectively small flagships |
-| Escort upgrades | Smaller module list at the starbase | Flagship keeps its unique upgrades |
+| Escort upgrades | Smaller module list at the starbase: the flagship's but the high-efficiency fuel system and the bomb's parts, with crew pods, fuel tanks, thrusters and turning jets each capped below the flagship by a host setting | Flagship keeps its unique upgrades. Built (`docs/plans/escort-upgrades.md`); the caps are placeholders (thrusters 8, turning jets 6, fuel tanks 4, crew pods 2) |
 | Host's fleet | Stays as in the original: the allied races' ships UQM calls escorts, the host's only, built, crewed and scrapped by the host at the shipyard | The host flies them as UQM's player does: in a battle the host chooses which ship to send, a fleet ship or the flagship, and the next when it dies or retreats, the flagship the last choice (stage 4b, decision 1). Guests fly their own ships |
 | Key story items | Shared group inventory | Plot checks look at the group, not one ship |
 | Resource units | Separate wallets, transfers allowed | |
@@ -235,7 +235,8 @@ Bugs found in play go back to the code session with the error text, a screenshot
 - [x] Decide whether a rescuer must keep more than 1 crew: no, 1 is enough
 - [x] Decide whether cargo can be traded between players: yes, within the same solar system
 - [ ] Decide who can use group devices (portal spawner, Sun device and others) and whether the group must be present (deferred)
-- [ ] List the escort module set. Its combat part is decided (stage 4, decision 3; built in stage 4a): escorts fight with the flagship's battle code and their own modules, their kit has a gun in the nose (a setting), and at the starbase they may buy the gun, blaster, cannon, tracking, point defence, dynamo and furnace at the flagship's prices, besides landers and storage bays; the flagship keeps its unique ones (crew pods, fuel tanks, high-efficiency fuel systems, thrusters, turning jets and the bomb's parts). Decided 2026-11-13, not built yet: escorts may also buy crew pods, fuel tanks, thrusters and turning jets, each capped below the flagship by a setting; the flagship then keeps only high-efficiency fuel systems and the bomb's parts. Still open: the caps' numbers, set by playtesting
+- [x] List the escort module set: escorts fight with the flagship's battle code and their own modules, their kit has a gun in the nose (a setting), and at the starbase they may buy every module the flagship may but the high-efficiency fuel system and the bomb's parts, at the flagship's prices and by its rules: landers, storage bays, the combat modules (stage 4, decision 3; built in stage 4a), and crew pods, fuel tanks, thrusters and turning jets, each capped below the flagship by a host setting (decided 2026-11-13; built, `docs/plans/escort-upgrades.md`)
+- [ ] Set the escorts' caps (`GameSettings.EscortCaps`; placeholders thrusters 8, turning jets 6, fuel tanks 4, crew pods 2) by playtesting
 - [x] Mark which conversations and events count as story (pause for all): each conversation's rule is in `src/Crateris.Core/Comm/TalkRules.cs` (stage 3, decision 6); 3b and 3c add theirs, and the events' with them
 - [ ] Draft the server data model and message protocol
 - [ ] Contact the UQM community before going public

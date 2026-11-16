@@ -54,7 +54,8 @@ public static class HostSave
     /// decision 14): a ship in one is saved as it joined it, where it
     /// joined it, and a loaded game has none (stage 4a item 6; the battle
     /// settings, Settings.BattleArenaScale and the like, take their
-    /// defaults in a save without them). 10 added wrecks
+    /// defaults in a save without them, as the escorts' caps,
+    /// Settings.EscortCaps, do since the escorts' upgrades: no new version). 10 added wrecks
     /// (PlayerState.Wrecked, stage 4a item 7): a ship destroyed in a
     /// battle, over or still running, is saved as a wreck at the battle's
     /// place (decision 14) with no crew, its hold and fuel otherwise as it
@@ -277,6 +278,8 @@ public static class HostSave
             settings = settings with { EscortShipName = new GameSettings().EscortShipName };
         if (settings.EscortLoadout is null)
             settings = settings with { EscortLoadout = new GameSettings().EscortLoadout };
+        if (settings.EscortCaps is null)
+            settings = settings with { EscortCaps = new GameSettings().EscortCaps };
         if (save.Version < 8 && settings.EscortLoadout is { } kit)
             settings = settings with { EscortLoadout = kit with { CrewCapacity = new GameSettings().EscortLoadout.CrewCapacity } };
         // Before version 11 the kit had no guns: it has the default's, as
@@ -295,6 +298,14 @@ public static class HostSave
         catch (ArgumentOutOfRangeException e)
         {
             throw new InvalidDataException($"Bad settings: battle: {e.Message}", e);
+        }
+        try
+        {
+            settings.EscortCaps.Check();
+        }
+        catch (ArgumentOutOfRangeException e)
+        {
+            throw new InvalidDataException($"Bad settings: escort caps: {e.Message}", e);
         }
         GameWorld world;
         try

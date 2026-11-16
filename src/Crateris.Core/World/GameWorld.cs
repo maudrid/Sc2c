@@ -246,6 +246,7 @@ public sealed partial class GameWorld
             throw new ArgumentOutOfRangeException(nameof(settings), e.Message);
         }
         settings.CheckBattle();
+        (settings.EscortCaps ?? throw new ArgumentNullException(nameof(settings), "no escort caps")).Check();
         Settings = settings;
         Clock = clock;
         Frame = frame;
@@ -817,7 +818,7 @@ public sealed partial class GameWorld
 
     // A player's outfitting and shipyard rules: their own ship, and for the host the fleet (stage 4b, decision 3).
     private Starbase.Outfitting OutfittingFor(Player player) =>
-        new(new OutfitShip(player.Ship), Story!, player.IsHost ? Fleet : null, FleetRandom);
+        new(new OutfitShip(player.Ship), Story!, player.IsHost ? Fleet : null, FleetRandom, Settings.EscortCaps);
 
     /// <summary>
     /// A docked player's key on their starbase screen (DoStarBase, DoOutfit,
@@ -854,7 +855,7 @@ public sealed partial class GameWorld
                                 m.Screen = Starbase.StarbaseScreen.Talk;
                             break;
                         case Starbase.StarbaseMenu.OutfitStarship:
-                            m.Outfit = new Starbase.OutfitMenu(new Starbase.Outfitting(new OutfitShip(player.Ship), Story),
+                            m.Outfit = new Starbase.OutfitMenu(new Starbase.Outfitting(new OutfitShip(player.Ship), Story, escortCaps: Settings.EscortCaps),
                                 a => Outfit(id, a));
                             m.Screen = Starbase.StarbaseScreen.Outfit;
                             m.Outfit.Open();
