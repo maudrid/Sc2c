@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-16, the escorts' upgrades built, review rounds 1 and 2's findings fixed; two questions for the owner.
+**Last updated:** 2026-11-16, the escorts' upgrades built, review rounds 1 to 4's findings fixed (only round 1's touched code); two questions for the owner.
 
 ## Where things are
 
@@ -10,12 +10,12 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Current plan:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and in review; its readings of what the decision left open are in the plan, its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (the escorts' upgrades, review round 1's fixes, 2026-11-16; `tests/topic-map.json` remade): all topics 2,162 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed at the build (78 checks; no wire or session change since); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
+- **Last checks** (the escorts' upgrades, review round 1's fixes, 2026-11-16; rounds 2 to 4 docs only; `tests/topic-map.json` remade): all topics 2,162 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed at the build (78 checks; no wire or session change since); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
 
-- **The escorts' upgrades: review.** Built (`docs/plans/escort-upgrades.md`, its Progress row); rounds 1 and 2 found no correctness bugs; their doc and range fixes are in; round 3 is next.
+- **The escorts' upgrades: review.** Built (`docs/plans/escort-upgrades.md`, its Progress row); no round found a correctness bug; round 1's range fix and every round's doc fixes are in; the review of the latest fix commit is next.
 
 The escorts' caps are placeholders to be set by playtesting (`design.md`'s open item).
 
@@ -44,7 +44,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review round 3 of the escorts' upgrades (round 2's fixes' commit), fix what holds up, and repeat until a round finds nothing (`CLAUDE.md`); then report to the owner, with the two questions above. After that, with the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
+Review the escorts' upgrades' latest fix commit, fix what holds up, and repeat until a round finds nothing (`CLAUDE.md`); then report to the owner, with the two questions above. After that, with the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
