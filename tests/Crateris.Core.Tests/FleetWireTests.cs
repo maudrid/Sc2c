@@ -384,12 +384,15 @@ public class FleetWireTests
         // What they add to the snapshot a player in the battle is sent (whole, as each battle frame is: BattleCodec).
         var snapshot = world.Snapshot();
         var battle = snapshot.Battles!.Single();
+        // Every limpet showing is in it.
+        Assert.Equal(wb.Enemy.Silhouette.Shown.Count, battle.Enemy.Marks!.Count);
         var bare = snapshot with { Battles = new[] { battle with { Enemy = battle.Enemy with { Marks = null } } } };
         var w = new WireWriter();
         SnapshotCodec.Encode(w, bare, null, "g1");
         int without = w.Length;
         SnapshotCodec.Encode(w, snapshot, null, "g1");
         int marks = w.Length - without;
+        Assert.True(w.Length < 1500, $"the snapshot with {battle.Enemy.Marks.Count} limpets is {w.Length} bytes");
         // About 7 bytes a limpet: with the network test's busiest battle snapshot (633 bytes over the lossy relay),
         // well under its 1,500-byte budget.
         Assert.True(marks < 400, $"{wb.Enemy.Silhouette.Shown.Count} limpets cost {marks} bytes");
