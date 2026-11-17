@@ -28,12 +28,30 @@ public sealed record InitialEvent(string Event, bool Relative, int Months, int D
 public sealed record RaceShip(string Race, string Ship, int Cost, int Crew, int MaxCrew);
 
 /// <summary>
+/// A race's fleet as the data gives it: its sphere as a new game starts it
+/// (its ship's FLEET_STUFF in data/ships.json: the strength, and the
+/// centre, known_loc, which InitGameStructures makes the fleet's loc and
+/// known_loc; the Yehat rebels' is the Yehat's, the drone's the probe's),
+/// and races.h's tables of it (data/races.json): the daily chance in 100
+/// of a group in hyperspace inside the sphere (RACE_HYPERSPACE_PERCENT)
+/// and in a system at its centre (RACE_INTERPLANETARY_PERCENT), how many
+/// ships a group has (RACE_ENCOUNTER_MAKEUP: <see cref="MakeupMin"/>, then
+/// each to <see cref="MakeupMax"/> at 50%), its groups' speed in
+/// hyperspace (RACE_HYPER_SPEED, a velocity) and its sphere's colour on
+/// the starmap (RACE_COLORS). The makeup, speed and colour aren't given
+/// for the drone (UQM's tables stop before it): 0, 0, 0 and null.
+/// </summary>
+public sealed record RaceFleetRules(string Race, int Strength, int HomeX, int HomeY,
+    int HyperspacePercent, int InterplanetaryPercent, int MakeupMin, int MakeupMax, int HyperSpeed, Data.Rgba? Color);
+
+/// <summary>
 /// What the story state is made from, all from data/: the game-state
 /// fields (game-state.json), a new game's prices and events
 /// (new-game.json), the races in avail_race_q's order (races.json), the
-/// event ids (events.json), the modules (modules.json) and
-/// CREW_EXPENSE_THRESHOLD (constants.json), the devices (devices.json),
-/// and each race's ship (races.json and ships.json: <see cref="RaceShips"/>).
+/// event ids (events.json), the modules (modules.json),
+/// CREW_EXPENSE_THRESHOLD and the fleets' sphere constants (constants.json),
+/// the devices (devices.json), and each race's ship and fleet (races.json
+/// and ships.json: <see cref="RaceShips"/>, <see cref="Fleets"/>).
 /// </summary>
 public sealed class StoryRules
 {
@@ -76,6 +94,22 @@ public sealed class StoryRules
 
     /// <summary>A race's ship, by its race (ARILOU_SHIP, ...).</summary>
     public RaceShip RaceShip(string race) => RaceShips[RaceIndex(race)];
+
+    /// <summary>
+    /// Each race's fleet as the data gives it, in <see cref="Races"/>'
+    /// order (data/races.json and data/ships.json; none if the rules are
+    /// made otherwise, and then every race starts with no sphere).
+    /// </summary>
+    public IReadOnlyList<RaceFleetRules> Fleets { get; init; } = Array.Empty<RaceFleetRules>();
+
+    /// <summary>SPHERE_RADIUS_INCREMENT: a sphere's radius in universe units for each step of a fleet's strength.</summary>
+    public int SphereRadiusIncrement { get; init; } = 11;
+
+    /// <summary>MAX_FLEET_STRENGTH: the most a fleet grows to (254 steps).</summary>
+    public int MaxFleetStrength { get; init; } = 254 * 11;
+
+    /// <summary>INFINITE_RADIUS: the strength of a race met anywhere (the Slylandro, the Melnorme), whose fleet doesn't grow.</summary>
+    public int InfiniteRadius { get; init; } = ushort.MaxValue;
 
     /// <summary>
     /// The race a ship (data/ships.json's id) is of, a race that can have
@@ -140,6 +174,9 @@ public sealed class StoryRules
                 e.GetProperty(p("years", "year")).GetInt32());
         }).ToList();
 
+        var shipDescriptions = Combat.ShipDescriptions.Load(dataDirectory);
+        var raceShips = LoadRaceShips(races.RootElement, shipDescriptions);
+        int Constant(string name) => constants.RootElement.GetProperty("constants").GetProperty(name).GetProperty("value").GetInt32();
         return new StoryRules(
             GameStateTable.Load(dataDirectory),
             prices.GetProperty("crew").GetInt32(), prices.GetProperty("fuel").GetInt32(),
@@ -152,8 +189,41 @@ public sealed class StoryRules
             constants.RootElement.GetProperty("constants").GetProperty("CREW_EXPENSE_THRESHOLD").GetProperty("value").GetInt32())
         {
             Devices = DeviceTable.Load(dataDirectory),
-            RaceShips = LoadRaceShips(races.RootElement, Combat.ShipDescriptions.Load(dataDirectory)),
+            RaceShips = raceShips,
+            Fleets = LoadFleets(races.RootElement, raceShips, shipDescriptions),
+            SphereRadiusIncrement = Constant("SPHERE_RADIUS_INCREMENT"),
+            MaxFleetStrength = Constant("MAX_FLEET_STRENGTH"),
+            InfiniteRadius = Constant("INFINITE_RADIUS"),
         };
+    }
+
+    // Each race's fleet: its ship's sphere (RaceShips' ship, as InitGameStructures
+    // copies it from the master ship list, or the probe's from load_ship) and races.h's tables.
+    private static List<RaceFleetRules> LoadFleets(JsonElement races, IReadOnlyList<RaceShip> raceShips,
+        Combat.ShipDescriptions ships)
+    {
+        var list = new List<RaceFleetRules>();
+        int i = 0;
+        foreach (var r in races.GetProperty("races").EnumerateArray())
+        {
+            string race = r.GetProperty("race").GetString()!;
+            var fleet = ships[raceShips[i++].Ship].Fleet;
+            int Int(string name) => r.TryGetProperty(name, out var v) ? v.GetInt32() : 0;
+            var makeup = r.TryGetProperty("encounter_makeup", out var m) ? m : (JsonElement?)null;
+            Data.Rgba? color = null;
+            if (r.TryGetProperty("color", out var c))
+            {
+                var rgba = c.EnumerateArray().Select(x => x.GetByte()).ToArray();
+                if (rgba.Length != 4)
+                    throw new InvalidDataException($"races.json: {race}'s colour isn't [r, g, b, a]");
+                color = new Data.Rgba(rgba[0], rgba[1], rgba[2], rgba[3]);
+            }
+            list.Add(new RaceFleetRules(race, fleet.Strength, fleet.HomeX, fleet.HomeY,
+                Int("hyperspace_percent"), Int("interplanetary_percent"),
+                makeup?.GetProperty("min").GetInt32() ?? 0, makeup?.GetProperty("max").GetInt32() ?? 0,
+                Int("hyper_speed"), color));
+        }
+        return list;
     }
 
     // Each race's ship: the ship whose species is the race's (BattleKit.RaceOf), the Yehat rebels' the Yehat's,

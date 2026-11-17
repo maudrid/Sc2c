@@ -240,6 +240,9 @@ public class OpeningTests
 
         Say(world, "comandr", "base_was_abandoned");
         Assert.Equal(VisitStep.Ilwrath, visit.Step);       // HERE_COMES_ILWRATH
+        // InitCommunication: their sphere known from their talk on (StartSphereTracking).
+        Assert.Equal((1, 48, 1700), (story.Fleet("ILWRATH_SHIP").KnownStrength, story.Fleet("ILWRATH_SHIP").KnownLocX,
+            story.Fleet("ILWRATH_SHIP").KnownLocY));
         Say(world, "ilwrath", "surrender");
         Assert.Equal(Segue.Hostile, visit.Talks[1].Segue);  // without the battle's content its battle counts as won
         Assert.Equal(VisitStep.Alliance, visit.Step);
@@ -661,6 +664,70 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void LeavingAsTheStarbaseIsReadyTakesBackWhatTheTwoWeeksDidToTheFleets()
+    {
+        var world = WithTalks();
+        var story = world.Story!;
+        // Fleets as 3c's events leave them: the Spathi losing 50 a day
+        // (gone on the fourth), the Ur-Quan heading for (5000, 5000), the
+        // Ilwrath arriving in a week and running the ramp-up there.
+        story.SetFleet("SPATHI_SHIP", story.Fleet("SPATHI_SHIP") with { Growth = 206 });
+        story.SetRaceDest("URQUAN_SHIP", 5000, 5000, 20, null);
+        story.SetRaceDest("ILWRATH_SHIP", 2500, 8070, 7, "SLYLANDRO_RAMP_UP");
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        var fleets = story.Fleets.ToList();
+        var alliances = story.Alliances.ToList();
+        world.VisitStarbase(world.Host);
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
+        Assert.Equal((0, Allied.Dead), (story.Fleet("SPATHI_SHIP").ActualStrength, story.Alliance("SPATHI_SHIP")));
+        Assert.Equal((2500, 8070), (story.Fleet("ILWRATH_SHIP").LocX, story.Fleet("ILWRATH_SHIP").LocY));
+        Assert.Equal(6, story.Fleet("URQUAN_SHIP").DaysLeft);
+        Assert.Equal(2, story.Get("SLYLANDRO_MULTIPLIER"));
+        var after = story.Fleets.ToList();
+        // A save made now is without the two weeks: the fleets and standings as before them.
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(fleets, saved.Story!.Fleets);
+        Assert.Equal(alliances, saved.Story.Alliances);
+        Assert.Equal(1, saved.Story.Get("SLYLANDRO_MULTIPLIER"));
+        // Taken back with them.
+        world.Leave("host");
+        Assert.Equal(fleets, story.Fleets);
+        Assert.Equal(alliances, story.Alliances);
+        Assert.Equal(1, story.Get("SLYLANDRO_MULTIPLIER"));
+        // The same days again go as they went.
+        world.MoveClockDays(StarbaseVisit.LostDays);
+        Assert.Equal(after, story.Fleets);
+        Assert.Equal(Allied.Dead, story.Alliance("SPATHI_SHIP"));
+    }
+
+    [ContentFact]
+    public void TheIlwrathsSphereTrackedByTheirTalkIsTakenBackWithTheOpening()
+    {
+        var world = WithTalks();
+        var story = world.Story!;
+        story.Set("RADIOACTIVES_PROVIDED", 1);
+        story.Set("MOONBASE_DESTROYED", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.CommanderMet = true;
+        var before = story.Fleet("ILWRATH_SHIP");
+        Assert.Equal(0, before.KnownStrength);
+        world.VisitStarbase(world.Host);
+        // The commander's talk is the humans', who have no sphere.
+        Assert.Equal(0, story.Fleet("HUMAN_SHIP").KnownStrength);
+        Say(world, "comandr", "base_was_abandoned");
+        Assert.Equal(VisitStep.Ilwrath, world.Visit!.Step);
+        Assert.Equal(before with { KnownStrength = 1, KnownLocX = 48, KnownLocY = 1700 }, story.Fleet("ILWRATH_SHIP"));
+        // A save during it is without it; leaving undoes it.
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(before, saved.Story!.Fleet("ILWRATH_SHIP"));
+        world.Leave("host");
+        Assert.Null(world.Visit);
+        Assert.Equal(before, story.Fleet("ILWRATH_SHIP"));
+    }
+
+    [ContentFact]
     public void NoCargoGoesOverboardDuringAVisit()
     {
         var world = WithTalks();
@@ -680,6 +747,7 @@ public class OpeningTests
         Assert.Equal(50, loaded.Host.Ship.Hold.CrewCapacity);
         var old = System.Text.Json.Nodes.JsonNode.Parse(json)!;
         old["version"] = 7;
+        old["story"]!.AsObject().Remove("fleets");   // saves before 13 have no fleets
         foreach (var slots in old["players"]!.AsArray())
             slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes));
@@ -695,6 +763,7 @@ public class OpeningTests
         var world = WithTalks(guest: true);
         var old = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
         old["version"] = 7;
+        old["story"]!.AsObject().Remove("fleets");   // saves before 13 have no fleets
         foreach (var slots in old["players"]!.AsArray())
             slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         foreach (var p in old["players"]!.AsArray())

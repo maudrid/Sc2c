@@ -7,8 +7,8 @@
 // (at your option) any later version.
 //
 // Follows The Ur-Quan Masters 0.8.0 (src/uqm/starbase.c's VisitStarBase
-// and DoTimePassage; src/uqm/comm.c's InitCommunication, which ends a
-// hostile talk in EncounterBattle), Copyright Paul Reiche, Fred Ford and Toys for Bob,
+// and DoTimePassage; src/uqm/comm.c's InitCommunication, which tracks the
+// talk's race's sphere and ends a hostile talk in EncounterBattle), Copyright Paul Reiche, Fred Ford and Toys for Bob,
 // Inc. 1992-2002, and the UQM contributors, under the GNU GPL 2 or later.
 
 using Crateris.Core.Comm;
@@ -75,9 +75,11 @@ public enum VisitStep
 /// <para>
 /// The opening (the steps before the menu) can be taken back: the story
 /// fields its talks wrote (only those: another player's lander may take
-/// the Lunar base meanwhile), the starter's ship, what the talks changed
-/// on any other answerer's ship and the two weeks (with what their days'
-/// events did: the clock's events and the fields they set). A save
+/// the Lunar base meanwhile), the spheres they started tracking (the
+/// Ilwrath's), the starter's ship, what the talks changed on any other
+/// answerer's ship and the two weeks (with what their days' events did:
+/// the clock's events, the fields they set and the races' fleets and
+/// standings they changed). A save
 /// made during it is of the game without it, as UQM can't save in the
 /// middle of one; and if the starter leaves with no one to take the
 /// replies, or every player leaves the Ilwrath's fight with the Ilwrath
@@ -111,11 +113,19 @@ public sealed class StarbaseVisit
     private bool _skipped;
 
     // The two weeks' events taken back with them: the story fields they
-    // changed, with what each was before, and the clock's events (queued
-    // and set aside) as before them. Nothing else changes the events while
-    // the opening goes on after them (the allied commander's talk there is
+    // changed, with what each was before, the clock's events (queued and
+    // set aside) as before them, and the races' fleets and standings they
+    // changed (check_race_growth's growth and headings, and a fleet gone
+    // extinct), as before them. Nothing else changes the events while the
+    // opening goes on after them (the allied commander's talk there is
     // story: the clock waits).
-    private (Dictionary<string, int> Fields, List<StoryEvent> Events, List<StoryEvent> SetAside)? _daysBefore;
+    private (Dictionary<string, int> Fields, List<StoryEvent> Events, List<StoryEvent> SetAside,
+        Dictionary<string, RaceFleet> Fleets, Dictionary<string, Allied> Alliances)? _daysBefore;
+
+    // The races whose spheres the opening's talks started tracking
+    // (InitCommunication's StartSphereTracking: the Ilwrath's), with their
+    // fleets as before it, to be taken back with the opening.
+    private readonly Dictionary<string, RaceFleet> _trackedBefore = new();
 
     // STARBASE_VISITED while docked: whether the allied commander has
     // greeted this player on this visit (decision 11), as his talks leave it.
@@ -285,7 +295,9 @@ public sealed class StarbaseVisit
         _daysBefore = (story.Rules.Table.Fields.Select(f => f.Name)
                 .Where(f => before.Fields.GetValueOrDefault(f) != after.Fields.GetValueOrDefault(f))
                 .ToDictionary(f => f, f => before.Fields.GetValueOrDefault(f)),
-            before.Events, before.SetAside ?? new());
+            before.Events, before.SetAside ?? new(),
+            before.Fleets!.Where(f => f.Value != after.Fleets![f.Key]).ToDictionary(f => f.Key, f => f.Value),
+            before.Alliances.Where(a => a.Value != after.Alliances[a.Key]).ToDictionary(a => a.Key, a => a.Value));
         _skipped = true;
         // The allied commander, at the starbase (GLOBAL_FLAGS_AND_DATA ~0);
         // whether he has greeted this player on this visit is theirs, and
@@ -303,6 +315,19 @@ public sealed class StarbaseVisit
             seed = unchecked(seed * 31 + c);
         _talkIsStory = Comm.TalkRules.IsStory(script, _world.Story!);
         WasStory |= _talkIsStory;
+        // InitCommunication: StartSphereTracking for the talk's race
+        // (RACE_SHIP_FOR_COMM): the Ilwrath's sphere is known from their
+        // talk on; the commander's race is the humans', who have none.
+        string race = script switch
+        {
+            "ilwrath" => "ILWRATH_SHIP",
+            "comandr" or "starbas" => "HUMAN_SHIP",
+            _ => throw new ArgumentException($"no race for {script}'s talk", nameof(script)),
+        };
+        var fleetBefore = _world.Story!.Fleet(race);
+        _world.Story.StartSphereTracking(race);
+        if (Opening && _world.Story.Fleet(race) != fleetBefore)
+            _trackedBefore.TryAdd(race, fleetBefore);
         var library = _world.TalkLibrary!;
         _ship ??= new AnswererTalkShip(() => Replier, library.Strings, _world);
         Talk = library.Create(script, _world.Story!, own, _ship, _world.Clock, seed);
@@ -471,13 +496,15 @@ public sealed class StarbaseVisit
 
     /// <summary>
     /// The story as it would be without the visit: what its talks wrote
-    /// put back, and what the two weeks' events did, if they've passed
-    /// (<see cref="TakeBackDays"/>).
+    /// put back, the spheres they started tracking untracked
+    /// (<see cref="TakeBackTracking"/>), and what the two weeks' events
+    /// did, if they've passed (<see cref="TakeBackDays"/>).
     /// </summary>
     public StoryState.Saved StoryWithout()
     {
         var story = StoryState.Restore(_world.Story!.Rules, _world.Story.Save());
         TakeBackDays(story);
+        TakeBackTracking(story);
         foreach (var (field, value) in WrittenBefore())
             story.Set(field, value);
         return story.Save();
@@ -485,8 +512,9 @@ public sealed class StarbaseVisit
 
     /// <summary>
     /// The two weeks' events taken back from a story, if the two weeks
-    /// have passed: the fields they changed as before them, and the clock's
-    /// events (queued and set aside) as before them.
+    /// have passed: the fields they changed as before them, the clock's
+    /// events (queued and set aside) as before them, and the races' fleets
+    /// and standings they changed as before them.
     /// </summary>
     private void TakeBackDays(StoryState story)
     {
@@ -495,6 +523,24 @@ public sealed class StarbaseVisit
         foreach (var (field, value) in days.Fields)
             story.Set(field, value);
         story.Events.Restore(days.Events, days.SetAside);
+        foreach (var (race, fleet) in days.Fleets)
+            story.SetFleet(race, fleet);
+        foreach (var (race, standing) in days.Alliances)
+            story.SetAlliance(race, standing);
+    }
+
+    /// <summary>
+    /// The spheres the opening's talks started tracking, as unknown again:
+    /// the known strength and place as before them (whatever else the
+    /// fleet did meanwhile kept).
+    /// </summary>
+    private void TakeBackTracking(StoryState story)
+    {
+        foreach (var (race, before) in _trackedBefore)
+            story.SetFleet(race, story.Fleet(race) with
+            {
+                KnownStrength = before.KnownStrength, KnownLocX = before.KnownLocX, KnownLocY = before.KnownLocY,
+            });
     }
 
     /// <summary>The date without the visit: the two weeks, if they've passed, taken back.</summary>
@@ -549,8 +595,10 @@ public sealed class StarbaseVisit
     /// The opening is undone: what its talks wrote, the starter's ship,
     /// what the talks changed on any other answerer's ship, the ships the
     /// talks gave the host's fleet (only those: <see cref="FleetWithout"/>),
+    /// the spheres the talks started tracking (<see cref="TakeBackTracking"/>),
     /// and the two weeks put back, with what their days' events did (the
-    /// clock's events and the fields they set, <see cref="TakeBackDays"/>).
+    /// clock's events, the fields they set and the races' fleets and
+    /// standings they changed, <see cref="TakeBackDays"/>).
     /// A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
     /// crew; one that disconnected from it was settled as it left
@@ -563,6 +611,7 @@ public sealed class StarbaseVisit
         if (!Opening)
             throw new InvalidOperationException("only the opening is taken back");
         TakeBackDays(_world.Story!);
+        TakeBackTracking(_world.Story!);
         foreach (var (field, value) in WrittenBefore())
             _world.Story!.Set(field, value);
         _world.Fleet.Restore(_world.Story!.Rules, FleetWithout(_world.Fleet.Ships).ToList());

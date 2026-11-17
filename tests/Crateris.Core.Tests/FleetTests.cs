@@ -372,6 +372,7 @@ public class FleetTests
         // An older save with one, refused; an older save loads with none.
         var old = JsonNode.Parse(json)!;
         old["version"] = 11;
+        old["story"]!.AsObject().Remove("fleets");   // saves before 13 have no races' fleets
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(old.ToJsonString(), Systems.Value, TestContent.Shapes));
         old["fleet"] = new JsonArray();
         Assert.Empty(HostSave.FromJson(old.ToJsonString(), Systems.Value, TestContent.Shapes).Fleet.Ships);

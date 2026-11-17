@@ -2,8 +2,9 @@
 // Copyright (C) 2026 Attack on Crateris contributors.
 // Follows The Ur-Quan Masters 0.8.0 (globdata.c getGameState, setGameState,
 // getGameState32, setGameState32 and InitGameStructures; shipyard.c
-// CrewTransaction; races.h allied_state; clock.c AddEvent and
-// processClockDayEvents; gameev.c EventHandler),
+// CrewTransaction; races.h allied_state and FLEET_INFO; clock.c AddEvent and
+// processClockDayEvents; gameev.c EventHandler, SetRaceDest and
+// check_race_growth; build.c StartSphereTracking),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002.
 //
 // This program is free software; you can redistribute it and/or modify
@@ -34,9 +35,10 @@ public enum Allied
 /// docs/differences.md row 10): UQM's game-state bits, packed as UQM packs
 /// them and read and written by name, and the story state UQM keeps
 /// beside them: the prices (CrewCost, FuelCost, ModuleCost), the element
-/// worths, each race's standing (allied_state in avail_race_q) and the
-/// clock's events. One instance per game, on the host; clients are sent
-/// it (<see cref="StorySnapshot"/>).
+/// worths, each race's standing (allied_state in avail_race_q) and fleet
+/// (the rest of its FLEET_INFO: <see cref="RaceFleet"/>), and the clock's
+/// events. One instance per game, on the host; clients are sent it
+/// (<see cref="StorySnapshot"/>: the fleets and events stay on the host).
 ///
 /// A few fields hold one activity's working state, not the story's, and
 /// are kept per player or per talk instead (decision 11; Melnorme credits
@@ -70,6 +72,7 @@ public sealed class StoryState
     private readonly byte[] _bits;
     private readonly Dictionary<string, int> _moduleCost;
     private readonly Allied[] _alliances;
+    private readonly RaceFleet[] _fleets;
 
     public StoryRules Rules { get; }
 
@@ -89,6 +92,7 @@ public sealed class StoryState
         _alliances = Enumerable.Repeat(Allied.Bad, rules.Races.Count).ToArray();
         // InitGameStructures: SetRaceAllied (HUMAN_SHIP, TRUE).
         _alliances[rules.RaceIndex("HUMAN_SHIP")] = Allied.Good;
+        _fleets = NewFleets(rules);
         CrewCost = rules.CrewCost;
         FuelCost = rules.FuelCost;
         Events = new EventQueue(rules, () => ++Version);
@@ -97,8 +101,10 @@ public sealed class StoryState
     /// <summary>
     /// A new game's story state, as InitGameStructures and
     /// AddInitialGameEvents leave it on <paramref name="clock"/>'s date:
-    /// every field 0, every race but the humans not allied, UQM's prices, and the first
-    /// events, of which the one due at once (SLYLANDRO_RAMP_UP) has run.
+    /// every field 0, every race but the humans not allied, each race's
+    /// fleet as its ship starts it (<see cref="RaceFleet.NewGame"/>), UQM's
+    /// prices, and the first events, of which the one due at once
+    /// (SLYLANDRO_RAMP_UP) has run.
     /// </summary>
     public static StoryState NewGame(StoryRules rules, GameClock clock)
     {
@@ -241,6 +247,76 @@ public sealed class StoryState
         }
     }
 
+    // ---------------------------------------------------------------- the fleets
+
+    // InitGameStructures' avail_race_q: every race's fleet as its ship
+    // starts it, or none for rules made without the fleets.
+    private static RaceFleet[] NewFleets(StoryRules rules) =>
+        rules.Fleets.Count == rules.Races.Count
+            ? rules.Fleets.Select(RaceFleet.NewGame).ToArray()
+            : rules.Races.Select(r => new RaceFleet(0, 0, 0, 0, 0, 0, 0, 0, 255 >> 1, 0, null, 0, 0)).ToArray();
+
+    /// <summary>A race's fleet (its FLEET_INFO but the standing), by its ship name (ARILOU_SHIP and so on).</summary>
+    public RaceFleet Fleet(string race) => _fleets[Rules.RaceIndex(race)];
+
+    /// <summary>Every race's fleet, in data/races.json's order (avail_race_q's).</summary>
+    public IReadOnlyList<RaceFleet> Fleets => _fleets;
+
+    /// <summary>
+    /// Sets a race's fleet, as stage 3c's events set its fields (the
+    /// Thraddash's and Ilwrath's missions their growth, the genocide its
+    /// strength). One a FLEET_INFO can't hold is refused.
+    /// </summary>
+    public void SetFleet(string race, RaceFleet fleet)
+    {
+        int i = Rules.RaceIndex(race);
+        if (fleet.Invalid(Rules) is { } why)
+            throw new ArgumentException($"{race}'s fleet: {why}", nameof(fleet));
+        SetFleet(i, fleet);
+    }
+
+    private void SetFleet(int i, RaceFleet fleet)
+    {
+        if (_fleets[i] != fleet)
+        {
+            _fleets[i] = fleet;
+            ++Version;
+        }
+    }
+
+    /// <summary>
+    /// SetRaceDest (gameev.c): a race's fleet heads for (x, y), arriving in
+    /// <paramref name="daysLeft"/> days (check_race_growth moves it), and
+    /// runs <paramref name="arrival"/> then (null for nothing). Stage 3c's
+    /// events call it.
+    /// </summary>
+    public void SetRaceDest(string race, int x, int y, int daysLeft, string? arrival) =>
+        SetFleet(race, Fleet(race) with { DestLocX = x, DestLocY = y, DaysLeft = daysLeft, Arrival = arrival });
+
+    /// <summary>
+    /// StartSphereTracking (build.c): the race's sphere is to be shown on
+    /// the starmap (its strength known as 1 and its centre as now, until
+    /// the starmap looks again), unless it's known already, has none or is
+    /// met anywhere. False if the race is extinct, as UQM's 0; UQM returns
+    /// the race's number otherwise, which for the Arilou (0) is false too,
+    /// though their sphere is tracked: so is it here (no caller asks it of
+    /// them). InitCommunication calls it for every talk's race; the worlds
+    /// that start a talk ask it whether the race lives.
+    /// </summary>
+    public bool StartSphereTracking(string race)
+    {
+        int i = Rules.RaceIndex(race);
+        var f = _fleets[i];
+        if (f.ActualStrength == 0)
+        {
+            if (_alliances[i] == Allied.Dead)
+                return false;
+        }
+        else if (f.KnownStrength == 0 && f.ActualStrength != Rules.InfiniteRadius)
+            SetFleet(i, f with { KnownStrength = 1, KnownLocX = f.LocX, KnownLocY = f.LocY });
+        return i != 0;
+    }
+
     /// <summary>The crew bought at the starbase (CREW_PURCHASED0 and 1, low byte first).</summary>
     public int CrewPurchased => Get("CREW_PURCHASED0") | (Get("CREW_PURCHASED1") << 8);
 
@@ -377,7 +453,7 @@ public sealed class StoryState
         switch (evt)
         {
             case "HYPERSPACE_ENCOUNTER_EVENT":
-                CheckRaceGrowth();
+                CheckRaceGrowth(clock, hyperspaceRoll);
                 // if (inHyperSpace ()) check_hyperspace_encounter (): the
                 // world's, for each player in hyperspace (stage 3b item 3).
                 hyperspaceRoll?.Invoke();
@@ -410,14 +486,62 @@ public sealed class StoryState
     }
 
     /// <summary>
-    /// check_race_growth (gameev.c): each race's fleet grows or shrinks by
-    /// its growth and moves a day towards where it's heading. Every race
-    /// starts with no growth and no heading (InitGameStructures), and only
-    /// stage 3c's events give them any, so nothing changes yet: the fleets
-    /// come with stage 3b item 2, and their growth and headings run here then.
+    /// check_race_growth (gameev.c): each race's fleet with a sphere (not
+    /// none, not met anywhere) grows or shrinks by its growth, a signed
+    /// byte, and one more (or less, for no growth or less) each time its
+    /// error term, falling by the growth's fraction each day, comes to the
+    /// fraction or below; a fleet down to 0 is extinct (DEAD_GUY), and none
+    /// grows past MAX_FLEET_STRENGTH. One still alive and heading somewhere
+    /// moves a day's share of the way (its days left divide what's left,
+    /// rounding towards 0), and on the last day runs its arrival event
+    /// (EventHandler): one stage 3b-1 doesn't run is set aside dated today,
+    /// as the clock's are (decision 9). Every race starts with no growth
+    /// and no heading (InitGameStructures), and only stage 3c's events give
+    /// them any (<see cref="SetRaceDest"/>, <see cref="SetFleet"/>), so in
+    /// stage 3b-1 nothing changes. UQM's sums are kept: the strength's in a
+    /// SIZE, the places' in COORDs.
     /// </summary>
-    private void CheckRaceGrowth()
+    private void CheckRaceGrowth(GameClock clock, Action? hyperspaceRoll)
     {
+        for (int i = 0; i < _fleets.Length; ++i)
+        {
+            var f = _fleets[i];
+            if (f.ActualStrength == 0 || f.ActualStrength == Rules.InfiniteRadius)
+                continue;
+            int delta = (sbyte)f.Growth;
+            if (f.GrowthErrTerm <= f.GrowthFract)
+                delta += delta <= 0 ? -1 : 1;
+            int errTerm = (byte)(f.GrowthErrTerm - f.GrowthFract);
+            delta = (short)(delta + f.ActualStrength);
+            if (delta <= 0)
+            {
+                delta = 0;
+                SetAlliance(Rules.Races[i], Allied.Dead);
+            }
+            else if (delta > Rules.MaxFleetStrength)
+                delta = Rules.MaxFleetStrength;
+            f = f with { ActualStrength = delta, GrowthErrTerm = errTerm };
+            string? arrival = null;
+            if (f.ActualStrength != 0 && f.DaysLeft != 0)
+            {
+                f = f with
+                {
+                    LocX = (short)(f.LocX + (f.DestLocX - f.LocX) / f.DaysLeft),
+                    LocY = (short)(f.LocY + (f.DestLocY - f.LocY) / f.DaysLeft),
+                    DaysLeft = f.DaysLeft - 1,
+                };
+                if (f.DaysLeft == 0)
+                    arrival = f.Arrival;
+            }
+            SetFleet(i, f);
+            if (arrival is not null)
+            {
+                if (EventsRun.Contains(arrival))
+                    RunEvent(arrival, clock, hyperspaceRoll);
+                else
+                    Events.PutAside(new StoryEvent(arrival, clock.Year, clock.Month, clock.Day));
+            }
+        }
     }
 
     // ---------------------------------------------------------------- saving
@@ -425,18 +549,22 @@ public sealed class StoryState
     /// <summary>
     /// The story state in a save: the fields that aren't 0, by name, and
     /// everything beside them: the clock's events queued, and those set
-    /// aside for stage 3c (since save version 13; none before).
+    /// aside for stage 3c (since save version 13; none before), and each
+    /// race's fleet (since stage 3b item 2, in version 13; without them, a
+    /// new game's).
     /// </summary>
     public sealed record Saved(
         Dictionary<string, int> Fields, int CrewCost, int FuelCost, Dictionary<string, int> ModuleCost,
-        Dictionary<string, Allied> Alliances, List<StoryEvent> Events, List<StoryEvent>? SetAside = null);
+        Dictionary<string, Allied> Alliances, List<StoryEvent> Events, List<StoryEvent>? SetAside = null,
+        Dictionary<string, RaceFleet>? Fleets = null);
 
     public Saved Save() => new(
         Table.Fields.Where(f => !NotShared.ContainsKey(f.Name) && Get(f.Name) != 0).ToDictionary(f => f.Name, f => Get(f.Name)),
         CrewCost, FuelCost,
         Rules.Modules.Where(m => _moduleCost.GetValueOrDefault(m) != 0).ToDictionary(m => m, m => _moduleCost[m]),
         Rules.Races.Select((r, i) => (r, i)).ToDictionary(x => x.r, x => _alliances[x.i]),
-        Events.ToList(), Events.SetAside.ToList());
+        Events.ToList(), Events.SetAside.ToList(),
+        Rules.Races.Select((r, i) => (r, i)).ToDictionary(x => x.r, x => _fleets[x.i]));
 
     /// <summary>A saved story state. A bad one is an <see cref="InvalidDataException"/>.</summary>
     public static StoryState Restore(StoryRules rules, Saved saved)
@@ -471,6 +599,19 @@ public sealed class StoryState
             if (!Enum.IsDefined(a))
                 throw new InvalidDataException($"Story state: {rules.Races[i]}'s standing is {(int)a}.");
             story._alliances[i] = a;
+        }
+        if (saved.Fleets is { } fleets)
+        {
+            if (fleets.Count != rules.Races.Count || rules.Races.Any(r => !fleets.ContainsKey(r)))
+                throw new InvalidDataException("Story state: every race's fleet is needed, once.");
+            for (int i = 0; i < rules.Races.Count; ++i)
+            {
+                var f = fleets[rules.Races[i]]
+                    ?? throw new InvalidDataException($"Story state: {rules.Races[i]}'s fleet is missing.");
+                if (f.Invalid(rules) is { } why)
+                    throw new InvalidDataException($"Story state: {rules.Races[i]}'s fleet: {why}.");
+                story._fleets[i] = f;
+            }
         }
         story.Events.Restore(saved.Events ?? new(), saved.SetAside);
         story.Version = 0;

@@ -2,21 +2,23 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-17, stage 3b-1 item 1 (the clock's events) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"); built and reviewed (round 1 a test, round 2 and 3 the docs' state; the Progress row has them), reported to the owner. Earlier the same day: stage 3b's plan approved (decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
+**Last updated:** 2026-11-17, stage 3b-1 item 2 (the fleets' data) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"); built, not yet reviewed. Earlier the same day: item 1 (the clock's events) built, reviewed and reported; stage 3b's plan approved (decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
-- **Current plan:** `docs/plans/stage-3b.md`, stage 3b split in two (3b-1 ships in space with five races, 3b-2 the other races and the Melnorme), 3b-1 planned in detail: approved 2026-11-17 with its eleven decisions (decision 8 shared, decision 11 notices added by the owner). Item 1, the clock's events, is built (its "Progress" row: the day's events, 3c's set aside, save version 13, the starbase's two weeks running their days' events, `tests/golden/clock-events.json`); built and reviewed. Items 2 to 12 aren't started.
+- **Current plan:** `docs/plans/stage-3b.md`, stage 3b split in two (3b-1 ships in space with five races, 3b-2 the other races and the Melnorme), 3b-1 planned in detail: approved 2026-11-17 with its eleven decisions (decision 8 shared, decision 11 notices added by the owner). Item 1, the clock's events, is built and reviewed (its "Progress" row). Item 2, the fleets' data, is built, not yet reviewed (its "Progress" row: races.h's fleet tables in `data/races.json`, each race's `FLEET_INFO` in the story state, `check_race_growth`, `SetRaceDest` and `StartSphereTracking` ported, the fleets in save version 13 as an optional part, the two weeks' and the opening's talks' take-back, `clock-events.json` recording the fleets from UQM's own `InitGameStructures`). Items 3 to 12 aren't started.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (3b-1 item 1, 2026-11-17; `tests/topic-map.json` remade): all topics 2,172 passed, 0 failed, 0 skipped with the content set (`ClockEventsTests` new in topic story); the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` last passed at the escorts' upgrades (78 checks; no wire or session change since); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
+- **Last checks** (3b-1 item 2, 2026-11-17; `tests/topic-map.json` remade): all topics 2,183 passed, 0 failed, 0 skipped with the content set (`RaceFleetsTests` new in topic story); the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); the data checks (`UQM_SC2=... python3 tools/extract/test_data.py`) 31 passed, the extractor reproducing `data/`; `golden_uqm.py --only clock-events` recorded twice gives the committed file; `tools/test_network.py` last passed at the escorts' upgrades (78 checks; no wire or session change since).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
 
-- Item 1's left-open points (the plan's Progress row): 3c's events are set aside, not run (`differences.md` row 66); item 3 decides the two weeks' draws for players in hyperspace meanwhile, and whether an undone opening takes them back; item 2 adds the fleets to save version 13 as an optional part.
+- Item 2 waits for its review (CLAUDE.md's loop), then the report to the owner.
+- Item 1's left-open points (the plan's Progress row): 3c's events are set aside, not run (`differences.md` row 66, which now says a fleet's arrival event would be set aside too); item 3 decides the two weeks' draws for players in hyperspace meanwhile, and whether an undone opening takes them back.
+- Item 2's left-open points (its Progress row): the fleets' `crew_level`, `max_crew` and `max_energy` are the race's ship's, not kept per fleet; the fleets aren't sent to clients until there's a starmap; the talks' `StartSphereTracking` runs for the opening's only, the meetings' come with items 5 to 8.
 - The escorts' caps are placeholders to be set by playtesting (`design.md`'s open item).
 
 Smaller items left for later stages are notes under the items that own them in the plans (`stage-3.md` for 3b and 3c; `stage-4b.md`'s notes for 3b; Tanaka's Shofixti scout and the Melnorme's trading for escorts are in `stage-3b.md`'s 3b-2 row).
@@ -36,7 +38,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build stage 3b-1 item 2, the fleets' data (the owner's go-ahead, 2026-11-17, for this item alone); review it; report and wait.
+Review stage 3b-1 item 2, the fleets' data (CLAUDE.md's review loop), then report it to the owner and wait. Item 3 isn't to be started without the owner's go-ahead.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

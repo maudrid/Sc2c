@@ -375,6 +375,7 @@ public class StarbaseTests
         // An older save's ship has its loadout's slots.
         var old = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
         old["version"] = 8;
+        old["story"]!.AsObject().Remove("fleets");   // saves before 13 have no races' fleets
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(old.ToJsonString(), Systems, TestContent.Shapes));
         foreach (var p in old["players"]!.AsArray())
             p!.AsObject().Remove("modules");

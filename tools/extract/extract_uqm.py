@@ -692,6 +692,40 @@ def extract_races(uqm):
                            for i in range(n_cost)], ["uqm/races.h"])
     speeds = uqm.eval_ints([f"((COUNT[]){{RACE_IP_SPEED}})[{i}]"
                             for i in range(n_speed)], ["uqm/races.h"])
+    # The fleets' tables, each in the type the code that reads it gives it:
+    # hyper.c's COUNT EncounterPercent[] and SIZE RaceHyperSpeed[],
+    # grpinfo.c's BYTE EncounterPercent[], hyper.c's and grpinfo.c's BYTE
+    # EncounterMakeup[] (LONIBBLE the fewest ships, HINIBBLE the most) and
+    # pstarmap.c's Color race_colors[].
+    fleet_inc = ["uqm/races.h", "uqm/velocity.h", "libs/gfxlib.h"]
+    tables = {
+        "hyperspace_percent": "COUNT", "interplanetary_percent": "BYTE",
+        "encounter_makeup": "BYTE", "hyper_speed": "SIZE",
+    }
+    macros = {
+        "hyperspace_percent": "RACE_HYPERSPACE_PERCENT",
+        "interplanetary_percent": "RACE_INTERPLANETARY_PERCENT",
+        "encounter_makeup": "RACE_ENCOUNTER_MAKEUP",
+        "hyper_speed": "RACE_HYPER_SPEED",
+    }
+    counts = uqm.eval_ints(
+        [f"sizeof (({t}[]){{{macros[k]}}}) / sizeof ({t})"
+         for k, t in tables.items()]
+        + ["sizeof ((Color[]){RACE_COLORS}) / sizeof (Color)"], fleet_inc)
+    if max(counts) > len(race_names):
+        raise RuntimeError(f"fleet tables longer than the {len(race_names)} "
+                           f"races: {counts}")
+    fleet = {}
+    for (k, t), n in zip(tables.items(), counts):
+        fleet[k] = uqm.eval_ints([f"(({t}[]){{{macros[k]}}})[{i}]"
+                                  for i in range(n)], fleet_inc)
+    colors = uqm.eval_ints(
+        [f"((Color[]){{RACE_COLORS}})[{i}].{c}"
+         for i in range(counts[-1]) for c in "rgba"], fleet_inc)
+    makeup_nibbles = uqm.eval_ints(
+        [f"{f} (((BYTE[]){{RACE_ENCOUNTER_MAKEUP}})[{i}])"
+         for i in range(counts[2]) for f in ("LONIBBLE", "HINIBBLE")],
+        fleet_inc)
     out = []
     for i, r in enumerate(race_names):
         entry = {"race": r}
@@ -701,6 +735,18 @@ def extract_races(uqm):
             entry["ip_speed"] = speeds[i]
         if i < len(comm):
             entry["conversation"] = comm[i]
+        if i < len(fleet["hyperspace_percent"]):
+            entry["hyperspace_percent"] = fleet["hyperspace_percent"][i]
+        if i < len(fleet["interplanetary_percent"]):
+            entry["interplanetary_percent"] = \
+                fleet["interplanetary_percent"][i]
+        if i < len(fleet["encounter_makeup"]):
+            entry["encounter_makeup"] = {"min": makeup_nibbles[2 * i],
+                                         "max": makeup_nibbles[2 * i + 1]}
+        if i < len(fleet["hyper_speed"]):
+            entry["hyper_speed"] = fleet["hyper_speed"][i]
+        if i < counts[-1]:
+            entry["color"] = colors[4 * i:4 * i + 4]
         out.append(entry)
     # RACE_SHIP_FOR_COMM: each CONVERSATION id's race, in commglue.h's
     # enum order (InitCommunication's commToShip).
@@ -728,6 +774,29 @@ def extract_races(uqm):
         "conversation_races (RACE_SHIP_FOR_COMM) gives each CONVERSATION id "
         "(commglue.h's enum, INVALID_CONVERSATION last) the race it's "
         "with, as InitCommunication reads it.",
+        "hyperspace_percent (RACE_HYPERSPACE_PERCENT) is the chance in 100 "
+        "a day that a group of the race comes at the flagship in "
+        "hyperspace inside its sphere (check_hyperspace_encounter, "
+        "hyper.c); the Slylandro's is multiplied by SLYLANDRO_MULTIPLIER "
+        "and the Melnorme's set there.",
+        "interplanetary_percent (RACE_INTERPLANETARY_PERCENT) is the "
+        "race's chance of groups in a system inside its sphere, at its "
+        "centre (BuildGroups, grpinfo.c).",
+        "encounter_makeup (RACE_ENCOUNTER_MAKEUP) is how many ships a "
+        "group has: min (LONIBBLE) and then each up to max (HINIBBLE) at "
+        "50% (hyper.c's BuildEncounter, grpinfo.c's BuildGroups); 0 and 0 "
+        "for races that have no groups.",
+        "hyper_speed (RACE_HYPER_SPEED) is the speed of the race's groups "
+        "in hyperspace, a velocity (WORLD_TO_VELOCITY (log speed) >> 1; "
+        "hyper.c's ProcessEncounter).",
+        "color (RACE_COLORS) is the colour of the race's sphere on the "
+        "starmap, [r, g, b, a] (pstarmap.c; BUILD_COLOR's palette index "
+        "is unused).",
+        "The races' spheres (their centre and strength, FLEET_STUFF) are "
+        "each race's ship's fleet in ships.json: a new game's avail_race_q "
+        "takes them from the ship (InitGameStructures, globdata.c: the "
+        "Yehat rebels' from the Yehat's, set to no sphere, the Ur-Quan "
+        "drone's from the probe's).",
     ])
 
 
@@ -1015,6 +1084,11 @@ CONSTANTS = [
     ("QUASI_SPACE_Y", ["uqm/hyper.h"], "universe units"),
     ("NUM_EVENTS", ["uqm/gameev.h"], "events"),
     ("YEARS_TO_KOHRAH_VICTORY", ["uqm/globdata.h"], "years"),
+    ("SPHERE_RADIUS_INCREMENT", ["uqm/units.h"],
+     "universe units of a sphere's radius per step of strength"),
+    ("MAX_FLEET_STRENGTH", ["uqm/units.h"], "fleet strength"),
+    ("INFINITE_RADIUS", ["uqm/races.h"],
+     "fleet strength of a race met anywhere"),
 ]
 
 # Constants defined inside a function, so not reachable from headers.

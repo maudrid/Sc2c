@@ -192,6 +192,51 @@ class Ships(unittest.TestCase):
         # RACE_IP_SPEED also covers the drone/Sa-Matra entry.
         self.assertEqual(len([r for r in races if "ip_speed" in r]), 24)
 
+    def test_fleet_tables(self):
+        races = {r["race"]: r for r in load("races")["races"]}
+        order = [r["race"] for r in load("races")["races"]]
+        # RACE_HYPERSPACE_PERCENT and RACE_INTERPLANETARY_PERCENT cover the
+        # drone's entry too; the makeup, the speed and the colour don't.
+        for key, n in (("hyperspace_percent", 24), ("interplanetary_percent", 24),
+                       ("encounter_makeup", 23), ("hyper_speed", 23), ("color", 23)):
+            have = [r for r in order if key in races[r]]
+            self.assertEqual(have, order[:n], key)
+        sp = races["SPATHI_SHIP"]
+        self.assertEqual((sp["hyperspace_percent"], sp["interplanetary_percent"]), (20, 10))
+        self.assertEqual(sp["encounter_makeup"], {"min": 1, "max": 5})
+        # LOG_TO_HYPER (48): WORLD_TO_VELOCITY (48) >> 1, a velocity of 32 a unit.
+        self.assertEqual(sp["hyper_speed"], 48 * 32 // 2)
+        # MAKE_RGB15_INIT (0x0C, 0x05, 0x00): each 5 bits made 8 (CC5TO8).
+        self.assertEqual(sp["color"], [0x63, 0x29, 0x00, 0xFF])
+        # The Thraddash fly faster in hyperspace than in systems (50 and 28).
+        self.assertEqual(races["THRADDASH_SHIP"]["hyper_speed"], 800)
+        # The races met anywhere: one ship a group.
+        for r in ("MELNORME_SHIP", "SLYLANDRO_SHIP"):
+            self.assertEqual(races[r]["encounter_makeup"], {"min": 1, "max": 1}, r)
+        self.assertEqual((races["SLYLANDRO_SHIP"]["hyperspace_percent"],
+                          races["SLYLANDRO_SHIP"]["interplanetary_percent"]), (2, 5))
+        self.assertEqual(races["URQUAN_SHIP"]["hyperspace_percent"], 70)
+        for r in ("CHMMR_SHIP", "HUMAN_SHIP", "SHOFIXTI_SHIP", "SYREEN_SHIP"):
+            self.assertEqual(races[r]["encounter_makeup"], {"min": 0, "max": 0}, r)
+        for r in order:
+            for key in ("hyperspace_percent", "interplanetary_percent"):
+                if key in races[r]:
+                    self.assertTrue(0 <= races[r][key] <= 100, r)
+            if "encounter_makeup" in races[r]:
+                m = races[r]["encounter_makeup"]
+                self.assertTrue(0 <= m["min"] <= m["max"] <= 15, r)
+            if "color" in races[r]:
+                self.assertEqual(races[r]["color"][3], 255, r)
+        c = {k: v["value"] for k, v in load("constants")["constants"].items()}
+        self.assertEqual((c["SPHERE_RADIUS_INCREMENT"], c["MAX_FLEET_STRENGTH"],
+                          c["INFINITE_RADIUS"]), (11, 254 * 11, 0xFFFF))
+        # Every race in the game has a ship whose fleet starts its sphere,
+        # the races met anywhere at INFINITE_RADIUS.
+        ships = {s["species"]: s for s in load("ships")["ships"]}
+        self.assertEqual(ships["SLYLANDRO_ID"]["fleet"]["strength"], c["INFINITE_RADIUS"])
+        self.assertEqual(ships["MELNORME_ID"]["fleet"]["strength"], c["INFINITE_RADIUS"])
+        self.assertEqual(ships["ILWRATH_ID"]["fleet"], {"strength": 256, "home_x": 48, "home_y": 1700})
+
     def test_syreen_start_below_max_crew(self):
         s = self.ships["syreen"]
         self.assertEqual((s["crew"], s["max_crew"]), (12, 42))

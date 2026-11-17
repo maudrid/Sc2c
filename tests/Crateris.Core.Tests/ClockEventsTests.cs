@@ -39,7 +39,8 @@ public class ClockEventsTests
 
     // ---- against UQM's own clock
 
-    // tests/golden/clock-events.json: UQM's clock.c and gameev.c, day by day.
+    // tests/golden/clock-events.json: UQM's clock.c and gameev.c, day by
+    // day, with the races' fleets (stage 3b item 2) after each step.
     [Fact]
     public void TheClockRunsItsEventsOnUqmsDays()
     {
@@ -54,8 +55,10 @@ public class ClockEventsTests
             GameWorld? world = null;
             bool hyper = false;
             int setAsideBefore = 0, rollsBefore = 0;
+            // UQM's fleets as the steps so far left them: each step has those that changed.
+            var uqmFleets = new (Allied, RaceFleet)[Rules.Races.Count];
 
-            void Check(List<StoryState.DueEvent> done)
+            void Check(List<StoryState.DueEvent> done, bool? tracked = null)
             {
                 var step = steps[at++];
                 string where = $"{name}, step {at - 1}";
@@ -96,12 +99,24 @@ public class ClockEventsTests
                         .SequenceEqual(story.Events.Where(e => StoryState.EventsRun.Contains(e.Event))),
                     $"{where}: queued {string.Join(", ", story.Events)}");
                 Assert.All(story.Events.Where(e => !StoryState.EventsRun.Contains(e.Event)), e => Assert.Contains(e, queue));
+                // The fleets: every race's standing and FLEET_INFO as UQM's.
+                foreach (var f in step[5].EnumerateArray().Select(f => f.Ints()))
+                    uqmFleets[f[0]] = ((Allied)f[1], new RaceFleet(f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11],
+                        f[12] == byte.MaxValue ? null : names[f[12]], f[13], f[14]));
+                for (int r = 0; r < Rules.Races.Count; ++r)
+                    Assert.True(uqmFleets[r] == (story.Alliances[r], story.Fleets[r]),
+                        $"{where}: {Rules.Races[r]} is {story.Alliances[r]} {story.Fleets[r]}, UQM's {uqmFleets[r]}");
+                // StartSphereTracking's result, UQM's race number or 0.
+                Assert.Equal(step.GetArrayLength() > 6, tracked is not null);
+                if (tracked is { } t)
+                    Assert.True(t == (step[6].GetInt32() != 0), where);
             }
 
             foreach (string command in scenario.GetProperty("commands").EnumerateArray().Select(c => c.GetString()!))
             {
                 var words = command.Split(' ');
                 int n = words.Length > 1 ? int.Parse(words[1]) : 0;
+                int[] a = words.Skip(2).Select(int.Parse).ToArray();
                 switch (words[0])
                 {
                     case "new":
@@ -136,6 +151,20 @@ public class ClockEventsTests
                         Assert.Equal(before.Count + 1, story.Events.Count);
                         break;
                     }
+                    case "dest":
+                        // SetRaceDest, as 3c's events call it.
+                        world!.Story!.SetRaceDest(Rules.Races[n], a[0], a[1], a[2], a[3] == byte.MaxValue ? null : names[a[3]]);
+                        break;
+                    case "growth":
+                    {
+                        // A fleet's growth, as 3c's events set it.
+                        var story = world!.Story!;
+                        story.SetFleet(Rules.Races[n], story.Fleets[n] with { Growth = a[0], GrowthFract = a[1], GrowthErrTerm = a[2] });
+                        break;
+                    }
+                    case "track":
+                        Check(new(), world!.Story!.StartSphereTracking(Rules.Races[n]));
+                        break;
                     default:
                         throw new InvalidDataException($"no command {command}");
                 }
@@ -258,6 +287,7 @@ public class ClockEventsTests
         Assert.Equal(Date(world.Clock), Date(loaded.Clock));
         var node = JsonNode.Parse(json)!;
         node["version"] = 12;
+        node["story"]!.AsObject().Remove("fleets");   // saves before 13 have no races' fleets
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes));
         node["story"]!.AsObject().Remove("set_aside");
         Assert.Empty(HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes).Story!.Events.SetAside);
@@ -273,6 +303,7 @@ public class ClockEventsTests
         var node = JsonNode.Parse(HostSave.ToJson(world))!;
         node["version"] = 12;
         node["story"]!.AsObject().Remove("set_aside");
+        node["story"]!.AsObject().Remove("fleets");
         node["clock"]!["year"] = 2155;
         node["clock"]!["month"] = 9;
         node["clock"]!["day"] = 1;

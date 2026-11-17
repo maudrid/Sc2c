@@ -101,6 +101,13 @@ public static class HostSave
     /// (those of 3c set aside): an older save's, which ran none, as the
     /// encounters' event waiting since the second day. During a visit's
     /// opening, the two weeks' events are taken back with the two weeks.
+    /// Version 13 also has the races' fleets (StoryState.Saved.Fleets,
+    /// stage 3b item 2: each race's sphere, known sphere, growth and
+    /// heading), an optional part rather than a version of its own: a
+    /// save without them (an older one, or a version 13 from before item
+    /// 2) has a new game's, and an older save with them is refused.
+    /// During a visit's opening they're saved without what its talks and
+    /// its two weeks did to them.
     /// </summary>
     public const int Version = 13;
     public const int OldestReadableVersion = 1;
@@ -277,6 +284,8 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have a fleet.");
         if (save.Version < 13 && save.Story?.SetAside is { Count: > 0 })
             throw new InvalidDataException($"A version {save.Version} save can't have events set aside.");
+        if (save.Version < 13 && save.Story?.Fleets is not null)
+            throw new InvalidDataException($"A version {save.Version} save can't have the races' fleets.");
         if ((save.Fleet ?? new()).Any(s => s is null || s.Race is null))
             throw new InvalidDataException("The save has a fleet ship that is null or of no race.");
         // A setting a save leaves out is the default, and so is the ship's

@@ -5277,10 +5277,21 @@ def record_commanim(uqm, exe):
 
 
 CLOCK_PROGRAM = os.path.join(HERE, "golden", "clock.c")
-CLOCK_LINK = ["uqm/gameev.c", "uqm/globdata.c", "uqm/displist.c"]
+# UQM's code the clock program runs: the events, the game state and a new
+# game's structures (InitGameStructures), the fleets' functions (build.c),
+# the ships' list (master.c) and every ship whose RACE_DESC a new game's
+# avail_race_q is made from (ARILOU_ID to MMRNMHRM_ID, and the probe).
+CLOCK_LINK = ["uqm/gameev.c", "uqm/globdata.c", "uqm/displist.c", "uqm/build.c", "uqm/master.c",
+              "libs/math/random.c"]
+CLOCK_LINK += [f"uqm/ships/{ship}/{ship}.c" for ship in sorted(
+    ["androsyn", "arilou", "blackurq", "chenjesu", "chmmr", "druuge", "human", "ilwrath", "melnorme",
+     "mmrnmhrm", "mycon", "orz", "pkunk", "probe", "shofixti", "slylandr", "spathi", "supox", "syreen",
+     "thradd", "umgah", "urquan", "utwig", "vux", "yehat", "zoqfot"])]
 
 # The clock's scenarios: commands for golden/clock.c ("new", "day N",
-# "move N", "hyper 0|1", "rampdown"). A new game's Slylandro ramp-ups fall
+# "move N", "hyper 0|1", "rampdown", "dest R X Y D F", "growth R G F E",
+# "track R"; races by races.h's *_SHIP number, events by gameev.h's).
+# A new game's Slylandro ramp-ups fall
 # on 17 February 2155 (at once), 18 August 2155, 16 February and 16 August
 # 2156 (a leap year), and the one on 14 February 2157 (728 days in) finds
 # the multiplier at 4 and stops.
@@ -5295,6 +5306,29 @@ CLOCK_SCENARIOS = [
     # ramp-down runs at once and every 23 days down to 0, and the ramp-up
     # on 16 August 2156 finds the code on the ship and stops.
     ("the Slylandro ramp-down", ["new", "day 400", "rampdown", "day 160"]),
+    # The fleets growing, shrinking and moving as 3c's events set them
+    # (gameev.c's SetRaceDest and the growth thradd_mission and
+    # ilwrath_mission give), check_race_growth running each day:
+    # the Thraddash losing half their 150 over 14 days on their way to the
+    # Kohr-Ah (thradd_mission's -75 / 14, its fraction 91); the Ur-Quan
+    # growing 127 and 200/256 a day to MAX_FLEET_STRENGTH; the Spathi
+    # losing 50 a day, extinct on the fourth (and no longer moving); the
+    # Mycon with no growth but a fraction, which counts as a loss; the
+    # Kohr-Ah heading 255 days west, rounding towards 0, then losing 100
+    # and a half a day from an error term of 0; the Ilwrath arriving in 5
+    # days and running SLYLANDRO_RAMP_UP (16) as their arrival; the
+    # Slylandro (met anywhere), the Chmmr and the Yehat rebels (no sphere)
+    # given growth or a heading and unchanged. StartSphereTracking: the
+    # Ilwrath's before and after moving (known where they were first), the
+    # Arilou's (UQM's 0 for race 0, tracked all the same), the extinct
+    # Spathi's (0), the Slylandro's and the Chmmr's (nothing to track), the
+    # Thraddash's where they've moved to. The two weeks pass in hyperspace
+    # with them on the move.
+    ("the fleets", ["new", "track 14", "growth 8 251 91 127", "dest 8 4879 7201 14 255", "growth 18 127 200 127",
+                    "growth 6 206 0 127", "dest 6 3000 3000 10 255", "growth 15 0 128 127",
+                    "dest 21 1000 1000 255 255", "dest 14 2500 8070 5 16", "growth 16 5 0 127", "growth 1 5 0 127",
+                    "dest 22 100 100 3 255", "day 20", "track 14", "track 0", "track 6", "track 16", "track 1",
+                    "track 8", "hyper 1", "move 14", "growth 21 156 128 0", "day 10"]),
 ]
 
 
@@ -5317,22 +5351,39 @@ def record_clock(uqm, exe):
         "clock.c (InitGameClock, GameClockTick, MoveGameClockDays, AddEvent, "
         "processClockDayEvents) and gameev.c (AddInitialGameEvents, "
         "EventHandler) in the recording program tools/extract/golden/clock.c. "
-        "Code only, no content. check_hyperspace_encounter is only counted "
-        "and the races' fleets aren't set up, so check_race_growth runs "
-        "over none (in UQM every race starts with no growth, so it would "
-        "change nothing; item 2 sets them up).",
+        "Code only, no content. A new game is starcon.c's: "
+        "InitGameStructures (globdata.c, so avail_race_q is UQM's own, "
+        "made from each ship's RACE_DESC by master.c's LoadMasterShipList "
+        "and load_ship; the graphics, strings and state files stubbed), "
+        "InitGameClock and AddInitialGameEvents. check_race_growth "
+        "(gameev.c) runs on the fleets each day; check_hyperspace_encounter "
+        "is only counted. SetRaceDest (gameev.c) and StartSphereTracking "
+        "(build.c) are UQM's own.",
         "Each scenario: its commands (new: a new game; day N: N days of "
         "GameClockTick; move N: MoveGameClockDays (N); hyper 0|1: the "
         "flagship out of or in hyperspace; rampdown: what slyhome.c does "
-        "when told of the self-destruct code) and its steps: one after new "
-        "and rampdown, one each day of day, one for the whole of move.",
+        "when told of the self-destruct code; dest R X Y D F: SetRaceDest "
+        "(R, X, Y, D, F), race R (races.h's *_SHIP number) heading for (X, "
+        "Y) D days away, to run event F there (255 none); growth R G F E: "
+        "race R's growth, growth_fract and growth_err_term set, as 3c's "
+        "events set them; track R: StartSphereTracking (R)) and its steps: "
+        "one after new, rampdown and track, one each day of day, one for "
+        "the whole of move.",
         "A step: [[year, month, day] after it, [[event, depth, year, month, "
         "day]...] each event EventHandler ran, in order, depth 0 for those "
         "clock.c ran (from the queue's head, or AddEvent's due at once) and "
         "more for one run at once from within another, with the date it ran "
         "on, check_hyperspace_encounter's calls, SLYLANDRO_MULTIPLIER after, "
-        "[[event, year, month, day]...] the queue after]. Events are "
-        "gameev.h's numbers (data/events.json).",
+        "[[event, year, month, day]...] the queue after, [[race, "
+        "allied_state, actual_strength, known_strength, loc.x, loc.y, "
+        "known_loc.x, known_loc.y, growth, growth_fract, growth_err_term, "
+        "days_left, func_index, dest_loc.x, dest_loc.y]...] the fleets "
+        "(FLEET_INFO in avail_race_q) that changed since the step before "
+        "(every race's after new)], and after track one more: "
+        "StartSphereTracking's result. Events are gameev.h's numbers "
+        "(data/events.json), races races.h's (data/races.json's order). An "
+        "event a fleet's arrival runs (gameev.c's own EventHandler call) "
+        "isn't listed, only what it does.",
     ])
     data["scenarios"] = scenarios
     return data
@@ -5346,7 +5397,7 @@ def clock_step_commands(commands):
         word, *n = c.split()
         if word == "day":
             words += ["day"] * int(n[0])
-        elif word in ("new", "move", "rampdown"):
+        elif word in ("new", "move", "rampdown", "track"):
             words.append(word)
     return words
 
@@ -5374,6 +5425,32 @@ def check_clock(scenarios, events):
     down = by["the Slylandro ramp-down"]["steps"]
     if sum(ran(s, RAMP_DOWN) for s in down) != 4 or down[-1][3] != 0:
         raise RuntimeError("clock: the ramp-down doesn't run down to 0")
+    # The fleets: a new game's every race's, each with no growth; nothing
+    # changes them in the first three scenarios after it.
+    CHMMR, SPATHI, THRADDASH, ILWRATH, SLYLANDRO, URQUAN, KOHR_AH, REBELS = 1, 6, 8, 14, 16, 18, 21, 22
+    for scenario in scenarios:
+        steps = scenario["steps"]
+        if [f[0] for f in steps[0][5]] != list(range(24)) or any(f[8:12] != [0, 0, 127, 0] for f in steps[0][5]):
+            raise RuntimeError(f"clock {scenario['name']}: a new game's fleets aren't every race's, with no growth")
+        if scenario["name"] != "the fleets" and any(s[5] for s in steps[1:]):
+            raise RuntimeError(f"clock {scenario['name']}: a fleet changed without growth or a heading")
+    fleets = by["the fleets"]["steps"]
+
+    def last(race):
+        return [f for s in fleets for f in s[5] if f[0] == race][-1]
+
+    # [race, allied_state, actual_strength, known_strength, loc.x, loc.y, ...,
+    # growth 8, growth_fract 9, growth_err_term 10, days_left 11, ...]
+    if (last(SPATHI)[1:3] != [0, 0] or last(SPATHI)[11] == 0 or last(URQUAN)[2] != 2794
+            or last(ILWRATH)[4:6] != [2500, 8070] or last(ILWRATH)[11] != 0 or last(THRADDASH)[4:6] != [4879, 7201]
+            or not 0 < last(KOHR_AH)[4] < 6000 or last(SLYLANDRO)[2:6] != [65535, 0, 333, 9812]
+            or last(CHMMR)[2] != 0 or last(REBELS)[2:6] != [0, 0, 4970, 40] or last(REBELS)[11] != 3):
+        raise RuntimeError("clock: the fleets don't grow, shrink, die and move as the scenario has them")
+    tracked = [s[6] for s in fleets if len(s) > 6]
+    if tracked != [ILWRATH, ILWRATH, 0, 0, SLYLANDRO, 1, THRADDASH]:
+        raise RuntimeError(f"clock: StartSphereTracking gave {tracked}")
+    if not any(s[3] == 2 for s in fleets[:8]):
+        raise RuntimeError("clock: the Ilwrath's arrival didn't run its event")
 
 
 CMAP_PROGRAM = os.path.join(HERE, "golden", "cmap.c")

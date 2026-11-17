@@ -155,6 +155,18 @@
       "value": 4,
       "unit": "years"
     },
+    "SPHERE_RADIUS_INCREMENT": {
+      "value": 11,
+      "unit": "universe units of a sphere's radius per step of strength"
+    },
+    "MAX_FLEET_STRENGTH": {
+      "value": 2794,
+      "unit": "fleet strength"
+    },
+    "INFINITE_RADIUS": {
+      "value": 65535,
+      "unit": "fleet strength of a race met anywhere"
+    },
     "RUN_AWAY_FUEL_COST": {
       "value": 500,
       "unit": "internal fuel units lost when the flagship flees last",
