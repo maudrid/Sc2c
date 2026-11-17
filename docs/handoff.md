@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-17, stage 3b-1 item 2 (the fleets' data) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"), reviewed (round 1 a test, a count and a comment; the Progress row has the rounds) and reported to the owner. Earlier the same day: item 1 (the clock's events) built, reviewed and reported; stage 3b's plan approved (decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
+**Last updated:** 2026-11-17, stage 3b-1 item 2 (the fleets' data) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"), reviewed (round 1 a test, a count and a comment; rounds 2 and 3 the docs' state; the Progress row has the rounds) and reported to the owner. Earlier the same day: item 1 (the clock's events) built, reviewed and reported; stage 3b's plan approved (decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
 
 ## Where things are
 
@@ -16,7 +16,6 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 ## Open items
 
-- Item 2 waits for its review (CLAUDE.md's loop), then the report to the owner.
 - Item 1's left-open points (the plan's Progress row): 3c's events are set aside, not run (`differences.md` row 66, which now says a fleet's arrival event would be set aside too); item 3 decides the two weeks' draws for players in hyperspace meanwhile, and whether an undone opening takes them back.
 - Item 2's left-open points (its Progress row): the fleets' `crew_level`, `max_crew` and `max_energy` are the race's ship's, not kept per fleet; the fleets aren't sent to clients until there's a starmap; the talks' `StartSphereTracking` runs for the opening's only, the meetings' come with items 5 to 8.
 - The escorts' caps are placeholders to be set by playtesting (`design.md`'s open item).
