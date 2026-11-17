@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-17, stage 3b's plan approved by the owner (`docs/plans/stage-3b.md`; decision 8 changed to shared, decision 11, notices, added); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
+**Last updated:** 2026-11-17, stage 3b's plan approved by the owner (`docs/plans/stage-3b.md`; decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); 3b-1 item 1 (the clock's events) started with the owner's go-ahead; the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
 
 ## Where things are
 
@@ -28,10 +28,6 @@ Smaller items left for later stages are notes under the items that own them in t
 - **No messages for the host's fleet (2026-11-15).** Item 9 built none for the pick, the shipyard's fleet actions or the roster: the host's game acts on its own world and guests have no fleet. The owner agreed; needed only if guests may act on the host's fleet or the host's game becomes a client of its own world.
 - **No ranks.** Guests as "Commander" was considered and dropped: UQM's lines and voices say "Captain".
 
-## Decisions waiting on the owner
-
-- **When the notices come** (stage 3b, decision 11, the owner's addition): recommended in 3b-1 as its item 9, a general notice that later stages add their events to; or later, in a stage of their own.
-
 ## Decided, not built
 
 - **A shortcut for the Arilou's gift: not now (the owner, 2026-11-16).** No shortcut reaches the commander's bulletin (`--start-docked` marks every bulletin told; `--start-devices PORTAL_SPAWNER_DEVICE` sets `PORTAL_SPAWNER_ON_SHIP`, not the `PORTAL_SPAWNER` the bulletin reads); `FleetTests` checks it and the how-to-try says so.
@@ -39,7 +35,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-With the owner's go-ahead (one item per go-ahead): stage 3b-1 item 1, the clock's events.
+Build stage 3b-1 item 1, the clock's events (the owner's go-ahead, 2026-11-17, for this item alone); then report and wait.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
