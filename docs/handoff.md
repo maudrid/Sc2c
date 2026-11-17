@@ -2,12 +2,12 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-17, stage 3b's plan drafted for the owner to approve (`docs/plans/stage-3b.md`, five review rounds, round 5's fixes not reviewed again); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
+**Last updated:** 2026-11-17, stage 3b's plan approved by the owner (`docs/plans/stage-3b.md`; decision 8 changed to shared, decision 11, notices, added); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
-- **Current plan:** `docs/plans/stage-3b.md`, stage 3b split in two (3b-1 ships in space with five races, 3b-2 the other races and the Melnorme), 3b-1 planned in detail: a draft with ten decisions, waiting for the owner's approval. Nothing of it is built.
+- **Current plan:** `docs/plans/stage-3b.md`, stage 3b split in two (3b-1 ships in space with five races, 3b-2 the other races and the Melnorme), 3b-1 planned in detail: approved 2026-11-17 with its eleven decisions (decision 8 shared, decision 11 notices added by the owner). Nothing of it is built.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
@@ -30,7 +30,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decisions waiting on the owner
 
-- **Stage 3b's plan** (`docs/plans/stage-3b.md`): approve it, with its ten decisions (the split; races not yet ported don't appear; a daily roll per player in hyperspace; groups fly at the nearest player; the player touched meets a group alone; no story talks among them; system groups kept per system; groups' standing per player; 3c's events set aside when due; recordings for one player, own tests for several), or change any.
+- **When the notices come** (stage 3b, decision 11, the owner's addition): recommended in 3b-1 as its item 9, a general notice that later stages add their events to; or later, in a stage of their own.
 
 ## Decided, not built
 
@@ -39,7 +39,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's approval of stage 3b's plan; then, with a go-ahead per item, build 3b-1 item 1 (the clock's events).
+With the owner's go-ahead (one item per go-ahead): stage 3b-1 item 1, the clock's events.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
