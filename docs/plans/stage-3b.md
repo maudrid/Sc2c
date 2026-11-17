@@ -1,6 +1,6 @@
 # Stage 3b plan: ships in space and the races
 
-**Status:** a draft for the owner to approve (2026-11-17). Nothing is built. The decisions below each have a recommendation; the plan is written as if they're all accepted.
+**Status:** a draft for the owner to approve (2026-11-17). Nothing is built. Reviewed in five rounds against UQM's source, each finding fixed; round 5's fixes (decision 7 in item 4, special systems redrawing only when empty, an absent player's span, row 27's worlds) weren't reviewed again, as the review stops at five. The decisions below each have a recommendation; the plan is written as if they're all accepted.
 
 Build order item: the second part of "3. Story flags, conversations, dialogue locks, story pauses and the group inventory" (`docs/design.md`; stage 3, decisions 1 and 2), after stage 4. The stage 3 plan's table gives 3b: alien ships in systems and hyperspace (`encount.c`, `ipdisp.c` and `hyper.c`'s encounters), among them the Ur-Quan drone at Earth and the Slylandro probes; hailing and the choice to attack or talk; the homeworlds that start a conversation; the races' conversations met those ways, each checked against UQM; and Melnorme trading and credits. `docs/differences.md` rows 27 (worlds that start a conversation) and 40 (the drone) are temporary until this stage.
 
