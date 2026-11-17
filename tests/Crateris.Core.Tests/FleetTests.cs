@@ -358,7 +358,7 @@ public class FleetTests
         world.Fleet.SetCrew(Rules, 1, 1);
         string json = HostSave.ToJson(world);
         var node = JsonNode.Parse(json)!;
-        Assert.Equal(12, node["version"]!.GetValue<int>());
+        Assert.Equal(HostSave.Version, node["version"]!.GetValue<int>());   // the fleet since 12
         Assert.Equal(3, node["fleet"]!.AsArray().Count);
         Assert.Equal("ARILOU_SHIP", node["fleet"]![0]!["race"]!.GetValue<string>());
         var loaded = HostSave.FromJson(json, Systems.Value, TestContent.Shapes);

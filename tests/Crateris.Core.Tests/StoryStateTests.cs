@@ -296,6 +296,7 @@ public class StoryStateTests
         Assert.Equal(Rules.Modules.Select(a.ModuleCost), Rules.Modules.Select(b.ModuleCost));
         Assert.Equal(a.Alliances, b.Alliances);
         Assert.Equal(a.Events.ToList(), b.Events.ToList());
+        Assert.Equal(a.Events.SetAside.ToList(), b.Events.SetAside.ToList());
     }
 
     [Fact]
@@ -341,8 +342,9 @@ public class StoryStateTests
         Assert.NotNull(world.Story);
         world.Story!.Set("STARBASE_AVAILABLE", 1);
         world.Story.SetAlliance("HUMAN_SHIP", Allied.Good);
-        // The clock passes events' days in 3a (none runs until 3c): they stay queued.
-        world.Clock.Month = 4;
+        // Two months on (to 17 April), the days' events run (stage 3b item 1):
+        // the encounters' event queued for the next day, the Arilou's set aside.
+        world.MoveClockDays(59);
         string json = HostSave.ToJson(world);
         var loaded = HostSave.FromJson(json, systems, TestContent.Shapes);
         SameStory(world.Story, loaded.Story!);

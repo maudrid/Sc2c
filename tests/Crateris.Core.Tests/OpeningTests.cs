@@ -590,19 +590,41 @@ public class OpeningTests
     {
         var world = WithTalks();
         var story = world.Story!;
+        // To 10 August 2155 (the Arilou's day set aside on the way), so the
+        // two weeks pass over the Slylandro's ramp-up on the 18th.
+        world.MoveClockDays(174);
+        var events = story.Events.ToList();
+        var setAside = story.Events.SetAside.ToList();
+        Assert.Equal(new StoryEvent("HYPERSPACE_ENCOUNTER_EVENT", 2155, 8, 11), events[0]);
         story.Set("STARBASE_AVAILABLE", 1);
         story.Set("MOONBASE_ON_SHIP", 1);
         var date = (world.Clock.Year, world.Clock.Month, world.Clock.Day);
+        Assert.Equal((2155, 8, 10), date);
         world.VisitStarbase(world.Host);
         Run(world, StarbaseVisit.TimePassingFrames);
         Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
         Assert.Equal(2500u, world.Host.Ship.Hold.ResourceUnits);
+        // MoveGameClockDays: each of the two weeks' days ran its events.
+        Assert.Equal(2, story.Get("SLYLANDRO_MULTIPLIER"));
+        Assert.Equal(new StoryEvent("HYPERSPACE_ENCOUNTER_EVENT", 2155, 8, 25), story.Events[0]);
+        Assert.Contains(new StoryEvent("SLYLANDRO_RAMP_UP", 2156, 2, 16), story.Events);
         var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
         Assert.Equal(date, (saved.Clock.Year, saved.Clock.Month, saved.Clock.Day));
         Assert.Equal((0u, 0, 0), (saved.Host.Ship.Hold.ResourceUnits, saved.Story!.Get("STARBASE_MONTH"), saved.Story.Get("STARBASE_DAY")));
+        // Saved without the two weeks' events: nothing was due as it loaded.
+        Assert.Equal(events, saved.Story.Events);
+        Assert.Equal(setAside, saved.Story.Events.SetAside);
+        Assert.Equal(1, saved.Story.Get("SLYLANDRO_MULTIPLIER"));
+        Assert.Equal(0, saved.HyperspaceEncounterDays);
         world.Leave("host");
         Assert.Equal(date, (world.Clock.Year, world.Clock.Month, world.Clock.Day));
         Assert.Equal((0u, 1), (world.Host.Ship.Hold.ResourceUnits, story.Get("MOONBASE_ON_SHIP")));
+        // Taken back with them: the events as before, the ramp-up to come again.
+        Assert.Equal(events, story.Events);
+        Assert.Equal(setAside, story.Events.SetAside);
+        Assert.Equal(1, story.Get("SLYLANDRO_MULTIPLIER"));
+        world.MoveClockDays(14);
+        Assert.Equal(2, story.Get("SLYLANDRO_MULTIPLIER"));
     }
 
     [ContentFact]

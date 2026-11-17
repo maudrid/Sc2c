@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Attack on Crateris contributors.
 // Follows The Ur-Quan Masters 0.8.0 (globdata.c getGameState, setGameState,
 // getGameState32, setGameState32 and InitGameStructures; shipyard.c
-// CrewTransaction; races.h allied_state),
+// CrewTransaction; races.h allied_state; clock.c AddEvent and
+// processClockDayEvents; gameev.c EventHandler),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002.
 //
 // This program is free software; you can redistribute it and/or modify
@@ -301,29 +302,87 @@ public sealed class StoryState
     // ---------------------------------------------------------------- events
 
     /// <summary>
-    /// AddEvent (clock.c): queues an event on its date, or runs it at once
-    /// if it's relative and due now (all of months, days and years 0).
-    /// A date already past isn't queued. False if it wasn't queued.
+    /// The events stage 3b-1 runs (stage 3b, item 1): the daily hyperspace
+    /// encounters and the Slylandro ramps. The others (the Arilou, the
+    /// races' missions, the Kohr-Ah, ...) are stage 3c's: until then they're
+    /// set aside on their day (<see cref="EventQueue.SetAside"/>, decision 9).
     /// </summary>
-    public bool AddEvent(bool relative, int months, int days, int years, string evt, GameClock clock)
+    public static readonly IReadOnlySet<string> EventsRun = new HashSet<string>
+    {
+        "HYPERSPACE_ENCOUNTER_EVENT", "SLYLANDRO_RAMP_UP", "SLYLANDRO_RAMP_DOWN",
+    };
+
+    /// <summary>
+    /// AddEvent (clock.c): queues an event on its date, or runs it at once
+    /// if it's relative and due now (all of months, days and years 0); one
+    /// that stage 3b-1 doesn't run (<see cref="EventsRun"/>) is set aside
+    /// then, dated today, as on its day in the queue. A date already past
+    /// isn't queued. False if it wasn't queued.
+    /// </summary>
+    public bool AddEvent(bool relative, int months, int days, int years, string evt, GameClock clock,
+        Action? hyperspaceRoll = null)
     {
         if (relative && months == 0 && days == 0 && years == 0)
         {
-            RunEvent(evt, clock);
+            if (EventsRun.Contains(evt) || !Rules.EventIds.ContainsKey(evt))
+                RunEvent(evt, clock, hyperspaceRoll);
+            else
+                Events.PutAside(new StoryEvent(evt, clock.Year, clock.Month, clock.Day));
             return false;
         }
         return Events.Add(relative, months, days, years, evt, clock);
     }
 
+    /// <summary>An event the clock took off the queue: run, or set aside for stage 3c (decision 9).</summary>
+    public sealed record DueEvent(StoryEvent Event, bool SetAside);
+
     /// <summary>
-    /// EventHandler (gameev.c), for the events that only change the story
-    /// state. The others (the races' missions, the Arilou, encounters) come
-    /// with stage 3c; until then they wait in the queue.
+    /// processClockDayEvents (clock.c), on <paramref name="clock"/>'s day:
+    /// takes the events at the queue's head off while they're due and runs
+    /// each (<see cref="RunEvent"/>), or sets it aside if stage 3b-1
+    /// doesn't run it (decision 9), so it doesn't hold up the rest. UQM
+    /// takes the head while its day is today; every event's day comes as
+    /// the clock passes it, so taking those due today or before is the
+    /// same, and also runs at once, in date order, the events whose day
+    /// passed without them: a save's from before stage 3b-1, which ran
+    /// none. <paramref name="hyperspaceRoll"/> is the world's
+    /// check_hyperspace_encounter (each player in hyperspace, decision 3),
+    /// called as each day's HYPERSPACE_ENCOUNTER_EVENT runs. What was
+    /// taken off, in order.
     /// </summary>
-    public void RunEvent(string evt, GameClock clock)
+    public List<DueEvent> RunDueEvents(GameClock clock, Action? hyperspaceRoll = null)
+    {
+        var done = new List<DueEvent>();
+        while (Events.HeadDue(clock))
+        {
+            var e = Events.TakeHead();
+            bool run = EventsRun.Contains(e.Event);
+            done.Add(new DueEvent(e, !run));
+            if (run)
+                RunEvent(e.Event, clock, hyperspaceRoll);
+            else
+                Events.PutAside(e);
+        }
+        return done;
+    }
+
+    /// <summary>
+    /// EventHandler (gameev.c), for the events stage 3b-1 runs
+    /// (<see cref="EventsRun"/>). The others (the races' missions, the
+    /// Arilou, ...) come with stage 3c; until then the clock sets them
+    /// aside (<see cref="RunDueEvents"/>), and running one here throws.
+    /// </summary>
+    public void RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null)
     {
         switch (evt)
         {
+            case "HYPERSPACE_ENCOUNTER_EVENT":
+                CheckRaceGrowth();
+                // if (inHyperSpace ()) check_hyperspace_encounter (): the
+                // world's, for each player in hyperspace (stage 3b item 3).
+                hyperspaceRoll?.Invoke();
+                AddEvent(true, 0, 1, 0, "HYPERSPACE_ENCOUNTER_EVENT", clock);
+                break;
             case "SLYLANDRO_RAMP_UP":
                 if (Get("DESTRUCT_CODE_ON_SHIP") == 0)
                 {
@@ -350,19 +409,34 @@ public sealed class StoryState
         }
     }
 
+    /// <summary>
+    /// check_race_growth (gameev.c): each race's fleet grows or shrinks by
+    /// its growth and moves a day towards where it's heading. Every race
+    /// starts with no growth and no heading (InitGameStructures), and only
+    /// stage 3c's events give them any, so nothing changes yet: the fleets
+    /// come with stage 3b item 2, and their growth and headings run here then.
+    /// </summary>
+    private void CheckRaceGrowth()
+    {
+    }
+
     // ---------------------------------------------------------------- saving
 
-    /// <summary>The story state in a save: the fields that aren't 0, by name, and everything beside them.</summary>
+    /// <summary>
+    /// The story state in a save: the fields that aren't 0, by name, and
+    /// everything beside them: the clock's events queued, and those set
+    /// aside for stage 3c (since save version 13; none before).
+    /// </summary>
     public sealed record Saved(
         Dictionary<string, int> Fields, int CrewCost, int FuelCost, Dictionary<string, int> ModuleCost,
-        Dictionary<string, Allied> Alliances, List<StoryEvent> Events);
+        Dictionary<string, Allied> Alliances, List<StoryEvent> Events, List<StoryEvent>? SetAside = null);
 
     public Saved Save() => new(
         Table.Fields.Where(f => !NotShared.ContainsKey(f.Name) && Get(f.Name) != 0).ToDictionary(f => f.Name, f => Get(f.Name)),
         CrewCost, FuelCost,
         Rules.Modules.Where(m => _moduleCost.GetValueOrDefault(m) != 0).ToDictionary(m => m, m => _moduleCost[m]),
         Rules.Races.Select((r, i) => (r, i)).ToDictionary(x => x.r, x => _alliances[x.i]),
-        Events.ToList());
+        Events.ToList(), Events.SetAside.ToList());
 
     /// <summary>A saved story state. A bad one is an <see cref="InvalidDataException"/>.</summary>
     public static StoryState Restore(StoryRules rules, Saved saved)
@@ -398,7 +472,7 @@ public sealed class StoryState
                 throw new InvalidDataException($"Story state: {rules.Races[i]}'s standing is {(int)a}.");
             story._alliances[i] = a;
         }
-        story.Events.Restore(saved.Events ?? new());
+        story.Events.Restore(saved.Events ?? new(), saved.SetAside);
         story.Version = 0;
         return story;
 

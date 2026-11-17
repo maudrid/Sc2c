@@ -76,7 +76,8 @@ public enum VisitStep
 /// The opening (the steps before the menu) can be taken back: the story
 /// fields its talks wrote (only those: another player's lander may take
 /// the Lunar base meanwhile), the starter's ship, what the talks changed
-/// on any other answerer's ship and the two weeks. A save
+/// on any other answerer's ship and the two weeks (with what their days'
+/// events did: the clock's events and the fields they set). A save
 /// made during it is of the game without it, as UQM can't save in the
 /// middle of one; and if the starter leaves with no one to take the
 /// replies, or every player leaves the Ilwrath's fight with the Ilwrath
@@ -108,6 +109,13 @@ public sealed class StarbaseVisit
     private readonly Dictionary<(int Talk, int At), Player> _sellers = new();
     private int _talks;
     private bool _skipped;
+
+    // The two weeks' events taken back with them: the story fields they
+    // changed, with what each was before, and the clock's events (queued
+    // and set aside) as before them. Nothing else changes the events while
+    // the opening goes on after them (the allied commander's talk there is
+    // story: the clock waits).
+    private (Dictionary<string, int> Fields, List<StoryEvent> Events, List<StoryEvent> SetAside)? _daysBefore;
 
     // STARBASE_VISITED while docked: whether the allied commander has
     // greeted this player on this visit (decision 11), as his talks leave it.
@@ -267,11 +275,17 @@ public sealed class StarbaseVisit
             return;
         if (--_fadeLeft > 0)
             return;
-        // MoveGameClockDays: the day starts afresh (tick_count = day_in_ticks);
-        // the clock's events wait for stage 3c.
-        for (int i = 0; i < LostDays; ++i)
-            _world.Clock.NextDay();
-        _world.Clock.FramesIntoDay = 0;
+        // MoveGameClockDays: each day's events run, and the day starts
+        // afresh (tick_count = day_in_ticks). What they change is taken
+        // back with the two weeks (TakeBackDays).
+        var story = _world.Story!;
+        var before = story.Save();
+        _world.MoveClockDays(LostDays);
+        var after = story.Save();
+        _daysBefore = (story.Rules.Table.Fields.Select(f => f.Name)
+                .Where(f => before.Fields.GetValueOrDefault(f) != after.Fields.GetValueOrDefault(f))
+                .ToDictionary(f => f, f => before.Fields.GetValueOrDefault(f)),
+            before.Events, before.SetAside ?? new());
         _skipped = true;
         // The allied commander, at the starbase (GLOBAL_FLAGS_AND_DATA ~0);
         // whether he has greeted this player on this visit is theirs, and
@@ -455,13 +469,32 @@ public sealed class StarbaseVisit
         return written;
     }
 
-    /// <summary>The story as it would be without the visit: what its talks wrote put back.</summary>
+    /// <summary>
+    /// The story as it would be without the visit: what its talks wrote
+    /// put back, and what the two weeks' events did, if they've passed
+    /// (<see cref="TakeBackDays"/>).
+    /// </summary>
     public StoryState.Saved StoryWithout()
     {
         var story = StoryState.Restore(_world.Story!.Rules, _world.Story.Save());
+        TakeBackDays(story);
         foreach (var (field, value) in WrittenBefore())
             story.Set(field, value);
         return story.Save();
+    }
+
+    /// <summary>
+    /// The two weeks' events taken back from a story, if the two weeks
+    /// have passed: the fields they changed as before them, and the clock's
+    /// events (queued and set aside) as before them.
+    /// </summary>
+    private void TakeBackDays(StoryState story)
+    {
+        if (!_skipped || _daysBefore is not { } days)
+            return;
+        foreach (var (field, value) in days.Fields)
+            story.Set(field, value);
+        story.Events.Restore(days.Events, days.SetAside);
     }
 
     /// <summary>The date without the visit: the two weeks, if they've passed, taken back.</summary>
@@ -516,7 +549,9 @@ public sealed class StarbaseVisit
     /// The opening is undone: what its talks wrote, the starter's ship,
     /// what the talks changed on any other answerer's ship, the ships the
     /// talks gave the host's fleet (only those: <see cref="FleetWithout"/>),
-    /// and the two weeks put back. A starter wrecked in the Ilwrath's fight
+    /// and the two weeks put back, with what their days' events did (the
+    /// clock's events and the fields they set, <see cref="TakeBackDays"/>).
+    /// A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
     /// crew; one that disconnected from it was settled as it left
     /// (<see cref="SettleStarter"/>: its hold as before the visit with the
@@ -527,6 +562,7 @@ public sealed class StarbaseVisit
     {
         if (!Opening)
             throw new InvalidOperationException("only the opening is taken back");
+        TakeBackDays(_world.Story!);
         foreach (var (field, value) in WrittenBefore())
             _world.Story!.Set(field, value);
         _world.Fleet.Restore(_world.Story!.Rules, FleetWithout(_world.Fleet.Ships).ToList());
@@ -549,6 +585,7 @@ public sealed class StarbaseVisit
         var (y, m, d) = DateWithout();
         (_world.Clock.Year, _world.Clock.Month, _world.Clock.Day) = (y, m, d);
         _skipped = false;
+        _daysBefore = null;
         Undone = true;
         Finish();
     }

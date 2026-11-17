@@ -537,7 +537,9 @@ public sealed partial class GameWorld
         if (GameOver)
             return;   // the world stops at once (decision 12): no surface's frame, no clock
         StepSurfaces();
-        Clock.Tick(Settings.SecondsPerGameDay);
+        // GameClockTick: a new day runs its events (processClockDayEvents).
+        if (Clock.Tick(Settings.SecondsPerGameDay))
+            RunDayEvents();
     }
 
     // The keys on the surface: turn, thrust, fire, take off.

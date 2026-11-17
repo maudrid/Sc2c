@@ -1,6 +1,7 @@
 // Attack on Crateris
 // Copyright (C) 2026 Attack on Crateris contributors.
-// Follows The Ur-Quan Masters 0.8.0 (clock.c AddEvent and ValidateEvent),
+// Follows The Ur-Quan Masters 0.8.0 (clock.c AddEvent, ValidateEvent and
+// processClockDayEvents),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002.
 //
 // This program is free software; you can redistribute it and/or modify
@@ -19,11 +20,13 @@ public sealed record StoryEvent(string Event, int Year, int Month, int Day);
 /// <summary>
 /// The clock's events in date order, as clock.c keeps them: a new event
 /// goes after every event on its day or before it, so events on one day
-/// run in the order they were added. Running them as their days come is
-/// stage 3c's; until then they are kept and saved, and the clock passes
-/// their days. UQM's clock runs only the first event and only on its day
-/// (processClockDayEvents), so stage 3c has to run those already due when
-/// it starts, or one in the past would hold up the rest.
+/// run in the order they were added. Each day the events at the head that
+/// are due are taken off and run (<see cref="StoryState.RunDueEvents"/>,
+/// processClockDayEvents). The events stage 3b-1 doesn't run yet (all but
+/// the hyperspace encounters and the Slylandro ramps: the Arilou, the
+/// races' missions, the Kohr-Ah's victory, ...) are taken off on their day
+/// all the same and set aside (<see cref="SetAside"/>, stage 3b decision
+/// 9), so they don't hold up the rest; stage 3c runs them.
 /// </summary>
 public sealed class EventQueue : IEnumerable<StoryEvent>
 {
@@ -43,6 +46,38 @@ public sealed class EventQueue : IEnumerable<StoryEvent>
     public int Count => _events.Count;
 
     public StoryEvent this[int index] => _events[index];
+
+    /// <summary>
+    /// The events taken off the queue on their day without running, as
+    /// stage 3b-1 doesn't run them yet (stage 3b, decision 9), in the order
+    /// they fell due (so in date order), each with its date: stage 3c runs
+    /// them. Saved with the queue. They aren't in the queue, so they don't
+    /// count towards <see cref="MaxEvents"/> (UQM's would have run, freeing
+    /// their places).
+    /// </summary>
+    public IReadOnlyList<StoryEvent> SetAside => _setAside;
+
+    private readonly List<StoryEvent> _setAside = new();
+
+    /// <summary>Whether the event at the head is due: its day is the clock's or before it.</summary>
+    internal bool HeadDue(GameClock clock) =>
+        _events.Count > 0 && !Before(clock.Year, clock.Month, clock.Day, _events[0].Year, _events[0].Month, _events[0].Day);
+
+    /// <summary>RemoveEvent on the head: takes it off the queue.</summary>
+    internal StoryEvent TakeHead()
+    {
+        var head = _events[0];
+        _events.RemoveAt(0);
+        _changed();
+        return head;
+    }
+
+    /// <summary>Sets an event aside for stage 3c (decision 9), after those set aside before it.</summary>
+    internal void PutAside(StoryEvent e)
+    {
+        _setAside.Add(e);
+        _changed();
+    }
 
     /// <summary>
     /// The queuing half of AddEvent: a relative date is counted from the
@@ -82,21 +117,38 @@ public sealed class EventQueue : IEnumerable<StoryEvent>
         return true;
     }
 
-    internal void Restore(IEnumerable<StoryEvent> events)
+    /// <summary>
+    /// The queue and the events set aside as saved (or as they were: a
+    /// visit taken back). Each list in date order; the queue at most
+    /// <see cref="MaxEvents"/>. A bad one is an <see cref="InvalidDataException"/>.
+    /// </summary>
+    internal void Restore(IEnumerable<StoryEvent> events, IEnumerable<StoryEvent>? setAside = null)
     {
+        var queue = Checked(events, "events", MaxEvents);
+        var aside = Checked(setAside ?? Enumerable.Empty<StoryEvent>(), "events set aside", int.MaxValue);
         _events.Clear();
+        _events.AddRange(queue);
+        _setAside.Clear();
+        _setAside.AddRange(aside);
+        _changed();
+    }
+
+    private List<StoryEvent> Checked(IEnumerable<StoryEvent> events, string what, int most)
+    {
+        var list = new List<StoryEvent>();
         foreach (var e in events)
         {
             if (e is null || !_rules.EventIds.ContainsKey(e.Event ?? ""))
                 throw new InvalidDataException($"Story state: no event {e?.Event}.");
             if (e.Month is < 1 or > 12 || e.Day < 1 || e.Day > GameClock.DaysInMonth(e.Month, e.Year))
                 throw new InvalidDataException($"Story state: {e.Event} is on no such day.");
-            if (_events.Count > 0 && Before(e.Year, e.Month, e.Day, _events[^1].Year, _events[^1].Month, _events[^1].Day))
-                throw new InvalidDataException("Story state: the events aren't in date order.");
-            if (_events.Count >= MaxEvents)
-                throw new InvalidDataException($"Story state: more than {MaxEvents} events.");
-            _events.Add(e);
+            if (list.Count > 0 && Before(e.Year, e.Month, e.Day, list[^1].Year, list[^1].Month, list[^1].Day))
+                throw new InvalidDataException($"Story state: the {what} aren't in date order.");
+            if (list.Count >= most)
+                throw new InvalidDataException($"Story state: more than {most} {what}.");
+            list.Add(e);
         }
+        return list;
     }
 
     private static bool Before(int y, int m, int d, int y2, int m2, int d2) =>

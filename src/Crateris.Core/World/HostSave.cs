@@ -94,8 +94,15 @@ public static class HostSave
     /// scrapped as the editing ends (stage 4b item 7), and the save loads
     /// out of the shipyard; one in a save loads, and is scrapped in the
     /// world's first frame (<see cref="GameWorld.ScrapUnmannedFleetShips"/>).
+    /// 13 runs the clock's events (stage 3b item 1) and has the events set
+    /// aside for stage 3c (StoryState.Saved.SetAside, decision 9); an older
+    /// save has none set aside, and one with any is refused. On loading any
+    /// save, the events whose day has passed run at once, in date order
+    /// (those of 3c set aside): an older save's, which ran none, as the
+    /// encounters' event waiting since the second day. During a visit's
+    /// opening, the two weeks' events are taken back with the two weeks.
     /// </summary>
-    public const int Version = 12;
+    public const int Version = 13;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -268,6 +275,8 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have wrecks.");
         if (save.Version < 12 && save.Fleet is { Count: > 0 })
             throw new InvalidDataException($"A version {save.Version} save can't have a fleet.");
+        if (save.Version < 13 && save.Story?.SetAside is { Count: > 0 })
+            throw new InvalidDataException($"A version {save.Version} save can't have events set aside.");
         if ((save.Fleet ?? new()).Any(s => s is null || s.Race is null))
             throw new InvalidDataException("The save has a fleet ship that is null or of no race.");
         // A setting a save leaves out is the default, and so is the ship's
@@ -455,6 +464,9 @@ public static class HostSave
             }
         }
         world.CommanderMet = save.CommanderMet;
+        // The events whose day has passed run now, in date order (an older
+        // save's: it ran none); those of 3c are set aside (decision 9).
+        world.RunDayEvents();
         return world;
     }
 }

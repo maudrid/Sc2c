@@ -2,20 +2,21 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-17, stage 3b's plan approved by the owner (`docs/plans/stage-3b.md`; decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); 3b-1 item 1 (the clock's events) started with the owner's go-ahead; the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
+**Last updated:** 2026-11-17, stage 3b-1 item 1 (the clock's events) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"); its review is next, then the report to the owner. Earlier the same day: stage 3b's plan approved (decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
-- **Current plan:** `docs/plans/stage-3b.md`, stage 3b split in two (3b-1 ships in space with five races, 3b-2 the other races and the Melnorme), 3b-1 planned in detail: approved 2026-11-17 with its eleven decisions (decision 8 shared, decision 11 notices added by the owner). Nothing of it is built.
+- **Current plan:** `docs/plans/stage-3b.md`, stage 3b split in two (3b-1 ships in space with five races, 3b-2 the other races and the Melnorme), 3b-1 planned in detail: approved 2026-11-17 with its eleven decisions (decision 8 shared, decision 11 notices added by the owner). Item 1, the clock's events, is built (its "Progress" row: the day's events, 3c's set aside, save version 13, the starbase's two weeks running their days' events, `tests/golden/clock-events.json`); the review of its commit is next. Items 2 to 12 aren't started.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (the escorts' upgrades, review round 1's fixes, 2026-11-16; rounds 2 to 4 docs only; `tests/topic-map.json` remade): all topics 2,162 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed at the build (78 checks; no wire or session change since); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
+- **Last checks** (3b-1 item 1, 2026-11-17; `tests/topic-map.json` remade): all topics 2,171 passed, 0 failed, 0 skipped with the content set (`ClockEventsTests` new in topic story); the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` last passed at the escorts' upgrades (78 checks; no wire or session change since); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
 
+- Item 1's left-open points (the plan's Progress row): 3c's events are set aside, not run (`differences.md` row 66); item 3 decides the two weeks' draws for players in hyperspace meanwhile, and whether an undone opening takes them back; item 2 adds the fleets to save version 13 as an optional part.
 - The escorts' caps are placeholders to be set by playtesting (`design.md`'s open item).
 
 Smaller items left for later stages are notes under the items that own them in the plans (`stage-3.md` for 3b and 3c; `stage-4b.md`'s notes for 3b; Tanaka's Shofixti scout and the Melnorme's trading for escorts are in `stage-3b.md`'s 3b-2 row).
@@ -35,7 +36,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build stage 3b-1 item 1, the clock's events (the owner's go-ahead, 2026-11-17, for this item alone); then report and wait.
+Review item 1's commit (CLAUDE.md's review rule), then report item 1 to the owner and wait: the go-ahead of 2026-11-17 was for it alone, so item 2 (the fleets' data) waits for the owner's word.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

@@ -5276,6 +5276,105 @@ def record_commanim(uqm, exe):
     return data
 
 
+CLOCK_PROGRAM = os.path.join(HERE, "golden", "clock.c")
+CLOCK_LINK = ["uqm/gameev.c", "uqm/globdata.c", "uqm/displist.c"]
+
+# The clock's scenarios: commands for golden/clock.c ("new", "day N",
+# "move N", "hyper 0|1", "rampdown"). A new game's Slylandro ramp-ups fall
+# on 17 February 2155 (at once), 18 August 2155, 16 February and 16 August
+# 2156 (a leap year), and the one on 14 February 2157 (728 days in) finds
+# the multiplier at 4 and stops.
+CLOCK_SCENARIOS = [
+    ("a new game", ["new", "hyper 1", "day 40", "hyper 0", "day 100", "hyper 1", "day 600"]),
+    # MoveGameClockDays (LOST_DAYS), the starbase's two weeks: over the
+    # Arilou's entrance (17 March), then in hyperspace over the second
+    # ramp-up (18 August).
+    ("the starbase's two weeks", ["new", "day 20", "move 14", "day 140", "hyper 1", "move 14", "hyper 0",
+                                  "day 10"]),
+    # Told the self-destruct code (slyhome.c) at a multiplier of 3: the
+    # ramp-down runs at once and every 23 days down to 0, and the ramp-up
+    # on 16 August 2156 finds the code on the ship and stops.
+    ("the Slylandro ramp-down", ["new", "day 400", "rampdown", "day 160"]),
+]
+
+
+def record_clock(uqm, exe):
+    """The game clock and its events as UQM's own clock.c and gameev.c run
+    them (golden/clock.c), day by day. Code only, no content."""
+    events = {e["event"]: e["id"] for e in extract_uqm.extract_events(uqm)["events"]}
+    scenarios = []
+    for name, commands in CLOCK_SCENARIOS:
+        out = subprocess.run([exe], input="\n".join(commands) + "\n", capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"clock {name}: exit {out.returncode}: {out.stderr}")
+        steps = [json.loads(line) for line in out.stdout.splitlines()]
+        if len(steps) != len(clock_step_commands(commands)):
+            raise RuntimeError(f"clock {name}: {len(steps)} steps, not {len(clock_step_commands(commands))}")
+        scenarios.append({"name": name, "commands": commands, "steps": steps})
+    check_clock(scenarios, events)
+    data = header(uqm, ["tools/extract/golden/clock.c", "src/uqm/clock.c"] + [f"src/{f}" for f in CLOCK_LINK], [
+        "The game clock and its events, recorded by running UQM 0.8.0's own "
+        "clock.c (InitGameClock, GameClockTick, MoveGameClockDays, AddEvent, "
+        "processClockDayEvents) and gameev.c (AddInitialGameEvents, "
+        "EventHandler) in the recording program tools/extract/golden/clock.c. "
+        "Code only, no content. check_hyperspace_encounter is only counted "
+        "(every race starts with no growth, so check_race_growth changes "
+        "nothing).",
+        "Each scenario: its commands (new: a new game; day N: N days of "
+        "GameClockTick; move N: MoveGameClockDays (N); hyper 0|1: the "
+        "flagship out of or in hyperspace; rampdown: what slyhome.c does "
+        "when told of the self-destruct code) and its steps: one after new "
+        "and rampdown, one each day of day, one for the whole of move.",
+        "A step: [[year, month, day] after it, [[event, depth, year, month, "
+        "day]...] each event EventHandler ran, in order, depth 0 for those "
+        "clock.c ran (from the queue's head, or AddEvent's due at once) and "
+        "more for one run at once from within another, with the date it ran "
+        "on, check_hyperspace_encounter's calls, SLYLANDRO_MULTIPLIER after, "
+        "[[event, year, month, day]...] the queue after]. Events are "
+        "gameev.h's numbers (data/events.json).",
+    ])
+    data["scenarios"] = scenarios
+    return data
+
+
+def clock_step_commands(commands):
+    """The command each of a scenario's steps comes from, one per step (a
+    day's for each day)."""
+    words = []
+    for c in commands:
+        word, *n = c.split()
+        if word == "day":
+            words += ["day"] * int(n[0])
+        elif word in ("new", "move", "rampdown"):
+            words.append(word)
+    return words
+
+
+def check_clock(scenarios, events):
+    """Refuses a recording whose scenarios don't show what they're for."""
+    ENCOUNTER, ARILOU, RAMP_UP, RAMP_DOWN = 2, 0, 16, 17
+    if (events["HYPERSPACE_ENCOUNTER_EVENT"], events["ARILOU_ENTRANCE_EVENT"], events["SLYLANDRO_RAMP_UP"],
+            events["SLYLANDRO_RAMP_DOWN"]) != (ENCOUNTER, ARILOU, RAMP_UP, RAMP_DOWN):
+        raise RuntimeError("clock: the events' numbers aren't gameev.h's as this check knows them")
+    by = {s["name"]: s for s in scenarios}
+
+    def ran(step, event):
+        return any(r[0] == event for r in step[1])
+
+    new = by["a new game"]["steps"]
+    if [s[3] for s in new if ran(s, RAMP_UP)] != [1, 2, 3, 4, 4] or any(e[0] == RAMP_UP for e in new[-1][4]):
+        raise RuntimeError("clock: a new game's ramp-ups don't reach 4 and stop")
+    if not all(ran(s, ENCOUNTER) for s in new[1:]) or sum(s[2] for s in new) != 640:
+        raise RuntimeError("clock: the encounter event didn't run once a day, rolling in hyperspace")
+    weeks = by["the starbase's two weeks"]
+    moves = [s for s, c in zip(weeks["steps"], clock_step_commands(weeks["commands"])) if c == "move"]
+    if len(moves) != 2 or not ran(moves[0], ARILOU) or not ran(moves[1], RAMP_UP) or moves[1][2] != 14:
+        raise RuntimeError("clock: the two weeks don't pass over the Arilou and a ramp-up")
+    down = by["the Slylandro ramp-down"]["steps"]
+    if sum(ran(s, RAMP_DOWN) for s in down) != 4 or down[-1][3] != 0:
+        raise RuntimeError("clock: the ramp-down doesn't run down to 0")
+
+
 CMAP_PROGRAM = os.path.join(HERE, "golden", "cmap.c")
 
 # Colour fade scenarios: commands for golden/cmap.c ("set F L SEED",
@@ -6219,6 +6318,8 @@ def main():
             build(uqm, SELL_PROGRAM, SELL_LINK, sell, libs=["-lm", "-Wl,--wrap=ClearSISRect"])
         cmap = os.path.join(build_dir, "cmap")
         build(uqm, CMAP_PROGRAM, [], cmap)
+        clock = os.path.join(build_dir, "clock")
+        build(uqm, CLOCK_PROGRAM, CLOCK_LINK, clock)
         commanim = os.path.join(build_dir, "commanim")
         build(uqm, COMMANIM_PROGRAM, COMMANIM_LINK, commanim)
         devices = os.path.join(build_dir, "devices")
@@ -6252,6 +6353,7 @@ def main():
                 ("devices", lambda: record_devices(uqm, devices)),
                 ("commanim", lambda: record_commanim(uqm, commanim)),
                 ("cmap", lambda: record_cmap(uqm, cmap)),
+                ("clock-events", lambda: record_clock(uqm, clock)),
                 ("string-numbering", lambda: record_string_numbering(uqm, strings)),
                 ("conversation-cases", lambda: record_conversation_cases(uqm, strings)),
                 ("string-table-cases", lambda: record_string_table_cases(uqm, strings)),
