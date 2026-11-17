@@ -2,12 +2,12 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-16, the escorts' upgrades built and reviewed (round 5 found nothing); two questions for the owner.
+**Last updated:** 2026-11-17, the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept); nothing waits on the owner.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed.
-- **Current plan:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan, its try-out in `docs/how-to-try/escort-upgrades.md`.
+- **Current plan:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
 - **Last checks** (the escorts' upgrades, review round 1's fixes, 2026-11-16; rounds 2 to 4 docs only; `tests/topic-map.json` remade): all topics 2,162 passed, 0 failed, 0 skipped with the content set; the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed at the build (78 checks; no wire or session change since); the data checks last ran at 4a item 9 (nothing in `data/` changed since).
@@ -27,14 +27,6 @@ Smaller items left for later stages are notes under the items that own them in t
 - **No messages for the host's fleet (2026-11-15).** Item 9 built none for the pick, the shipyard's fleet actions or the roster: the host's game acts on its own world and guests have no fleet. The owner agreed; needed only if guests may act on the host's fleet or the host's game becomes a client of its own world.
 - **No ranks.** Guests as "Commander" was considered and dropped: UQM's lines and voices say "Captain".
 
-## Decisions waiting on the owner
-
-- **Selling a new escort's kit is money without end** (found reviewing the escorts' upgrades; not changed). A new guest's escort costs nothing: `GameWorld.Join` gives a fresh kit to any player id not seen before, and a client picks its own id (`--id`). The whole kit sells back as UQM's flagship sells its starting modules, so new ids, selling the kit and giving the units on make about 6,000 resource units an id at a new game's prices, without limit (2,500 of it the thrusters, jets and fuel tank the upgrades made sellable; the lander, storage bay, gun, fuel and crew sold before). Options:
-  1. *The kit's modules sell back for 0* (the kit is a gift; what's bought keeps UQM's refund). **Recommended**, as it closes the source wherever new ids come from without limiting who joins. Not possible as things stand: a ship's slots don't say which pieces were the kit's (`ShipModules` holds module numbers and the kit's crew, nothing saying where a slot's piece came from; `PlayerShip.Loadout` keeps only the kit's counts). It needs a kit mark on each slot (set by `ShipModules.FromLoadout`, cleared when sold, kept in the save: save version 13, an older save's escort marked where its kit's pieces still are), a count for the kit's landers, and a choice for the kit's fuel and crew (about 230 more, sold at the fuel and crew prices): a small item.
-  2. *A cap on new escorts per game* (a setting; `Join` refuses a new id past it): simple, but bounds the source rather than closing it, and turns away real new players past the cap.
-  3. *Accept it* and record it in `design.md`'s open items (friends play together; a host can give a smaller kit, `GameSettings.EscortLoadout`).
-- **The commander's advice and an escort's drives (low).** `AnalyzeCondition` (`Comm/Scripts/StarbaseScript.cs`, through `PlayerTalkShip.Thrusters`/`Jets` and `AnswererTalkShip`'s) counts thrusters, jets and modules from the flagship (stage 3, decision 4, made when escorts couldn't buy thrusters or jets) but crew, fuel and landers from the talker, so an escort asking hears the thrusters' and jets' advice by the flagship's count, whatever its own ship holds. Should the advice count the talker's own ship's thrusters and jets (and modules)?
-
 ## Decided, not built
 
 - **A shortcut for the Arilou's gift: not now (the owner, 2026-11-16).** No shortcut reaches the commander's bulletin (`--start-docked` marks every bulletin told; `--start-devices PORTAL_SPAWNER_DEVICE` sets `PORTAL_SPAWNER_ON_SHIP`, not the `PORTAL_SPAWNER` the bulletin reads); `FleetTests` checks it and the how-to-try says so.
@@ -42,7 +34,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner: the two questions above (the escort kit as a money source; the commander's advice for an escort). After that, with the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
+With the owner's go-ahead: stage 3b's plan (ships in space and the races, `design.md`'s build order) for the owner to approve.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
