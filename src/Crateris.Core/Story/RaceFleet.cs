@@ -40,8 +40,9 @@ public sealed record RaceFleet(
     /// A new game's fleet (InitGameStructures): its ship's sphere, unknown,
     /// at its centre, with no growth (the error term at 255 &gt;&gt; 1) and
     /// no heading (dest_loc 0: UQM leaves it unset, and nothing reads it
-    /// until SetRaceDest sets it). The Yehat rebels' has no sphere (InitGameStructures' "Rebel special
-    /// case": their ship is the Yehat's, whose sphere they'd otherwise get).
+    /// until SetRaceDest sets it). The Yehat rebels' has no sphere
+    /// (InitGameStructures' "Rebel special case": their ship is the
+    /// Yehat's, whose sphere they'd otherwise get).
     /// </summary>
     public static RaceFleet NewGame(RaceFleetRules rules) =>
         new(rules.Race == "YEHAT_REBEL_SHIP" ? 0 : rules.Strength, 0, rules.HomeX, rules.HomeY, rules.HomeX, rules.HomeY,
