@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-17, stage 3b-1 item 2 (the fleets' data) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"); built, not yet reviewed. Earlier the same day: item 1 (the clock's events) built, reviewed and reported; stage 3b's plan approved (decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
+**Last updated:** 2026-11-17, stage 3b-1 item 2 (the fleets' data) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"), reviewed (round 1 a test, a count and a comment; the Progress row has the rounds) and reported to the owner. Earlier the same day: item 1 (the clock's events) built, reviewed and reported; stage 3b's plan approved (decision 8 changed to shared, decision 11, notices, added and confirmed in 3b-1); the owner decided the escorts' upgrades' two questions (the kit's money source accepted, the commander's advice kept).
 
 ## Where things are
 
@@ -11,7 +11,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (3b-1 item 2, 2026-11-17; `tests/topic-map.json` remade): all topics 2,183 passed, 0 failed, 0 skipped with the content set (`RaceFleetsTests` new in topic story); the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); the data checks (`UQM_SC2=... python3 tools/extract/test_data.py`) 31 passed, the extractor reproducing `data/`; `golden_uqm.py --only clock-events` recorded twice gives the committed file; `tools/test_network.py` last passed at the escorts' upgrades (78 checks; no wire or session change since).
+- **Last checks** (3b-1 item 2, 2026-11-17; `tests/topic-map.json` remade): all topics 2,184 passed, 0 failed, 0 skipped with the content set (`RaceFleetsTests` new in topic story); the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602 line 1125, `game/scripts/ReportView.cs` 78); the data checks (`UQM_SC2=... python3 tools/extract/test_data.py`) 31 passed, the extractor reproducing `data/`; `golden_uqm.py --only clock-events` recorded twice gives the committed file; `tools/test_network.py` last passed at the escorts' upgrades (78 checks; no wire or session change since).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
@@ -38,7 +38,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review stage 3b-1 item 2, the fleets' data (CLAUDE.md's review loop), then report it to the owner and wait. Item 3 isn't to be started without the owner's go-ahead.
+Wait for the owner's go-ahead for stage 3b-1 item 3, encounters in hyperspace (one item per go-ahead).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

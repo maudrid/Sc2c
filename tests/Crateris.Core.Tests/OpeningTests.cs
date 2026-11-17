@@ -728,6 +728,40 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void AFleetTheTalkTrackedAndTheTwoWeeksChangedIsTakenBackWhole()
+    {
+        // The Ilwrath growing (as a 3c event could leave them): their talk
+        // tracks their sphere, then the two weeks change their fleet. The
+        // days' take-back puts back the fleet from before the days (tracked),
+        // so the talk's tracking has to be taken back after it.
+        var world = Reported();
+        var story = world.Story!;
+        story.SetFleet("ILWRATH_SHIP", story.Fleet("ILWRATH_SHIP") with { Growth = 10 });
+        var before = story.Fleet("ILWRATH_SHIP");
+        Assert.Equal(0, before.KnownStrength);
+        var wb = ToTheFight(world, "host");
+        KillTheIlwrath(world, wb);
+        Say(world, "comandr", "cook_their_butts");
+        Say(world, "comandr", "name_2");
+        // The days of the fight went as days go (not the opening's to take
+        // back): the fleet as the two weeks begin, but for the talk's tracking.
+        Assert.Equal(VisitStep.TimePassing, world.Visit!.Step);
+        var tracked = story.Fleet("ILWRATH_SHIP");
+        Assert.Equal((1, 48, 1700), (tracked.KnownStrength, tracked.KnownLocX, tracked.KnownLocY));
+        var expected = tracked with { KnownStrength = before.KnownStrength, KnownLocX = before.KnownLocX, KnownLocY = before.KnownLocY };
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
+        var after = story.Fleet("ILWRATH_SHIP");
+        Assert.Equal(1, after.KnownStrength);
+        Assert.Equal(tracked.ActualStrength + 10 * StarbaseVisit.LostDays, after.ActualStrength);
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(expected, saved.Story!.Fleet("ILWRATH_SHIP"));
+        world.Leave("host");
+        Assert.Null(world.Visit);
+        Assert.Equal(expected, story.Fleet("ILWRATH_SHIP"));
+    }
+
+    [ContentFact]
     public void NoCargoGoesOverboardDuringAVisit()
     {
         var world = WithTalks();

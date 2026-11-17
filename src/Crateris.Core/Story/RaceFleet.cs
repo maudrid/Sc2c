@@ -39,7 +39,7 @@ public sealed record RaceFleet(
     /// <summary>
     /// A new game's fleet (InitGameStructures): its ship's sphere, unknown,
     /// at its centre, with no growth (the error term at 255 &gt;&gt; 1) and
-    /// no heading (dest_loc 0, as the queue's new link leaves it). The
+    /// no heading (dest_loc 0: UQM leaves it unset, and nothing reads it until SetRaceDest sets it). The
     /// Yehat rebels' has no sphere (InitGameStructures' "Rebel special
     /// case": their ship is the Yehat's, whose sphere they'd otherwise get).
     /// </summary>
