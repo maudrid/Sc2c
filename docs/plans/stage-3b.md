@@ -11,104 +11,116 @@ Stage 3a's engine, screen, lock, rules and thirteen decisions hold here, as do s
 
 ## Splitting stage 3b
 
-Stage 3b as listed is the size of stage 4 again. The conversation scripts left to port are about 21,000 lines of C in 25 scripts (the commander's and the allied starbase's are built, the Ilwrath's opening branch too); the Melnorme's alone is 1,855, with its own trading screens. Under them sit the engine pieces nothing has run yet: the races' fleets and their spheres, hyperspace encounters (`hyper.c`, about 600 of its 1,747 lines), system groups (`ipdisp.c` 777, `grpinfo.c` 865) and the encounter screens (`encount.c`).
+Stage 3b as listed is the size of stage 4 again. The conversation scripts left to port are about 21,000 lines of C in 25 scripts (the commander's and the allied starbase's are built, the Ilwrath's opening branch too); the Melnorme's alone is 1,855, with its own trading screens. Under them sit the engine pieces nothing has run yet: the clock's events, hyperspace encounters (`hyper.c`, about 600 of its 1,747 lines), system groups (`ipdisp.c` 777, `grpinfo.c` 865) and the encounter screens (`encount.c`, `comm.c`'s `RaceCommunication`).
 
 So this plan splits 3b in two (decision 1) and plans the first part in detail:
 
 | Part | What | Needs |
 | --- | --- | --- |
-| **3b-1. Ships in space** (this plan) | The races' fleets and spheres; hyperspace encounters and system groups, flying as UQM's and meeting the players; the encounter screen (hail or attack) and the battle's end screen; meetings ending in talks and battles. Five races' talks to fly them: the Ur-Quan and their drone at Earth (row 40), the Kohr-Ah, the Ilwrath met anywhere, the Spathi away from home, the Slylandro probes | 3a's engine, stage 4's battles |
-| 3b-2. The races | The other 20 scripts (below), the homeworlds that start a talk (row 27) with their infinite fleets, the races' alliances and the ships they give and take, and the Melnorme: trading, credits per player, bio data's worth, the lander upgrades and the information they sell | 3b-1 |
+| **3b-1. Ships in space** (this plan) | The clock's events run; hyperspace encounters and system groups fly as UQM's and meet the players; the encounter screen (hail or attack) and the battle's end; meetings ending in talks and battles. Five races' talks to fly them, with the worlds that start those talks: the Ur-Quan and their drone at Earth (row 40), the Kohr-Ah, the Ilwrath (their homeworld too), the Spathi away from home (Spathiwa's moon too), the Slylandro probes | 3a's engine, stage 4's battles |
+| 3b-2. The races | The other 20 scripts (below), the homeworlds that start a talk with them (row 27) and their infinite fleets, the races' alliances and the ships they give and take, Tanaka's (or Katana's) damaged Shofixti scout with its sheets (left here by stage 4b item 4), and the Melnorme: trading, credits per player, bio data's worth, the lander upgrades and the information they sell (their trading reads the flagship's slots in UQM; escorts trading need their own: stage 4's item 8 note) | 3b-1 |
 
 The scripts left for 3b-2: the Arilou (855), the Chmmr (641), the Druuge (926), the Melnorme (1,855), the Mycon (643), the Orz (898), the Pkunk (1,148), the Yehat rebels (449), the Shofixti (652), the Slylandro at home (921), the Spathi at home (1,018), the Supox (708), the Syreen (878), the Talking Pet (841), the Thraddash (954), the Umgah (729), the Utwig (996), the VUX (796), the Yehat (685) and the Zoq-Fot-Pik (975): about 17,600 lines.
 
 ## Goal of stage 3b-1
 
-1. **Ships fly in space.** Each race's fleet holds its sphere as UQM's does, growing and shrinking by the day. In hyperspace, groups of the races whose talks are ported appear around each player inside their sphere and fly at them; in a system, groups orbit, explore and fly at players as UQM's do.
-2. **Meeting them.** A group that touches a player's ship meets that player: UQM's encounter screen shows the ships, and the player chooses to hail or attack (or, for a race that offers no choice, talks or fights at once). A hail opens the talk, under the race's dialogue lock; a talk ending in a battle, or an attack, starts stage 4's battle against the group's ships, which the others join by flying into its marker. Once it's won, UQM's battle-won screen shows the salvage.
-3. **The first races.** The Ur-Quan drone orbits Earth until it has delivered its message, and the commander can then be asked about "the red thing" (row 40 closed). The Ur-Quan, the Kohr-Ah, the Ilwrath and the Spathi talk and fight as in UQM wherever they're met, and the Slylandro probes come once the story ramps them up.
+1. **Ships fly in space.** Each race's fleet holds its sphere as UQM's starts it (the spheres change only with 3c's story events). In hyperspace, groups of the races whose talks are ported appear around each player inside their sphere and fly at them; in a system, groups orbit, explore and fly at players as UQM's do.
+2. **Meeting them.** A group that touches a player's ship meets that player: UQM's encounter screen shows the ships, and the player chooses to hail or attack (or, where the race's talk offers no fight, talks at once). A hail opens the talk, under the race's dialogue lock; a talk ending in a battle, or an attack, starts stage 4's battle against the group's ships, which the others join by flying into its marker. A group that's talked away doesn't come back; one that survives a battle re-forms with its crew.
+3. **The first races.** The Ur-Quan drone orbits Earth until it has delivered its message, and the commander can then be asked about "the red thing" (row 40 closed). The Ur-Quan, the Kohr-Ah, the Ilwrath and the Spathi talk and fight as in UQM wherever they're met, orbiting the Ilwrath homeworld or Spathiwa's moon starts their talk against an infinite fleet, and the Slylandro probes come as UQM's do: from the start of the game, once a day while the starbase isn't yet available, then by the story's multiplier.
 
 ### What the owner will be able to try when it's done
 
 - Start a new game. The drone orbits Earth; fly into it and it talks (an ordinary talk under the Ur-Quan's lock), then goes. Back at the allied starbase, the commander answers about it.
 - `--start-encounter RACE[:SHIPS]` (testing, new, by `data/ships.json`'s ids): a group of that race appears by the host in hyperspace or the system and flies at them. Meet it: the encounter screen, hail or attack, the talk, the battle with a friend flying in, the battle-won screen.
-- Fly into the Spathi's or the Ur-Quan's sphere in hyperspace (`--start-at` to get there): groups appear day by day and give chase. With two players in hyperspace far apart, each meets them as they would alone.
-- In a system inside a sphere: groups orbit the worlds; attack one and the rest turn on the nearest player, as UQM's turn on the flagship.
-- Talk a group into leaving (the Spathi), or fight it: the group is gone, or comes back with the crew it had left if everyone retreated.
+- Fly into hyperspace before the alliance: a Slylandro probe comes. Fly into the Spathi's or the Ur-Quan's sphere (`--start-at` to get there): groups appear day by day and give chase. With two players in hyperspace far apart, each meets them as they would alone.
+- In a system inside a sphere: groups orbit the worlds and turn on a player who comes near, as UQM's turn on the flagship.
+- Talk a group into leaving (the Spathi), or fight it: the group is gone, or re-forms with the crew it had left if everyone retreated.
+- Orbit Spathiwa's moon or the Ilwrath homeworld: their talk, and their fleet if it comes to a fight.
 - Save and load with groups about: they're where they were, with their crew.
 
 ## Scope
 
 **In stage 3b-1:**
 
-- **The races' fleets** (`FLEET_INFO`, `avail_race_q`): each race's sphere (its place, strength and growth), its encounter chances in hyperspace and in systems (`RACE_HYPERSPACE_PERCENT`, `RACE_INTERPLANETARY_PERCENT`), its group makeup (`RACE_ENCOUNTER_MAKEUP`) and whether its sphere is known (`StartSphereTracking`), extracted into `data/` and kept in the story's state, saved. The daily event that grows and moves them (`HYPERSPACE_ENCOUNTER_EVENT`: `check_race_growth`), queued by every new game since 3a, runs from here; the story events that move a race (`SetRaceDest` callers) are 3c's.
-- **Hyperspace encounters** (`check_hyperspace_encounter`, `AddEncounterElement`, `ProcessEncounter`, `encounter_collision`): spawned each day by UQM's rule, flying as UQM's, meeting a player they touch; the Slylandro probes' one-shot rule and multiplier.
-- **System groups** (`grpinfo.c`'s `BuildGroups` and the per-system group memory, `ipdisp.c`'s `ip_group_preprocess`, `NotifyOthers`, `ip_group_collision`): built on entering a system, orbiting, exploring, intercepting, kept with the system.
-- **The encounter screen** (`InitEncounter`: the race's ships, Hail or Attack, `DoSelectAction`), **the battle from a meeting** (`BuildBattle` from the group's ships and crew, `EncounterBattle`), and **the end** (`UninitEncounter`: the battle-won screen, the group's survivors and their crew written back, `UpdateShipFragCrew`).
-- **Five scripts**, each checked against UQM's own, every path: `urquanc.c` (the Ur-Quan and the drone), `blackurc.c` (the Kohr-Ah), the rest of `ilwrathc.c`, `spathic.c` (the Spathi away from Spathiwa, Fwiffo's talk included, which 3c's Pluto starts) and `slyland.c` (the probes).
-- **The drone at Earth** (`gensol.c`'s `init_probe`: a system group orbiting Earth until `PROBE_MESSAGE_DELIVERED`), row 40 closed.
-- **Wire, views and saves:** groups in hyperspace and in systems drawn with their race's icons; the encounter and battle-won screens; the fleets, encounters and groups in the save.
+- **The clock's events** (`clock.c`'s `processClockDayEvents`, `gameev.c`'s `EventHandler`): the queue every game has kept since 3a runs on each day as UQM's does (decision 9). Run: the daily `HYPERSPACE_ENCOUNTER_EVENT` (`check_race_growth`, then the hyperspace roll) and the Slylandro ramp-up and ramp-down. The others are 3c's.
+- **The races' fleets** (`FLEET_INFO`, `avail_race_q`): each race's sphere (its centre and strength, already in `data/ships.json`'s `fleet`), its encounter chances (`RACE_HYPERSPACE_PERCENT`, `RACE_INTERPLANETARY_PERCENT`), its group makeup (`RACE_ENCOUNTER_MAKEUP`), its hyperspace speed (`RACE_HYPER_SPEED`) and colour, and whether its sphere is known (`StartSphereTracking`), kept in the story's state and saved. Every race starts with no growth (`globdata.c`'s `InitGameStructures`); only 3c's events set it.
+- **Hyperspace encounters** (`check_hyperspace_encounter`, `AddEncounterElement`, `ProcessEncounter`, `encounter_collision`): spawned each day by UQM's rule, flying as UQM's, meeting a player they touch; the one-at-a-time rule of the races met anywhere.
+- **System groups** (`grpinfo.c`'s `BuildGroups` and the group memory, `ipdisp.c`'s `ip_group_preprocess`, `NotifyOthers`, `ip_group_collision`, `DoMissions`): built on entering a system, orbiting, exploring, detecting and intercepting, kept with the system. The special systems' groups of 3b-1's races: the drone at Earth (`gensol.c`'s `init_probe`), the Ur-Quan guarding the colony (`gencol.c`).
+- **The worlds that start 3b-1's talks:** the Ilwrath homeworld (`genilw.c`: `ilwrathc.c`'s homeworld branch) and Spathiwa's moon (`genspa.c`: `spathic.c`), each against an infinite fleet (stage 4b).
+- **The meeting** (`RaceCommunication`, `InitCommunication`): the enemy's side from the group (`BuildBattle(NPC_PLAYER_NUM)`), the encounter screen (`InitEncounter`: the race's ships, Hail or Attack, `DoSelectAction`), the battle (`EncounterBattle`), the crew written back as ships die and at the end (`UpdateShipFragCrew`), the battle-won screen and the dead ships removed (`UninitEncounter`), and the group's re-forming or going.
+- **Five scripts**, each checked against UQM's own, every path: `urquanc.c` (the Ur-Quan and the drone), `blackurc.c` (the Kohr-Ah), the rest of `ilwrathc.c` (its homeworld branch too), `spathic.c` (the Spathi away from Spathiwa, at its moon, and Fwiffo's talk, which 3c's Pluto starts) and `slyland.c` (the probes).
+- **Wire, views and saves:** groups in hyperspace and in systems drawn as UQM draws them; the encounter and battle-won screens; the fleets, encounters, groups and events in the save.
 
 **Left out of 3b-1:**
 
 | Left out | Why | Goes to |
 | --- | --- | --- |
 | The other 20 scripts, and their races' ships in space | Each script is a port and a recording of its own; a race's groups appear once its talk is ported (decision 2) | 3b-2 |
-| The homeworlds that start a talk on orbit, and their infinite fleets (row 27) | Each is its race's script (`spahome`, `slyhome`, the Talking Pet's, the Umgah's, ...) | 3b-2 |
-| The Melnorme: trading, credits, the lander upgrades, information, and their rescue of a ship out of fuel | Their script is the largest left, with screens of its own | 3b-2 |
-| The story events that move fleets or change spheres (the Ilwrath's and the Mycon's missions, the Kohr-Ah's genocide, the Yehat's revolt, ...) and the Arilou's entrance | The event calendar is 3c | 3c |
+| The other worlds that start a talk on orbit, with their infinite fleets (row 27) | Each starts one of 3b-2's scripts (`spahome`, `slyhome`, the Talking Pet's, the Umgah's, ...) | 3b-2 |
+| The Melnorme: trading, credits, the lander upgrades, information, and their coming to a ship out of fuel | Their script is the largest left, with screens of its own | 3b-2 |
+| The story events but the encounters and the Slylandro ramps: the ones that move fleets or change spheres (the Ilwrath's and the Mycon's missions, the Kohr-Ah's genocide, the Yehat's revolt, ...), the Arilou's entrance | The event calendar is 3c; until then they're kept as they fall due (decision 9) | 3c |
 | QuasiSpace and the Arilou's portal | Needs the Arilou's talk and the portal spawner (3b-2, 3c) | 3c |
+| The Kohr-Ah's groups at the Zoq-Fot-Pik's world and the Sa-Matra's | Story and the endgame | 3b-2, the endgame |
 | The starmap and its spheres of influence | No starmap screen yet; the known spheres are kept in the state for when it comes | A later stage |
 | The encounter music (`REDALERT_MUSIC`) and the battles' sounds | Nothing plays sound yet | A later stage with audio |
 
 ## How UQM does it
 
+### The clock's events
+
+The clock keeps one queue of events by date (built since 3a: `Story/EventQueue.cs`). Each day `processClockDayEvents` runs the events at the queue's head while their day is today; one whose day has passed would hold up the rest, as only the head is looked at. A new game queues `HYPERSPACE_ENCOUNTER_EVENT` for the next day, the Arilou's entrance, the Kohr-Ah's victory and the Slylandro ramp-up, which runs at once. Since 3a nothing runs on its day: the encounter event has waited since day one, and the ramp-up queued 182 days on with it.
+
 ### Fleets and spheres
 
-Every race has a `FLEET_INFO` in `avail_race_q`: the centre of its sphere (`loc`), its strength (`actual_strength`, the sphere's radius in steps of `SPHERE_RADIUS_INCREMENT`; `INFINITE_RADIUS` for the Slylandro and the Melnorme, met anywhere), its growth, and where it's heading (`dest_loc`, `days_left`, set by story events through `SetRaceDest`). Each day `HYPERSPACE_ENCOUNTER_EVENT` runs `check_race_growth` (spheres grow, shrink and move a day's worth) and, if the flagship is in hyperspace, `check_hyperspace_encounter`.
+Every race has a `FLEET_INFO` in `avail_race_q`: the centre of its sphere (`loc`), its strength (`actual_strength`, the sphere's radius in steps of `SPHERE_RADIUS_INCREMENT`; `INFINITE_RADIUS` for the Slylandro and the Melnorme, met anywhere), its growth (none at the start) and where it's heading (`dest_loc`, `days_left`, set by story events through `SetRaceDest`). Each day `HYPERSPACE_ENCOUNTER_EVENT` runs `check_race_growth` (with no growth and no heading, nothing changes) and, if the flagship is in hyperspace, `check_hyperspace_encounter`, then queues itself for the next day.
 
 ### Hyperspace encounters
 
-`check_hyperspace_encounter` (`hyper.c:165`) rolls once a day for each race whose sphere holds the flagship: within the radius, a chance of `RACE_HYPERSPACE_PERCENT`. A hit adds an `ENCOUNTER` to `encounter_q` (at most 16), from the race's sphere centre. The Slylandro probes and the Melnorme have their own rules: one at a time, the probes at a multiplier the story ramps up (`SLYLANDRO_MULTIPLIER`), the Melnorme at 30% when the flagship's fuel is gone and 100% when the broadcaster is used.
+`check_hyperspace_encounter` (`hyper.c:165`) draws a number for each race whose sphere holds the flagship: a chance of `RACE_HYPERSPACE_PERCENT`. A hit adds an `ENCOUNTER` to `encounter_q` (at most 16). The races met anywhere have their own rules, and only one of each in the list at a time (`hyper.c:229`): the Slylandro probes at 100% a day until the starbase is available, then 2% times `SLYLANDRO_MULTIPLIER` (which the ramp-ups raise every 182 days to 4); the Melnorme at 30% when the flagship's fuel is gone and 100% when the broadcaster is used. Both are one-shot: once met, gone.
 
-Each frame `ProcessEncounters` gives every encounter near the flagship an element (`AddEncounterElement`: it warps in from the edge of the view), steers it at the flagship at its race's speed and lets the far ones go. One that touches the flagship (`encounter_collision`) stops, and the game goes to the encounter (`IN_ENCOUNTER`).
+Each frame `ProcessEncounters` gives every encounter near the flagship an element (`AddEncounterElement`: a new one at a random place within the radar's span and two screens of the flagship, inside its race's sphere, coming in through a vortex), and steers it at the flagship at its race's hyperspace speed; away from the flagship it has no element but stays in the list. It goes when it flies out of its sphere. One that touches the flagship (`encounter_collision`) stops, and the game goes to the encounter.
 
 ### System groups
 
-Entering a system, `BuildGroups` (`grpinfo.c:212`) rolls which race's groups are there: at a race's homeworld always (70%, the Spathi and Supox 2%), elsewhere by the distance from its sphere's centre, and builds 1 to `MAX_BATTLE_GROUPS` groups by the race's makeup. Special systems add groups of their own (`GROUPS_ADD_NEW`, from their generators). The random groups are kept with the day: they go after a week outside the system, or when another system is entered (`GetGroupInfo`, `PutGroupInfo`).
+Entering a system, `BuildGroups` (`grpinfo.c:212`) picks at most one race to have groups there. At a race's homeworld it's always that race. Elsewhere it draws for each race whose sphere holds the system, at a chance of 70% falling to 10% with the distance from the sphere's centre (the Slylandro probes 5% times the multiplier, weighed as 4), and keeps one by a weighted draw. The number of groups is a draw up to half that weight (at a homeworld the weight is 70, the Spathi's and Supox's 2, and at least 5 groups), at most `MAX_BATTLE_GROUPS`, each by the race's makeup. Special systems add groups of their own (`GROUPS_ADD_NEW`, from their generators). The random groups are kept with the day: they go when another system is entered, or after a week outside it (`GetGroupInfo`, `PutGroupInfo`).
 
-`ip_group_preprocess` (`ipdisp.c:138`) flies each group: orbiting a world, exploring, or intercepting the flagship when the group's task says so; a group that the talk sent away (`IGNORE_FLAGSHIP`) leaves it be. After a talk or a battle, `NotifyOthers` turns the race's other groups in the system on the flagship (`IPNL_INTERCEPT_PLAYER`) or sends them back to their business (`IPNL_ALL_CLEAR`). A group touching the flagship (`ip_group_collision`) starts the encounter.
+`ip_group_preprocess` (`ipdisp.c:138`) flies each group: orbiting a world or exploring, and when it comes within detection range of the flagship in the same view (1,200, more in a planet's view, twice that for the drone) `NotifyOthers` turns every group of its race in the system on the flagship (`IPNL_INTERCEPT_PLAYER`). A group touching the flagship (`ip_group_collision`) starts the encounter and stands the race's groups down (`IPNL_ALL_CLEAR`, `IGNORE_FLAGSHIP`); the one met re-forms first (`REFORM_GROUP`, 100 steps). After a battle, `DoMissions` turns them on the flagship again.
 
-### The encounter
+### The meeting
 
-`InitCommunication` (`comm.c:1304`) builds the enemy's side from the group (`BuildBattle(NPC_PLAYER_NUM)`), loads the race's talk and, if the race lets the player choose (`BATTLE_SEGUE` set by its script's init), shows the encounter screen (`InitEncounter`, `encount.c:262`): the alien ships, with Hail and Attack. A hail runs the talk (`HailAlien`); an attack goes straight to the battle. A talk ending hostile goes to the battle too (`EncounterBattle`); then `UninitEncounter` (`encount.c:476`) shows the battle-won screen with the salvage, writes the surviving ships' crew back into the group (`UpdateShipFragCrew`) and removes the group if none are left.
+`RaceCommunication` (`comm.c:1444`) builds the enemy's side from the encounter's ships, picks the talk by the first ship's race and calls `InitCommunication` (`comm.c:1304`). That builds the battle's enemy side (`BuildBattle(NPC_PLAYER_NUM)`) and loads the race's talk, whose init sets `BATTLE_SEGUE` by `setSegue`: if it's set, the encounter screen (`InitEncounter`, `encount.c:262`) shows the alien ships, with Hail and Attack. A hail runs the talk (`HailAlien`); an attack goes straight to the battle. A talk ending hostile goes to the battle too (`EncounterBattle`). As ships die and when the battle ends, `UpdateShipFragCrew` writes each enemy ship's crew back; `UninitEncounter` (`encount.c:476`) shows the battle-won screen with the salvage and removes the dead ships (all of them on a win). `RaceCommunication` writes the survivors back into the encounter and marks it re-forming (`ENCOUNTER_REFORMING`: a 100-step transition), and one-shot when no battle was fought, so a group talked away doesn't come back (`hyper.c:963`).
+
+### Worlds that start a talk
+
+Orbiting the Ilwrath homeworld (`genilw.c:77`) or Spathiwa's moon before the Spathi shield themselves (`genspa.c:118`) stands the race's groups down, clears them from the system, builds an infinite fleet of the race and starts its talk at its homeworld branch (`GLOBAL_FLAGS_AND_DATA` 1 << 7).
 
 ### The drone
 
-At Sol, `init_probe` (`gensol.c`) adds the Ur-Quan drone as a system group orbiting Earth until `PROBE_MESSAGE_DELIVERED`. Meeting it runs the Ur-Quan's talk as `URQUAN_DRONE_CONVERSATION`; it delivers its message and leaves.
+At Sol, `init_probe` (`gensol.c:620`) adds the Ur-Quan drone as a system group orbiting Earth until `PROBE_MESSAGE_DELIVERED`. Meeting it runs the Ur-Quan's talk as `URQUAN_DRONE_CONVERSATION`; it delivers its message and leaves.
 
 ## Co-op rules for stage 3b-1
 
 Decided already (`docs/design.md`, stage 3 and 4 decisions):
 - A talk is the answerer's ship's: its names, hold, crew and fuel (the owner, 2026-11-12). Ships a talk gives go to the host's fleet, whoever answers (2026-11-15).
-- One player per race in an ordinary talk at a time (the dialogue lock); a second is told who's talking (stage 3, decision 8: "In 3b, a ship hailing a race already in a talk is told the same and left in flight").
+- One player per race in an ordinary talk at a time (the dialogue lock); a second is told who's talking (stage 3, decision 8: "In 3b, a ship hailing a race already in a talk is told the same and left in flight"). A story talk doesn't start over another player's ordinary talk with that race (row 17): with Ilwrath groups about, the opening's visit to Earth waits on the Ilwrath's lock as it waits on the commander's.
 - Enemy ships target the nearest opponent. One enemy ship at a time, unscaled.
 - Battles show as markers; flying in joins (stage 4, decision 6). Salvage split between the players in the battle when it's won.
 - The scripts are recorded from UQM and matched path for path (stage 3, decision 13), with their own random generator per talk (decision 12).
+- With one player, everything plays as UQM's (`design.md`): each rule below for several players comes down to UQM's for one.
 
 ## Work, in order
 
-1. **The fleets' data.** `tools/extract/extract_uqm.py` takes each race's `FLEET_INFO` start (`globdata.c`'s `InitGameStructures`, `races.h`: sphere centre, strength, growth, colour), its hyperspace and interplanetary chances and its group makeup into `data/races.json`, with data checks. The story state holds each race's fleet (strength, place, heading, whether its sphere is known), saved (save version 13).
-2. **Spheres and the daily roll.** `HYPERSPACE_ENCOUNTER_EVENT` runs each day: `check_race_growth`, then UQM's roll for each player in hyperspace (decision 3). The shared encounter list, its cap a setting (UQM's 16). Checked against UQM's own: the recording program (`tools/extract/golden/`) runs `check_race_growth` and `check_hyperspace_encounter` over days and places with a seed, and the port matches it for one player.
-3. **Encounters in hyperspace.** `AddEncounterElement` and `ProcessEncounter` for every player in hyperspace: each encounter warps in near a player, flies at the nearest player in hyperspace and meets the one it touches (decision 5); far from every player it's let go as UQM's are. Checked against UQM's frames for one player.
-4. **System groups.** `BuildGroups` on the first player's entry, the groups kept with the system (decision 7); `ip_group_preprocess`, intercepting the nearest player in the same part of the system (the inner system or the outer); `NotifyOthers`; `ip_group_collision`. The drone at Earth. Checked against UQM's frames for one player.
-5. **The meeting.** The encounter screen for the player met, Hail or Attack; the talk under the race's lock (a group whose race is locked by another's talk passes through: decision 5); the battle from the group's ships with their crew (stage 4b's `EnemyFleet`), its marker where they met; `UninitEncounter`'s end, the survivors written back, `NotifyOthers`, the group gone when none are left. Races whose talk isn't ported don't spawn (decision 2). `--start-encounter`.
+1. **The clock's events.** `processClockDayEvents` on each new day; the encounter event (its hyperspace roll a stub until item 3) and the Slylandro ramps run; 3c's events set aside when due (decision 9); a loaded save's events whose day has passed run at once, in date order. Checked against UQM's clock with the recording program (`tools/extract/golden/`) over a year of days.
+2. **The fleets' data.** `tools/extract/extract_uqm.py` takes `RACE_HYPERSPACE_PERCENT`, `RACE_INTERPLANETARY_PERCENT`, `RACE_ENCOUNTER_MAKEUP`, `RACE_HYPER_SPEED` and `RACE_COLORS` into `data/races.json`, with data checks; the spheres from `ships.json`'s `fleet`. The story state holds each race's fleet (strength, place, growth, heading, whether its sphere is known), saved (save version 13; an older save gets a new game's fleets).
+3. **Encounters in hyperspace.** `check_race_growth` and the daily roll for each player in hyperspace (decision 3), for every race as UQM draws, the races whose talk isn't ported then dropped (decision 2); the shared list, its cap a setting (UQM's 16). `AddEncounterElement` and `ProcessEncounter` for every player in hyperspace: each encounter comes in near the player whose roll made it, flies at the nearest player in hyperspace (decision 4), goes when it leaves its sphere, and meets the one it touches (decision 5). Checked against UQM's draws and frames for one player.
+4. **System groups.** `BuildGroups` on a player's entry when the system has none, drawing for every race as UQM's (a system whose race isn't ported gets none, decision 2); the groups kept with the system (decision 7); `ip_group_preprocess`, detecting and intercepting the nearest player in the same view (the inner system or the outer); `NotifyOthers` and the standing toward each player (decision 8); `ip_group_collision`; `DoMissions`. The drone at Earth and the Ur-Quan at the colony. Checked against UQM's draws and frames for one player.
+5. **The meeting.** `RaceCommunication`'s order: the encounter screen for the player met, Hail or Attack; the talk under the race's lock (a group whose race another player is talking to passes through, decision 5); the opening's visit waiting on the Ilwrath's lock; the battle from the group's ships with their crew (stage 4b's `EnemyFleet`), its marker where they met; the crew written back, `UninitEncounter`'s end, the group re-forming, one-shot after a talk, or gone. `--start-encounter`.
 6. **The Ur-Quan, the drone and the Kohr-Ah.** `urquanc.c` and `blackurc.c` ported and recorded (every path, as 3a's), with their rules in `TalkRules` (decision 6). Row 40 closed.
-7. **The Ilwrath and the Spathi.** The rest of `ilwrathc.c` and `spathic.c`, recorded the same way.
-8. **The Slylandro probes.** `slyland.c`, the probes' one-shot rule and multiplier (the ramp-up event runs since 3a).
+7. **The Ilwrath and the Spathi.** The rest of `ilwrathc.c` and `spathic.c`, recorded the same way; the Ilwrath homeworld and Spathiwa's moon starting them (`genilw.c`, `genspa.c`), with their infinite fleets.
+8. **The Slylandro probes.** `slyland.c`; the probes in hyperspace (from the start, one at a time) and in systems, by the multiplier.
 9. **The wire.** Encounters and groups near each player, the encounter screen's choice, the battle-won screen (protocol version up).
-10. **Client views.** Groups drawn in hyperspace and systems as UQM draws them (the races' icons); `Presentation/EncounterScreen.cs`: UQM's encounter and battle-won screens, checked against UQM's (`screens.json`).
-11. **Docs.** `docs/how-to-try/stage-3b-1.md`; `design.md` (the build order); `porting-inventory.md` (the encounter, system, fleet and script rows); `differences.md` (rows 17, 27, 40, and new rows for this plan's co-op rules); `uqm-data.md`.
+10. **Client views.** Groups drawn in hyperspace and systems as UQM draws them; `Presentation/EncounterScreen.cs`: UQM's encounter and battle-won screens, checked against UQM's (`screens.json`).
+11. **Docs.** `docs/how-to-try/stage-3b-1.md`; `design.md` (the build order); `porting-inventory.md` (the clock, encounter, system, fleet and script rows); `differences.md` (rows 17, 27, 40, and new rows for this plan's co-op rules); `uqm-data.md`.
 
 ## Decisions
 
@@ -119,31 +131,38 @@ Recommendations first.
    - One stage 3b: about twice stage 4a's size before the groups can be met by anything but the five.
    - Three parts, the Melnorme a part of their own: their trading is mostly screens, but the screens reuse 3a's.
 2. **Races whose talk isn't ported yet.**
-   - **Their groups don't appear, in hyperspace or systems, until their talk is ported (recommended).** A temporary row in `differences.md` lists them; space is emptier until 3b-2 but every meeting is UQM's.
+   - **Their groups don't appear, in hyperspace or systems, until their talk is ported (recommended).** The draws are made for every race as UQM makes them, so the one-player game draws UQM's numbers; a group of a race not yet ported is then dropped, and a system whose drawn race isn't ported has no groups. A temporary row in `differences.md` lists them; space is emptier until 3b-2 but every meeting is UQM's.
    - They appear and can only be fought: the encounter screen offers Attack alone. Fuller space, but talks that UQM offers (and alliances) are missing, and fights happen that wouldn't.
 3. **Hyperspace encounters with several players.**
-   - **Each day, UQM's roll for each player in hyperspace, around that player (recommended).** Each player meets about as many groups as alone; the group as a whole meets more, as more players are more ships to find (no scaling, as the design has it). The list's cap is UQM's 16 for the whole game, a setting.
-   - One roll a day for the group, around one player in hyperspace chosen at random: the group together meets what one player would, so a big group sees fewer each.
+   - **Each day, UQM's roll for each player in hyperspace, around that player (recommended).** Each player meets about as many groups as alone; the group as a whole meets more, as more players are more ships to find (no scaling, as the design has it). The list's cap is UQM's 16 for the whole game, a setting. The races met anywhere (the probes, later the Melnorme) are one at a time for each player: a probe chasing one player doesn't stop another's.
+   - One roll a day for the group, around one player in hyperspace chosen at random: the group together meets what one player would, so a big group sees fewer each. The races met anywhere one at a time for the whole game.
    - A roll only around the host: guests flying alone would meet nothing.
 4. **Whom a group flies at.**
-   - **The nearest player it can reach: in hyperspace any player in hyperspace, in a system any player in the same part of it (recommended),** as battles' enemies take the nearest opponent. A player in a talk, a battle, orbit, landing or the starbase isn't flown at, and a wreck isn't.
+   - **The nearest player it can reach: in hyperspace any player in hyperspace, in a system any player in the same view (recommended),** as battles' enemies take the nearest opponent. A player in a talk, a battle, orbit, landing or the starbase isn't flown at, and a wreck isn't.
    - The player whose roll made it (hyperspace) or who entered first (systems): groups would fly past one player to reach another.
 5. **Meeting a group.**
    - **The player it touches meets it alone (recommended):** their encounter screen, their choice, their talk under the race's lock. Meanwhile the group stays where it met them, and others touching it are told who's talking. A battle's marker is where they met; others join by flying in. A group whose race is in another player's talk (the lock taken) passes through a player it touches, who is told who's talking, as stage 3's decision 8 says.
    - Everyone near is drawn into the encounter screen and watches the talk, the first to touch it replying: like a story talk for those near, but a player passing by is stopped.
 6. **Which of these talks are story.**
-   - **None (recommended):** every talk with a race's ships, the drone's too, is ordinary, under the lock: the others go on playing. Their story writes are shared as any talk's are.
+   - **None (recommended):** every talk with a race's ships or worlds, the drone's too, is ordinary, under the lock: the others go on playing. Their story writes are shared as any talk's are.
    - The first meeting with each race is story: the whole group sees each race introduced, but every new race met stops everyone.
 7. **System groups when several players visit.**
-   - **Kept per system; the random groups go a week after the last player left (recommended).** UQM keeps one system's random groups, dropped when the player enters another system or after a week away; with several players each in a system of their own, that would drop groups under another player's feet.
-   - UQM's one slot: whenever any player enters another system, the last system's random groups go.
-8. **How meetings are checked.**
-   - **UQM's recordings for one player, tests of our own for several (recommended),** as every stage so far: the daily rolls, the encounters' and groups' flight and every script path match UQM's with one player; the co-op rules (several players, nearest targets, the lock) are our own tests.
-   - Tests of our own only: quicker, but nothing would show where the solo game drifts from UQM.
+   - **Kept per system; a system's random groups go once every player who was in it has entered another system, or a week after the last one left (recommended).** With one player that's UQM's rule; with several, a player entering another system doesn't drop the groups another player is flying among.
+   - UQM's one slot: whenever any player enters another system, the last system's random groups go, under the feet of anyone still there.
+8. **A system's groups toward each player.** UQM's groups stand down for the flagship when one meets it, and turn on it when one detects it or after a battle (`NotifyOthers`, for every group of the race in the system).
+   - **Per player (recommended):** meeting a group stands the race's groups down for that player only; detecting a player, or a battle, turns them on the nearest player in reach. One player's talk doesn't make a system safe for the others, nor a stranger's arrival end it for the one who talked.
+   - Shared: a meeting stands them down for everyone, and any detection turns them on everyone. Simpler, but one player's talk would decide how the groups treat players they never met.
+9. **The clock's events that 3b-1 doesn't run.** The queue runs only its head, so an event of 3c's coming due (the Arilou's entrance, a month in, on 17 March) would hold up the encounters behind it.
+   - **Set aside when due, kept in date order for 3c to run when it comes; the rest run on (recommended).** The story's events are late until 3c, as they are now, but space goes on.
+   - Run 3b-1's events by a timer of their own, leaving the queue to 3c: the Slylandro ramp-ups could then run twice once 3c runs the queue, and the queue's order wouldn't be UQM's.
+10. **How meetings are checked.**
+    - **UQM's recordings for one player, tests of our own for several (recommended),** as every stage so far: the clock's events, the daily draws, the encounters' and groups' flight and every script path match UQM's with one player; the co-op rules (several players, nearest targets, standing per player, the lock) are our own tests.
+    - Tests of our own only: quicker, but nothing would show where the solo game drifts from UQM.
 
 ## Risks
 
-- **Randomness with several players.** UQM draws the encounters' and groups' numbers from one generator, in the flagship's order. With several players the draws change (more rolls, groups for several players), so only the one-player game can match UQM's recordings; the co-op game is UQM's rules, not UQM's numbers. The recordings need a recording program that runs `hyper.c` and `ipdisp.c` pieces it hasn't yet: the IP flight's recorder (`tests/golden/ip-flight.json`) is the start.
-- **A ship out of fuel.** UQM's Melnorme come to a flagship with no fuel; they're 3b-2's. Until then a player out of fuel in hyperspace waits for a friend to give fuel (if giving fuel is possible by then) or is stuck, as now.
-- **The save.** Fleets, encounters and system groups are new state; the save's version goes up (13), older saves getting a new game's fleets and no groups.
-- **Size.** About stage 4a's size: four engine pieces, two screens and five scripts (about 3,100 lines of C). 3b-2 is then about 17,600 lines of scripts on that engine, in nine or ten items.
+- **Randomness with several players.** UQM draws the encounters' and groups' numbers from one generator, in the flagship's order. With several players the draws change (more rolls, groups for several players), so only the one-player game can match UQM's recordings; the co-op game is UQM's rules, not UQM's numbers. The recordings need a recording program that runs `clock.c`, `hyper.c` and `ipdisp.c` pieces it hasn't yet: the IP flight's recorder (`tests/golden/ip-flight.json`) is the start.
+- **Probes from day one.** UQM's probes come once a day before the alliance; until now the port's opening had no ships in space, so the opening gets harder (as UQM's is).
+- **A ship out of fuel.** UQM's Melnorme come to a flagship with no fuel; they're 3b-2's. Until then a player out of fuel in hyperspace is stuck, as now.
+- **The save.** Fleets, encounters, system groups and the events set aside are new state; the save's version goes up (13). An older save gets a new game's fleets and no groups, and its events whose day has passed run once it's loaded.
+- **Size.** About stage 4a's size: the clock, four engine pieces, two screens and five scripts (about 3,100 lines of C). 3b-2 is then about 17,600 lines of scripts on that engine, in nine or ten items.
