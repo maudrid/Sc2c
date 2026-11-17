@@ -5318,8 +5318,9 @@ def record_clock(uqm, exe):
         "processClockDayEvents) and gameev.c (AddInitialGameEvents, "
         "EventHandler) in the recording program tools/extract/golden/clock.c. "
         "Code only, no content. check_hyperspace_encounter is only counted "
-        "(every race starts with no growth, so check_race_growth changes "
-        "nothing).",
+        "and the races' fleets aren't set up, so check_race_growth runs "
+        "over none (in UQM every race starts with no growth, so it would "
+        "change nothing; item 2 sets them up).",
         "Each scenario: its commands (new: a new game; day N: N days of "
         "GameClockTick; move N: MoveGameClockDays (N); hyper 0|1: the "
         "flagship out of or in hyperspace; rampdown: what slyhome.c does "

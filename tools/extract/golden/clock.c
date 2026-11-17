@@ -17,8 +17,10 @@
  * displist.c (the event queue). clock.c's calls to EventHandler (from
  * AddEvent and processClockDayEvents) go through recorded_EventHandler,
  * which records the event and runs UQM's own. check_hyperspace_encounter
- * (hyper.c) is recorded and does nothing else, as every race starts with
- * no growth and the draw is item 3's; the locks do nothing (one thread);
+ * (hyper.c) is recorded and does nothing else, the draw being item 3's;
+ * the races' fleets (avail_race_q) aren't set up, so check_race_growth
+ * runs over none (in UQM every race starts with no growth, so it would
+ * change nothing; item 2 sets them up); the locks do nothing (one thread);
  * the status line isn't drawn.
  *
  * Input (stdin), one command per line:

@@ -628,6 +628,39 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void LeavingAsTheStarbaseIsReadyGivesBackTheEventsSetAside()
+    {
+        var world = WithTalks();
+        var story = world.Story!;
+        // To 10 March 2155, so the two weeks pass over the Arilou's
+        // entrance on the 17th, a 3c event set aside on its day.
+        world.MoveClockDays(21);
+        Assert.Equal((2155, 3, 10), (world.Clock.Year, world.Clock.Month, world.Clock.Day));
+        var arilou = new StoryEvent("ARILOU_ENTRANCE_EVENT", 2155, 3, 17);
+        Assert.Contains(arilou, story.Events);
+        Assert.Empty(story.Events.SetAside);
+        var events = story.Events.ToList();
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(world.Host);
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
+        Assert.Equal(new[] { arilou }, story.Events.SetAside);
+        Assert.DoesNotContain(arilou, story.Events);
+        // A save made now is of the game without the two weeks: queued, not set aside.
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(events, saved.Story!.Events);
+        Assert.Empty(saved.Story.Events.SetAside);
+        world.Leave("host");
+        Assert.Equal(events, story.Events);
+        Assert.Empty(story.Events.SetAside);
+        // The day comes again: set aside once, not twice.
+        world.MoveClockDays(14);
+        Assert.Equal(new[] { arilou }, story.Events.SetAside);
+        Assert.DoesNotContain(arilou, story.Events);
+    }
+
+    [ContentFact]
     public void NoCargoGoesOverboardDuringAVisit()
     {
         var world = WithTalks();
