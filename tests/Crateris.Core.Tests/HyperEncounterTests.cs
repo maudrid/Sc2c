@@ -389,6 +389,8 @@ public class HyperEncounterTests
         guest.StarJustLeft = null;
         var met = Group(world, "URQUAN_SHIP", 5810, 6100, "h");
         var other = Group(world, "BLACK_URQUAN_SHIP", 6650, 6700, "g");
+        world.EndOfFrame();
+        var numbers = world.HyperspaceRandomOf("h");
         for (int i = 0; i < 400 && world.HyperspaceMeetings.Count == 0; ++i)
         {
             foreach (var p in world.Players)
@@ -396,6 +398,8 @@ public class HyperEncounterTests
             world.Step();
         }
         Assert.Equal(("h", Race("URQUAN_SHIP")), (world.HyperspaceMeetings.Single().Player, world.HyperspaceMeetings.Single().Race));
+        // The player's numbers made afresh, as Battle seeds them again after a meeting.
+        Assert.NotSame(numbers, world.HyperspaceRandomOf("h"));
         // Until item 5's meeting it ends at once, no battle: the group
         // re-forms one-shot, and goes as its element is next made (the
         // same frame's: AddEncounterElement took its re-forming flag).
@@ -460,5 +464,101 @@ public class HyperEncounterTests
         Refused(n => First(n)["kept_for"]!.AsArray().Add(First(n)["kept_for"]![0]!.DeepClone()), "twice");
         Refused(n => First(n)["kept_for"]![0]!["player"] = "nobody", "kept for");
         Refused(n => n["settings"]!["max_hyperspace_encounters"] = 0, "encounters");
+    }
+
+    // A seed whose first number, as a roll takes it ((COUNT) % 100), is n.
+    private static uint SeedRolling(int n)
+    {
+        for (uint seed = 1; ; ++seed)
+            if ((ushort)new Uqm.TfbRandom(seed).Next() % 100 == n)
+                return seed;
+    }
+
+    [Fact]
+    public void TheMelnormeComeAtThirtyInAHundredToAShipWithNoFuelAndAtOnceToTheBroadcaster()
+    {
+        // Out of every sphere: the Melnorme's roll is the day's first.
+        var clock = new GameClock(2155, 2, 17);
+        var story = StoryState.NewGame(Rules, clock);
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("SLYLANDRO_MULTIPLIER", 0);
+        int melnorme = Race("MELNORME_SHIP");
+        int Rolled(int n, uint fuel)
+        {
+            var encounters = new HyperEncounters(Rules, 16);
+            encounters.Roll(story, "a", 9000, 300, fuel, new HyperspaceRandom(SeedRolling(n)));
+            return encounters.List.Count(e => e.Race == melnorme);
+        }
+        Assert.Equal((1, 0, 0), (Rolled(29, 0), Rolled(30, 0), Rolled(0, 100)));
+        // The broadcaster used: 100%, its response set, and its use spent.
+        story.Set("USED_BROADCASTER", 1);
+        Assert.Equal(1, Rolled(99, 100));
+        Assert.Equal((1, 0), (story.Get("BROADCASTER_RESPONSE"), story.Get("USED_BROADCASTER")));
+        Assert.Equal(0, Rolled(0, 100));
+        // Angered (MELNORME_ANGER 3), they don't come.
+        story.Set("MELNORME_ANGER", 3);
+        Assert.Equal(0, Rolled(0, 0));
+    }
+
+    [Fact]
+    public void APlayersSpanIsHalfTheRadarsAndTwoScreensEachWay()
+    {
+        var e = new HyperEncounter { LocX = 1000, LocY = 1000 };
+        Assert.True(HyperEncounters.InSpan(e, (short)(1000 - HyperEncounters.SpanX), (short)(1000 + HyperEncounters.SpanY)));
+        Assert.False(HyperEncounters.InSpan(e, (short)(1000 - HyperEncounters.SpanX - 1), 1000));
+        Assert.False(HyperEncounters.InSpan(e, 1000, (short)(1000 + HyperEncounters.SpanY + 1)));
+        Assert.Equal((504, 400), (HyperEncounters.SpanX, HyperEncounters.SpanY));
+    }
+
+    [ContentFact]
+    public void OfTwoGroupsTouchedInAFrameTheSoonestIsMet()
+    {
+        var encounters = new HyperEncounters(Rules, 16);
+        var ship = new HyperFlight(ShipDrive.ForHyperspace(2, 2), 10000);
+        ship.PlaceAtUniverse(5000, 5000);
+        ship.Facing = 4;   // right
+        HyperEncounter At(int dx)
+        {
+            var e = new HyperEncounter { Race = Race("URQUAN_SHIP") };
+            int x = ship.LogX + dx;
+            e.Element = new EncounterElement { Nonsolid = false, CurX = x, CurY = ship.LogY, NextX = x, NextY = ship.LogY };
+            encounters.List.Add(e);
+            return e;
+        }
+        // The ship's sprite swept 400 units right this frame: the later group listed first.
+        var later = At(-20);
+        var sooner = At(-300);
+        Assert.Same(sooner, encounters.Touch(ship, TestContent.Shapes, (ship.LogX - 400, ship.LogY)));
+        Assert.Same(later, encounters.Touch(ship, TestContent.Shapes, (ship.LogX - 100, ship.LogY)));
+        // A group not to be touched: in its vortex (not solid), or met.
+        later.Element!.Nonsolid = true;
+        sooner.Element!.Met = "b";
+        Assert.Null(encounters.Touch(ship, TestContent.Shapes, (ship.LogX - 400, ship.LogY)));
+    }
+
+    [ContentFact]
+    public void AStarTouchedInTheSameFrameAsAGroupComesFirst()
+    {
+        var systems = Systems.Value;
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        world.EncounterRaces = world.Story!.Rules.Races.ToHashSet();
+        var star = systems.Map.Stars.First(s => s.Special is null);
+        var f = world.Host.Ship.Flight;
+        f.PlaceAtUniverse(star.X, star.Y);
+        f.LogX -= 40;
+        f.StarJustLeft = null;
+        f.Facing = 4;
+        f.Velocity.SetComponents(40 << 5, 0);
+        var e = Group(world, "URQUAN_SHIP", star.X, star.Y, "h");
+        e.Element = new EncounterElement
+        {
+            Nonsolid = false, InVortex = false, ThrustWait = 100, Frame = 31,
+            CurX = e.LogX, CurY = e.LogY, NextX = e.LogX, NextY = e.LogY,
+        };
+        world.SubmitInput("h", world.Frame + 1, ShipInput.Thrust);
+        world.Step();
+        Assert.Equal(star.Number, world.Host.Ship.SystemStar);
+        Assert.Empty(world.HyperspaceMeetings);
+        Assert.Contains(e, world.Encounters!.List);
     }
 }
