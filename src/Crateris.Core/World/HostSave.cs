@@ -232,8 +232,8 @@ public static class HostSave
             // In a battle, the fleet ships are as they joined it, those destroyed gone (item 8: FleetForSave); during
             // an opening visit, without the ships its talks gave (StarbaseVisit.FleetWithout).
             (visit?.FleetWithout(world.FleetForSave()) ?? world.FleetForSave()).Where(s => s.Crew > 0).ToList(),
-            // During an opening, without what its two weeks rolled; none, left out.
-            (visit?.EncountersWithout() ?? world.Encounters?.List) is { Count: > 0 } list ? list.Select(e => new EncounterState(
+            // During an opening, without what its two weeks rolled; none, left out; kept for a ship spinning into a star.
+            world.EncountersForSave(visit?.EncountersWithout() ?? world.Encounters?.List) is { Count: > 0 } list ? list.Select(e => new EncounterState(
                 e.Race, e.Flags, e.Ships.ToList(), e.OriginX, e.OriginY, e.Radius, e.LocX, e.LocY, e.LogX, e.LogY,
                 e.TransitionState, e.Roller, e.KeptFor.Select(k => new KeptState(k.Key, k.Value.X, k.Value.Y)).ToList()))
                 .ToList() : null);

@@ -5368,6 +5368,12 @@ def hyperspace_scenarios():
         # small, so the groups leave it soon after coming in.
         hyperspace_scenario("a small sphere", 4242, (3000, 3000), [[24 * 8, H_RIGHT]],
                             fleets=[[R_KOHR_AH, 20, 3050, 3020]], tick_count=4),
+        # Into a star (6166, 6000) in the Ur-Quan's and the Kohr-Ah's
+        # spheres: the flagship spins in (init_transition), still in
+        # hyperspace (IN_BATTLE) until the spin's last frame: the groups
+        # fly at it as it drifts, and a day ending in the spin rolls.
+        hyperspace_scenario("into a star", 606, (6126, 6000), [[60, 0], [400, H_THRUST]], facing=4,
+                            day_ticks=12, tick_count=1),
     ]
 
 
@@ -5418,7 +5424,7 @@ def check_hyperspace(scenarios, runs):
         return runs[[s["name"] for s in scenarios].index(name)]["frames"]
     def any_frame(name, test):
         return any(test(f) for f in frames(name))
-    met = [r["name"] for r in runs if any(f[4] for f in r["frames"])]
+    met = [r["name"] for r in runs if any(f[4] and any(e[12] and e[12][16] for e in f[8]) for f in r["frames"])]
     if len(met) < 2:
         raise RuntimeError(f"hyperspace: only {met} meet a group")
     # Out of the sphere: an element whose transition_state goes below 0
@@ -5440,6 +5446,18 @@ def check_hyperspace(scenarios, runs):
         raise RuntimeError("hyperspace: no kept group went on the first frame")
     if not any(e[11] >= 9 for f in kept for e in f[8]):
         raise RuntimeError("hyperspace: no group re-formed")
+    # Into a star: the spin (the flagship's preprocess unhyper_transition,
+    # no group met) runs over a day's end, with groups flying at it, and
+    # the run ends in the star's system.
+    spin = [f for f in frames("into a star") if f[4]]
+    if not spin or any(e[12] and e[12][16] for f in spin for e in f[8]):
+        raise RuntimeError("hyperspace: the flagship didn't spin into a star")
+    if len({tuple(f[5]) for f in spin}) < 2 or not any(e[12] for e in spin[0][8]):
+        raise RuntimeError("hyperspace: no day ended in the spin, or no group flew at it")
+    if len({(f[0], f[1]) for f in spin}) < 2:
+        raise RuntimeError("hyperspace: the flagship didn't drift in its spin")
+    if not runs[[s["name"] for s in scenarios].index("into a star")]["end"][1] & 0x800:
+        raise RuntimeError("hyperspace: the star's system didn't start (START_INTERPLANETARY)")
 
 
 def record_hyperspace(uqm, exe, strings_exe, images_exe, package):
@@ -5470,14 +5488,16 @@ def record_hyperspace(uqm, exe, strings_exe, images_exe, package):
         "right, 4 thrust).",
         "frames: one a frame, recorded at the end of on_battle_frame (after SeedUniverse, before "
         "RedrawQueue): [log_x, log_y, ShipFacing, the flagship's velocity vector [w, h], whether the "
-        "flagship has met a group (its preprocess unhyper_transition), the date [y, m, d], the "
+        "flagship has met a group or touched a star (its preprocess unhyper_transition: it spins in, still in "
+        "hyperspace, IN_BATTLE, until the spin's last frame), the date [y, m, d], the "
         "functions that drew a number since the last frame (the first frame's: Battle's start too), "
         "TFB_Random's seed, the encounters]. An encounter: [race, flags, num_ships, [crew_level...], "
         "origin x, y, radius, loc_pt x, y, log_x, log_y, transition_state, element]; element null or "
         "[state_flags, life_span, frame index, turn_wait, thrust_wait, hit_points, death_func set, "
         "TravelAngle, vector w, h, fract w, h, error w, h, incr w, h, hTarget set, current x, y, next "
         "x, y, primitive type].",
-        "end: the frames run and CurrentActivity after (a meeting ends the run: START_ENCOUNTER). "
+        "end: the frames run and CurrentActivity after (a meeting ends the run: START_ENCOUNTER; a star, "
+        "START_INTERPLANETARY). "
         "start_seed: TFB_Random's seed as the first frame began (after InitGalaxy's and spawn_ship's "
         "draws, which a port's own seed stands for).",
     ])

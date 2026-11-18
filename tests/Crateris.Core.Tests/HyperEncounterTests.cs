@@ -35,6 +35,9 @@ public class HyperEncounterTests
     // UQM's ELEMENT state flag NONSOLID, and the stamp primitive (an element drawn).
     private const int NonsolidFlag = 1 << 6, StampPrim = 1;
 
+    // UQM's START_INTERPLANETARY: CurrentActivity's after a run that went into a star.
+    private const int StartInterplanetary = 1 << 11;
+
     internal static GameWorld UqmScenario(JsonElement input, out uint startSeed, JsonElement scenario)
     {
         var systems = Systems.Value;
@@ -96,7 +99,8 @@ public class HyperEncounterTests
     // The port's state against a record of UQM's.
     private static void Match(GameWorld world, JsonElement rec, string where, ref int drawn)
     {
-        var f = world.Host.Ship.Flight;
+        // Spinning into a star, the flagship is where its spin has taken it.
+        var f = world.Host.Ship.Spin ?? world.Host.Ship.Flight;
         Assert.True((f.LogX, f.LogY, (int)f.Facing) == (rec[FLogX].GetInt32(), rec[FLogY].GetInt32(), rec[FFacing].GetInt32()),
             $"{where}: the flagship at {(f.LogX, f.LogY, f.Facing)}");
         var date = rec[FDate].Ints();
@@ -153,6 +157,7 @@ public class HyperEncounterTests
             var world = UqmScenario(input, out _, scenario);
             var frames = scenario.GetProperty("frames").EnumerateArray().ToList();
             int drawn = 0;
+            bool spun = false;
             world.EndOfFrame();
             Match(world, frames[0], $"{name}, frame 1", ref drawn);
             for (int k = 1; k < frames.Count; ++k)
@@ -160,6 +165,27 @@ public class HyperEncounterTests
                 // The flagship's first frame, as it appears, takes no keys (ship_preprocess).
                 world.SubmitInput("h", world.Frame + 1, k == 1 ? ShipInput.None : (ShipInput)KeysAt(input, k - 1));
                 world.Step();
+                bool meeting = frames[k][FEncounters].EnumerateArray().Any(e => e[12].ValueKind != JsonValueKind.Null && e[12][16].GetInt32() != 0);
+                if (frames[k][FMet].GetInt32() != 0 && !meeting)
+                {
+                    // Spinning into a star: still in hyperspace for the
+                    // encounters until the spin's last frame (IN_BATTLE).
+                    Assert.True(world.Host.Ship.Spin is not null && world.Host.Ship.Entry is not null, $"{name}, frame {k + 1}: not spinning");
+                    Match(world, frames[k], $"{name}, frame {k + 1}", ref drawn);
+                    if (k == frames.Count - 1)
+                    {
+                        // The spin's last frame (cleanup_hyperspace): out of
+                        // hyperspace, in the star's system, the groups kept
+                        // without elements.
+                        world.Step();
+                        Assert.Null(world.Host.Ship.Spin);
+                        Assert.Equal(Activity.OuterSystem, world.Host.Ship.Activity);
+                        Assert.Equal(frames[k][FEncounters].GetArrayLength(), world.Encounters!.List.Count);
+                        Assert.All(world.Encounters.List, e => Assert.Null(e.Element));
+                        spun = true;
+                    }
+                    continue;
+                }
                 if (frames[k][FMet].GetInt32() != 0)
                 {
                     // UQM's flagship met a group in that frame's flight: the
@@ -172,6 +198,8 @@ public class HyperEncounterTests
                 Assert.True(world.HyperspaceMeetings.Count == 0, $"{name}, frame {k + 1}: met too soon");
                 Match(world, frames[k], $"{name}, frame {k + 1}", ref drawn);
             }
+            if ((scenario.GetProperty("end")[1].GetInt32() & StartInterplanetary) != 0)
+                Assert.True(spun, $"{name}: UQM's flagship went into a star, the port's didn't");
         }
     }
 
@@ -464,6 +492,157 @@ public class HyperEncounterTests
         Refused(n => First(n)["kept_for"]!.AsArray().Add(First(n)["kept_for"]![0]!.DeepClone()), "twice");
         Refused(n => First(n)["kept_for"]![0]!["player"] = "nobody", "kept for");
         Refused(n => n["settings"]!["max_hyperspace_encounters"] = 0, "encounters");
+    }
+
+    [Fact]
+    public void EachStayInHyperspaceGetsFreshNumbers()
+    {
+        // Out of every sphere: only the day's anywhere races roll.
+        var world = Players(null, ("a", 9000, 300));
+        uint next = 500;
+        world.HyperspaceSeeds = _ => next++;
+        Frames(world, 3);
+        var first = world.HyperspaceRandomOf("a");
+        Assert.Equal(3, first.Frames);
+        // Away and back (Battle seeds TFB_Random again): new numbers, their
+        // frames counted afresh, the first frame's view set up again.
+        var a = world.Find("a")!;
+        a.Present = false;
+        world.Step();
+        a.Present = true;
+        world.Step();
+        var second = world.HyperspaceRandomOf("a");
+        Assert.NotSame(first, second);
+        Assert.Equal(1, second.Frames);
+        // Seeded afresh (the next seed): its numbers are a new TFB_Random's.
+        var fresh = new Uqm.TfbRandom(501);
+        foreach (var _ in second.Places!)
+            fresh.Next();
+        Assert.Equal(fresh.Seed, second.Seed);
+        Assert.DoesNotContain("MoveGalaxy", second.Places!);
+        // Its second frame begins with the view's set-up: 90 numbers.
+        int before = second.Places!.Count;
+        world.Step();
+        Assert.Equal(Enumerable.Repeat("MoveGalaxy", 90), second.Places!.Skip(before).Take(90));
+        Assert.Equal(90, second.Places!.Count(p => p == "MoveGalaxy"));
+    }
+
+    [Fact]
+    public void AWreckInHyperspaceDoesntRollIsntFlownAtAndKeepsNoGroups()
+    {
+        // In the Ur-Quan's sphere: a flying, b a wreck nearer the group.
+        var world = Players(null, ("a", 5200, 6100), ("b", 5800, 6100));
+        world.Find("b")!.Ship.Destroyed = true;
+        var between = Group(world, "URQUAN_SHIP", 5600, 6100, "a");
+        var byTheWreck = Group(world, "URQUAN_SHIP", 6200, 6100, "a");   // in b's span alone
+        world.Step();
+        Assert.DoesNotContain(byTheWreck, world.Encounters!.List);
+        Frames(world, 60);
+        Assert.True(between.LocX < 5600, $"at {between.LocX}: flying at the wreck, not at a");
+        for (int day = 0; day < 5; ++day)
+            world.MoveClockDays(1);
+        Assert.DoesNotContain("check_hyperspace_encounter", world.HyperspaceRandomOf("b").Places!);
+        Assert.Contains("check_hyperspace_encounter", world.HyperspaceRandomOf("a").Places!);
+        Assert.DoesNotContain(world.Encounters.List, e => e.Roller == "b");
+    }
+
+    [Fact]
+    public void EachPlayersOwnFuelGivesTheMelnormeTheirChance()
+    {
+        // Out of every sphere: the host with fuel, a guest with none.
+        var world = Players(null, ("a", 9000, 300), ("b", 9500, 800));
+        world.Find("a")!.Ship.Flight.Fuel = 1000;
+        world.Find("b")!.Ship.Flight.Fuel = 0;
+        for (int day = 0; day < 30; ++day)
+            world.MoveClockDays(1);
+        int melnorme = Race("MELNORME_SHIP");
+        Assert.Contains(world.Encounters!.List, e => e.Race == melnorme && e.Roller == "b");
+        Assert.DoesNotContain(world.Encounters.List, e => e.Race == melnorme && e.Roller == "a");
+    }
+
+    // A game with the host flying into the star (6166, 6000) and touching
+    // it, the guest far off, and a group in the host's span alone.
+    private static (GameWorld World, HyperEncounter Group) IntoAStar()
+    {
+        var systems = Systems.Value;
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        Assert.Equal(JoinResult.Joined, world.Join("g", "Guest"));
+        world.UndockShown("g");
+        world.EncounterRaces = world.Story!.Rules.Races.ToHashSet();
+        world.Story.Set("STARBASE_AVAILABLE", 1);
+        world.Story.Set("SLYLANDRO_MULTIPLIER", 0);
+        world.Clock.FramesIntoDay = -100000;   // no day's roll meanwhile
+        var f = world.Host.Ship.Flight;
+        f.PlaceAtUniverse(6126, 6000);
+        f.StarJustLeft = null;
+        f.Facing = 4;
+        var guest = world.Find("g")!.Ship.Flight;
+        guest.PlaceAtUniverse(7400, 6000);
+        guest.StarJustLeft = null;
+        var e = Group(world, "URQUAN_SHIP", 6166 - 200, 6000, "h");
+        for (int i = 0; i < 200 && world.Host.Ship.Entry is null; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.Thrust);
+            world.SubmitInput("g", world.Frame + 1, ShipInput.None);
+            world.Step();
+        }
+        Assert.Equal(systems.Map.Stars.Single(s => (s.X, s.Y) == (6166, 6000)).Number, world.Host.Ship.SystemStar);
+        return (world, e);
+    }
+
+    [ContentFact]
+    public void AShipSpinningIntoAStarIsInHyperspaceForTheEncountersUntilTheSpinsLastFrame()
+    {
+        var (world, e) = IntoAStar();
+        var host = world.Host;
+        var spin = host.Ship.Spin!;
+        int steps = host.Ship.Entry!.Steps;
+        // Spinning: in hyperspace for the encounters, its numbers kept, the
+        // group flying at it (not kept for it as one gone, nor at the guest),
+        // its place drifting from where it touched the star.
+        var numbers = world.HyperspaceRandomOf("h");
+        Assert.NotEqual((host.Ship.Flight.UniverseX, host.Ship.Flight.UniverseY), (spin.UniverseX, spin.UniverseY));
+        for (int i = 0; i < steps; ++i)
+        {
+            Assert.True(GameWorld.InHyperspace(host));
+            Assert.NotNull(e.Element);
+            Assert.DoesNotContain("h", e.KeptFor.Keys);
+            if (i == 2)
+            {
+                // A save during the spin keeps the group for the host from
+                // where the spin has taken it.
+                var loaded = HostSave.FromJson(HostSave.ToJson(world), Systems.Value, TestContent.Shapes);
+                Assert.Equal((spin.UniverseX, spin.UniverseY), loaded.Encounters!.List.Single().KeptFor["h"]);
+                Assert.Empty(e.KeptFor);
+            }
+            world.Step();
+        }
+        Assert.Same(numbers, world.HyperspaceRandomOf("h"));
+        Assert.True(e.LocX > 6166 - 200, $"at {e.LocX}: not flying at the host");
+        Assert.Empty(world.HyperspaceMeetings);
+        // The spin's last frame: out of hyperspace, the group kept for the
+        // host from where the spin took it.
+        (short X, short Y) spunTo = (spin.UniverseX, spin.UniverseY);
+        world.Step();
+        Assert.Null(host.Ship.Spin);
+        Assert.False(GameWorld.InHyperspace(host));
+        Assert.Equal(spunTo, e.KeptFor["h"]);
+        Assert.Contains(e, world.Encounters!.List);
+    }
+
+    [ContentFact]
+    public void APlayerLeavingAsTheirShipSpinsIntoAStarLeavesHyperspaceFromWhereItHadSpun()
+    {
+        var (world, e) = IntoAStar();
+        var host = world.Host;
+        var spin = host.Ship.Spin!;
+        world.Step();
+        (short X, short Y) spunTo = (spin.UniverseX, spin.UniverseY);
+        Assert.NotEqual((host.Ship.Flight.UniverseX, host.Ship.Flight.UniverseY), spunTo);
+        world.Leave("h");
+        world.Step();
+        Assert.Null(host.Ship.Spin);
+        Assert.Equal(spunTo, e.KeptFor["h"]);
     }
 
     // A seed whose first number, as a roll takes it ((COUNT) % 100), is n.

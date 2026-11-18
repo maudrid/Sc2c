@@ -130,6 +130,9 @@ public sealed class HyperFlight
         LogY = Units.UniverseToLogY(y);
     }
 
+    /// <summary>A copy flying on alone from here (its drive shared).</summary>
+    public HyperFlight Copy() => (HyperFlight)MemberwiseClone();
+
     /// <summary>Entering hyperspace resets the fuel counters (LoadHyperspace).</summary>
     public void ResetFuelCounters()
     {
@@ -151,7 +154,16 @@ public sealed class HyperFlight
     public void Step(ShipInput input)
     {
         Preprocess((ushort)((byte)input & (StatusLeft | StatusRight | StatusThrust)));
+        Move();
+    }
 
+    /// <summary>
+    /// A frame with no preprocess of the ship's own: its move and the
+    /// view's scroll alone, as while it spins into a star
+    /// (unhyper_transition stands in for ship_preprocess).
+    /// </summary>
+    public void Move()
+    {
         // PreProcess (process.c): move by velocity.
         var (dx, dy) = Velocity.Next(1);
         ViewX += dx;

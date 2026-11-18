@@ -48,7 +48,8 @@
  * Output: one JSON object per scenario: its frames, each recorded at the
  * end of on_battle_frame (after SeedUniverse):
  *   [log_x, log_y, ShipFacing, flagship's velocity [vector w, h],
- *    flagship transition (0 none, 1 unhyper_transition: met),
+ *    flagship transition (0 none, 1 unhyper_transition: met, or spinning
+ *    into a star, in hyperspace until the spin's last frame),
  *    [year, month, day], [draws], seed,
  *    [encounters]]
  * draws each TFB_Random's caller since the last record (the first's

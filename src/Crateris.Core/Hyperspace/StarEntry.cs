@@ -43,6 +43,33 @@ public static class StarEntry
         return frameCount - Facings + UqmMath.NormalizeFacing(Facings - facing);
     }
 
+    // init_transition: the velocity that covers the distance in num_turns frames.
+    private static Velocity EntryVelocity(long spriteX, long spriteY, int facing, Star star, int frameCount)
+    {
+        short dx = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogX(star.X) - spriteX));
+        short dy = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogY(star.Y) - spriteY));
+        int turns = Turns(facing, frameCount);
+        var velocity = default(Velocity);
+        velocity.SetComponents((short)(dx / turns), (short)(dy / turns));
+        return velocity;
+    }
+
+    /// <summary>
+    /// The ship's hyperspace flight as its entry moves it, from contact: a
+    /// copy of <paramref name="flight"/> given init_transition's velocity,
+    /// which <see cref="HyperFlight.Move"/> then flies a frame at a time
+    /// (the ship drifting, the view scrolling after it and the hyperspace
+    /// place with the view, as UQM's flagship is still in hyperspace until
+    /// the spin's last frame).
+    /// </summary>
+    public static HyperFlight Spin(HyperFlight flight, Star star, int frameCount)
+    {
+        var spin = flight.Copy();
+        var (x, y) = HyperFlight.SpriteAt(flight.LogX, flight.LogY, flight.ViewX, flight.ViewY);
+        spin.Velocity = EntryVelocity(x, y, flight.Facing, star, frameCount);
+        return spin;
+    }
+
     /// <summary>
     /// The frames after contact, one a hyperspace frame, until the system
     /// loads (the frame after the last). <paramref name="frameCount"/> is
@@ -50,13 +77,7 @@ public static class StarEntry
     /// </summary>
     public static IReadOnlyList<Step> Animate(long spriteX, long spriteY, int facing, Star star, int frameCount)
     {
-        // init_transition: the velocity that covers the distance in num_turns frames.
-        short dx = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogX(star.X) - spriteX));
-        short dy = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogY(star.Y) - spriteY));
-        int turns = Turns(facing, frameCount);
-        var velocity = default(Velocity);
-        velocity.SetComponents((short)(dx / turns), (short)(dy / turns));
-
+        var velocity = EntryVelocity(spriteX, spriteY, facing, star, frameCount);
         var steps = new List<Step>();
         int frame = facing;
         long x = spriteX, y = spriteY;

@@ -384,6 +384,7 @@ public sealed partial class GameWorld
             AfterVisit(docked);
         }
         _ended.Remove(id);
+        EndSpin(player);   // out of hyperspace from where its spin had taken it
         player.Present = false;
         _inputs[id].Clear();
         _actionHeld.Remove(id);
@@ -523,9 +524,15 @@ public sealed partial class GameWorld
                     if (p.Ship.Entry is { } entry)
                     {
                         if (entry.PlayingAt(Frame))
+                        {
+                            // The spin's drift (unhyper_transition, then the move).
+                            p.Ship.Spin?.Move();
                             break;
+                        }
                         p.Ship.Entry = null;
                     }
+                    // The spin's last frame: out of hyperspace (cleanup_hyperspace).
+                    EndSpin(p);
                     for (int i = 0; i < systemFrames && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem; ++i)
                         StepSystem(p.Ship, input);
                     break;
@@ -609,8 +616,12 @@ public sealed partial class GameWorld
             var f = ship.Flight;
             var entry = new StarEntryState(Frame, f.LogX, f.LogY, f.ViewX, f.ViewY, f.Facing, star.Number,
                 StarEntry.Turns(f.Facing, Shapes!.HyperFlagship.Count));
+            // For the encounters the ship stays in hyperspace while it spins
+            // in, drifting as UQM's does (GameWorld.Encounters.cs).
+            var spin = StarEntry.Spin(f, star, Shapes!.HyperFlagship.Count);
             EnterSystem(ship, star);
             ship.Entry = entry;
+            ship.Spin = spin;
             HoldInput(ship, Frame + entry.Steps + Settings.InputDelayFrames);
             return;
         }
@@ -1090,6 +1101,7 @@ public sealed partial class GameWorld
         Withdraw(player);
         PlayerShip ship = player.Ship;
         // Put straight there: no entry plays, so no input is held for one.
+        EndSpin(player);
         ship.Entry = null;
         ship.InputHeldUntil = -1;
         _inputs[id].Clear();

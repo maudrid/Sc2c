@@ -29,6 +29,7 @@ public sealed partial class GameWorld
     private StoryState? _encountersOf;
     private readonly Dictionary<string, HyperspaceRandom> _hyperRandom = new();
     private HashSet<string> _inHyperspaceBefore = new();
+    private readonly Dictionary<string, (short X, short Y)> _spinEndedAt = new();
 
     /// <summary>
     /// The races whose talk is ported, whose groups are kept once made
@@ -94,14 +95,36 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// Whether a player is in hyperspace for the encounters: present,
-    /// flying there (not in a battle, talk, system or at the starbase), and
-    /// not a wreck. Only they roll, are flown at, and keep groups.
+    /// flying there (not in a battle, talk, system or at the starbase) or
+    /// spinning into a star (<see cref="PlayerShip.Spin"/>: UQM's flagship
+    /// leaves hyperspace on the spin's last frame), and not a wreck. Only
+    /// they roll, are flown at, and keep groups.
     /// </summary>
-    internal static bool InHyperspace(Player p) => p.Present && p.Ship.Activity == Activity.Hyperspace && !p.Ship.Destroyed;
+    internal static bool InHyperspace(Player p) =>
+        p.Present && !p.Ship.Destroyed && (p.Ship.Activity == Activity.Hyperspace || p.Ship.Spin is not null);
+
+    // A player's hyperspace flight: their spin's while they spin into a star.
+    private static HyperFlight HyperspaceFlightOf(Player p) => p.Ship.Spin ?? p.Ship.Flight;
 
     private List<HyperspacePlayer> HyperspacePlayers() =>
-        _players.Where(InHyperspace)
-            .Select(p => new HyperspacePlayer(p.Id, p.Ship.Flight.UniverseX, p.Ship.Flight.UniverseY)).ToList();
+        _players.Where(InHyperspace).Select(p =>
+        {
+            var f = HyperspaceFlightOf(p);
+            return new HyperspacePlayer(p.Id, f.UniverseX, f.UniverseY);
+        }).ToList();
+
+    /// <summary>
+    /// A ship's spin into a star is over (its last frame, or it's put
+    /// elsewhere, or its player leaves): it's out of hyperspace for the
+    /// encounters, from where the spin had taken it.
+    /// </summary>
+    private void EndSpin(Player p)
+    {
+        if (p.Ship.Spin is not { } spin)
+            return;
+        _spinEndedAt[p.Id] = (spin.UniverseX, spin.UniverseY);
+        p.Ship.Spin = null;
+    }
 
     /// <summary>
     /// HYPERSPACE_ENCOUNTER_EVENT's check_hyperspace_encounter, called as
@@ -118,7 +141,7 @@ public sealed partial class GameWorld
             return;
         foreach (var p in _players.Where(InHyperspace))
         {
-            var f = p.Ship.Flight;
+            var f = HyperspaceFlightOf(p);
             encounters.Roll(Story!, p.Id, f.UniverseX, f.UniverseY, f.Fuel, HyperspaceRandomOf(p.Id));
         }
     }
@@ -171,7 +194,7 @@ public sealed partial class GameWorld
     // Where a group a player's roll made comes in: round them (their
     // hyperspace place, kept while they're out of it).
     private (short X, short Y) RollerAt(string id) =>
-        Find(id) is { } p ? (p.Ship.Flight.UniverseX, p.Ship.Flight.UniverseY) : ((short)0, (short)0);
+        Find(id) is { } p ? (HyperspaceFlightOf(p).UniverseX, HyperspaceFlightOf(p).UniverseY) : ((short)0, (short)0);
 
     // Players coming into hyperspace get their numbers (Battle's seed) and
     // are no longer kept for; those leaving it (into a system, a battle, a
@@ -185,8 +208,9 @@ public sealed partial class GameWorld
             _hyperRandom.Remove(id);
             if (Find(id) is not { } p)
                 continue;
-            var at = (p.Ship.Flight.UniverseX, p.Ship.Flight.UniverseY);
-            foreach (var e in encounters.List.Where(e => HyperEncounters.InSpan(e, at.UniverseX, at.UniverseY)))
+            (short X, short Y) at = _spinEndedAt.TryGetValue(id, out var spunTo) ? spunTo
+                : (p.Ship.Flight.UniverseX, p.Ship.Flight.UniverseY);
+            foreach (var e in encounters.List.Where(e => HyperEncounters.InSpan(e, at.X, at.Y)))
                 e.KeptFor[id] = at;
         }
         foreach (var id in now)
@@ -196,6 +220,7 @@ public sealed partial class GameWorld
                 e.KeptFor.Remove(id);
         }
         _inHyperspaceBefore = now;
+        _spinEndedAt.Clear();
     }
 
     /// <summary>
@@ -230,6 +255,27 @@ public sealed partial class GameWorld
         _hyperRandom.Clear();
         foreach (var (id, r) in state.Random)
             _hyperRandom[id] = r.Clone();
+    }
+
+    /// <summary>
+    /// The encounters as a save has them: a ship spinning into a star is
+    /// saved in its system (its entry isn't saved), so the groups in its
+    /// span are kept for it from where its spin has taken it, as when the
+    /// spin ends.
+    /// </summary>
+    internal IReadOnlyList<HyperEncounter>? EncountersForSave(IReadOnlyList<HyperEncounter>? list)
+    {
+        var spinning = _players.Where(p => InHyperspace(p) && p.Ship.Spin is not null).ToList();
+        if (list is null || spinning.Count == 0)
+            return list;
+        var copy = list.Select(e => e.Clone()).ToList();
+        foreach (var p in spinning)
+        {
+            var f = p.Ship.Spin!;
+            foreach (var e in copy.Where(e => HyperEncounters.InSpan(e, f.UniverseX, f.UniverseY)))
+                e.KeptFor[p.Id] = (f.UniverseX, f.UniverseY);
+        }
+        return copy;
     }
 
     /// <summary>A loaded game: the players whose ships were in hyperspace left it as it was saved (they're away), keeping the groups round them.</summary>

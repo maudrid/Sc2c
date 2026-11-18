@@ -83,6 +83,15 @@ public sealed class PlayerShip
     public StarEntryState? Entry { get; internal set; }
 
     /// <summary>
+    /// While its own entry into a star plays (not one it follows): the
+    /// ship's hyperspace flight as the spin moves it (<see cref="StarEntry.Spin"/>).
+    /// UQM's flagship is in hyperspace until the spin's last frame, so for
+    /// the encounters the ship still is: it rolls, is flown at from here,
+    /// and can't be touched (docs/differences.md row 24). Not saved.
+    /// </summary>
+    internal HyperFlight? Spin { get; set; }
+
+    /// <summary>
     /// The last world frame whose input is ignored after an entry into a
     /// star: input for frames up to the entry's end plus the input delay
     /// was read while the entry was still playing on its player's screen.
