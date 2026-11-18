@@ -786,11 +786,6 @@ public class SystemGroupTests
         sg.Frame(d, system, new[] { by, on }, TestContent.Shapes!);
         Assert.Null(by.Met);
         Assert.Same(g, on.Met);
-        // Where they touched is put back on the group's own screen, at the zoom it goes by.
-        var own = IpGeometry.LocationToDisplay(new IpPoint(g.LocX, g.LocY), 4096);
-        Assert.True(Math.Abs(g.Element!.Cur.X - own.X) <= 2 && Math.Abs(g.Element.Cur.Y - own.Y) <= 2,
-            $"the group at {g.Element.Cur}, its place on its screen {own}");
-
         // A ship at the edge of touching: as with the group going by it
         // alone, whatever zoom the player the group goes by is at.
         var seen = new HashSet<bool>();
@@ -865,7 +860,7 @@ public class SystemGroupTests
         // so it moves on the screen. Groups in different views, or in the
         // outer view at different zooms, don't bump.
         var system = Systems.Value[UrQuanStar];
-        bool BothMoved((int X, int Y, byte View)[] groups, SystemFlyer[] flyers)
+        bool BothMoved((int X, int Y, byte View)[] groups, SystemFlyer[] flyers, Action<List<IpGroup>>? check = null)
         {
             var (sg, d, _) = Bare(UrQuanStar);
             var made = groups.Select((g, i) =>
@@ -877,6 +872,7 @@ public class SystemGroupTests
             foreach (var f in flyers)
                 f.Flight.Step(ShipInput.None);
             sg.Frame(d, system, flyers, TestContent.Shapes!);
+            check?.Invoke(made);
             return made.Zip(groups).All(x => (x.First.LocX, x.First.LocY) != (x.Second.X, x.Second.Y));
         }
         SystemFlyer At(string id, int x, int y, int? inner = null, int? zoom = null)
@@ -892,6 +888,13 @@ public class SystemGroupTests
         // The outer view and a planet's inner system, at the same screen point: no bump.
         Assert.True(BothMoved(new[] { (2926, 0, (byte)0), (2926, 0, (byte)1) },
             new[] { At("o", -12000, 0, zoom: 8192), At("i", -9000, 0, inner: 0) }));
+        // The outer view at one zoom, each group going by another player
+        // (each flying west at the one nearest it), in one pixel: they bump.
+        Assert.Equal(IpGeometry.LocationToDisplay(new IpPoint(2926, -10), 8192), IpGeometry.LocationToDisplay(new IpPoint(2926, 130), 8192));
+        Assert.False(BothMoved(new[] { (2926, -10, (byte)0), (2926, 130, (byte)0) },
+            new[] { At("p", -12000, -3000, zoom: 8192), At("q", -12000, 3000, zoom: 8192) },
+            made => Assert.True(made[0].Element!.Velocity.Current().dy < 0 && made[1].Element!.Velocity.Current().dy > 0,
+                "each flies at the player nearest it")));
         // The outer view at two zooms, each group flying east at the player
         // nearest it, at the same screen point at its own zoom: no bump.
         Assert.Equal(IpGeometry.LocationToDisplay(new IpPoint(2889, 0), 2048), IpGeometry.LocationToDisplay(new IpPoint(5777, 0), 4096));
@@ -954,8 +957,7 @@ public class SystemGroupTests
         world.SystemGroups!.Defined["START_COLONY_DEFINED"] = new() { new GroupShips(1, world.Story.Rules.RaceIndex("URQUAN_SHIP"), Array.Empty<int>()) };
         world.PutInSystem("h", colony);
         Run(world);
-        var dd = DrawOf(world, colony);
-        Assert.True(Drawn(world, colony).Contains("BuildGroups"), $"DBG {colony} {dd.Defined} {dd.Groups.Count} {dd.RandomGroups?.Count} {string.Join(",", Drawn(world, colony))} {world.Host.Ship.SystemStar} {world.Story.Get("SLYLANDRO_MULTIPLIER")} {string.Join(",", world.Story.Fleets.Select(f => f.ActualStrength))}");
+        Assert.Contains("BuildGroups", Drawn(world, colony));
         Assert.Null(DrawOf(world, colony).Defined);
         world.PutInHyperspace("h");
         Run(world);

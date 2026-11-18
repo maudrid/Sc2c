@@ -1175,8 +1175,10 @@ public sealed class SystemGroups
                     time = Intersection.DrawablesIntersect(ec, tc, minTime);
                 if (time == 0)
                     continue;
-                var savePt = BackOnOwn(e, test, ec, new IpPoint(ec.EndX, ec.EndY));
-                var testSavePt = BackOnOwn(test, e, tc, new IpPoint(tc.EndX, tc.EndY));
+                // Where they touched: only a ship's is used (a group never
+                // newly gains COLLISION against a ship), on its own screen.
+                var savePt = new IpPoint(ec.EndX, ec.EndY);
+                var testSavePt = new IpPoint(tc.EndX, tc.EndY);
                 e.Control.EndX = e.Next.X;
                 e.Control.EndY = e.Next.Y;
                 test.Control.EndX = test.Next.X;
@@ -1267,12 +1269,6 @@ public sealed class SystemGroups
                 : IpGeometry.DisplayToLocation(p, el.Radius);
             return IpGeometry.LocationToDisplay(place, to);
         }
-
-        // Where two elements touched, back on the element's own screen
-        // (a group's, from the ship's it was tested on).
-        private static IpPoint BackOnOwn(Elem x, Elem other, IntersectControl used, IpPoint p) =>
-            used == x.Control ? p
-                : IpGeometry.LocationToDisplay(IpGeometry.DisplayToLocation(p, FlyerRadius(other.Flyer!)), x.Group!.Element!.Radius);
 
         private void Collide(Elem e0, Elem e1)
         {
