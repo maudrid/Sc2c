@@ -5276,6 +5276,219 @@ def record_commanim(uqm, exe):
     return data
 
 
+# ---- Hyperspace encounters (stage 3b-1 item 3) ----
+
+HYPERSPACE_PROGRAM = os.path.join(HERE, "golden", "hyperspace.c")
+HYPERSPACE_STUBS = os.path.join(HERE, "golden", "hyperspace_stubs.c")
+# UQM's code the hyperspace program runs: the battle program's (battle.c
+# runs hyperspace as a battle) and the new game's, the clock's and the
+# star map's (hyper.c and galaxy.c are included).
+HYPERSPACE_LINK = list(dict.fromkeys(BATTLE_LINK + [
+    "uqm/clock.c", "uqm/gameev.c", "uqm/build.c", "uqm/master.c", "uqm/starmap.c",
+    "uqm/plandata.c", "uqm/ships/probe/probe.c"]))
+# The sheets hyperspace loads (LoadHyperData, init_sis in hyperspace).
+HYPERSPACE_SHEETS = ["graphics.ambient", "graphics.hyperstars", "graphics.quasispace",
+                     "ship.flagship.graphics.hyperspace"]
+
+# races.h's numbers of the races the scenarios meet.
+R_SPATHI, R_MELNORME, R_ILWRATH, R_SLYLANDRO, R_URQUAN, R_KOHR_AH = 6, 12, 14, 16, 18, 21
+# ENCOUNTER.flags.
+ONE_SHOT_ENCOUNTER, ENCOUNTER_REFORMING = 1 << 7, 1 << 6
+
+
+def hyperspace_scenario(name, seed, at, steps, facing=0, fuel=5000, day_ticks=24, tick_count=24,
+                        starbase=1, multiplier=0, anger=0, thrusters=2, fleets=(), encounters=()):
+    """A hyperspace scenario for golden/hyperspace.c: the flagship at
+    `at` (universe), the clock's day day_ticks frames long, tick_count
+    frames from its next, STARBASE_AVAILABLE, SLYLANDRO_MULTIPLIER and
+    MELNORME_ANGER; fleets [race, strength, x, y] changed; encounters
+    kept from before, each [race, flags, ships, ox, oy, radius, lx, ly,
+    transition_state]; steps [frames, keys]."""
+    return dict(name=name, seed=seed, x=at[0], y=at[1], facing=facing, fuel=fuel, day_ticks=day_ticks,
+                tick_count=tick_count, starbase=starbase, multiplier=multiplier, anger=anger,
+                thrusters=thrusters, fleets=[list(f) for f in fleets], encounters=[list(e) for e in encounters],
+                steps=[list(s) for s in steps])
+
+
+def hyperspace_line(sc, n):
+    parts = [f"scenario{n}", sc["seed"], sc["x"], sc["y"], sc["facing"], sc["fuel"], sc["day_ticks"],
+             sc["tick_count"], sc["starbase"], sc["multiplier"], sc["anger"], sc["thrusters"],
+             len(sc["fleets"])]
+    for f in sc["fleets"]:
+        parts += f
+    parts.append(len(sc["encounters"]))
+    for e in sc["encounters"]:
+        parts += e
+    parts.append(len(sc["steps"]))
+    for st in sc["steps"]:
+        parts += st
+    return " ".join(str(p) for p in parts)
+
+
+# Keys (BATTLE_INPUT_STATE).
+H_LEFT, H_RIGHT, H_THRUST = 1, 2, 4
+
+
+def hyperspace_scenarios():
+    """UQM's draws and frames for one flagship in hyperspace, in the spheres
+    of 3b-1's races (decision 2: the Ur-Quan, the Kohr-Ah, the Spathi, the
+    Ilwrath, the Slylandro)."""
+    return [
+        # In the Ur-Quan's and the Kohr-Ah's spheres (70% a day each): groups
+        # come in through their vortices, fly at the flagship and meet it.
+        hyperspace_scenario("waiting in the Ur-Quan's sphere", 11, (5800, 6100),
+                            [[40, H_LEFT], [700, 0]], tick_count=5),
+        hyperspace_scenario("turning in the Kohr-Ah's sphere", 2024, (6300, 6600),
+                            [[30, 0], [80, H_RIGHT | H_THRUST], [60, H_THRUST], [600, H_LEFT]], tick_count=20),
+        # Out of the Spathi's sphere (radius 990 round (2549, 3600)) at
+        # speed: the groups chasing go as they leave it (their vortex out),
+        # or fall behind out of the flagship's span.
+        hyperspace_scenario("leaving the Spathi's sphere", 77, (2549, 3600 + 900),
+                            [[90, 0], [900, H_THRUST]], thrusters=11, tick_count=2),
+        hyperspace_scenario("outrunning the Ilwrath", 5, (400, 1700),
+                            [[100, 0], [700, H_RIGHT | H_THRUST], [200, H_THRUST]], thrusters=11, tick_count=3,
+                            facing=4),
+        # The Slylandro probes, every day before the starbase (one at a time),
+        # and the Melnorme at 30% with no fuel (one at a time too).
+        hyperspace_scenario("the probes", 99, (9000, 300),
+                            [[200, 0], [500, H_RIGHT]], starbase=0, multiplier=1, tick_count=1),
+        hyperspace_scenario("no fuel", 314, (9000, 300),
+                            [[24 * 12, 0]], fuel=0, starbase=1, multiplier=4, day_ticks=12, tick_count=1),
+        # Groups kept from before: placed where they were, without a vortex;
+        # one out of the flagship's span goes at once; a group re-forming
+        # after a battle waits, then comes back in; one talked away goes.
+        hyperspace_scenario("groups kept from before", 8, (5800, 6100), [[400, 0]], tick_count=300,
+                            encounters=[[R_URQUAN, 0, 3, 5750, 6000, 2662, 5900, 6150, 0],
+                                        [R_KOHR_AH, 0, 2, 6000, 6250, 2662, 5800 + 600, 6100, 0],
+                                        [R_URQUAN, ENCOUNTER_REFORMING, 4, 5750, 6000, 2662, 5810, 6120, 0],
+                                        [R_KOHR_AH, ENCOUNTER_REFORMING | ONE_SHOT_ENCOUNTER, 1, 6000, 6250, 2662,
+                                         5790, 6090, 0],
+                                        [R_SPATHI, 0, 0, 5750, 6000, 2662, 0, 0, 0]]),
+        # A sphere of one's own (a fleet moved, as 3c's events move them):
+        # small, so the groups leave it soon after coming in.
+        hyperspace_scenario("a small sphere", 4242, (3000, 3000), [[24 * 8, H_RIGHT]],
+                            fleets=[[R_KOHR_AH, 20, 3050, 3020]], tick_count=4),
+    ]
+
+
+class HyperspaceProgram:
+    """The hyperspace program with its sheets and masks."""
+
+    def __init__(self, exe, sheets_file, masks):
+        self.exe, self.sheets_file, self.masks = exe, sheets_file, masks
+        out = subprocess.run(["nm", "-n", exe], capture_output=True, text=True, check=True).stdout
+        self.symbols = [(int(a, 16), name) for a, kind, name in
+                        (line.split() for line in out.splitlines() if len(line.split()) == 3)
+                        if kind in "tT"]
+
+    def place(self, address):
+        import bisect
+        i = bisect.bisect_right([a for a, _ in self.symbols], address) - 1
+        return self.symbols[i][1]
+
+    def run(self, scenarios):
+        lines = [hyperspace_line(s, n) for n, s in enumerate(scenarios)]
+        res = subprocess.run([self.exe, self.sheets_file, self.masks], input="\n".join(lines) + "\n",
+                             capture_output=True, text=True)
+        if res.returncode:
+            raise RuntimeError(f"the hyperspace program failed ({res.returncode}): {res.stderr.strip()}")
+        runs = json.loads("[" + res.stdout.replace("}\n{", "},\n{") + "]")
+        if len(runs) != len(scenarios):
+            raise RuntimeError("the hyperspace program lost a scenario")
+        places = {}
+        for run in runs:
+            for frame in run["frames"]:
+                frame[6] = [places.setdefault(a, self.place(a)) for a in frame[6]]
+        return runs
+
+
+def run_hyperspace(uqm, exe, strings_exe, images_exe, package, scenarios):
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp, list(enumerate(HYPERSPACE_SHEETS)))
+        sheets_file = os.path.join(tmp, "sheets.txt")
+        with open(sheets_file, "w") as f:
+            for n, key in enumerate(HYPERSPACE_SHEETS):
+                f.write(f"{n} {key} {len(hashes[key])}\n")
+        return HyperspaceProgram(exe, sheets_file, masks).run(scenarios)
+
+
+def check_hyperspace(scenarios, runs):
+    """What the recordings must show, or the scenarios don't test it."""
+    def frames(name):
+        return runs[[s["name"] for s in scenarios].index(name)]["frames"]
+    def any_frame(name, test):
+        return any(test(f) for f in frames(name))
+    met = [r["name"] for r in runs if any(f[4] for f in r["frames"])]
+    if len(met) < 2:
+        raise RuntimeError(f"hyperspace: only {met} meet a group")
+    # Out of the sphere: an element whose transition_state goes below 0
+    # (its vortex out), and one that went without one.
+    if not any_frame("leaving the Spathi's sphere", lambda f: any(e[11] < 0 for e in f[8])):
+        raise RuntimeError("hyperspace: no group left the Spathi's sphere")
+    places = {p for r in runs for f in r["frames"] for p in f[6]}
+    for p in ("check_hyperspace_encounter", "AddEncounterElement", "SeedUniverse", "AddAmbientElement"):
+        if p not in places:
+            raise RuntimeError(f"hyperspace: nothing drawn by {p}")
+    if not any_frame("the probes", lambda f: sum(e[0] == R_SLYLANDRO for e in f[8]) == 1):
+        raise RuntimeError("hyperspace: no probe came")
+    if any_frame("the probes", lambda f: sum(e[0] == R_SLYLANDRO for e in f[8]) > 1):
+        raise RuntimeError("hyperspace: two probes at once")
+    if not any_frame("no fuel", lambda f: any(e[0] == R_MELNORME for e in f[8])):
+        raise RuntimeError("hyperspace: the Melnorme didn't come to a ship with no fuel")
+    kept = frames("groups kept from before")
+    if len(kept[0][8]) >= 5:
+        raise RuntimeError("hyperspace: no kept group went on the first frame")
+    if not any(e[11] >= 9 for f in kept for e in f[8]):
+        raise RuntimeError("hyperspace: no group re-formed")
+
+
+def record_hyperspace(uqm, exe, strings_exe, images_exe, package):
+    """UQM's hyperspace encounters, frame by frame (golden/hyperspace.c),
+    with the package's masks of hyperspace's sheets."""
+    scenarios = hyperspace_scenarios()
+    runs = run_hyperspace(uqm, exe, strings_exe, images_exe, package, scenarios)
+    check_hyperspace(scenarios, runs)
+    data = header(uqm, ["tools/extract/golden/hyperspace.c", "tools/extract/golden/hyperspace_stubs.c",
+                        "src/uqm/battle.c", "src/uqm/hyper.c", "src/uqm/galaxy.c", "src/libs/math/random.c"]
+                  + [f"src/{f}" for f in HYPERSPACE_LINK], [
+        "UQM 0.8.0's own hyperspace encounters, recorded by running battle.c's Battle in hyperspace as "
+        "starcon.c does (see tools/extract/golden/hyperspace.c): a new game (UQM's own "
+        "InitGameStructures, InitGameClock, AddInitialGameEvents), then TFB_SeedRandom from the seed, "
+        "InitShips (InitGalaxy's stars, the flagship, LoadHyperspace), and DoBattle's frames: "
+        "ProcessInput, on_battle_frame (GameClockTick, whose day runs HYPERSPACE_ENCOUNTER_EVENT: "
+        "check_race_growth and check_hyperspace_encounter; then SeedUniverse: the stars, "
+        "ProcessEncounters with AddEncounterElement and ProcessEncounter, the ambient star), "
+        "RedrawQueue (process.c's elements, collisions over the masks, encounter_collision). The game "
+        "is as if loaded (LastActivity CHECK_LOAD), so the flagship flies from the first frame.",
+        "Contact is found with the masks of hyperspace's sheets (sheets) from the official content "
+        f"package (SHA-256 {CONTENT_SHA256}). Everything else is code.",
+        "input: each scenario's: the seed, the flagship's place (universe), facing, fuel and fusion "
+        "thrusters (a new game's ship otherwise), the clock's day in frames (day_ticks) and the frames "
+        "to its next (tick_count), STARBASE_AVAILABLE, SLYLANDRO_MULTIPLIER, MELNORME_ANGER, fleets "
+        "changed [race, actual_strength, x, y], encounters kept from before [race, flags, ships, "
+        "origin x, y, radius, loc_pt x, y, transition_state], and steps [frames, keys] (1 left, 2 "
+        "right, 4 thrust).",
+        "frames: one a frame, recorded at the end of on_battle_frame (after SeedUniverse, before "
+        "RedrawQueue): [log_x, log_y, ShipFacing, the flagship's velocity vector [w, h], whether the "
+        "flagship has met a group (its preprocess unhyper_transition), the date [y, m, d], the "
+        "functions that drew a number since the last frame (the first frame's: Battle's start too), "
+        "TFB_Random's seed, the encounters]. An encounter: [race, flags, num_ships, [crew_level...], "
+        "origin x, y, radius, loc_pt x, y, log_x, log_y, transition_state, element]; element null or "
+        "[state_flags, life_span, frame index, turn_wait, thrust_wait, hit_points, death_func set, "
+        "TravelAngle, vector w, h, fract w, h, error w, h, incr w, h, hTarget set, current x, y, next "
+        "x, y, primitive type].",
+        "end: the frames run and CurrentActivity after (a meeting ends the run: START_ENCOUNTER). "
+        "start_seed: TFB_Random's seed as the first frame began (after InitGalaxy's and spawn_ship's "
+        "draws, which a port's own seed stands for).",
+    ])
+    data["sheets"] = HYPERSPACE_SHEETS
+    data["scenarios"] = [{"name": s["name"],
+                          "input": {k: v for k, v in s.items() if k != "name"},
+                          "start_seed": r["start_seed"], "frames": r["frames"], "end": r["end"]}
+                         for s, r in zip(scenarios, runs)]
+    return data
+
+
 CLOCK_PROGRAM = os.path.join(HERE, "golden", "clock.c")
 # UQM's code the clock program runs: the events, the game state and a new
 # game's structures (InitGameStructures), the fleets' functions (build.c),
@@ -6407,6 +6620,9 @@ def main():
         battle = os.path.join(build_dir, "battle")
         build(uqm, os.path.join(HERE, "golden", "battle.c"), BATTLE_LINK, battle,
               extra=[BATTLE_STUBS])
+        hyperspace = os.path.join(build_dir, "hyperspace")
+        if args.content:
+            build(uqm, HYPERSPACE_PROGRAM, HYPERSPACE_LINK, hyperspace, extra=[HYPERSPACE_STUBS])
         battle_draw = os.path.join(build_dir, "battledraw")
         build(uqm, os.path.join(HERE, "golden", "battle.c"), BATTLE_LINK, battle_draw,
               extra=[BATTLE_STUBS], defines=["RECORD_DRAW"])
@@ -6450,6 +6666,8 @@ def main():
                      ("report", lambda: record_report(uqm, report, strings, args.content)),
                      ("selling", lambda: record_selling(uqm, sell, strings, args.content)),
                      ("contact", lambda: record_contact(uqm, systems, strings, images, args.content)),
+                     ("hyperspace-encounters", lambda: record_hyperspace(uqm, hyperspace, strings, images,
+                                                                         args.content)),
                      ("battle-masks", lambda: record_battle_masks(uqm, strings, images, args.content)),
                      ("battle", lambda: record_battle(uqm, battle, strings, images, args.content)),
                      ("battle-draw", lambda: record_battle_draw(uqm, battle, battle_draw, strings, images, args.content)),

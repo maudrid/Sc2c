@@ -37,7 +37,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for stage 3b-1 item 3, encounters in hyperspace (one item per go-ahead).
+Build stage 3b-1 item 3, encounters in hyperspace (the owner's go-ahead, 2026-11-18, for this item alone); then its review; report and wait. In progress: UQM's recording (`tools/extract/golden/hyperspace.c`, `golden_uqm.py --only hyperspace-encounters`, `tests/golden/hyperspace-encounters.json`) is made; the port and its tests aren't yet.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
