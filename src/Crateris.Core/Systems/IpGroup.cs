@@ -88,6 +88,12 @@ public sealed class IpGroupElement
     public bool Drawn = true;
     internal IntersectControl Control = new();
 
+    /// <summary>
+    /// The zoom radius its screen points are at this frame
+    /// (zoomRadiusForLocation for the player it goes by).
+    /// </summary>
+    internal int Radius = IpGeometry.MaxZoomRadius;
+
     public IpGroupElement Clone()
     {
         var c = (IpGroupElement)MemberwiseClone();

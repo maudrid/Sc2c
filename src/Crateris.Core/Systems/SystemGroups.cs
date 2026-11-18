@@ -538,11 +538,12 @@ public sealed class SystemGroups
             d.FlipWait = FlipWait;
             foreach (var g in d.Groups.Where(g => g.InSystem))
             {
-                var at = IpGeometry.LocationToDisplay(new IpPoint(g.LocX, g.LocY), ctx.Radius(g.SysLoc, ctx.Reference(g)));
+                int radius = ctx.Radius(g.SysLoc, ctx.Reference(g));
+                var at = IpGeometry.LocationToDisplay(new IpPoint(g.LocX, g.LocY), radius);
                 g.Element = new IpGroupElement
                 {
                     Flags = ElementFlags.Changing | ElementFlags.FiniteLife | ElementFlags.IgnoreVelocity,
-                    Cur = at, Next = at, Point = at,
+                    Cur = at, Next = at, Point = at, Radius = radius,
                     Control = new IntersectControl(shapes.IpPoint, at.X, at.Y),
                 };
                 d.Elements.Add(g);
@@ -1129,6 +1130,7 @@ public sealed class SystemGroups
             g.LocX += vdx;
             g.LocY += vdy;
             el.Next = IpGeometry.LocationToDisplay(new IpPoint(g.LocX, g.LocY), radius);
+            el.Radius = radius;
 
             // Drawn only in a view someone flies in, and flashing as it re-forms.
             if (!AnyIn(groupLoc) || ((task & IpGroup.ReformGroup) != 0 && (g.GroupCounter & 1) != 0))
@@ -1158,21 +1160,23 @@ public sealed class SystemGroups
                     continue;
                 // CollisionPossible: flagships pass through each other.
                 if (!Colliding(test) || ((test.Flags & e.Flags) & ElementFlags.Collision) != 0
-                    || (test.Group is null && e.Group is null))
+                    || (test.Group is null && e.Group is null) || !OnOneScreen(e, test))
                     continue;
                 var sf = e.Flags;
                 var tf = test.Flags;
+                var ec = OnScreenOf(e, test);
+                var tc = OnScreenOf(test, e);
                 ushort time;
                 if (((sf | tf) & ElementFlags.FiniteLife) != 0
                     && (((sf & ElementFlags.Appearing) != 0 && e.LifeSpan > 1)
                         || ((tf & ElementFlags.Appearing) != 0 && test.LifeSpan > 1)))
                     time = 0;
                 else
-                    time = Intersection.DrawablesIntersect(e.Control, test.Control, minTime);
+                    time = Intersection.DrawablesIntersect(ec, tc, minTime);
                 if (time == 0)
                     continue;
-                var savePt = new IpPoint(e.Control.EndX, e.Control.EndY);
-                var testSavePt = new IpPoint(test.Control.EndX, test.Control.EndY);
+                var savePt = BackOnOwn(e, test, ec, new IpPoint(ec.EndX, ec.EndY));
+                var testSavePt = BackOnOwn(test, e, tc, new IpPoint(tc.EndX, tc.EndY));
                 e.Control.EndX = e.Next.X;
                 e.Control.EndY = e.Next.Y;
                 test.Control.EndX = test.Next.X;
@@ -1216,6 +1220,59 @@ public sealed class SystemGroups
             }
             return e.Flags & ElementFlags.Collision;
         }
+
+        // Each player's own screen (UQM has one, the flagship's): a ship
+        // touches only the groups in its own view, and two groups bump only
+        // in one view at one zoom (in the outer view, the zooms of the
+        // players they go by; its screen is the sun's at that zoom).
+        private static bool OnOneScreen(Elem a, Elem b)
+        {
+            if (a.Group is { } ga && b.Group is { } gb)
+                return ga.SysLoc == gb.SysLoc && ga.Element!.Radius == gb.Element!.Radius;
+            var (g, f) = a.Group is { } group ? (group, b.Flyer!) : (b.Group!, a.Flyer!);
+            return g.SysLoc == f.Flight.View;
+        }
+
+        private static int FlyerRadius(SystemFlyer f) =>
+            f.Flight.InnerPlanet is null ? f.Flight.ZoomRadius : IpGeometry.MaxZoomRadius;
+
+        // An element's control on the pair's screen: a group's tested
+        // against a ship at another zoom is its own made again at the
+        // ship's zoom, from where the group is in the system.
+        private static IntersectControl OnScreenOf(Elem x, Elem other)
+        {
+            if (x.Group is not { } g || other.Flyer is not { } f || FlyerRadius(f) == g.Element!.Radius)
+                return x.Control;
+            int to = FlyerRadius(f);
+            var c = x.Control.Copy();
+            var el = g.Element;
+            var here = new IpPoint(g.LocX, g.LocY);
+            var origin = Rescale(el, new IpPoint(c.OriginX, c.OriginY), el.Point, here, to);
+            var end = Rescale(el, new IpPoint(c.EndX, c.EndY), here, el.Point, to);
+            c.OriginX = origin.X;
+            c.OriginY = origin.Y;
+            c.EndX = end.X;
+            c.EndY = end.Y;
+            return c;
+        }
+
+        // A group's point on its screen at another zoom: the place in the
+        // system it shows (for the start, where the group was at the
+        // frame's start; for the end, where it is now; else the other, else
+        // the point's own place).
+        private static IpPoint Rescale(IpGroupElement el, IpPoint p, IpPoint first, IpPoint second, int to)
+        {
+            var place = p == IpGeometry.LocationToDisplay(first, el.Radius) ? first
+                : p == IpGeometry.LocationToDisplay(second, el.Radius) ? second
+                : IpGeometry.DisplayToLocation(p, el.Radius);
+            return IpGeometry.LocationToDisplay(place, to);
+        }
+
+        // Where two elements touched, back on the element's own screen
+        // (a group's, from the ship's it was tested on).
+        private static IpPoint BackOnOwn(Elem x, Elem other, IntersectControl used, IpPoint p) =>
+            used == x.Control ? p
+                : IpGeometry.LocationToDisplay(IpGeometry.DisplayToLocation(p, FlyerRadius(other.Flyer!)), x.Group!.Element!.Radius);
 
         private void Collide(Elem e0, Elem e1)
         {

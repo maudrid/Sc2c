@@ -203,16 +203,24 @@ public sealed partial class GameWorld
         ship.SystemStar = null;
     }
 
-    /// <summary>A loaded game: the players in systems were there as it was saved; their systems' groups go on as saved.</summary>
+    /// <summary>
+    /// A loaded game: the players in systems were there as it was saved;
+    /// their systems' groups go on as saved. A player in a system the save
+    /// keeps no draw for (a save from before the system groups) comes into
+    /// it on the next frame as a ship arriving does, finding it drawn.
+    /// </summary>
     internal void LoadedInSystems()
     {
         _inSystemBefore = InSystems();
         if (SystemGroups is not { } sg)
             return;
-        foreach (var (id, star) in _inSystemBefore)
+        foreach (var (id, star) in _inSystemBefore.ToList())
         {
             if (!sg.Systems.TryGetValue(star, out var d))
-                sg.Systems[star] = d = new SystemDraw(star);
+            {
+                _inSystemBefore.Remove(id);
+                continue;
+            }
             d.Present.Add(id);
             d.Visitors.Add(id);
         }

@@ -361,9 +361,14 @@ public class SystemGroupTests
 
     // A flight at a place in a system's outer view (or a planet's inner), at
     // rest, its first frame flown.
-    private static IpFlight FlightAt(SolarSystem system, int x, int y, int? inner = null)
+    // At a zoom of its own (an outer view's zoom changes only as the ship
+    // leaves the screen or comes into its zoom-in box, so ships at one
+    // place can be at different zooms).
+    private static IpFlight FlightAt(SolarSystem system, int x, int y, int? inner = null, int? zoom = null)
     {
         var arrive = new IpFlight(system, SystemTransition.Arrive(system.Star), 2, 2, TestContent.Shapes!).Save();
+        if (zoom is int z)
+            arrive = arrive with { ZoomRadius = z };
         var screen = IpGeometry.LocationToDisplay(new IpPoint((short)x, (short)y), inner is null ? arrive.ZoomRadius : 8192);
         var state = arrive with
         {
@@ -737,5 +742,226 @@ public class SystemGroupTests
             sg.Frame(d, system, new[] { a }, TestContent.Shapes!);
             Assert.Equal(i < 41 ? new[] { 1, 2 } : new[] { 2, 1 }, Order());
         }
+    }
+
+    [ContentFact]
+    public void AShipTouchesAGroupOnlyWhereItIsOnItsOwnScreen()
+    {
+        // Two players in the outer view at different zooms: the group goes
+        // by the one in its view nearest it, but each ship is judged on its
+        // own screen, the group's point at that ship's zoom.
+        var (sg, d, system) = Bare(UrQuanStar);
+        var g = Group(sg, d, "URQUAN_SHIP", 1, 6952, 338, task: IpGroup.InOrbit | IpGroup.IgnoreFlagship, dest: 2);
+        var far = new SystemFlyer("far", FlightAt(system, 7300, 0));
+        var sun = new SystemFlyer("sun", FlightAt(system, 1737, 73));
+        Assert.Equal((4096, 1024), ((int)far.Flight.ZoomRadius, (int)sun.Flight.ZoomRadius));
+        // At far's zoom the group's on the screen where sun's ship is at its own.
+        var groupOnFars = IpGeometry.LocationToDisplay(new IpPoint(6952, 338), 4096);
+        Assert.True(Math.Abs(groupOnFars.X - sun.Flight.Screen.X) <= 2 && Math.Abs(groupOnFars.Y - sun.Flight.Screen.Y) <= 2);
+        for (int i = 0; i < 3; ++i)
+        {
+            far.Flight.Step(ShipInput.None);
+            sun.Flight.Step(ShipInput.None);
+            sg.Frame(d, system, new[] { far, sun }, TestContent.Shapes!);
+            Assert.Null(sun.Met);
+            Assert.Null(far.Met);
+        }
+        Assert.Equal(0, (g.Task & IpGroup.ReformGroup));
+
+        // The other way: a ship on the group at another zoom than the
+        // player it goes by (on the group too, but untouchable) meets it.
+        // (A place where a ship can be at either zoom: on the screen at the
+        // nearer, outside the wider's zoom-in box.)
+        int x = Enumerable.Range(0, 60).Select(k => 2000 + 50 * k).First(x =>
+            FlightAt(system, x, 300, zoom: 4096).ZoomRadius == 4096 && FlightAt(system, x, 300, zoom: 2048).ZoomRadius == 2048);
+        (sg, d, system) = Bare(UrQuanStar);
+        g = Group(sg, d, "URQUAN_SHIP", 1, x, 300, task: IpGroup.InOrbit | IpGroup.IgnoreFlagship, dest: 2);
+        var by = new SystemFlyer("by", FlightAt(system, x, 300, zoom: 4096));
+        var on = new SystemFlyer("on", FlightAt(system, x, 300, zoom: 2048));
+        Assert.Equal((4096, 2048), ((int)by.Flight.ZoomRadius, (int)on.Flight.ZoomRadius));
+        by.Flight.EscapeCounter = 10;
+        by.Flight.Step(ShipInput.None);
+        on.Flight.Step(ShipInput.None);
+        Assert.False(by.Flight.ContactSolid);
+        sg.Frame(d, system, new[] { by, on }, TestContent.Shapes!);
+        Assert.Null(by.Met);
+        Assert.Same(g, on.Met);
+        // Where they touched is put back on the group's own screen, at the zoom it goes by.
+        var own = IpGeometry.LocationToDisplay(new IpPoint(g.LocX, g.LocY), 4096);
+        Assert.True(Math.Abs(g.Element!.Cur.X - own.X) <= 2 && Math.Abs(g.Element.Cur.Y - own.Y) <= 2,
+            $"the group at {g.Element.Cur}, its place on its screen {own}");
+
+        // A ship at the edge of touching: as with the group going by it
+        // alone, whatever zoom the player the group goes by is at.
+        var seen = new HashSet<bool>();
+        for (int k = -48; k <= 48; ++k)
+        {
+            int sx = x + 5 * k;
+            if (FlightAt(system, sx, 300, zoom: 2048).ZoomRadius != 2048)
+                continue;
+            bool Meets(bool withBy)
+            {
+                var (sg3, d3, _) = Bare(UrQuanStar);
+                // Fleeing: its flight doesn't hang on the player it goes by.
+                Group(sg3, d3, "URQUAN_SHIP", 1, x, 300, task: IpGroup.Flee, dest: 1);
+                var ship = new SystemFlyer("on", FlightAt(system, sx, 300, zoom: 2048));
+                var flyers = new List<SystemFlyer>();
+                if (withBy)
+                {
+                    var other = new SystemFlyer("by", FlightAt(system, x, 300, zoom: 4096));
+                    other.Flight.EscapeCounter = 10;
+                    other.Flight.Step(ShipInput.None);
+                    flyers.Add(other);
+                }
+                ship.Flight.Step(ShipInput.None);
+                flyers.Add(ship);
+                sg3.Frame(d3, system, flyers, TestContent.Shapes!);
+                return ship.Met is not null;
+            }
+            bool alone = Meets(false);
+            seen.Add(alone);
+            Assert.True(alone == Meets(true), $"a ship {5 * k} east of the group");
+        }
+        Assert.Equal(2, seen.Count);   // the edge is among them
+    }
+
+    [ContentFact]
+    public void AShipTouchesOnlyTheGroupsInItsOwnView()
+    {
+        // A group in the outer view, drawn there for the player flying in
+        // it, at the screen point where another player's ship is in a
+        // planet's inner system: that ship doesn't meet it.
+        var (sg, d, system) = Bare(UrQuanStar);
+        var g = Group(sg, d, "URQUAN_SHIP", 1, 3000, 3000, task: IpGroup.InOrbit | IpGroup.IgnoreFlagship, dest: 2);
+        var outer = new SystemFlyer("outer", FlightAt(system, -12000, -12000));
+        Assert.Equal(8192, (int)outer.Flight.ZoomRadius);
+        var at = IpGeometry.LocationToDisplay(new IpPoint(3000, 3000), 8192);
+        var place = IpGeometry.DisplayToLocation(at, 8192);
+        var inner = new SystemFlyer("inner", FlightAt(system, place.X, place.Y, inner: 0));
+        for (int i = 0; i < 3; ++i)
+        {
+            outer.Flight.Step(ShipInput.None);
+            inner.Flight.Step(ShipInput.None);
+            Assert.Equal(1, inner.Flight.View);
+            sg.Frame(d, system, new[] { outer, inner }, TestContent.Shapes!);
+            Assert.Null(inner.Met);
+        }
+        Assert.Equal(0, (g.Task & IpGroup.ReformGroup));
+        // In its view, the same ship at that place meets it.
+        var (sg2, d2, _) = Bare(UrQuanStar);
+        var g2 = Group(sg2, d2, "URQUAN_SHIP", 1, 3000, 3000, task: IpGroup.InOrbit | IpGroup.IgnoreFlagship, dest: 2);
+        var there = new SystemFlyer("there", FlightAt(system, 3000, 3000, zoom: 8192));
+        there.Flight.Step(ShipInput.None);
+        sg2.Frame(d2, system, new[] { there }, TestContent.Shapes!);
+        Assert.Same(g2, there.Met);
+    }
+
+    [ContentFact]
+    public void GroupsBumpOnlyGroupsOnTheirOwnScreen()
+    {
+        // ip_group_collision keeps two groups on one screen from running
+        // into one icon: the first in the list stops where it was. Each
+        // group here flies at the player it goes by, from a pixel's edge,
+        // so it moves on the screen. Groups in different views, or in the
+        // outer view at different zooms, don't bump.
+        var system = Systems.Value[UrQuanStar];
+        bool BothMoved((int X, int Y, byte View)[] groups, SystemFlyer[] flyers)
+        {
+            var (sg, d, _) = Bare(UrQuanStar);
+            var made = groups.Select((g, i) =>
+            {
+                var group = Group(sg, d, "URQUAN_SHIP", i + 1, g.X, g.Y, dest: IpGroup.InterceptPlayer);
+                group.SysLoc = g.View;
+                return group;
+            }).ToList();
+            foreach (var f in flyers)
+                f.Flight.Step(ShipInput.None);
+            sg.Frame(d, system, flyers, TestContent.Shapes!);
+            return made.Zip(groups).All(x => (x.First.LocX, x.First.LocY) != (x.Second.X, x.Second.Y));
+        }
+        SystemFlyer At(string id, int x, int y, int? inner = null, int? zoom = null)
+        {
+            var f = new SystemFlyer(id, FlightAt(system, x, y, inner, zoom));
+            if (zoom is int z)
+                Assert.Equal(z, (int)f.Flight.ZoomRadius);
+            return f;
+        }
+        // One screen (the outer view at the widest zoom), flying west: they bump.
+        Assert.False(BothMoved(new[] { (2926, 0, (byte)0), (2926, 0, (byte)0) },
+            new[] { At("o", -12000, 0, zoom: 8192) }));
+        // The outer view and a planet's inner system, at the same screen point: no bump.
+        Assert.True(BothMoved(new[] { (2926, 0, (byte)0), (2926, 0, (byte)1) },
+            new[] { At("o", -12000, 0, zoom: 8192), At("i", -9000, 0, inner: 0) }));
+        // The outer view at two zooms, each group flying east at the player
+        // nearest it, at the same screen point at its own zoom: no bump.
+        Assert.Equal(IpGeometry.LocationToDisplay(new IpPoint(2889, 0), 2048), IpGeometry.LocationToDisplay(new IpPoint(5777, 0), 4096));
+        Assert.True(BothMoved(new[] { (2889, 0, (byte)0), (5777, 0, (byte)0) },
+            new[] { At("a", 3500, 0, zoom: 2048), At("b", 7000, 0, zoom: 4096) }));
+    }
+
+    [ContentFact]
+    public void APlayerLoadedInASystemWithoutItsDrawGetsANewArrivalsDraw()
+    {
+        // A version-13 save from before the system groups: the player in a
+        // system finds it drawn as on arriving.
+        var world = CoopWorld();
+        world.PutInSystem("h", UrQuanStar);
+        Run(world);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(world))!;
+        node.AsObject().Remove("system_groups");
+        var loaded = HostSave.FromJson(node.ToJsonString(), Systems.Value, TestContent.Shapes);
+        loaded.EncounterRaces = world.EncounterRaces;
+        loaded.TraceSystemRandom = true;
+        loaded.SystemSeeds = star => 1000u + (uint)star;
+        loaded.Join("h", "Host");
+        Run(loaded);
+        var d = DrawOf(loaded, UrQuanStar);
+        Assert.Contains("BuildGroups", Drawn(loaded, UrQuanStar));
+        Assert.Equal(DrawOf(world, UrQuanStar).RandomGroups!.Select(g => (g.Id, g.Race, g.Ships.Count)),
+            d.RandomGroups!.Select(g => (g.Id, g.Race, g.Ships.Count)));
+        Assert.NotEmpty(d.Groups);
+        Assert.Equal(new[] { "h" }, d.Present);
+    }
+
+    [ContentFact]
+    public void ADrawWhoseGroupsAllFlewOutIsKeptWithinTheWeek()
+    {
+        var world = CoopWorld();
+        world.PutInSystem("h", UrQuanStar);
+        Run(world);
+        var d = DrawOf(world, UrQuanStar);
+        Assert.NotEmpty(d.Groups);
+        foreach (var g in d.Groups)
+            g.InSystem = false;   // every one flown out of the system
+        world.PutInHyperspace("h");
+        Run(world);
+        Assert.Empty(d.RandomGroups!);
+        world.MoveClockDays(3);
+        world.PutInSystem("h", UrQuanStar);
+        Run(world);
+        Assert.Same(d, DrawOf(world, UrQuanStar));
+        Assert.DoesNotContain("BuildGroups", Drawn(world, UrQuanStar));
+        Assert.Empty(d.Groups);
+    }
+
+    [ContentFact]
+    public void TheColonyAfterItsGuardIsDrawnAfreshOnEveryEntry()
+    {
+        var world = CoopWorld();
+        // The probes, met anywhere, draw at every system.
+        world.Story!.Set("SLYLANDRO_MULTIPLIER", 1);
+        int colony = Systems.Value.Map.Stars.Single(s => s.Special == "START_COLONY_DEFINED").Number;
+        world.SystemGroups!.Defined["START_COLONY_DEFINED"] = new() { new GroupShips(1, world.Story.Rules.RaceIndex("URQUAN_SHIP"), Array.Empty<int>()) };
+        world.PutInSystem("h", colony);
+        Run(world);
+        var dd = DrawOf(world, colony);
+        Assert.True(Drawn(world, colony).Contains("BuildGroups"), $"DBG {colony} {dd.Defined} {dd.Groups.Count} {dd.RandomGroups?.Count} {string.Join(",", Drawn(world, colony))} {world.Host.Ship.SystemStar} {world.Story.Get("SLYLANDRO_MULTIPLIER")} {string.Join(",", world.Story.Fleets.Select(f => f.ActualStrength))}");
+        Assert.Null(DrawOf(world, colony).Defined);
+        world.PutInHyperspace("h");
+        Run(world);
+        world.PutInSystem("h", colony);
+        Run(world);
+        Assert.Contains("BuildGroups", Drawn(world, colony));
+        Assert.Null(DrawOf(world, colony).Defined);
     }
 }
