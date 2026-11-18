@@ -645,6 +645,18 @@ public class HyperEncounterTests
         Assert.Equal(spunTo, e.KeptFor["h"]);
     }
 
+    [ContentFact]
+    public void AShipPutInOrbitAsItSpinsIntoAStarIsOutOfHyperspace()
+    {
+        var (world, e) = IntoAStar();
+        world.Step();
+        var star = world.Host.Ship.SystemStar!.Value;
+        world.PutInOrbit("h", star, 0);
+        Assert.False(GameWorld.InHyperspace(world.Host));
+        world.Step();
+        Assert.Contains("h", e.KeptFor.Keys);
+    }
+
     // A seed whose first number, as a roll takes it ((COUNT) % 100), is n.
     private static uint SeedRolling(int n)
     {
