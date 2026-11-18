@@ -568,6 +568,7 @@ public class HyperEncounterTests
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
         Assert.Equal(JoinResult.Joined, world.Join("g", "Guest"));
         world.UndockShown("g");
+        world.TraceHyperspaceRandom = true;
         world.EncounterRaces = world.Story!.Rules.Races.ToHashSet();
         world.Story.Set("STARBASE_AVAILABLE", 1);
         world.Story.Set("SLYLANDRO_MULTIPLIER", 0);
@@ -628,6 +629,35 @@ public class HyperEncounterTests
         Assert.False(GameWorld.InHyperspace(host));
         Assert.Equal(spunTo, e.KeptFor["h"]);
         Assert.Contains(e, world.Encounters!.List);
+    }
+
+    [ContentFact]
+    public void ADayEndingInTheSpinRollsWhereTheSpinHasTakenTheShip()
+    {
+        // The Spathi's sphere moved (as 3c's events move fleets) so that its
+        // edge lies between where the spin has taken the host and the star:
+        // the day's roll draws for the Spathi only from the spin's place.
+        int Draws(bool edgeBetween)
+        {
+            var (world, _) = IntoAStar();
+            world.Step();
+            var spin = world.Host.Ship.Spin!;
+            Assert.True(spin.UniverseX < 6166, $"spun to {spin.UniverseX}");
+            var story = world.Story!;
+            int strength = 10;
+            int radius = (strength * Rules.SphereRadiusIncrement) >> 1;
+            var spathi = story.Fleet("SPATHI_SHIP");
+            story.SetFleet("SPATHI_SHIP", spathi with
+            {
+                ActualStrength = strength, LocY = spin.UniverseY,
+                LocX = edgeBetween ? spin.UniverseX - radius + 1 : 1000,
+            });
+            var random = world.HyperspaceRandomOf("h");
+            int before = random.Places!.Count(p => p == "check_hyperspace_encounter");
+            world.MoveClockDays(1);
+            return random.Places!.Count(p => p == "check_hyperspace_encounter") - before;
+        }
+        Assert.Equal(Draws(false) + 1, Draws(true));
     }
 
     [ContentFact]
