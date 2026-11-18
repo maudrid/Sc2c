@@ -825,8 +825,14 @@ public sealed class SystemGroups
             return best!;
         }
 
-        private (long X, long Y) Outer(byte view, short x, short y) =>
-            view == 0 ? (x, y) : (_system.Planets[view - 1].X, _system.Planets[view - 1].Y);
+        // A place in the outer system: a view's own, or its planet's (planetOuterLocation at the widest zoom).
+        private (long X, long Y) Outer(byte view, short x, short y)
+        {
+            if (view == 0)
+                return (x, y);
+            var p = PlanetOuterLocation(_system, view - 1, IpGeometry.MaxZoomRadius);
+            return (p.X, p.Y);
+        }
 
         // zoomRadiusForLocation: the outer view's is the reference player's zoom.
         public int Radius(byte loc, SystemFlyer by) => loc == 0 ? by.Flight.ZoomRadius : IpGeometry.MaxZoomRadius;

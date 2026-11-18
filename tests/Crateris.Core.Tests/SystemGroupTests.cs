@@ -656,4 +656,86 @@ public class SystemGroupTests
         Assert.Empty(DrawOf(At(3), supox).RandomGroups!);
         Assert.True(DrawOf(At(5), supox).RandomGroups!.Count >= 5);
     }
+
+    [ContentFact]
+    public void AGroupGoesByAPlayerInItsViewBeforeANearerOneInAnother()
+    {
+        // A group by a planet in the outer view: the player in that planet's
+        // inner system is nearer, measured in the outer system, but the one
+        // flying in the group's own view is the one it intercepts.
+        var (sg, d, system) = Bare(UrQuanStar);
+        var planet = SystemGroups.PlanetOuterLocation(system, 0, IpGeometry.MaxZoomRadius);
+        // The planet on one side of the group, the outer player on the other.
+        int side = planet.X - 7500 >= -14000 ? 1 : -1;
+        int gx = planet.X - 1500 * side, gy = planet.Y;
+        int ax = gx - 6000 * side;
+        var g = Group(sg, d, "URQUAN_SHIP", 1, gx, gy, dest: IpGroup.InterceptPlayer);
+        var inner = new SystemFlyer("inner", FlightAt(system, -4000, -4000, inner: 0));
+        var outer = new SystemFlyer("outer", FlightAt(system, ax, gy));
+        for (int i = 0; i < 8; ++i)
+        {
+            inner.Flight.Step(ShipInput.None);
+            outer.Flight.Step(ShipInput.None);
+            sg.Frame(d, system, new[] { inner, outer }, TestContent.Shapes!);
+        }
+        Assert.Equal(0, g.SysLoc);
+        Assert.True(Math.Sign(g.Element!.Velocity.Current().dx) == Math.Sign(ax - gx), "flies at the one in its view");
+    }
+
+    [ContentFact]
+    public void TwoPlayersTouchingAGroupTogetherOneMeetsItAndTheOtherTheNext()
+    {
+        // Two groups at one place, and two players on it: the first in the
+        // game's order meets the first group; the second passes through
+        // that one, met by another (decision 5), and meets the second.
+        var (sg, d, system) = Bare(UrQuanStar);
+        var first = Group(sg, d, "URQUAN_SHIP", 1, 6000, 0, task: IpGroup.OnStation);
+        var second = Group(sg, d, "URQUAN_SHIP", 2, 6000, 0, task: IpGroup.OnStation);
+        var a = new SystemFlyer("a", FlightAt(system, 6000, 0));
+        var b = new SystemFlyer("b", FlightAt(system, 6000, 0));
+        a.Flight.Step(ShipInput.None);
+        b.Flight.Step(ShipInput.None);
+        sg.Frame(d, system, new[] { a, b }, TestContent.Shapes!);
+        Assert.Same(first, a.Met);
+        Assert.Same(second, b.Met);
+    }
+
+    [ContentFact]
+    public void AShipCantTouchTheGroupsOnTheFrameItsViewChanges()
+    {
+        // flag_ship_preprocess: an element whose view has just changed is
+        // NONSOLID that frame (no collisions during a transition).
+        var system = Systems.Value[UrQuanStar];
+        var at = SystemGroups.PlanetOuterLocation(system, 0, IpGeometry.MaxZoomRadius);
+        var f = FlightAt(system, at.X, at.Y);
+        for (int i = 0; i < 30 && f.InnerPlanet is null; ++i)
+            f.Step(ShipInput.None);
+        Assert.Equal(0, f.InnerPlanet);
+        // Into the inner system on its first frame, as it appeared: its
+        // element made in the outer view sees the change on the next.
+        if (f.ContactAppearing)
+            f.Step(ShipInput.None);
+        Assert.False(f.ContactAppearing);
+        Assert.False(f.ContactSolid);
+        f.Step(ShipInput.None);
+        Assert.True(f.ContactSolid);
+    }
+
+    [ContentFact]
+    public void TheElementsOrderTurnsEvery42FramesAsTheFlagshipJugglesIt()
+    {
+        // flag_ship_preprocess: every FLIP_WAIT frames the element after the
+        // flagship goes to the end of the list, if it isn't the end already.
+        var (sg, d, system) = Bare(UrQuanStar);
+        Group(sg, d, "URQUAN_SHIP", 1, -9000, -9000, task: IpGroup.InOrbit | IpGroup.IgnoreFlagship, dest: 2);
+        Group(sg, d, "URQUAN_SHIP", 2, 9000, -9000, task: IpGroup.InOrbit | IpGroup.IgnoreFlagship, dest: 2);
+        var a = new SystemFlyer("a", FlightAt(system, 0, 9000));
+        int[] Order() => d.Elements!.Select(g => g.GroupId).ToArray();
+        for (int i = 0; i < 42; ++i)
+        {
+            a.Flight.Step(ShipInput.None);
+            sg.Frame(d, system, new[] { a }, TestContent.Shapes!);
+            Assert.Equal(i < 41 ? new[] { 1, 2 } : new[] { 2, 1 }, Order());
+        }
+    }
 }

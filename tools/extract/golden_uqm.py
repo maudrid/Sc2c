@@ -5611,6 +5611,12 @@ def groups_scenarios():
             [S_URQUAN3, 77, 0, [[G_PLANET, 0, 1500], [G_CENTER, 0, 400], [G_WAIT, 0, 200], [G_GROUP, 0, 2500],
                                 [G_AWAY, 0, 120], [G_EXIT, 0, 3000]]],
         ], thrusters=6, jets=4),
+        # A five ships' group met in a planet's view, read for the encounter
+        # with their captains' names drawn again, one on a name the group
+        # file holds for an earlier ship (drawn once more); out at once after.
+        groups_scenario("a meeting in a planet's view", [
+            [S_URQUAN, 77, 0, [[G_PLANET, 0, 1500], [G_WAIT, 0, 200], [G_GROUP, 0, 1500], [G_WAIT, 0, 1]]],
+        ], thrusters=6, jets=4),
         # The Spathi at home: at least five groups.
         groups_scenario("the Spathi at home", [
             [S_SPATHI, 12, 0, [[G_WAIT, 0, 600], [G_GROUP, 0, 2000], [G_WAIT, 0, 400]]],
@@ -5689,6 +5695,10 @@ def check_groups(scenarios, runs):
                     raise RuntimeError("groups: a world touched in the escape counter's frames (the port's differ: row 56)")
     if not any(f[8] == 3 for f in frames):
         raise RuntimeError("groups: no orbit")
+    again = visits("a meeting in a planet's view")[0][1]
+    # At most five ships (MAX of RACE_ENCOUNTER_MAKEUP): six names or more is one drawn again.
+    if not (again[-2][8] == 1 and again[-1][9].count("NameCaptain") > 5):
+        raise RuntimeError("groups: no captain's name drawn again on a name the group file holds")
     if len(visits("the Spathi at home")[0][1][0][12]) < 5:
         raise RuntimeError("groups: fewer than five groups at the Spathi's home")
 
