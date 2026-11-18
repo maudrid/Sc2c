@@ -110,6 +110,7 @@ public sealed class SystemGroups
     private const int StationRadius = 1600, OrbitRadius = 2400;
     private const int TrackWait = 5, OrbitSpeed = 60, FlipWait = 42;
     private const int MaxBattleGroups = 32;
+    private const int NameOffset = 5, NumCaptainsNames = 16;
 
     private readonly StoryRules _rules;
     private readonly int _drone, _urquan, _melnorme, _shofixti, _zoqfot, _spathi, _supox, _utwig, _slylandro;
@@ -229,7 +230,7 @@ public sealed class SystemGroups
             if (d.Defined is { } special)
             {
                 if (Defined.TryGetValue(special, out var own) && own.FirstOrDefault(s => s.Id == g.GroupId) is { } dead)
-                    dead.Ships.Clear();
+                    dead.Kill();
             }
             else
                 d.RandomGroups?.RemoveAll(s => s.Id == g.GroupId);
@@ -250,7 +251,7 @@ public sealed class SystemGroups
                 // GenerateSol_initNpcs, init_probe: the drone orbits Earth
                 // until it has delivered its message.
                 d.Defined = special;
-                Own(special, _drone);
+                Own(d, special, _drone);
                 if (story.Get("PROBE_MESSAGE_DELIVERED") == 0 && ReadDefined(d, system, zoom) && d.Groups.Count > 0)
                     PutInOrbit(d.Groups[0], 2 + 1);
                 else
@@ -259,7 +260,7 @@ public sealed class SystemGroups
             case "START_COLONY_DEFINED":
                 // GenerateColony_initNpcs: the Ur-Quan guard orbits the colony.
                 d.Defined = special;
-                Own(special, _urquan);
+                Own(d, special, _urquan);
                 DefaultInit(d, system, zoom, today, story);
                 if (d.Defined is not null && d.Groups.Count > 0)
                     PutInOrbit(d.Groups[0], 0 + 1);
@@ -268,7 +269,7 @@ public sealed class SystemGroups
                 or "MELNORME4_DEFINED" or "MELNORME5_DEFINED" or "MELNORME6_DEFINED" or "MELNORME7_DEFINED"
                 or "MELNORME8_DEFINED":
                 d.Defined = special;
-                Own(special, _melnorme);
+                Own(d, special, _melnorme);
                 DefaultInit(d, system, zoom, today, story);
                 break;
             case "SHOFIXTI_DEFINED":
@@ -281,7 +282,15 @@ public sealed class SystemGroups
                 {
                     d.Defined = special;
                     if (!Defined.ContainsKey(special) || !ReadDefined(d, system, zoom))
-                        Defined[special] = new() { new GroupShips(1, _shofixti, new[] { _rules.RaceShips[_shofixti].Crew }) };
+                    {
+                        // One ship of one crew, its captain Tanaka, or Katana if Tanaka died.
+                        NameCaptain(d, _shofixti, new List<int>());
+                        Defined[special] = new()
+                        {
+                            new GroupShips(1, _shofixti, new[] { 1 },
+                                new[] { NameOffset + NumCaptainsNames + (story.Get("SHOFIXTI_KIA") & 1) }),
+                        };
+                    }
                 }
                 DefaultInit(d, system, zoom, today, story);
                 break;
@@ -289,7 +298,7 @@ public sealed class SystemGroups
                 if (story.Get("MET_ZOQFOT") == 0)
                 {
                     d.Defined = special;
-                    Own(special, _zoqfot);
+                    Own(d, special, _zoqfot);
                 }
                 DefaultInit(d, system, zoom, today, story);
                 break;
@@ -311,11 +320,26 @@ public sealed class SystemGroups
         }
     }
 
-    // A special system's own group of one ship, made on the first entry (GROUPS_ADD_NEW).
-    private void Own(string special, int race)
+    // A special system's own group of one ship, made on the first entry
+    // (CloneShipFragment, then PutGroupInfo (GROUPS_ADD_NEW, 1)).
+    private void Own(SystemDraw d, string special, int race)
     {
         if (!Defined.ContainsKey(special))
-            Defined[special] = new() { new GroupShips(1, race, new[] { _rules.RaceShips[race].Crew }) };
+            Defined[special] = new() { new GroupShips(1, race, new[] { _rules.RaceShips[race].Crew }, new[] { NameCaptain(d, race, new List<int>()) }) };
+    }
+
+    // CloneShipFragment's NameCaptain: a captain's name not yet among the
+    // group's ships (PickCaptainName, past NAME_OFFSET's 5); the drone's
+    // (SAMATRA_SHIP's number) none.
+    private int NameCaptain(SystemDraw d, int race, List<int> taken)
+    {
+        if (race == _drone)
+            return 0;
+        int name;
+        do
+            name = (int)(((ushort)R(d, "NameCaptain") & (NumCaptainsNames - 1)) + NameOffset);
+        while (taken.Contains(name));
+        return name;
     }
 
     private static void PutInOrbit(IpGroup g, byte planet)
@@ -467,12 +491,16 @@ public sealed class SystemGroups
             do
             {
                 var ships = new List<int>();
+                var captains = new List<int>();
                 for (int k = rules.MakeupMax; k > 0; --k)
                 {
                     if (k <= rules.MakeupMin || (ushort)R(d, "BuildGroups") % 100 < 50)
+                    {
+                        captains.Add(NameCaptain(d, bestIndex, captains));
                         ships.Add(crew);
+                    }
                 }
-                d.RandomGroups.Add(new GroupShips(++which, bestIndex, ships));
+                d.RandomGroups.Add(new GroupShips(++which, bestIndex, ships, captains));
             } while (--numGroups > 0);
         }
         ReadRandom(d, system, zoom, today);
@@ -615,9 +643,21 @@ public sealed class SystemGroups
     /// re-forming, and the race's groups stand down
     /// (<see cref="IpGroup.IgnoreFlagship"/>), as touching it left them.
     /// </summary>
-    public void AfterMeeting(SystemDraw d)
+    public void AfterMeeting(SystemDraw d, IpGroup met)
     {
         Flush(d);
+        // GetGroupInfo (BattleGroupRef, EncounterGroup): the group's ships
+        // are made again for the encounter (CloneShipFragment, naming each
+        // captain before the group file's name is read over it).
+        if (ShipsOf(d, met) is { } ships)
+        {
+            var taken = new List<int>();
+            foreach (int captain in ships.Captains)
+            {
+                NameCaptain(d, met.Race, taken);
+                taken.Add(captain);   // ReadShipFragment: the file's name over the one drawn
+            }
+        }
         if (d.Defined == "SOL_DEFINED" && d.Groups.Count > 0 && d.Groups[0] is var head
             && head.Race == _drone && (head.Task & IpGroup.ReformGroup) != 0)
         {
@@ -625,6 +665,10 @@ public sealed class SystemGroups
             head.DestLoc = 0;
         }
     }
+
+    /// <summary>A flying group's ships as the system's draw keeps them (its special system's own, or the random draw's).</summary>
+    public GroupShips? ShipsOf(SystemDraw d, IpGroup g) =>
+        (d.Defined is { } special ? Defined.GetValueOrDefault(special) : d.RandomGroups)?.FirstOrDefault(s => s.Id == g.GroupId);
 
     /// <summary>NotifyOthers: every group of the race in the system turns on the players, or stands down.</summary>
     public void NotifyOthers(SystemDraw d, int race, byte target)

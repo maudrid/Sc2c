@@ -98,23 +98,35 @@ public sealed class IpGroupElement
 
 /// <summary>
 /// A group as a system's draw keeps it (a group of grpinfo.c's files):
-/// its number in the draw, its race and each ship's crew. None left is a
+/// its number in the draw, its race and each ship's crew and captain
+/// (SHIP_FRAGMENT's crew_level and captains_name_index). None left is a
 /// group that's dead.
 /// </summary>
 public sealed class GroupShips
 {
-    public GroupShips(int id, int race, IEnumerable<int> ships)
+    public GroupShips(int id, int race, IEnumerable<int> ships, IEnumerable<int>? captains = null)
     {
         Id = id;
         Race = race;
         Ships = ships.ToList();
+        Captains = captains?.ToList() ?? Ships.Select(_ => 0).ToList();
+        if (Captains.Count != Ships.Count)
+            throw new ArgumentException("a captain for each ship");
     }
 
     public int Id { get; }
     public int Race { get; }
     public List<int> Ships { get; private set; }
+    public List<int> Captains { get; private set; }
 
-    public GroupShips Clone() => new(Id, Race, Ships);
+    /// <summary>No ships left: the group is dead.</summary>
+    public void Kill()
+    {
+        Ships.Clear();
+        Captains.Clear();
+    }
+
+    public GroupShips Clone() => new(Id, Race, Ships, Captains);
 }
 
 /// <summary>A date of the game's calendar (the clock's).</summary>

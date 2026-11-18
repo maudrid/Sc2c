@@ -425,14 +425,22 @@ public sealed class IpFlight
 
     /// <summary>
     /// Back in flight after a meeting or a battle in the system, where the
-    /// ship was (InitSolarSys coming back, then ResetSolarSys): the zoom
-    /// found again for where it is, its worlds' contact noted, and its
-    /// element made again (<see cref="Appearing"/>). Its velocity is kept.
+    /// ship was (ExploreSolarSys again: a new SOLARSYS_STATE, InitSolarSys
+    /// coming back, then ResetSolarSys): in an inner system its place made
+    /// again from where it is on the screen (LoadSolarSys), the zoom found
+    /// again for where it is, its turning and thrusting waits and its
+    /// worlds' contact afresh, and its element made again
+    /// (<see cref="Appearing"/>). Its velocity is kept.
     /// </summary>
     public void Reenter()
     {
         if (Orbit is not null)
             throw new InvalidOperationException("in orbit: call ReturnFromOrbit");
+        if (InnerPlanet is not null)
+            Location = IpGeometry.DisplayToLocation(Screen, IpGeometry.MaxZoomRadius);
+        TurnCounter = 0;
+        ThrustCounter = 0;
+        WaitIntersect = 0;
         CheckZoomLevel();
         ValidateOrbits();
         if (InnerPlanet is not null)

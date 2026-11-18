@@ -5513,6 +5513,229 @@ def record_hyperspace(uqm, exe, strings_exe, images_exe, package):
     return data
 
 
+GROUPS_PROGRAM = os.path.join(HERE, "golden", "groups.c")
+GROUPS_STUBS = os.path.join(HERE, "golden", "groups_stubs.c")
+# The sheets a system's contact tests (CheckIntersect's worlds, process.c's
+# flagship and groups: the one-pixel DecFrameIndex (stars_in_space)), in
+# the order groups.c numbers them.
+GROUPS_SHEETS = ["graphics.flagship", "graphics.planets", "graphics.orbitbackground", "graphics.stars"]
+
+
+def groups_link(uqm):
+    """UQM's code the groups program runs: the hyperspace program's (the
+    elements, the ships, the new game, the clock) and the systems
+    program's (the generators, the orbits)."""
+    return list(dict.fromkeys(HYPERSPACE_LINK + [f for f in systems_link(uqm)]))
+
+
+# races.h's numbers.
+R_ILWRATH_SHIP, R_SLYLANDRO_SHIP = 14, 16
+# Stars (star_array's numbers): Sol, the colony, a system 324 units from the
+# Ur-Quan's centre (in the Kohr-Ah's sphere too), others 416 and 417 from
+# it, and the Spathi's homeworld.
+S_SOL, S_COLONY, S_URQUAN, S_URQUAN2, S_URQUAN3, S_SPATHI = 82, 114, 311, 321, 303, 222
+# Goals (groups.c's): a planet, the nearest group, wait, out, away.
+G_PLANET, G_GROUP, G_WAIT, G_EXIT, G_AWAY, G_CENTER = 0, 1, 2, 3, 4, 5
+# Game states groups.c sets, by its numbers.
+ST_PROBE_DELIVERED, ST_MULTIPLIER, ST_MISSION, ST_STARBASE = 0, 1, 2, 3
+
+
+def groups_scenario(name, visits, thrusters=2, jets=2, date=(2155, 2, 17), states=(), fleets=(), drone_dead=0):
+    """A scenario for golden/groups.c: visits [star, seed, days before,
+    [[goal, arg, frames]...]]."""
+    return dict(name=name, thrusters=thrusters, jets=jets, date=list(date), states=[list(x) for x in states],
+                fleets=[list(f) for f in fleets], drone_dead=drone_dead,
+                visits=[[v[0], v[1], v[2], [list(g) for g in v[3]]] for v in visits])
+
+
+def groups_line(sc, n):
+    parts = [f"scenario{n}", sc["thrusters"], sc["jets"], *sc["date"], len(sc["states"])]
+    for x in sc["states"]:
+        parts += x
+    parts.append(len(sc["fleets"]))
+    for f in sc["fleets"]:
+        parts += f
+    parts += [sc["drone_dead"], len(sc["visits"])]
+    for star, seed, days, goals in sc["visits"]:
+        parts += [star, seed, days, len(goals)]
+        for g in goals:
+            parts += g
+    return " ".join(str(p) for p in parts)
+
+
+def groups_scenarios():
+    """UQM's system groups for one flagship: the special systems' own (the
+    drone at Sol, the Ur-Quan at the colony) and the random draws in the
+    spheres of 3b-1's races, kept, expired and drawn again."""
+    return [
+        # The drone orbits Earth; flying into Earth's view it detects the
+        # flagship from twice as far, and meets it; it then flies off and
+        # out of the system (check_probe), and is gone. Sol is then drawn
+        # afresh on every entry (the Ilwrath's sphere moved over it, as
+        # 3c's events move fleets).
+        groups_scenario("the drone at Earth", [
+            [S_SOL, 101, 0, [[G_PLANET, 2, 900], [G_GROUP, 0, 900], [G_WAIT, 0, 500], [G_EXIT, 0, 2000]]],
+            [S_SOL, 102, 2, [[G_WAIT, 0, 120], [G_EXIT, 0, 2000]]],
+            [S_SOL, 103, 1, [[G_WAIT, 0, 60]]],
+        ], states=[[ST_STARBASE, 0]], fleets=[[R_ILWRATH_SHIP, 256, 1752, 1450]]),
+        # The message delivered and the drone still about: it's an ordinary group.
+        groups_scenario("the drone's message delivered", [
+            [S_SOL, 7, 0, [[G_WAIT, 0, 200], [G_EXIT, 0, 2000]]],
+        ], states=[[ST_PROBE_DELIVERED, 1]]),
+        # The drone gone: Sol's random draw.
+        groups_scenario("Sol without the drone", [
+            [S_SOL, 55, 0, [[G_WAIT, 0, 300], [G_PLANET, 2, 900], [G_WAIT, 0, 300]]],
+        ], drone_dead=1, fleets=[[R_ILWRATH_SHIP, 256, 1752, 1450]], states=[[ST_MULTIPLIER, 4]]),
+        # The Ur-Quan guarding the colony: in orbit, detects, meets.
+        groups_scenario("the colony's guard", [
+            [S_COLONY, 31, 0, [[G_PLANET, 0, 1500], [G_GROUP, 0, 900], [G_WAIT, 0, 300], [G_EXIT, 0, 2000]]],
+        ]),
+        # The Ur-Quan's and the Kohr-Ah's spheres: a random draw, its
+        # groups orbiting, exploring and on station, detecting the
+        # flagship and turning on it, the one met re-forming and the rest
+        # standing down; back within the week (new tasks, no new draw),
+        # then after another system and after a week (new draws).
+        groups_scenario("the Ur-Quan's sphere", [
+            [S_URQUAN, 4242, 0, [[G_WAIT, 0, 240], [G_GROUP, 0, 1500], [G_WAIT, 0, 400], [G_AWAY, 0, 300],
+                                 [G_EXIT, 0, 3000]]],
+            [S_URQUAN, 4243, 3, [[G_WAIT, 0, 300], [G_EXIT, 0, 3000]]],
+            [S_URQUAN, 4244, 8, [[G_WAIT, 0, 100]]],
+            [S_URQUAN2, 4245, 1, [[G_WAIT, 0, 100]]],
+            [S_URQUAN, 4246, 1, [[G_WAIT, 0, 100]]],
+        ]),
+        # Into a planet's view: orbiting it (the groups' elements made again
+        # as the system comes back), then a group met there and flown away
+        # from (the escape counter's frames: the port's keeps the ship from
+        # the worlds too, docs/differences.md row 56, so none is touched).
+        groups_scenario("into a planet's view", [
+            [S_URQUAN3, 77, 0, [[G_PLANET, 0, 1500], [G_CENTER, 0, 400], [G_WAIT, 0, 200], [G_GROUP, 0, 2500],
+                                [G_AWAY, 0, 120], [G_EXIT, 0, 3000]]],
+        ], thrusters=6, jets=4),
+        # The Spathi at home: at least five groups.
+        groups_scenario("the Spathi at home", [
+            [S_SPATHI, 12, 0, [[G_WAIT, 0, 600], [G_GROUP, 0, 2000], [G_WAIT, 0, 400]]],
+        ]),
+    ]
+
+
+class GroupsProgram(HyperspaceProgram):
+    """The groups program with its sheets and masks."""
+
+    def run(self, scenarios):
+        lines = [groups_line(s, n) for n, s in enumerate(scenarios)]
+        res = subprocess.run([self.exe, self.sheets_file, self.masks], input="\n".join(lines) + "\n",
+                             capture_output=True, text=True)
+        if res.returncode:
+            raise RuntimeError(f"the groups program failed ({res.returncode}): {res.stderr.strip()}")
+        runs = json.loads("[" + res.stdout.replace("}\n{", "},\n{") + "]")
+        if len(runs) != len(scenarios):
+            raise RuntimeError("the groups program lost a scenario")
+        places = {}
+        for run in runs:
+            for visit in run["visits"]:
+                for frame in visit[1]:
+                    frame[9] = [places.setdefault(a, self.place(a)) for a in frame[9]]
+        return runs
+
+
+def run_groups(uqm, exe, strings_exe, images_exe, package, scenarios):
+    with tempfile.TemporaryDirectory() as tmp:
+        masks, hashes = write_masks(strings_exe, images_exe, package, tmp, list(enumerate(GROUPS_SHEETS)))
+        sheets_file = os.path.join(tmp, "sheets.txt")
+        with open(sheets_file, "w") as f:
+            for n, key in enumerate(GROUPS_SHEETS):
+                f.write(f"{n} {key} {len(hashes[key])}\n")
+            f.write("4 sun 8\n")   # SunFrame: never tested
+        return GroupsProgram(exe, sheets_file, masks).run(scenarios)
+
+
+def check_groups(scenarios, runs):
+    """What the recordings must show, or the scenarios don't test it."""
+    def visits(name):
+        return runs[[s["name"] for s in scenarios].index(name)]["visits"]
+    frames = [f for r in runs for v in r["visits"] for f in v[1]]
+    met = [f for f in frames if f[8] == 1]
+    if len(met) < 4:
+        raise RuntimeError(f"groups: only {len(met)} meetings")
+    places = {p for f in frames for p in f[9]}
+    for p in ("BuildGroups", "GetGroupInfo", "NotifyOthers", "ip_group_preprocess"):
+        if p not in places:
+            raise RuntimeError(f"groups: nothing drawn by {p}")
+    drone = visits("the drone at Earth")
+    if not any(f[8] == 1 and any(g[1] == 23 for g in f[12]) for f in drone[0][1]):
+        raise RuntimeError("groups: the drone wasn't met")
+    if not any(g[1] == 23 and g[7] == 0 for g in drone[0][1][-1][12]):
+        raise RuntimeError("groups: the drone didn't leave the system")
+    if "BuildGroups" not in drone[1][1][0][9] or "BuildGroups" not in drone[2][1][0][9]:
+        raise RuntimeError("groups: Sol without the drone wasn't drawn afresh on each entry")
+    ur = visits("the Ur-Quan's sphere")
+    first = [p for p in ur[0][1][0][9]]
+    if "BuildGroups" not in first or "BuildGroups" in ur[1][1][0][9]:
+        raise RuntimeError("groups: the draw wasn't kept within the week")
+    if "BuildGroups" not in ur[2][1][0][9] or "BuildGroups" not in ur[4][1][0][9]:
+        raise RuntimeError("groups: the draw wasn't made again after a week or another system")
+    tasks = {g[3] & 3 for f in frames for g in f[12]}
+    if not {0, 1, 3} <= tasks:
+        raise RuntimeError(f"groups: tasks seen {tasks}")
+    if not any(g[3] & 4 for f in frames for g in f[12]) or not any(g[4] == 0 and g[3] & 3 != 2 for f in frames for g in f[12]):
+        raise RuntimeError("groups: no group stood down or intercepted")
+    for r in runs:
+        for v in r["visits"]:
+            since = None
+            for k, f in enumerate(v[1]):
+                if f[8] == 1:
+                    since = k
+                elif f[8] == 3 and since is not None and k - since <= 111:
+                    raise RuntimeError("groups: a world touched in the escape counter's frames (the port's differ: row 56)")
+    if not any(f[8] == 3 for f in frames):
+        raise RuntimeError("groups: no orbit")
+    if len(visits("the Spathi at home")[0][1][0][12]) < 5:
+        raise RuntimeError("groups: fewer than five groups at the Spathi's home")
+
+
+def record_groups(uqm, exe, strings_exe, images_exe, package):
+    """UQM's system groups, frame by frame (golden/groups.c), with the
+    package's masks of a system's sheets."""
+    scenarios = groups_scenarios()
+    runs = run_groups(uqm, exe, strings_exe, images_exe, package, scenarios)
+    check_groups(scenarios, runs)
+    data = header(uqm, ["tools/extract/golden/groups.c", "tools/extract/golden/groups_stubs.c",
+                        "src/uqm/planets/solarsys.c", "src/uqm/ipdisp.c", "src/uqm/grpinfo.c", "src/uqm/state.c",
+                        "src/libs/math/random.c"] + [f"src/{f}" for f in groups_link(uqm)], [
+        "UQM 0.8.0's own system groups, recorded by running solarsys.c's InitSolarSys and IP_frame (their "
+        "drawing left out) with ipdisp.c, grpinfo.c (the group files in memory, state.c) and process.c's "
+        "RedrawQueue (see tools/extract/golden/groups.c), after a new game (UQM's own InitGameStructures, "
+        "InitGameClock, AddInitialGameEvents, InitGroupInfo). Each visit seeds TFB_Random, then the "
+        "generator's initNpcs (BuildGroups, GetGroupInfo; init_probe at Sol, the colony's guard), "
+        "ResetSolarSys (DoMissions), and IP_frame's frames with a test pilot's keys. A meeting "
+        "(START_ENCOUNTER) is followed as the game comes back from a talk without a battle "
+        "(UninitSolarSys's GetGroupInfo, BuildBattle's ESCAPE_COUNTER, a new SOLARSYS_STATE, InitSolarSys "
+        "coming back with reinitNpcs: check_probe at Sol, ResetSolarSys). Leaving runs uninitNpcs; the "
+        "next visit's days then pass on the clock's fields (no events).",
+        "Contact is found with the masks of a system's sheets (sheets) from the official content package "
+        f"(SHA-256 {CONTENT_SHA256}). Everything else is code.",
+        "input: each scenario's flagship (fusion thrusters, turning jets), date, game states set "
+        "(0 PROBE_MESSAGE_DELIVERED, 1 SLYLANDRO_MULTIPLIER, 2 UTWIG_SUPOX_MISSION, 3 STARBASE_AVAILABLE), "
+        "fleets changed [race, actual_strength, x, y], whether the drone's group is made gone, and visits "
+        "[star, seed, days before, goals [kind, arg, frames]] (0 a planet, 1 the nearest group drawn, 2 "
+        "wait, 3 out of the system, 4 away from the nearest group, 5 the middle of the screen). Entering orbit "
+        "comes back to flight at once, as EnterPlanetOrbit does around the orbit.",
+        "visits: [star, frames], a frame recorded after RedrawQueue: [keys (1 left, 2 right, 4 thrust), "
+        "facing, ip_location x, y, ShipStamp x, y, zoom radius, inner planet or -1, event (0, 1 met, 2 "
+        "left the system, 3 orbit), the functions that drew a number since the last frame (the first frame's: "
+        "initNpcs' too), TFB_Random's seed, the elements' order (group_id each), the groups "
+        "(ip_group_q)], with the group met (EncounterGroup) last on a meeting's frame. A group: "
+        "[group_id, race_id, sys_loc, task, dest_loc, orbit_pos, group_counter, in_system, loc x, y, "
+        "element]; element null or [state_flags, life_span, thrust_wait, TravelAngle, vector w, h, fract "
+        "w, h, error w, h, incr w, h, current x, y, next x, y (display units, the space's offset taken "
+        "out), primitive type].",
+    ])
+    data["sheets"] = GROUPS_SHEETS
+    data["scenarios"] = [{"name": s["name"], "input": {k: v for k, v in s.items() if k != "name"},
+                          "visits": r["visits"]} for s, r in zip(scenarios, runs)]
+    return data
+
+
 CLOCK_PROGRAM = os.path.join(HERE, "golden", "clock.c")
 # UQM's code the clock program runs: the events, the game state and a new
 # game's structures (InitGameStructures), the fleets' functions (build.c),
@@ -6647,6 +6870,9 @@ def main():
         hyperspace = os.path.join(build_dir, "hyperspace")
         if args.content:
             build(uqm, HYPERSPACE_PROGRAM, HYPERSPACE_LINK, hyperspace, extra=[HYPERSPACE_STUBS])
+        groups = os.path.join(build_dir, "groups")
+        if args.content:
+            build(uqm, GROUPS_PROGRAM, groups_link(uqm), groups, extra=[GROUPS_STUBS], libs=["-lm"])
         battle_draw = os.path.join(build_dir, "battledraw")
         build(uqm, os.path.join(HERE, "golden", "battle.c"), BATTLE_LINK, battle_draw,
               extra=[BATTLE_STUBS], defines=["RECORD_DRAW"])
@@ -6692,6 +6918,7 @@ def main():
                      ("contact", lambda: record_contact(uqm, systems, strings, images, args.content)),
                      ("hyperspace-encounters", lambda: record_hyperspace(uqm, hyperspace, strings, images,
                                                                          args.content)),
+                     ("system-groups", lambda: record_groups(uqm, groups, strings, images, args.content)),
                      ("battle-masks", lambda: record_battle_masks(uqm, strings, images, args.content)),
                      ("battle", lambda: record_battle(uqm, battle, strings, images, args.content)),
                      ("battle-draw", lambda: record_battle_draw(uqm, battle, battle_draw, strings, images, args.content)),

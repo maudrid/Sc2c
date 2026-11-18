@@ -158,7 +158,7 @@ public sealed partial class GameWorld
     {
         var g = f.Met!;
         SystemMeetings.Add((Frame, f.Id, d.Star, g.Race, g.GroupId));
-        sg.AfterMeeting(d);
+        sg.AfterMeeting(d, g);
         var ip = f.Flight;
         if (ip.Orbit is null)
         {

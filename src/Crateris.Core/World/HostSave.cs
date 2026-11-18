@@ -148,7 +148,7 @@ public static class HostSave
 
     public sealed record DefinedState(string Special, List<GroupShipsState> Groups);
 
-    public sealed record GroupShipsState(int Id, string Race, List<int> Ships);
+    public sealed record GroupShipsState(int Id, string Race, List<int> Ships, List<int>? Captains = null);
 
     public sealed record SystemDrawState(
         int Star, string? Defined, List<GroupShipsState>? Random, int[] Expires, List<string> Visitors,
@@ -555,7 +555,7 @@ public static class HostSave
         if (world.SystemGroups is not { } sg || (sg.Defined.Count == 0 && sg.Systems.Count == 0))
             return null;
         var races = world.Story!.Rules.Races;
-        GroupShipsState Ships(GroupShips g) => new(g.Id, races[g.Race], g.Ships.ToList());
+        GroupShipsState Ships(GroupShips g) => new(g.Id, races[g.Race], g.Ships.ToList(), g.Captains.ToList());
         return new SystemGroupsState(
             sg.Defined.OrderBy(d => d.Key, StringComparer.Ordinal)
                 .Select(d => new DefinedState(d.Key, d.Value.Select(Ships).ToList())).ToList(),
@@ -591,9 +591,10 @@ public static class HostSave
             foreach (var g in list ?? throw new InvalidDataException($"Bad system groups in save: {where} has no list."))
             {
                 if (g is null || g.Id < 1 || g.Id > 64 || g.Ships is null || g.Ships.Count > 255
-                    || g.Ships.Any(c => c < 0 || c > byte.MaxValue) || groups.Any(o => o.Id == g.Id))
+                    || g.Ships.Any(c => c < 0 || c > byte.MaxValue) || groups.Any(o => o.Id == g.Id)
+                    || (g.Captains is { } cs && (cs.Count != g.Ships.Count || cs.Any(c => c < 0 || c > byte.MaxValue))))
                     throw new InvalidDataException($"Bad system group in save: {where} has a bad group.");
-                groups.Add(new GroupShips(g.Id, RaceOf(g.Race), g.Ships));
+                groups.Add(new GroupShips(g.Id, RaceOf(g.Race), g.Ships, g.Captains));
             }
             return groups;
         }
