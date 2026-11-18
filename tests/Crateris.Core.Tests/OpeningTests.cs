@@ -631,6 +631,45 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void TheTwoWeeksRollForThePlayersInHyperspaceAndAreTakenBackWithThem()
+    {
+        // A guest in hyperspace in the Ur-Quan's sphere (stage 3b item 3):
+        // each of the two weeks' days rolls for them, as any day does.
+        var world = WithTalks(guest: true);
+        var guest = world.Find("guest")!;
+        guest.Ship.Ip = null;
+        guest.Ship.SystemStar = null;
+        guest.Ship.Flight.PlaceAtUniverse(5800, 6100);
+        guest.Ship.Flight.StarJustLeft = null;
+        world.EncounterRaces = world.Story!.Rules.Races.ToHashSet();
+        var story = world.Story;
+        story.Set("STARBASE_AVAILABLE", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        Run(world, 1);
+        var random = world.HyperspaceRandomOf("guest");
+        uint seed = random.Seed;
+        world.VisitStarbase(world.Host);
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
+        var rolled = world.Encounters!.List.ToList();
+        Assert.NotEmpty(rolled);
+        Assert.All(rolled, e => Assert.Equal("guest", e.Roller));
+        Assert.NotEqual(seed, world.HyperspaceRandomOf("guest").Seed);
+        // Saved without them.
+        Assert.Empty(HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Encounters!.List);
+        // Taken back with the opening (the guest gone too, no one takes the
+        // replies), the numbers too: the same days again roll the same groups.
+        world.Leave("guest");
+        world.Leave("host");
+        Assert.True(world.Visit is null);
+        Assert.Equal(JoinResult.Rejoined, world.Join("guest", "Guest"));
+        Assert.Empty(world.Encounters.List);
+        Assert.Equal(seed, world.HyperspaceRandomOf("guest").Seed);
+        world.MoveClockDays(14);
+        Assert.Equal(rolled.Select(e => (e.Race, e.Roller, e.OriginX)), world.Encounters.List.Select(e => (e.Race, e.Roller, e.OriginX)));
+    }
+
+    [ContentFact]
     public void LeavingAsTheStarbaseIsReadyGivesBackTheEventsSetAside()
     {
         var world = WithTalks();
