@@ -861,7 +861,11 @@ def ip_flight_data(uqm, out):
         "own ProcessShipControls, flagship_inertial_thrust, "
         "CheckShipLocation, CheckIntersect, FindRadius, enterInnerSystem, "
         "leaveInnerSystem, ValidateOrbits and flag_ship_preprocess, in the "
-        "order IP_frame runs them (see tools/extract/golden/systems.c). "
+        "order IP_frame runs them (see tools/extract/golden/systems.c), "
+        "flag_ship_preprocess on the frame the ship leaves the system too "
+        "(IP_frame's RedrawQueue still runs) but not on its first frame after "
+        "ResetSolarSys (spawn_flag_ship's element is APPEARING, and "
+        "PreProcess doesn't preprocess it). "
         "After entering orbit, the ship returns to flight as "
         "EnterPlanetOrbit does (FreeSolarSys, LoadSolarSys, CheckZoomLevel, "
         "ResetSolarSys); the orbit itself is left out.",

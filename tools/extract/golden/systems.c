@@ -1410,7 +1410,7 @@ static void
 run_scenario (const SCENARIO *sc, int first_scenario)  /* first: no comma */
 {
 	ELEMENT flagship;
-	int g = 0, frame, goal_frames = 0, first = 1, i;
+	int g = 0, frame, goal_frames = 0, first = 1, i, appearing = 1;
 
 	memset (&SolarSysState, 0, sizeof SolarSysState);
 	pSolarSysState = &SolarSysState;
@@ -1487,15 +1487,23 @@ run_scenario (const SCENARIO *sc, int first_scenario)  /* first: no comma */
 				ValidateOrbits ();
 			}
 		}
-		if (event != EV_LEAVE_SYSTEM)
-		{	/* RedrawQueue: the flagship element moves. */
+		if (!appearing)
+		{	/* RedrawQueue: the flagship element moves (on the frame it
+			 * leaves the system too). Not on its first frame after
+			 * ResetSolarSys: spawn_flag_ship makes it APPEARING, and
+			 * process.c's PreProcess doesn't preprocess an element
+			 * appearing that isn't a PLAYER_SHIP. */
 			memset (&flagship, 0, sizeof flagship);
 			flagship.thrust_wait = 1000;
 			flagship.sys_loc = getFlagshipLocation ();
 			flag_ship_preprocess (&flagship);
 		}
+		appearing = 0;
 		if (event == EV_ORBIT)
+		{
 			return_from_orbit ();
+			appearing = 1;
+		}
 
 		GetCurrentVelocityComponents (&GLOBAL (velocity), &vdx, &vdy);
 		printf ("%s[%d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d]",

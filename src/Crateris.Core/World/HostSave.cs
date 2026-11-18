@@ -130,7 +130,32 @@ public static class HostSave
     public sealed record SaveFile(
         int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players,
         List<WorldState>? Worlds = null, StoryState.Saved? Story = null, bool CommanderMet = false,
-        List<FleetShip>? Fleet = null, List<EncounterState>? Encounters = null);
+        List<FleetShip>? Fleet = null, List<EncounterState>? Encounters = null,
+        SystemGroupsState? SystemGroups = null);
+
+    /// <summary>
+    /// The groups kept with the systems (stage 3b-1 item 4): the special
+    /// systems' own groups, by the system's special name (UQM's
+    /// *_GRPOFFS0 groups), and each system's draw: its random groups
+    /// (null: none kept), the last day it's good for, the players who were
+    /// in it, the special system whose own groups fly (null: the random
+    /// draw's), the groups flying while someone's in it (ip_group_q, as
+    /// grpinfo.c's GROUP_LIST keeps them, without their elements) and the
+    /// race of a battle fought there whose groups are yet to turn on the
+    /// players (-1 for none).
+    /// </summary>
+    public sealed record SystemGroupsState(List<DefinedState>? Defined, List<SystemDrawState>? Systems);
+
+    public sealed record DefinedState(string Special, List<GroupShipsState> Groups);
+
+    public sealed record GroupShipsState(int Id, string Race, List<int> Ships);
+
+    public sealed record SystemDrawState(
+        int Star, string? Defined, List<GroupShipsState>? Random, int[] Expires, List<string> Visitors,
+        List<IpGroupState> Groups, int EncounterRace = -1);
+
+    public sealed record IpGroupState(
+        int Id, string Race, int Counter, int SysLoc, int Task, int DestLoc, int OrbitPos, bool InSystem, int X, int Y);
 
     /// <summary>
     /// A hyperspace encounter (UQM's ENCOUNTER, as save.c keeps it): race
@@ -236,7 +261,8 @@ public static class HostSave
             world.EncountersForSave(visit?.EncountersWithout() ?? world.Encounters?.List) is { Count: > 0 } list ? list.Select(e => new EncounterState(
                 e.Race, e.Flags, e.Ships.ToList(), e.OriginX, e.OriginY, e.Radius, e.LocX, e.LocY, e.LogX, e.LogY,
                 e.TransitionState, e.Roller, e.KeptFor.Select(k => new KeptState(k.Key, k.Value.X, k.Value.Y)).ToList()))
-                .ToList() : null);
+                .ToList() : null,
+            SystemGroupsForSave(world));
         return JsonSerializer.Serialize(save, Options);
     }
 
@@ -315,6 +341,8 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have the races' fleets.");
         if (save.Version < 13 && save.Encounters is not null)
             throw new InvalidDataException($"A version {save.Version} save can't have hyperspace encounters.");
+        if (save.Version < 13 && save.SystemGroups is not null)
+            throw new InvalidDataException($"A version {save.Version} save can't have system groups.");
         if ((save.Fleet ?? new()).Any(s => s is null || s.Race is null))
             throw new InvalidDataException("The save has a fleet ship that is null or of no race.");
         // A setting a save leaves out is the default, and so is the ship's
@@ -512,12 +540,117 @@ public static class HostSave
         if (save.Encounters is { } encounters)
             RestoreEncounters(world, encounters);
         world.LoadedInHyperspace();
+        if (save.SystemGroups is { } systemGroups)
+            RestoreSystemGroups(world, systemGroups);
+        world.LoadedInSystems();
         world.CommanderMet = save.CommanderMet;
         // The events whose day has passed run now, in date order (an older
         // save's: it ran none); those of 3c are set aside (decision 9).
         world.RunDayEvents();
         return world;
     }
+    // The system groups as they are: left out when there are none.
+    private static SystemGroupsState? SystemGroupsForSave(GameWorld world)
+    {
+        if (world.SystemGroups is not { } sg || (sg.Defined.Count == 0 && sg.Systems.Count == 0))
+            return null;
+        var races = world.Story!.Rules.Races;
+        GroupShipsState Ships(GroupShips g) => new(g.Id, races[g.Race], g.Ships.ToList());
+        return new SystemGroupsState(
+            sg.Defined.OrderBy(d => d.Key, StringComparer.Ordinal)
+                .Select(d => new DefinedState(d.Key, d.Value.Select(Ships).ToList())).ToList(),
+            sg.Systems.Values.OrderBy(d => d.Star).Select(d => new SystemDrawState(
+                d.Star, d.Defined, d.RandomGroups?.Select(Ships).ToList(),
+                new[] { d.Expires.Year, d.Expires.Month, d.Expires.Day },
+                d.Visitors.OrderBy(v => v, StringComparer.Ordinal).ToList(),
+                d.Groups.Select(g => new IpGroupState(g.GroupId, races[g.Race], g.GroupCounter, g.SysLoc, g.Task,
+                    g.DestLoc, g.OrbitPos, g.InSystem, g.LocX, g.LocY)).ToList(),
+                d.EncounterRace)).ToList());
+    }
+
+    // The specials whose systems have groups of their own.
+    private static readonly HashSet<string> OwnGroupSpecials = new()
+    {
+        "SOL_DEFINED", "START_COLONY_DEFINED", "SHOFIXTI_DEFINED", "ZOQ_SCOUT_DEFINED",
+        "MELNORME0_DEFINED", "MELNORME1_DEFINED", "MELNORME2_DEFINED", "MELNORME3_DEFINED", "MELNORME4_DEFINED",
+        "MELNORME5_DEFINED", "MELNORME6_DEFINED", "MELNORME7_DEFINED", "MELNORME8_DEFINED",
+    };
+
+    // The system groups: each checked as UQM's types and files hold them,
+    // its stars, races, specials and players the game's.
+    private static void RestoreSystemGroups(GameWorld world, SystemGroupsState saved)
+    {
+        if (world.SystemGroups is not { } sg || world.Systems is null)
+            throw new InvalidDataException("The save has system groups, but no data was given to load them with.");
+        var rules = world.Story!.Rules;
+        int RaceOf(string? race) => race is not null && rules.Races.Contains(race)
+            ? rules.RaceIndex(race) : throw new InvalidDataException($"Bad system group in save: race {race} isn't a race.");
+        List<GroupShips> Groups(List<GroupShipsState>? list, string where)
+        {
+            var groups = new List<GroupShips>();
+            foreach (var g in list ?? throw new InvalidDataException($"Bad system groups in save: {where} has no list."))
+            {
+                if (g is null || g.Id < 1 || g.Id > 64 || g.Ships is null || g.Ships.Count > 255
+                    || g.Ships.Any(c => c < 0 || c > byte.MaxValue) || groups.Any(o => o.Id == g.Id))
+                    throw new InvalidDataException($"Bad system group in save: {where} has a bad group.");
+                groups.Add(new GroupShips(g.Id, RaceOf(g.Race), g.Ships));
+            }
+            return groups;
+        }
+        foreach (var d in saved.Defined ?? new())
+        {
+            if (d is null || d.Special is null || !OwnGroupSpecials.Contains(d.Special) || sg.Defined.ContainsKey(d.Special))
+                throw new InvalidDataException($"Bad system groups in save: {d?.Special} has no groups of its own, or is there twice.");
+            sg.Defined[d.Special] = Groups(d.Groups, d.Special);
+        }
+        int stars = world.Systems.Map.Stars.Count;
+        foreach (var s in saved.Systems ?? new())
+        {
+            if (s is null || s.Star < 0 || s.Star >= stars || sg.Systems.ContainsKey(s.Star))
+                throw new InvalidDataException($"Bad system groups in save: star {s?.Star} isn't a star, or is there twice.");
+            var system = world.Systems[s.Star];
+            if (s.Defined is not null && (s.Defined != system.Star.Special || !sg.Defined.ContainsKey(s.Defined)))
+                throw new InvalidDataException($"Bad system groups in save: star {s.Star}'s own groups aren't {s.Defined}'s.");
+            if (s.Expires is not { Length: 3 } e || e[1] is < 1 or > 12 || e[2] < 1 || e[2] > GameClock.DaysInMonth(e[1], e[0]))
+                throw new InvalidDataException($"Bad system groups in save: star {s.Star}'s date isn't a date.");
+            if (s.Visitors is null || s.Visitors.Any(v => v is null || world.Find(v) is null) || s.Visitors.Distinct().Count() != s.Visitors.Count)
+                throw new InvalidDataException($"Bad system groups in save: star {s.Star} has a visitor who isn't a player.");
+            if (s.EncounterRace < -1 || s.EncounterRace >= rules.Races.Count)
+                throw new InvalidDataException($"Bad system groups in save: star {s.Star}'s battle race isn't a race.");
+            var draw = new SystemDraw(s.Star)
+            {
+                Defined = s.Defined,
+                RandomGroups = s.Random is null ? null : Groups(s.Random, $"star {s.Star}"),
+                Expires = new GameDate(e[0], e[1], e[2]),
+                EncounterRace = s.EncounterRace,
+            };
+            foreach (var v in s.Visitors)
+                draw.Visitors.Add(v);
+            int planets = system.Planets.Count;
+            foreach (var g in s.Groups ?? throw new InvalidDataException($"Bad system groups in save: star {s.Star} has no groups' list."))
+            {
+                string? bad = g is null ? "a group is null"
+                    : g.Id < 1 || g.Id > 64 ? $"group {g.Id} isn't a group's number"
+                    : g.Counter < 0 || g.Counter > ushort.MaxValue ? "a counter isn't a UWORD"
+                    : g.SysLoc < 0 || g.SysLoc > planets ? $"a place {g.SysLoc} isn't one of its views"
+                    : g.Task < 0 || g.Task > 15 || (g.Task & 3) > IpGroup.OnStation ? $"task {g.Task} isn't a task"
+                    : g.DestLoc < 0 || g.DestLoc > planets ? $"destination {g.DestLoc} isn't one of its worlds"
+                    : g.OrbitPos < 0 || g.OrbitPos > 15 ? $"orbit place {g.OrbitPos} isn't a facing"
+                    : g.X < short.MinValue || g.X > short.MaxValue || g.Y < short.MinValue || g.Y > short.MaxValue ? "a place isn't a COORD"
+                    : null;
+                if (bad is not null)
+                    throw new InvalidDataException($"Bad system group in save: star {s.Star}: {bad}.");
+                draw.Groups.Add(new IpGroup
+                {
+                    GroupId = g!.Id, Race = RaceOf(g.Race), GroupCounter = (ushort)g.Counter, SysLoc = (byte)g.SysLoc,
+                    Task = (byte)g.Task, DestLoc = (byte)g.DestLoc, OrbitPos = (byte)g.OrbitPos, InSystem = g.InSystem,
+                    LocX = (short)g.X, LocY = (short)g.Y,
+                });
+            }
+            sg.Systems[s.Star] = draw;
+        }
+    }
+
     // The hyperspace encounters: each checked as UQM's types hold them,
     // its roller and those it's kept for players of the game.
     private static void RestoreEncounters(GameWorld world, List<EncounterState> saved)

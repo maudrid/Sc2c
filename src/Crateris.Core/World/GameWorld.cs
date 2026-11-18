@@ -533,11 +533,13 @@ public sealed partial class GameWorld
                     }
                     // The spin's last frame: out of hyperspace (cleanup_hyperspace).
                     EndSpin(p);
-                    for (int i = 0; i < systemFrames && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem; ++i)
-                        StepSystem(p.Ship, input);
+                    // The system frames come after everyone's input is in,
+                    // each with the system's groups (StepSystems).
+                    _systemInput[p.Id] = input;
                     break;
             }
         }
+        StepSystems(systemFrames);
         JoinBattles();
         FlyIntoWrecks();
         StepBattles();

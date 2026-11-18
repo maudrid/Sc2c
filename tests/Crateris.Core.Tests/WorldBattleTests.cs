@@ -694,12 +694,13 @@ public class WorldBattleTests
         foreach (var p in world.Players)
             Assert.Equal((Activity.InnerSystem, IpFlight.EscapeFrames), (p.Ship.Activity, p.Ship.Ip!.EscapeCounter));
         // UQM's ESCAPE_COUNTER, 110 frames of flight; 24 world frames are
-        // 30 of flight, and the counter goes down with each: 88 world frames
-        // are its 110.
+        // 30 of flight, and the counter goes down with each but the first
+        // (the ship's element appearing again as the system comes back):
+        // 89 world frames are its 111.
         Assert.Equal(110, IpFlight.EscapeFrames);
         Run(world, 24);
-        Assert.Equal(110 - 30, host.Ip!.EscapeCounter);
-        Run(world, 87 - 24);
+        Assert.Equal(110 - 29, host.Ip!.EscapeCounter);
+        Run(world, 88 - 24);
         Assert.InRange(host.Ip!.EscapeCounter, 1, 2);
         Run(world, 1);
         Assert.Equal(0, host.Ip!.EscapeCounter);

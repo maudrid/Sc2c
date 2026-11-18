@@ -574,7 +574,13 @@ public sealed partial class GameWorld
     {
         ship.Battle = null;
         if (ship.Ip is { } ip)
+        {
             ip.EscapeCounter = IpFlight.EscapeFrames;
+            // The system comes back (InitSolarSys, ResetSolarSys): the
+            // ship's element is made again where it is.
+            if (ip.Orbit is null)
+                ip.Reenter();
+        }
     }
 
     /// <summary>

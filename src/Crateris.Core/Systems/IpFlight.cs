@@ -108,6 +108,40 @@ public sealed class IpFlight
     /// <summary>The escape counter BuildBattle sets in a system (110).</summary>
     public const byte EscapeFrames = 110;
 
+    /// <summary>
+    /// Whether the ship's element is new (spawn_flag_ship's APPEARING): its
+    /// first frame after arriving, coming back from orbit, a meeting or a
+    /// battle, or being loaded. That frame its controls and its place are
+    /// checked, but it doesn't move and its escape counter doesn't run
+    /// down (flag_ship_preprocess isn't run for an element appearing).
+    /// </summary>
+    public bool Appearing { get; private set; }
+
+    /// <summary>The view the ship is in: 0 the outer system, or 1 + the planet whose inner system it's in (getFlagshipLocation).</summary>
+    public byte View => InnerPlanet is int p ? (byte)(p + 1) : (byte)0;
+
+    // The view the ship's element was in last (its sys_loc): a frame that
+    // changes the view leaves the ship untouchable by the groups.
+    private byte _elementView;
+
+    /// <summary>
+    /// The ship as the system's groups saw it in the last frame (its
+    /// element): on the screen from <see cref="ContactFrom"/> to
+    /// <see cref="ContactTo"/>, facing <see cref="ContactFacing"/>, and
+    /// whether it can touch them (<see cref="ContactSolid"/>: not in its
+    /// escape counter's frames nor on the frame its view changed).
+    /// </summary>
+    public IpPoint ContactFrom { get; private set; }
+
+    public IpPoint ContactTo { get; private set; }
+
+    public int ContactFacing { get; private set; }
+
+    public bool ContactSolid { get; private set; }
+
+    /// <summary>Whether the last frame was the ship's element's first (<see cref="Appearing"/>).</summary>
+    public bool ContactAppearing { get; private set; }
+
     /// <summary>The ship's thrusters and jets changed (outfitting): its top speed and turning.</summary>
     public void Refit(int thrusters, int jets)
     {
@@ -153,6 +187,7 @@ public sealed class IpFlight
         CheckZoomLevel();
         ValidateOrbits();
         CheckIntersect();   // ResetSolarSys
+        Appear();
     }
 
     private IpFlight(SolarSystem system, int thrusters, int jets, ContactShapes shapes)
@@ -210,6 +245,7 @@ public sealed class IpFlight
         }
         if (s.OrbitPlanet is int orbitPlanet)
             f.Orbit = (orbitPlanet, s.OrbitMoon);
+        f.Appear();
         return f;
     }
 
@@ -284,6 +320,10 @@ public sealed class IpFlight
             throw new InvalidOperationException("in orbit: call ReturnFromOrbit first");
 
         Thrusting = (input & ShipInput.Thrust) != 0;
+        bool appearing = Appearing;
+        Appearing = false;
+        IpPoint appearedAt = Screen;
+        int appearedFacing = Facing;
         ProcessShipControls(input);
 
         // ESCAPE_COUNTER (flag_ship_preprocess, each frame of flight): after
@@ -291,16 +331,23 @@ public sealed class IpFlight
         // item 6: the worlds and the starbase too, where UQM's makes it
         // NONSOLID to the ships in the system only; UQM's worlds are tested
         // apart), then touches nothing it's still on until it's clear of
-        // everything, as after leaving an inner system.
+        // everything, as after leaving an inner system. An element
+        // appearing isn't preprocessed: its counter doesn't run down.
+        byte escapeBefore = EscapeCounter;
         if (EscapeCounter > 0)
         {
-            --EscapeCounter;
+            if (!appearing)
+                --EscapeCounter;
             WaitIntersect = AllCollisionsOff;
         }
 
         IpEvent ev = CheckShipLocation(out bool locChange, out short newRadius);
         if (ev == IpEvent.LeftSystem)
+        {
+            // IP_frame's RedrawQueue still runs on the frame the ship leaves.
+            Moved(appearing, appearedAt, appearedFacing, escapeBefore);
             return ev;
+        }
 
         if (ev == IpEvent.None && locChange)
         {
@@ -324,8 +371,32 @@ public sealed class IpFlight
             }
         }
 
-        MoveFlagship();
+        Moved(appearing, appearedAt, appearedFacing, escapeBefore);
         return ev;
+    }
+
+    // RedrawQueue's flag_ship_preprocess: the ship moves, unless its
+    // element is appearing (it stays where it was made, facing as it was),
+    // and is solid to the groups unless its view has just changed or its
+    // escape counter is running.
+    private void Moved(bool appearing, IpPoint appearedAt, int appearedFacing, byte escapeBefore)
+    {
+        ContactAppearing = appearing;
+        if (appearing)
+        {
+            ContactFrom = ContactTo = appearedAt;
+            ContactFacing = appearedFacing;
+            ContactSolid = escapeBefore == 0;
+            return;
+        }
+        int radius = InnerPlanet is null ? ZoomRadius : IpGeometry.MaxZoomRadius;
+        ContactFrom = IpGeometry.LocationToDisplay(Location, radius);
+        MoveFlagship();
+        ContactTo = Screen;
+        ContactFacing = Facing;
+        bool viewChanged = _elementView != View;
+        _elementView = View;
+        ContactSolid = !viewChanged && escapeBefore == 0;
     }
 
     /// <summary>
@@ -349,6 +420,35 @@ public sealed class IpFlight
         ValidateInnerOrbits();
         CheckIntersect();   // ResetSolarSys
         Orbit = null;
+        Appear();
+    }
+
+    /// <summary>
+    /// Back in flight after a meeting or a battle in the system, where the
+    /// ship was (InitSolarSys coming back, then ResetSolarSys): the zoom
+    /// found again for where it is, its worlds' contact noted, and its
+    /// element made again (<see cref="Appearing"/>). Its velocity is kept.
+    /// </summary>
+    public void Reenter()
+    {
+        if (Orbit is not null)
+            throw new InvalidOperationException("in orbit: call ReturnFromOrbit");
+        CheckZoomLevel();
+        ValidateOrbits();
+        if (InnerPlanet is not null)
+            ValidateInnerOrbits();
+        CheckIntersect();
+        Appear();
+    }
+
+    // DoMissions' spawn_flag_ship: the ship's element is made where the
+    // ship is on the screen, APPEARING, in the view it's in.
+    private void Appear()
+    {
+        Appearing = true;
+        _elementView = View;
+        ContactFrom = ContactTo = Screen;
+        ContactFacing = Facing;
     }
 
     // ---- controls ----

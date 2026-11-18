@@ -42,7 +42,11 @@ public sealed record RaceShip(string Race, string Ship, int Cost, int Crew, int 
 /// for the drone (UQM's tables stop before it): 0, 0, 0 and null.
 /// </summary>
 public sealed record RaceFleetRules(string Race, int Strength, int HomeX, int HomeY,
-    int HyperspacePercent, int InterplanetaryPercent, int MakeupMin, int MakeupMax, int HyperSpeed, Data.Rgba? Color);
+    int HyperspacePercent, int InterplanetaryPercent, int MakeupMin, int MakeupMax, int HyperSpeed, Data.Rgba? Color)
+{
+    /// <summary>Its groups' speed in a system (RACE_IP_SPEED, IP units a frame; the drone's too).</summary>
+    public int IpSpeed { get; init; }
+}
 
 /// <summary>
 /// What the story state is made from, all from data/: the game-state
@@ -221,7 +225,7 @@ public sealed class StoryRules
             list.Add(new RaceFleetRules(race, fleet.Strength, fleet.HomeX, fleet.HomeY,
                 Int("hyperspace_percent"), Int("interplanetary_percent"),
                 makeup?.GetProperty("min").GetInt32() ?? 0, makeup?.GetProperty("max").GetInt32() ?? 0,
-                Int("hyper_speed"), color));
+                Int("hyper_speed"), color) { IpSpeed = Int("ip_speed") });
         }
         return list;
     }

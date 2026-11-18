@@ -45,7 +45,7 @@ public class RaceFleetsTests
         // races.h: RACE_HYPERSPACE_PERCENT 20, RACE_INTERPLANETARY_PERCENT 10,
         // MAKE_BYTE (1, 5), LOG_TO_HYPER (48), MAKE_RGB15_INIT (0x0C, 0x05, 0x00);
         // the sphere from spathi.c's RACE_DESC: 180 at (2549, 3600).
-        Assert.Equal(new RaceFleetRules("SPATHI_SHIP", 180, 2549, 3600, 20, 10, 1, 5, (48 << 5) >> 1, new Rgba(0x63, 0x29, 0, 0xFF)),
+        Assert.Equal(new RaceFleetRules("SPATHI_SHIP", 180, 2549, 3600, 20, 10, 1, 5, (48 << 5) >> 1, new Rgba(0x63, 0x29, 0, 0xFF)) { IpSpeed = 96 },
             Of("SPATHI_SHIP"));
         Assert.Equal((70, 40, 1, 5, 480), (Of("URQUAN_SHIP").HyperspacePercent, Of("URQUAN_SHIP").InterplanetaryPercent,
             Of("URQUAN_SHIP").MakeupMin, Of("URQUAN_SHIP").MakeupMax, Of("URQUAN_SHIP").HyperSpeed));
@@ -59,7 +59,7 @@ public class RaceFleetsTests
         // drone's tables stop after the percents (and its ship, the probe's, has no sphere).
         Assert.Equal((136, 4970, 40, new Rgba(165, 57, 255, 255)), (Of("YEHAT_REBEL_SHIP").Strength, Of("YEHAT_REBEL_SHIP").HomeX,
             Of("YEHAT_REBEL_SHIP").HomeY, Of("YEHAT_REBEL_SHIP").Color));
-        Assert.Equal(new RaceFleetRules("URQUAN_DRONE_SHIP", 0, 0, 0, 0, 0, 0, 0, 0, null), Of("URQUAN_DRONE_SHIP"));
+        Assert.Equal(new RaceFleetRules("URQUAN_DRONE_SHIP", 0, 0, 0, 0, 0, 0, 0, 0, null) { IpSpeed = 180 }, Of("URQUAN_DRONE_SHIP"));
         Assert.Equal((11, 2794, 65535), (Rules.SphereRadiusIncrement, Rules.MaxFleetStrength, Rules.InfiniteRadius));
         // Each race's sphere is its ship's.
         var ships = ShipDescriptions.Load(DataDir);
