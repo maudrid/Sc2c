@@ -177,4 +177,483 @@ public class SystemGroupTests
             }
         }
     }
+
+    // ---- The co-op game's rules (our own) ----
+
+    private const int UrQuanStar = 311, UrQuanStar2 = 321, SpathiStar = 336, SolStar = 82;
+
+    // A world whose every race's groups fly, the players' numbers traced.
+    private static GameWorld CoopWorld(params string[] guests)
+    {
+        var world = NewWorld();
+        world.EncounterRaces = world.Story!.Rules.Races.ToHashSet();
+        world.TraceSystemRandom = true;
+        world.SystemSeeds = star => 1000u + (uint)star;
+        foreach (var g in guests)
+            world.Join(g, g);
+        return world;
+    }
+
+    private static void Run(GameWorld world, int frames = 1)
+    {
+        for (int i = 0; i < frames; ++i)
+        {
+            foreach (var p in world.Players.Where(p => p.Present))
+                world.SubmitInput(p.Id, world.Frame + 1, ShipInput.None);
+            world.Step();
+        }
+    }
+
+    private static SystemDraw DrawOf(GameWorld world, int star) => world.SystemGroups!.Systems[star];
+
+    // The places a system's numbers were drawn since its draw was set going.
+    private static List<string> Drawn(GameWorld world, int star) => DrawOf(world, star).Random!.Places!;
+
+    [ContentFact]
+    public void ADrawIsKeptUntilEveryPlayerWhoWasInTheSystemHasEnteredAnother()
+    {
+        var world = CoopWorld("g");
+        world.PutInSystem("h", UrQuanStar);
+        Run(world);
+        var draw = DrawOf(world, UrQuanStar);
+        var groups = draw.RandomGroups!.Select(g => (g.Id, g.Race, g.Ships.Count)).ToList();
+        Assert.NotEmpty(groups);
+        Assert.Contains("BuildGroups", Drawn(world, UrQuanStar));
+        var random = draw.Random;
+        // The guest comes in while the host is there: the groups fly on, no new tasks.
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        Assert.Same(random, draw.Random);
+        Assert.Equal(new[] { "g", "h" }, draw.Present.OrderBy(x => x));
+        // Both leave; the host enters another system: kept, as the guest was there.
+        world.PutInHyperspace("h");
+        world.PutInHyperspace("g");
+        Run(world);
+        Assert.Empty(draw.Present);
+        Assert.Null(draw.Random);
+        Assert.Empty(draw.Groups);
+        world.PutInSystem("h", UrQuanStar2);
+        Run(world);
+        Assert.Same(draw, DrawOf(world, UrQuanStar));
+        Assert.Equal(new[] { "g" }, draw.Visitors);
+        // The guest back within the week: the same draw, new tasks.
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        Assert.Equal(groups, DrawOf(world, UrQuanStar).RandomGroups!.Select(g => (g.Id, g.Race, g.Ships.Count)));
+        Assert.DoesNotContain("BuildGroups", Drawn(world, UrQuanStar));
+        Assert.Contains("GetGroupInfo", Drawn(world, UrQuanStar));
+        // The guest enters a third system: nobody who was there is left, and it goes.
+        world.PutInHyperspace("g");
+        Run(world);
+        world.PutInSystem("g", SpathiStar);
+        Run(world);
+        Assert.False(world.SystemGroups!.Systems.ContainsKey(UrQuanStar));
+        Assert.True(world.SystemGroups.Systems.ContainsKey(UrQuanStar2));   // the host's still there
+        // Coming back: a new draw.
+        world.PutInHyperspace("g");
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        Assert.Contains("BuildGroups", Drawn(world, UrQuanStar));
+    }
+
+    [ContentFact]
+    public void ADrawIsKeptForAWeekAfterTheLastOneLeftEvenWithNoGroups()
+    {
+        var world = CoopWorld();
+        // The probes, met anywhere, draw at every system; this one is in no
+        // race's sphere, and its draw gives no groups.
+        world.Story!.Set("SLYLANDRO_MULTIPLIER", 1);
+        world.SystemSeeds = _ => 1;
+        int star = EmptyStar(world);
+        world.PutInSystem("h", star);
+        Run(world);
+        Assert.Contains("BuildGroups", Drawn(world, star));
+        Assert.Empty(DrawOf(world, star).RandomGroups!);
+        world.PutInHyperspace("h");
+        Run(world);
+        var left = new GameDate(world.Clock.Year, world.Clock.Month, world.Clock.Day);
+        Assert.Equal(left.Plus(7), DrawOf(world, star).Expires);
+        world.MoveClockDays(7);
+        world.PutInSystem("h", star);
+        Run(world);
+        Assert.DoesNotContain("BuildGroups", Drawn(world, star));   // kept: a week on is still good
+        world.PutInHyperspace("h");
+        Run(world);
+        world.MoveClockDays(8);
+        world.PutInSystem("h", star);
+        Run(world);
+        Assert.Contains("BuildGroups", Drawn(world, star));   // gone a day after the week
+    }
+
+    // A system in no race's sphere (but the races met anywhere), of no special.
+    private static int EmptyStar(GameWorld world)
+    {
+        var story = world.Story!;
+        var rules = story.Rules;
+        return Systems.Value.Map.Stars.First(s => s.Special is null && story.Fleets.Select((f, i) => (f, i)).All(x =>
+            x.f.ActualStrength == 0 || x.f.ActualStrength == rules.InfiniteRadius
+            || Math.Pow(s.X - x.f.LocX, 2) + Math.Pow(s.Y - x.f.LocY, 2)
+            > Math.Pow((x.f.ActualStrength * rules.SphereRadiusIncrement) >> 1, 2) + 1)).Number;
+    }
+
+    [ContentFact]
+    public void SolWithoutItsDroneIsDrawnAfreshOnEveryEntryWhileNobodysThere()
+    {
+        var world = CoopWorld("g");
+        var story = world.Story!;
+        // The Ilwrath's sphere over Sol, so a draw gives groups; the drone gone.
+        story.SetFleet("ILWRATH_SHIP", story.Fleet("ILWRATH_SHIP") with { ActualStrength = 256, LocX = 1752, LocY = 1450 });
+        world.SystemGroups!.Defined["SOL_DEFINED"] = new() { new GroupShips(1, story.Rules.RaceIndex("URQUAN_DRONE_SHIP"), Array.Empty<int>()) };
+        world.PutInSystem("h", SolStar);
+        Run(world);
+        Assert.Contains("BuildGroups", Drawn(world, SolStar));
+        var first = DrawOf(world, SolStar).Random;
+        // The guest comes in: no new draw while the host is there.
+        world.PutInSystem("g", SolStar);
+        Run(world);
+        Assert.Same(first, DrawOf(world, SolStar).Random);
+        world.PutInHyperspace("h");
+        world.PutInHyperspace("g");
+        Run(world);
+        // Back the next frame: a new draw all the same.
+        world.PutInSystem("h", SolStar);
+        Run(world);
+        Assert.Contains("BuildGroups", Drawn(world, SolStar));
+        Assert.Null(DrawOf(world, SolStar).Defined);
+    }
+
+    [ContentFact]
+    public void TheDroneOrbitsEarthAndTheColonysGuardItsWorld()
+    {
+        var world = CoopWorld();
+        world.PutInSystem("h", SolStar);
+        Run(world);
+        var drone = DrawOf(world, SolStar).Groups.Single();
+        Assert.Equal((world.Story!.Rules.RaceIndex("URQUAN_DRONE_SHIP"), (byte)3, IpGroup.InOrbit), (drone.Race, drone.DestLoc, drone.Task));
+        Assert.Equal("SOL_DEFINED", DrawOf(world, SolStar).Defined);
+        Assert.Null(DrawOf(world, SolStar).RandomGroups);
+        // The drone's race not yet ported: kept, but not flown.
+        var unported = CoopWorld();
+        unported.EncounterRaces = new HashSet<string>();
+        unported.PutInSystem("h", SolStar);
+        Run(unported);
+        Assert.Empty(DrawOf(unported, SolStar).Groups);
+        Assert.Single(unported.SystemGroups!.Defined["SOL_DEFINED"].Single().Ships);
+
+        int colony = Systems.Value.Map.Stars.Single(s => s.Special == "START_COLONY_DEFINED").Number;
+        world.PutInSystem("h", colony);
+        Run(world);
+        var guard = DrawOf(world, colony).Groups.Single();
+        Assert.Equal((world.Story.Rules.RaceIndex("URQUAN_SHIP"), (byte)1, IpGroup.InOrbit), (guard.Race, guard.DestLoc, guard.Task));
+    }
+
+    [ContentFact]
+    public void RacesNotPortedAreDrawnButDontFly()
+    {
+        var world = CoopWorld();
+        world.EncounterRaces = new HashSet<string>();
+        world.PutInSystem("h", UrQuanStar);
+        Run(world);
+        Assert.NotEmpty(DrawOf(world, UrQuanStar).RandomGroups!);
+        Assert.Empty(DrawOf(world, UrQuanStar).Groups);
+        Assert.Contains("GetGroupInfo", Drawn(world, UrQuanStar));   // their tasks drawn all the same
+    }
+
+    // A flight at a place in a system's outer view (or a planet's inner), at
+    // rest, its first frame flown.
+    private static IpFlight FlightAt(SolarSystem system, int x, int y, int? inner = null)
+    {
+        var arrive = new IpFlight(system, SystemTransition.Arrive(system.Star), 2, 2, TestContent.Shapes!).Save();
+        var screen = IpGeometry.LocationToDisplay(new IpPoint((short)x, (short)y), inner is null ? arrive.ZoomRadius : 8192);
+        var state = arrive with
+        {
+            LocationX = x, LocationY = y, ScreenX = screen.X, ScreenY = screen.Y, InnerPlanet = inner,
+            SunLocationX = inner is int p ? SystemGroups.PlanetOuterLocation(system, p, arrive.ZoomRadius).X : 0,
+            SunLocationY = inner is int q ? SystemGroups.PlanetOuterLocation(system, q, arrive.ZoomRadius).Y : 0,
+        };
+        var flight = IpFlight.Restore(system, state, 2, 2, TestContent.Shapes!);
+        flight.Step(ShipInput.None);   // its first frame: the view's zoom found for where it is
+        return flight;
+    }
+
+    private static IpGroup Group(SystemGroups sg, SystemDraw d, string race, int id, int x, int y, byte task = IpGroup.InOrbit, byte dest = 1)
+    {
+        var g = new IpGroup { GroupId = id, Race = 0, LocX = (short)x, LocY = (short)y, Task = task, DestLoc = dest, SysLoc = 0 };
+        g.Race = RaceIndexOf(race);
+        d.Groups.Add(g);
+        return g;
+    }
+
+    private static int RaceIndexOf(string race) => NewWorldRules.Value.RaceIndex(race);
+    private static readonly Lazy<StoryRules> NewWorldRules = new(() => NewWorld().Story!.Rules);
+
+    private static (SystemGroups, SystemDraw, SolarSystem) Bare(int star)
+    {
+        var sg = new SystemGroups(NewWorldRules.Value) { Ported = NewWorldRules.Value.Races.ToHashSet() };
+        var d = new SystemDraw(star) { Random = new HyperspaceRandom(9) { Places = new() } };
+        sg.Systems[star] = d;
+        return (sg, d, Systems.Value[star]);
+    }
+
+    [ContentFact]
+    public void AGroupInterceptsTheNearestPlayerInItsView()
+    {
+        var (sg, d, system) = Bare(UrQuanStar);
+        var g = Group(sg, d, "URQUAN_SHIP", 1, 0, -6000, dest: IpGroup.InterceptPlayer);
+        var far = new SystemFlyer("far", FlightAt(system, 6000, -6000));
+        var near = new SystemFlyer("near", FlightAt(system, -5000, -6000));
+        for (int i = 0; i < 3; ++i)
+        {
+            far.Flight.Step(ShipInput.None);
+            near.Flight.Step(ShipInput.None);
+            sg.Frame(d, system, new[] { far, near }, TestContent.Shapes!);
+        }
+        Assert.True(g.Element!.Velocity.Current().dx < 0, "flies at the nearer, to the west");
+        // The nearer one in an inner system: the one in its view.
+        var inside = new SystemFlyer("near", FlightAt(system, -4000, -4000, inner: 0));
+        for (int i = 0; i < 8; ++i)
+        {
+            far.Flight.Step(ShipInput.None);
+            inside.Flight.Step(ShipInput.None);
+            sg.Frame(d, system, new[] { far, inside }, TestContent.Shapes!);
+        }
+        Assert.True(g.Element!.Velocity.Current().dx > 0, "flies at the one in its view, to the east");
+    }
+
+    [ContentFact]
+    public void MeetingAGroupStandsItsRaceDownForEveryPlayerWhoCanStillFlyIntoOne()
+    {
+        var (sg, d, system) = Bare(UrQuanStar);
+        var met = Group(sg, d, "URQUAN_SHIP", 1, 6000, 0, task: IpGroup.OnStation);
+        var other = Group(sg, d, "URQUAN_SHIP", 2, -6000, 0, task: IpGroup.OnStation);
+        var a = new SystemFlyer("a", FlightAt(system, 6000, 0));
+        var b = new SystemFlyer("b", FlightAt(system, -6000 + 600, 0));
+        a.Flight.Step(ShipInput.None);
+        b.Flight.Step(ShipInput.None);
+        sg.Frame(d, system, new[] { a, b }, TestContent.Shapes!);
+        // A touched the first: they meet, it re-forms, and the race stands down for everyone.
+        Assert.Same(met, a.Met);
+        Assert.Null(b.Met);
+        Assert.Equal(100, met.GroupCounter);
+        Assert.True((met.Task & IpGroup.ReformGroup) != 0);
+        Assert.True((other.Task & IpGroup.IgnoreFlagship) != 0);
+        // The other, near B, doesn't detect B now; but B flying into it
+        // meets it (here, as it goes by, or put on it).
+        bool intoIt = false;
+        for (int i = 0; i < 20 && !intoIt; ++i)
+        {
+            b.Flight.Step(ShipInput.None);
+            sg.Frame(d, system, new[] { b }, TestContent.Shapes!);
+            Assert.NotEqual(IpGroup.InterceptPlayer, other.DestLoc);
+            intoIt = b.Met == other;
+        }
+        if (!intoIt)
+        {
+            var into = new SystemFlyer("b", FlightAt(system, other.LocX, other.LocY));
+            into.Flight.Step(ShipInput.None);
+            sg.Frame(d, system, new[] { into }, TestContent.Shapes!);
+            intoIt = into.Met == other;
+        }
+        Assert.True(intoIt);
+    }
+
+    [ContentFact]
+    public void ABattlesRaceTurnsOnThePlayersAsTheSystemComesBack()
+    {
+        var (sg, d, system) = Bare(UrQuanStar);
+        var g = Group(sg, d, "URQUAN_SHIP", 1, 5000, 5000, task: IpGroup.InOrbit | IpGroup.IgnoreFlagship, dest: 2);
+        var spathi = Group(sg, d, "SPATHI_SHIP", 2, -5000, 5000, task: IpGroup.InOrbit | IpGroup.IgnoreFlagship, dest: 2);
+        d.EncounterRace = g.Race;
+        var a = new SystemFlyer("a", FlightAt(system, -9000, -9000));
+        a.Flight.Reenter();   // back from the battle: its element appears, DoMissions
+        a.Flight.Step(ShipInput.None);
+        sg.Frame(d, system, new[] { a }, TestContent.Shapes!);
+        Assert.Equal((IpGroup.InterceptPlayer, 0), (g.DestLoc, g.Task & IpGroup.IgnoreFlagship));
+        Assert.Equal(2, spathi.DestLoc);
+        Assert.Equal(-1, d.EncounterRace);
+    }
+
+    [ContentFact]
+    public void TheGroupsWaitWithoutElementsWhileNobodyFliesAndOnePlayerComingBackLeavesTheOthers()
+    {
+        var world = CoopWorld("g");
+        world.PutInSystem("h", UrQuanStar);
+        world.PutInSystem("g", UrQuanStar);
+        Run(world, 3);
+        var d = DrawOf(world, UrQuanStar);
+        var elements = d.Elements!;
+        var first = d.Groups.First(g => g.Element is not null).Element;
+        // The host into orbit: the guest flies on, the elements as they were.
+        int planet = 0;
+        world.PutInOrbit("h", UrQuanStar, planet);
+        Run(world, 2);
+        Assert.Same(elements, d.Elements);
+        Assert.Same(first, d.Groups.First(g => g.Element is not null).Element);
+        // The guest away too: nobody flies, no elements, nobody moves.
+        world.PutInHyperspace("g");
+        Run(world);
+        Assert.Null(d.Elements);
+        var at = d.Groups.Select(g => (g.LocX, g.LocY)).ToList();
+        Run(world, 10);
+        Assert.Equal(at, d.Groups.Select(g => (g.LocX, g.LocY)));
+    }
+
+    [ContentFact]
+    public void AMeetingInASystemIsNotedAndTheShipFliesOnUntouchable()
+    {
+        var world = CoopWorld();
+        world.PutInSystem("h", UrQuanStar);
+        Run(world);
+        var d = DrawOf(world, UrQuanStar);
+        var target = d.Groups.First(g => g.SysLoc == 0);
+        var system = Systems.Value[UrQuanStar];
+        world.Host.Ship.Ip = FlightAt(system, target.LocX, target.LocY);
+        Run(world, 2);
+        var meeting = Assert.Single(world.SystemMeetings);
+        Assert.Equal(("h", UrQuanStar), (meeting.Player, meeting.Star));
+        Assert.Equal(d.Groups.Single(g => g.GroupId == meeting.Group).Race, meeting.Race);
+        Assert.True((d.Groups.Single(g => g.GroupId == meeting.Group).Task & IpGroup.ReformGroup) != 0);
+        Assert.InRange(world.Host.Ship.Ip!.EscapeCounter, IpFlight.EscapeFrames - 2, IpFlight.EscapeFrames);
+    }
+
+    [ContentFact]
+    public void TheGroupsAreSavedWithTheirSystems()
+    {
+        var systems = Systems.Value;
+        var world = CoopWorld("g");
+        world.PutInSystem("h", UrQuanStar);
+        world.PutInSystem("g", SolStar);
+        Run(world, 5);
+        world.PutInHyperspace("g");
+        Run(world);
+        var d = DrawOf(world, UrQuanStar);
+        d.EncounterRace = 18;
+        string json = HostSave.ToJson(world);
+        var loaded = HostSave.FromJson(json, systems, TestContent.Shapes);
+        loaded.EncounterRaces = world.EncounterRaces;
+        loaded.Join("h", "Host");   // loaded, everyone's away
+        var sg = loaded.SystemGroups!;
+        var l = sg.Systems[UrQuanStar];
+        Assert.Equal(d.Groups.Select(g => (g.GroupId, g.Race, g.GroupCounter, g.SysLoc, g.Task, g.DestLoc, g.OrbitPos, g.InSystem, g.LocX, g.LocY)),
+            l.Groups.Select(g => (g.GroupId, g.Race, g.GroupCounter, g.SysLoc, g.Task, g.DestLoc, g.OrbitPos, g.InSystem, g.LocX, g.LocY)));
+        Assert.Equal(d.RandomGroups!.Select(g => (g.Id, g.Race, string.Join(",", g.Ships), string.Join(",", g.Captains))),
+            l.RandomGroups!.Select(g => (g.Id, g.Race, string.Join(",", g.Ships), string.Join(",", g.Captains))));
+        Assert.Equal((d.Expires, d.Defined, 18), (l.Expires, l.Defined, l.EncounterRace));
+        Assert.Equal(new[] { "h" }, l.Present);
+        var sol = sg.Systems[SolStar];
+        Assert.Empty(sol.Present);
+        Assert.Equal(new[] { "g" }, sol.Visitors);
+        Assert.Single(sg.Defined["SOL_DEFINED"]);
+        // The host flies on among the same groups: no new draw or tasks.
+        loaded.TraceSystemRandom = true;
+        Run(loaded);
+        Assert.DoesNotContain(l.Random?.Places ?? new(), p => p is "BuildGroups" or "GetGroupInfo");
+        Assert.NotNull(l.Elements);
+
+        // None: left out.
+        var none = CoopWorld();
+        Assert.Null(System.Text.Json.Nodes.JsonNode.Parse(HostSave.ToJson(none))!["system_groups"]);
+        // An older save with them, or a bad one, is refused.
+        void Refused(Action<System.Text.Json.Nodes.JsonNode> change, string why)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(json)!;
+            change(node);
+            Assert.Contains(why, Assert.Throws<InvalidDataException>(
+                () => HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes)).Message);
+        }
+        System.Text.Json.Nodes.JsonNode Ur(System.Text.Json.Nodes.JsonNode n) =>
+            n["system_groups"]!["systems"]!.AsArray().First(s => s!["star"]!.GetValue<int>() == UrQuanStar)!;
+        Refused(n =>
+        {
+            n["version"] = 12;
+            n["story"]!.AsObject().Remove("fleets");
+            n["story"]!.AsObject().Remove("set_aside");
+        }, "system groups");
+        Refused(n => Ur(n)["star"] = 9999, "star 9999");
+        Refused(n => Ur(n)["groups"]![0]!["race"] = "NOBODY_SHIP", "race NOBODY_SHIP");
+        Refused(n => Ur(n)["groups"]![0]!["task"] = 16, "task 16");
+        Refused(n => Ur(n)["groups"]![0]!["sys_loc"] = 40, "place 40");
+        Refused(n => Ur(n)["visitors"]!.AsArray().Add("nobody"), "visitor");
+        Refused(n => Ur(n)["expires"] = new System.Text.Json.Nodes.JsonArray(2155, 2, 30), "date");
+        Refused(n => Ur(n)["defined"] = "SOL_DEFINED", "own groups");
+        Refused(n => Ur(n)["random"]![0]!["ships"]!.AsArray().Add(1), "bad group");
+        Refused(n => n["system_groups"]!["defined"]![0]!["special"] = "VUX_DEFINED", "VUX_DEFINED");
+    }
+
+    [ContentFact]
+    public void TheOtherSpecialSystemsKeepTheirOwnGroupsOrNoneAsUqms()
+    {
+        int Star(string special) => Systems.Value.Map.Stars.First(s => s.Special == special).Number;
+        SystemDraw Enter(GameWorld w, string special)
+        {
+            w.PutInSystem("h", Star(special));
+            Run(w);
+            var d = DrawOf(w, Star(special));
+            w.PutInHyperspace("h");
+            Run(w);
+            return d;
+        }
+        var world = CoopWorld();
+        var rules = world.Story!.Rules;
+        // The Melnorme's trader at each of their stars: no random draw.
+        var mel = Enter(world, "MELNORME3_DEFINED");
+        Assert.Equal(rules.RaceIndex("MELNORME_SHIP"), world.SystemGroups!.Defined["MELNORME3_DEFINED"].Single().Race);
+        Assert.Null(mel.RandomGroups is { Count: > 0 } ? mel.RandomGroups : null);
+        // Tanaka: one ship of one crew, his name, while he's neither recruited nor lost.
+        Enter(world, "SHOFIXTI_DEFINED");
+        var tanaka = world.SystemGroups.Defined["SHOFIXTI_DEFINED"].Single();
+        Assert.Equal((rules.RaceIndex("SHOFIXTI_SHIP"), 1, 5 + 16), (tanaka.Race, tanaka.Ships.Single(), tanaka.Captains.Single()));
+        // The Zoq-Fot-Pik scout until they're met.
+        Enter(world, "ZOQ_SCOUT_DEFINED");
+        Assert.Equal(rules.RaceIndex("ZOQFOTPIK_SHIP"), world.SystemGroups.Defined["ZOQ_SCOUT_DEFINED"].Single().Race);
+        var met = CoopWorld();
+        met.Story!.Set("MET_ZOQFOT", 1);
+        met.Story.Set("SHOFIXTI_RECRUITED", 1);
+        Enter(met, "ZOQ_SCOUT_DEFINED");
+        Enter(met, "SHOFIXTI_DEFINED");
+        Assert.False(met.SystemGroups!.Defined.ContainsKey("ZOQ_SCOUT_DEFINED"));
+        Assert.False(met.SystemGroups.Defined.ContainsKey("SHOFIXTI_DEFINED"));
+        // No groups and no draw at the bomb's system before the bomb's taken,
+        // at the Zoq-Fot-Pik's world in their distress, or at the Sa-Matra's.
+        world.Story.Set("ZOQFOT_DISTRESS", 1);
+        foreach (var special in new[] { "BOMB_DEFINED", "ZOQFOT_DEFINED", "SAMATRA_DEFINED" })
+        {
+            world.PutInSystem("h", Star(special));
+            Run(world);
+            Assert.True(DrawOf(world, Star(special)).Random!.Places!.Count == 0, special);
+            Assert.Empty(DrawOf(world, Star(special)).Groups);
+            world.PutInHyperspace("h");
+            Run(world);
+        }
+        // The bomb taken, its system is drawn as any.
+        world.Story.Set("UTWIG_BOMB", 1);
+        world.PutInSystem("h", Star("BOMB_DEFINED"));
+        Run(world);
+        Assert.Contains("BuildGroups", Drawn(world, Star("BOMB_DEFINED")));
+    }
+
+    [ContentFact]
+    public void TheUtwigAndSupoxAwayOnTheirMissionAreNotAlwaysHome()
+    {
+        // A race is always at its homeworld, five groups or more, wherever
+        // its sphere is (here moved far off); the Supox not while they're
+        // away with the Utwig (UTWIG_SUPOX_MISSION 2 to 4).
+        int supox = Systems.Value.Map.Stars.First(s => s.Special == "SUPOX_DEFINED").Number;
+        GameWorld At(int mission)
+        {
+            var w = CoopWorld();
+            var story = w.Story!;
+            story.SetFleet("SUPOX_SHIP", story.Fleet("SUPOX_SHIP") with { LocX = 100, LocY = 100 });
+            story.Set("UTWIG_SUPOX_MISSION", mission);
+            w.PutInSystem("h", supox);
+            Run(w);
+            return w;
+        }
+        var home = At(1);
+        var d = DrawOf(home, supox);
+        Assert.True(d.RandomGroups!.Count >= 5);
+        Assert.All(d.RandomGroups, g => Assert.Equal(home.Story!.Rules.RaceIndex("SUPOX_SHIP"), g.Race));
+        Assert.Empty(DrawOf(At(3), supox).RandomGroups!);
+        Assert.True(DrawOf(At(5), supox).RandomGroups!.Count >= 5);
+    }
 }

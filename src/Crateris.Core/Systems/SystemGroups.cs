@@ -50,8 +50,8 @@ public sealed class SystemDraw
     /// <summary>The random draw's groups, or null if none is kept.</summary>
     public List<GroupShips>? RandomGroups { get; internal set; }
 
-    /// <summary>The last day the random draw is good for once nobody's in the system (PutGroupInfo: a week on).</summary>
-    public GameDate Expires { get; internal set; }
+    /// <summary>The last day the random draw is good for once nobody's in the system (PutGroupInfo: a week on), or null before one's been set.</summary>
+    public GameDate? Expires { get; internal set; }
 
     public HashSet<string> Visitors { get; } = new();
     public HashSet<string> Present { get; } = new();
@@ -380,7 +380,7 @@ public sealed class SystemGroups
     private bool ReadRandom(SystemDraw d, SolarSystem system, int zoom, GameDate today)
     {
         d.Groups = new();
-        if (d.RandomGroups is null || d.Expires.CompareTo(today) < 0)
+        if (d.RandomGroups is null || d.Expires is not { } expires || expires.CompareTo(today) < 0)
         {
             d.RandomGroups = null;
             return false;

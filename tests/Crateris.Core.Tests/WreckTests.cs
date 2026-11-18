@@ -1095,10 +1095,11 @@ public class WreckTests
             host.Step(ShipInput.None);
         }
         var g2 = world.Find("g2")!.Ship;
-        for (int i = 0; i < 12; ++i)
+        // (Back just out of the wreck's reach, flying off it is flying into it.)
+        for (int i = 0; i < 12 && !log.Contains("g2 is at g1's wreck"); ++i)
             Fly(ShipInput.Thrust);
         int back = (g2.Ip!.Facing + 8) % 16;
-        for (int i = 0; i < 300 && g2.Ip!.Facing != back; ++i)
+        for (int i = 0; i < 300 && g2.Ip!.Facing != back && !log.Contains("g2 is at g1's wreck"); ++i)
             Fly(ShipInput.Left);
         for (int i = 0; i < 400 && !log.Contains("g2 is at g1's wreck"); ++i)
             Fly(ShipInput.Thrust);

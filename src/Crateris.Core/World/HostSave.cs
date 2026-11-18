@@ -151,7 +151,7 @@ public static class HostSave
     public sealed record GroupShipsState(int Id, string Race, List<int> Ships, List<int>? Captains = null);
 
     public sealed record SystemDrawState(
-        int Star, string? Defined, List<GroupShipsState>? Random, int[] Expires, List<string> Visitors,
+        int Star, string? Defined, List<GroupShipsState>? Random, int[]? Expires, List<string> Visitors,
         List<IpGroupState> Groups, int EncounterRace = -1);
 
     public sealed record IpGroupState(
@@ -561,7 +561,7 @@ public static class HostSave
                 .Select(d => new DefinedState(d.Key, d.Value.Select(Ships).ToList())).ToList(),
             sg.Systems.Values.OrderBy(d => d.Star).Select(d => new SystemDrawState(
                 d.Star, d.Defined, d.RandomGroups?.Select(Ships).ToList(),
-                new[] { d.Expires.Year, d.Expires.Month, d.Expires.Day },
+                d.Expires is { } e ? new[] { e.Year, e.Month, e.Day } : null,
                 d.Visitors.OrderBy(v => v, StringComparer.Ordinal).ToList(),
                 d.Groups.Select(g => new IpGroupState(g.GroupId, races[g.Race], g.GroupCounter, g.SysLoc, g.Task,
                     g.DestLoc, g.OrbitPos, g.InSystem, g.LocX, g.LocY)).ToList(),
@@ -612,7 +612,7 @@ public static class HostSave
             var system = world.Systems[s.Star];
             if (s.Defined is not null && (s.Defined != system.Star.Special || !sg.Defined.ContainsKey(s.Defined)))
                 throw new InvalidDataException($"Bad system groups in save: star {s.Star}'s own groups aren't {s.Defined}'s.");
-            if (s.Expires is not { Length: 3 } e || e[1] is < 1 or > 12 || e[2] < 1 || e[2] > GameClock.DaysInMonth(e[1], e[0]))
+            if (s.Expires is { } e && (e.Length != 3 || e[1] is < 1 or > 12 || e[2] < 1 || e[2] > GameClock.DaysInMonth(e[1], e[0])))
                 throw new InvalidDataException($"Bad system groups in save: star {s.Star}'s date isn't a date.");
             if (s.Visitors is null || s.Visitors.Any(v => v is null || world.Find(v) is null) || s.Visitors.Distinct().Count() != s.Visitors.Count)
                 throw new InvalidDataException($"Bad system groups in save: star {s.Star} has a visitor who isn't a player.");
@@ -622,7 +622,7 @@ public static class HostSave
             {
                 Defined = s.Defined,
                 RandomGroups = s.Random is null ? null : Groups(s.Random, $"star {s.Star}"),
-                Expires = new GameDate(e[0], e[1], e[2]),
+                Expires = s.Expires is { } x ? new GameDate(x[0], x[1], x[2]) : null,
                 EncounterRace = s.EncounterRace,
             };
             foreach (var v in s.Visitors)

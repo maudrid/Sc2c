@@ -125,7 +125,12 @@ public sealed partial class GameWorld
                                              && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem)
                 .Select(p => (Player: p, Star: p.Ship.SystemStar!.Value, Flight: p.Ship.Ip!)).ToList();
             if (flying.Count == 0)
+            {
+                // Nobody flies in any system: the groups keep no elements.
+                foreach (var d in sg?.Systems.Values ?? Enumerable.Empty<SystemDraw>())
+                    d.Elements = null;
                 break;
+            }
             foreach (var (p, _, _) in flying)
                 StepSystem(p.Ship, _systemInput[p.Id]);
             if (sg is null || Systems is null || Shapes is null)
@@ -170,6 +175,32 @@ public sealed partial class GameWorld
         if (!_players.Any(p => p.Id != f.Id && p.Ship.SystemStar == d.Star && _systemInput.ContainsKey(p.Id)
                                && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem))
             d.Elements = null;
+    }
+
+    /// <summary>
+    /// Puts a player in a system as a ship arriving from hyperspace has
+    /// it, its entry played (for testing and debugging); out of any other
+    /// system first.
+    /// </summary>
+    internal void PutInSystem(string id, int star)
+    {
+        var player = Find(id) ?? throw new ArgumentException($"no player {id}");
+        var ship = player.Ship;
+        EndSpin(player);
+        ship.Entry = null;
+        ship.Ip = null;
+        EnterSystem(ship, Systems!.Map.Stars[star]);
+    }
+
+    /// <summary>Takes a player's ship out of its system into hyperspace, as flying off its edge does (for testing).</summary>
+    internal void PutInHyperspace(string id)
+    {
+        var ship = (Find(id) ?? throw new ArgumentException($"no player {id}")).Ship;
+        if (ship.Ip is not { } ip)
+            return;
+        SystemTransition.Leave(ship.Flight, Systems!.Map.Stars[ship.SystemStar!.Value], ip.Facing);
+        ship.Ip = null;
+        ship.SystemStar = null;
     }
 
     /// <summary>A loaded game: the players in systems were there as it was saved; their systems' groups go on as saved.</summary>
