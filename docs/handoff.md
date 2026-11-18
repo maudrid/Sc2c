@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-18, stage 3b-1 item 3 (encounters in hyperspace) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"); reviewed in four rounds (rounds 1 to 3's findings fixed, round 3's a doc wording; its Progress row); round 4 not yet run. Earlier: items 1 and 2 built, reviewed and reported (2026-11-17).
+**Last updated:** 2026-11-18, stage 3b-1 item 3 (encounters in hyperspace) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"); review rounds 1 to 4's findings fixed (rounds 3 and 4 doc wording and review state; its Progress row); round 5 not yet run. Earlier: items 1 and 2 built, reviewed and reported (2026-11-17).
 
 ## Where things are
 
@@ -38,7 +38,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review round 4 of stage 3b-1 item 3 (the coordinator's), on round 3's doc fix; then report to the owner and wait for the go-ahead for item 4.
+Review round 5 of stage 3b-1 item 3 (the coordinator's), on round 4's doc fix; then report to the owner and wait for the go-ahead for item 4.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
