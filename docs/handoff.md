@@ -37,7 +37,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build stage 3b-1 item 3, encounters in hyperspace (the owner's go-ahead, 2026-11-18, for this item alone); then its review; report and wait. In progress: UQM's recording (`tools/extract/golden/hyperspace.c`, `golden_uqm.py --only hyperspace-encounters`, `tests/golden/hyperspace-encounters.json`) is made; the port and its tests aren't yet.
+Build stage 3b-1 item 3, encounters in hyperspace (the owner's go-ahead, 2026-11-18, for this item alone); then its review; report and wait. In progress: UQM's recording (`tools/extract/golden/hyperspace.c`, `golden_uqm.py --only hyperspace-encounters`, `tests/golden/hyperspace-encounters.json`) is made and the port (`Hyperspace/HyperEncounters.cs`, `World/GameWorld.Encounters.cs`) matches it frame by frame (`HyperEncounterTests`); the hyperspace flight's scroll now aligns to a whole pixel as UQM's does (found by the recording; `hyperspace-flight.json` recorded again); the encounters are in saves and taken back with the opening's two weeks. Left: the co-op tests, mutation checks, the topic map, the docs.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

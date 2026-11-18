@@ -47,19 +47,4 @@ public sealed partial class GameWorld
         Clock.FramesIntoDay = 0;
         return done;
     }
-
-    /// <summary>
-    /// HYPERSPACE_ENCOUNTER_EVENT's check_hyperspace_encounter, called as
-    /// the event runs each day: in UQM, the draw for the flagship if it's
-    /// in hyperspace; here, for each player in hyperspace (stage 3b,
-    /// decision 3). Item 3 draws them; until then nothing is drawn, as no
-    /// race has a fleet yet (item 2).
-    /// </summary>
-    private void HyperspaceEncounterRolls()
-    {
-        ++HyperspaceEncounterDays;
-    }
-
-    /// <summary>How many times the clock's encounter event has asked for the day's draws (tests; item 3 draws then).</summary>
-    internal int HyperspaceEncounterDays { get; private set; }
 }

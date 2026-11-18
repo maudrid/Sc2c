@@ -288,6 +288,7 @@ public class ClockEventsTests
         var node = JsonNode.Parse(json)!;
         node["version"] = 12;
         node["story"]!.AsObject().Remove("fleets");   // saves before 13 have no races' fleets
+        node.AsObject().Remove("encounters");   // nor hyperspace encounters (the days' rolls')
         Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes));
         node["story"]!.AsObject().Remove("set_aside");
         Assert.Empty(HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes).Story!.Events.SetAside);

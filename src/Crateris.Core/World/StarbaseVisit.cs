@@ -78,8 +78,8 @@ public enum VisitStep
 /// the Lunar base meanwhile), the spheres they started tracking (the
 /// Ilwrath's), the starter's ship, what the talks changed on any other
 /// answerer's ship and the two weeks (with what their days' events did:
-/// the clock's events, the fields they set and the races' fleets and
-/// standings they changed). A save
+/// the clock's events, the fields they set, the races' fleets and
+/// standings they changed, and the groups they rolled in hyperspace). A save
 /// made during it is of the game without it, as UQM can't save in the
 /// middle of one; and if the starter leaves with no one to take the
 /// replies, or every player leaves the Ilwrath's fight with the Ilwrath
@@ -121,6 +121,13 @@ public sealed class StarbaseVisit
     // story: the clock waits).
     private (Dictionary<string, int> Fields, List<StoryEvent> Events, List<StoryEvent> SetAside,
         Dictionary<string, RaceFleet> Fleets, Dictionary<string, Allied> Alliances)? _daysBefore;
+
+    // The hyperspace encounters and each player's random numbers as the two
+    // weeks began (stage 3b item 3): the days roll for the players in
+    // hyperspace meanwhile, and what they rolled is taken back with them.
+    // Nothing else changes them while the opening goes on after them (the
+    // story pause holds the world's frames).
+    private (List<Hyperspace.HyperEncounter> List, Dictionary<string, Hyperspace.HyperspaceRandom> Random)? _encountersBefore;
 
     // The races whose spheres the opening's talks started tracking
     // (InitCommunication's StartSphereTracking: the Ilwrath's), with their
@@ -290,6 +297,7 @@ public sealed class StarbaseVisit
         // back with the two weeks (TakeBackDays).
         var story = _world.Story!;
         var before = story.Save();
+        _encountersBefore = _world.EncountersState();
         _world.MoveClockDays(LostDays);
         var after = story.Save();
         _daysBefore = (story.Rules.Table.Fields.Select(f => f.Name)
@@ -543,6 +551,14 @@ public sealed class StarbaseVisit
             });
     }
 
+    /// <summary>
+    /// The hyperspace encounters without the visit: as the two weeks began,
+    /// if they've passed (what their days rolled taken back); null if
+    /// they haven't (the encounters as they are).
+    /// </summary>
+    internal IReadOnlyList<Hyperspace.HyperEncounter>? EncountersWithout() =>
+        _skipped && _encountersBefore is { } e ? e.List : null;
+
     /// <summary>The date without the visit: the two weeks, if they've passed, taken back.</summary>
     public (int Year, int Month, int Day) DateWithout()
     {
@@ -598,7 +614,8 @@ public sealed class StarbaseVisit
     /// the spheres the talks started tracking (<see cref="TakeBackTracking"/>),
     /// and the two weeks put back, with what their days' events did (the
     /// clock's events, the fields they set and the races' fleets and
-    /// standings they changed, <see cref="TakeBackDays"/>).
+    /// standings they changed, <see cref="TakeBackDays"/>, and the groups
+    /// their days rolled in hyperspace, with the numbers drawn).
     /// A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
     /// crew; one that disconnected from it was settled as it left
@@ -633,8 +650,11 @@ public sealed class StarbaseVisit
         _world.CommanderMet = MetBefore;
         var (y, m, d) = DateWithout();
         (_world.Clock.Year, _world.Clock.Month, _world.Clock.Day) = (y, m, d);
+        if (_skipped && _encountersBefore is { } encounters)
+            _world.RestoreEncounters(encounters);
         _skipped = false;
         _daysBefore = null;
+        _encountersBefore = null;
         Undone = true;
         Finish();
     }

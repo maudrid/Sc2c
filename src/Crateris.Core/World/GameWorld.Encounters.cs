@@ -1,0 +1,239 @@
+// Attack on Crateris
+// Copyright (C) 2026 Attack on Crateris contributors.
+// Follows The Ur-Quan Masters 0.8.0 (hyper.c's encounters, starcon.c's
+// on_battle_frame, battle.c's Battle seeding TFB_Random as hyperspace
+// starts, galaxy.c's MoveGalaxy), Copyright Paul Reiche, Fred Ford and
+// Toys for Bob, Inc. 1992-2002.
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+
+using Crateris.Core.Hyperspace;
+using Crateris.Core.Story;
+
+namespace Crateris.Core.World;
+
+/// <summary>
+/// Encounters in hyperspace (docs/plans/stage-3b.md, item 3): the shared
+/// list (<see cref="Encounters"/>), each player's random numbers while
+/// they're in hyperspace (UQM's TFB_Random, seeded as each stay in
+/// hyperspace begins), the daily roll for each player in hyperspace, and
+/// each frame's encounters (after the clock, as starcon.c's
+/// on_battle_frame runs SeedUniverse after GameClockTick).
+/// </summary>
+public sealed partial class GameWorld
+{
+    private HyperEncounters? _encounters;
+    private StoryState? _encountersOf;
+    private readonly Dictionary<string, HyperspaceRandom> _hyperRandom = new();
+    private HashSet<string> _inHyperspaceBefore = new();
+
+    /// <summary>
+    /// The races whose talk is ported, whose groups are kept once made
+    /// (decision 2): none yet (items 6 to 8 add the Ur-Quan, the Kohr-Ah,
+    /// the Ilwrath, the Spathi and the Slylandro). Every other race's
+    /// groups are made as UQM makes them, then dropped. Tests set it.
+    /// </summary>
+    internal IReadOnlySet<string> EncounterRaces { get; set; } = new HashSet<string>();
+
+    /// <summary>
+    /// The hyperspace encounters the players share (UQM's encounter_q), or
+    /// null without a story.
+    /// </summary>
+    public HyperEncounters? Encounters
+    {
+        get
+        {
+            if (Story is null)
+                return null;
+            if (_encountersOf != Story)
+            {
+                _encounters = new HyperEncounters(Story.Rules, Settings.MaxHyperspaceEncounters,
+                    Shapes?.HyperStars.Count ?? HyperEncounters.DefaultFrames);
+                _encountersOf = Story;
+            }
+            return _encounters;
+        }
+    }
+
+    /// <summary>
+    /// The meetings so far: who touched which group, on which frame (item
+    /// 5's encounter screen and talk start from here). Until then a
+    /// meeting ends at once as a talk without a battle does: the group
+    /// re-forms one-shot, and is gone when its element is next made
+    /// (RaceCommunication's status 0, AddEncounterElement).
+    /// </summary>
+    internal List<(long Frame, string Player, int Race)> HyperspaceMeetings { get; } = new();
+
+    /// <summary>
+    /// The seed of a player's random numbers as a stay in hyperspace begins
+    /// (UQM's Battle seeds TFB_Random from the time): from the frame and
+    /// the player's place in the game. Tests set their own.
+    /// </summary>
+    internal Func<string, uint>? HyperspaceSeeds { get; set; }
+
+    /// <summary>Whether each player's random numbers note where each is drawn (tests).</summary>
+    internal bool TraceHyperspaceRandom { get; set; }
+
+    /// <summary>A player's random numbers in hyperspace, made as their stay begins (or as a day's roll first needs them).</summary>
+    internal HyperspaceRandom HyperspaceRandomOf(string id)
+    {
+        if (!_hyperRandom.TryGetValue(id, out var random))
+        {
+            int index = _players.FindIndex(p => p.Id == id);
+            uint seed = HyperspaceSeeds?.Invoke(id) ?? unchecked((uint)Frame * 2654435761u + (uint)index * 40503u + 0x48595045u);
+            random = new HyperspaceRandom(seed);
+            if (TraceHyperspaceRandom)
+                random.Places = new List<string>();
+            _hyperRandom[id] = random;
+        }
+        return random;
+    }
+
+    /// <summary>
+    /// Whether a player is in hyperspace for the encounters: present,
+    /// flying there (not in a battle, talk, system or at the starbase), and
+    /// not a wreck. Only they roll, are flown at, and keep groups.
+    /// </summary>
+    internal static bool InHyperspace(Player p) => p.Present && p.Ship.Activity == Activity.Hyperspace && !p.Ship.Destroyed;
+
+    private List<HyperspacePlayer> HyperspacePlayers() =>
+        _players.Where(InHyperspace)
+            .Select(p => new HyperspacePlayer(p.Id, p.Ship.Flight.UniverseX, p.Ship.Flight.UniverseY)).ToList();
+
+    /// <summary>
+    /// HYPERSPACE_ENCOUNTER_EVENT's check_hyperspace_encounter, called as
+    /// the event runs each day: in UQM, the roll for the flagship if it's
+    /// in hyperspace; here, for each player in hyperspace, in the game's
+    /// order, each with their own numbers (stage 3b, decision 3). During
+    /// the starbase's two weeks too, for the players in hyperspace
+    /// meanwhile (StarbaseVisit takes them back with the two weeks).
+    /// </summary>
+    private void HyperspaceEncounterRolls()
+    {
+        ++HyperspaceEncounterDays;
+        if (Encounters is not { } encounters)
+            return;
+        foreach (var p in _players.Where(InHyperspace))
+        {
+            var f = p.Ship.Flight;
+            encounters.Roll(Story!, p.Id, f.UniverseX, f.UniverseY, f.Fuel, HyperspaceRandomOf(p.Id));
+        }
+    }
+
+    /// <summary>How many times the clock's encounter event has asked for the day's rolls (tests).</summary>
+    internal int HyperspaceEncounterDays { get; private set; }
+
+    /// <summary>
+    /// The end of a world frame: the encounters' elements' part of the
+    /// frame just flown (their vortices, RedrawQueue's), then the clock
+    /// (a new day rolls for each player in hyperspace), then the encounters
+    /// fly (SeedUniverse's ProcessEncounters) and each player in hyperspace
+    /// draws for an ambient star, as UQM's next frame begins. A player
+    /// coming into hyperspace gets new numbers; one leaving it keeps the
+    /// groups in their span (<see cref="HyperEncounter.KeptFor"/>).
+    /// </summary>
+    internal void EndOfFrame()
+    {
+        var encounters = Encounters;
+        if (encounters is not null)
+            SyncHyperspacePlayers(encounters);
+        encounters?.ElementsFrame();
+        foreach (var p in _players.Where(InHyperspace))
+        {
+            // The first frame's view set up (MoveGalaxy's VIEW_CHANGE): a
+            // number for each of the background's 90 near stars.
+            if (_hyperRandom.TryGetValue(p.Id, out var r) && r.Frames == 1)
+            {
+                for (int i = 0; i < 90; ++i)
+                    r.Next("MoveGalaxy");
+            }
+        }
+        // GameClockTick: a new day runs its events (processClockDayEvents).
+        if (Clock.Tick(Settings.SecondsPerGameDay))
+            RunDayEvents();
+        if (encounters is null)
+            return;
+        var players = HyperspacePlayers();
+        encounters.Process(players, RollerAt, HyperspaceRandomOf, EncounterRaces);
+        foreach (var p in players)
+        {
+            // SeedUniverse's ambient star: one in eight frames.
+            var r = HyperspaceRandomOf(p.Id);
+            if (((ushort)r.Next("SeedUniverse") & 7) == 0)
+                r.Next("AddAmbientElement");
+            r.Frames++;
+        }
+    }
+
+    // Where a group a player's roll made comes in: round them (their
+    // hyperspace place, kept while they're out of it).
+    private (short X, short Y) RollerAt(string id) =>
+        Find(id) is { } p ? (p.Ship.Flight.UniverseX, p.Ship.Flight.UniverseY) : ((short)0, (short)0);
+
+    // Players coming into hyperspace get their numbers (Battle's seed) and
+    // are no longer kept for; those leaving it (into a system, a battle, a
+    // talk, a wreck, or away) keep the groups in their span, from where
+    // they left, and their numbers go.
+    private void SyncHyperspacePlayers(HyperEncounters encounters)
+    {
+        var now = _players.Where(InHyperspace).Select(p => p.Id).ToHashSet();
+        foreach (var id in _inHyperspaceBefore.Where(id => !now.Contains(id)))
+        {
+            _hyperRandom.Remove(id);
+            if (Find(id) is not { } p)
+                continue;
+            var at = (p.Ship.Flight.UniverseX, p.Ship.Flight.UniverseY);
+            foreach (var e in encounters.List.Where(e => HyperEncounters.InSpan(e, at.UniverseX, at.UniverseY)))
+                e.KeptFor[id] = at;
+        }
+        foreach (var id in now)
+        {
+            HyperspaceRandomOf(id);
+            foreach (var e in encounters.List)
+                e.KeptFor.Remove(id);
+        }
+        _inHyperspaceBefore = now;
+    }
+
+    /// <summary>
+    /// After a player's hyperspace flight: the group their ship touches, if
+    /// any, meets them (decision 5; encounter_collision). Item 5 runs the
+    /// meeting; until then it ends at once without a battle.
+    /// </summary>
+    private void TouchEncounters(Player player, (long X, long Y) before)
+    {
+        if (Encounters is not { } encounters || Shapes is null)
+            return;
+        if (encounters.Touch(player.Ship.Flight, Shapes, before) is not { } met)
+            return;
+        met.Element!.Met = player.Id;
+        HyperspaceMeetings.Add((Frame, player.Id, met.Race));
+        // RaceCommunication with no battle: the group re-forms, one-shot,
+        // and the player is back in hyperspace (new numbers, as Battle seeds
+        // them again), the group gone as its element is made again.
+        met.Flags |= HyperEncounter.Reforming | HyperEncounter.OneShot;
+        met.Element = null;
+        _hyperRandom.Remove(player.Id);
+    }
+
+    /// <summary>The encounters and each player's numbers as they are, for taking back (the starbase's two weeks).</summary>
+    internal (List<HyperEncounter> List, Dictionary<string, HyperspaceRandom> Random)? EncountersState() =>
+        Encounters is { } e ? (e.Copy(), _hyperRandom.ToDictionary(r => r.Key, r => r.Value.Clone())) : null;
+
+    /// <summary>Puts back what <see cref="EncountersState"/> took.</summary>
+    internal void RestoreEncounters((List<HyperEncounter> List, Dictionary<string, HyperspaceRandom> Random) state)
+    {
+        Encounters!.Restore(state.List);
+        _hyperRandom.Clear();
+        foreach (var (id, r) in state.Random)
+            _hyperRandom[id] = r.Clone();
+    }
+
+    /// <summary>A loaded game: the players whose ships were in hyperspace left it as it was saved (they're away), keeping the groups round them.</summary>
+    internal void LoadedInHyperspace() =>
+        _inHyperspaceBefore = _players.Where(p => p.Ship.Activity == Activity.Hyperspace && !p.Ship.Destroyed)
+            .Select(p => p.Id).ToHashSet();
+}

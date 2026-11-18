@@ -246,6 +246,7 @@ public sealed partial class GameWorld
             throw new ArgumentOutOfRangeException(nameof(settings), e.Message);
         }
         settings.CheckBattle();
+        settings.CheckEncounters();
         (settings.EscortCaps ?? throw new ArgumentNullException(nameof(settings), "no escort caps")).Check();
         Settings = settings;
         Clock = clock;
@@ -537,9 +538,8 @@ public sealed partial class GameWorld
         if (GameOver)
             return;   // the world stops at once (decision 12): no surface's frame, no clock
         StepSurfaces();
-        // GameClockTick: a new day runs its events (processClockDayEvents).
-        if (Clock.Tick(Settings.SecondsPerGameDay))
-            RunDayEvents();
+        // The clock, and hyperspace's encounters (GameWorld.Encounters.cs).
+        EndOfFrame();
     }
 
     // The keys on the surface: turn, thrust, fire, take off.
@@ -612,7 +612,12 @@ public sealed partial class GameWorld
             EnterSystem(ship, star);
             ship.Entry = entry;
             HoldInput(ship, Frame + entry.Steps + Settings.InputDelayFrames);
+            return;
         }
+        // Not into a star: the group it touches, if any (a star touched in
+        // the same frame comes first).
+        if (_players.FirstOrDefault(p => p.Ship == ship) is { } player && InHyperspace(player))
+            TouchEncounters(player, before);
     }
 
     /// <summary>

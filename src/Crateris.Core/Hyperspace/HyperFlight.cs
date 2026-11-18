@@ -157,10 +157,12 @@ public sealed class HyperFlight
         ViewX += dx;
         ViewY += dy;
 
-        // CalcView (process.c): scroll the view back to the ship, at most
-        // ORG_JUMP per frame, moving the hyperspace position with it.
-        int vdx = Units.WrapDeltaX((short)(CenterX - ViewX));
-        int vdy = Units.WrapDeltaY((short)(CenterY - ViewY));
+        // CalcView (process.c): scroll the view back to the ship (its place
+        // aligned to a whole pixel, DISPLAY_ALIGN, as PreProcessQueue takes
+        // it), at most ORG_JUMP per frame, moving the hyperspace position
+        // with it.
+        int vdx = Units.WrapDeltaX((short)(CenterX - DisplayAlign(ViewX)));
+        int vdy = Units.WrapDeltaY((short)(CenterY - DisplayAlign(ViewY)));
         short sdx = (short)Math.Clamp(vdx, -Units.OrgJumpX, Units.OrgJumpX);
         short sdy = (short)Math.Clamp(vdy, -Units.OrgJumpY, Units.OrgJumpY);
         if (sdx != 0 || sdy != 0)
@@ -305,6 +307,9 @@ public sealed class HyperFlight
         }
         return 0;
     }
+
+    // DISPLAY_ALIGN (units.h): down to a whole pixel (SCALED_ONE logical units).
+    private static short DisplayAlign(short x) => (short)(x & ~((1 << Units.OneShift) - 1));
 
     private static uint VelocitySquared(short dx, short dy) => (uint)((long)dx * dx + (long)dy * dy);
 

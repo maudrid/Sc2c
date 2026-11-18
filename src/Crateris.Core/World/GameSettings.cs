@@ -101,6 +101,24 @@ public sealed record GameSettings
                 $"a battle marker's reach of {BattleMarkerReach} pixels isn't from 1 to {MostBattleMarkerReach}");
     }
 
+    /// <summary>
+    /// The most groups of alien ships in hyperspace at once, for the whole
+    /// game (stage 3b, decision 3): UQM's MAX_ENCOUNTERS, 16. A day's roll
+    /// that hits with the list full adds none.
+    /// </summary>
+    public int MaxHyperspaceEncounters { get; init; } = 16;
+
+    /// <summary>The most <see cref="MaxHyperspaceEncounters"/> may be.</summary>
+    public const int MostHyperspaceEncounters = 64;
+
+    /// <summary>Refuses an encounters' cap out of range: from 1 to <see cref="MostHyperspaceEncounters"/>.</summary>
+    public void CheckEncounters()
+    {
+        if (MaxHyperspaceEncounters is < 1 or > MostHyperspaceEncounters)
+            throw new ArgumentOutOfRangeException(nameof(MaxHyperspaceEncounters),
+                $"a cap of {MaxHyperspaceEncounters} hyperspace encounters isn't from 1 to {MostHyperspaceEncounters}");
+    }
+
     /// <summary>The most <see cref="BattleMarkerReach"/> may be.</summary>
     public const int MostBattleMarkerReach = 64;
 }

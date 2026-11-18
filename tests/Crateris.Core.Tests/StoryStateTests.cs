@@ -357,6 +357,7 @@ public class StoryStateTests
         foreach (var slots in node["players"]!.AsArray())
             slots!.AsObject().Remove("modules");   // saves before 9 have no slots
         node.AsObject().Remove("story");
+        node.AsObject().Remove("encounters");   // the days' rolls' groups: saves before 13 have none
         node["clock"]!["year"] = 2157;
         node["clock"]!["month"] = 2;
         var old = HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes);

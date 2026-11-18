@@ -13,8 +13,9 @@
  * and globdata.c. This file includes hyper.c so it can reset MoveSIS's
  * fuel counters the way LoadHyperspace does. Only drawing and status
  * calls are stubbed. The frame loop mirrors process.c: preprocess
- * (input, turning, thrust), move by velocity, then CalcView's scroll,
- * which calls MoveSIS and recentres the ship.
+ * (input, turning, thrust), move by velocity, then CalcView's scroll
+ * towards the ship's place aligned to a whole pixel (PreProcessQueue's
+ * Origin, DISPLAY_ALIGN), which calls MoveSIS and recentres the ship.
  *
  * Input on stdin, one scenario per line:
  *   name thrusters jets tanks fuel start_x start_y n  frames flags ...
@@ -150,8 +151,12 @@ run (const char *name, int thrusters, int jets, int tanks, long fuel,
 			el.next.location.x += dx;
 			el.next.location.y += dy;
 
-			vdx = (COORD)(LOG_SPACE_WIDTH >> 1) - el.next.location.x;
-			vdy = (COORD)(LOG_SPACE_HEIGHT >> 1) - el.next.location.y;
+			/* PreProcessQueue's Origin: the ship's place, aligned to
+			 * a whole pixel */
+			vdx = (COORD)(LOG_SPACE_WIDTH >> 1)
+					- DISPLAY_ALIGN (el.next.location.x);
+			vdy = (COORD)(LOG_SPACE_HEIGHT >> 1)
+					- DISPLAY_ALIGN (el.next.location.y);
 			vdx = WRAP_DELTA_X (vdx);
 			vdy = WRAP_DELTA_Y (vdy);
 			if (vdx > ORG_JUMP_X) vdx = ORG_JUMP_X;

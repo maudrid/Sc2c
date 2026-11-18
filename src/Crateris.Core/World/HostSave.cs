@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
 using Crateris.Core.Story;
 using Crateris.Core.Systems;
 
@@ -107,7 +108,14 @@ public static class HostSave
     /// save without them (an older one, or a version 13 from before item
     /// 2) has a new game's, and an older save with them is refused.
     /// During a visit's opening they're saved without what its talks and
-    /// its two weeks did to them.
+    /// its two weeks did to them. Version 13 also has the hyperspace
+    /// encounters (stage 3b item 3: each group's race, flags, ships' crews,
+    /// sphere, place and vortex, whose roll made it and whom it's kept
+    /// for, as UQM saves encounter_q, without its element), an optional
+    /// part as the fleets are: a save without them has none, and an older
+    /// save with them is refused. During a visit's opening they're saved
+    /// without what its two weeks rolled. Loaded, the players who were in
+    /// hyperspace keep the groups in their span until they're back.
     /// </summary>
     public const int Version = 13;
     public const int OldestReadableVersion = 1;
@@ -122,7 +130,21 @@ public static class HostSave
     public sealed record SaveFile(
         int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players,
         List<WorldState>? Worlds = null, StoryState.Saved? Story = null, bool CommanderMet = false,
-        List<FleetShip>? Fleet = null);
+        List<FleetShip>? Fleet = null, List<EncounterState>? Encounters = null);
+
+    /// <summary>
+    /// A hyperspace encounter (UQM's ENCOUNTER, as save.c keeps it): race
+    /// (races.h's number), flags (ONE_SHOT_ENCOUNTER, ENCOUNTER_REFORMING),
+    /// its ships' crews, its sphere's centre and radius, where it is
+    /// (universe and logical units), its vortex's state, whose roll made
+    /// it, and the players out of hyperspace it's kept for, with where
+    /// they left.
+    /// </summary>
+    public sealed record EncounterState(
+        int Race, int Flags, List<int> Ships, int OriginX, int OriginY, int Radius, int LocX, int LocY,
+        int LogX, int LogY, int TransitionState, string Roller, List<KeptState>? KeptFor = null);
+
+    public sealed record KeptState(string Player, int X, int Y);
 
     /// <summary>
     /// One planet or moon with stored state: moon null for the planet itself;
@@ -209,7 +231,12 @@ public static class HostSave
             // scrapped, as leaving the crew editing would scrap it (stage 4b item 7): the save loads out of the shipyard.
             // In a battle, the fleet ships are as they joined it, those destroyed gone (item 8: FleetForSave); during
             // an opening visit, without the ships its talks gave (StarbaseVisit.FleetWithout).
-            (visit?.FleetWithout(world.FleetForSave()) ?? world.FleetForSave()).Where(s => s.Crew > 0).ToList());
+            (visit?.FleetWithout(world.FleetForSave()) ?? world.FleetForSave()).Where(s => s.Crew > 0).ToList(),
+            // During an opening, without what its two weeks rolled; none, left out.
+            (visit?.EncountersWithout() ?? world.Encounters?.List) is { Count: > 0 } list ? list.Select(e => new EncounterState(
+                e.Race, e.Flags, e.Ships.ToList(), e.OriginX, e.OriginY, e.Radius, e.LocX, e.LocY, e.LogX, e.LogY,
+                e.TransitionState, e.Roller, e.KeptFor.Select(k => new KeptState(k.Key, k.Value.X, k.Value.Y)).ToList()))
+                .ToList() : null);
         return JsonSerializer.Serialize(save, Options);
     }
 
@@ -286,6 +313,8 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have events set aside.");
         if (save.Version < 13 && save.Story?.Fleets is not null)
             throw new InvalidDataException($"A version {save.Version} save can't have the races' fleets.");
+        if (save.Version < 13 && save.Encounters is not null)
+            throw new InvalidDataException($"A version {save.Version} save can't have hyperspace encounters.");
         if ((save.Fleet ?? new()).Any(s => s is null || s.Race is null))
             throw new InvalidDataException("The save has a fleet ship that is null or of no race.");
         // A setting a save leaves out is the default, and so is the ship's
@@ -316,6 +345,14 @@ public static class HostSave
         catch (ArgumentOutOfRangeException e)
         {
             throw new InvalidDataException($"Bad settings: battle: {e.Message}", e);
+        }
+        try
+        {
+            settings.CheckEncounters();
+        }
+        catch (ArgumentOutOfRangeException e)
+        {
+            throw new InvalidDataException($"Bad settings: encounters: {e.Message}", e);
         }
         try
         {
@@ -472,10 +509,57 @@ public static class HostSave
                 throw new InvalidDataException($"Bad world in save: {e.Message}", e);
             }
         }
+        if (save.Encounters is { } encounters)
+            RestoreEncounters(world, encounters);
+        world.LoadedInHyperspace();
         world.CommanderMet = save.CommanderMet;
         // The events whose day has passed run now, in date order (an older
         // save's: it ran none); those of 3c are set aside (decision 9).
         world.RunDayEvents();
         return world;
+    }
+    // The hyperspace encounters: each checked as UQM's types hold them,
+    // its roller and those it's kept for players of the game.
+    private static void RestoreEncounters(GameWorld world, List<EncounterState> saved)
+    {
+        if (world.Encounters is not { } encounters)
+            throw new InvalidDataException("The save has hyperspace encounters, but no data was given to load them with.");
+        if (saved.Count > world.Settings.MaxHyperspaceEncounters)
+            throw new InvalidDataException(
+                $"The save has {saved.Count} hyperspace encounters, more than its {world.Settings.MaxHyperspaceEncounters}.");
+        var races = world.Story!.Rules.Races;
+        foreach (var e in saved)
+        {
+            if (e is null)
+                throw new InvalidDataException("The save has a hyperspace encounter that is null.");
+            string? bad =
+                e.Race < 0 || e.Race >= races.Count ? $"race {e.Race} isn't a race"
+                : (e.Flags & ~(HyperEncounter.OneShot | HyperEncounter.Reforming)) != 0 ? $"flags {e.Flags} aren't an encounter's"
+                : e.Ships is null || e.Ships.Count > HyperEncounter.MaxShips ? $"it has more than {HyperEncounter.MaxShips} ships, or none listed"
+                : e.Ships.Any(c => c < 0 || c > ushort.MaxValue) ? "a ship's crew isn't a COUNT"
+                : new[] { e.OriginX, e.OriginY, e.LocX, e.LocY, e.TransitionState }.Any(v => v < short.MinValue || v > short.MaxValue)
+                    ? "a place or its vortex isn't a COORD"
+                : e.Radius < 0 || e.Radius > ushort.MaxValue ? $"radius {e.Radius} isn't a COUNT"
+                : e.Roller is null || world.Find(e.Roller) is null ? $"its roller {e.Roller} isn't a player"
+                : (e.KeptFor ?? new()).Any(k => k is null || k.Player is null || world.Find(k.Player) is null)
+                    ? "it's kept for someone who isn't a player"
+                : (e.KeptFor ?? new()).Select(k => k.Player).Distinct().Count() != (e.KeptFor ?? new()).Count
+                    ? "it's kept for a player twice"
+                : (e.KeptFor ?? new()).Any(k => k.X < short.MinValue || k.X > short.MaxValue || k.Y < short.MinValue || k.Y > short.MaxValue)
+                    ? "a place it's kept for isn't a COORD"
+                : null;
+            if (bad is not null)
+                throw new InvalidDataException($"Bad hyperspace encounter in save: {bad}.");
+            var enc = new HyperEncounter
+            {
+                Race = e.Race, Flags = (byte)e.Flags, OriginX = (short)e.OriginX, OriginY = (short)e.OriginY,
+                Radius = (ushort)e.Radius, LocX = (short)e.LocX, LocY = (short)e.LocY, LogX = e.LogX, LogY = e.LogY,
+                TransitionState = (short)e.TransitionState, Roller = e.Roller!,
+            };
+            enc.Ships.AddRange(e.Ships!);
+            foreach (var k in e.KeptFor ?? new())
+                enc.KeptFor[k.Player] = ((short)k.X, (short)k.Y);
+            encounters.List.Add(enc);
+        }
     }
 }

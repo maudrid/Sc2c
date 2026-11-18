@@ -250,6 +250,7 @@ public class RaceFleetsTests
         // An older save has none (a new game's), and one with them is refused.
         node["version"] = 12;
         node["story"]!.AsObject().Remove("set_aside");
+        node.AsObject().Remove("encounters");   // the days' rolls' groups: saves before 13 have none
         Assert.Equal(newGame, HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes).Story!.Fleets);
         node["story"]!["fleets"] = JsonNode.Parse(json)!["story"]!["fleets"]!.DeepClone();
         Assert.Contains("fleets", Assert.Throws<InvalidDataException>(
