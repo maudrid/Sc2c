@@ -38,7 +38,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for stage 3b-1 item 4 (one item per go-ahead).
+Build stage 3b-1 item 4, system groups (the owner's go-ahead, 2026-11-18, for this item alone); review it; report and wait.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
