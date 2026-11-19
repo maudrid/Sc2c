@@ -93,9 +93,9 @@ public sealed partial class GameWorld
     /// <summary>
     /// Whether a player is in hyperspace for the encounters: present,
     /// flying there (not in a battle, talk, system or at the starbase) or
-    /// spinning into a star (<see cref="PlayerShip.Spin"/>: UQM's flagship
-    /// leaves hyperspace on the spin's last frame), and not a wreck. Only
-    /// they roll, are flown at, and keep groups.
+    /// spinning into a star or a group it met (<see cref="PlayerShip.Spin"/>:
+    /// UQM's flagship leaves hyperspace on the spin's last frame), and not a
+    /// wreck. Only they roll, are flown at, and keep groups.
     /// </summary>
     internal static bool InHyperspace(Player p) =>
         p.Present && !p.Ship.Destroyed && (p.Ship.Activity == Activity.Hyperspace || p.Ship.Spin is not null);
@@ -261,7 +261,9 @@ public sealed partial class GameWorld
     /// The encounters as a save has them: a ship spinning into a star is
     /// saved in its system (its entry isn't saved), so the groups in its
     /// span are kept for it from where its spin has taken it, as when the
-    /// spin ends.
+    /// spin ends. One spinning into a group it met is kept for the same way,
+    /// though it's saved in hyperspace where it met the group (a meeting
+    /// isn't saved), so loaded it's back in hyperspace and no longer kept for.
     /// </summary>
     internal IReadOnlyList<HyperEncounter>? EncountersForSave(IReadOnlyList<HyperEncounter>? list)
     {

@@ -46,6 +46,7 @@ public sealed partial class GameWorld
             // A player in a meeting meets no other group, nor does one while
             // another player holds the group's race's lock (decision 5).
             _systemGroups.CanMeet ??= (id, race) => Find(id) is { Ship.Meeting: null } p && MayMeet(p, race);
+            _systemGroups.OneLock ??= (a, b) => LockOf(a) is { } la && la == LockOf(b);
             return _systemGroups;
         }
     }

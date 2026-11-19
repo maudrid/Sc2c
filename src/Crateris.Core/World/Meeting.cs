@@ -89,8 +89,13 @@ public sealed class Meeting
 
     public MeetingStep Step { get; internal set; }
 
-    /// <summary>The world frame on which the ship's spin into the group ends (hyperspace).</summary>
-    public long SpinEnds { get; internal set; }
+    /// <summary>
+    /// The frames of the ship's spin into the group still to come, its
+    /// last frame (out of hyperspace) among them (hyperspace). Counted in
+    /// the spin's own frames, as the spin back in is
+    /// (<see cref="PlayerShip.AppearFrames"/>), so a pause doesn't shorten it.
+    /// </summary>
+    public int SpinFrames { get; internal set; }
 
     /// <summary>The conversation whose dialogue lock the meeting holds until its talk is over, or null (none, or no locks).</summary>
     public string? Conversation { get; internal set; }

@@ -677,6 +677,107 @@ public class SystemGroupTests
     }
 
     [ContentFact]
+    public void TwoPlayersTouchingGroupsOfOneRaceInOneFrameMeetOneTheOtherPassingThrough() =>
+        TwoTouchesUnderOneLockInOneFrame(drone: false);
+
+    [ContentFact]
+    public void TwoPlayersTouchingTheUrQuanAndTheirDroneInOneFrameMeetOneTheOtherPassingThrough() =>
+        TwoTouchesUnderOneLockInOneFrame(drone: true);
+
+    // Review round 1: every touch in a system frame is found before any
+    // meeting begins; of two under one lock (the drone's is the Ur-Quan's)
+    // the later passes through, as the lock taken would make it: the group
+    // untouched (not re-forming), the player told who's talking.
+    private static void TwoTouchesUnderOneLockInOneFrame(bool drone)
+    {
+        var world = CoopWorld("g");
+        world.DialogueLocks = Comm.DialogueLocks.Load(Path.Combine(AppContext.BaseDirectory, "data"));
+        world.PutInSystem("h", UrQuanStar);
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        var d = DrawOf(world, UrQuanStar);
+        var groups = d.Groups.Where(g => g.SysLoc == 0).ToList();
+        var a = groups[0];
+        var b = groups.First(g => g != a && g.Race == a.Race);
+        if (drone)
+            b.Race = world.Story!.Rules.RaceIndex("URQUAN_DRONE_SHIP");
+        Assert.All(new[] { a, b }, g => Assert.Equal(0, g.Task & IpGroup.ReformGroup));
+        world.Host.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], a.LocX, a.LocY);
+        world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], b.LocX, b.LocY);
+        world.TakeBattleNotices();
+        Run(world, 2);
+        var meeting = Assert.Single(world.SystemMeetings);
+        string other = meeting.Player == "h" ? "g" : "h";
+        var passed = other == "g" ? b : a;
+        Assert.Equal(0, passed.Task & IpGroup.ReformGroup);
+        Assert.Equal(meeting.Player, world.DialogueLocks.Holder("URQUAN_CONVERSATION"));
+        Assert.Equal("URQUAN_CONVERSATION", world.MeetingOf(meeting.Player)!.Conversation);
+        Assert.Null(world.MeetingOf(other));
+        string who = world.Find(meeting.Player)!.Name;
+        Run(world, 10);
+        Assert.Single(world.SystemMeetings);
+        Assert.Null(world.MeetingOf(other));
+        Assert.Equal(0, passed.Task & IpGroup.ReformGroup);
+        Assert.Equal(new[] { $"{who} is talking to the Ur-Quan." },
+            world.TakeBattleNotices().Where(n => n.PlayerId == other).Select(n => n.Text));
+    }
+
+    [ContentFact]
+    public void AMeetingWhoseLockCantBeTakenDoesntBeginInASystem()
+    {
+        // A touch the groups let through though another player holds the
+        // race's lock (the check bypassed): no meeting, no talk, the player told.
+        var (world, d, met) = MeetInUrQuanSystem("g");
+        world.SystemGroups!.CanMeet = (_, _) => true;
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        world.TakeBattleNotices();
+        var other = d.Groups.First(g => g != met && g.Race == met.Race && g.SysLoc == 0);
+        world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], other.LocX, other.LocY);
+        Run(world, 10);
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Single(world.SystemMeetings);
+        Assert.Equal("h", world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
+        Assert.Contains(world.TakeBattleNotices(), n => n.PlayerId == "g" && n.Text == "Host is talking to the Ur-Quan.");
+    }
+
+    [ContentFact]
+    public void TheGroupMetInASystemTellsAnotherPlayerTouchingItWhosTalkingOnce()
+    {
+        var (world, d, met) = MeetInUrQuanSystem("g");
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        world.TakeBattleNotices();
+        world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
+        Run(world, 30);
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Equal(MeetingStep.Encounter, world.MeetingOf("h")!.Step);
+        Assert.Equal(new[] { "Host is talking to the Ur-Quan." },
+            world.TakeBattleNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
+    }
+
+    [ContentFact]
+    public void AShipThatCantTouchYetIsntToldWhosTalkingByTheGroupMet()
+    {
+        // Its escape counter running (untouchable after its own meeting),
+        // it passes over the group met unseen; told once it's solid again.
+        var (world, d, met) = MeetInUrQuanSystem("g");
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        world.TakeBattleNotices();
+        var ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
+        ip.EscapeCounter = IpFlight.EscapeFrames;
+        world.Find("g")!.Ship.Ip = ip;
+        Run(world, 60);   // fewer system frames than the counter's
+        Assert.InRange(ip.EscapeCounter, 1, IpFlight.EscapeFrames - 1);
+        Assert.DoesNotContain(world.TakeBattleNotices(), n => n.PlayerId == "g");
+        Run(world, 100);
+        Assert.Equal(0, ip.EscapeCounter);
+        Assert.Equal(new[] { "Host is talking to the Ur-Quan." },
+            world.TakeBattleNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
+    }
+
+    [ContentFact]
     public void TheGroupsAreSavedWithTheirSystems()
     {
         var systems = Systems.Value;

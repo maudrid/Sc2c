@@ -412,6 +412,46 @@ public class MeetingTests
     }
 
     [ContentFact]
+    public void APauseDuringTheSpinIntoAGroupDoesntShortenIt()
+    {
+        // Review round 1: the spin counts its own frames, as the spin back
+        // in does, so a host's pause holds it where it is.
+        (long X, long Y, int Frames, long Held, long End) Run(bool pause)
+        {
+            var game = NewGame();
+            var world = game.World;
+            GroupBy(world, "h", "URQUAN_SHIP");
+            for (int i = 0; i < 200 && world.MeetingOf("h") is null; ++i)
+                Frames(world, 1);
+            var m = world.MeetingOf("h")!;
+            Assert.Equal(MeetingStep.Spin, m.Step);
+            int frames = 0;
+            Frames(world, 2);
+            frames += 2;
+            if (pause)
+            {
+                var spin = world.Host.Ship.Spin!;
+                var at = (spin.LogX, spin.LogY);
+                world.SetHostPause(true);
+                Frames(world, 40);
+                world.SetHostPause(false);
+                Assert.Equal(MeetingStep.Spin, m.Step);
+                Assert.Equal(at, (world.Host.Ship.Spin!.LogX, world.Host.Ship.Spin.LogY));
+            }
+            for (; frames < 100 && m.Step == MeetingStep.Spin; ++frames)
+                Frames(world, 1);
+            return (world.Host.Ship.Flight.LogX, world.Host.Ship.Flight.LogY, frames,
+                world.Host.Ship.InputHeldUntil - world.Frame, world.Frame);
+        }
+        var plain = Run(false);
+        var paused = Run(true);
+        Assert.Equal((plain.X, plain.Y, plain.Frames), (paused.X, paused.Y, paused.Frames));
+        Assert.Equal(plain.End + 40, paused.End);
+        // Input read during the spin is dropped up to its end as played.
+        Assert.Equal(plain.Held, paused.Held);
+    }
+
+    [ContentFact]
     public void NoBattleMarkerIsShownOrJoinedWhileTheShipSpinsBackIn()
     {
         var game = NewGame("g");

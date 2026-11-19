@@ -611,6 +611,8 @@ public sealed class SystemGroups
                 ctx.ProcessCollisions(i + 1, e, Intersection.MaxTimeValue);
         }
 
+        ctx.TouchMeetings();
+
         // PostProcessQueue.
         foreach (var e in list)
         {
@@ -724,9 +726,23 @@ public sealed class SystemGroups
     /// </summary>
     public Func<string, int, bool>? CanMeet { get; set; }
 
-    internal bool MayMeet(SystemFlyer flyer, IpGroup g)
+    /// <summary>
+    /// Whether two races' groups share a dialogue lock (the world's: the
+    /// drone's with the Ur-Quan); null: each race its own.
+    /// </summary>
+    public Func<int, int, bool>? OneLock { get; set; }
+
+    // A touch the flyer may meet: none while another player holds the
+    // race's lock (CanMeet), nor while another flyer has met a group under
+    // the same lock earlier in this frame (its meeting takes the lock as it
+    // begins, after the frame: decision 5's rule, the later touch passing
+    // through as the lock taken would make it).
+    internal bool MayMeet(SystemFlyer flyer, IpGroup g, IReadOnlyList<SystemFlyer> flyers)
     {
-        if (CanMeet is null || CanMeet(flyer.Id, g.Race))
+        if (CanMeet is null
+            || CanMeet(flyer.Id, g.Race)
+               && !flyers.Any(o => o != flyer && o.Meeting is { } other
+                                   && (OneLock?.Invoke(other.Race, g.Race) ?? other.Race == g.Race)))
             return true;
         flyer.PassedThrough = g.Race;
         return false;
@@ -1345,6 +1361,29 @@ public sealed class SystemGroups
             return IpGeometry.LocationToDisplay(place, to);
         }
 
+        // A group in a meeting is untouchable (PreProcess), but a ship that
+        // would touch it (solid, meeting nothing this frame) passes through
+        // it, to be told who's talking (decision 5), as in hyperspace (the
+        // meeting's own player, flying while others fight its battle, is
+        // told nothing: the lock is let go by then).
+        public void TouchMeetings()
+        {
+            foreach (var f in List)
+            {
+                if (f.Flyer is not { Started: false, PassedThrough: null } flyer || !flyer.Flight.ContactSolid)
+                    continue;
+                foreach (var e in List)
+                {
+                    if (e.Group is { InMeeting: not null } g && OnOneScreen(f, e)
+                        && Intersection.DrawablesIntersect(OnScreenOf(f, e), OnScreenOf(e, f), Intersection.MaxTimeValue) != 0)
+                    {
+                        flyer.PassedThrough = g.Race;
+                        break;
+                    }
+                }
+            }
+        }
+
         private void Collide(Elem e0, Elem e1)
         {
             if (e0.Group is null)
@@ -1360,7 +1399,7 @@ public sealed class SystemGroups
             var flyer = f.Flyer!;
             if (flyer.Started || (other.Group!.MetBy is { } by && by != flyer))
                 return;
-            if (!_sg.MayMeet(flyer, other.Group))
+            if (!_sg.MayMeet(flyer, other.Group, _flyers))
                 return;
             if ((other.Flags & ElementFlags.Collision) == 0)
                 f.Flags |= ElementFlags.Collision | ElementFlags.NonSolid;
@@ -1404,7 +1443,7 @@ public sealed class SystemGroups
             var flyer = e1.Flyer!;
             if (flyer.Started || (g.MetBy is { } by && by != flyer))
                 return;
-            if (!_sg.MayMeet(flyer, g))
+            if (!_sg.MayMeet(flyer, g, _flyers))
                 return;
             // A flyer: the meeting (EncounterGroup). The group re-forms, and
             // its race's groups stand down for the time being.

@@ -44,6 +44,10 @@ public sealed partial class GameWorld
     private string? ConversationOf(int race) =>
         Story is { } story ? DialogueLocks?.ConversationOf(story.Rules.Races[race]) : null;
 
+    // The dialogue lock a group of a race comes under (the race its
+    // conversation locks), if any.
+    private string? LockOf(int race) => ConversationOf(race) is { } c ? DialogueLocks!.RaceOf(c) : null;
+
     /// <summary>
     /// Whether a player may meet a group of a race now: not while another
     /// player holds the race's dialogue lock (decision 5: the group passes
@@ -86,6 +90,8 @@ public sealed partial class GameWorld
     /// </summary>
     private void MeetInHyperspace(Player player, HyperEncounter met)
     {
+        if (!TakeMeetingLock(player, met.Race, out var conversation))
+            return;
         // encounter_collision: every group's element made non-solid (each
         // on a screen is solid again on the next frame, tested from where
         // it is then), the one met stopped and marked.
@@ -105,11 +111,11 @@ public sealed partial class GameWorld
         {
             Encounter = met,
             Step = MeetingStep.Spin,
-            SpinEnds = Frame + StarEntry.Turns(ship.Flight.Facing, frames) + 1,
+            SpinFrames = StarEntry.Turns(ship.Flight.Facing, frames) + 1,
+            Conversation = conversation,
         };
-        TakeMeetingLock(m);
         ship.Meeting = m;
-        HoldInput(ship, m.SpinEnds + Settings.InputDelayFrames);
+        HoldInput(ship, Frame + m.SpinFrames + Settings.InputDelayFrames);
     }
 
     // A frame of the ship's spin into the group: the drift, or on its last
@@ -119,13 +125,15 @@ public sealed partial class GameWorld
     private void SpinIntoGroup(Player player, Meeting m)
     {
         var ship = player.Ship;
-        if (Frame < m.SpinEnds)
+        if (--m.SpinFrames > 0)
         {
             ship.Spin!.Move();
             return;
         }
         ship.Flight.TakePlaceOf(ship.Spin!);
         ship.Spin = null;
+        // Input read while it spun is dropped (a pause meanwhile put its end later).
+        HoldInput(ship, Math.Max(ship.InputHeldUntil, Frame + Settings.InputDelayFrames));
         if (Encounters is { } encounters && MetEncounter(m) is { } e)
         {
             encounters.List.Remove(e);
@@ -157,6 +165,8 @@ public sealed partial class GameWorld
     {
         var g = f.Met!;
         var player = Find(f.Id)!;
+        if (!TakeMeetingLock(player, g.Race, out var conversation))
+            return;
         SystemMeetings.Add((Frame, f.Id, d.Star, g.Race, g.GroupId));
         var ships = sg.StartMeeting(d, g, f.Id);
         var m = new Meeting(player, g.Race, Story!.Rules.Races[g.Race],
@@ -165,20 +175,30 @@ public sealed partial class GameWorld
         {
             Star = d.Star,
             Group = g,
+            Conversation = conversation,
         };
         if (f.Flight.Orbit is null)
             f.Flight.EscapeCounter = IpFlight.EscapeFrames;
-        TakeMeetingLock(m);
         player.Ship.Meeting = m;
         BeginTalk(m);
     }
 
     // ---- the talk
 
-    private void TakeMeetingLock(Meeting m)
+    // A meeting's dialogue lock taken as it begins (the race's conversation,
+    // or null if it has none). The touch is checked first (MayMeet; in a
+    // system SystemGroups.MayMeet, which also passes through a second touch
+    // of the race in one frame), so the take doesn't fail; if it did, no
+    // meeting begins (no talk runs without the lock) and the player is told
+    // who's talking, as a touch passing through is.
+    private bool TakeMeetingLock(Player player, int race, out string? conversation)
     {
-        if (ConversationOf(m.Race) is { } c && DialogueLocks!.TryTake(c, m.Player.Id, out _))
-            m.Conversation = c;
+        conversation = ConversationOf(race);
+        if (conversation is null || DialogueLocks!.TryTake(conversation, player.Id, out _))
+            return true;
+        conversation = null;
+        TellWhoIsTalking(player, race);
+        return false;
     }
 
     private void ReleaseMeetingLock(Meeting m)
