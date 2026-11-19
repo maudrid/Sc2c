@@ -54,6 +54,9 @@ public sealed class Talk
     /// <summary>AlienTalkSegue's "all of them" ((COUNT)~0).</summary>
     public const int WaitAll = 0xFFFF;
 
+    /// <summary>The crew a lost game shows (setSegue (Segue_defeat)'s (COUNT)~0).</summary>
+    public const int DefeatedCrew = 0xFFFF;
+
     private readonly CommScript _script;
     private readonly byte[][] _phrases;
     private readonly int _colorMapCount;
@@ -185,6 +188,46 @@ public sealed class Talk
         _events.Add(new TalkWait(waitTrack));
     }
 
+    // ------------------------------------------------------------ where the talk is
+
+    /// <summary>
+    /// Where the talk is, as the scripts read it (LOBYTE (GLOBAL
+    /// (CurrentActivity))): in hyperspace or a system for a race met in
+    /// space. Set before the talk loads; SUPER_MELEE (UQM's main menu's)
+    /// where nobody sets it, as for the starbase's talks, which don't read it.
+    /// </summary>
+    public TalkActivity Activity
+    {
+        get => _activity;
+        set => _activity = !Started ? value : throw new InvalidOperationException("the talk has started");
+    }
+
+    /// <summary>
+    /// The system's own group met (GLOBAL (BattleGroupRef)), named by the
+    /// story field of its offset (URQUAN_PROBE_GRPOFFS0 for Sol's drone,
+    /// COLONY_GRPOFFS0 for the colony's guard, SAMATRA_GRPOFFS0 ...), or
+    /// null for none (0: in hyperspace, or a system of random groups). Set
+    /// before the talk loads.
+    /// </summary>
+    public string? BattleGroup
+    {
+        get => _battleGroup;
+        set => _battleGroup = !Started ? value : throw new InvalidOperationException("the talk has started");
+    }
+
+    private TalkActivity _activity;
+    private string? _battleGroup;
+
+    /// <summary>GLOBAL (BattleGroupRef) &amp;&amp; GLOBAL (BattleGroupRef) == GET_GAME_STATE_32 (field): the system's own group met is this one.</summary>
+    public bool BattleGroupIs(string offsetField) => _battleGroup is not null && _battleGroup == offsetField;
+
+    /// <summary>SetCommIntroMode: how the talk's screen comes in (the hypnotised captain's waking fades it in).</summary>
+    public void SetCommIntroMode(CommIntroMode mode, int time)
+    {
+        Check();
+        _events.Add(new IntroModeSet(mode, time));
+    }
+
     // ------------------------------------------------------------ the flow
 
     /// <summary>
@@ -294,6 +337,13 @@ public sealed class Talk
         _events.Add(new TalkEnded(Segue));
     }
 
+    /// <summary>
+    /// The talk has lost the game (setSegue (Segue_defeat)): from then on
+    /// it shows the ship's crew as UQM's (COUNT)~0, 65535, which marks the
+    /// game lost.
+    /// </summary>
+    public bool Defeated => _defeated;
+
     /// <summary>How the talk ends (getSegue).</summary>
     public Segue Segue => Get("BATTLE_SEGUE") == 0
         ? (_defeated ? Segue.Defeat : Segue.Peace)
@@ -316,8 +366,10 @@ public sealed class Talk
                 break;
             case Segue.Defeat:
                 // UQM also sets the crew to (COUNT)~0 and CHECK_RESTART, so the
-                // game ends; the crew is left alone here, as the world ends the
-                // game its own way (no ported script loses the game yet).
+                // game ends (the Ur-Quan's surrender): the talk shows the crew
+                // so (<see cref="Defeated"/>), but the ship's own crew is left
+                // alone, as the world ends the game, or the ship, its own way
+                // once the talk is over (GameWorld.Meetings.cs).
                 Set("BATTLE_SEGUE", 0);
                 _defeated = true;
                 break;
@@ -601,7 +653,7 @@ public sealed class Talk
             _lastAmbient = Ambient.ToArray();
             _events.Add(new ScreenChanged(ColorMap, _lastAmbient));
         }
-        var ship = (Ship.Crew, Ship.Fuel, Ship.Landers, Ship.ResourceUnits, Ship.Minerals.ToArray());
+        var ship = (_defeated ? DefeatedCrew : Ship.Crew, Ship.Fuel, Ship.Landers, Ship.ResourceUnits, Ship.Minerals.ToArray());
         if (_lastShip is { } last && (last.Item1, last.Item2, last.Item3, last.Item4) == (ship.Item1, ship.Item2, ship.Item3, ship.Item4)
             && last.Item5.SequenceEqual(ship.Item5))
             return;

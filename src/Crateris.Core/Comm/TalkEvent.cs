@@ -27,6 +27,26 @@ public enum Segue
     Defeat,
 }
 
+/// <summary>Where a talk is, as the scripts read it (globdata.h's activities: LOBYTE (GLOBAL (CurrentActivity))).</summary>
+public enum TalkActivity
+{
+    SuperMelee,
+    InLastBattle,
+    InEncounter,
+    InHyperspace,
+    InInterplanetary,
+    WonLastBattle,
+}
+
+/// <summary>How a talk's screen comes in (comm.h's CommIntroMode).</summary>
+public enum CommIntroMode
+{
+    CrossfadeSpace,
+    CrossfadeWindow,
+    CrossfadeScreen,
+    FadeInScreen,
+}
+
 /// <summary>
 /// What a talk did, in order: what its script asked of UQM's engine
 /// (the lines queued, the waits, the screen's changes, the story and ship
@@ -76,6 +96,9 @@ public sealed record RandomDrawn(uint Value) : TalkEvent;
 
 /// <summary>The alien's mouth moves with its lines, or stops (EnableTalkingAnim).</summary>
 public sealed record TalkingAnimation(bool Enabled) : TalkEvent;
+
+/// <summary>How the talk's screen comes in (SetCommIntroMode), over <see cref="Time"/> (UQM's 1/840 seconds).</summary>
+public sealed record IntroModeSet(CommIntroMode Mode, int Time) : TalkEvent;
 
 /// <summary>Ships of a race (races.h's number) asked to join the escort fleet, and those that did (AddEscortShips).</summary>
 public sealed record EscortsAdded(int Race, int Count, int Added) : TalkEvent;

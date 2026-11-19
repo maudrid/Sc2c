@@ -36,6 +36,10 @@
  *     and how many more it has room for (EscortFeasibilityStudy);
  *   the music resources that load, space-separated (HailAlien plays the
  *     alternate song only if it loads);
+ *   where the talk is: LOBYTE (GLOBAL (CurrentActivity)) (globdata.h's
+ *     IN_HYPERSPACE, IN_INTERPLANETARY, WON_LAST_BATTLE, ...) and
+ *     GLOBAL (BattleGroupRef) (the system's own groups' offset, 0 for
+ *     none), which the Ur-Quan's and the Kohr-Ah's scripts read;
  *   the replies: their count, then each one's place in the replies offered.
  *
  * Selling minerals (starbas.c's SellMinerals) runs as if a button were
@@ -64,6 +68,8 @@
  *   {"gauges": [crew, fuel, ru]}              DeltaSISGauges
  *   {"random": n}                             TFB_Random's number drawn
  *   {"talking": b}                            EnableTalkingAnim (b 1 or 0)
+ *   {"intro": mode, "time": t}                SetCommIntroMode (comm.h's
+ *                                             CommIntroMode, t in 1/840 s)
  *   {"escorts": [race, n, added]}             AddEscortShips: n asked for,
  *                                             added those the fleet had
  *                                             room for
@@ -432,6 +438,15 @@ EnableTalkingAnim (BOOLEAN enable)
 	printf ("{\"talking\": %d}\n", enable ? 1 : 0);
 }
 
+/* comm.c's: how the talk's screen comes in (the Ur-Quan's waking the
+ * hypnotised captain fade it in). */
+void
+SetCommIntroMode (CommIntroMode newMode, TimeCount howLong)
+{
+	check_changes ();
+	printf ("{\"intro\": %d, \"time\": %lu}\n", (int) newMode, (unsigned long) howLong);
+}
+
 /* Selling minerals' drawing and waits (cargo.c, the threads and the
  * clock), and a button pressed at once. */
 void DrawCargoStrings (BYTE OldElement, BYTE NewElement) { (void) OldElement; (void) NewElement; }
@@ -615,6 +630,14 @@ main (void)
 		escort_room = r;
 	}
 	read_line (music, sizeof music);
+	read_line (line, sizeof line);
+	{
+		unsigned a;
+		unsigned long ref;
+		sscanf (line, "%u %lu", &a, &ref);
+		GLOBAL (CurrentActivity) = MAKE_WORD (a, 0);
+		GLOBAL (BattleGroupRef) = (DWORD) ref;
+	}
 	read_line (line, sizeof line);
 	p = line;
 	sscanf (p, "%d%n", &replies, &i);

@@ -30,6 +30,11 @@ public static class TalkRules
         // arrival (the starbase ready, the Chmmr's bomb installed); from
         // the starbase's menu, ordinary.
         ["starbas"] = story => story.Get("MOONBASE_ON_SHIP") != 0 || story.Get("CHMMR_BOMB_STATE") == 2,
+        // Stage 3b, decision 6: no talk with a race's ships is story, the
+        // drone's (which runs the Ur-Quan's script) included: each is its
+        // answerer's, under the race's dialogue lock.
+        ["urquan"] = _ => false,
+        ["blackur"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

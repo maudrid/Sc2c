@@ -4519,9 +4519,100 @@ def starbase_starts():
     return starts
 
 
-COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts}
+# The special systems' own groups' offsets as a game that has been to
+# them has them (any distinct numbers: the scripts only compare them with
+# BattleGroupRef), for the Ur-Quan's and the Kohr-Ah's talks.
+GROUP_OFFSETS = {"URQUAN_PROBE_GRPOFFS0": 0x1100, "COLONY_GRPOFFS0": 0x2200, "SAMATRA_GRPOFFS0": 0x3300}
+# globdata.h's activities (LOBYTE (GLOBAL (CurrentActivity))).
+ACTIVITIES = {"SUPER_MELEE": 0, "IN_LAST_BATTLE": 1, "IN_ENCOUNTER": 2, "IN_HYPERSPACE": 3,
+              "IN_INTERPLANETARY": 4, "WON_LAST_BATTLE": 5}
+
+
+def space_start(name, state, activity="IN_HYPERSPACE", group=None, **kw):
+    """A start for a race met in space: the special groups' offsets set,
+    where the talk is (activity) and the system's own group met (group,
+    its offset's field: BattleGroupRef; none, 0)."""
+    offsets = {}
+    for field, value in GROUP_OFFSETS.items():
+        offsets.update(field32(field[:-1], value))
+    start = {"name": name, "state": {**offsets, **state}, "ship": talk_ship(), "activity": activity}
+    if group:
+        start["battle_group"] = group
+    start.update(kw)
+    return start
+
+
+def urquan_starts():
+    """The Ur-Quan's talk (urquanc.c), met in space and as their drone
+    (URQUAN_DRONE_CONVERSATION runs this script), from states chosen to
+    reach every condition it reads: the endgame's won battle, the drone
+    at Earth (the system's own group, in interplanetary: its message, and
+    in hyperspace not so), the captain hypnotised by the Talking Pet (the
+    first time, again, the compulsion mentioned before), the Talking Pet
+    aboard (sensed or not), the colony's guard, the Sa-Matra's, each visit
+    before and after the Kohr-Ah's frenzy (with the visits past those the
+    switch names, which UQM's 3-bit field overflows), the key phrase known
+    or told, and each piece of news asked."""
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE"),
+              space_start("drone", {}, "IN_INTERPLANETARY", "URQUAN_PROBE_GRPOFFS0"),
+              space_start("drone-hypnotized", {"PLAYER_HYPNOTIZED": 1}, "IN_INTERPLANETARY",
+                          "URQUAN_PROBE_GRPOFFS0"),
+              space_start("drone-offset-in-hyperspace", {}, "IN_HYPERSPACE", "URQUAN_PROBE_GRPOFFS0"),
+              space_start("hypnotized-first", {"PLAYER_HYPNOTIZED": 1}),
+              space_start("hypnotized-again", {"PLAYER_HYPNOTIZED": 1, "URQUAN_HYPNO_VISITS": 1}),
+              space_start("hypnotized-again-mentioned", {"PLAYER_HYPNOTIZED": 1, "URQUAN_HYPNO_VISITS": 1,
+                                                         "MENTIONED_PET_COMPULSION": 1}),
+              space_start("pet", {"TALKING_PET_ON_SHIP": 1}),
+              space_start("pet-sensed", {"TALKING_PET_ON_SHIP": 1, "URQUAN_SENSES_EVIL": 1}),
+              space_start("colony", {}, "IN_INTERPLANETARY", "COLONY_GRPOFFS0"),
+              space_start("colony-pet", {"TALKING_PET_ON_SHIP": 1}, "IN_INTERPLANETARY", "COLONY_GRPOFFS0"),
+              space_start("colony-offset-in-hyperspace", {}, "IN_HYPERSPACE", "COLONY_GRPOFFS0"),
+              space_start("samatra", {}, "IN_INTERPLANETARY", "SAMATRA_GRPOFFS0"),
+              space_start("in-a-system", {}, "IN_INTERPLANETARY")]
+    for visits in range(8):
+        starts.append(space_start(f"visit-{visits}", {"URQUAN_VISITS": visits}))
+        starts.append(space_start(f"frenzy-visit-{visits}", {"URQUAN_VISITS": visits, "KOHR_AH_FRENZY": 1}))
+    for know in (1, 2):
+        starts.append(space_start(f"know-story-{know}", {"URQUAN_VISITS": 1, "KNOW_URQUAN_STORY": know}))
+    for info in range(1, 4):
+        starts.append(space_start(f"info-{info}", {"URQUAN_VISITS": 2, "URQUAN_INFO": info}))
+    return starts
+
+
+def blackur_starts():
+    """The Kohr-Ah's talk (blackurc.c), from states chosen to reach every
+    condition it reads: the endgame's won battle, everyone killed, the
+    Talking Pet aboard (sensed or not), the Sa-Matra's guards, each visit
+    before and in the frenzy, and the replies' counters (the reasons asked
+    for, the pleading, the news; each value of each, and each with the
+    others, two ways), the key phrase known or told, and the goodbye said
+    before."""
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE"),
+              space_start("killed-all", {"KOHR_AH_KILLED_ALL": 1}),
+              space_start("pet", {"TALKING_PET_ON_SHIP": 1}),
+              space_start("pet-sensed", {"TALKING_PET_ON_SHIP": 1, "KOHR_AH_SENSES_EVIL": 1}),
+              space_start("samatra", {}, "IN_INTERPLANETARY", "SAMATRA_GRPOFFS0"),
+              space_start("samatra-offset-in-hyperspace", {}, "IN_HYPERSPACE", "SAMATRA_GRPOFFS0"),
+              space_start("in-a-system", {}, "IN_INTERPLANETARY")]
+    for frenzy in (0, 1):
+        f = {"KOHR_AH_FRENZY": frenzy} if frenzy else {}
+        kind = "frenzy" if frenzy else "hello"
+        for visits in range(1, 4):
+            starts.append(space_start(f"{kind}-visit-{visits}", {**f, "KOHR_AH_VISITS": visits}))
+        for k in range(4):
+            for name, (r, p, i) in ((f"{kind}-counters-{k}", (k, k, k)),
+                                    (f"{kind}-counters-mixed-{k}", (k, 3 - k, (k + 1) % 4))):
+                starts.append(space_start(name, {**f, "KOHR_AH_REASONS": r, "KOHR_AH_PLEAD": p, "KOHR_AH_INFO": i}))
+    for know in (1, 2):
+        starts.append(space_start(f"know-story-{know}", {"KNOW_KOHR_AH_STORY": know}))
+    starts.append(space_start("said-bye-before", {"KOHR_AH_BYES": 1}))
+    return starts
+
+
+COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
+                "urquan": urquan_starts, "blackur": blackur_starts}
 # A script's file where it isn't named after its folder.
-COMM_FILES = {"ilwrath": "ilwrathc.c"}
+COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.
@@ -4535,6 +4626,15 @@ def build_comm(uqm, script, init, out):
                 "-Wl,--wrap=TFB_Random", "-Wl,--wrap=ClearSISRect"],
           includes=[os.path.join(HERE, "golden")],
           defines=[f'SCRIPT_FILE="{path}"', f"SCRIPT_INIT={init}", f"SCRIPT_{script}"])
+
+
+def battle_group_ref(start):
+    """BattleGroupRef: the offset of the special group a start names (its
+    four 8-bit fields in the start's state), else 0."""
+    group = start.get("battle_group")
+    if not group:
+        return 0
+    return sum(start["state"].get(f"{group[:-1]}{i}", 0) << (8 * i) for i in range(4))
 
 
 def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_worth):
@@ -4569,7 +4669,8 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
         " ".join(map(str, element_worth)),
         " ".join(str(ALLIED[alliances[r]]) for r in RACES),
         f"{escorts[0]} {escorts[1]}",
-        " ".join(music)])
+        " ".join(music),
+        f"{ACTIVITIES[start.get('activity', 'SUPER_MELEE')]} {battle_group_ref(start)}"])
     by_bit = {f["start_bit"]: name for name, f in fields.items()}
 
     def run(replies):
@@ -4672,14 +4773,21 @@ def record_talks(uqm, strings_exe, package):
         "seed of the scripts' random numbers (TFB_SeedRandom; 12345 where "
         "not given), the races' standings where not a new game's "
         "(alliances: good, bad or dead), the escort fleet's worth and room "
-        "for more ships (escorts; none where not given), and its steps: the replies "
+        "for more ships (escorts; none where not given), where the talk is "
+        "(activity: LOBYTE (GLOBAL (CurrentActivity)), SUPER_MELEE where not "
+        "given) and the system's own group met (battle_group: the field of "
+        "the offset BattleGroupRef holds; 0 where not given; the Ur-Quan's "
+        "and the Kohr-Ah's starts have URQUAN_PROBE_GRPOFFS0, COLONY_GRPOFFS0 "
+        "and SAMATRA_GRPOFFS0 set to 0x1100, 0x2200 and 0x3300), and its steps: the replies "
         "chosen from the start, each the place in the replies offered, and "
         "the events after the last of them up to the next replies offered "
         "or the talk's end. An offer marked seen reaches a talk state "
         "already walked from this start, so the walk goes no further; a "
         "start with follow walks only the replies calling those functions, "
         "and one with prefix starts its walk after those replies (the rest "
-        "is walked from other starts). Voices are off (usingSpeech false); "
+        "is walked from other starts). Surrendering to the Ur-Quan "
+        "(setSegue (Segue_defeat)) sets the crew to (COUNT)~0, 65535, as UQM "
+        "marks the game lost. Voices are off (usingSpeech false); "
         "selling minerals runs as if a button were pressed at once.",
         "Texts are content (CC BY-NC-SA 2.5), so only the first 16 hex "
         "digits of each line's SHA-256 are here; set names the field "

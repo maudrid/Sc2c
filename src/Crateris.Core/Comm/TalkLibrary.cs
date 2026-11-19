@@ -28,6 +28,9 @@ public sealed class TalkLibrary
         ["comandr"] = p => new CommanderScript(p),
         ["ilwrath"] = p => new IlwrathScript(p),
         ["starbas"] = p => new StarbaseScript(p),
+        // Stage 3b-1 item 6.
+        ["urquan"] = p => new UrquanScript(p),
+        ["blackur"] = p => new BlackUrquanScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

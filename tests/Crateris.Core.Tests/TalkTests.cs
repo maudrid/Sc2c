@@ -91,6 +91,8 @@ public class TalkTests
         ["comandr"] = p => new CommanderScript(p),
         ["ilwrath"] = p => new IlwrathScript(p),
         ["starbas"] = p => new StarbaseScript(p),
+        ["urquan"] = p => new UrquanScript(p),
+        ["blackur"] = p => new BlackUrquanScript(p),
     };
 
     private static Talk Start(ContentPackage package, string script, JsonElement start)
@@ -120,6 +122,17 @@ public class TalkTests
         var talk = new Talk(Ported[script](s), s.Description, Conversation.Load(package, s.Description.Phrases),
             BinaryTable.Load(package, s.Description.ColorMap).Count, story, own, TestShip.From(start.GetProperty("ship"), start), clock, seed,
             id => package.Resources.TryGetValue(id, out var r) && r.Type == "MUSICRES" && package.HasFile(r.Value));
+        if (start.TryGetProperty("activity", out var activity))
+            talk.Activity = activity.GetString() switch
+            {
+                "SUPER_MELEE" => TalkActivity.SuperMelee,
+                "IN_HYPERSPACE" => TalkActivity.InHyperspace,
+                "IN_INTERPLANETARY" => TalkActivity.InInterplanetary,
+                "WON_LAST_BATTLE" => TalkActivity.WonLastBattle,
+                var a => throw new InvalidDataException($"activity {a}"),
+            };
+        if (start.TryGetProperty("battle_group", out var group))
+            talk.BattleGroup = group.GetString();
         talk.Start();
         return talk;
     }
@@ -145,6 +158,7 @@ public class TalkTests
         GaugesChanged g => new() { ["gauges"] = new JsonArray(g.Crew, g.Fuel, g.ResourceUnits) },
         RandomDrawn r => new() { ["random"] = r.Value },
         TalkingAnimation t => new() { ["talking"] = t.Enabled ? 1 : 0 },
+        IntroModeSet i => new() { ["intro"] = (int)i.Mode, ["time"] = i.Time },
         EscortsAdded a => new() { ["escorts"] = new JsonArray(a.Race, a.Count, a.Added) },
         ReplyChosen r => new() { ["reply"] = r.Index },
         RepliesOffered o => new()
