@@ -374,8 +374,7 @@ public sealed partial class GameWorld
     {
         var ship = m.Player.Ship;
         ship.Hold.SetCrew(0);
-        ship.Destroyed = true;
-        ship.Flight.Stop();
+        ship.Destroyed = true;   // stopped already (the spin's end), and a wreck doesn't fly
         if (ship.Kind == ShipKind.Flagship)
             LoseTheGame(surrendered: true);
         EndMeeting(m, fought: false);

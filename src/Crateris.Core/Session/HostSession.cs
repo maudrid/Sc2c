@@ -890,12 +890,9 @@ public sealed class HostSession
     {
         World.SubmitInput(HostId, World.Frame + World.Settings.InputDelayFrames, hostInput);
         World.Step();
-        LogMeetings();
+        LogMeetings();   // the encounter screen before a choice made at once (the talk is logged by Hailed)
         if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })
-        {
             World.EncounterChoice(HostId, choice);
-            LogMeetings();
-        }
         if (MeetingReplies.Count > 0 && World.MeetingOf(HostId) is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 } met
             && World.ChooseReply(HostId, MeetingReplies.Peek(), met.Round))
             MeetingReplies.Dequeue();
