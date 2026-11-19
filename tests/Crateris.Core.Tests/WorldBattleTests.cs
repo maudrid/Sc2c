@@ -653,6 +653,7 @@ public class WorldBattleTests
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host",
             systems, TestContent.Shapes);
         world.BattleKit = Kit();
+        world.EncounterRaces = new HashSet<string>();   // no groups: the drone orbiting Earth would meet the players (UrquanMeetingTests are its)
         world.PutInOrbit("host", Sol, Earth, Luna);
         world.Host.Ship.Ip!.ReturnFromOrbit();
         for (int i = 1; i < players; ++i)

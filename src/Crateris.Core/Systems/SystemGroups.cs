@@ -144,6 +144,24 @@ public sealed class SystemGroups
             _homeWorld[rules.RaceIndex(race)] = home;
     }
 
+    /// <summary>
+    /// The story field holding a special system's own groups' offset (its
+    /// generator's GLOBAL (BattleGroupRef) = GET_GAME_STATE_32 (field)),
+    /// which the talks compare with BattleGroupRef; null for none (a system
+    /// of random groups, BattleGroupRef 0).
+    /// </summary>
+    public static string? OffsetField(string? special) => special switch
+    {
+        "SOL_DEFINED" => "URQUAN_PROBE_GRPOFFS0",
+        "START_COLONY_DEFINED" => "COLONY_GRPOFFS0",
+        "SAMATRA_DEFINED" => "SAMATRA_GRPOFFS0",
+        "SHOFIXTI_DEFINED" => "SHOFIXTI_GRPOFFS0",
+        "ZOQ_SCOUT_DEFINED" => "ZOQFOT_GRPOFFS0",
+        { } m when m.StartsWith("MELNORME", StringComparison.Ordinal) && m.EndsWith("_DEFINED", StringComparison.Ordinal)
+            => m[..^"_DEFINED".Length] + "_GRPOFFS0",
+        _ => null,
+    };
+
     /// <summary>The systems with groups kept, by star.</summary>
     public Dictionary<int, SystemDraw> Systems { get; } = new();
 

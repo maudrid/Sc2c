@@ -313,9 +313,14 @@ public sealed class HostSession
     /// opening as --start-battle leaves it (in flight in Earth's inner system,
     /// by Luna), in that system. Touching it, the host meets it: the
     /// encounter screen (until items 10 and 11 draw it and send its choice,
-    /// <see cref="EncounterChoice"/> chooses), the race's talk (not ported
-    /// yet for any race: a hail ends at once in peace), the battle (an
-    /// attack). A ship of no race, or ships not 1 to 7 (MAX_HYPER_SHIPS), is an
+    /// <see cref="EncounterChoice"/> chooses), the race's talk (the
+    /// Ur-Quan's and the Kohr-Ah's since stage 3b-1 item 6, logged, its
+    /// replies chosen by <see cref="MeetingReplies"/>; a race whose talk
+    /// isn't ported: a hail ends at once in peace), the battle (an attack,
+    /// or a talk ending in one). In Earth's system a group joins Sol's own
+    /// groups (the drone's), so an Ur-Quan group there gives the drone's
+    /// message, as UQM's talk reads it (BattleGroupRef); --start-at meets
+    /// them in hyperspace. A ship of no race, or ships not 1 to 7 (MAX_HYPER_SHIPS), is an
     /// ArgumentException, before anything changes.
     /// </summary>
     public string StartEncounter(string spec)
@@ -702,6 +707,69 @@ public sealed class HostSession
     }
 
     private bool _gameOverLogged;
+
+    // What of each player's meeting has been logged: the meeting, its step
+    // and how many of its talk's events.
+    private readonly Dictionary<string, (Meeting Meeting, MeetingStep Step, int Events)> _meetingsLogged = new();
+
+    // The meetings in the log, as the encounter screen and the talk aren't
+    // drawn yet (items 10 and 11): each step, the talk's lines and replies
+    // as they come, and how it ended.
+    private void LogMeetings()
+    {
+        foreach (var p in World.Players)
+        {
+            // A meeting just over is logged to its end.
+            var (was, step, events) = _meetingsLogged.GetValueOrDefault(p.Id);
+            if ((p.Ship.Meeting ?? was) is not { } m)
+                continue;
+            string race = Meeting.RaceName(m.RaceId);
+            if (was != m)
+                (step, events) = ((MeetingStep)(-1), 0);
+            if (m.Step != step)
+                Logged?.Invoke(m.Step switch
+                {
+                    MeetingStep.Spin => $"{p.Id} meets a group of {m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}",
+                    MeetingStep.Encounter => $"{p.Id} at the encounter screen: {m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}, hail or attack",
+                    MeetingStep.Talk => $"{p.Id} talks to the {race}",
+                    MeetingStep.Battle => $"{p.Id} fights the {race}",
+                    _ => $"{p.Id}'s meeting with the {race} is over",
+                });
+            if (m.Talk is { } talk)
+                for (; events < talk.Events.Count; ++events)
+                    switch (talk.Events[events])
+                    {
+                        case LineQueued { Clip: not null } l:
+                            Logged?.Invoke($"  {race}: {l.Text}");
+                            break;
+                        case LineQueued { Text.Length: > 0 } l:
+                            Logged?.Invoke($"  {race} (on): {l.Text}");
+                            break;
+                        case RepliesOffered o:
+                            for (int i = 0; i < o.Replies.Count; ++i)
+                                Logged?.Invoke($"  {p.Id}'s reply {i}: {o.Replies[i].Text}");
+                            break;
+                        case ReplyChosen c:
+                            Logged?.Invoke($"  {p.Id} chose reply {c.Index}");
+                            break;
+                        case TalkEnded e:
+                            Logged?.Invoke($"  The talk with the {race} ends: {e.Segue.ToString().ToLowerInvariant()}");
+                            break;
+                    }
+            if (m.Step == MeetingStep.Done)
+                _meetingsLogged.Remove(p.Id);
+            else
+                _meetingsLogged[p.Id] = (m, m.Step, events);
+        }
+    }
+
+    /// <summary>
+    /// --meeting-replies I[,I...] (testing): the host's replies in its
+    /// meetings' talks, each reply's place among those offered, chosen in
+    /// turn as each set comes, until the talk is sent and drawn (items 10
+    /// and 11); past the last the host waits.
+    /// </summary>
+    public Queue<int> MeetingReplies { get; } = new();
     private readonly Dictionary<string, int> _inBattle = new();
     private readonly HashSet<string> _wrecks = new();
     private readonly List<(string PlayerId, BattleNotice Notice)> _notices = new();
@@ -781,10 +849,11 @@ public sealed class HostSession
             Tell(revival.Rescuer, new BattleNotice(BattleNoticeKind.Revived, Crew: revival.Crew, Other: revival.Wreck, Text: BattleNotice.Rescuer));
             Tell(revival.Wreck, new BattleNotice(BattleNoticeKind.Revived, Crew: revival.Crew, Other: revival.Rescuer, Text: BattleNotice.Rescued));
         }
+        LogMeetings();
         if (World.GameOver && !_gameOverLogged)
         {
             _gameOverLogged = true;
-            Logged?.Invoke("Game over: the flagship was lost");
+            Logged?.Invoke(World.Surrendered ? "Game over: the flagship surrendered" : "Game over: the flagship was lost");
             foreach (var p in World.Players)
                 Tell(p.Id, new BattleNotice(BattleNoticeKind.GameOver));
         }
@@ -819,6 +888,9 @@ public sealed class HostSession
         World.Step();
         if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })
             World.EncounterChoice(HostId, choice);
+        if (MeetingReplies.Count > 0 && World.MeetingOf(HostId) is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 } met
+            && World.ChooseReply(HostId, MeetingReplies.Peek(), met.Round))
+            MeetingReplies.Dequeue();
         TakeBattleNews();
         // Once the game is over the world has stopped (decision 12): its
         // frame no longer moves on, and the snapshot of the world as it

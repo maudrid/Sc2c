@@ -400,8 +400,9 @@ public class HyperEncounterTests
         // Its makeup and place drawn (AddEncounterElement), then dropped.
         Assert.Empty(world.Encounters.List);
         Assert.Contains("AddEncounterElement", random.Places.Skip(before));
-        // The game's own: no race's talk ported yet (items 6 to 8 add them).
-        Assert.Empty(new GameWorld(new GameSettings(), new GameClock(2155, 2, 17)).EncounterRaces);
+        // The game's own: the races whose talk is ported (item 6's; items 7 and 8 add theirs).
+        Assert.Equal(new HashSet<string> { "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP" },
+            new GameWorld(new GameSettings(), new GameClock(2155, 2, 17)).EncounterRaces);
     }
 
     [Fact]

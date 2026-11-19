@@ -23,8 +23,12 @@ public class ActivityTests
     private const int SolNumber = 82;
     private static Star Sol => Systems.Map.Stars[SolNumber];
 
-    private static GameWorld NewWorld() =>
-        GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems, TestContent.Shapes);
+    private static GameWorld NewWorld()
+    {
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems, TestContent.Shapes);
+        world.EncounterRaces = new HashSet<string>();   // no groups: the drone orbiting Earth would meet the players (UrquanMeetingTests are its)
+        return world;
+    }
 
     private static void Run(GameWorld world, string id, ShipInput input, int frames)
     {

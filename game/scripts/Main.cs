@@ -523,6 +523,8 @@ public partial class Main : Node2D
             if (_options.StartEncounter is { } encounter)
                 Log(host.StartEncounter(encounter));
             host.EncounterChoice = _options.EncounterChoice;
+            foreach (int reply in _options.MeetingReplies ?? Array.Empty<int>())
+                host.MeetingReplies.Enqueue(reply);
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
             host.GuestsJoinBattle = _options.GuestsInBattle;
         }

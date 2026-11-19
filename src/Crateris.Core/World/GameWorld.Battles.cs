@@ -548,10 +548,19 @@ public sealed partial class GameWorld
         flagship.CrewLeft = 0;
         flagship.Player.Ship.Hold.SetCrew(0);
         flagship.Player.Ship.Destroyed = true;
+        LoseTheGame(surrendered: false);
+    }
+
+    private void LoseTheGame(bool surrendered)
+    {
         FlagshipLost = true;
         GameOver = true;
+        Surrendered = surrendered;
         HostPaused = false;   // the game has stopped for good: no pause to lift (decision 12)
     }
+
+    /// <summary>The game was lost by the flagship's surrender (to the Ur-Quan), not in a battle.</summary>
+    public bool Surrendered { get; private set; }
 
     // A player's ship leaving a battle mid-battle with its crew (a retreat,
     // or a disconnect): its crew back aboard, 5 units of fuel paid (its

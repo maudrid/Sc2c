@@ -29,12 +29,44 @@ public sealed partial class GameWorld
 {
     /// <summary>
     /// The talk of a race met in space (by races.h's number), with the
-    /// answerer's ship, new and not yet loaded; null while the race's talk
-    /// isn't ported (all of them until items 6 to 8; docs/differences.md row
-    /// 68): the meeting then shows the encounter screen, a hail ending at
-    /// once as a talk ending in peace. Tests give their own.
+    /// answerer's ship, new and not yet loaded (the meeting says where it
+    /// is: <see cref="Talk.Activity"/>, <see cref="Talk.BattleGroup"/>);
+    /// null while the race's talk isn't ported (docs/differences.md row 68):
+    /// the meeting then shows the encounter screen, a hail ending at once as
+    /// a talk ending in peace. By default <see cref="RaceTalk"/>; tests give
+    /// their own (null puts the default back).
     /// </summary>
-    internal Func<Player, int, uint, Talk?>? MeetingTalks { get; set; }
+    internal Func<Player, int, uint, Talk?> MeetingTalks
+    {
+        get => _meetingTalks ?? RaceTalk;
+        set => _meetingTalks = value;
+    }
+
+    private Func<Player, int, uint, Talk?>? _meetingTalks;
+
+    /// <summary>
+    /// A race's talk as RaceCommunication picks it (stage 3b-1 item 6): the
+    /// race's conversation (RACE_COMMUNICATION by the group's first ship's
+    /// race: <see cref="DialogueLocks.ConversationOf"/>; the drone's
+    /// URQUAN_DRONE_CONVERSATION runs the Ur-Quan's script, init_race),
+    /// from the <see cref="TalkLibrary"/>, with the answerer's ship
+    /// (<see cref="PlayerTalkShip"/>: their names, crew, fuel and hold) and
+    /// the talk's own fields; null without the content or the locks, or
+    /// for a race not yet among <see cref="TalkingRaces"/> (the Ilwrath's
+    /// script has only its Earth branch until item 7). No such talk is story (stage
+    /// 3b, decision 6: <see cref="TalkRules"/>).
+    /// </summary>
+    private Talk? RaceTalk(Player player, int race, uint seed)
+    {
+        if (TalkLibrary is not { } library || Story is not { } story || !TalkingRaces.Contains(story.Rules.Races[race])
+            || ConversationOf(race) is not { } conversation
+            || library.Scripts.For(conversation) is not [var script] || !TalkLibrary.Ported.Contains(script.Name))
+            return null;
+        if (TalkRules.IsStory(script.Name, story))
+            throw new InvalidOperationException($"the {script.Name} talk is story: a race met in space starts an ordinary talk");
+        return library.Create(script.Name, story, new Dictionary<string, int>(), new PlayerTalkShip(player, library.Strings, this),
+            Clock, seed);
+    }
 
     // Who has been told that another player is talking to a race (decision
     // 5): told once while that player holds the lock.
@@ -219,9 +251,18 @@ public sealed partial class GameWorld
         foreach (char ch in m.Player.Id)
             seed = unchecked(seed * 31 + ch);
         // The talk's own random seed (decision 12), as a visit's talks have.
-        var talk = MeetingTalks?.Invoke(m.Player, m.Race, seed);
+        var talk = MeetingTalks(m.Player, m.Race, seed);
         m.Talk = talk;
-        talk?.Load();
+        if (talk is not null)
+        {
+            // Where the talk is, as its script reads it: LOBYTE (GLOBAL
+            // (CurrentActivity)), and in a system its own groups' offset
+            // (BattleGroupRef: Sol's drone, the colony's guard, ...).
+            talk.Activity = m.Star is null ? TalkActivity.InHyperspace : TalkActivity.InInterplanetary;
+            talk.BattleGroup = m.Star is int star && SystemGroups is { } sg && sg.Systems.TryGetValue(star, out var d)
+                ? Crateris.Core.Systems.SystemGroups.OffsetField(d.Defined) : null;
+            talk.Load();
+        }
         if (talk is null || talk.OffersAttack)
         {
             m.Step = MeetingStep.Encounter;
@@ -289,6 +330,11 @@ public sealed partial class GameWorld
     {
         _rounds = Math.Max(_rounds, m.Round);
         ReleaseMeetingLock(m);
+        if (m.Talk is { Segue: Segue.Defeat })
+        {
+            Surrender(m);
+            return;
+        }
         bool hostile = m.Talk is { } talk ? talk.Segue is Segue.Hostile or Segue.Victory : !m.Hailed;
         if (hostile && m.Ships.Count > 0 && BattleKit is not null
             && m.Ships.All(s => BattleKit.Enemies.Contains(s.Ship)) && m.Player.Present && !GameOver)
@@ -297,6 +343,28 @@ public sealed partial class GameWorld
             m.Battle = StartBattle(m.Player.Id, new EnemyFleet(m.Ships));
             return;
         }
+        EndMeeting(m, fought: false);
+    }
+
+    /// <summary>
+    /// The player surrendered (the Ur-Quan's: setSegue (Segue_defeat), the
+    /// crew (COUNT)~0). UQM's game is then over (starcon.c leaves its loop);
+    /// here, as a ship's crew run out is (stage 4a, decision 7, and decision
+    /// 12): the host's flagship surrendering is the game over for everyone,
+    /// another ship (a guest's) a wreck where it is, with no crew, for a
+    /// friend to revive. The group goes on as after a talk without a battle
+    /// (RaceCommunication's status 0: re-forming, one-shot in hyperspace).
+    /// A placeholder for the owner (docs/handoff.md: what a guest's
+    /// surrender does).
+    /// </summary>
+    private void Surrender(Meeting m)
+    {
+        var ship = m.Player.Ship;
+        ship.Hold.SetCrew(0);
+        ship.Destroyed = true;
+        ship.Flight.Stop();
+        if (ship.Kind == ShipKind.Flagship)
+            LoseTheGame(surrendered: true);
         EndMeeting(m, fought: false);
     }
 

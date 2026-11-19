@@ -45,9 +45,13 @@ namespace Crateris.Game;
 /// --start-encounter SHIP[:SHIPS] (host: a group of that ship's race, by data/ships.json's id as --start-battle's, of
 /// SHIPS ships or the race's fewest in a group, appears by the host and flies at it: in hyperspace with --start-at, else a
 /// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, not
-/// drawn yet, waits for --encounter-choice; no race's talk is ported yet, so a hail ends at once in peace, the group gone
-/// in hyperspace, standing down in a system, and an attack fights its ships), --encounter-choice hail|attack (host: the
-/// choice at a meeting's encounter screen, made as it comes up),
+/// drawn yet, waits for --encounter-choice; the Ur-Quan's (urquan) and the Kohr-Ah's (blackurq) talks are ported, logged
+/// as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
+/// reads it: --start-at meets them in hyperspace), any other race's hail ends at once in peace, the group gone in
+/// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
+/// hail|attack (host: the choice at a meeting's encounter screen, made as it comes up), --meeting-replies I[,I...] (host:
+/// the replies chosen in the host's meetings' talks, each by its place among those offered from 0, in turn; past the
+/// last the host waits),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
@@ -119,6 +123,9 @@ public sealed class Options
 
     /// <summary>--encounter-choice hail|attack: the host's choice at a meeting's encounter screen, made as it comes up (testing, until the screen is drawn).</summary>
     public EncounterAction? EncounterChoice { get; private set; }
+
+    /// <summary>--meeting-replies I[,I...]: the host's replies in its meetings' talks, by place among those offered, in turn (testing, until the talk is drawn).</summary>
+    public int[]? MeetingReplies { get; private set; }
 
     /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>
     public int[]? StartMinerals { get; private set; }
@@ -219,6 +226,11 @@ public sealed class Options
                         "attack" => EncounterAction.Attack,
                         var c => throw new ArgumentException($"--encounter-choice is hail or attack, not {c}"),
                     };
+                    break;
+                case "--meeting-replies":
+                    o.MeetingReplies = Array.ConvertAll(Next().Split(','), int.Parse);
+                    if (Array.Exists(o.MeetingReplies, r => r < 0))
+                        throw new ArgumentException("--meeting-replies are places among the replies offered, from 0");
                     break;
                 case "--start-minerals":
                     o.StartMinerals = Array.ConvertAll(Next().Split(','), int.Parse);

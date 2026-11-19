@@ -112,6 +112,7 @@ public class BattleWireTests
         var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
             WorldBattleTests.Systems.Value, TestContent.Shapes);
         host.World.BattleKit = Kit();
+        host.World.EncounterRaces = new HashSet<string>();   // no groups: the drone orbiting Earth would meet the players (UrquanMeetingTests are its)
         host.StartBattle("ilwrath,spathi");
         host.Hello(1, "g1", "Guest 1", Protocol.Version);
         var wb = host.World.Battles.Single();

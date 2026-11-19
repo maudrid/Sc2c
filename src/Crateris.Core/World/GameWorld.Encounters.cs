@@ -32,12 +32,21 @@ public sealed partial class GameWorld
     private readonly Dictionary<string, (short X, short Y)> _spinEndedAt = new();
 
     /// <summary>
-    /// The races whose talk is ported, whose groups are kept once made
-    /// (decision 2): none yet (items 6 to 8 add the Ur-Quan, the Kohr-Ah,
-    /// the Ilwrath, the Spathi and the Slylandro). Every other race's
-    /// groups are made as UQM makes them, then dropped. Tests set it.
+    /// The races whose talk is ported (stage 3b-1 item 6: the Ur-Quan,
+    /// their drone, whose talk is theirs, and the Kohr-Ah; items 7 and 8 add
+    /// the Ilwrath, the Spathi and the Slylandro), whose groups fly.
     /// </summary>
-    internal IReadOnlySet<string> EncounterRaces { get; set; } = new HashSet<string>();
+    internal static readonly IReadOnlySet<string> TalkingRaces = new HashSet<string>
+    {
+        "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP",
+    };
+
+    /// <summary>
+    /// The races whose groups are kept once made (decision 2):
+    /// <see cref="TalkingRaces"/>. Every other race's groups are made as
+    /// UQM makes them, then dropped. Tests set their own.
+    /// </summary>
+    internal IReadOnlySet<string> EncounterRaces { get; set; } = TalkingRaces;
 
     /// <summary>
     /// The hyperspace encounters the players share (UQM's encounter_q), or

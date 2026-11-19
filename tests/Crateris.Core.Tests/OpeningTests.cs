@@ -41,6 +41,7 @@ public class OpeningTests
     {
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host",
             Systems, TestContent.Shapes);
+        world.EncounterRaces = new HashSet<string>();   // no groups: the drone orbiting Earth would meet the players (UrquanMeetingTests are its)
         if (guest)
         {
             Assert.Equal(JoinResult.Joined, world.Join("guest", "Guest"));
