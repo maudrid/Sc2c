@@ -13,6 +13,7 @@ using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
 using Crateris.Core.Session;
 using Crateris.Core.Systems;
+using Crateris.Core.World;
 
 namespace Crateris.Game;
 
@@ -41,6 +42,12 @@ namespace Crateris.Game;
 /// (the Earthling), chmmr, shofixti, syreen, orz, melnorme, vux or pkunk; up to 14 ships, each warping in when the one
 /// before it dies, and a win pays the first ship's race's bounty for each; Escape retreats; with fleet ships, from
 /// --start-fleet, the host chooses each ship to send in on the pick screen, the flagship the last choice),
+/// --start-encounter SHIP[:SHIPS] (host: a group of that ship's race, by data/ships.json's id as --start-battle's, of
+/// SHIPS ships or the race's fewest in a group, appears by the host and flies at it: in hyperspace with --start-at, else a
+/// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, not
+/// drawn yet, waits for --encounter-choice; no race's talk is ported yet, so a hail ends at once in peace, the group gone
+/// in hyperspace, standing down in a system, and an attack fights its ships), --encounter-choice hail|attack (host: the
+/// choice at a meeting's encounter screen, made as it comes up),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
@@ -54,7 +61,7 @@ namespace Crateris.Game;
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
 /// --first-run-tick FILE[,FILE] (the first-run screen ticks these add-ons, by file name, before --first-run-use),
 /// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
-/// --start-at, --start-orbit, --start-visit, --start-docked and --start-battle never load the default save
+/// --start-at, --start-orbit, --start-visit, --start-docked, --start-battle and --start-encounter never load the default save
 /// nor write over it: a new game unless --load names one (then they apply to it), saved only to a --save file;
 /// --start-minerals, --start-units, --start-devices, --start-fleet and --start-allied alone change whatever game is
 /// loaded, and are saved with it.
@@ -107,6 +114,12 @@ public sealed class Options
     /// <summary>--start-battle RACE[,RACE...]: a new game starts after the opening, in a battle by Earth against a fleet of these races' ships (up to 14), one at a time (testing).</summary>
     public string? StartBattle { get; private set; }
 
+    /// <summary>--start-encounter SHIP[:SHIPS]: a group of that ship's race appears by the host (in hyperspace with --start-at, else after the opening by Earth) and flies at it (testing, stage 3b-1 item 5).</summary>
+    public string? StartEncounter { get; private set; }
+
+    /// <summary>--encounter-choice hail|attack: the host's choice at a meeting's encounter screen, made as it comes up (testing, until the screen is drawn).</summary>
+    public EncounterAction? EncounterChoice { get; private set; }
+
     /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>
     public int[]? StartMinerals { get; private set; }
 
@@ -140,7 +153,8 @@ public sealed class Options
     /// never loads the default save nor writes over it; a new game unless
     /// --load names one, saved only to a --save file.
     /// </summary>
-    public bool StartsNewGame => StartAt != null || StartOrbit != null || StartVisit || StartDocked || StartBattle != null;
+    public bool StartsNewGame => StartAt != null || StartOrbit != null || StartVisit || StartDocked || StartBattle != null
+                                 || StartEncounter != null;
 
     public static Options Parse(string[] args)
     {
@@ -197,6 +211,15 @@ public sealed class Options
                     break;
                 case "--start-docked": o.StartDocked = true; break;
                 case "--start-battle": o.StartBattle = Next(); break;
+                case "--start-encounter": o.StartEncounter = Next(); break;
+                case "--encounter-choice":
+                    o.EncounterChoice = Next() switch
+                    {
+                        "hail" => EncounterAction.Hail,
+                        "attack" => EncounterAction.Attack,
+                        var c => throw new ArgumentException($"--encounter-choice is hail or attack, not {c}"),
+                    };
+                    break;
                 case "--start-minerals":
                     o.StartMinerals = Array.ConvertAll(Next().Split(','), int.Parse);
                     break;
@@ -224,6 +247,8 @@ public sealed class Options
             throw new ArgumentException("--start-at and --start-orbit can't be used together");
         if (o.StartBattle != null && (o.StartAt != null || o.StartOrbit != null || o.StartVisit || o.StartDocked))
             throw new ArgumentException("--start-battle can't be used with --start-at, --start-orbit, --start-visit or --start-docked");
+        if (o.StartEncounter != null && (o.StartBattle != null || o.StartOrbit != null || o.StartVisit || o.StartDocked))
+            throw new ArgumentException("--start-encounter can't be used with --start-battle, --start-orbit, --start-visit or --start-docked");
         return o;
     }
 }

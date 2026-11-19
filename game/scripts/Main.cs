@@ -520,6 +520,9 @@ public partial class Main : Node2D
                 Log(host.StartDocked());
             if (_options.StartBattle is { } race)
                 Log(host.StartBattle(race));
+            if (_options.StartEncounter is { } encounter)
+                Log(host.StartEncounter(encounter));
+            host.EncounterChoice = _options.EncounterChoice;
             host.GuestsStartInOrbit = _options.GuestsInOrbit;
             host.GuestsJoinBattle = _options.GuestsInBattle;
         }

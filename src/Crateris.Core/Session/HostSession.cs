@@ -302,6 +302,55 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-encounter SHIP[:SHIPS] (testing, stage 3b-1 item 5): a group of
+    /// that ship's race (data/ships.json's id; SHIPS ships, else the race's
+    /// fewest in a group, at least one) appears by the host and flies at it:
+    /// in hyperspace if the host is there (--start-at), else after the
+    /// opening as --start-battle leaves it (in flight in Earth's inner system,
+    /// by Luna), in that system. Touching it, the host meets it: the
+    /// encounter screen (until items 10 and 11 draw it and send its choice,
+    /// <see cref="EncounterChoice"/> chooses), the race's talk (not ported
+    /// yet for any race: a hail ends at once in peace), the battle (an
+    /// attack). A ship of no race, or too many ships, is an ArgumentException.
+    /// </summary>
+    public string StartEncounter(string spec)
+    {
+        if (World.Story is not { } story || World.Systems is null)
+            throw new InvalidOperationException("a group needs the game's content");
+        var parts = spec.Split(':', StringSplitOptions.TrimEntries);
+        if (parts.Length > 2 || story.Rules.RaceOfShip(parts[0]) is not { } raceShip)
+            throw new ArgumentException($"{spec}: SHIP[:SHIPS], SHIP a race's ship by data/ships.json's id");
+        int race = story.Rules.RaceIndex(raceShip.Race);
+        int ships = Math.Max(1, story.Rules.Fleets[race].MakeupMin);
+        if (parts.Length == 2 && (!int.TryParse(parts[1], out ships) || ships < 1))
+            throw new ArgumentException($"{spec}: SHIPS is a number of ships, one or more");
+        if (World.Host.Ship.Activity != Activity.Hyperspace)
+            AfterTheOpening();
+        else
+        {
+            foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED" })
+                story.Set(f, 1);
+            World.CommanderMet = true;
+        }
+        try
+        {
+            return World.AddEncounterNear(HostId, race, ships);
+        }
+        catch (ArgumentOutOfRangeException e)
+        {
+            throw new ArgumentException(e.Message);
+        }
+    }
+
+    /// <summary>
+    /// --encounter-choice hail|attack (testing): the host's choice at a
+    /// meeting's encounter screen, made as the screen comes up, until items
+    /// 10 and 11 draw the screen and send its choice; null: none (the host
+    /// waits there).
+    /// </summary>
+    public EncounterAction? EncounterChoice { get; set; }
+
+    /// <summary>
     /// --guests-in-orbit (testing): each guest joining for the first time is
     /// put in orbit where the host is as it joins (its undocking scene still
     /// shows), rather than in the inner system beside it.
@@ -763,6 +812,8 @@ public sealed class HostSession
     {
         World.SubmitInput(HostId, World.Frame + World.Settings.InputDelayFrames, hostInput);
         World.Step();
+        if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })
+            World.EncounterChoice(HostId, choice);
         TakeBattleNews();
         // Once the game is over the world has stopped (decision 12): its
         // frame no longer moves on, and the snapshot of the world as it

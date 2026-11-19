@@ -42,7 +42,8 @@
  * Input on stdin, one scenario per line:
  *   name thrusters jets year month day nstates (state value)...
  *   nfleets (race strength x y)... drone_dead nvisits
- *   (star seed days ngoals (kind arg frames)...)...
+ *   (star seed days ngoals (kind arg frames)... nmeetings
+ *    (status seed ncrews (crew)...)...)...
  * states by number: 0 PROBE_MESSAGE_DELIVERED, 1 SLYLANDRO_MULTIPLIER,
  * 2 UTWIG_SUPOX_MISSION, 3 STARBASE_AVAILABLE. drone_dead: the drone's
  * own group made (URQUAN_PROBE_GRPOFFS0) with no ships, as if it had gone.
@@ -51,6 +52,15 @@
  * the system (done on leaving it), 4 away from the nearest group drawn,
  * 5 the middle of the screen (an inner system's planet: done in orbit);
  * each for at most its frames.
+ *
+ * A visit's meetings, in turn (stage 3b-1 item 5; a meeting past them
+ * is a talk without a battle): status 0 a talk without a battle, 1 a
+ * battle: then the group's ships (npc_built_ship_q, as GetGroupInfo read
+ * them) as the battle left them (UpdateShipFragCrew: each crew given, -1
+ * leaving a ship's as it is, 0 one destroyed; ships past those given as
+ * they are), UninitEncounter (EncounterRace the first ship's race, the
+ * destroyed ships gone), and TFB_Random seeded from seed (Battle's), as
+ * the game comes back from it.
  *
  * Entering orbit (CheckShipLocation's enterOrbital) is followed as the
  * systems program's flights follow it: back to flight at once, as
@@ -614,7 +624,14 @@ enter_system (int star, DWORD s)
 	ResetSolarSys ();
 }
 
-/* After a meeting that ended in a talk without a battle. */
+/* A visit's meetings' ends (see the input above). */
+#define MAX_MEETINGS 8
+static int meet_status[MAX_MEETINGS], meet_crews[MAX_MEETINGS][MAX_SHIPS_PER_SIDE],
+		meet_ncrews[MAX_MEETINGS], num_meetings, meeting_no;
+static unsigned long meet_seed[MAX_MEETINGS];
+
+/* After a meeting: a talk without a battle, or a battle as the visit's
+ * meeting says. */
 static void
 come_back (void)
 {
@@ -624,6 +641,33 @@ come_back (void)
 		GetGroupInfo (GLOBAL (BattleGroupRef), EncounterGroup);
 	/* RaceCommunication's BuildBattle */
 	SET_GAME_STATE (ESCAPE_COUNTER, 110);
+	if (meeting_no < num_meetings && meet_status[meeting_no])
+	{
+		int m = meeting_no, k = 0;
+		HSHIPFRAG h, hn;
+		/* the battle's end: UpdateShipFragCrew, then UninitEncounter */
+		for (h = GetHeadLink (&GLOBAL (npc_built_ship_q)); h; h = hn, ++k)
+		{
+			SHIP_FRAGMENT *FragPtr = LockShipFrag (&GLOBAL (npc_built_ship_q), h);
+			hn = _GetSuccLink (FragPtr);
+			if (k == 0)
+				EncounterRace = FragPtr->race_id;
+			if (k < meet_ncrews[m] && meet_crews[m][k] >= 0)
+				FragPtr->crew_level = meet_crews[m][k];
+			if (FragPtr->crew_level == 0)
+			{
+				UnlockShipFrag (&GLOBAL (npc_built_ship_q), h);
+				RemoveQueue (&GLOBAL (npc_built_ship_q), h);
+				FreeShipFrag (&GLOBAL (npc_built_ship_q), h);
+				continue;
+			}
+			UnlockShipFrag (&GLOBAL (npc_built_ship_q), h);
+		}
+		/* Battle seeds TFB_Random */
+		TFB_SeedRandom (meet_seed[m]);
+		num_draws = 0;
+	}
+	++meeting_no;
 	GLOBAL (CurrentActivity) &= ~START_ENCOUNTER;
 	/* ExploreSolarSys again: a new SOLARSYS_STATE, InitSolarSys coming back */
 	memset (&SolarSysState, 0, sizeof SolarSysState);
@@ -802,6 +846,21 @@ main (int argc, char *argv[])
 			for (g = 0; g < ngoals; ++g)
 				if (scanf ("%d %d %d", &kinds[g], &args[g], &limits[g]) != 3)
 					return bad_input (name, "a goal");
+			if (scanf ("%d", &num_meetings) != 1 || num_meetings < 0
+					|| num_meetings > MAX_MEETINGS)
+				return bad_input (name, "the meetings' count");
+			for (g = 0; g < num_meetings; ++g)
+			{
+				int k;
+				if (scanf ("%d %lu %d", &meet_status[g], &meet_seed[g],
+						&meet_ncrews[g]) != 3 || meet_ncrews[g] < 0
+						|| meet_ncrews[g] > MAX_SHIPS_PER_SIDE)
+					return bad_input (name, "a meeting");
+				for (k = 0; k < meet_ncrews[g]; ++k)
+					if (scanf ("%d", &meet_crews[g][k]) != 1)
+						return bad_input (name, "a meeting's crew");
+			}
+			meeting_no = 0;
 			add_days (days);
 			printf ("%s\n [%d, [", v ? "," : "", star);
 			first_frame = 1;

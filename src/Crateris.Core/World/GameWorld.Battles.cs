@@ -204,9 +204,14 @@ public sealed partial class GameWorld
             var enemyShip = new Starship(RaceShips.Code(description, kit.Graphics.Views, start.NoCloak), 1, (ushort)crew,
                 (ushort)description.MaxCrew) { Icons = RaceShips.Icons(description, kit.Graphics.Views) };
             byte name;
-            do
-                name = (byte)((names.Next() & (Battle.NumCaptainsNames - 1)) + Battle.CaptainNameOffset);
-            while (enemies.Any(e => e.Item2.Id == description.Id && e.Item1.CaptainsNameIndex == name));
+            if (s.Captain is int captain && !fleet.Infinite)
+                name = (byte)captain;   // the group's own (a system's group file keeps each ship's)
+            else
+            {
+                do
+                    name = (byte)((names.Next() & (Battle.NumCaptainsNames - 1)) + Battle.CaptainNameOffset);
+                while (enemies.Any(e => e.Item2.Id == description.Id && e.Item1.CaptainsNameIndex == name));
+            }
             enemyShip.CaptainsNameIndex = name;
             enemies.Add((enemyShip, description));
         }

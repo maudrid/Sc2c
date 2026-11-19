@@ -450,7 +450,7 @@ public sealed class HyperEncounters
             e.LogY = Units.UniverseToLogY(y);
         }
 
-        var el = new EncounterElement { CurX = e.LogX, CurY = e.LogY, NextX = e.LogX, NextY = e.LogY };
+        var el = new EncounterElement { CurX = e.LogX, CurY = e.LogY, NextX = e.LogX, NextY = e.LogY, Met = e.MeetingPlayer };
         int vortex = e.TransitionState;
         if (vortex != 0 || isNew)
         {
@@ -479,7 +479,16 @@ public sealed class HyperEncounters
     /// sprite is now, as process.c tests them (the soonest touch; the first
     /// in the list of those as soon).
     /// </summary>
-    public HyperEncounter? Touch(HyperFlight ship, ContactShapes shapes, (long X, long Y) before)
+    public HyperEncounter? Touch(HyperFlight ship, ContactShapes shapes, (long X, long Y) before) =>
+        Touch(ship, shapes, before, e => e.Element is { Nonsolid: false, Met: null });
+
+    /// <summary>
+    /// The encounter a ship touches this frame of those
+    /// <paramref name="touchable"/> says may be touched (their element made),
+    /// as <see cref="Touch(HyperFlight, ContactShapes, ValueTuple{long, long})"/>.
+    /// </summary>
+    public HyperEncounter? Touch(HyperFlight ship, ContactShapes shapes, (long X, long Y) before,
+        Func<HyperEncounter, bool> touchable)
     {
         var now = StarContact.SpritePosition(ship);
         IntersectFrame shipFrame = shapes.HyperFlagship[ship.Facing];
@@ -487,7 +496,7 @@ public sealed class HyperEncounters
         int bestTime = int.MaxValue;
         foreach (var e in List)
         {
-            if (e.Element is not { Nonsolid: false, Met: null } el)
+            if (e.Element is not { } el || !touchable(e))
                 continue;
             var shipControl = new IntersectControl(shipFrame, Display(before.X - now.X + ship.ViewX), Display(before.Y - now.Y + ship.ViewY))
             {

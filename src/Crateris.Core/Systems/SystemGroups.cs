@@ -93,6 +93,9 @@ public sealed class SystemFlyer
 
     internal IpGroup? Meeting;
     internal bool Started;
+
+    /// <summary>The race of a group the flyer touched this frame but may not meet (another player holds its lock), or null.</summary>
+    public int? PassedThrough { get; internal set; }
 }
 
 /// <summary>
@@ -574,6 +577,7 @@ public sealed class SystemGroups
             f.Met = null;
             f.Meeting = null;
             f.Started = false;
+            f.PassedThrough = null;
             var fl = f.Flight;
             var flags = ElementFlags.PreProcess | ElementFlags.IgnoreVelocity;
             if (fl.ContactAppearing)
@@ -636,35 +640,98 @@ public sealed class SystemGroups
     }
 
     /// <summary>
-    /// After a player's meeting in a system, as UQM's game comes back from
-    /// one that ended in a talk without a battle (item 5 runs the meeting;
-    /// until then it ends at once): the groups that left the system are
-    /// gone from it (the encounter's FlushGroupInfo), and at Sol a drone
-    /// just met flies off (reinitNpcs' check_probe). The group met stays,
-    /// re-forming, and the race's groups stand down
-    /// (<see cref="IpGroup.IgnoreFlagship"/>), as touching it left them.
+    /// A player's meeting in a system starts (UninitSolarSys' GetGroupInfo
+    /// (BattleGroupRef, EncounterGroup)): the groups that left the system
+    /// are gone from it (the group list flushed), and the group met is read
+    /// for the encounter (its ships made again, CloneShipFragment naming each
+    /// captain before the group file's name is read over it). The group
+    /// stays where it met the player until the meeting is over (decision 5:
+    /// <see cref="IpGroup.InMeeting"/>). Returns its ships as the draw keeps
+    /// them, or null if the draw has none for it.
     /// </summary>
-    public void AfterMeeting(SystemDraw d, IpGroup met)
+    public GroupShips? StartMeeting(SystemDraw d, IpGroup met, string player)
     {
         Flush(d);
-        // GetGroupInfo (BattleGroupRef, EncounterGroup): the group's ships
-        // are made again for the encounter (CloneShipFragment, naming each
-        // captain before the group file's name is read over it).
-        if (ShipsOf(d, met) is { } ships)
+        met.InMeeting = player;
+        if (met.Element is { } el)
+            el.Flags |= ElementFlags.NonSolid;
+        if (ShipsOf(d, met) is not { } ships)
+            return null;
+        var taken = new List<int>();
+        foreach (int captain in ships.Captains)
         {
-            var taken = new List<int>();
-            foreach (int captain in ships.Captains)
-            {
-                NameCaptain(d, met.Race, taken);
-                taken.Add(captain);   // ReadShipFragment: the file's name over the one drawn
-            }
+            NameCaptain(d, met.Race, taken);
+            taken.Add(captain);   // ReadShipFragment: the file's name over the one drawn
         }
+        return ships;
+    }
+
+    /// <summary>
+    /// A player's meeting in a system is over, as UQM's game comes back from
+    /// it (InitSolarSys' reinitNpcs, the group list read: GetGroupInfo
+    /// GROUP_LIST): the group met keeps the ships left
+    /// (<paramref name="left"/>, each its crew and captain, in its order:
+    /// npc_built_ship_q after UninitEncounter; null for all of them, as a
+    /// talk without a battle leaves them) and is gone from the system with
+    /// none left (dead in the draw); the groups that left the system are
+    /// gone from it; at Sol a drone just met flies off (check_probe). The
+    /// group met, if it stays, re-forms where it is, and the race's groups
+    /// stand down (<see cref="IpGroup.IgnoreFlagship"/>), as touching it
+    /// left them. After a battle (<paramref name="battleRace"/>, the
+    /// encounter's race, UninitEncounter's EncounterRace), the race's groups
+    /// turn on the players as one comes back into flight there (DoMissions).
+    /// </summary>
+    public void EndMeeting(SystemDraw d, IpGroup met, IReadOnlyList<(int Crew, int Captain)>? left, int battleRace = -1)
+    {
+        met.InMeeting = null;
+        if (left is not null && ShipsOf(d, met) is { } ships)
+        {
+            if (left.Count == 0)
+            {
+                ships.Kill();
+                d.Groups.Remove(met);
+                d.Elements?.Remove(met);
+                met.Element = null;
+            }
+            else
+                ships.SetShips(left.Select(s => s.Crew), left.Select(s => s.Captain));
+        }
+        Flush(d);
+        if (battleRace >= 0)
+            d.EncounterRace = battleRace;
         if (d.Defined == "SOL_DEFINED" && d.Groups.Count > 0 && d.Groups[0] is var head
             && head.Race == _drone && (head.Task & IpGroup.ReformGroup) != 0)
         {
             head.Task = IpGroup.Flee | IpGroup.IgnoreFlagship;
             head.DestLoc = 0;
         }
+    }
+
+    /// <summary>
+    /// A meeting that ended at once as a talk without a battle (the
+    /// meeting's start and end together: <see cref="StartMeeting"/>, then
+    /// <see cref="EndMeeting"/> keeping every ship).
+    /// </summary>
+    public void AfterMeeting(SystemDraw d, IpGroup met)
+    {
+        StartMeeting(d, met, "");
+        EndMeeting(d, met, null);
+    }
+
+    /// <summary>
+    /// Whether a player may meet a group of a race now (the world's: not
+    /// while another player holds the race's dialogue lock, decision 5);
+    /// null: always. A group a player may not meet passes through them
+    /// (<see cref="SystemFlyer.PassedThrough"/>).
+    /// </summary>
+    public Func<string, int, bool>? CanMeet { get; set; }
+
+    internal bool MayMeet(SystemFlyer flyer, IpGroup g)
+    {
+        if (CanMeet is null || CanMeet(flyer.Id, g.Race))
+            return true;
+        flyer.PassedThrough = g.Race;
+        return false;
     }
 
     /// <summary>A flying group's ships as the system's draw keeps them (its special system's own, or the random draw's).</summary>
@@ -845,6 +912,16 @@ public sealed class SystemGroups
         public void PreProcess(Elem e)
         {
             var el = e.Group!.Element!;
+            if (e.Group.InMeeting is not null)
+            {
+                // In a meeting: it stays where it met the player, untouchable,
+                // until the meeting is over (decision 5).
+                el.LifeSpan = 1;
+                el.Next = el.Cur;
+                el.Flags = (el.Flags & ~(ElementFlags.PostProcess | ElementFlags.Collision | ElementFlags.Disappearing))
+                           | ElementFlags.PreProcess | ElementFlags.NonSolid;
+                return;
+            }
             if (el.LifeSpan == 0)
             {
                 el.Flags |= ElementFlags.Disappearing;
@@ -1285,6 +1362,8 @@ public sealed class SystemGroups
             var flyer = f.Flyer!;
             if (flyer.Started || (other.Group!.MetBy is { } by && by != flyer))
                 return;
+            if (!_sg.MayMeet(flyer, other.Group))
+                return;
             if ((other.Flags & ElementFlags.Collision) == 0)
                 f.Flags |= ElementFlags.Collision | ElementFlags.NonSolid;
             else
@@ -1326,6 +1405,8 @@ public sealed class SystemGroups
             }
             var flyer = e1.Flyer!;
             if (flyer.Started || (g.MetBy is { } by && by != flyer))
+                return;
+            if (!_sg.MayMeet(flyer, g))
                 return;
             // A flyer: the meeting (EncounterGroup). The group re-forms, and
             // its race's groups stand down for the time being.

@@ -68,6 +68,14 @@ public sealed class HyperEncounter
     /// <summary>Its element while a player is in hyperspace (UQM's hElement), or null.</summary>
     public EncounterElement? Element { get; internal set; }
 
+    /// <summary>
+    /// The player meeting it while the meeting goes on (stage 3b-1 item 5,
+    /// decision 5): it stays where it met them (an element made meanwhile
+    /// is theirs, <see cref="EncounterElement.Met"/>: unsteered and
+    /// untouchable). Not saved, as a meeting isn't.
+    /// </summary>
+    public string? MeetingPlayer { get; internal set; }
+
     public HyperEncounter Clone()
     {
         var c = (HyperEncounter)MemberwiseClone();

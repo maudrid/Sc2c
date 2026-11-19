@@ -32,8 +32,9 @@ public enum Activity
     /// <summary>In orbit, with its lander on the world's surface, 35 frames a second.</summary>
     Planetside,
     /// <summary>
-    /// In a talk (or between the talks of a visit, as time passes): the
-    /// ship waits in its system where it touched the world.
+    /// In a talk (or between the talks of a visit, as time passes), or at a
+    /// meeting's encounter screen: the ship waits in its system where it
+    /// touched the world, or where it met the group.
     /// </summary>
     Talk,
     /// <summary>Docked at the allied starbase, at its menu (outfitting and the shipyard are the player's own screens there).</summary>
@@ -114,6 +115,22 @@ public sealed class PlayerShip
     /// </summary>
     public StarbaseVisit? Visit { get; internal set; }
 
+    /// <summary>
+    /// The group this ship is meeting, while the meeting goes on (stage 3b-1
+    /// item 5; not saved, as talks and battles aren't): its spin into a
+    /// group in hyperspace, the encounter screen, the talk (the ship waits
+    /// where it met the group: <see cref="Activity.Talk"/>), the battle.
+    /// </summary>
+    public Meeting? Meeting { get; internal set; }
+
+    /// <summary>
+    /// Hyperspace frames left of the ship's spin back in after a meeting
+    /// (hyper_transition, as Battle starts hyperspace again without a
+    /// loaded game): it doesn't move, steer or touch anything meanwhile,
+    /// though it's in hyperspace for the encounters. Not saved.
+    /// </summary>
+    internal int AppearFrames { get; set; }
+
     /// <summary>The battle this ship is in, fighting or watching (not saved: decision 14).</summary>
     public WorldBattle? Battle { get; internal set; }
 
@@ -137,7 +154,8 @@ public sealed class PlayerShip
     /// </summary>
     public bool Wreck => Destroyed && Battle is null && Kind != ShipKind.Flagship;
 
-    public Activity Activity => Battle is not null ? Activity.Battle : Visit is { AtMenu: true } ? Activity.Starbase : Visit is not null ? Activity.Talk : Ip switch
+    public Activity Activity => Battle is not null ? Activity.Battle : Visit is { AtMenu: true } ? Activity.Starbase
+        : Visit is not null || Meeting is { Step: MeetingStep.Encounter or MeetingStep.Talk } ? Activity.Talk : Ip switch
     {
         null => Activity.Hyperspace,
         { Orbit: not null } when Lander is not null => Activity.Planetside,

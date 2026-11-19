@@ -38,7 +38,23 @@ public sealed class DialogueLocks
     private readonly IReadOnlyDictionary<string, string> _raceOf;
     private readonly Dictionary<string, string> _held = new();   // race -> player
 
-    public DialogueLocks(IReadOnlyDictionary<string, string> raceOf) => _raceOf = raceOf;
+    private readonly IReadOnlyDictionary<string, string> _talkOf;
+
+    /// <param name="raceOf">Each conversation's race, the lock's.</param>
+    /// <param name="talkOf">Each race's own conversation (races.h's RACE_COMMUNICATION), which a group of the race met in space starts.</param>
+    public DialogueLocks(IReadOnlyDictionary<string, string> raceOf, IReadOnlyDictionary<string, string>? talkOf = null)
+    {
+        _raceOf = raceOf;
+        _talkOf = talkOf ?? new Dictionary<string, string>();
+    }
+
+    /// <summary>
+    /// The conversation a group of a race met in space starts
+    /// (RaceCommunication's RACE_COMMUNICATION, by the first ship's race:
+    /// the drone's URQUAN_DRONE_CONVERSATION, locked with the Ur-Quan), or
+    /// null for a race with none (INVALID_CONVERSATION).
+    /// </summary>
+    public string? ConversationOf(string race) => _talkOf.GetValueOrDefault(race);
 
     /// <summary>Each conversation id's race, from data/races.json (INVALID_CONVERSATION isn't one).</summary>
     public static DialogueLocks Load(string dataDirectory)
@@ -51,7 +67,14 @@ public sealed class DialogueLocks
             if (conversation != "INVALID_CONVERSATION")
                 raceOf[conversation] = Changes.GetValueOrDefault(conversation) ?? c.GetProperty("race").GetString()!;
         }
-        return new DialogueLocks(raceOf);
+        var talkOf = new Dictionary<string, string>();
+        foreach (var r in races.RootElement.GetProperty("races").EnumerateArray())
+        {
+            string conversation = r.GetProperty("conversation").GetString()!;
+            if (conversation != "INVALID_CONVERSATION" && raceOf.ContainsKey(conversation))
+                talkOf[r.GetProperty("race").GetString()!] = conversation;
+        }
+        return new DialogueLocks(raceOf, talkOf);
     }
 
     /// <summary>The race a conversation is locked by (KeyNotFoundException for an id that isn't a conversation).</summary>

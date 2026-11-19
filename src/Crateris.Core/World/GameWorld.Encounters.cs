@@ -60,11 +60,8 @@ public sealed partial class GameWorld
     }
 
     /// <summary>
-    /// The meetings so far: who touched which group, on which frame (item
-    /// 5's encounter screen and talk start from here). Until then a
-    /// meeting ends at once as a talk without a battle does: the group
-    /// re-forms one-shot, and is gone when its element is next made
-    /// (RaceCommunication's status 0, AddEncounterElement).
+    /// The meetings so far: who touched which group, on which frame; each
+    /// starts the player's <see cref="Meeting"/> (GameWorld.Meetings.cs).
     /// </summary>
     internal List<(long Frame, string Player, int Race)> HyperspaceMeetings { get; } = new();
 
@@ -225,23 +222,26 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// After a player's hyperspace flight: the group their ship touches, if
-    /// any, meets them (decision 5; encounter_collision). Item 5 runs the
-    /// meeting; until then it ends at once without a battle.
+    /// any, meets them (decision 5; encounter_collision): their meeting
+    /// begins (GameWorld.Meetings.cs). A group another player is meeting, or
+    /// whose race another player is talking to (the lock taken), passes
+    /// through them, and they're told who's talking.
     /// </summary>
     private void TouchEncounters(Player player, (long X, long Y) before)
     {
         if (Encounters is not { } encounters || Shapes is null)
             return;
-        if (encounters.Touch(player.Ship.Flight, Shapes, before) is not { } met)
+        if (player.Ship.Meeting is null
+            && encounters.Touch(player.Ship.Flight, Shapes, before,
+                e => e.Element is { Nonsolid: false, Met: null } && MayMeet(player, e.Race)) is { } met)
+        {
+            MeetInHyperspace(player, met);
             return;
-        met.Element!.Met = player.Id;
-        HyperspaceMeetings.Add((Frame, player.Id, met.Race));
-        // RaceCommunication with no battle: the group re-forms, one-shot,
-        // and the player is back in hyperspace (new numbers, as Battle seeds
-        // them again), the group gone as its element is made again.
-        met.Flags |= HyperEncounter.Reforming | HyperEncounter.OneShot;
-        met.Element = null;
-        _hyperRandom.Remove(player.Id);
+        }
+        if (encounters.Touch(player.Ship.Flight, Shapes, before,
+                e => e.Element is { Nonsolid: false } el && (el.Met is { } by && by != player.Id || !MayMeet(player, e.Race)))
+            is { } passing)
+            TellWhoIsTalking(player, passing.Race);
     }
 
     /// <summary>The encounters and each player's numbers as they are, for taking back (the starbase's two weeks).</summary>

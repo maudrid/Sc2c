@@ -130,10 +130,13 @@ public sealed class BattleKit
 
 /// <summary>
 /// One ship of an enemy fleet (a SHIP_FRAGMENT of npc_built_ship_q): its
-/// ship's id in data/ships.json and its crew (null: its race's starting
-/// crew, as CloneShipFragment's 0).
+/// ship's id in data/ships.json, its crew (null: its race's starting
+/// crew, as CloneShipFragment's 0) and its captain's name
+/// (captains_name_index: null for one the battle draws, as
+/// CloneShipFragment's NameCaptain; a group met in a system brings its
+/// own, stage 3b-1 item 5).
 /// </summary>
-public sealed record EnemyFleetShip(string Ship, int? Crew = null);
+public sealed record EnemyFleetShip(string Ship, int? Crew = null, int? Captain = null);
 
 /// <summary>
 /// The enemy's side of a battle (npc_built_ship_q, stage 4b item 5): its

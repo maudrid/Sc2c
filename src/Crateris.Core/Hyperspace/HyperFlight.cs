@@ -140,6 +140,25 @@ public sealed class HyperFlight
         FuelTicks = 1;
     }
 
+    /// <summary>
+    /// The ship is where another flight of it has taken it (its spin into a
+    /// group, whose last frame leaves hyperspace there: the hyperspace place,
+    /// its fuel and fuel counters), stopped, its view centred on that place
+    /// (as Battle spawns the flagship again).
+    /// </summary>
+    internal void TakePlaceOf(HyperFlight other)
+    {
+        LogX = other.LogX;
+        LogY = other.LogY;
+        Fuel = other.Fuel;
+        FuelDistX = other.FuelDistX;
+        FuelDistY = other.FuelDistY;
+        FuelDistExtra = other.FuelDistExtra;
+        FuelTicks = other.FuelTicks;
+        Facing = other.Facing;
+        Stop();
+    }
+
     /// <summary>Come to a standstill where the ship is (used when a player leaves).</summary>
     public void Stop()
     {

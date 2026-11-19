@@ -83,10 +83,10 @@ public class HyperEncounterTests
         return world;
     }
 
-    private static int KeysAt(JsonElement input, int frame)
+    private static int KeysAt(JsonElement steps, int frame)
     {
         int at = 0;
-        foreach (var step in input.GetProperty("steps").EnumerateArray())
+        foreach (var step in steps.EnumerateArray())
         {
             var s = step.Ints();
             if (frame < at + s[0])
@@ -150,57 +150,141 @@ public class HyperEncounterTests
     public void EncountersFlyAsUqmsForOnePlayer()
     {
         var golden = Golden.Load("hyperspace-encounters");
+        int followed = 0;
         foreach (var scenario in golden.GetProperty("scenarios").EnumerateArray())
         {
             string name = scenario.GetProperty("name").GetString()!;
             var input = scenario.GetProperty("input");
             var world = UqmScenario(input, out _, scenario);
+            world.BattleKit = WorldBattleTests.Kit();
             var frames = scenario.GetProperty("frames").EnumerateArray().ToList();
             int drawn = 0;
-            bool spun = false;
             world.EndOfFrame();
             Match(world, frames[0], $"{name}, frame 1", ref drawn);
-            for (int k = 1; k < frames.Count; ++k)
-            {
-                // The flagship's first frame, as it appears, takes no keys (ship_preprocess).
-                world.SubmitInput("h", world.Frame + 1, k == 1 ? ShipInput.None : (ShipInput)KeysAt(input, k - 1));
-                world.Step();
-                bool meeting = frames[k][FEncounters].EnumerateArray().Any(e => e[12].ValueKind != JsonValueKind.Null && e[12][16].GetInt32() != 0);
-                if (frames[k][FMet].GetInt32() != 0 && !meeting)
-                {
-                    // Spinning into a star: still in hyperspace for the
-                    // encounters until the spin's last frame (IN_BATTLE).
-                    Assert.True(world.Host.Ship.Spin is not null && world.Host.Ship.Entry is not null, $"{name}, frame {k + 1}: not spinning");
-                    Match(world, frames[k], $"{name}, frame {k + 1}", ref drawn);
-                    if (k == frames.Count - 1)
-                    {
-                        // The spin's last frame (cleanup_hyperspace): out of
-                        // hyperspace, in the star's system, the groups kept
-                        // without elements.
-                        world.Step();
-                        Assert.Null(world.Host.Ship.Spin);
-                        Assert.Equal(Activity.OuterSystem, world.Host.Ship.Activity);
-                        Assert.Equal(frames[k][FEncounters].GetArrayLength(), world.Encounters!.List.Count);
-                        Assert.All(world.Encounters.List, e => Assert.Null(e.Element));
-                        spun = true;
-                    }
-                    continue;
-                }
-                if (frames[k][FMet].GetInt32() != 0)
-                {
-                    // UQM's flagship met a group in that frame's flight: the
-                    // port's met the same one.
-                    var met = frames[k][FEncounters].EnumerateArray().Single(e => e[12].ValueKind != JsonValueKind.Null && e[12][16].GetInt32() != 0);
-                    Assert.True(world.HyperspaceMeetings.Count == 1, $"{name}, frame {k + 1}: no meeting");
-                    Assert.Equal(("h", met[0].GetInt32()), (world.HyperspaceMeetings[0].Player, world.HyperspaceMeetings[0].Race));
-                    break;
-                }
-                Assert.True(world.HyperspaceMeetings.Count == 0, $"{name}, frame {k + 1}: met too soon");
-                Match(world, frames[k], $"{name}, frame {k + 1}", ref drawn);
-            }
+            var end = Run(world, input.GetProperty("steps"), frames, name, 1, ref drawn);
             if ((scenario.GetProperty("end")[1].GetInt32() & StartInterplanetary) != 0)
-                Assert.True(spun, $"{name}: UQM's flagship went into a star, the port's didn't");
+                Assert.True(end == RunEnd.IntoAStar, $"{name}: UQM's flagship went into a star, the port's didn't");
+            if (end != RunEnd.Met)
+                continue;
+            // The spin's last frame (unhyper_transition's cleanup_hyperspace):
+            // out of hyperspace, the group met first in the list, the
+            // meeting at its encounter screen (no race's talk ported yet).
+            // UQM's clock stops from here (the encounter); the port's runs
+            // (docs/differences.md row 1): put back below.
+            var clock = (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay);
+            world.Step();
+            var meeting = world.MeetingOf("h")!;
+            Assert.Equal(MeetingStep.Encounter, meeting.Step);
+            Assert.Null(world.Host.Ship.Spin);
+            Assert.Same(meeting.Encounter, world.Encounters!.List[0]);
+            Assert.All(world.Encounters.List, e => Assert.Null(e.Element));
+            if (!input.TryGetProperty("after", out var after))
+                continue;
+            ++followed;
+            // RaceCommunication's end, as the scenario has it: a talk
+            // without a battle (a hail, the race's talk not ported), or a
+            // battle (an attack) the player retreats from, the group's ships
+            // left with the crews given.
+            var crews = after.GetProperty("crews").Ints();
+            // Back in hyperspace: Battle seeds the numbers afresh.
+            uint seed = scenario.GetProperty("after_start_seed").GetUInt32();
+            world.HyperspaceSeeds = _ => seed;
+            var afterFrames = scenario.GetProperty("after").EnumerateArray().ToList();
+            drawn = 0;
+            int first = 0;
+            if (after.GetProperty("status").GetInt32() == 0)
+            {
+                Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+                (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay) = clock;
+            }
+            else
+            {
+                // No day ends in the battle (its events would run, as UQM's
+                // stopped clock doesn't).
+                world.Clock.FramesIntoDay = -100000;
+                Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+                var wb = meeting.Battle!;
+                for (int i = 0; i < crews.Length; ++i)
+                    wb.Enemies[i].Starship.CrewLevel = (ushort)crews[i];
+                for (int i = 0; i < 400 && meeting.Step == MeetingStep.Battle; ++i)
+                {
+                    world.SubmitInput("h", world.Frame + 1, ShipInput.TakeOff);
+                    world.Step();
+                }
+                // The battle's last frame was hyperspace's first back (the
+                // player out of the battle, its frame's encounters flown):
+                // the clock as UQM's, a frame on from the meeting's.
+                Assert.True(clock.FramesIntoDay + 1 < input.GetProperty("day_ticks").GetInt32(), $"{name}: a day ends as it's back");
+                (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay) =
+                    (clock.Year, clock.Month, clock.Day, clock.FramesIntoDay + 1);
+                Match(world, afterFrames[0], $"{name}, back, frame 1", ref drawn);
+                first = 1;
+            }
+            Assert.Equal(MeetingStep.Done, meeting.Step);
+            Assert.Equal(crews, meeting.Left!.Select(l => l.Crew));
+            Run(world, after.GetProperty("steps"), afterFrames, $"{name}, back", first, ref drawn);
         }
+        Assert.Equal(2, followed);
+    }
+
+    private enum RunEnd { Done, Met, IntoAStar }
+
+    // The port's frames against UQM's from frames[first] (each a world
+    // frame with the steps' keys), through a meeting's spin, or into a star.
+    private static RunEnd Run(GameWorld world, JsonElement steps, List<JsonElement> frames, string name, int first,
+        ref int drawn)
+    {
+        int meetings = world.HyperspaceMeetings.Count;
+        bool met = false;
+        for (int k = first; k < frames.Count; ++k)
+        {
+            // The flagship's first frame, as it appears, takes no keys (ship_preprocess).
+            world.SubmitInput("h", world.Frame + 1, k == 1 ? ShipInput.None : (ShipInput)KeysAt(steps, k - 1));
+            world.Step();
+            string where = $"{name}, frame {k + 1}";
+            bool meeting = frames[k][FEncounters].EnumerateArray().Any(e => e[12].ValueKind != JsonValueKind.Null && e[12][16].GetInt32() != 0);
+            if (frames[k][FMet].GetInt32() == 1 && !meeting)
+            {
+                // Spinning into a star: still in hyperspace for the
+                // encounters until the spin's last frame (IN_BATTLE).
+                Assert.True(world.Host.Ship.Spin is not null && world.Host.Ship.Entry is not null, $"{where}: not spinning");
+                Match(world, frames[k], where, ref drawn);
+                if (k == frames.Count - 1)
+                {
+                    // The spin's last frame (cleanup_hyperspace): out of
+                    // hyperspace, in the star's system, the groups kept
+                    // without elements.
+                    world.Step();
+                    Assert.Null(world.Host.Ship.Spin);
+                    Assert.Equal(Activity.OuterSystem, world.Host.Ship.Activity);
+                    Assert.Equal(frames[k][FEncounters].GetArrayLength(), world.Encounters!.List.Count);
+                    Assert.All(world.Encounters.List, e => Assert.Null(e.Element));
+                    return RunEnd.IntoAStar;
+                }
+                continue;
+            }
+            if (frames[k][FMet].GetInt32() == 1)
+            {
+                // UQM's flagship met a group in that frame's flight (or
+                // spins into it since): the port's met the same one, and
+                // spins into it, still in hyperspace for the encounters.
+                var m = frames[k][FEncounters].EnumerateArray().Single(e => e[12].ValueKind != JsonValueKind.Null && e[12][16].GetInt32() != 0);
+                Assert.True(world.HyperspaceMeetings.Count == meetings + 1, $"{where}: no meeting");
+                Assert.Equal(("h", m[0].GetInt32()), (world.HyperspaceMeetings[^1].Player, world.HyperspaceMeetings[^1].Race));
+                Assert.True(world.Host.Ship.Meeting is { Step: MeetingStep.Spin } && world.Host.Ship.Spin is not null, $"{where}: not spinning");
+                Match(world, frames[k], where, ref drawn);
+                met = true;
+                continue;
+            }
+            Assert.True(!met && world.HyperspaceMeetings.Count == meetings, $"{where}: met too soon, or the spin ended early");
+            // Spinning back in after a meeting (hyper_transition: its first
+            // frame, APPEARING, sets it going).
+            if (k > 0)
+                Assert.True((frames[k][FMet].GetInt32() == 2) == (world.Host.Ship.AppearFrames > 0),
+                    $"{where}: spinning back in {world.Host.Ship.AppearFrames}");
+            Match(world, frames[k], where, ref drawn);
+        }
+        return met ? RunEnd.Met : RunEnd.Done;
     }
 
     // ---- several players (decisions 2 to 5)

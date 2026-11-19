@@ -44,10 +44,13 @@ public static class StarEntry
     }
 
     // init_transition: the velocity that covers the distance in num_turns frames.
-    private static Velocity EntryVelocity(long spriteX, long spriteY, int facing, Star star, int frameCount)
+    private static Velocity EntryVelocity(long spriteX, long spriteY, int facing, Star star, int frameCount) =>
+        EntryVelocity(spriteX, spriteY, facing, Units.UniverseToLogX(star.X), Units.UniverseToLogY(star.Y), frameCount);
+
+    private static Velocity EntryVelocity(long spriteX, long spriteY, int facing, long toX, long toY, int frameCount)
     {
-        short dx = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogX(star.X) - spriteX));
-        short dy = (short)Velocity.WorldToVelocity((int)(Units.UniverseToLogY(star.Y) - spriteY));
+        short dx = (short)Velocity.WorldToVelocity((int)(toX - spriteX));
+        short dy = (short)Velocity.WorldToVelocity((int)(toY - spriteY));
         int turns = Turns(facing, frameCount);
         var velocity = default(Velocity);
         velocity.SetComponents((short)(dx / turns), (short)(dy / turns));
@@ -67,6 +70,21 @@ public static class StarEntry
         var spin = flight.Copy();
         var (x, y) = HyperFlight.SpriteAt(flight.LogX, flight.LogY, flight.ViewX, flight.ViewY);
         spin.Velocity = EntryVelocity(x, y, flight.Facing, star, frameCount);
+        return spin;
+    }
+
+    /// <summary>
+    /// The ship's hyperspace flight as it spins into a group it has touched
+    /// (encounter_collision's init_transition, RANDOM_ENCOUNTER_TRANSITION):
+    /// as <see cref="Spin(HyperFlight, Star, int)"/>, the drift aimed at
+    /// the group's place (<paramref name="toX"/>, <paramref name="toY"/>: its
+    /// element's next.location, in hyperspace's logical units).
+    /// </summary>
+    public static HyperFlight Spin(HyperFlight flight, long toX, long toY, int frameCount)
+    {
+        var spin = flight.Copy();
+        var (x, y) = HyperFlight.SpriteAt(flight.LogX, flight.LogY, flight.ViewX, flight.ViewY);
+        spin.Velocity = EntryVelocity(x, y, flight.Facing, toX, toY, frameCount);
         return spin;
     }
 

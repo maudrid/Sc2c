@@ -144,6 +144,8 @@ public class SystemGroupTests
                     () => new HyperspaceRandom(seed) { Places = new List<string>() });
                 var flyers = new[] { new SystemFlyer("h", flight) };
                 var frames = recorded[v][1].EnumerateArray().ToList();
+                var meetings = visits[v].GetArrayLength() > 4 ? visits[v][4].EnumerateArray().ToList() : new();
+                int meetingNo = 0;
                 int drawn = 0;
                 bool left = false;
                 for (int k = 0; k < frames.Count; ++k)
@@ -158,8 +160,27 @@ public class SystemGroupTests
                     if (flyers[0].Met is { } met)
                     {
                         Assert.Equal(frames[k][FMet].GetInt32(), met.GroupId);
-                        // Back as from a talk without a battle (GameWorld.MeetInSystem).
-                        game.Groups.AfterMeeting(d, met);
+                        if (meetingNo < meetings.Count && meetings[meetingNo][0].GetInt32() == 1)
+                        {
+                            // Back from a battle (GameWorld.EndMeeting): the
+                            // group's ships as the battle left them, the
+                            // race's groups to turn on the flagship, the
+                            // numbers seeded afresh (Battle's).
+                            var ships = game.Groups.StartMeeting(d, met, "h")!;
+                            var crews = meetings[meetingNo][2].Ints();
+                            var after = ships.Ships.Select((c, i) => (Crew: i < crews.Length && crews[i] >= 0 ? crews[i] : c,
+                                Captain: ships.Captains[i])).Where(x => x.Crew > 0).ToList();
+                            game.Groups.EndMeeting(d, met, after, met.Race);
+                            Assert.Equal(met.Race, d.EncounterRace);
+                            d.Random = new HyperspaceRandom(meetings[meetingNo][1].GetUInt32()) { Places = new List<string>() };
+                            drawn = 0;
+                        }
+                        else
+                        {
+                            // Back as from a talk without a battle (GameWorld.EndMeeting).
+                            game.Groups.AfterMeeting(d, met);
+                        }
+                        ++meetingNo;
                         flight.EscapeCounter = IpFlight.EscapeFrames;
                         flight.Reenter();
                         d.Elements = null;

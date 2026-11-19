@@ -43,6 +43,9 @@ public sealed partial class GameWorld
                 _systemGroupsOf = Story;
             }
             _systemGroups!.Ported = EncounterRaces;
+            // A player in a meeting meets no other group, nor does one while
+            // another player holds the group's race's lock (decision 5).
+            _systemGroups.CanMeet ??= (id, race) => Find(id) is { Ship.Meeting: null } p && MayMeet(p, race);
             return _systemGroups;
         }
     }
@@ -59,11 +62,8 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// The meetings in systems so far: who touched which group (by its race
-    /// and number in the draw), in which system, on which frame (item 5's
-    /// encounter screen and talk start from here). Until then a meeting ends
-    /// at once as a talk without a battle does: the group re-forms where it
-    /// was and its race's groups stand down (decision 8), and the player
-    /// flies on, unable to touch anything for the escape counter's frames.
+    /// and number in the draw), in which system, on which frame; each starts
+    /// the player's <see cref="Meeting"/> (GameWorld.Meetings.cs).
     /// </summary>
     internal List<(long Frame, string Player, int Star, int Race, int Group)> SystemMeetings { get; } = new();
 
@@ -147,34 +147,12 @@ public sealed partial class GameWorld
                 sg.Frame(d, Systems[d.Star], flyers, Shapes);
                 foreach (var f in flyers.Where(f => f.Met is not null))
                     MeetInSystem(sg, d, f);
+                foreach (var f in flyers.Where(f => f.PassedThrough is not null))
+                    TellWhoIsTalking(Find(f.Id)!, f.PassedThrough!.Value);
                 AfterSystemFrame?.Invoke(d.Star);
             }
         }
         _systemInput.Clear();
-    }
-
-    // A player's ship touched a group (decision 5): item 5 runs the
-    // meeting; until then it ends at once without a battle, as UQM's game
-    // comes back from such a talk: the group met re-forms where it is, the
-    // others stand down (as the touch left them), and the player's ship
-    // flies on from where it was, its element made again and unable to
-    // touch anything for the escape counter's frames (BuildBattle's).
-    private void MeetInSystem(SystemGroups sg, SystemDraw d, SystemFlyer f)
-    {
-        var g = f.Met!;
-        SystemMeetings.Add((Frame, f.Id, d.Star, g.Race, g.GroupId));
-        sg.AfterMeeting(d, g);
-        var ip = f.Flight;
-        if (ip.Orbit is null)
-        {
-            ip.EscapeCounter = IpFlight.EscapeFrames;
-            ip.Reenter();
-        }
-        // ResetSolarSys: with nobody else flying there, every element is
-        // made again (InitDisplayList, DoMissions).
-        if (!_players.Any(p => p.Id != f.Id && p.Ship.SystemStar == d.Star && _systemInput.ContainsKey(p.Id)
-                               && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem))
-            d.Elements = null;
     }
 
     /// <summary>

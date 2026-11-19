@@ -194,12 +194,48 @@ public sealed class Talk
     /// </summary>
     public void Start()
     {
+        Load();
+        Hail(fromEncounterScreen: false);
+    }
+
+    /// <summary>
+    /// InitCommunication's init_race: the script's init function, which sets
+    /// how the talk would end now (<see cref="Segue"/>): a talk whose init
+    /// leaves it hostile (<see cref="OffersAttack"/>) is met with the
+    /// encounter screen first (InitEncounter), the player choosing to hail
+    /// (<see cref="Hail"/>) or attack (<see cref="Attack"/>).
+    /// </summary>
+    public void Load()
+    {
         if (Started)
             throw new InvalidOperationException("the talk has started");
         Started = true;
         Check();
         _script.Bind(this);
         _script.Init();
+        Check();
+    }
+
+    /// <summary>Whether the script's init left the talk hostile (BATTLE_SEGUE): the encounter screen offers Hail and Attack.</summary>
+    public bool OffersAttack => Started && !_hailed && !Ended && Get("BATTLE_SEGUE") != 0;
+
+    private bool _hailed;
+
+    /// <summary>
+    /// The player hails (HailAlien), after <see cref="Load"/>: from the
+    /// encounter screen the talk is set peaceful first (InitCommunication's
+    /// SET_GAME_STATE (BATTLE_SEGUE, 0)); then the description is loaded
+    /// (the first colour map, the song) and the intro runs.
+    /// </summary>
+    public void Hail() => Hail(fromEncounterScreen: OffersAttack);
+
+    private void Hail(bool fromEncounterScreen)
+    {
+        if (!Started || _hailed || Ended)
+            throw new InvalidOperationException("the talk isn't loaded, or has been hailed or attacked");
+        _hailed = true;
+        if (fromEncounterScreen)
+            Set("BATTLE_SEGUE", 0);
         _screenLoaded = true;
         ColorMap = 0;
         Check();
@@ -207,6 +243,25 @@ public sealed class Talk
         _script.Intro();
         Check();
         EndIfSilent();
+    }
+
+    /// <summary>
+    /// The player attacks from the encounter screen (InitCommunication's
+    /// ATTACK): the talk is set hostile, its post-encounter and clean-up
+    /// functions run, and it ends without a word (<see cref="Segue"/> hostile).
+    /// </summary>
+    public void Attack()
+    {
+        if (!Started || _hailed || Ended)
+            throw new InvalidOperationException("the talk isn't loaded, or has been hailed or attacked");
+        _hailed = true;
+        Set("BATTLE_SEGUE", 1);
+        Ended = true;
+        _script.PostEncounter();
+        Check();
+        _script.Uninit();
+        Check();
+        _events.Add(new TalkEnded(Segue));
     }
 
     /// <summary>The player chooses a reply (SelectResponse): its function runs.</summary>

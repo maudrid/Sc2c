@@ -33,7 +33,8 @@
  * Input on stdin, one scenario per line:
  *   name seed x y facing fuel day_ticks tick_count starbase multiplier
  *   anger thrusters nfleets (race strength x y)...  nenc (race flags ships ox oy
- *   radius lx ly transition)...  nsteps (frames keys)...
+ *   radius lx ly transition)...  nsteps (frames keys)...  nafter
+ *   [status seed nships (crew)...  nsteps (frames keys)...]
  * x, y the flagship's place (universe), facing its ShipFacing, fuel
  * FuelOnBoard; day_ticks the clock's day_in_ticks and tick_count its
  * tick_count at the start; starbase STARBASE_AVAILABLE, multiplier
@@ -43,13 +44,24 @@
  * encounter is one kept in encounter_q from before (ships each of the
  * race's crew, its ShipList as AddEncounterElement fills it; lx, ly its
  * loc_pt, log_x and log_y from it). Keys hold for the step's frames, as
- * BATTLE_INPUT_STATE: 1 left, 2 right, 4 thrust.
+ * BATTLE_INPUT_STATE: 1 left, 2 right, 4 thrust. nafter 1 follows a
+ * meeting (the run ending in START_ENCOUNTER: the flagship has spun into
+ * the group it touched) back into hyperspace (stage 3b-1 item 5):
+ * RaceCommunication's end in hyperspace for the group met (the head of
+ * encounter_q, where cleanup_hyperspace put it): its ships as the meeting
+ * left them (nships, each one's crew), ENCOUNTER_REFORMING, and
+ * ONE_SHOT_ENCOUNTER if status is 0 (no battle fought); then starcon.c's
+ * loop: START_ENCOUNTER cleared, the flagship's velocity zeroed, and
+ * Battle in hyperspace again, not as a loaded game (the flagship spins
+ * back in, hyper_transition), seeded from seed, with the second steps'
+ * keys.
  *
  * Output: one JSON object per scenario: its frames, each recorded at the
  * end of on_battle_frame (after SeedUniverse):
  *   [log_x, log_y, ShipFacing, flagship's velocity [vector w, h],
  *    flagship transition (0 none, 1 unhyper_transition: met, or spinning
- *    into a star, in hyperspace until the spin's last frame),
+ *    into a star, in hyperspace until the spin's last frame; 2
+ *    hyper_transition: spinning back in as hyperspace starts again),
  *    [year, month, day], [draws], seed,
  *    [encounters]]
  * draws each TFB_Random's caller since the last record (the first's
@@ -63,7 +75,9 @@
  *    primitive's type]
  * and "end": the frame count run and CurrentActivity after; "start_seed"
  * TFB_Random's seed as the first frame began (after Battle's start:
- * InitGalaxy's stars and spawn_ship's place for the flagship).
+ * InitGalaxy's stars and spawn_ship's place for the flagship); with
+ * nafter 1, "after": the frames back in hyperspace after the meeting,
+ * "after_end" and "after_start_seed" as for the first run.
  */
 
 #include "uqm/battle.c"
@@ -475,7 +489,9 @@ record (int first)
 			LockElement (sp->hShip, &ship);
 			vw = ship->velocity.vector.width;
 			vh = ship->velocity.vector.height;
-			met = ship->preprocess_func == unhyper_transition;
+			met = ship->preprocess_func == unhyper_transition ? 1
+					: ship->preprocess_func
+						== (void (*) (ELEMENT *)) hyper_transition ? 2 : 0;
 			UnlockElement (sp->hShip);
 		}
 		UnlockStarShip (&race_q[0], hs);
@@ -584,6 +600,9 @@ main (int argc, char *argv[])
 	unsigned long s;
 	int x, y, facing, fuel, day_ticks, tick_count, starbase, multiplier,
 			anger, thrusters, n, i;
+	int after, after_status, after_ships, after_steps;
+	int after_crew[MAX_HYPER_SHIPS], after_frames[MAX_STEPS], after_keys[MAX_STEPS];
+	unsigned long after_seed;
 
 	if (argc < 3)
 	{
@@ -718,10 +737,69 @@ main (int argc, char *argv[])
 		num_draws = 0;
 		recorded_any = 0;
 		scenario_seed = s;
+		if (scanf ("%d", &after) != 1 || after < 0 || after > 1)
+			return bad_input (name, "the after's count");
+		if (after)
+		{
+			if (scanf ("%d %lu %d", &after_status, &after_seed, &after_ships)
+					!= 3 || after_ships < 0 || after_ships > MAX_HYPER_SHIPS)
+				return bad_input (name, "the meeting's end");
+			for (i = 0; i < after_ships; ++i)
+				if (scanf ("%d", &after_crew[i]) != 1)
+					return bad_input (name, "a ship's crew");
+			if (scanf ("%d", &n) != 1 || n < 0 || n > MAX_STEPS)
+				return bad_input (name, "the second steps' count");
+			after_steps = n;
+			for (i = 0; i < n; ++i)
+				if (scanf ("%d %d", &after_frames[i], &after_keys[i]) != 2)
+					return bad_input (name, "a second step");
+		}
 		printf ("{\"name\": \"%s\", \"frames\": [", name);
 		Battle (on_battle_frame);
-		printf ("\n], \"end\": [%d, %d], \"start_seed\": %lu}\n", frame_no,
+		printf ("\n], \"end\": [%d, %d], \"start_seed\": %lu", frame_no,
 				(int) GLOBAL (CurrentActivity), (unsigned long) start_seed);
+		if (after && (GLOBAL (CurrentActivity) & START_ENCOUNTER))
+		{
+			HENCOUNTER h = GetHeadEncounter ();
+			ENCOUNTER *e;
+			/* RaceCommunication in hyperspace, for the group met */
+			LockEncounter (h, &e);
+			e->num_ships = after_ships;
+			for (i = 0; i < after_ships; ++i)
+				e->ShipList[i].crew_level = after_crew[i];
+			e->flags |= ENCOUNTER_REFORMING;
+			if (after_status == 0)
+				e->flags |= ONE_SHOT_ENCOUNTER;
+			UnlockEncounter (h);
+			/* starcon.c's loop: back into hyperspace */
+			GLOBAL (CurrentActivity) &= ~START_ENCOUNTER;
+			LastActivity = GLOBAL (CurrentActivity);
+			ZeroVelocityComponents (&GLOBAL (velocity));
+			GLOBAL (CurrentActivity) = MAKE_WORD (IN_HYPERSPACE, 0);
+			num_steps = after_steps;
+			total_frames = 0;
+			for (i = 0; i < after_steps; ++i)
+			{
+				step_frames[i] = after_frames[i];
+				step_keys[i] = after_keys[i];
+				total_frames += after_frames[i];
+			}
+			UninitQueue (&race_q[0]);
+			UninitQueue (&race_q[1]);
+			InitQueue (&race_q[0], MAX_SHIPS_PER_SIDE, sizeof (STARSHIP));
+			InitQueue (&race_q[1], MAX_SHIPS_PER_SIDE, sizeof (STARSHIP));
+			memset (DisplayArray, 0, sizeof DisplayArray);
+			SpaceOrg.x = SpaceOrg.y = 0;
+			num_draws = 0;
+			recorded_any = 0;
+			scenario_seed = after_seed;
+			printf (", \"after\": [");
+			Battle (on_battle_frame);
+			printf ("\n], \"after_end\": [%d, %d], \"after_start_seed\": %lu",
+					frame_no, (int) GLOBAL (CurrentActivity),
+					(unsigned long) start_seed);
+		}
+		printf ("}\n");
 		UninitQueue (&race_q[0]);
 		UninitQueue (&race_q[1]);
 		ReinitQueue (&GLOBAL (encounter_q));

@@ -5301,17 +5301,24 @@ ONE_SHOT_ENCOUNTER, ENCOUNTER_REFORMING = 1 << 7, 1 << 6
 
 
 def hyperspace_scenario(name, seed, at, steps, facing=0, fuel=5000, day_ticks=24, tick_count=24,
-                        starbase=1, multiplier=0, anger=0, thrusters=2, fleets=(), encounters=()):
+                        starbase=1, multiplier=0, anger=0, thrusters=2, fleets=(), encounters=(), after=None):
     """A hyperspace scenario for golden/hyperspace.c: the flagship at
     `at` (universe), the clock's day day_ticks frames long, tick_count
     frames from its next, STARBASE_AVAILABLE, SLYLANDRO_MULTIPLIER and
     MELNORME_ANGER; fleets [race, strength, x, y] changed; encounters
     kept from before, each [race, flags, ships, ox, oy, radius, lx, ly,
-    transition_state]; steps [frames, keys]."""
-    return dict(name=name, seed=seed, x=at[0], y=at[1], facing=facing, fuel=fuel, day_ticks=day_ticks,
-                tick_count=tick_count, starbase=starbase, multiplier=multiplier, anger=anger,
-                thrusters=thrusters, fleets=[list(f) for f in fleets], encounters=[list(e) for e in encounters],
-                steps=[list(s) for s in steps])
+    transition_state]; steps [frames, keys]. after: a meeting the run
+    ends in followed back into hyperspace (stage 3b-1 item 5), a dict of
+    status (0 a talk without a battle, 1 a battle), seed (the second
+    Battle's), crews (the ships left, each one's crew) and steps."""
+    sc = dict(name=name, seed=seed, x=at[0], y=at[1], facing=facing, fuel=fuel, day_ticks=day_ticks,
+              tick_count=tick_count, starbase=starbase, multiplier=multiplier, anger=anger,
+              thrusters=thrusters, fleets=[list(f) for f in fleets], encounters=[list(e) for e in encounters],
+              steps=[list(s) for s in steps])
+    if after is not None:
+        sc["after"] = dict(status=after["status"], seed=after["seed"], crews=list(after["crews"]),
+                           steps=[list(s) for s in after["steps"]])
+    return sc
 
 
 def hyperspace_line(sc, n):
@@ -5326,6 +5333,13 @@ def hyperspace_line(sc, n):
     parts.append(len(sc["steps"]))
     for st in sc["steps"]:
         parts += st
+    after = sc.get("after")
+    parts.append(1 if after else 0)
+    if after:
+        parts += [after["status"], after["seed"], len(after["crews"])] + after["crews"]
+        parts.append(len(after["steps"]))
+        for st in after["steps"]:
+            parts += st
     return " ".join(str(p) for p in parts)
 
 
@@ -5344,6 +5358,20 @@ def hyperspace_scenarios():
                             [[40, H_LEFT], [700, 0]], tick_count=5),
         hyperspace_scenario("turning in the Kohr-Ah's sphere", 2024, (6300, 6600),
                             [[30, 0], [80, H_RIGHT | H_THRUST], [60, H_THRUST], [600, H_LEFT]], tick_count=20),
+        # A meeting followed back into hyperspace (stage 3b-1 item 5): the
+        # group met talked away (re-forming, one-shot: gone as its element
+        # is made again), the others' elements made afresh round the
+        # flagship spinning back in (hyper_transition) and flying on.
+        hyperspace_scenario("waiting in the Ur-Quan's sphere, then talked away", 11, (5800, 6100),
+                            [[40, H_LEFT], [700, 0]], tick_count=5,
+                            after=dict(status=0, seed=4321, crews=[42] * 5, steps=[[40, 0], [200, H_RIGHT]])),
+        # A meeting fought: the player retreated, the group re-forming with
+        # the crews the battle left it (its second ship's 17), coming back
+        # through its vortex after the transition's 100 steps.
+        hyperspace_scenario("turning in the Kohr-Ah's sphere, then fought", 2024, (6300, 6600),
+                            [[30, 0], [80, H_RIGHT | H_THRUST], [60, H_THRUST], [600, H_LEFT]], tick_count=20,
+                            after=dict(status=1, seed=99, crews=[42, 17, 42, 42],
+                                       steps=[[30, 0], [300, H_RIGHT | H_THRUST]])),
         # Out of the Spathi's sphere (radius 990 round (2549, 3600)) at
         # speed: the groups chasing go as they leave it (their vortex out),
         # or fall behind out of the flagship's span.
@@ -5407,7 +5435,7 @@ class HyperspaceProgram:
             raise RuntimeError("the hyperspace program lost a scenario")
         places = {}
         for run in runs:
-            for frame in run["frames"]:
+            for frame in run["frames"] + run.get("after", []):
                 frame[6] = [places.setdefault(a, self.place(a)) for a in frame[6]]
         return runs
 
@@ -5462,6 +5490,22 @@ def check_hyperspace(scenarios, runs):
         raise RuntimeError("hyperspace: the flagship didn't drift in its spin")
     if not runs[[s["name"] for s in scenarios].index("into a star")]["end"][1] & 0x800:
         raise RuntimeError("hyperspace: the star's system didn't start (START_INTERPLANETARY)")
+    # Meetings followed back into hyperspace (stage 3b-1 item 5): the
+    # flagship spinning back in (hyper_transition) before it flies; the
+    # group talked away gone, the one fought re-forming (its transition's
+    # 100 steps) with the crews the battle left it.
+    for name, crews in (("waiting in the Ur-Quan's sphere, then talked away", None),
+                        ("turning in the Kohr-Ah's sphere, then fought", [42, 17, 42, 42])):
+        run = runs[[s["name"] for s in scenarios].index(name)]
+        after = run.get("after")
+        if not after or not any(f[4] == 2 for f in after) or after[-1][4] == 2:
+            raise RuntimeError(f"hyperspace: '{name}' wasn't followed back, or the flagship didn't spin back in")
+        met = [e for e in run["frames"][-1][8] if e[12] and e[12][16]][0]
+        if crews is None:
+            if len(after[0][8]) != len(run["frames"][-1][8]) - 1:
+                raise RuntimeError("hyperspace: the group talked away didn't go")
+        elif after[0][8][0][3] != crews or after[0][8][0][11] != 100 or after[0][8][0][0] != met[0]:
+            raise RuntimeError("hyperspace: the group fought didn't re-form with its crews")
 
 
 def record_hyperspace(uqm, exe, strings_exe, images_exe, package):
@@ -5504,11 +5548,21 @@ def record_hyperspace(uqm, exe, strings_exe, images_exe, package):
         "START_INTERPLANETARY). "
         "start_seed: TFB_Random's seed as the first frame began (after InitGalaxy's and spawn_ship's "
         "draws, which a port's own seed stands for).",
+        "after (stage 3b-1 item 5): a scenario whose run ends in a meeting (START_ENCOUNTER, the flagship "
+        "spun into the group it touched) followed back into hyperspace: RaceCommunication's end for the "
+        "group met (the head of encounter_q, where cleanup_hyperspace puts it): its ships with the crews "
+        "input.after gives, ENCOUNTER_REFORMING, and ONE_SHOT_ENCOUNTER if status is 0 (no battle); then "
+        "starcon.c's loop (START_ENCOUNTER cleared, the flagship's velocity zeroed) and Battle in hyperspace "
+        "again, not as a loaded game, seeded from input.after.seed: its frames as the first run's, the "
+        "transition field 2 while the flagship spins back in (hyper_transition); after_end and "
+        "after_start_seed as end and start_seed.",
     ])
     data["sheets"] = HYPERSPACE_SHEETS
     data["scenarios"] = [{"name": s["name"],
                           "input": {k: v for k, v in s.items() if k != "name"},
-                          "start_seed": r["start_seed"], "frames": r["frames"], "end": r["end"]}
+                          "start_seed": r["start_seed"], "frames": r["frames"], "end": r["end"],
+                          **({"after_start_seed": r["after_start_seed"], "after": r["after"],
+                              "after_end": r["after_end"]} if "after" in r else {})}
                          for s, r in zip(scenarios, runs)]
     return data
 
@@ -5542,10 +5596,14 @@ ST_PROBE_DELIVERED, ST_MULTIPLIER, ST_MISSION, ST_STARBASE = 0, 1, 2, 3
 
 def groups_scenario(name, visits, thrusters=2, jets=2, date=(2155, 2, 17), states=(), fleets=(), drone_dead=0):
     """A scenario for golden/groups.c: visits [star, seed, days before,
-    [[goal, arg, frames]...]]."""
+    [[goal, arg, frames]...], and optionally the visit's meetings' ends
+    [[status, seed, [crew...]]...] (stage 3b-1 item 5: status 1 a battle,
+    each crew -1 as it is, 0 destroyed; a meeting past them a talk without
+    a battle)]."""
     return dict(name=name, thrusters=thrusters, jets=jets, date=list(date), states=[list(x) for x in states],
                 fleets=[list(f) for f in fleets], drone_dead=drone_dead,
-                visits=[[v[0], v[1], v[2], [list(g) for g in v[3]]] for v in visits])
+                visits=[[v[0], v[1], v[2], [list(g) for g in v[3]],
+                         [[m[0], m[1], list(m[2])] for m in (v[4] if len(v) > 4 else [])]] for v in visits])
 
 
 def groups_line(sc, n):
@@ -5556,10 +5614,13 @@ def groups_line(sc, n):
     for f in sc["fleets"]:
         parts += f
     parts += [sc["drone_dead"], len(sc["visits"])]
-    for star, seed, days, goals in sc["visits"]:
+    for star, seed, days, goals, meetings in sc["visits"]:
         parts += [star, seed, days, len(goals)]
         for g in goals:
             parts += g
+        parts.append(len(meetings))
+        for status, mseed, crews in meetings:
+            parts += [status, mseed, len(crews)] + crews
     return " ".join(str(p) for p in parts)
 
 
@@ -5617,6 +5678,17 @@ def groups_scenarios():
         groups_scenario("a meeting in a planet's view", [
             [S_URQUAN, 77, 0, [[G_PLANET, 0, 1500], [G_WAIT, 0, 200], [G_GROUP, 0, 1500], [G_WAIT, 0, 1]]],
         ], thrusters=6, jets=4),
+        # A meeting fought (stage 3b-1 item 5): the group's ships as the
+        # battle left them (its second ship destroyed, the third with 9
+        # crew), the group re-forming with those left, and the race's groups
+        # turning on the flagship as the system comes back (EncounterRace,
+        # DoMissions), TFB_Random seeded afresh by the battle; a second
+        # group met is then destroyed whole, and is gone.
+        groups_scenario("a meeting fought", [
+            [S_URQUAN, 4242, 0, [[G_WAIT, 0, 240], [G_GROUP, 0, 1500], [G_WAIT, 0, 300], [G_GROUP, 0, 2500],
+                                 [G_WAIT, 0, 300]],
+             [[1, 515, [-1, 0, 9]], [1, 616, [0, 0, 0, 0, 0, 0, 0]]]],
+        ]),
         # The Spathi at home: at least five groups.
         groups_scenario("the Spathi at home", [
             [S_SPATHI, 12, 0, [[G_WAIT, 0, 600], [G_GROUP, 0, 2000], [G_WAIT, 0, 400]]],
@@ -5701,6 +5773,20 @@ def check_groups(scenarios, runs):
         raise RuntimeError("groups: no captain's name drawn again on a name the group file holds")
     if len(visits("the Spathi at home")[0][1][0][12]) < 5:
         raise RuntimeError("groups: fewer than five groups at the Spathi's home")
+    # A meeting fought (stage 3b-1 item 5): back from the first battle, the
+    # numbers seeded afresh and the race's groups intercepting (DoMissions);
+    # the second group destroyed whole is gone; a third meeting a talk.
+    fought = visits("a meeting fought")[0][1]
+    mets = [k for k, f in enumerate(fought) if f[8] == 1]
+    if len(mets) < 3:
+        raise RuntimeError("groups: fewer than three meetings in 'a meeting fought'")
+    back = fought[mets[0] + 1]
+    race = [g[1] for g in fought[mets[0]][12] if g[0] == fought[mets[0]][-1]][0]
+    if back[10] != 515 or not all(g[4] == 0 and not g[3] & 4 for g in back[12] if g[1] == race):
+        raise RuntimeError("groups: no fresh numbers, or the race's groups not intercepting, after a battle")
+    gone = fought[mets[1]][-1]
+    if any(g[0] == gone for g in fought[mets[1] + 1][12]):
+        raise RuntimeError("groups: a group destroyed whole is still in the system")
 
 
 def record_groups(uqm, exe, strings_exe, images_exe, package):
@@ -5729,7 +5815,11 @@ def record_groups(uqm, exe, strings_exe, images_exe, package):
         "fleets changed [race, actual_strength, x, y], whether the drone's group is made gone, and visits "
         "[star, seed, days before, goals [kind, arg, frames]] (0 a planet, 1 the nearest group drawn, 2 "
         "wait, 3 out of the system, 4 away from the nearest group, 5 the middle of the screen). Entering orbit "
-        "comes back to flight at once, as EnterPlanetOrbit does around the orbit.",
+        "comes back to flight at once, as EnterPlanetOrbit does around the orbit. A visit's fifth field, "
+        "its meetings' ends in turn (stage 3b-1 item 5): [status, seed, crews]: status 1 a battle, the "
+        "group's ships as GetGroupInfo read them given those crews (-1 as it is, 0 destroyed), "
+        "UninitEncounter (EncounterRace the first ship's race, the destroyed gone), TFB_Random seeded from "
+        "seed (Battle's), then the game coming back as from a talk; a meeting past them a talk.",
         "visits: [star, frames], a frame recorded after RedrawQueue: [keys (1 left, 2 right, 4 thrust), "
         "facing, ip_location x, y, ShipStamp x, y, zoom radius, inner planet or -1, event (0, 1 met, 2 "
         "left the system, 3 orbit), the functions that drew a number since the last frame (the first frame's: "

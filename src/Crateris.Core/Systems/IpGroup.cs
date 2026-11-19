@@ -59,6 +59,13 @@ public sealed class IpGroup
     // The flyer who met it this frame (decision 5: it meets one player).
     internal object? MetBy;
 
+    /// <summary>
+    /// The player meeting this group while the meeting goes on (stage 3b-1
+    /// item 5, decision 5): it stays where it met them, untouchable, until
+    /// the meeting is over. Not saved, as a meeting isn't.
+    /// </summary>
+    public string? InMeeting { get; internal set; }
+
     public IpGroup Clone()
     {
         var c = (IpGroup)MemberwiseClone();
@@ -130,6 +137,17 @@ public sealed class GroupShips
     {
         Ships.Clear();
         Captains.Clear();
+    }
+
+    /// <summary>The ships left after a meeting (UninitEncounter's npc_built_ship_q written back), each with its crew and captain.</summary>
+    public void SetShips(IEnumerable<int> crews, IEnumerable<int> captains)
+    {
+        var ships = crews.ToList();
+        var names = captains.ToList();
+        if (ships.Count != names.Count)
+            throw new ArgumentException("a captain for each ship");
+        Ships = ships;
+        Captains = names;
     }
 
     public GroupShips Clone() => new(Id, Race, Ships, Captains);

@@ -357,6 +357,7 @@ public sealed partial class GameWorld
             return;
         }
         Withdraw(player);   // decision 5: its lander takes off at once, with its crew and cargo
+        AbandonMeeting(player);   // a meeting before its battle is dropped
         DisconnectFromBattle(player);   // decision 10: a retreat at once
         DialogueLocks?.ReleaseAll(id);
         // The replier of a story talk leaving hands the replies on to the
@@ -390,6 +391,7 @@ public sealed partial class GameWorld
         _actionHeld.Remove(id);
         player.Ship.Flight.Stop();
         player.Ship.Ip?.Stop();   // in orbit it stays in orbit
+        AfterMeetingBattles();   // a meeting's battle ended by the disconnect: the group written back
         AfterTheFight();   // the Ilwrath's fight ended by the disconnect: settled with the player gone
     }
 
@@ -425,6 +427,22 @@ public sealed partial class GameWorld
 
     /// <summary>Advance the whole game one world frame.</summary>
     public void Step()
+    {
+        try
+        {
+            StepFrame();
+        }
+        finally
+        {
+            _playersStepped = false;
+        }
+    }
+
+    // Whether this world frame's players have been stepped (their flights
+    // flown): a ship back in hyperspace after that waits for the next.
+    private bool _playersStepped;
+
+    private void StepFrame()
     {
         if (GameOver)
             return;   // the world stops (decision 12)
@@ -507,8 +525,9 @@ public sealed partial class GameWorld
                     _landerInput[p.Ship.Lander!] = ToLanderInput(input);
                     break;
                 case Activity.Talk:
-                    // Replies come as their own messages (ChooseReply).
-                    if (p.Ship.Visit == Visit)
+                    // Replies come as their own messages (ChooseReply), as
+                    // does a meeting's encounter screen's choice (EncounterChoice).
+                    if (p.Ship.Visit is not null && p.Ship.Visit == Visit)
                     {
                         Visit!.Frame();
                         AfterVisit(Visit!);
@@ -539,10 +558,13 @@ public sealed partial class GameWorld
                     break;
             }
         }
+        _playersStepped = true;
         StepSystems(systemFrames);
         JoinBattles();
         FlyIntoWrecks();
         StepBattles();
+        AfterMeetingBattles();
+        ForgetToldTalking();
         AfterTheFight();
         if (GameOver)
             return;   // the world stops at once (decision 12): no surface's frame, no clock
@@ -607,6 +629,21 @@ public sealed partial class GameWorld
 
     private void StepHyperspace(PlayerShip ship, ShipInput input)
     {
+        if (ship.Meeting is { Step: MeetingStep.Spin } spinning)
+        {
+            // Spinning into a group it met (GameWorld.Meetings.cs).
+            SpinIntoGroup(spinning.Player, spinning);
+            return;
+        }
+        if (ship.AppearFrames > 0)
+        {
+            // Spinning back in after a meeting: still, unsteered, untouchable
+            // until its last frame, which makes it solid where it is
+            // (hyper_transition), so it touches what's there.
+            if (--ship.AppearFrames == 0 && _players.FirstOrDefault(p => p.Ship == ship) is { } back && InHyperspace(back))
+                TouchEncounters(back, StarContact.SpritePosition(ship.Flight));
+            return;
+        }
         var before = StarContact.SpritePosition(ship.Flight);
         ship.Flight.Step(input & ~ShipInput.Action);
         if (Systems is null)
@@ -687,8 +724,9 @@ public sealed partial class GameWorld
     /// </summary>
     internal void VisitStarbase(Player player)
     {
-        if (TalkLibrary is null || Story is null || player.Ship.Visit is not null || player.Ship.Battle is not null)
-            return;   // a player in a battle starts no talk (decision 11)
+        if (TalkLibrary is null || Story is null || player.Ship.Visit is not null || player.Ship.Battle is not null
+            || player.Ship.Meeting is not null)
+            return;   // a player in a battle or a meeting starts no talk (decision 11)
         if (FlagshipLost)
             return;   // the game is lost: no visit (a story pause would hold off the game over)
         bool opening = Story.Get("STARBASE_AVAILABLE") == 0 || Story.Get("MOONBASE_ON_SHIP") != 0
@@ -698,6 +736,11 @@ public sealed partial class GameWorld
             if (Visit is not null)
                 return;
             if (DialogueLocks?.Holder("COMMANDER_CONVERSATION") is { } holder && holder != player.Id)
+                return;
+            // Nor while another player talks to the Ilwrath, whose ship the
+            // opening may bring (row 17; stage 3b-1 item 5).
+            if (Story.Get("STARBASE_AVAILABLE") == 0
+                && DialogueLocks?.Holder("ILWRATH_CONVERSATION") is { } ilwrath && ilwrath != player.Id)
                 return;
         }
         var visit = new StarbaseVisit(this, player, NextRound());
@@ -717,7 +760,8 @@ public sealed partial class GameWorld
 
     // Rounds count on through every visit (StarbaseVisit.FirstRound).
     private int NextRound() =>
-        Math.Max(_rounds, _players.Select(p => p.Ship.Visit?.Round ?? 0).DefaultIfEmpty(0).Max());
+        Math.Max(_rounds, _players.Select(p => Math.Max(p.Ship.Visit?.Round ?? 0, p.Ship.Meeting?.Round ?? 0))
+            .DefaultIfEmpty(0).Max());
 
     /// <summary>
     /// The player in a talk chooses a reply from the set offered in
@@ -733,6 +777,8 @@ public sealed partial class GameWorld
     {
         if (GameOver || Find(id) is not { Present: true } player)
             return false;
+        if (player.Ship.Meeting is { Step: MeetingStep.Talk } meeting)
+            return !StoryPaused && ChooseMeetingReply(meeting, index, round);
         var visit = Visit is { } story && story.Replier == player ? story
             : !StoryPaused && player.Ship.Visit is { Step: VisitStep.MenuTalk } own ? own
             : null;
