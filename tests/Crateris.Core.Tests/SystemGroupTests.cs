@@ -539,7 +539,112 @@ public class SystemGroupTests
         Assert.Equal(("h", UrQuanStar), (meeting.Player, meeting.Star));
         Assert.Equal(d.Groups.Single(g => g.GroupId == meeting.Group).Race, meeting.Race);
         Assert.True((d.Groups.Single(g => g.GroupId == meeting.Group).Task & IpGroup.ReformGroup) != 0);
-        Assert.InRange(world.Host.Ship.Ip!.EscapeCounter, IpFlight.EscapeFrames - 2, IpFlight.EscapeFrames);
+        // The meeting (stage 3b-1 item 5): the encounter screen, the ship
+        // waiting where it met the group, the escape counter set
+        // (BuildBattle's); a hail (no race's talk ported yet) ends it in
+        // peace, and the ship flies on, untouchable for the counter's frames.
+        Assert.Equal(MeetingStep.Encounter, world.MeetingOf("h")!.Step);
+        Assert.Equal(Activity.Talk, world.Host.Ship.Activity);
+        Assert.Equal(IpFlight.EscapeFrames, world.Host.Ship.Ip!.EscapeCounter);
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.Null(world.MeetingOf("h"));
+        Run(world, 2);
+        Assert.Single(world.SystemMeetings);
+        Assert.InRange(world.Host.Ship.Ip!.EscapeCounter, IpFlight.EscapeFrames - 3, IpFlight.EscapeFrames - 1);
+    }
+
+    // A world whose host has met a group in the Ur-Quan's system (its encounter screen up).
+    private static (GameWorld World, SystemDraw Draw, IpGroup Met) MeetInUrQuanSystem(params string[] guests)
+    {
+        var world = CoopWorld(guests);
+        world.Story!.Set("STARBASE_AVAILABLE", 1);   // a retreat allowed
+        world.BattleKit = WorldBattleTests.Kit();
+        world.DialogueLocks = Comm.DialogueLocks.Load(Path.Combine(AppContext.BaseDirectory, "data"));
+        world.PutInSystem("h", UrQuanStar);
+        Run(world);
+        var d = DrawOf(world, UrQuanStar);
+        var target = d.Groups.First(g => g.SysLoc == 0 && world.SystemGroups!.ShipsOf(d, g)!.Ships.Count >= 2);
+        world.Host.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], target.LocX, target.LocY);
+        Run(world, 2);
+        var m = world.MeetingOf("h")!;
+        Assert.Equal(MeetingStep.Encounter, m.Step);
+        return (world, d, d.Groups.Single(g => g.GroupId == world.SystemMeetings.Single().Group));
+    }
+
+    [ContentFact]
+    public void AMeetingInASystemFoughtWritesItsShipsBackAndTurnsTheRaceOnThePlayers()
+    {
+        var (world, d, met) = MeetInUrQuanSystem();
+        var sg = world.SystemGroups!;
+        var ships = sg.ShipsOf(d, met)!;
+        var captains = ships.Captains.ToList();
+        var m = world.MeetingOf("h")!;
+        // The group's ships with their crews and captains (the group file's).
+        Assert.Equal(ships.Ships.Zip(captains, (c, n) => (c, n)), m.Ships.Select(s => (s.Crew!.Value, s.Captain!.Value)));
+        Assert.Equal(met.LocX, met.LocX);
+        Assert.Equal("h", met.InMeeting);
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        var wb = m.Battle!;
+        Assert.Equal(captains, wb.Enemies.Select(e => (int)e.Starship.CaptainsNameIndex));
+        Assert.Equal((UrQuanStar, (short)world.Host.Ship.Ip!.Location.X), (wb.Place.Star!.Value, (short)wb.Place.X));
+        wb.Enemies[1].Starship.CrewLevel = 5;
+        var random = d.Random;
+        for (int i = 0; i < 300 && m.Step == MeetingStep.Battle; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.TakeOff);
+            world.Step();
+        }
+        Assert.Equal(MeetingStep.Done, m.Step);
+        // UninitEncounter's ships left written back (reinitNpcs), the group
+        // still in the system, its race to turn on the players
+        // (EncounterRace, DoMissions as the ship comes back), the numbers
+        // seeded afresh (Battle's).
+        var expected = ships.Ships.Select((c, i) => i == 1 ? 5 : c).ToList();
+        Assert.Equal(expected, sg.ShipsOf(d, met)!.Ships);
+        Assert.Equal(captains, sg.ShipsOf(d, met)!.Captains);
+        Assert.Contains(met, d.Groups);
+        Assert.Null(met.InMeeting);
+        Assert.NotSame(random, d.Random);
+        Run(world, 2);
+        Assert.Equal(-1, d.EncounterRace);
+        Assert.All(d.Groups.Where(g => g.Race == met.Race), g => Assert.Equal(IpGroup.InterceptPlayer, g.DestLoc));
+        Assert.All(d.Groups.Where(g => g.Race == met.Race), g => Assert.Equal(0, g.Task & IpGroup.IgnoreFlagship));
+    }
+
+    [ContentFact]
+    public void TheGroupMetInASystemStaysWhereItIsWhileAnotherFliesThereAndIsntMetByThem()
+    {
+        var (world, d, met) = MeetInUrQuanSystem("g");
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        var at = (met.LocX, met.LocY, met.Task, met.GroupCounter);
+        // The guest flies onto it: it passes through them.
+        world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
+        Run(world, 30);
+        Assert.Equal(at, (met.LocX, met.LocY, met.Task, met.GroupCounter));
+        Assert.Single(world.SystemMeetings);
+        Assert.Null(world.MeetingOf("g"));
+        Assert.True((met.Element!.Flags & ElementFlags.NonSolid) != 0);
+        // The meeting over in peace: it flies (re-forms) again, the lock free.
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.Null(met.InMeeting);
+        Run(world, 2);
+        Assert.NotEqual(at.GroupCounter, met.GroupCounter);
+    }
+
+    [ContentFact]
+    public void AGroupWhoseRaceAnotherPlayerIsTalkingToPassesThroughInASystem()
+    {
+        var (world, d, met) = MeetInUrQuanSystem("g");
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        world.TakeBattleNotices();
+        var other = d.Groups.First(g => g != met && g.Race == met.Race && g.SysLoc == 0);
+        world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], other.LocX, other.LocY);
+        Run(world, 10);
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Single(world.SystemMeetings);
+        Assert.Contains(world.TakeBattleNotices(), n => n.PlayerId == "g" && n.Text == "Host is talking to the Ur-Quan.");
     }
 
     [ContentFact]

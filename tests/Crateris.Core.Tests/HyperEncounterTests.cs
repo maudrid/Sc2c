@@ -510,15 +510,29 @@ public class HyperEncounterTests
             world.Step();
         }
         Assert.Equal(("h", Race("URQUAN_SHIP")), (world.HyperspaceMeetings.Single().Player, world.HyperspaceMeetings.Single().Race));
-        // The player's numbers made afresh, as Battle seeds them again after a meeting.
-        Assert.NotSame(numbers, world.HyperspaceRandomOf("h"));
-        // Until item 5's meeting it ends at once, no battle: the group
-        // re-forms one-shot, and goes as its element is next made (the
-        // same frame's: AddEncounterElement took its re-forming flag).
-        Assert.Equal((HyperEncounter.OneShot, (short)100), (met.Flags, met.TransitionState));
+        // The host spins into it (stage 3b-1 item 5), still in hyperspace;
+        // the group is theirs, stopped; the guest's group isn't met.
+        var meeting = world.MeetingOf("h")!;
+        Assert.Equal((MeetingStep.Spin, "h"), (meeting.Step, met.MeetingPlayer));
+        Assert.Equal("h", met.Element!.Met);
+        Assert.Null(other.Element!.Met);
+        for (int i = 0; i < 60 && meeting.Step == MeetingStep.Spin; ++i)
+        {
+            foreach (var p in world.Players)
+                world.SubmitInput(p.Id, world.Frame + 1, ShipInput.None);
+            world.Step();
+        }
+        Assert.Equal(MeetingStep.Encounter, meeting.Step);
+        // Hailed (no race's talk is ported yet: it ends at once in peace),
+        // the group re-forms one-shot, and goes as its element is next made
+        // (the guest flies on in hyperspace: the same frame's).
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        world.Step();
+        Assert.Equal((HyperEncounter.OneShot, (short)100), (met.Flags & HyperEncounter.OneShot, met.TransitionState));
         Assert.DoesNotContain(met, world.Encounters!.List);
         Assert.Contains(other, world.Encounters.List);
-        Assert.Null(other.Element!.Met);
+        // The player's numbers made afresh, as Battle seeds them again after a meeting.
+        Assert.NotSame(numbers, world.HyperspaceRandomOf("h"));
     }
 
     [ContentFact]

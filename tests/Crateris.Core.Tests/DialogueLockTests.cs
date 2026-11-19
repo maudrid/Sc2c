@@ -93,4 +93,36 @@ public class DialogueLockTests
         world.VisitStarbase(world.Host);
         Assert.NotNull(world.Visit);
     }
+
+    [ContentFact]
+    public void TheOpeningsVisitWaitsWhileAnotherPlayerTalksToTheIlwrath()
+    {
+        // Stage 3b-1 item 5 (row 17): the opening may bring the Ilwrath's
+        // ship, so it waits on their lock as on the commander's.
+        var systems = Systems.SystemCatalog.Load(DataDir);
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host",
+            systems, TestContent.Shapes);
+        world.TalkLibrary = TestContent.With(p => TalkLibrary.Load(p, ConversationScripts.Load(DataDir)));
+        world.DialogueLocks = DialogueLocks.Load(DataDir);
+        Assert.Equal(JoinResult.Joined, world.Join("guest", "Guest"));
+        world.PutInOrbit("host", 82, 2, 1);
+        world.Host.Ship.Ip!.ReturnFromOrbit();
+        Assert.True(world.DialogueLocks.TryTake("ILWRATH_CONVERSATION", "guest", out _));
+        world.VisitStarbase(world.Host);
+        Assert.Null(world.Visit);
+        world.DialogueLocks.Release("ILWRATH_CONVERSATION", "guest");
+        world.VisitStarbase(world.Host);
+        Assert.NotNull(world.Visit);
+    }
+
+    [Fact]
+    public void ARacesOwnConversationIsTheOneItsGroupsStart()
+    {
+        var locks = DialogueLocks.Load(DataDir);
+        Assert.Equal("SPATHI_CONVERSATION", locks.ConversationOf("SPATHI_SHIP"));
+        Assert.Equal("URQUAN_DRONE_CONVERSATION", locks.ConversationOf("URQUAN_DRONE_SHIP"));
+        Assert.Equal("URQUAN_SHIP", locks.RaceOf(locks.ConversationOf("URQUAN_DRONE_SHIP")!));
+        Assert.Null(locks.ConversationOf("HUMAN_SHIP"));
+        Assert.Null(locks.ConversationOf("SYREEN_SHIP"));
+    }
 }

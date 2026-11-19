@@ -83,8 +83,12 @@ public sealed class HostSession
         host.Flight.PlaceAtUniverse(x, y);
         host.Flight.Stop();
         host.Flight.StarJustLeft = null;
+        _startedAt = true;
         return $"Starting in hyperspace at {x}:{y}";
     }
+
+    // Whether --start-at put the host in hyperspace (--start-encounter's group comes there).
+    private bool _startedAt;
 
     /// <summary>--start-orbit: the host's ship in orbit there (ArgumentException if there's no such world).</summary>
     public string StartInOrbit(int star, int planet, int? moon)
@@ -311,7 +315,8 @@ public sealed class HostSession
     /// encounter screen (until items 10 and 11 draw it and send its choice,
     /// <see cref="EncounterChoice"/> chooses), the race's talk (not ported
     /// yet for any race: a hail ends at once in peace), the battle (an
-    /// attack). A ship of no race, or too many ships, is an ArgumentException.
+    /// attack). A ship of no race, or ships not 1 to 7 (MAX_HYPER_SHIPS), is an
+    /// ArgumentException, before anything changes.
     /// </summary>
     public string StartEncounter(string spec)
     {
@@ -322,9 +327,9 @@ public sealed class HostSession
             throw new ArgumentException($"{spec}: SHIP[:SHIPS], SHIP a race's ship by data/ships.json's id");
         int race = story.Rules.RaceIndex(raceShip.Race);
         int ships = Math.Max(1, story.Rules.Fleets[race].MakeupMin);
-        if (parts.Length == 2 && (!int.TryParse(parts[1], out ships) || ships < 1))
-            throw new ArgumentException($"{spec}: SHIPS is a number of ships, one or more");
-        if (World.Host.Ship.Activity != Activity.Hyperspace)
+        if (parts.Length == 2 && (!int.TryParse(parts[1], out ships) || ships < 1 || ships > Hyperspace.HyperEncounter.MaxShips))
+            throw new ArgumentException($"{spec}: SHIPS is a number of ships, 1 to {Hyperspace.HyperEncounter.MaxShips}");
+        if (!_startedAt || World.Host.Ship.Activity != Activity.Hyperspace)
             AfterTheOpening();
         else
         {
