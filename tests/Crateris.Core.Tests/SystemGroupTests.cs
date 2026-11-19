@@ -756,6 +756,52 @@ public class SystemGroupTests
             world.TakeBattleNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
     }
 
+    // A group of another race put where the group met is (its elements made again).
+    private static IpGroup OverTheGroupMet(GameWorld world, SystemDraw d, IpGroup met, string race)
+    {
+        var z = d.Groups.First(g => g != met && g.SysLoc == 0);
+        z.Race = world.Story!.Rules.RaceIndex(race);
+        z.LocX = met.LocX;
+        z.LocY = met.LocY;
+        d.Elements = null;
+        return z;
+    }
+
+    [ContentFact]
+    public void AShipMeetingAGroupOverTheGroupMetIsntToldWhosTalking()
+    {
+        // Review round 2: it meets the Spathi it touched; the Ur-Quan met
+        // under it tell it nothing (TouchMeetings skips a ship meeting a group).
+        var (world, d, met) = MeetInUrQuanSystem("g");
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        world.TakeBattleNotices();
+        var z = OverTheGroupMet(world, d, met, "SPATHI_SHIP");
+        world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
+        Run(world, 30);
+        Assert.Equal(z.Race, world.MeetingOf("g")!.Race);
+        Assert.DoesNotContain(world.TakeBattleNotices(), n => n.PlayerId == "g");
+    }
+
+    [ContentFact]
+    public void AShipPassingThroughALockedGroupOverTheGroupMetIsToldOfTheGroupItTouched()
+    {
+        // Review round 2: the Spathi it touches pass through it (another
+        // player holds their lock) while it's over the Ur-Quan the host is
+        // meeting: it's told who's talking to the Spathi, not the Ur-Quan.
+        var (world, d, met) = MeetInUrQuanSystem("g", "k");
+        Assert.True(world.DialogueLocks!.TryTake("SPATHI_CONVERSATION", "k", out _));
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        world.TakeBattleNotices();
+        OverTheGroupMet(world, d, met, "SPATHI_SHIP");
+        world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
+        Run(world, 3);
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Equal(new[] { "k is talking to the Spathi." },
+            world.TakeBattleNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
+    }
+
     [ContentFact]
     public void AShipThatCantTouchYetIsntToldWhosTalkingByTheGroupMet()
     {
