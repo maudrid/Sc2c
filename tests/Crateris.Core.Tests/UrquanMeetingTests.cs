@@ -11,6 +11,7 @@ using Crateris.Core.Comm.Scripts;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Session;
+using Crateris.Core.Story;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
 
@@ -303,6 +304,9 @@ public class UrquanMeetingTests
         Assert.False(world.GameOver);
         Assert.True(guest.Wreck);
         Assert.Equal(0, guest.Hold.Crew);
+        // The talk was the answerer's ship's (PlayerTalkShip): the guest's, not the host's.
+        Assert.Equal(0, m.Talk!.Ship.Crew);
+        Assert.NotEqual(0, world.Host.Ship.Hold.Crew);
         Assert.Equal(MeetingStep.Done, m.Step);
         Assert.Null(world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
         long frame = world.Frame;
@@ -310,6 +314,27 @@ public class UrquanMeetingTests
         Assert.Equal(frame + 5, world.Frame);
         Assert.True(guest.Wreck);
         Assert.Equal(0, guest.AppearFrames);   // not spinning back into hyperspace: it doesn't fly
+    }
+
+    [Fact]
+    public void TheSpecialSystemsOwnGroupsOffsetsAreTheirGenerators()
+    {
+        // Each generator's GLOBAL (BattleGroupRef) = GET_GAME_STATE_32 (field)
+        // (gensol.c, gencol.c, gensam.c, genshof.c, genzfpscout.c, genmel.c).
+        Assert.Equal("URQUAN_PROBE_GRPOFFS0", SystemGroups.OffsetField("SOL_DEFINED"));
+        Assert.Equal("COLONY_GRPOFFS0", SystemGroups.OffsetField("START_COLONY_DEFINED"));
+        Assert.Equal("SAMATRA_GRPOFFS0", SystemGroups.OffsetField("SAMATRA_DEFINED"));
+        Assert.Equal("SHOFIXTI_GRPOFFS0", SystemGroups.OffsetField("SHOFIXTI_DEFINED"));
+        Assert.Equal("ZOQFOT_GRPOFFS0", SystemGroups.OffsetField("ZOQ_SCOUT_DEFINED"));
+        for (int i = 0; i < 9; ++i)
+            Assert.Equal($"MELNORME{i}_GRPOFFS0", SystemGroups.OffsetField($"MELNORME{i}_DEFINED"));
+        // A system of random groups, or one whose generator keeps none of its own (BattleGroupRef 0).
+        Assert.Null(SystemGroups.OffsetField(null));
+        Assert.Null(SystemGroups.OffsetField("ZOQFOT_DEFINED"));
+        Assert.Null(SystemGroups.OffsetField("BOMB_DEFINED"));
+        var fields = StoryRules.Load(DataDir).Table;
+        Assert.All(new[] { "SOL_DEFINED", "START_COLONY_DEFINED", "SAMATRA_DEFINED", "SHOFIXTI_DEFINED", "ZOQ_SCOUT_DEFINED", "MELNORME8_DEFINED" },
+            special => Assert.Equal(8, fields[SystemGroups.OffsetField(special)!].Bits));
     }
 
     [ContentFact]
@@ -362,6 +387,7 @@ public class UrquanMeetingTests
         Assert.Contains(talk, l => l.StartsWith("  host's reply 0: ", StringComparison.Ordinal));
         Assert.Contains("  host chose reply 0", talk);
         Assert.Contains("  The talk with the Ur-Quan ends: hostile", talk);
+        Assert.Single(log, l => l == "host talks to the Ur-Quan");
         Assert.Contains("host fights the Ur-Quan", talk);
         Assert.True(log.IndexOf("host fights the Ur-Quan") > log.IndexOf("  The talk with the Ur-Quan ends: hostile"));
     }
