@@ -1367,7 +1367,7 @@ public sealed class PlayerSession
         return s.Activity switch
         {
             Activity.InnerSystem when s.InnerPlanet is int p => $"the {cluster} system, near {_names?.PlanetName(at, p) ?? $"planet {p}"}",
-            Activity.Talk when s.InnerPlanet is int p => $"talking at the starbase by {_names?.PlanetName(at, p) ?? $"planet {p}"}, {cluster}",
+            Activity.Talk when s.InnerPlanet is int p => $"talking by {_names?.PlanetName(at, p) ?? $"planet {p}"}, {cluster}",   // at the starbase, or meeting a group
             Activity.Starbase when s.InnerPlanet is int p => $"docked at the starbase by {_names?.PlanetName(at, p) ?? $"planet {p}"}, {cluster}",
             Activity.Planetside when s.OrbitPlanet is int p =>
                 $"landed on {_names?.PlanetOrMoon(at, p, s.OrbitMoon) ?? $"planet {p}" + (s.OrbitMoon is int m ? $" moon {m}" : "")}, {cluster}",

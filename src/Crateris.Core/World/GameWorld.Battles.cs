@@ -377,9 +377,11 @@ public sealed partial class GameWorld
     }
 
     // A present player's ship flying (in hyperspace or a system, not entering
-    // a star, not in a battle, not destroyed): one that may fly into a marker.
+    // a star, not spinning into a group it met or back in after a meeting,
+    // not in a battle, not destroyed): one that may fly into a marker.
     private static bool Flying(Player player) => player.Present && !player.Ship.Destroyed && player.Ship.Battle is null
-        && player.Ship.Entry is null && player.Ship.Activity is Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem;
+        && player.Ship.Entry is null && player.Ship.Spin is null && player.Ship.AppearFrames == 0
+        && player.Ship.Activity is Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem;
 
     // Whether a ship is in a battle's place: hyperspace, or the same part of the same system.
     private static bool InPlace(BattlePlace place, PlayerShip ship) => place.InHyperspace

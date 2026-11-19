@@ -633,6 +633,35 @@ public class SystemGroupTests
     }
 
     [ContentFact]
+    public void APlayerOutOfTheirMeetingsBattleWhileAnotherFightsOnMeetsNoGroupInASystem()
+    {
+        var (world, d, met) = MeetInUrQuanSystem("g");
+        var m = world.MeetingOf("h")!;
+        world.PutInSystem("g", UrQuanStar);
+        Run(world);
+        world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], world.Host.Ship.Ip!.Location.X, world.Host.Ship.Ip.Location.Y);
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        Assert.True(world.LetIntoBattle("g"));
+        Run(world, 2);
+        Assert.Same(m.Battle, world.Find("g")!.Ship.Battle);
+        for (int i = 0; i < 300 && world.Host.Ship.Battle is not null; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.TakeOff);
+            world.SubmitInput("g", world.Frame + 1, ShipInput.None);
+            if (m.Battle!.Enemy.RaceDesc is { } enemy)
+                enemy.EnergyLevel = 0;   // the Ur-Quan can't fire: the guest holds out
+            world.Step();
+        }
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        // Flown onto another group meanwhile: it passes through.
+        var other = d.Groups.First(g => g != met && g.SysLoc == 0);
+        world.Host.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], other.LocX, other.LocY);
+        Run(world, 10);
+        Assert.Single(world.SystemMeetings);
+        Assert.Same(m, world.MeetingOf("h"));
+    }
+
+    [ContentFact]
     public void AGroupWhoseRaceAnotherPlayerIsTalkingToPassesThroughInASystem()
     {
         var (world, d, met) = MeetInUrQuanSystem("g");

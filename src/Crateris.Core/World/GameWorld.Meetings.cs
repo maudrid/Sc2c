@@ -302,9 +302,10 @@ public sealed partial class GameWorld
     }
 
     // The meeting's player out of it, back in flight where they met the
-    // group: in hyperspace stopped (starcon.c's ZeroVelocityComponents) and
-    // spinning back in (hyper_transition); in a system its element made
-    // again with the escape counter (a battle's BackInFlight does that).
+    // group: in hyperspace spinning back in (hyper_transition), stopped
+    // (starcon.c's ZeroVelocityComponents: the spin's end and the battle's
+    // start stopped it already); in a system its element made again with
+    // the escape counter (a battle's BackInFlight does that).
     private void ReturnToFlight(Meeting m)
     {
         m.Returned = true;
@@ -315,7 +316,6 @@ public sealed partial class GameWorld
         {
             if (ship.SystemStar is null && Shapes is { } shapes)
             {
-                ship.Flight.Stop();
                 // Its first frame back is this one if the players' flights
                 // have been flown already (back from a battle, or a talk that
                 // ended as its spin did), else the next.
@@ -342,12 +342,12 @@ public sealed partial class GameWorld
         List<(int Crew, int Captain)> left;
         if (fought && m.Battle is { } wb)
         {
-            // UninitEncounter: on a win every ship is gone; else those whose crew ran out.
+            // UninitEncounter: those whose crew ran out are gone (on a win,
+            // every one: none is left able to fight), the rest keep theirs.
             left = new();
-            if (wb.Outcome != BattleOutcome.Won)
-                for (int i = 0; i < wb.Enemies.Count; ++i)
-                    if (wb.Enemies[i].Starship.CrewLevel > 0)
-                        left.Add((wb.Enemies[i].Starship.CrewLevel, wb.Enemies[i].Starship.CaptainsNameIndex));
+            for (int i = 0; i < wb.Enemies.Count; ++i)
+                if (wb.Enemies[i].Starship.CrewLevel > 0)
+                    left.Add((wb.Enemies[i].Starship.CrewLevel, wb.Enemies[i].Starship.CaptainsNameIndex));
         }
         else
             left = m.Ships.Select(s => (s.Crew ?? 0, s.Captain ?? 0)).ToList();

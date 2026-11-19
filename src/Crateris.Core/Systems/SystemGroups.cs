@@ -653,8 +653,6 @@ public sealed class SystemGroups
     {
         Flush(d);
         met.InMeeting = player;
-        if (met.Element is { } el)
-            el.Flags |= ElementFlags.NonSolid;
         if (ShipsOf(d, met) is not { } ships)
             return null;
         var taken = new List<int>();

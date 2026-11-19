@@ -341,6 +341,99 @@ public class MeetingTests
     }
 
     [ContentFact]
+    public void AGroupInAMeetingGetsItsElementBackAsThePlayersWhenSomeoneComesIntoHyperspace()
+    {
+        var game = NewGame("g");
+        var world = game.World;
+        world.PutInSystem("g", 82);   // the guest out of hyperspace: nobody's there once the host meets
+        var group = GroupBy(world, "h", "URQUAN_SHIP");
+        Meet(world, "h");
+        Frames(world, 1);
+        Assert.Null(group.Element);
+        world.PutInHyperspace("g");
+        world.Find("g")!.Ship.Flight.PlaceAtUniverse((short)(group.LocX - 20), group.LocY);
+        var at = (group.LocX, group.LocY);
+        Frames(world, 60);
+        // Made again, it's the host's still: unsteered, untouchable.
+        Assert.Equal("h", group.Element!.Met);
+        Assert.Equal(at, (group.LocX, group.LocY));
+        Assert.Null(world.MeetingOf("g"));
+    }
+
+    [ContentFact]
+    public void TheSpinIntoAGroupBurnsItsDriftsFuelAndLeavesTheShipWhereItTookIt()
+    {
+        var game = NewGame();
+        var world = game.World;
+        GroupBy(world, "h", "URQUAN_SHIP", dx: 60);
+        var ship = world.Host.Ship;
+        for (int i = 0; i < 200 && ship.Meeting is null; ++i)
+            Frames(world, 1);
+        HyperFlight? spin = null;
+        while (ship.Meeting is { Step: MeetingStep.Spin })
+        {
+            spin = ship.Spin!.Copy();
+            Frames(world, 1);
+        }
+        Assert.NotNull(spin);
+        Assert.Equal((spin!.LogX, spin.LogY, spin.Fuel, spin.FuelDistX, spin.FuelDistY),
+            (ship.Flight.LogX, ship.Flight.LogY, ship.Flight.Fuel, ship.Flight.FuelDistX, ship.Flight.FuelDistY));
+        Assert.Equal(HyperFlight.CenterX, ship.Flight.ViewX);
+    }
+
+    [ContentFact]
+    public void APlayerOutOfTheirMeetingsBattleWhileAnotherFightsOnMeetsNoGroup()
+    {
+        var game = NewGame("g");
+        var world = game.World;
+        var group = GroupBy(world, "h", "SPATHI_SHIP");
+        var m = Meet(world, "h");
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        // The guest flies into the battle's marker and fights on as the host retreats.
+        var guest = world.Find("g")!;
+        guest.Ship.Flight.PlaceAtUniverse(world.Host.Ship.Flight.UniverseX, world.Host.Ship.Flight.UniverseY);
+        Assert.True(world.LetIntoBattle("g"));
+        Frames(world, 2);
+        Assert.Same(m.Battle, guest.Ship.Battle);
+        for (int i = 0; i < 300 && world.Host.Ship.Battle is not null; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.TakeOff);
+            world.SubmitInput("g", world.Frame + 1, ShipInput.None);
+            world.Step();
+        }
+        Assert.Null(world.Host.Ship.Battle);
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        Assert.Equal("h", group.MeetingPlayer);   // written back as the battle ends
+        // A group by the host passes through them meanwhile.
+        GroupBy(world, "h", "BLACK_URQUAN_SHIP", dx: 0);
+        Frames(world, 60);
+        Assert.Single(world.HyperspaceMeetings);
+        Assert.Same(m, world.MeetingOf("h"));
+    }
+
+    [ContentFact]
+    public void NoBattleMarkerIsShownOrJoinedWhileTheShipSpinsBackIn()
+    {
+        var game = NewGame("g");
+        var world = game.World;
+        GroupBy(world, "h", "URQUAN_SHIP");
+        Meet(world, "h");
+        // A battle of the guest's where the host is, the host counted as having been out of its reach.
+        var guest = world.Find("g")!;
+        guest.Ship.Flight.PlaceAtUniverse(world.Host.Ship.Flight.UniverseX, world.Host.Ship.Flight.UniverseY);
+        world.StartBattle("g", "spathi");
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.True(world.ChooseReply("h", 0));
+        Assert.True(world.LetIntoBattle("h"));
+        Assert.Empty(world.MarkersFor("h"));
+        Frames(world, 3);
+        Assert.Null(world.Host.Ship.Battle);
+        Assert.Empty(world.MarkersFor("h"));
+        Frames(world, world.Host.Ship.AppearFrames + 1);
+        Assert.NotEmpty(world.MarkersFor("h"));
+    }
+
+    [ContentFact]
     public void APlayerLeavingMidMeetingDropsIt()
     {
         var game = NewGame("g");
