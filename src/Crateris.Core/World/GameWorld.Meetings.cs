@@ -56,7 +56,7 @@ public sealed partial class GameWorld
     /// script has only its Earth branch until item 7). No such talk is story (stage
     /// 3b, decision 6: <see cref="TalkRules"/>).
     /// </summary>
-    private Talk? RaceTalk(Player player, int race, uint seed)
+    internal Talk? RaceTalk(Player player, int race, uint seed)
     {
         if (TalkLibrary is not { } library || Story is not { } story || !TalkingRaces.Contains(story.Rules.Races[race])
             || ConversationOf(race) is not { } conversation
@@ -66,6 +66,17 @@ public sealed partial class GameWorld
             throw new InvalidOperationException($"the {script.Name} talk is story: a race met in space starts an ordinary talk");
         return library.Create(script.Name, story, new Dictionary<string, int>(), new PlayerTalkShip(player, library.Strings, this),
             Clock, seed);
+    }
+
+    // The meetings begun since the host's session last asked (its log).
+    private readonly List<Meeting> _newMeetings = new();
+
+    /// <summary>The meetings begun since last asked (over already, some of them: a talk ending at once), for the host's log.</summary>
+    internal IReadOnlyList<Meeting> TakeNewMeetings()
+    {
+        var begun = _newMeetings.ToList();
+        _newMeetings.Clear();
+        return begun;
     }
 
     // Who has been told that another player is talking to a race (decision
@@ -147,6 +158,7 @@ public sealed partial class GameWorld
             Conversation = conversation,
         };
         ship.Meeting = m;
+        _newMeetings.Add(m);
         HoldInput(ship, Frame + m.SpinFrames + Settings.InputDelayFrames);
     }
 
@@ -212,6 +224,7 @@ public sealed partial class GameWorld
         if (f.Flight.Orbit is null)
             f.Flight.EscapeCounter = IpFlight.EscapeFrames;
         player.Ship.Meeting = m;
+        _newMeetings.Add(m);
         BeginTalk(m);
     }
 

@@ -708,33 +708,29 @@ public sealed class HostSession
 
     private bool _gameOverLogged;
 
-    // What of each player's meeting has been logged: the meeting, its step
-    // and how many of its talk's events.
-    private readonly Dictionary<string, (Meeting Meeting, MeetingStep Step, int Events)> _meetingsLogged = new();
+    // What of each meeting going on has been logged: its step and how many of its talk's events.
+    private readonly Dictionary<Meeting, (MeetingStep Step, int Events, bool Talked)> _meetingsLogged = new();
 
     // The meetings in the log, as the encounter screen and the talk aren't
     // drawn yet (items 10 and 11): each step, the talk's lines and replies
-    // as they come, and how it ended.
+    // as they come, and how it ended (a meeting begun and over in one frame
+    // too, as the drone's).
     private void LogMeetings()
     {
-        foreach (var p in World.Players)
+        foreach (var begun in World.TakeNewMeetings())
+            _meetingsLogged.TryAdd(begun, ((MeetingStep)(-1), 0, false));
+        foreach (var (m, (step, logged, told)) in _meetingsLogged.ToList())
         {
-            // A meeting just over is logged to its end.
-            var (was, step, events) = _meetingsLogged.GetValueOrDefault(p.Id);
-            if ((p.Ship.Meeting ?? was) is not { } m)
-                continue;
-            string race = Meeting.RaceName(m.RaceId);
-            if (was != m)
-                (step, events) = ((MeetingStep)(-1), 0);
-            if (m.Step != step)
-                Logged?.Invoke(m.Step switch
-                {
-                    MeetingStep.Spin => $"{p.Id} meets a group of {m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}",
-                    MeetingStep.Encounter => $"{p.Id} at the encounter screen: {m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}, hail or attack",
-                    MeetingStep.Talk => $"{p.Id} talks to the {race}",
-                    MeetingStep.Battle => $"{p.Id} fights the {race}",
-                    _ => $"{p.Id}'s meeting with the {race} is over",
-                });
+            string id = m.Player.Id, race = Meeting.RaceName(m.RaceId);
+            string ships = $"{m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}";
+            int events = logged;
+            bool talked = told;
+            // The talk hailed before its lines (it may be over already), any other step after them.
+            if (m.Hailed && !talked)
+            {
+                Logged?.Invoke($"{id} talks to the {race}");
+                talked = true;
+            }
             if (m.Talk is { } talk)
                 for (; events < talk.Events.Count; ++events)
                     switch (talk.Events[events])
@@ -747,19 +743,27 @@ public sealed class HostSession
                             break;
                         case RepliesOffered o:
                             for (int i = 0; i < o.Replies.Count; ++i)
-                                Logged?.Invoke($"  {p.Id}'s reply {i}: {o.Replies[i].Text}");
+                                Logged?.Invoke($"  {id}'s reply {i}: {o.Replies[i].Text}");
                             break;
                         case ReplyChosen c:
-                            Logged?.Invoke($"  {p.Id} chose reply {c.Index}");
+                            Logged?.Invoke($"  {id} chose reply {c.Index}");
                             break;
                         case TalkEnded e:
                             Logged?.Invoke($"  The talk with the {race} ends: {e.Segue.ToString().ToLowerInvariant()}");
                             break;
                     }
+            if (m.Step != step && m.Step != MeetingStep.Talk)
+                Logged?.Invoke(m.Step switch
+                {
+                    MeetingStep.Spin => $"{id} meets a group of {ships}",
+                    MeetingStep.Encounter => $"{id} at the encounter screen: {ships}, hail or attack",
+                    MeetingStep.Battle => $"{id} fights the {race}",
+                    _ => $"{id}'s meeting with the {race} is over",
+                });
             if (m.Step == MeetingStep.Done)
-                _meetingsLogged.Remove(p.Id);
+                _meetingsLogged.Remove(m);
             else
-                _meetingsLogged[p.Id] = (m, m.Step, events);
+                _meetingsLogged[m] = (m.Step, events, talked);
         }
     }
 
@@ -886,8 +890,12 @@ public sealed class HostSession
     {
         World.SubmitInput(HostId, World.Frame + World.Settings.InputDelayFrames, hostInput);
         World.Step();
+        LogMeetings();
         if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })
+        {
             World.EncounterChoice(HostId, choice);
+            LogMeetings();
+        }
         if (MeetingReplies.Count > 0 && World.MeetingOf(HostId) is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 } met
             && World.ChooseReply(HostId, MeetingReplies.Peek(), met.Round))
             MeetingReplies.Dequeue();
