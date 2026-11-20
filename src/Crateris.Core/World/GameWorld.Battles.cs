@@ -67,13 +67,14 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// The flagship's crew has run out in a battle (it's exploding, or the
-    /// game is over): from this frame no ship touching the starbase docks
+    /// game is over), or it has surrendered to the Ur-Quan from a talk
+    /// (<see cref="Surrendered"/>, the game over at once): from this frame no ship touching the starbase docks
     /// or starts a visit there, so no story pause starts (it would hold off the
     /// game over; one started in the same frame doesn't: the flagship's
     /// battle runs on through it to the game over), and no save is made
     /// (<see cref="Session.HostSession.SaveJson"/>; <see cref="HostSave.ToJson"/>
     /// refuses), so loading the host's save goes back to before the battle
-    /// (decision 12), not to the flagship as it joined the battle it's
+    /// (decision 12), or before the talk after a surrender, not to the flagship as it joined the battle it's
     /// lost in (decision 14).
     /// </summary>
     public bool FlagshipLost { get; private set; }
