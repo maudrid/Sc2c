@@ -43,7 +43,7 @@ public sealed partial class GameWorld
     public IReadOnlyList<WorldBattle> Battles => _battles;
 
     /// <summary>
-    /// The flagship was lost (decision 12): the game is over for the group,
+    /// The flagship was lost (decision 12), or surrendered (below): the game is over for the group,
     /// and the world stops (nothing steps, joins or changes any more: a
     /// guest is refused, <see cref="JoinResult.GameOver"/>). As UQM's: its
     /// crew run out, it explodes, and once the explosion is over (and the
@@ -59,7 +59,9 @@ public sealed partial class GameWorld
     /// first. Item 11 tells every player; item 12 shows UQM's
     /// game over and ends the host's game. From the frame its crew ran out
     /// (<see cref="FlagshipLost"/>) no save is made, so the host's save is
-    /// kept as it was before the battle.
+    /// kept as it was before the battle. The flagship surrendering to the
+    /// Ur-Quan (stage 3b-1 item 6, <see cref="Surrendered"/>) is the game
+    /// over too, at once, from its talk: no battle, and no save from then.
     /// </summary>
     public bool GameOver { get; private set; }
 

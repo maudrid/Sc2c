@@ -28,7 +28,7 @@ public enum JoinResult
     AlreadyPresent,
     /// <summary>The game already has the most players allowed.</summary>
     Full,
-    /// <summary>The game is over: the flagship was lost (stage 4 decision 12), and the world has stopped.</summary>
+    /// <summary>The game is over: the flagship was lost (stage 4 decision 12) or surrendered (GameWorld.Surrendered), and the world has stopped.</summary>
     GameOver,
 }
 

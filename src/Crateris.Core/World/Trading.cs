@@ -42,7 +42,7 @@ public enum TradeRefusal : byte
     /// <summary>The giver or the receiver is a wreck (stage 4a item 7): no one is aboard.</summary>
     Wrecked,
 
-    /// <summary>The game is over (the flagship lost).</summary>
+    /// <summary>The game is over (the flagship lost, or surrendered).</summary>
     GameOver,
 
     /// <summary>The host has paused the game (<see cref="GameWorld.HostPaused"/>).</summary>

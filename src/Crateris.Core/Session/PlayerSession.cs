@@ -33,7 +33,7 @@ public enum PlayerScreen
     /// <summary>A battle this player's ship is in (fighting, or watching once destroyed): <see cref="PlayerSession.Battle"/>.</summary>
     Battle,
 
-    /// <summary>The game is over, the flagship lost (<see cref="PlayerSession.GameOver"/>).</summary>
+    /// <summary>The game is over, the flagship lost or surrendered (<see cref="PlayerSession.GameOver"/>).</summary>
     GameOver,
 
     /// <summary>Docked at the allied starbase: its menu, outfitting or the shipyard (<see cref="PlayerSession.Starbase"/>).</summary>
@@ -743,7 +743,7 @@ public sealed class PlayerSession
     /// </summary>
     public string? RescueOffer { get; private set; }
 
-    /// <summary>Whether the host has said the game is over (the flagship lost).</summary>
+    /// <summary>Whether the host has said the game is over (the flagship lost, or surrendered: <see cref="Surrendered"/>).</summary>
     public bool GameOver { get; private set; }
 
     /// <summary>Whether the game over the host told of was the flagship's surrender (<see cref="BattleNotice.Surrender"/>), not its loss in a battle.</summary>

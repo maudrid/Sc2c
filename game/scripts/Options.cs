@@ -50,7 +50,8 @@ namespace Crateris.Game;
 /// reads it: --start-at meets them in hyperspace), any other race's hail ends at once in peace, the group gone in
 /// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
 /// hail|attack (host: the choice at a meeting's encounter screen, made as it comes up), --meeting-replies I[,I...] (host:
-/// the replies chosen in the host's meetings' talks, each by its place among those offered from 0, in turn; past the
+/// the replies chosen in the host's meetings' talks, each by its place among those offered from 0, one a set in turn
+/// as each set comes, none while the host has paused; past the
 /// last the host waits, and a place past those offered is logged and the rest dropped),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
@@ -124,7 +125,7 @@ public sealed class Options
     /// <summary>--encounter-choice hail|attack: the host's choice at a meeting's encounter screen, made as it comes up (testing, until the screen is drawn).</summary>
     public EncounterAction? EncounterChoice { get; private set; }
 
-    /// <summary>--meeting-replies I[,I...]: the host's replies in its meetings' talks, by place among those offered, in turn (testing, until the talk is drawn); past the last the host waits, and a place past those offered is logged and the rest dropped.</summary>
+    /// <summary>--meeting-replies I[,I...]: the host's replies in its meetings' talks, by place among those offered, one a set in turn as each comes, none while the host has paused (testing, until the talk is drawn); past the last the host waits, and a place past those offered is logged and the rest dropped.</summary>
     public int[]? MeetingReplies { get; private set; }
 
     /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>

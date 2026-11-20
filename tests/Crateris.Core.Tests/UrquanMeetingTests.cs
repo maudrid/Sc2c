@@ -538,6 +538,76 @@ public class UrquanMeetingTests
         Assert.True(log.IndexOf("host fights the Ur-Quan") > log.IndexOf("  The talk with the Ur-Quan ends: hostile"));
     }
 
+    // A host by an Ur-Quan group in hyperspace, hailing it, its log kept.
+    private static HostSession UrQuanHost(List<string> log)
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
+            WorldBattleTests.Systems.Value, TestContent.Shapes);
+        host.World.TalkLibrary = Library.Value;
+        host.World.DialogueLocks = DialogueLocks.Load(DataDir);
+        host.World.BattleKit = WorldBattleTests.Kit();
+        host.Logged += log.Add;
+        host.World.PutInHyperspace("host");
+        host.StartAt(5800, 6100);
+        host.StartEncounter("urquan:1");
+        host.EncounterChoice = EncounterAction.Hail;
+        return host;
+    }
+
+    // The surrender's two replies' places, i_surrender's in the hello's set
+    // and i_will_surrender's in the next (the talk runs the same each time).
+    private static (int, int) SurrenderReplies()
+    {
+        var host = UrQuanHost(new List<string>());
+        for (int i = 0; i < 400 && host.World.MeetingOf("host") is not { Step: MeetingStep.Talk }; ++i)
+            host.Step(ShipInput.None);
+        var m = host.World.MeetingOf("host")!;
+        int first = Reply(m.Talk!, "i_surrender");
+        Assert.True(host.World.ChooseReply("host", first, m.Round));
+        return (first, Reply(m.Talk!, "i_will_surrender"));
+    }
+
+    [ContentFact]
+    public void MeetingRepliesAreChosenOneASetInTurn()
+    {
+        var (first, second) = SurrenderReplies();
+        var log = new List<string>();
+        var host = UrQuanHost(log);
+        host.MeetingReplies.Enqueue(first);
+        host.MeetingReplies.Enqueue(second);
+        for (int i = 0; i < 400 && !host.World.GameOver; ++i)
+            host.Step(ShipInput.None);
+        Assert.Empty(host.MeetingReplies);
+        Assert.Equal(new[] { $"  host chose reply {first}", $"  host chose reply {second}" },
+            log.Where(l => l.StartsWith("  host chose reply", StringComparison.Ordinal)));
+        Assert.True(host.World.Surrendered);
+    }
+
+    [ContentFact]
+    public void MeetingRepliesWaitWhileTheHostHasPaused()
+    {
+        var (first, second) = SurrenderReplies();
+        var log = new List<string>();
+        var host = UrQuanHost(log);
+        for (int i = 0; i < 400 && host.World.MeetingOf("host") is not { Step: MeetingStep.Talk }; ++i)
+            host.Step(ShipInput.None);
+        Assert.True(host.TogglePause());
+        host.MeetingReplies.Enqueue(first);
+        host.MeetingReplies.Enqueue(second);
+        host.MeetingReplies.Enqueue(7);   // past those offered: not checked against the set already answered
+        for (int i = 0; i < 10; ++i)
+            host.Step(ShipInput.None);
+        Assert.Equal(new[] { first, second, 7 }, host.MeetingReplies);
+        Assert.DoesNotContain(log, l => l.StartsWith("  host chose reply", StringComparison.Ordinal) || l.StartsWith("--meeting-replies", StringComparison.Ordinal));
+        Assert.True(host.TogglePause());
+        for (int i = 0; i < 400 && !host.World.GameOver; ++i)
+            host.Step(ShipInput.None);
+        Assert.Equal(new[] { $"  host chose reply {first}", $"  host chose reply {second}" },
+            log.Where(l => l.StartsWith("  host chose reply", StringComparison.Ordinal)));
+        Assert.True(host.World.Surrendered);
+        Assert.Equal(new[] { 7 }, host.MeetingReplies);   // the talk over before it came
+    }
+
     [ContentFact]
     public void AMeetingReplyPastThoseOfferedIsLoggedAndTheRestDropped()
     {

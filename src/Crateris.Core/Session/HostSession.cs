@@ -770,9 +770,10 @@ public sealed class HostSession
     /// <summary>
     /// --meeting-replies I[,I...] (testing): the host's replies in its
     /// meetings' talks, each reply's place among those offered, chosen in
-    /// turn as each set comes, until the talk is sent and drawn (items 10
-    /// and 11); past the last the host waits. A reply past those offered is
-    /// logged and the rest of the queue dropped (the host waits then too).
+    /// turn as each set comes (one a set, none while the host has paused),
+    /// until the talk is sent and drawn (items 10 and 11); past the last the
+    /// host waits. A reply past those offered is logged and the rest of the
+    /// queue dropped (the host waits then too).
     /// </summary>
     public Queue<int> MeetingReplies { get; } = new();
     private readonly Dictionary<string, int> _inBattle = new();
@@ -894,7 +895,10 @@ public sealed class HostSession
         LogMeetings();   // the encounter screen before a choice made at once (the talk is logged by Hailed)
         if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })
             World.EncounterChoice(HostId, choice);
-        if (MeetingReplies.Count > 0 && World.MeetingOf(HostId) is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 } met)
+        // Not while the host has paused: a reply then is only held (and the
+        // next would replace it), so the queue waits for the pause to lift.
+        if (MeetingReplies.Count > 0 && !World.HostPaused
+            && World.MeetingOf(HostId) is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 } met)
         {
             int offered = met.Talk!.Replies.Count;
             if (MeetingReplies.Peek() >= offered)
