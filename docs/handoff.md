@@ -41,7 +41,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for stage 3b-1 item 7 and their answers to the questions below (item 6 is built, reviewed in five rounds and reported; the go-ahead of 2026-11-20 was for item 6 alone).
+Build stage 3b-1 item 7, the Ilwrath and the Spathi (started 2026-11-20 with the owner's go-ahead for this item alone; its "Progress" row), then review it.
 
 ## Decisions waiting on the owner
 
