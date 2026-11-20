@@ -154,13 +154,14 @@ public static class Protocol
     public static T Decode<T>(byte[] bytes) =>
         JsonSerializer.Deserialize<T>(bytes, Options) ?? throw new InvalidDataException("Empty message.");
 
-    public static string Describe(JoinResult result) => result switch
+    /// <summary>A join's answer in words; <paramref name="surrendered"/>: a game over came of the flagship's surrender (GameWorld.Surrendered).</summary>
+    public static string Describe(JoinResult result, bool surrendered = false) => result switch
     {
         JoinResult.Joined => "Joined. Your escort is undocking from the flagship.",
         JoinResult.Rejoined => "Welcome back. Your ship is where you left it.",
         JoinResult.AlreadyPresent => "That player is already connected.",
         JoinResult.Full => "The game is full (4 players).",
-        JoinResult.GameOver => "The game is over: the flagship was lost.",
+        JoinResult.GameOver => surrendered ? "The game is over: the flagship surrendered." : "The game is over: the flagship was lost.",
         _ => result.ToString(),
     };
 

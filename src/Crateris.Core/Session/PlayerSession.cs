@@ -746,6 +746,9 @@ public sealed class PlayerSession
     /// <summary>Whether the host has said the game is over (the flagship lost).</summary>
     public bool GameOver { get; private set; }
 
+    /// <summary>Whether the game over the host told of was the flagship's surrender (<see cref="BattleNotice.Surrender"/>), not its loss in a battle.</summary>
+    public bool Surrendered { get; private set; }
+
     /// <summary>A battle notice from the host: kept, said in words, and logged.</summary>
     public void ShowBattleNotice(BattleNotice notice)
     {
@@ -766,6 +769,7 @@ public sealed class PlayerSession
                 break;
             case BattleNoticeKind.GameOver:
                 GameOver = true;
+                Surrendered = notice.Text == BattleNotice.Surrender;
                 break;
         }
         FollowRescue();

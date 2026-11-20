@@ -1234,6 +1234,7 @@ public partial class Main : Node2D
             _battleView.Leave();
         }
         // The game over, over everything, fading in.
+        _gameOverView.Why = player.Surrendered ? GameOverView.Surrendered : GameOverView.Lost;
         _gameOverView.Follow(screen == PlayerScreen.GameOver, 1.0 / Engine.PhysicsTicksPerSecond);
         if (_planetsideView.Visible)
             _planetsideView.Show(player);

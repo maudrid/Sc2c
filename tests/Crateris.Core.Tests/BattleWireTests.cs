@@ -234,6 +234,7 @@ public class BattleWireTests
             new BattleNotice(BattleNoticeKind.RescueOffer, Other: "g2"),
             new BattleNotice(BattleNoticeKind.Revived, Crew: 5, Other: "g2", Text: BattleNotice.Rescuer),
             new BattleNotice(BattleNoticeKind.GameOver),
+            new BattleNotice(BattleNoticeKind.GameOver, Text: BattleNotice.Surrender),
         };
         foreach (var n in notices)
         {
@@ -264,6 +265,8 @@ public class BattleWireTests
         Assert.Equal("You aren't at the wreck.", session.Notice);
         session.ShowBattleNotice(new BattleNotice(BattleNoticeKind.GameOver));
         Assert.True(session.GameOver);
+        Assert.False(session.Surrendered);
+        Assert.Equal("Game over: the flagship was lost.", session.Notice);
         Assert.Equal(3, session.BattleNotices.Count);
 
         // --script's special, and a guest's Special through the host.

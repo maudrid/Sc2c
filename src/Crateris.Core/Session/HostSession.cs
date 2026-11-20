@@ -398,7 +398,7 @@ public sealed class HostSession
         else
         {
             result = World.Join(playerId, name);
-            message = Protocol.Describe(result);
+            message = Protocol.Describe(result, World.Surrendered);
         }
         // A repeated hello is answered (and logged) with the player already on the connection.
         string answered = already ?? playerId;
@@ -771,7 +771,8 @@ public sealed class HostSession
     /// --meeting-replies I[,I...] (testing): the host's replies in its
     /// meetings' talks, each reply's place among those offered, chosen in
     /// turn as each set comes, until the talk is sent and drawn (items 10
-    /// and 11); past the last the host waits.
+    /// and 11); past the last the host waits. A reply past those offered is
+    /// logged and the rest of the queue dropped (the host waits then too).
     /// </summary>
     public Queue<int> MeetingReplies { get; } = new();
     private readonly Dictionary<string, int> _inBattle = new();
@@ -859,7 +860,7 @@ public sealed class HostSession
             _gameOverLogged = true;
             Logged?.Invoke(World.Surrendered ? "Game over: the flagship surrendered" : "Game over: the flagship was lost");
             foreach (var p in World.Players)
-                Tell(p.Id, new BattleNotice(BattleNoticeKind.GameOver));
+                Tell(p.Id, new BattleNotice(BattleNoticeKind.GameOver, Text: World.Surrendered ? BattleNotice.Surrender : ""));
         }
     }
 
@@ -893,9 +894,20 @@ public sealed class HostSession
         LogMeetings();   // the encounter screen before a choice made at once (the talk is logged by Hailed)
         if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })
             World.EncounterChoice(HostId, choice);
-        if (MeetingReplies.Count > 0 && World.MeetingOf(HostId) is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 } met
-            && World.ChooseReply(HostId, MeetingReplies.Peek(), met.Round))
-            MeetingReplies.Dequeue();
+        if (MeetingReplies.Count > 0 && World.MeetingOf(HostId) is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 } met)
+        {
+            int offered = met.Talk!.Replies.Count;
+            if (MeetingReplies.Peek() >= offered)
+            {
+                // Past the replies offered: said, and the rest let go (the host
+                // waits at the talk, as past the last), not tried every frame.
+                Logged?.Invoke($"--meeting-replies: reply {MeetingReplies.Peek()} isn't offered (0 to {offered - 1}); "
+                    + $"the {MeetingReplies.Count} left are dropped");
+                MeetingReplies.Clear();
+            }
+            else if (World.ChooseReply(HostId, MeetingReplies.Peek(), met.Round))
+                MeetingReplies.Dequeue();
+        }
         TakeBattleNews();
         // Once the game is over the world has stopped (decision 12): its
         // frame no longer moves on, and the snapshot of the world as it

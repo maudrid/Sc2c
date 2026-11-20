@@ -21,8 +21,10 @@ namespace Crateris.Core.Comm.Scripts;
 /// PROBE_MESSAGE_DELIVERED), the colony's guard, the Sa-Matra's, the
 /// captain hypnotised by the Talking Pet, the Kohr-Ah's frenzy and the
 /// endgame's won battle. Every path is checked against UQM's own script
-/// (tests/golden/talks.json). Surrendering loses the game (Segue_defeat:
-/// the world ends it, GameWorld.Meetings.cs).
+/// (tests/golden/talks.json). Surrendering ends the talk in defeat
+/// (Segue_defeat), which UQM's game ends with; the world decides what it
+/// does (GameWorld.Meetings.cs): the host's flagship surrendering is the
+/// game over, a guest's ship a wreck where it is (differences.md row 73).
 /// </summary>
 public sealed class UrquanScript : CommScript
 {

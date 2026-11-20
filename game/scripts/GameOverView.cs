@@ -23,10 +23,13 @@ public partial class GameOverView : Node2D
     /// <summary>How long the fade to black takes, in seconds.</summary>
     public const double FadeSeconds = 1.0;
 
-    public const string Title = "GAME OVER", Why = "The flagship was lost.", Again = "The host's save is kept as it was: the loss isn't saved.",
+    public const string Title = "GAME OVER", Lost = "The flagship was lost.", Surrendered = "The flagship surrendered.", Again = "The host's save is kept as it was: the loss isn't saved.",
         KeyLine = "Press Enter or Esc to leave.";
 
     private double _shown = -1;
+
+    /// <summary>Why the game is over: the flagship lost, or its surrender (PlayerSession.Surrendered).</summary>
+    public string Why { get; set; } = Lost;
 
     /// <summary>The window's size, which the fade covers.</summary>
     public Vector2 Size { get; set; } = new(1024, 768);

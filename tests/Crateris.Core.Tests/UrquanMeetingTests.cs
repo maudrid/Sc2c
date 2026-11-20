@@ -10,6 +10,7 @@ using Crateris.Core.Comm;
 using Crateris.Core.Comm.Scripts;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
+using Crateris.Core.Net;
 using Crateris.Core.Session;
 using Crateris.Core.Story;
 using Crateris.Core.Systems;
@@ -535,6 +536,71 @@ public class UrquanMeetingTests
         Assert.Single(log, l => l == "host talks to the Ur-Quan");
         Assert.Contains("host fights the Ur-Quan", talk);
         Assert.True(log.IndexOf("host fights the Ur-Quan") > log.IndexOf("  The talk with the Ur-Quan ends: hostile"));
+    }
+
+    [ContentFact]
+    public void AMeetingReplyPastThoseOfferedIsLoggedAndTheRestDropped()
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
+            WorldBattleTests.Systems.Value, TestContent.Shapes);
+        host.World.TalkLibrary = Library.Value;
+        host.World.DialogueLocks = DialogueLocks.Load(DataDir);
+        host.World.BattleKit = WorldBattleTests.Kit();
+        var log = new List<string>();
+        host.Logged += log.Add;
+        host.World.PutInHyperspace("host");
+        host.StartAt(5800, 6100);
+        host.StartEncounter("urquan:1");
+        host.EncounterChoice = EncounterAction.Hail;
+        host.MeetingReplies.Enqueue(4);   // the hello offers four: 0 to 3
+        host.MeetingReplies.Enqueue(0);
+        for (int i = 0; i < 400 && host.MeetingReplies.Count > 0; ++i)
+            host.Step(ShipInput.None);
+        Assert.Empty(host.MeetingReplies);
+        var m = host.World.MeetingOf("host")!;
+        Assert.Equal(MeetingStep.Talk, m.Step);   // waiting at the talk, no reply chosen
+        Assert.DoesNotContain(log, l => l.StartsWith("  host chose reply", StringComparison.Ordinal));
+        Assert.Equal(4, m.Talk!.Replies.Count);
+        Assert.Single(log, l => l == "--meeting-replies: reply 4 isn't offered (0 to 3); the 2 left are dropped");
+        host.Step(ShipInput.None);
+        Assert.Single(log, l => l.StartsWith("--meeting-replies", StringComparison.Ordinal));
+    }
+
+    [ContentFact]
+    public void AfterTheFlagshipsSurrenderTheGameOverSaysItSurrendered()
+    {
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
+            WorldBattleTests.Systems.Value, TestContent.Shapes);
+        host.World.TalkLibrary = Library.Value;
+        host.World.DialogueLocks = DialogueLocks.Load(DataDir);
+        host.World.BattleKit = WorldBattleTests.Kit();
+        var log = new List<string>();
+        host.Logged += log.Add;
+        Assert.True(Protocol.Accepted(host.Hello(1, "g1", "Guest 1", Protocol.Version).Result));
+        host.World.PutInHyperspace("host");
+        host.StartAt(5800, 6100);
+        host.StartEncounter("urquan:1");
+        host.EncounterChoice = EncounterAction.Hail;
+        for (int i = 0; i < 400 && host.World.MeetingOf("host") is not { Step: MeetingStep.Talk }; ++i)
+            host.Step(ShipInput.None);
+        var m = host.World.MeetingOf("host")!;
+        Assert.True(host.World.ChooseReply("host", Reply(m.Talk!, "i_surrender"), m.Round));
+        Assert.True(host.World.ChooseReply("host", Reply(m.Talk!, "i_will_surrender"), m.Round));
+        host.Step(ShipInput.None);
+        Assert.True(host.World.GameOver);
+        Assert.Single(log, l => l == "Game over: the flagship surrendered");
+        var (own, guests) = host.TakeBattleNotices();
+        var notice = own.Single(n => n.Kind == BattleNoticeKind.GameOver);
+        Assert.Equal("Game over: the flagship surrendered.", notice.Describe());
+        var sent = BattleNotice.Decode(guests.Single(g => g.Notice.Kind == BattleNoticeKind.GameOver).Notice.Encode());
+        var session = new PlayerSession(WorldBattleTests.Systems.Value, null, "g1", TestContent.Shapes.HyperFlagship.Count);
+        session.ShowBattleNotice(sent);
+        Assert.True(session.GameOver);
+        Assert.True(session.Surrendered);
+        Assert.Equal("Game over: the flagship surrendered.", session.Notice);
+        // A player joining now is told so.
+        var late = host.Hello(2, "g2", "Guest 2", Protocol.Version);
+        Assert.Equal((JoinResult.GameOver, "The game is over: the flagship surrendered."), (late.Result, late.Message));
     }
 
     [ContentFact]

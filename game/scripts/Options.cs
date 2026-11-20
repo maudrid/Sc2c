@@ -51,7 +51,7 @@ namespace Crateris.Game;
 /// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
 /// hail|attack (host: the choice at a meeting's encounter screen, made as it comes up), --meeting-replies I[,I...] (host:
 /// the replies chosen in the host's meetings' talks, each by its place among those offered from 0, in turn; past the
-/// last the host waits),
+/// last the host waits, and a place past those offered is logged and the rest dropped),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
@@ -124,7 +124,7 @@ public sealed class Options
     /// <summary>--encounter-choice hail|attack: the host's choice at a meeting's encounter screen, made as it comes up (testing, until the screen is drawn).</summary>
     public EncounterAction? EncounterChoice { get; private set; }
 
-    /// <summary>--meeting-replies I[,I...]: the host's replies in its meetings' talks, by place among those offered, in turn (testing, until the talk is drawn).</summary>
+    /// <summary>--meeting-replies I[,I...]: the host's replies in its meetings' talks, by place among those offered, in turn (testing, until the talk is drawn); past the last the host waits, and a place past those offered is logged and the rest dropped.</summary>
     public int[]? MeetingReplies { get; private set; }
 
     /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>

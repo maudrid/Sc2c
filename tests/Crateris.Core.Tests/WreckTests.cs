@@ -1036,7 +1036,7 @@ public class WreckTests
         host.Step(ShipInput.None);
         Assert.Single(log, l => l == "Game over: the flagship was lost");
         var late = host.Hello(2, "g2", "Guest 2", Protocol.Version);
-        Assert.Equal(JoinResult.GameOver, late.Result);
+        Assert.Equal((JoinResult.GameOver, "The game is over: the flagship was lost."), (late.Result, late.Message));
         Assert.False(Protocol.Accepted(late.Result));
         Assert.False(host.InGame(2));
     }

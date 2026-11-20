@@ -36,7 +36,11 @@ public enum BattleNoticeKind : byte
     /// <summary>A wreck was revived: sent to the rescuer and the wreck's player (<see cref="BattleNotice.Other"/>: the other one), with the crew given.</summary>
     Revived,
 
-    /// <summary>The game is over: the flagship was lost (decision 12). The world has stopped.</summary>
+    /// <summary>
+    /// The game is over: the flagship was lost (decision 12), or surrendered
+    /// to the Ur-Quan (<see cref="BattleNotice.Text"/> <see cref="BattleNotice.Surrender"/>,
+    /// stage 3b-1 item 6). The world has stopped.
+    /// </summary>
     GameOver,
 }
 
@@ -51,6 +55,9 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
 {
     /// <summary>A revival's <see cref="Text"/>: the notice is for the rescuer (<see cref="Other"/> the wreck's player), or for the wreck's player (<see cref="Other"/> the rescuer).</summary>
     public const string Rescuer = "rescuer", Rescued = "rescued";
+
+    /// <summary>The game over's <see cref="Text"/> when the flagship surrendered (GameWorld.Surrendered), not lost in a battle.</summary>
+    public const string Surrender = "surrendered";
 
     public byte[] Encode()
     {
@@ -103,7 +110,7 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
         BattleNoticeKind.RescueOffer => $"You're at {Other}'s wreck: you can give it crew.",
         BattleNoticeKind.Revived => Text == Rescued ? $"{Other} gave your ship {Crew} crew: it flies again."
             : $"You gave {Other}'s wreck {Crew} crew: it flies again.",
-        BattleNoticeKind.GameOver => "Game over: the flagship was lost.",
+        BattleNoticeKind.GameOver => Text == Surrender ? "Game over: the flagship surrendered." : "Game over: the flagship was lost.",
         _ => "",
     };
 }
