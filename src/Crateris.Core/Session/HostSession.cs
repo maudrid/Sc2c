@@ -763,7 +763,9 @@ public sealed class HostSession
                     MeetingStep.Encounter => $"{id} at the encounter screen: {ships}, hail or attack",
                     MeetingStep.Battle => $"{id} fights the {race}",
                     _ => m.InstantVictory
-                        ? $"{id}'s meeting with the {race} is over: an instant victory, the {race} ships destroyed, {m.Salvage} RU of salvage"
+                        ? m.Left is { Count: > 0 }
+                            ? $"{id}'s meeting with the {race} is over: an instant victory that wins nothing (the Ur-Quan guard the Sa-Matra), no ships destroyed"
+                            : $"{id}'s meeting with the {race} is over: an instant victory, the {race} ships destroyed, {m.Salvage} RU of salvage"
                         : $"{id}'s meeting with the {race} is over",
                 });
             if (m.Step == MeetingStep.Done)

@@ -134,7 +134,8 @@ public sealed class Meeting
     /// Whether the talk ended in instant victory (setSegue (Segue_victory):
     /// the Slylandro probe's destruct code), no battle fought: the group's
     /// ships destroyed as on a battle won, <see cref="Salvage"/> paid to the
-    /// player.
+    /// player; while the Ur-Quan guard the Sa-Matra it wins nothing (no
+    /// ship destroyed, no salvage: <see cref="Left"/> holds them all).
     /// </summary>
     public bool InstantVictory { get; internal set; }
 

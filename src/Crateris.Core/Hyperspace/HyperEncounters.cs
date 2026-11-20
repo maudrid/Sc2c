@@ -117,6 +117,25 @@ public sealed class HyperEncounters
     public void Restore(List<HyperEncounter> list) => List = list.Select(e => e.Clone()).ToList();
 
     /// <summary>
+    /// The flags a group of race <paramref name="type"/> rolled by
+    /// check_hyperspace_encounter starts with, for a player with
+    /// <paramref name="fuel"/> aboard: one-shot (ONE_SHOT_ENCOUNTER, gone
+    /// after its meeting, however it ends) for the Slylandro probes always,
+    /// and for the Melnorme when they come for an empty tank or the
+    /// broadcaster (while not angered three times); none for the others.
+    /// </summary>
+    public byte RolledFlags(StoryState story, int type, uint fuel)
+    {
+        if (type == _slylandro)
+            return HyperEncounter.OneShot;
+        if (type == _melnorme
+            && (fuel == 0 || story.Get("USED_BROADCASTER") != 0)
+            && story.Get("MELNORME_ANGER") < 3)
+            return HyperEncounter.OneShot;
+        return 0;
+    }
+
+    /// <summary>
     /// check_hyperspace_encounter for one player in hyperspace, at
     /// (<paramref name="x"/>, <paramref name="y"/>) with
     /// <paramref name="fuel"/> aboard: for each race in avail_race_q's
@@ -141,21 +160,16 @@ public sealed class HyperEncounters
             else
             {
                 radius = (Units.MaxXUniverse + 1) << 1;
+                flags = RolledFlags(story, type, fuel);
                 if (type == _slylandro)
                 {
-                    flags = HyperEncounter.OneShot;
                     if (story.Get("STARBASE_AVAILABLE") == 0)
                         percent = 100;
                     else
                         percent = (ushort)(percent * story.Get("SLYLANDRO_MULTIPLIER"));
                 }
-                else if (type == _melnorme
-                         && (fuel == 0 || story.Get("USED_BROADCASTER") != 0)
-                         && story.Get("MELNORME_ANGER") < 3)
-                {
+                else if (type == _melnorme && flags != 0)
                     percent = story.Get("USED_BROADCASTER") == 0 ? 30 : 100;
-                    flags = HyperEncounter.OneShot;
-                }
 
                 // "There can be only one!": of this player's.
                 if (List.Any(e => e.Race == type && e.Roller == player))

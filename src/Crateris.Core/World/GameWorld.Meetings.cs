@@ -495,7 +495,8 @@ public sealed partial class GameWorld
     /// in it (unless the Ur-Quan guard the Sa-Matra: no victory, nothing
     /// destroyed). The meeting then ends as after a battle
     /// (RaceCommunication's status 1): in hyperspace the group re-forms with
-    /// no ships, and goes; in a system the group is gone, the race's groups
+    /// no ships (with them all while the Sa-Matra is guarded), and goes,
+    /// one-shot as every probe is from its roll; in a system the group is gone, the race's groups
     /// turn on the players (EncounterRace) and the numbers are seeded afresh
     /// (Battle's). comm.c's own clearing of the group for the Slylandro in a
     /// system (status 0) is never reached, as the instant victory's status
@@ -709,6 +710,7 @@ public sealed partial class GameWorld
                 Race = race, Roller = id, OriginX = f.UniverseX, OriginY = f.UniverseY, Radius = 2000,
                 LocX = x, LocY = f.UniverseY, LogX = Units.UniverseToLogX(x), LogY = Units.UniverseToLogY(f.UniverseY),
                 TransitionState = 9,
+                Flags = encounters.RolledFlags(Story, race, f.Fuel),   // a real roll's: the probes one-shot
             };
             for (int i = 0; i < ships; ++i)
                 e.Ships.Add(crew);

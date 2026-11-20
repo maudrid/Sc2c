@@ -67,7 +67,8 @@ public class SlylandroMeetingTests
 
     private static int Probe(GameWorld world) => world.Story!.Rules.RaceIndex("SLYLANDRO_SHIP");
 
-    // A group of probes in hyperspace right by a player, the player in hyperspace.
+    // A group of probes in hyperspace right by a player, the player in
+    // hyperspace, one-shot as a rolled one is (hyper.c).
     private static HyperEncounter ProbesBy(GameWorld world, string id, int ships = 1, short x = 9000, short y = 300)
     {
         world.PutInHyperspace(id);
@@ -80,7 +81,9 @@ public class SlylandroMeetingTests
             Race = Probe(world), Roller = id, OriginX = f.UniverseX, OriginY = f.UniverseY, Radius = 2000,
             LocX = (short)(f.UniverseX + 10), LocY = f.UniverseY,
             LogX = Uqm.Units.UniverseToLogX((short)(f.UniverseX + 10)), LogY = Uqm.Units.UniverseToLogY(f.UniverseY),
+            Flags = world.Encounters!.RolledFlags(world.Story!, Probe(world), f.Fuel),
         };
+        Assert.Equal(HyperEncounter.OneShot, e.Flags);
         for (int i = 0; i < ships; ++i)
             e.Ships.Add(world.Story!.Rules.RaceShips[e.Race].Crew);
         world.Encounters!.List.Add(e);
@@ -152,7 +155,8 @@ public class SlylandroMeetingTests
         // An instant victory (UninitEncounter after Battle's instantVictory):
         // no battle, every probe destroyed, each one's bounty to the
         // answerer alone; the encounter written back with none (status 1:
-        // re-forming, not one-shot) and gone; the lock let go.
+        // re-forming, one-shot as every probe is from its roll) and gone;
+        // the lock let go.
         Assert.Equal(MeetingStep.Done, m.Step);
         Assert.True(m.InstantVictory);
         Assert.Null(m.Battle);
@@ -163,7 +167,7 @@ public class SlylandroMeetingTests
         Assert.Equal(guestUnits + m.Salvage, world.Find("g")!.Ship.Hold.ResourceUnits);
         Assert.Equal(hostUnits, world.Host.Ship.Hold.ResourceUnits);
         Assert.Empty(e.Ships);
-        Assert.Equal(HyperEncounter.Reforming, e.Flags & (HyperEncounter.Reforming | HyperEncounter.OneShot));
+        Assert.Equal(HyperEncounter.Reforming | HyperEncounter.OneShot, e.Flags & (HyperEncounter.Reforming | HyperEncounter.OneShot));
         Assert.Null(world.DialogueLocks!.Holder("SLYLANDRO_CONVERSATION"));
         Frames(world, 2);
         Assert.DoesNotContain(e, world.Encounters!.List);
@@ -174,6 +178,8 @@ public class SlylandroMeetingTests
     {
         // UninitEncounter's VictoryState is 0 while the Ur-Quan protect the
         // Sa-Matra: nothing destroyed, no salvage, though no battle is fought.
+        // The probe, one-shot from its roll, then goes all the same
+        // (AddEncounterElement: re-forming and one-shot, no element made).
         var world = NewGame();
         world.Story!.Set("DESTRUCT_CODE_ON_SHIP", 1);
         world.Story.Set("URQUAN_PROTECTING_SAMATRA", 1);
@@ -186,7 +192,55 @@ public class SlylandroMeetingTests
         Assert.Equal((0u, units), (m.Salvage, world.Host.Ship.Hold.ResourceUnits));
         Assert.Equal(new[] { 12 }, m.Left!.Select(l => l.Crew));
         Assert.Equal(new[] { 12 }, e.Ships);
-        Assert.Equal(0, e.Flags & HyperEncounter.OneShot);   // a battle "fought"
+        Assert.Equal(HyperEncounter.Reforming | HyperEncounter.OneShot, e.Flags & (HyperEncounter.Reforming | HyperEncounter.OneShot));
+        Frames(world, 2);
+        Assert.DoesNotContain(e, world.Encounters!.List);
+        Assert.Null(e.Element);
+    }
+
+    [ContentFact]
+    public void AProbeFoughtAndLeftWithShipsGoes()
+    {
+        // A battle the player retreats from, the probe left with its ships:
+        // re-forming and one-shot (status 1, its roll's flag kept), so
+        // AddEncounterElement makes no element and it goes, as every
+        // one-shot group does after its meeting.
+        var world = NewGame();
+        var e = ProbesBy(world, "h");
+        var m = Meet(world, "h");
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        for (int i = 0; i < 400 && m.Step == MeetingStep.Battle; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.TakeOff);
+            world.Step();
+        }
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Equal(new[] { 12 }, m.Left!.Select(l => l.Crew));
+        Assert.DoesNotContain(e, world.Encounters!.List);
+    }
+
+    [ContentFact]
+    public void AGroupStartedByTheHostHasARolledGroupsFlags()
+    {
+        // AddEncounterNear (--start-encounter): the probes one-shot from the
+        // start as hyper.c rolls them; the Melnorme one-shot only when they
+        // come for an empty tank or the broadcaster; the others not.
+        var world = NewGame();
+        world.PutInHyperspace("h");
+        world.AddEncounterNear("h", Probe(world), 1);
+        Assert.Equal(HyperEncounter.OneShot, world.Encounters!.List[^1].Flags);
+        world.AddEncounterNear("h", world.Story!.Rules.RaceIndex("URQUAN_SHIP"), 1);
+        Assert.Equal(0, world.Encounters.List[^1].Flags);
+        int melnorme = world.Story.Rules.RaceIndex("MELNORME_SHIP");
+        Assert.NotEqual(0u, world.Host.Ship.Flight.Fuel);
+        world.AddEncounterNear("h", melnorme, 1);
+        Assert.Equal(0, world.Encounters.List[^1].Flags);
+        world.Story.Set("USED_BROADCASTER", 1);
+        world.AddEncounterNear("h", melnorme, 1);
+        Assert.Equal(HyperEncounter.OneShot, world.Encounters.List[^1].Flags);
+        world.Story.Set("MELNORME_ANGER", 3);
+        world.AddEncounterNear("h", melnorme, 1);
+        Assert.Equal(0, world.Encounters.List[^1].Flags);
     }
 
     // The host in the system no sphere holds, its two probes drawn (UQM's, seed 1).
@@ -379,5 +433,28 @@ public class SlylandroMeetingTests
         Assert.Contains("  The talk with the Slylandro ends: victory", log2);
         Assert.Contains($"host's meeting with the Slylandro is over: an instant victory, the Slylandro ships destroyed, {2 * Bounty(again.World)} RU of salvage", log2);
         Assert.DoesNotContain("host fights the Slylandro", log2);
+
+        // While the Ur-Quan guard the Sa-Matra the code wins nothing: the log says nothing was destroyed.
+        var log3 = new List<string>();
+        var guarded = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
+            WorldBattleTests.Systems.Value, TestContent.Shapes);
+        guarded.World.TalkLibrary = UrquanMeetingTests.Library.Value;
+        guarded.World.DialogueLocks = DialogueLocks.Load(DataDir);
+        guarded.World.BattleKit = WorldBattleTests.Kit();
+        guarded.World.Story!.Set("STARBASE_AVAILABLE", 1);
+        guarded.World.Story.Set("SLYLANDRO_MULTIPLIER", 0);
+        guarded.World.Story.Set("DESTRUCT_CODE_ON_SHIP", 1);
+        guarded.World.Story.Set("URQUAN_PROTECTING_SAMATRA", 1);
+        guarded.Logged += log3.Add;
+        guarded.World.PutInHyperspace("host");
+        guarded.StartAt(9000, 300);
+        guarded.StartEncounter("slylandr:2");
+        guarded.EncounterChoice = EncounterAction.Hail;
+        guarded.MeetingReplies.Enqueue(0);   // destruct_code
+        for (int i = 0; i < 400 && !log3.Any(l => l.StartsWith("host's meeting", StringComparison.Ordinal)); ++i)
+            guarded.Step(ShipInput.None);
+        Assert.Contains("host's meeting with the Slylandro is over: an instant victory that wins nothing (the Ur-Quan guard the Sa-Matra), no ships destroyed", log3);
+        Assert.DoesNotContain(log3, l => l.Contains("ships destroyed,", StringComparison.Ordinal));
+        Assert.Equal(new[] { 12, 12 }, guarded.World.Encounters!.List.Single(e => e.Race == Probe(guarded.World)).Ships);
     }
 }
