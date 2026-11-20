@@ -43,6 +43,13 @@ public abstract class CommScript
     /// <summary>init_encounter_func.</summary>
     protected internal abstract void Intro();
 
+    /// <summary>
+    /// The race's number speech (LOCDATA's AlienNumberSpeech), for a race
+    /// whose description has it (data/conversations.json's number_speech);
+    /// null for the rest.
+    /// </summary>
+    protected internal virtual NumberSpeech? NumberSpeech => null;
+
     /// <summary>post_encounter_func: after a talk that wasn't aborted.</summary>
     protected internal virtual void PostEncounter()
     {
@@ -72,3 +79,22 @@ public abstract class CommScript
 
     protected ITalkShip Sis => T.Ship;
 }
+
+/// <summary>
+/// A race's number speech (comm.h's NUMBER_SPEECH_DESC): how a number is
+/// spoken, its digits from the largest.
+/// </summary>
+public sealed record NumberSpeech(IReadOnlyList<SpeechDigit> Digits);
+
+/// <summary>
+/// One digit of a race's number speech (SPEECH_DIGIT): the number divided
+/// by <paramref name="Divider"/>, less <paramref name="Subtrahend"/>, is
+/// spoken as the phrase <paramref name="Words"/> has for it (null for one
+/// that isn't spoken), or, without words, as a number of its own; then its
+/// name, the first of <paramref name="Names"/> whose divider leaves at most
+/// its remainder (SPEECH_DIGITNAME), or else <paramref name="CommonName"/>
+/// ("hundred").
+/// </summary>
+public sealed record SpeechDigit(int Divider, int Subtrahend, IReadOnlyList<string?>? Words,
+    IReadOnlyList<(int Divider, int MaxRemainder, string Phrase)>? Names, string? CommonName);
+

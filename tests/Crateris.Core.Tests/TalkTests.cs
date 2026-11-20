@@ -49,6 +49,7 @@ public class TalkTests
         public IReadOnlyList<string?> ModuleSlots { get; init; } = new string?[16];
         public int EscortsWorth { get; set; }
         public int EscortRoom { get; set; }
+        public (int X, int Y) LogPlace { get; init; } = (Uqm.Units.UniverseToLogX(1752), Uqm.Units.UniverseToLogY(1450));
 
         // UQM's recorder stubs AddEscortShips (comm.c): no captains' names drawn.
         public int AddEscorts(int race, int count, Func<uint> random)
@@ -87,6 +88,8 @@ public class TalkTests
                 Landers = s.GetProperty("landers").GetInt32(),
                 ResourceUnits = s.GetProperty("ru").GetUInt32(),
                 Minerals = s.GetProperty("elements").Ints(),
+                LogPlace = start.TryGetProperty("log", out var log) ? (log[0].GetInt32(), log[1].GetInt32())
+                    : (Uqm.Units.UniverseToLogX(1752), Uqm.Units.UniverseToLogY(1450)),
             };
         }
     }
@@ -99,6 +102,7 @@ public class TalkTests
         ["urquan"] = p => new UrquanScript(p),
         ["blackur"] = p => new BlackUrquanScript(p),
         ["spathi"] = p => new SpathiScript(p),
+        ["slyland"] = p => new SlylandroScript(p),
     };
 
     private static Talk Start(ContentPackage package, string script, JsonElement start)

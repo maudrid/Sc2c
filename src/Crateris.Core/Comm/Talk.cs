@@ -441,19 +441,89 @@ public sealed class Talk
         }
     }
 
-    /// <summary>NPCNumber without number speech: the number's text spliced in.</summary>
+    /// <summary>
+    /// NPCNumber: without number speech the number's text spliced in; with
+    /// it (the race's AlienNumberSpeech, <see cref="CommScript.NumberSpeech"/>:
+    /// the Slylandro probe's since stage 3b-1 item 8) NPCNumberPhrase, which
+    /// UQM runs whenever the race has number speech, voices or not: the
+    /// number's words' voice clips and its text spliced onto the page
+    /// (SpliceMultiTrack).
+    /// </summary>
     public void NPCNumber(int number, string? format = null)
     {
-        // UQM speaks a number (NPCNumberPhrase) whenever the race has number
-        // speech, voices or not; no ported script's race has.
+        format ??= "%d";
         if (Description.NumberSpeech)
-            throw new NotSupportedException("number speech isn't ported yet (stage 3b, the Melnorme)");
-        Splice(null, Encoding.ASCII.GetBytes(Printf(format ?? "%d", number)), 0);
+        {
+            var speech = _script.NumberSpeech
+                ?? throw new InvalidOperationException($"the {_script.Phrases.Name} script's race speaks numbers but has no number speech");
+            var tracks = new List<string?>();
+            NumberTracks(speech, number, tracks, toplevel: true);
+            Check();
+            // SpliceMultiTrack's TrackNames end at the first missing clip.
+            int clips = tracks.IndexOf(null);
+            _events.Add(new MultiTrackQueued(clips < 0 ? tracks.Count : clips, Encoding.ASCII.GetBytes(Printf(format, number))));
+            return;
+        }
+        Splice(null, Encoding.ASCII.GetBytes(Printf(format, number)), 0);
     }
+
+    // NPCNumberPhrase: the clips of a number's words, by the speech's digits,
+    // largest first (a digit's word, or the number above it spoken in turn;
+    // then its name, or the digit's common word: "hundred"); with nothing
+    // queued at the top, "zero" (the last digit's word for 0). Returns how
+    // many were queued.
+    private int NumberTracks(NumberSpeech speech, int number, List<string?> tracks, bool toplevel)
+    {
+        int queued = 0;
+        SpeechDigit? dig = null;
+        foreach (var d in speech.Digits)
+        {
+            dig = d;
+            int quot = number / d.Divider;
+            if (quot == 0)
+                continue;
+            quot -= d.Subtrahend;
+            if (quot < 0)
+                continue;
+            if (d.Words is { } words)
+            {
+                if (quot >= 10)
+                    throw new InvalidOperationException($"a digit of {number} past 9");
+                if (words[quot] is not { } word)
+                    continue;
+                tracks.Add(Clip(word));
+                queued++;
+            }
+            else
+                queued += NumberTracks(speech, quot, tracks, toplevel: false);
+            if (d.Names is { } names)
+            {
+                foreach (var (divider, maxRemainder, name) in names)
+                    if (number % divider <= maxRemainder)
+                    {
+                        tracks.Add(Clip(name));
+                        queued++;
+                        break;
+                    }
+            }
+            else if (d.CommonName is { } common)
+            {
+                tracks.Add(Clip(common));
+                queued++;
+            }
+            number %= d.Divider;
+        }
+        if (toplevel && queued == 0)
+            tracks.Add(Clip(dig!.Words![number]!));
+        return queued;
+    }
+
+    private string? Clip(string id) => _clips[EntryNumber(Phrase(id)) - 1];
 
     private static string Printf(string format, int number) => format switch
     {
         "%d" => number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        "%03d" => number.ToString("000;-00", System.Globalization.CultureInfo.InvariantCulture),
         _ => throw new NotSupportedException($"NPCNumber format {format}"),
     };
 

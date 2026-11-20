@@ -50,6 +50,13 @@ public interface ITalkShip
     /// <summary>The minerals the storage holds (GetStorageBayCapacity): the ship's own, as its hold is.</summary>
     int StorageCapacity => ModuleSlots.Count(m => m == "STORAGE_BAY") * 500;
 
+    /// <summary>
+    /// Where the ship is on the star map (GLOBAL_SIS (log_x), log_y): in
+    /// hyperspace its own place, in a system the star's (ExploreSolarSys
+    /// sets it so); a new game's at Sol unless the ship says otherwise.
+    /// </summary>
+    (int X, int Y) LogPlace => (Uqm.Units.UniverseToLogX(1752), Uqm.Units.UniverseToLogY(1450));
+
     /// <summary>Drive slots with a thruster (DriveSlots below EMPTY_SLOT); the flagship's, in the game (decision 4).</summary>
     int Thrusters { get; }
 

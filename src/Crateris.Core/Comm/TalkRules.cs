@@ -40,6 +40,9 @@ public static class TalkRules
         // Stage 3b-1 item 7: the Spathi met in space, ordinary (decision 6);
         // Fwiffo on Pluto (3c's) too, as a talk with a race's ship.
         ["spathi"] = _ => false,
+        // Stage 3b-1 item 8: the Slylandro probe met in space, ordinary
+        // (decision 6), as any talk with a race's ships.
+        ["slyland"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

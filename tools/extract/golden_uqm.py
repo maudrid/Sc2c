@@ -4697,8 +4697,59 @@ def blackur_starts():
     return starts
 
 
+def universe_to_log(ux, uy):
+    """UNIVERSE_TO_LOGX and UNIVERSE_TO_LOGY (units.h)."""
+    log_units_x, log_units_y = (8192 >> 4) * 195, (7680 >> 4) * 25
+    universe_units_x, universe_units_y = ((9999 + 1) >> 4) * 10, (9999 + 1) >> 4
+    return ((ux * log_units_x + (universe_units_x >> 1)) // universe_units_x,
+            ((9999 - uy) * log_units_y + (universe_units_y >> 1)) // universe_units_y)
+
+
+# A new game's place on the star map (globdata.c: Sol's).
+SOL_LOG = universe_to_log(1752, 1450)
+
+
+def slyland_starts():
+    """The Slylandro probe's talk (slyland.c), from states chosen to reach
+    every condition it reads: each visit (the hello; the visits past those
+    the switch names), each reply's count of times asked (each value, and
+    mixed), the destruct code aboard (DESTRUCT_CODE_ON_SHIP: the code sent,
+    an instant victory), and the probe saying where it is (its fourth
+    "who are you", SLYLANDRO_PROBE_ID 3) from places on the star map that
+    give each sign and each way of speaking a number: zero, digits, teens,
+    tens with and without units, hundreds with and without the rest (the
+    flagship's log_x and log_y, between universe units too)."""
+    starts = [space_start("first", {})]
+    for visits in range(1, 8):
+        starts.append(space_start(f"visit-{visits}", {"SLYLANDRO_PROBE_VISITS": visits}, follow=[]))
+    counters = ["SLYLANDRO_PROBE_THREAT", "SLYLANDRO_PROBE_WRONG", "SLYLANDRO_PROBE_ID",
+                "SLYLANDRO_PROBE_INFO", "SLYLANDRO_PROBE_EXIT"]
+    for k in range(1, 4):
+        starts.append(space_start(f"counters-{k}", {"SLYLANDRO_PROBE_VISITS": 1, **{c: k for c in counters}}))
+        starts.append(space_start(f"counters-mixed-{k}", {"SLYLANDRO_PROBE_VISITS": 2,
+                                                          **{c: (k + i) % 4 for i, c in enumerate(counters)}}))
+    starts.append(space_start("destruct-code", {"DESTRUCT_CODE_ON_SHIP": 1}))
+    starts.append(space_start("destruct-code-in-a-system", {"DESTRUCT_CODE_ON_SHIP": 1, "SLYLANDRO_PROBE_ID": 3},
+                              "IN_INTERPLANETARY"))
+    places = [("b-corvi", universe_to_log(333, 9812)),
+              ("plus-plus", universe_to_log(9999, 0)),
+              ("minus-minus", universe_to_log(0, 9999)),
+              ("teens", universe_to_log(333 + 1234, 9812 - 3156)),
+              ("tens", universe_to_log(333 + 200, 9812 - 2207)),
+              ("hundreds", universe_to_log(333 + 3000, 9812 - 5003)),
+              ("between-units", (universe_to_log(4321, 4567)[0] + 7, universe_to_log(4321, 4567)[1] - 5)),
+              ("sol", SOL_LOG)]
+    for name, log in places:
+        # The whole talk from B Corvi; elsewhere "who are you" alone (the
+        # third reply offered, the destruct code not aboard).
+        starts.append(space_start(f"coordinates-{name}", {"SLYLANDRO_PROBE_ID": 3}, log=list(log),
+                                  **({} if name == "b-corvi" else {"prefix": [2], "follow": []})))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
-                "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts}
+                "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
+                "slyland": slyland_starts}
 # A script's file where it isn't named after its folder.
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c"}
 # The date where a start doesn't give one: a new game's.
@@ -4758,7 +4809,8 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
         " ".join(str(ALLIED[alliances[r]]) for r in RACES),
         f"{escorts[0]} {escorts[1]}",
         " ".join(music),
-        f"{ACTIVITIES[start.get('activity', 'SUPER_MELEE')]} {battle_group_ref(start)}"])
+        f"{ACTIVITIES[start.get('activity', 'SUPER_MELEE')]} {battle_group_ref(start)}",
+        " ".join(map(str, start.get("log", SOL_LOG)))])
     by_bit = {f["start_bit"]: name for name, f in fields.items()}
 
     def run(replies):

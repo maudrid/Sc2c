@@ -40,6 +40,8 @@
  *     IN_HYPERSPACE, IN_INTERPLANETARY, WON_LAST_BATTLE, ...) and
  *     GLOBAL (BattleGroupRef) (the system's own groups' offset, 0 for
  *     none), which the Ur-Quan's and the Kohr-Ah's scripts read;
+ *   where the flagship is on the star map: GLOBAL_SIS (log_x) and
+ *     log_y (the Slylandro probe says where it is from them);
  *   the replies: their count, then each one's place in the replies offered.
  *
  * Selling minerals (starbas.c's SellMinerals) runs as if a button were
@@ -671,6 +673,13 @@ main (void)
 		sscanf (line, "%u %lu", &a, &ref);
 		GLOBAL (CurrentActivity) = MAKE_WORD (a, 0);
 		GLOBAL (BattleGroupRef) = (DWORD) ref;
+	}
+	read_line (line, sizeof line);
+	{
+		long lx, ly;
+		sscanf (line, "%ld %ld", &lx, &ly);
+		GLOBAL_SIS (log_x) = (SDWORD) lx;
+		GLOBAL_SIS (log_y) = (SDWORD) ly;
 	}
 	read_line (line, sizeof line);
 	p = line;
