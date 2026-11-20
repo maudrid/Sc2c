@@ -283,8 +283,11 @@ public class IlwrathSpathiMeetingTests
         world.PutInOrbit("h", star, 0);
         Assert.Null(world.MeetingOf("h"));
         Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
-        // Their other worlds never start it.
-        Assert.Equal(-1, NewGame().WorldTalkRace(star, 1, null));
+        // Their other worlds, and the homeworld's moons, never start it.
+        var living = NewGame();
+        Assert.Equal(-1, living.WorldTalkRace(star, 1, null));
+        Assert.Equal(-1, living.WorldTalkRace(star, 0, 0));
+        Assert.Equal(Race(living, "ILWRATH_SHIP"), living.WorldTalkRace(star, 0, null));
     }
 
     [ContentFact]
@@ -373,6 +376,25 @@ public class IlwrathSpathiMeetingTests
         Assert.Equal(new[] { (5, 5), (1, 21) }, world.Fleet.Ships.Select(s => (s.Crew, (int)s.Captain)));
         Assert.Equal(Segue.Peace, talk.Segue);
         Assert.Equal(2, world.Story.Get("FOUND_PLUTO_SPATHI"));
+    }
+
+    [ContentTheory]
+    [InlineData(1, "WILL_JOIN")]
+    [InlineData(0, "TOO_SCARY")]
+    public void FwiffoJoinsOnlyWithRoomInTheFleet(int room, string line)
+    {
+        // EscortFeasibilityStudy: the room left in the host's fleet.
+        var world = NewGame();
+        world.Story!.Set("FOUND_PLUTO_SPATHI", 1);
+        uint n = 0;
+        world.Fleet.Add(world.Story.Rules, "ARILOU_SHIP", HostFleet.MaxShips - room, () => n++);
+        var talk = world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1)!;
+        talk.Start();
+        foreach (int r in new[] { 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1 })
+            talk.Choose(r);
+        talk.Choose(Reply(talk, "join_us"));
+        Assert.True(Said(talk, line));
+        Assert.Equal(HostFleet.MaxShips, world.Fleet.Count);   // full either way
     }
 
     [ContentFact]
