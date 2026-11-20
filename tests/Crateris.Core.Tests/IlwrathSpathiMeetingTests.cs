@@ -333,6 +333,49 @@ public class IlwrathSpathiMeetingTests
     }
 
     [ContentFact]
+    public void TheGodsOrderingTheIlwrathAgainstTheThraddashSetsTheirMissionAside()
+    {
+        // The broadcaster's branch (3b-2's), through the world's talk: the
+        // event AddEvent adds is the story's, set aside until 3c runs it.
+        var world = NewGame();
+        var talk = world.RaceTalk(world.Host, Race(world, "ILWRATH_SHIP"), 1, 1 << 4)!;
+        talk.Activity = TalkActivity.InInterplanetary;
+        talk.Start();
+        Assert.True(Said(talk, "ILWRATH_BELIEVE"));
+        talk.Choose(Reply(talk, "go_kill_thraddash"));
+        Assert.Equal(1, world.Story!.Get("ILWRATH_DECEIVED"));
+        Assert.Contains(new EventAdded(true, 0, 0, 0, "ADVANCE_ILWRATH_MISSION"), talk.Events);
+        var aside = Assert.Single(world.Story.Events.SetAside, e => e.Event == "ADVANCE_ILWRATH_MISSION");
+        Assert.Equal((world.Clock.Year, world.Clock.Month, world.Clock.Day), (aside.Year, aside.Month, aside.Day));
+    }
+
+    [ContentFact]
+    public void FwiffoJoinsTheHostsFleetAloneInHisEluder()
+    {
+        // Fwiffo on Pluto (3c's start), through the world's talk: the Eluder
+        // joins the host's fleet with one crew, captained by Fwiffo
+        // (SetEscortCrewComplement); a ship of the race already there with
+        // its race's crew would be the one changed, as UQM's first match.
+        var world = NewGame();
+        world.Story!.Set("FOUND_PLUTO_SPATHI", 1);
+        var rules = world.Story.Rules;
+        world.Fleet.Add(rules, "SPATHI_SHIP", 1, () => 0);
+        world.Fleet.SetCrew(rules, 0, 5);   // not the starting crew: passed over
+        var talk = world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1)!;
+        talk.Activity = TalkActivity.InInterplanetary;
+        talk.Start();
+        Assert.True(Said(talk, "SORRY_ABOUT_THAT"));
+        foreach (int r in new[] { 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1 })
+            talk.Choose(r);
+        talk.Choose(Reply(talk, "join_us"));
+        Assert.True(Said(talk, "WILL_JOIN"));
+        Assert.Contains(new EscortCrewSet(6, 1, 21), talk.Events);
+        Assert.Equal(new[] { (5, 5), (1, 21) }, world.Fleet.Ships.Select(s => (s.Crew, (int)s.Captain)));
+        Assert.Equal(Segue.Peace, talk.Segue);
+        Assert.Equal(2, world.Story.Get("FOUND_PLUTO_SPATHI"));
+    }
+
+    [ContentFact]
     public void TheHostsLogShowsTheHomeworldsInfiniteFleet()
     {
         var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
