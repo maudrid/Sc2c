@@ -169,6 +169,77 @@ public class UrquanMeetingTests
     }
 
     [ContentFact]
+    public void TheDroneSharesTheUrQuansLock()
+    {
+        // The drone's URQUAN_DRONE_CONVERSATION is locked with the Ur-Quan's
+        // (DialogueLocks' one change): while the host talks to the Ur-Quan
+        // in hyperspace, the drone passes through a guest by Earth, who's
+        // told who's talking; once the host's talk is over, the guest meets it.
+        var game = NewGame("g");
+        var world = game.World;
+        InHyperspace(world);
+        GroupBy(world, "h", "URQUAN_SHIP");
+        var m = Meet(world, "h");
+        Assert.Equal("h", world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
+        world.TakeBattleNotices();
+        world.PutInOrbit("g", SolStar, Earth);
+        world.Find("g")!.Ship.Ip!.ReturnFromOrbit();   // in Earth's inner system, the drone orbiting there
+        Frames(world, 400);
+        Assert.Empty(world.SystemMeetings);
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Equal(0, world.Story!.Get("PROBE_MESSAGE_DELIVERED"));
+        Assert.Contains(("g", "Host is talking to the Ur-Quan."), world.TakeBattleNotices());
+        // The host's talk goes on, the drone still passing through.
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Frames(world, 50);
+        Assert.Empty(world.SystemMeetings);
+        // The talk over (a battle), the lock let go: the guest meets the drone.
+        Assert.True(world.ChooseReply("h", Reply(m.Talk!, "you_must_surrender"), m.Round));
+        Assert.Null(world.DialogueLocks.Holder("URQUAN_CONVERSATION"));
+        for (int i = 0; i < 600 && world.SystemMeetings.Count == 0; ++i)
+            Frames(world, 1);
+        var met = Assert.Single(world.SystemMeetings);
+        Assert.Equal(Race(world, "URQUAN_DRONE_SHIP"), met.Race);
+        Assert.Equal(1, world.Story.Get("PROBE_MESSAGE_DELIVERED"));
+        var droneTalk = game.Talks.Last();
+        Assert.True(Said(droneTalk, "SEND_MESSAGE"));
+        Assert.Equal(world.Find("g")!.Ship.Hold.Crew, droneTalk.Ship.Crew);   // the guest's talk
+    }
+
+    [ContentFact]
+    public void ANewGameMeetsTheDroneOnTheWayToTheStarbaseAndTheVisitStillStarts()
+    {
+        // The game's own races fly (GameWorld.EncounterRaces left as it is)
+        // and the real locks: leaving Earth's orbit for the starbase, the
+        // host meets the drone, which gives its message and flies off, and
+        // the opening's visit to the commander starts as before.
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, WorldBattleTests.Systems.Value.Map), "host", "Host",
+            WorldBattleTests.Systems.Value, TestContent.Shapes);
+        world.TalkLibrary = Library.Value;
+        world.DialogueLocks = DialogueLocks.Load(DataDir);
+        world.BattleKit = WorldBattleTests.Kit();
+        Assert.Equal(GameWorld.TalkingRaces, world.EncounterRaces);
+        var ship = world.Host.Ship;
+        world.PutInOrbit("host", SolStar, Earth, 1);
+        ship.Ip!.ReturnFromOrbit();
+        for (int i = 0; i < 24 * 60 && ship.Visit is null; ++i)
+        {
+            var ip = ship.Ip!;
+            var starbase = ip.MoonScreen[0];
+            int want = Uqm.UqmMath.AngleToFacing(Uqm.UqmMath.ArcTan((short)(starbase.X - ip.Screen.X), (short)(starbase.Y - ip.Screen.Y)));
+            int turn = (want - ip.Facing) & (Uqm.UqmMath.Facings - 1);
+            var keys = turn == 0 ? ShipInput.Thrust : turn > Uqm.UqmMath.Facings / 2 ? ShipInput.Left : ShipInput.Right;
+            world.SubmitInput("host", world.Frame + 1, keys);
+            world.Step();
+        }
+        var met = Assert.Single(world.SystemMeetings);
+        Assert.Equal(Race(world, "URQUAN_DRONE_SHIP"), met.Race);
+        Assert.Equal(1, world.Story!.Get("PROBE_MESSAGE_DELIVERED"));
+        Assert.Null(world.DialogueLocks.Holder("URQUAN_CONVERSATION"));
+        Assert.Equal(VisitStep.Commander, ship.Visit?.Step);
+    }
+
+    [ContentFact]
     public void TheUrQuanInHyperspaceAreHostileTheirTalkRunsAndEndsInBattle()
     {
         var game = NewGame();
@@ -314,6 +385,80 @@ public class UrquanMeetingTests
         Assert.Equal(frame + 5, world.Frame);
         Assert.True(guest.Wreck);
         Assert.Equal(0, guest.AppearFrames);   // not spinning back into hyperspace: it doesn't fly
+    }
+
+    [ContentFact]
+    public void AGuestsSurrenderIsSavedAsAWreckAndRevivedAfterTheLoad()
+    {
+        var game = NewGame("g");
+        var world = game.World;
+        InHyperspace(world);
+        var group = GroupBy(world, "g", "URQUAN_SHIP");
+        Surrender(world, "g");
+        var guest = world.Find("g")!.Ship;
+        var place = (guest.Flight.UniverseX, guest.Flight.UniverseY);
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), WorldBattleTests.Systems.Value, TestContent.Shapes);
+        Assert.False(loaded.GameOver);
+        Assert.False(loaded.Surrendered);
+        var ship = loaded.Find("g")!.Ship;
+        Assert.Equal((true, 0, place.UniverseX, place.UniverseY),
+            (ship.Destroyed, ship.Hold.Crew, ship.Flight.UniverseX, ship.Flight.UniverseY));
+        Assert.Equal(new[] { "g" }, loaded.Wrecks.Select(p => p.Id));
+        Assert.Equal(world.Story!.Get("URQUAN_VISITS"), loaded.Story!.Get("URQUAN_VISITS"));
+        // The group as after a talk: re-forming and one-shot, saved so.
+        var flags = HyperEncounter.Reforming | HyperEncounter.OneShot;
+        Assert.Equal(flags, group.Flags & flags);
+        Assert.Contains(loaded.Encounters!.List, e => e.Race == group.Race && (e.Flags & flags) == flags);
+        // A friend brings it crew after the load.
+        Assert.Equal(JoinResult.Rejoined, loaded.Join("h", "Host"));
+        Assert.Equal(JoinResult.Rejoined, loaded.Join("g", "g"));
+        loaded.Host.Ship.Flight.PlaceAtUniverse(place.UniverseX, place.UniverseY);
+        Assert.Equal(RescueRefusal.None, loaded.Revive("h", "g", 3));
+        Assert.Equal((false, 3), (ship.Destroyed, ship.Hold.Crew));
+    }
+
+    [ContentFact]
+    public void AGuestSurrenderingInASystemIsAWreckThereAndSavedSo()
+    {
+        var game = NewGame("g");
+        var world = game.World;
+        const int UrQuanStar = 311;   // a system of random groups: BattleGroupRef 0
+        InHyperspace(world);   // the host away, out of the group's reach
+        world.PutInSystem("g", UrQuanStar);
+        Frames(world, 1);
+        world.SystemGroups!.Systems[UrQuanStar].Groups.Clear();
+        world.AddEncounterNear("g", Race(world, "URQUAN_SHIP"), 2);
+        var m = Surrender(world, "g");
+        Assert.Equal((TalkActivity.InInterplanetary, (string?)null), (m.Talk!.Activity, m.Talk.BattleGroup));
+        var guest = world.Find("g")!.Ship;
+        Assert.False(world.GameOver);
+        Assert.Equal((true, 0, UrQuanStar), (guest.Wreck, guest.Hold.Crew, guest.SystemStar));
+        var place = (guest.Ip!.Screen.X, guest.Ip.Screen.Y);
+        Assert.Null(world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
+        long frame = world.Frame;
+        Frames(world, 5);
+        Assert.Equal(frame + 5, world.Frame);
+        Assert.Equal(place, (guest.Ip!.Screen.X, guest.Ip.Screen.Y));   // a wreck doesn't fly
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), WorldBattleTests.Systems.Value, TestContent.Shapes);
+        var ship = loaded.Find("g")!.Ship;
+        Assert.Equal((true, 0, UrQuanStar), (ship.Destroyed, ship.Hold.Crew, ship.SystemStar));
+        Assert.Equal(new[] { "g" }, loaded.Wrecks.Select(p => p.Id));
+    }
+
+    [ContentFact]
+    public void TheFlagshipSurrenderingInASystemIsTheGameOverAndIsntSaved()
+    {
+        var game = NewGame("g");
+        var world = game.World;
+        const int UrQuanStar = 311;
+        world.PutInSystem("h", UrQuanStar);
+        Frames(world, 1);
+        world.SystemGroups!.Systems[UrQuanStar].Groups.Clear();
+        world.AddEncounterNear("h", Race(world, "URQUAN_SHIP"), 2);
+        Surrender(world, "h");
+        Assert.True(world.GameOver);
+        Assert.True(world.Surrendered);
+        Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(world));   // the save kept as it was
     }
 
     [Fact]
