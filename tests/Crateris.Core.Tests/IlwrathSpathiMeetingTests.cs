@@ -271,6 +271,125 @@ public class IlwrathSpathiMeetingTests
         Assert.Contains(("g", "Host is talking to the Ilwrath."), world.TakeBattleNotices());
     }
 
+    // The host's homeworld meeting at its battle, the host retreated from it
+    // while the guest fights on (handoff question 3): the meeting unfinished,
+    // the race's lock let go. The guest is kept alive and unharmed.
+    private static (Meeting Meeting, int Star) HostOutOfTheHomeworldsBattleGuestFightingOn(GameWorld world)
+    {
+        int star = Star(world, "ILWRATH_DEFINED");
+        world.PutInOrbit("h", star, 0);
+        var m = world.MeetingOf("h")!;
+        world.PutInSystem("g", star);
+        var gip = world.Find("g")!.Ship.Ip!;
+        gip.PlaceInOrbit(0, null);
+        gip.ReturnFromOrbit();   // the guest by the same world
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        Assert.True(world.LetIntoBattle("g"));
+        Frames(world, 3);
+        Assert.Same(m.Battle, world.Find("g")!.Ship.Battle);
+        for (int i = 0; i < 300 && world.Host.Ship.Battle is not null; ++i)
+            HostFlies(world, m, ShipInput.TakeOff);
+        Assert.Null(world.Host.Ship.Battle);
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        Assert.Same(m, world.MeetingOf("h"));
+        Assert.Null(world.DialogueLocks!.Holder("ILWRATH_CONVERSATION"));
+        world.TakeNewMeetings();
+        return (m, star);
+    }
+
+    // A frame of the host's input while the guest fights on in the
+    // meeting's battle, kept alive and unharmed.
+    private static void HostFlies(GameWorld world, Meeting m, ShipInput input)
+    {
+        world.SubmitInput("h", world.Frame + 1, input);
+        world.SubmitInput("g", world.Frame + 1, ShipInput.None);
+        if (m.Battle!.Enemy.RaceDesc is { } enemy)
+            enemy.EnergyLevel = 0;
+        foreach (var f in m.Battle.Fighters)
+            if (f.Player.Id == "g" && f.Starship.RaceDesc is { } rd)
+                rd.CrewLevel = rd.MaxCrew;
+        world.Step();
+    }
+
+    // The guest retreats from the meeting's battle: it's over, and the meeting with it.
+    private static void GuestRetreats(GameWorld world)
+    {
+        for (int i = 0; i < 300 && world.Find("g")!.Ship.Battle is not null; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.None);
+            world.SubmitInput("g", world.Frame + 1, ShipInput.TakeOff);
+            world.Step();
+        }
+        Assert.Null(world.Find("g")!.Ship.Battle);
+    }
+
+    [ContentFact]
+    public void AHostOutOfTheHomeworldsBattleFliesBackIntoItAsAnOrdinaryFlyBy()
+    {
+        var world = NewGame("g");
+        var (m, star) = HostOutOfTheHomeworldsBattleGuestFightingOn(world);
+        var ship = world.Host.Ship;
+        // Away from the world, round and back into it, while the guest fights on.
+        for (int i = 0; i < 30; ++i)
+            HostFlies(world, m, ShipInput.Thrust);
+        Assert.NotEqual(new IpPoint(0, 0), ship.Ip!.Location);
+        bool reached = false;
+        for (int i = 0; i < 400 && !reached; ++i)
+        {
+            var q = ship.Ip!;
+            double angle = Math.Atan2(-q.Location.X, q.Location.Y);   // 0 north, clockwise
+            int toward = (int)Math.Round(angle / (2 * Math.PI) * 16 + 16) % 16;
+            int turn = (toward - q.Facing + 16) % 16;
+            HostFlies(world, m, turn == 0 ? ShipInput.Thrust : turn < 8 ? ShipInput.Right : ShipInput.Left);
+            reached = ship.Ip!.Location == new IpPoint(0, 0);   // touched: put back by the world (ReturnFromOrbit)
+        }
+        Assert.True(reached);
+        Assert.Same(m.Battle, world.Find("g")!.Ship.Battle);
+        // No talk and no orbit: the ship by the world, the meeting the same.
+        Assert.Same(m, world.MeetingOf("h"));
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        Assert.Empty(world.TakeNewMeetings());
+        Assert.Null(world.DialogueLocks!.Holder("ILWRATH_CONVERSATION"));
+        Assert.Null(ship.Ip!.Orbit);
+        Assert.Equal(Activity.InnerSystem, ship.Activity);
+        for (int i = 0; i < 5; ++i)
+            HostFlies(world, m, ShipInput.None);
+        Assert.Same(m, world.MeetingOf("h"));
+        Assert.Null(ship.Ip!.Orbit);
+        // The guest's battle over, the meeting ends: the Ilwrath turn on the players there.
+        GuestRetreats(world);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Null(world.MeetingOf("h"));
+        var d = world.SystemGroups!.Systems[star];
+        Assert.Equal(m.Race, d.EncounterRace);
+        Frames(world, 2);
+        Assert.Contains(d.Groups, g => g.Race == m.Race && g.DestLoc == IpGroup.InterceptPlayer);
+        // Back into the homeworld now, the host meets the Ilwrath again.
+        world.PutInOrbit("h", star, 0);
+        Assert.NotSame(m, world.MeetingOf("h"));
+        Assert.Equal(MeetingStep.Encounter, world.MeetingOf("h")!.Step);
+    }
+
+    [ContentFact]
+    public void AHostOutOfTheHomeworldsBattlePutInItsOrbitStartsNoTalk()
+    {
+        var world = NewGame("g");
+        var (m, star) = HostOutOfTheHomeworldsBattleGuestFightingOn(world);
+        world.TakeBattleNotices();
+        world.PutInOrbit("h", star, 0);
+        Assert.Same(m, world.MeetingOf("h"));
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        Assert.Empty(world.TakeNewMeetings());
+        Assert.Null(world.DialogueLocks!.Holder("ILWRATH_CONVERSATION"));
+        Assert.Null(world.Host.Ship.Ip!.Orbit);
+        Assert.DoesNotContain(world.TakeBattleNotices(), n => n.PlayerId == "h");
+        // The meeting ends with the guest's battle, as ever.
+        GuestRetreats(world);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Null(world.MeetingOf("h"));
+        Assert.Equal(m.Race, world.SystemGroups!.Systems[star].EncounterRace);
+    }
+
     [ContentFact]
     public void TheIlwrathExtinctTheirHomeworldIsOrbitedAsAnyWorld()
     {

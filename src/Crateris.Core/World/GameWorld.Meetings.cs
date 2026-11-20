@@ -138,9 +138,16 @@ public sealed partial class GameWorld
     /// shows the encounter screen; a battle is against the infinite fleet.
     /// Under the race's lock, as a group met (decision 5): while another
     /// player holds it, nothing starts and the player is told who's talking.
+    /// A player in a meeting (one whose battle others fight on, handoff
+    /// question 3), a visit or a battle starts no talk, as such a player
+    /// meets no group and starts no starbase visit: the world is an
+    /// ordinary fly-by, the ship by it with no orbit (UQM never orbits it
+    /// while the race lives).
     /// </summary>
     private void MeetAtWorld(Player player, int star, (int Planet, int? Moon) world, int race)
     {
+        if (player.Ship is not { Meeting: null, Visit: null, Battle: null })
+            return;
         if (!MayMeet(player, race))
         {
             TellWhoIsTalking(player, race);
