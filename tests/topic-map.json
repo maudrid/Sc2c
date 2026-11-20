@@ -146,7 +146,7 @@
   "src/Crateris.Core/World/BattleSnapshot.cs": "6c52e3697aaf8fde",
   "src/Crateris.Core/World/GameClock.cs": "d52583d990240531",
   "src/Crateris.Core/World/GameSettings.cs": "14659d738e64fffb",
-  "src/Crateris.Core/World/GameWorld.Battles.cs": "85fd5830c6908f32",
+  "src/Crateris.Core/World/GameWorld.Battles.cs": "68754456e1017af5",
   "src/Crateris.Core/World/GameWorld.Clock.cs": "02a47926e1d36774",
   "src/Crateris.Core/World/GameWorld.Encounters.cs": "e0bd0fa46f6c2a61",
   "src/Crateris.Core/World/GameWorld.Fleet.cs": "ba32a766a4d18677",
