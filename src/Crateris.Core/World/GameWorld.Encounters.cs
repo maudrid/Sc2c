@@ -34,11 +34,11 @@ public sealed partial class GameWorld
     /// <summary>
     /// The races whose talk is ported (stage 3b-1 item 6: the Ur-Quan,
     /// their drone, whose talk is theirs, and the Kohr-Ah; item 7 the
-    /// Ilwrath and the Spathi; item 8 adds the Slylandro), whose groups fly.
+    /// Ilwrath and the Spathi; item 8 the Slylandro probes), whose groups fly.
     /// </summary>
     internal static readonly IReadOnlySet<string> TalkingRaces = new HashSet<string>
     {
-        "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP",
+        "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP",
     };
 
     /// <summary>

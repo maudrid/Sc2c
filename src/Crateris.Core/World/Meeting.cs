@@ -131,6 +131,17 @@ public sealed class Meeting
     public WorldBattle? Battle { get; internal set; }
 
     /// <summary>
+    /// Whether the talk ended in instant victory (setSegue (Segue_victory):
+    /// the Slylandro probe's destruct code), no battle fought: the group's
+    /// ships destroyed as on a battle won, <see cref="Salvage"/> paid to the
+    /// player.
+    /// </summary>
+    public bool InstantVictory { get; internal set; }
+
+    /// <summary>The resource units an instant victory paid the player (UninitEncounter's bounty for each ship).</summary>
+    public uint Salvage { get; internal set; }
+
+    /// <summary>
     /// The ships left once it's over (UninitEncounter's npc_built_ship_q):
     /// each ship's crew and captain, in the group's order; all of them after a
     /// talk without a battle, none after a battle won.

@@ -58,6 +58,8 @@ internal sealed class AnswererTalkShip : ITalkShip
 
     public string CaptainName => Ship.CaptainName;
 
+    public (int X, int Y) LogPlace => Ship.LogPlace;
+
     public string ShipName => Ship.ShipName;
 
     public int Crew

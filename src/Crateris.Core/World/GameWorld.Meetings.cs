@@ -469,7 +469,12 @@ public sealed partial class GameWorld
             Surrender(m);
             return;
         }
-        bool hostile = m.Talk is { } talk ? talk.Segue is Segue.Hostile or Segue.Victory : !m.Hailed;
+        if (m.Talk is { Segue: Segue.Victory } && m.Ships.Count > 0)
+        {
+            InstantVictory(m);
+            return;
+        }
+        bool hostile = m.Talk is { } talk ? talk.Segue is Segue.Hostile : !m.Hailed;
         if (hostile && m.Ships.Count > 0 && BattleKit is not null
             && m.Ships.All(s => BattleKit.Enemies.Contains(s.Ship)) && m.Player.Present && !GameOver)
         {
@@ -478,6 +483,37 @@ public sealed partial class GameWorld
             return;
         }
         EndMeeting(m, fought: false);
+    }
+
+    /// <summary>
+    /// A talk ending in instant victory (setSegue (Segue_victory): the
+    /// Slylandro probe sent the destruct code, stage 3b-1 item 8):
+    /// EncounterBattle as UQM's, whose Battle starts no fight (instantVictory:
+    /// the player's side left, the other's none), so UninitEncounter tallies
+    /// a battle won: every one of the group's ships destroyed, each paying
+    /// the race's bounty (RACE_SHIP_COST / 8) to the answerer, the only one
+    /// in it (unless the Ur-Quan guard the Sa-Matra: no victory, nothing
+    /// destroyed). The meeting then ends as after a battle
+    /// (RaceCommunication's status 1): in hyperspace the group re-forms with
+    /// no ships, and goes; in a system the group is gone, the race's groups
+    /// turn on the players (EncounterRace) and the numbers are seeded afresh
+    /// (Battle's). comm.c's own clearing of the group for the Slylandro in a
+    /// system (status 0) is never reached, as the instant victory's status
+    /// is 1 and the probe's talk ends nowhere else in peace.
+    /// </summary>
+    private void InstantVictory(Meeting m)
+    {
+        var rules = Story!.Rules;
+        bool victory = Story.Get("URQUAN_PROTECTING_SAMATRA") == 0;
+        m.InstantVictory = true;
+        if (victory)
+        {
+            uint salvage = (uint)(m.Ships.Count * (rules.RaceShips[m.Race].Cost >> 3));
+            m.Salvage = salvage;
+            var hold = m.Player.Ship.Hold;
+            hold.ResourceUnits = (uint)Math.Min(uint.MaxValue, (ulong)hold.ResourceUnits + salvage);
+        }
+        EndMeeting(m, fought: true, victory ? new List<(int, int)>() : null);
     }
 
     /// <summary>
@@ -557,11 +593,13 @@ public sealed partial class GameWorld
     // one-shot if no battle was fought (hyperspace); in a system as the game
     // comes back from it (reinitNpcs), a battle's race turning the race's
     // groups on the players (DoMissions).
-    private void EndMeeting(Meeting m, bool fought)
+    private void EndMeeting(Meeting m, bool fought, List<(int Crew, int Captain)>? instantLeft = null)
     {
         ReleaseMeetingLock(m);
         List<(int Crew, int Captain)> left;
-        if (fought && m.Battle is { } wb)
+        if (instantLeft is not null)
+            left = instantLeft;
+        else if (fought && m.Battle is { } wb)
         {
             // UninitEncounter: those whose crew ran out are gone (on a win,
             // every one: none is left able to fight), the rest keep theirs.

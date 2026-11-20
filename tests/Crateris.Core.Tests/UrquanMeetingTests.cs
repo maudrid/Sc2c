@@ -31,7 +31,7 @@ public class UrquanMeetingTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
     private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);
-    private static readonly Lazy<TalkLibrary> Library = new(() => TestContent.With(p => TalkLibrary.Load(p, Scripts)));
+    internal static readonly Lazy<TalkLibrary> Library = new(() => TestContent.With(p => TalkLibrary.Load(p, Scripts)));
     private const int SolStar = 82, Earth = 2;
 
     // A new game with the talks' content, the locks and the battles; the
@@ -500,8 +500,9 @@ public class UrquanMeetingTests
         // Item 7's: the Ilwrath's whole script, the Spathi's away from Spathiwa.
         Assert.IsType<IlwrathScript>(world.RaceTalk(world.Host, Race(world, "ILWRATH_SHIP"), 1)!.Script);
         Assert.IsType<SpathiScript>(world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1)!.Script);
-        // Item 8's race not yet.
-        Assert.Null(world.RaceTalk(world.Host, Race(world, "SLYLANDRO_SHIP"), 1));
+        // Item 8's: the Slylandro probe's; the races of 3b-2 not yet.
+        Assert.IsType<SlylandroScript>(world.RaceTalk(world.Host, Race(world, "SLYLANDRO_SHIP"), 1)!.Script);
+        Assert.Null(world.RaceTalk(world.Host, Race(world, "MELNORME_SHIP"), 1));
         // Without the content, none.
         world.TalkLibrary = null;
         Assert.Null(world.RaceTalk(world.Host, Race(world, "URQUAN_SHIP"), 1));

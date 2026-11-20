@@ -157,6 +157,16 @@ public class HyperEncounterTests
             var input = scenario.GetProperty("input");
             var world = UqmScenario(input, out _, scenario);
             world.BattleKit = WorldBattleTests.Kit();
+            // A group destroyed whole without a fight: the probe sent the
+            // destruct code (stage 3b-1 item 8), its talk the real one.
+            bool destructed = input.TryGetProperty("after", out var a0) && a0.GetProperty("status").GetInt32() == 1
+                              && a0.GetProperty("crews").GetArrayLength() == 0;
+            if (destructed)
+            {
+                world.TalkLibrary = UrquanMeetingTests.Library.Value;
+                world.DialogueLocks = Comm.DialogueLocks.Load(DataDir);
+                world.Story!.Set("DESTRUCT_CODE_ON_SHIP", 1);
+            }
             var frames = scenario.GetProperty("frames").EnumerateArray().ToList();
             int drawn = 0;
             world.EndOfFrame();
@@ -197,6 +207,21 @@ public class HyperEncounterTests
                 Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
                 (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay) = clock;
             }
+            else if (destructed)
+            {
+                // The destruct code sent: an instant victory, no battle
+                // fought (RaceCommunication's status 1), the meeting over in
+                // the reply, as a talk's.
+                Assert.Equal("SLYLANDRO_SHIP", world.Story!.Rules.Races[meeting.Race]);
+                Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+                uint units = world.Host.Ship.Hold.ResourceUnits;
+                Assert.True(world.ChooseReply("h", 0, null));
+                Assert.True(meeting.InstantVictory);
+                Assert.Null(meeting.Battle);
+                Assert.Equal(units + meeting.Salvage, world.Host.Ship.Hold.ResourceUnits);
+                Assert.True(meeting.Salvage > 0);
+                (world.Clock.Year, world.Clock.Month, world.Clock.Day, world.Clock.FramesIntoDay) = clock;
+            }
             else
             {
                 // No day ends in the battle (its events would run, as UQM's
@@ -224,7 +249,7 @@ public class HyperEncounterTests
             Assert.Equal(crews, meeting.Left!.Select(l => l.Crew));
             Run(world, after.GetProperty("steps"), afterFrames, $"{name}, back", first, ref drawn);
         }
-        Assert.Equal(2, followed);
+        Assert.Equal(3, followed);
     }
 
     private enum RunEnd { Done, Met, IntoAStar }
@@ -400,8 +425,8 @@ public class HyperEncounterTests
         // Its makeup and place drawn (AddEncounterElement), then dropped.
         Assert.Empty(world.Encounters.List);
         Assert.Contains("AddEncounterElement", random.Places.Skip(before));
-        // The game's own: the races whose talk is ported (items 6 and 7; item 8 adds the Slylandro).
-        Assert.Equal(new HashSet<string> { "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP" },
+        // The game's own: the races whose talk is ported (items 6 and 7; item 8 the Slylandro).
+        Assert.Equal(new HashSet<string> { "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP" },
             new GameWorld(new GameSettings(), new GameClock(2155, 2, 17)).EncounterRaces);
     }
 

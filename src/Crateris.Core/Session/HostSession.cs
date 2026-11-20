@@ -742,6 +742,9 @@ public sealed class HostSession
                         case LineQueued { Text.Length: > 0 } l:
                             Logged?.Invoke($"  {race} (on): {l.Text}");
                             break;
+                        case MultiTrackQueued { TextBytes.Length: > 0 } mt:
+                            Logged?.Invoke($"  {race} (on): {System.Text.Encoding.UTF8.GetString(mt.TextBytes)}");
+                            break;
                         case RepliesOffered o:
                             for (int i = 0; i < o.Replies.Count; ++i)
                                 Logged?.Invoke($"  {id}'s reply {i}: {o.Replies[i].Text}");
@@ -759,7 +762,9 @@ public sealed class HostSession
                     MeetingStep.Spin => $"{id} meets a group of {ships}",
                     MeetingStep.Encounter => $"{id} at the encounter screen: {ships}, hail or attack",
                     MeetingStep.Battle => $"{id} fights the {race}",
-                    _ => $"{id}'s meeting with the {race} is over",
+                    _ => m.InstantVictory
+                        ? $"{id}'s meeting with the {race} is over: an instant victory, the {race} ships destroyed, {m.Salvage} RU of salvage"
+                        : $"{id}'s meeting with the {race} is over",
                 });
             if (m.Step == MeetingStep.Done)
                 _meetingsLogged.Remove(m);

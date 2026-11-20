@@ -5632,6 +5632,14 @@ def hyperspace_scenarios():
         # and the Melnorme at 30% with no fuel (one at a time too).
         hyperspace_scenario("the probes", 99, (9000, 300),
                             [[200, 0], [500, H_RIGHT]], starbase=0, multiplier=1, tick_count=1),
+        # A probe met and destroyed (stage 3b-1 item 8): fought and won, or
+        # sent the destruct code (an instant victory: UQM's Battle fights
+        # nothing, and UninitEncounter destroys every ship), the encounter
+        # written back with no ships (RaceCommunication's status 1); it goes,
+        # and the next day's probe comes, one at a time.
+        hyperspace_scenario("the probes, then destroyed", 99, (9000, 300),
+                            [[200, 0], [500, H_RIGHT]], starbase=0, multiplier=1, tick_count=1,
+                            after=dict(status=1, seed=2418, crews=[], steps=[[120, 0], [200, H_LEFT]])),
         hyperspace_scenario("no fuel", 314, (9000, 300),
                             [[24 * 12, 0]], fuel=0, starbase=1, multiplier=4, day_ticks=12, tick_count=1),
         # Groups kept from before: placed where they were, without a vortex;
@@ -5754,6 +5762,15 @@ def check_hyperspace(scenarios, runs):
                 raise RuntimeError("hyperspace: the group talked away didn't go")
         elif after[0][8][0][3] != crews or after[0][8][0][11] != 100 or after[0][8][0][0] != met[0]:
             raise RuntimeError("hyperspace: the group fought didn't re-form with its crews")
+    # The probe destroyed (stage 3b-1 item 8): gone as hyperspace comes
+    # back, and another comes on a later day, one at a time.
+    run = runs[[s["name"] for s in scenarios].index("the probes, then destroyed")]
+    after = run.get("after")
+    if not after or any(e[0] == R_SLYLANDRO for e in after[0][8]):
+        raise RuntimeError("hyperspace: the probe destroyed didn't go")
+    if not any(sum(e[0] == R_SLYLANDRO for e in f[8]) == 1 for f in after) or \
+            any(sum(e[0] == R_SLYLANDRO for e in f[8]) > 1 for f in after):
+        raise RuntimeError("hyperspace: no next probe came after the one destroyed, or two at once")
 
 
 def record_hyperspace(uqm, exe, strings_exe, images_exe, package):

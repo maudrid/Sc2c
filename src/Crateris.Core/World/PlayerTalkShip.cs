@@ -78,6 +78,11 @@ internal sealed class PlayerTalkShip : ITalkShip
 
     public int StorageCapacity => Hold.StorageCapacity;
 
+    // GLOBAL_SIS (log_x), log_y: in a system the star's (ExploreSolarSys), in hyperspace the ship's own.
+    public (int X, int Y) LogPlace => _player.Ship.SystemStar is int star && _world.Systems?.Map.Stars[star] is { } s
+        ? (Uqm.Units.UniverseToLogX(s.X), Uqm.Units.UniverseToLogY(s.Y))
+        : (_player.Ship.Flight.LogX, _player.Ship.Flight.LogY);
+
     public int Thrusters => _flagship.Modules.Thrusters;
 
     public int Jets => _flagship.Modules.Jets;
