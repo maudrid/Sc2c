@@ -32,7 +32,8 @@ namespace Crateris.Game;
 /// pause is the host's pause key),
 /// --first-run-use FILE (the first-run screen acts as if the player chose
 /// that file), --quit-after FRAMES, --quit-after-join FRAMES (host), --report FILE (write what happened as JSON),
-/// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON],
+/// --save FILE, --no-upnp, --seconds-per-day N, --start-orbit STAR:PLANET[:MOON] (at a world whose orbit starts a
+/// race's talk, the Ilwrath homeworld 220:0, the talk starts instead, the ship by the world),
 /// --start-visit [STEP] (host: a new game starts in the commander's talk at Earth's starbase: his first, or with base-report
 /// the one where the Lunar base is reported, the errands done, whose replies bring the Ilwrath and its fight),
 /// --start-docked (host: a new game starts docked at Earth's starbase's menu, the opening over),
@@ -45,8 +46,8 @@ namespace Crateris.Game;
 /// --start-encounter SHIP[:SHIPS] (host: a group of that ship's race, by data/ships.json's id as --start-battle's, of
 /// SHIPS ships or the race's fewest in a group, appears by the host and flies at it: in hyperspace with --start-at, else a
 /// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, not
-/// drawn yet, waits for --encounter-choice; the Ur-Quan's (urquan) and the Kohr-Ah's (blackurq) talks are ported, logged
-/// as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
+/// drawn yet, waits for --encounter-choice; the Ur-Quan's (urquan), the Kohr-Ah's (blackurq), the Ilwrath's (ilwrath)
+/// and the Spathi's (spathi) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
 /// reads it: --start-at meets them in hyperspace), any other race's hail ends at once in peace, the group gone in
 /// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
 /// hail|attack (host: the choice at a meeting's encounter screen, made as it comes up), --meeting-replies I[,I...] (host:
