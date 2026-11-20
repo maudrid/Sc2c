@@ -28,7 +28,7 @@ namespace Crateris.Core.Tests;
 public class SystemGroupTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
-    private static readonly Lazy<SystemCatalog> Systems = new(() => SystemCatalog.Load(DataDir));
+    internal static readonly Lazy<SystemCatalog> Systems = new(() => SystemCatalog.Load(DataDir));
 
     // A frame's fields (golden/groups.c).
     private const int FKeys = 0, FFacing = 1, FIpX = 2, FIpY = 3, FScreenX = 4, FScreenY = 5, FZoom = 6, FInner = 7,
@@ -385,7 +385,7 @@ public class SystemGroupTests
     // At a zoom of its own (an outer view's zoom changes only as the ship
     // leaves the screen or comes into its zoom-in box, so ships at one
     // place can be at different zooms).
-    private static IpFlight FlightAt(SolarSystem system, int x, int y, int? inner = null, int? zoom = null)
+    internal static IpFlight FlightAt(SolarSystem system, int x, int y, int? inner = null, int? zoom = null)
     {
         var arrive = new IpFlight(system, SystemTransition.Arrive(system.Star), 2, 2, TestContent.Shapes!).Save();
         if (zoom is int z)

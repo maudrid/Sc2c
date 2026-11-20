@@ -169,8 +169,8 @@ Each is a row of `docs/differences.md`:
 
 - **No sound:** no music, voices or the report's typing sound, as in every stage so far. The lines are paged at UQM's pace without voices.
 - **No combat:** the Ilwrath fight waited for stage 4a (`docs/how-to-try/stage-4a.md`); buying fleet ships and the Arilou's gift wait for stage 4b.
-- **No other races:** every other conversation, the Slylandro probes and the Melnorme come with ships in space in stage 3b (which comes after stage 4); the drone came with stage 3b-1 item 6 (above: met, its message not drawn yet).
-- **No story events:** the event calendar keeps its dates and is saved, but apart from the one a new game runs at once (the Slylandro's ramp-up, which only changes the story state) no event runs until stage 3c, nor do the devices do anything, the other energy nodes' stories (Fwiffo on Pluto among them) or the other time skips.
+- **No other races:** every other conversation and the Melnorme come with ships in space in stage 3b (which comes after stage 4); the drone came with stage 3b-1 item 6 (above: met, its message not drawn yet), the Ur-Quan, the Kohr-Ah, the Ilwrath and the Spathi with items 6 and 7, and the Slylandro probes with item 8: from a new game, a player in hyperspace meets a probe every day until the starbase is available (one at a time), then by the story's multiplier, in hyperspace and in systems (their talk logged by the host, not drawn yet: items 10 and 11).
+- **No story events:** the event calendar keeps its dates and is saved, but apart from the daily encounter event and the Slylandro's ramp-ups and ramp-down (run since stage 3b-1 item 1) no event runs until stage 3c, nor do the devices do anything, the other energy nodes' stories (Fwiffo on Pluto among them) or the other time skips.
 - **The status panel** still stands for most of UQM's status area (the flagship's picture, crew, fuel, names, landers) outside outfitting and the shipyard.
 
 ## Bugs

@@ -46,8 +46,8 @@ namespace Crateris.Game;
 /// --start-encounter SHIP[:SHIPS] (host: a group of that ship's race, by data/ships.json's id as --start-battle's, of
 /// SHIPS ships or the race's fewest in a group, appears by the host and flies at it: in hyperspace with --start-at, else a
 /// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, not
-/// drawn yet, waits for --encounter-choice; the Ur-Quan's (urquan), the Kohr-Ah's (blackurq), the Ilwrath's (ilwrath)
-/// and the Spathi's (spathi) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
+/// drawn yet, waits for --encounter-choice; the Ur-Quan's (urquan), the Kohr-Ah's (blackurq), the Ilwrath's (ilwrath),
+/// the Spathi's (spathi) and the Slylandro probe's (slylandr) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
 /// reads it: --start-at meets them in hyperspace), any other race's hail ends at once in peace, the group gone in
 /// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
 /// hail|attack (host: the choice at a meeting's encounter screen, made as it comes up), --meeting-replies I[,I...] (host:
