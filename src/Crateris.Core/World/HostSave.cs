@@ -64,7 +64,7 @@ public static class HostSave
     /// (a version 9 ship destroyed loads flying with no crew, as it was
     /// saved), and an older save with one is refused, as is a wreck that's
     /// the flagship, has crew or is in orbit. No save is made once the
-    /// flagship is lost (GameWorld.FlagshipLost, decision 12). 11 gave
+    /// flagship is lost or has surrendered (GameWorld.FlagshipLost, decision 12). 11 gave
     /// escorts guns (stage 4a item 8: the escort's kit's,
     /// ShipLoadout.Guns, and the combat modules outfitting sells them): an
     /// escort from an older save, a wreck too, is given the default kit's
@@ -192,7 +192,8 @@ public static class HostSave
 
     /// <summary>
     /// The world as a save. Refused (<see cref="InvalidOperationException"/>)
-    /// once the flagship is lost (<see cref="GameWorld.FlagshipLost"/>):
+    /// once the flagship is lost or has surrendered
+    /// (<see cref="GameWorld.FlagshipLost"/>):
     /// the host's save is kept as it was (decision 12).
     /// </summary>
     public static string ToJson(GameWorld world)

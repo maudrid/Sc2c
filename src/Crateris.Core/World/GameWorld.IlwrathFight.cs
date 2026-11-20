@@ -57,7 +57,7 @@ public sealed partial class GameWorld
     /// Once the Ilwrath's fight has ended (after the battles' frame, and
     /// after a player leaving, with that player gone), the opening goes on
     /// or is taken back (decision 13), unless the game is over (the
-    /// flagship lost: nothing acts on the fight's end, and the save is the
+    /// flagship lost or surrendered: nothing acts on the fight's end, and the save is the
     /// one from before the visit).
     /// <para>
     /// The Ilwrath killed (its crew ran out, whether or not a player's ship

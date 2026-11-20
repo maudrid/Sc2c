@@ -63,10 +63,10 @@ public sealed class HostSession
 
     /// <summary>
     /// The game as the host's save, or null once the flagship is lost (from
-    /// the frame its crew ran out, through the game over: decision 12, the
-    /// save is kept as it was, so loading it goes back to before the battle
-    /// the flagship was lost in), so neither the autosave nor quitting
-    /// writes one.
+    /// the frame its crew ran out, or it surrendered to the Ur-Quan, through
+    /// the game over: decision 12, the save is kept as it was, so loading it
+    /// goes back to before the battle the flagship was lost in, or the talk
+    /// it surrendered in), so neither the autosave nor quitting writes one.
     /// </summary>
     public string? SaveJson() => World.FlagshipLost ? null : HostSave.ToJson(World);
 

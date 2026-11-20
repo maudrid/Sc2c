@@ -718,7 +718,8 @@ public sealed partial class GameWorld
     /// without the talks' content, the ship stays in flight (docs/differences.md
     /// row 27); and it waits while another player talks to the commander
     /// from the menu (row 17). Once the flagship is lost (its crew run out,
-    /// <see cref="FlagshipLost"/>) no ship touching it docks or starts a
+    /// or it surrendered to the Ur-Quan, <see cref="FlagshipLost"/>) no ship
+    /// touching it docks or starts a
     /// visit, so no story pause can start before the game over (stage 4a
     /// item 7).
     /// </summary>

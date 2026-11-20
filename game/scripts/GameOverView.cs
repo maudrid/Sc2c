@@ -12,11 +12,13 @@ namespace Crateris.Game;
 
 /// <summary>
 /// The game over (stage 4a item 12, decision 12): UQM, its flagship lost
-/// or surrendered to the Ur-Quan (stage 3b-1 item 6), leaves the game and fades back to its start (starcon.c leaves its loop
-/// with <c>CrewEnlisted</c> ~0); here every player's screen fades to black
-/// over a second, then says the game is over and the key that ends it. The
-/// host's game then ends, its save as it was before (nothing is saved
-/// after the flagship's loss or surrender), and the screen says which (<c>Why</c>), and the guests are let go.
+/// or surrendered to the Ur-Quan (stage 3b-1 item 6), leaves the game and
+/// fades back to its start (starcon.c leaves its loop with
+/// <c>CrewEnlisted</c> ~0); here every player's screen fades to black over
+/// a second, then says the game is over, which of the two ended it
+/// (<c>Why</c>) and the key that ends it. The host's game then ends, its
+/// save as it was before (nothing is saved after the flagship's loss or
+/// surrender), and the guests are let go.
 /// </summary>
 public partial class GameOverView : Node2D
 {

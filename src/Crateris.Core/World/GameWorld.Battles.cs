@@ -68,14 +68,15 @@ public sealed partial class GameWorld
     /// <summary>
     /// The flagship's crew has run out in a battle (it's exploding, or the
     /// game is over), or it has surrendered to the Ur-Quan from a talk
-    /// (<see cref="Surrendered"/>, the game over at once): from this frame no ship touching the starbase docks
-    /// or starts a visit there, so no story pause starts (it would hold off the
-    /// game over; one started in the same frame doesn't: the flagship's
-    /// battle runs on through it to the game over), and no save is made
+    /// (<see cref="Surrendered"/>, the game over at once): from this frame
+    /// no ship touching the starbase docks or starts a visit there, so no
+    /// story pause starts (it would hold off the game over; one started in
+    /// the same frame doesn't: the flagship's battle runs on through it to
+    /// the game over), and no save is made
     /// (<see cref="Session.HostSession.SaveJson"/>; <see cref="HostSave.ToJson"/>
     /// refuses), so loading the host's save goes back to before the battle
-    /// (decision 12), or before the talk after a surrender, not to the flagship as it joined the battle it's
-    /// lost in (decision 14).
+    /// (decision 12), or before the talk after a surrender, not to the
+    /// flagship as it joined the battle it's lost in (decision 14).
     /// </summary>
     public bool FlagshipLost { get; private set; }
 
@@ -545,7 +546,8 @@ public sealed partial class GameWorld
             FlagshipLost = true;
     }
 
-    // The game over (decision 12): the flagship lost, with no crew; the world stops.
+    // The game over (decision 12): the flagship lost, with no crew; the world
+    // stops. (A surrender ends the game from its talk: LoseTheGame.)
     private void EndGame(BattleFighter flagship)
     {
         flagship.CrewLeft = 0;
