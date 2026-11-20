@@ -722,7 +722,8 @@ public sealed class HostSession
         foreach (var (m, (step, logged, told)) in _meetingsLogged.ToList())
         {
             string id = m.Player.Id, race = Meeting.RaceName(m.RaceId);
-            string ships = $"{m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}";
+            string ships = m.Infinite ? $"an infinite fleet of {race} ships"
+                : $"{m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}";
             int events = logged;
             bool talked = told;
             // The talk hailed before its lines (it may be over already), any other step after them.

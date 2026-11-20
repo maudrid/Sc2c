@@ -688,7 +688,15 @@ public sealed partial class GameWorld
         switch (ip.Step(input & ~ShipInput.Action))
         {
             case IpEvent.EnteredOrbit:
-                if (!ip.OrbitData!.Entered)
+                if (ip.Orbit is { } world && WorldTalkRace(ship.SystemStar!.Value, world.Planet, world.Moon) is var race
+                    && race >= 0)
+                {
+                    // A race's world (the Ilwrath homeworld): its talk
+                    // instead of the orbit, the ship by the world.
+                    ip.ReturnFromOrbit();
+                    MeetAtWorld(_players.First(p => p.Ship == ship), ship.SystemStar!.Value, world, race);
+                }
+                else if (!ip.OrbitData!.Entered)
                 {
                     // UQM starts a talk here instead of an orbit. The ship
                     // stays by the world, in flight, while it goes on.
@@ -1131,7 +1139,10 @@ public sealed partial class GameWorld
     /// <summary>
     /// Puts a player straight into orbit around a world, as if they had
     /// flown there (for testing and debugging: --start-orbit). Checks the
-    /// world first and changes nothing if it can't be orbited.
+    /// world first and changes nothing if it can't be orbited. At a race's
+    /// world whose orbit starts its talk (the Ilwrath homeworld:
+    /// <see cref="WorldTalkRace"/>) the talk starts instead, the ship by
+    /// the world in flight, as flying into it does.
     /// </summary>
     public void PutInOrbit(string id, int star, int planet, int? moon = null)
     {
@@ -1163,6 +1174,14 @@ public sealed partial class GameWorld
         if (ship.Ip!.Orbit is not null)
             LeaveOrbit(ship);
         ship.Ip.PlaceInOrbit(planet, moon);
+        if (WorldTalkRace(star, planet, moon) is var race && race >= 0)
+        {
+            // A race's world: its talk starts as if the ship had flown into
+            // it, the ship by the world (stage 3b-1 item 7).
+            ship.Ip.ReturnFromOrbit();
+            SyncSystemPlayers();   // the system's draw made, the ship just come in
+            MeetAtWorld(player, star, (planet, moon), race);
+        }
     }
 
     /// <summary>

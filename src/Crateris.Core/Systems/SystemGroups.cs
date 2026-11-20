@@ -726,6 +726,35 @@ public sealed class SystemGroups
     }
 
     /// <summary>
+    /// A player's orbit of a race's world starts its talk (genilw.c's,
+    /// genspa.c's generateOrbital): the race's groups in the system stand
+    /// down (NotifyOthers IPNL_ALL_CLEAR), and the groups are put aside
+    /// for the talk (PutGroupInfo GROUP_SAVE_IP: those that left the
+    /// system gone from it). They fly on meanwhile for anyone else there
+    /// (decision 8: standing down toward every player).
+    /// </summary>
+    public void StartWorldMeeting(SystemDraw d, int race)
+    {
+        NotifyOthers(d, race, IpGroup.AllClear);
+        Flush(d);
+    }
+
+    /// <summary>
+    /// The talk at a race's world is over, as UQM's game comes back from it
+    /// (GetGroupInfo GROUP_LOAD_IP, then reinitNpcs' group list): the
+    /// groups that left the system are gone from it; after a battle with
+    /// its fleet (<paramref name="battleRace"/>, the race: UninitEncounter's
+    /// EncounterRace), the race's groups turn on the players as one comes
+    /// back into flight there (DoMissions).
+    /// </summary>
+    public void EndWorldMeeting(SystemDraw d, int battleRace = -1)
+    {
+        Flush(d);
+        if (battleRace >= 0)
+            d.EncounterRace = battleRace;
+    }
+
+    /// <summary>
     /// A meeting that ended at once as a talk without a battle (the
     /// meeting's start and end together: <see cref="StartMeeting"/>, then
     /// <see cref="EndMeeting"/> keeping every ship).

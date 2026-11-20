@@ -68,6 +68,27 @@ public sealed class TalkLibrary
         return new TalkLibrary(scripts, content, music, GameStrings.Load(package));
     }
 
+    /// <summary>
+    /// init_race (commglue.c): the script a conversation runs, where it
+    /// chooses by the story or where the talk is: the commander's, before
+    /// the starbase is available (comandr) or after (starbas); the
+    /// Spathi's, away from Spathiwa (spathi) or at it
+    /// (<paramref name="globalFlags"/>, GLOBAL_FLAGS_AND_DATA, with bit 7:
+    /// spahome); every other conversation its one script.
+    /// </summary>
+    public static string ScriptFor(ConversationScripts scripts, string conversation, StoryState story, int globalFlags)
+    {
+        var list = scripts.For(conversation);
+        if (list.Count == 1)
+            return list[0].Name;
+        return conversation switch
+        {
+            "COMMANDER_CONVERSATION" => story.Get("STARBASE_AVAILABLE") == 0 ? "comandr" : "starbas",
+            "SPATHI_CONVERSATION" => (globalFlags & (1 << 7)) == 0 ? "spathi" : "spahome",
+            _ => throw new InvalidDataException($"init_race has no choice of scripts for {conversation}"),
+        };
+    }
+
     /// <summary>A new talk with a ported script, not yet started.</summary>
     public Talk Create(string script, StoryState story, Dictionary<string, int> ownFields, ITalkShip ship,
         GameClock clock, uint seed)

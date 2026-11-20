@@ -497,9 +497,11 @@ public class UrquanMeetingTests
             Assert.Contains(talk.Script.Phrases.Name, TalkLibrary.Ported);
         }
         Assert.IsType<UrquanScript>(world.RaceTalk(world.Host, Race(world, "URQUAN_DRONE_SHIP"), 1)!.Script);
-        // The Ilwrath's script is only its Earth branch until item 7: their groups met talk as no race's yet.
-        Assert.Null(world.RaceTalk(world.Host, Race(world, "ILWRATH_SHIP"), 1));
-        Assert.Null(world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1));
+        // Item 7's: the Ilwrath's whole script, the Spathi's away from Spathiwa.
+        Assert.IsType<IlwrathScript>(world.RaceTalk(world.Host, Race(world, "ILWRATH_SHIP"), 1)!.Script);
+        Assert.IsType<SpathiScript>(world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1)!.Script);
+        // Item 8's race not yet.
+        Assert.Null(world.RaceTalk(world.Host, Race(world, "SLYLANDRO_SHIP"), 1));
         // Without the content, none.
         world.TalkLibrary = null;
         Assert.Null(world.RaceTalk(world.Host, Race(world, "URQUAN_SHIP"), 1));
