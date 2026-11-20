@@ -203,6 +203,27 @@ public sealed class HostFleet
     public void Remove(string race) => RemoveSome(race, int.MaxValue);
 
     /// <summary>
+    /// SetEscortCrewComplement: the first ship of a race in the fleet's
+    /// order whose crew is its race's starting crew (the template's
+    /// crew_level) gets <paramref name="crew"/> crew and the captain
+    /// <paramref name="captain"/> (the Spathi's Fwiffo, alone in the Eluder
+    /// that joins). Returns the ship as it was and as it is, or null if
+    /// there's none (UQM's -1). A race not in avail_race_q is an
+    /// <see cref="ArgumentException"/>.
+    /// </summary>
+    public (FleetShip Was, FleetShip Is)? SetCrewComplement(StoryRules rules, string race, int crew, byte captain)
+    {
+        var raceShip = rules.RaceShip(race);
+        int at = _ships.FindIndex(s => s.Race == race && s.Crew == raceShip.Crew);
+        if (at < 0)
+            return null;
+        var was = _ships[at];
+        _ships[at] = was with { Crew = crew, Captain = captain };
+        ++Version;
+        return (was, _ships[at]);
+    }
+
+    /// <summary>
     /// A fleet ship's crew set (0 to its most): the shipyard's and the
     /// roster's, and a battle's. An <see cref="ArgumentException"/> for a
     /// slot with no ship or a crew out of range.

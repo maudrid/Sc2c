@@ -637,6 +637,31 @@ public sealed class Talk
         return added;
     }
 
+    /// <summary>
+    /// SetEscortCrewComplement: the first escort of a race (races.h's
+    /// number) with its race's starting crew gets <paramref name="crew"/>
+    /// crew and the captain <paramref name="captain"/> (a name index), if
+    /// there's one (the Spathi's Fwiffo, alone in the Eluder that joins).
+    /// </summary>
+    public void SetEscortCrewComplement(int race, int crew, int captain)
+    {
+        Check();
+        _events.Add(new EscortCrewSet(race, crew, captain));
+        Ship.SetEscortCrewComplement(race, crew, captain);
+    }
+
+    /// <summary>
+    /// AddEvent: a clock event, relative to today or on a date, by gameev.h's
+    /// name, queued, run or set aside by the story (StoryState.AddEvent; the
+    /// Ilwrath's ADVANCE_ILWRATH_MISSION is set aside until stage 3c).
+    /// </summary>
+    public void AddEvent(bool relative, int months, int days, int years, string evt)
+    {
+        Check();
+        _events.Add(new EventAdded(relative, months, days, years, evt));
+        _story.AddEvent(relative, months, days, years, evt, Clock);
+    }
+
     /// <summary>CheckAlliance: a race's standing, by races.h's number.</summary>
     public Story.Allied CheckAlliance(int race) => _story.Alliances[race];
 

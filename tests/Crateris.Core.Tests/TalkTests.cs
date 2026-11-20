@@ -59,6 +59,11 @@ public class TalkTests
             return added;
         }
 
+        // UQM's recorder stubs SetEscortCrewComplement (comm.c): recorded only.
+        public void SetEscortCrewComplement(int race, int crew, int captain)
+        {
+        }
+
         private static readonly int[] RaceCosts = JsonDocument.Parse(File.ReadAllText(Path.Combine(DataDir, "races.json")))
             .RootElement.GetProperty("races").EnumerateArray().Select(r => r.TryGetProperty("ship_cost", out var c) ? c.GetInt32() : 0).ToArray();   // the drone has none
 
@@ -93,6 +98,7 @@ public class TalkTests
         ["starbas"] = p => new StarbaseScript(p),
         ["urquan"] = p => new UrquanScript(p),
         ["blackur"] = p => new BlackUrquanScript(p),
+        ["spathi"] = p => new SpathiScript(p),
     };
 
     private static Talk Start(ContentPackage package, string script, JsonElement start)
@@ -160,6 +166,11 @@ public class TalkTests
         TalkingAnimation t => new() { ["talking"] = t.Enabled ? 1 : 0 },
         IntroModeSet i => new() { ["intro"] = (int)i.Mode, ["time"] = i.Time },
         EscortsAdded a => new() { ["escorts"] = new JsonArray(a.Race, a.Count, a.Added) },
+        EscortCrewSet c => new() { ["complement"] = new JsonArray(c.Race, c.Crew, c.Captain) },
+        EventAdded a => new()
+        {
+            ["event"] = new JsonArray(a.Relative ? 1 : 0, a.Months, a.Days, a.Years, Rules.EventIds[a.Event]),
+        },
         ReplyChosen r => new() { ["reply"] = r.Index },
         RepliesOffered o => new()
         {

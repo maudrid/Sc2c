@@ -31,6 +31,8 @@ public sealed class TalkLibrary
         // Stage 3b-1 item 6.
         ["urquan"] = p => new UrquanScript(p),
         ["blackur"] = p => new BlackUrquanScript(p),
+        // Stage 3b-1 item 7 (the Ilwrath's whole since then).
+        ["spathi"] = p => new SpathiScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

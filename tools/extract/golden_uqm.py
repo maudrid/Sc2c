@@ -4251,13 +4251,101 @@ def commander_starts():
 
 
 def ilwrath_starts():
-    """The Ilwrath ship at Earth (ilwrathc.c's PROBE_ILWRATH_ENCOUNTER
-    branch, the only one stage 3a ports): its replies, and how many times
-    the player has asked the Ilwrath for news before (which only the
-    branches met in space read)."""
-    return [{"name": "at-earth", "state": {"PROBE_ILWRATH_ENCOUNTER": 1}, "ship": talk_ship()},
-            {"name": "at-earth-info-asked", "state": {"PROBE_ILWRATH_ENCOUNTER": 1, "ILWRATH_INFO": 3},
-             "ship": talk_ship()}]
+    """The Ilwrath's talk (ilwrathc.c), from states chosen to reach every
+    condition it reads: the ship at Earth (PROBE_ILWRATH_ENCOUNTER, the
+    opening's; with the news asked before, which only the branches met in
+    space read), the endgame's won battle, met in space (each visit, with
+    the visits past those the switch names, and each piece of news asked,
+    the last past ILWRATH_INFO's two bits; deceived into fighting the
+    Thraddash, and fighting them; in hyperspace and a system), at their
+    homeworld (GLOBAL_FLAGS_AND_DATA bit 7, genilw.c's orbit: each visit),
+    the Chmmr's (bit 6: each visit), and by HyperWave Broadcaster to a ship
+    (bit 5) and to the homeworld (bit 4: the gods spoken each time, the
+    worship each time, deceived, fighting)."""
+    starts = [{"name": "at-earth", "state": {"PROBE_ILWRATH_ENCOUNTER": 1}, "ship": talk_ship()},
+              {"name": "at-earth-info-asked", "state": {"PROBE_ILWRATH_ENCOUNTER": 1, "ILWRATH_INFO": 3},
+               "ship": talk_ship()},
+              space_start("won-last-battle", {}, "WON_LAST_BATTLE"),
+              space_start("in-a-system", {}, "IN_INTERPLANETARY"),
+              space_start("deceived", {"ILWRATH_DECEIVED": 1}),
+              space_start("fighting-thraddash", {"ILWRATH_DECEIVED": 1, "ILWRATH_FIGHT_THRADDASH": 1})]
+    for visits in range(8):
+        starts.append(space_start(f"visit-{visits}", {"ILWRATH_VISITS": visits}))
+    for info in range(1, 4):
+        starts.append(space_start(f"info-{info}", {"ILWRATH_VISITS": 1, "ILWRATH_INFO": info}))
+    # The homeworld's whole talk from its first visit; the later visits'
+    # hellos only (follow none: their replies are the first's).
+    for visits in range(3):
+        starts.append(space_start(f"homeworld-visit-{visits}",
+                                  {"GLOBAL_FLAGS_AND_DATA": 1 << 7, "ILWRATH_HOME_VISITS": visits},
+                                  "IN_INTERPLANETARY", **({"follow": []} if visits else {})))
+    for visits in range(2):
+        starts.append(space_start(f"chmmr-visit-{visits}",
+                                  {"GLOBAL_FLAGS_AND_DATA": 1 << 6, "ILWRATH_CHMMR_VISITS": visits}))
+    for name, state in (("", {}), ("-deceived", {"ILWRATH_DECEIVED": 1}),
+                        ("-fighting-thraddash", {"ILWRATH_DECEIVED": 1, "ILWRATH_FIGHT_THRADDASH": 1})):
+        starts.append(space_start(f"caster-ship{name}", {"GLOBAL_FLAGS_AND_DATA": 1 << 5, **state}))
+        starts.append(space_start(f"caster-home{name}", {"GLOBAL_FLAGS_AND_DATA": 1 << 4, **state},
+                                  "IN_INTERPLANETARY"))
+    # The gods spoken before change the hello only; the worship before,
+    # the worship reply's answer only (the rest is caster-home's).
+    for spoken in range(1, 5):
+        starts.append(space_start(f"caster-home-spoken-{spoken}",
+                                  {"GLOBAL_FLAGS_AND_DATA": 1 << 4, "ILWRATH_GODS_SPOKEN": spoken},
+                                  "IN_INTERPLANETARY", follow=[]))
+    for worship in range(1, 4):
+        starts.append(space_start(f"caster-home-worship-{worship}",
+                                  {"GLOBAL_FLAGS_AND_DATA": 1 << 4, "ILWRATH_WORSHIP": worship},
+                                  "IN_INTERPLANETARY", follow=["GodsSpeak", "CombatIsInevitable"]))
+    return starts
+
+
+def spathi_starts():
+    """The Spathi's talk away from Spathiwa (spathic.c), from states chosen
+    to reach every condition it reads: Fwiffo on Pluto (FOUND_PLUTO_SPATHI
+    1: the escorts with room for him or not, the password known from the
+    Melnorme before Spathiwa or not), and met in space after it (2); the
+    endgame's won battle; each SPATHI_MANNER (0 neutral, 1 angry: each
+    visit, 2 hating, 3 at peace) with the visits before, the alliance, the
+    quest, and the neutral talk's stacks; the visits past those the
+    switches name; a fight's post-encounter with the password known or
+    not; in hyperspace and a system."""
+    # Fwiffo's whole talk with room for him; without, from where joining
+    # is offered (the replies to it; the rest is the same), and with the
+    # password known, his hello only. Away from Pluto, the starts that
+    # differ from the first visit's neutral talk only in the hello (follow
+    # none) or in a fight's post-encounter (the fights followed).
+    allied = {"alliances": {"SPATHI_SHIP": "good"}}
+    fights = ["SpathiNeutral", "SpathiAntagonize", "ExitConversation"]
+    starts = [space_start("pluto", {"FOUND_PLUTO_SPATHI": 1}, "IN_INTERPLANETARY", escorts=[0, 12]),
+              space_start("pluto-no-room", {"FOUND_PLUTO_SPATHI": 1}, "IN_INTERPLANETARY", escorts=[300, 0],
+                          prefix=[0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1], follow=["ExitConversation"]),
+              space_start("pluto-password", {"FOUND_PLUTO_SPATHI": 1, "SPATHI_HOME_VISITS": 7,
+                                             "KNOW_SPATHI_PASSWORD": 1}, "IN_INTERPLANETARY", escorts=[0, 12],
+                          follow=[]),
+              space_start("after-pluto", {"FOUND_PLUTO_SPATHI": 2}, follow=[]),
+              space_start("won-last-battle", {}, "WON_LAST_BATTLE", follow=fights),
+              space_start("in-a-system", {}, "IN_INTERPLANETARY", follow=[]),
+              space_start("hating", {"SPATHI_MANNER": 2}),
+              space_start("at-peace", {"SPATHI_MANNER": 3}, follow=fights),
+              space_start("at-peace-allied", {"SPATHI_MANNER": 3}, **allied),
+              space_start("password-known", {"SPATHI_HOME_VISITS": 7}, follow=fights),
+              space_start("home-visited", {"SPATHI_HOME_VISITS": 2}, follow=fights)]
+    for visits in range(8):
+        starts.append(space_start(f"neutral-visit-{visits}", {"SPATHI_VISITS": visits},
+                                  **({"follow": []} if visits else {})))
+        starts.append(space_start(f"angry-visit-{visits}", {"SPATHI_MANNER": 1, "SPATHI_VISITS": visits},
+                                  **({"follow": []} if visits > 1 else {})))
+    for visits in range(3):
+        starts.append(space_start(f"allied-visit-{visits}", {"SPATHI_VISITS": visits}, **allied))
+        starts.append(space_start(f"quest-visit-{visits}", {"SPATHI_QUEST": 1, "SPATHI_VISITS": visits}))
+    for stack0 in range(3):
+        for stack1 in range(2):
+            for stack2 in range(2):
+                starts.append(space_start(f"stacks-{stack0}{stack1}{stack2}",
+                                          {"SPATHI_VISITS": 1, "SPATHI_STACK0": stack0,
+                                           "SPATHI_STACK1": stack1, "SPATHI_STACK2": stack2}))
+    return starts
 
 
 def field32(name, value):
@@ -4610,9 +4698,9 @@ def blackur_starts():
 
 
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
-                "urquan": urquan_starts, "blackur": blackur_starts}
+                "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts}
 # A script's file where it isn't named after its folder.
-COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c"}
+COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.

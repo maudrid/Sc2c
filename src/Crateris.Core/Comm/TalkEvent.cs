@@ -103,6 +103,20 @@ public sealed record IntroModeSet(CommIntroMode Mode, int Time) : TalkEvent;
 /// <summary>Ships of a race (races.h's number) asked to join the escort fleet, and those that did (AddEscortShips).</summary>
 public sealed record EscortsAdded(int Race, int Count, int Added) : TalkEvent;
 
+/// <summary>
+/// The first escort of a race (races.h's number) with its race's starting
+/// crew given <see cref="Crew"/> crew and the captain <see cref="Captain"/>
+/// (SetEscortCrewComplement: the Spathi's Fwiffo alone in his Eluder).
+/// </summary>
+public sealed record EscortCrewSet(int Race, int Crew, int Captain) : TalkEvent;
+
+/// <summary>
+/// A clock event the script added (AddEvent: <see cref="Relative"/> to
+/// today or on that date, by gameev.h's name), which the story queues, runs
+/// or sets aside (StoryState.AddEvent).
+/// </summary>
+public sealed record EventAdded(bool Relative, int Months, int Days, int Years, string Event) : TalkEvent;
+
 /// <summary>The player chose the reply at <see cref="Index"/> of those offered.</summary>
 public sealed record ReplyChosen(int Index) : TalkEvent;
 

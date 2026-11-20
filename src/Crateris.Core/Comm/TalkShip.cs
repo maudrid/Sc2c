@@ -72,4 +72,12 @@ public interface ITalkShip
     /// the talk's generator).
     /// </summary>
     int AddEscorts(int race, int count, Func<uint> random);
+
+    /// <summary>
+    /// The first escort of a race (races.h's number) whose crew is its
+    /// race's starting crew gets <paramref name="crew"/> crew and the
+    /// captain <paramref name="captain"/>, if there's one
+    /// (SetEscortCrewComplement).
+    /// </summary>
+    void SetEscortCrewComplement(int race, int crew, int captain);
 }

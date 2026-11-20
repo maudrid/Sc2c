@@ -24,7 +24,9 @@ public static class TalkRules
     {
         // The commander before the alliance: the opening.
         ["comandr"] = _ => true,
-        // The Ilwrath ship at Earth, which the opening brings.
+        // The Ilwrath ship at Earth, which the opening brings, is story;
+        // stage 3b, decision 6: every other Ilwrath talk (met in space, at
+        // their homeworld) is ordinary, under the Ilwrath's lock.
         ["ilwrath"] = story => story.Get("PROBE_ILWRATH_ENCOUNTER") != 0,
         // The allied commander: story when VisitStarBase starts him on
         // arrival (the starbase ready, the Chmmr's bomb installed); from
@@ -35,6 +37,9 @@ public static class TalkRules
         // answerer's, under the race's dialogue lock.
         ["urquan"] = _ => false,
         ["blackur"] = _ => false,
+        // Stage 3b-1 item 7: the Spathi met in space, ordinary (decision 6);
+        // Fwiffo on Pluto (3c's) too, as a talk with a race's ship.
+        ["spathi"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

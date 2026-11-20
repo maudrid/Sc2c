@@ -144,6 +144,17 @@ internal sealed class AnswererTalkShip : ITalkShip
 
     private readonly List<FleetShip> _escortsAdded = new();
 
+    // A ship the talks gave stays told by its slot, race and captain once its captain is set.
+    public void SetEscortCrewComplement(int race, int crew, int captain)
+    {
+        if (_world.Story is not { } story || race < 0 || race >= story.Rules.Races.Count
+            || _world.Fleet.SetCrewComplement(story.Rules, story.Rules.Races[race], crew, (byte)captain) is not { } changed)
+            return;
+        int i = _escortsAdded.IndexOf(changed.Was);
+        if (i >= 0)
+            _escortsAdded[i] = changed.Is;
+    }
+
     /// <summary>
     /// The ships the talks gave the host's fleet, as they joined it (each
     /// told by its slot, race and captain: its crew may change since, in a

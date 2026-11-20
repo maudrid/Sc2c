@@ -95,6 +95,12 @@ internal sealed class PlayerTalkShip : ITalkShip
             ? _world.Fleet.Add(story.Rules, story.Rules.Races[race], count, random)
             : 0;
 
+    public void SetEscortCrewComplement(int race, int crew, int captain)
+    {
+        if (_world.Story is { } story && race >= 0 && race < story.Rules.Races.Count)
+            _world.Fleet.SetCrewComplement(story.Rules, story.Rules.Races[race], crew, (byte)captain);
+    }
+
     // The hold's minerals, which a talk may sell (set to 0) but not add to.
     private sealed class HoldMinerals : IList<int>
     {

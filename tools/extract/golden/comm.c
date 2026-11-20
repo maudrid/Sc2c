@@ -73,6 +73,12 @@
  *   {"escorts": [race, n, added]}             AddEscortShips: n asked for,
  *                                             added those the fleet had
  *                                             room for
+ *   {"complement": [race, crew, captain]}     SetEscortCrewComplement (the
+ *                                             Spathi's Fwiffo joining alone)
+ *   {"event": [type, month, day, year, id]}   AddEvent (clock.h's
+ *                                             ABSOLUTE_EVENT 0 or
+ *                                             RELATIVE_EVENT 1, gameev.h's
+ *                                             event number)
  *   {"reply": i}                              the reply chosen
  *   {"offer": [[ref, func, text]...], "key": k}
  *                                             the replies offered, waiting
@@ -430,6 +436,30 @@ AddEscortShips (COUNT race, SIZE count)
 	return added;
 }
 
+/* build.c's: the Spathi's Fwiffo in the Eluder that joins, alone.
+ * Recorded; the escort fleet here is only its worth and room. */
+int
+SetEscortCrewComplement (COUNT which_ship, COUNT crew_level, BYTE captain)
+{
+	check_changes ();
+	printf ("{\"complement\": [%u, %u, %u]}\n", (unsigned) which_ship,
+			(unsigned) crew_level, (unsigned) captain);
+	return 0;
+}
+
+/* clock.c's: an event added to the clock's queue (the Ilwrath's
+ * ADVANCE_ILWRATH_MISSION). Recorded, not queued. */
+HEVENT
+AddEvent (EVENT_TYPE type, COUNT month_index, COUNT day_index,
+		COUNT year_index, BYTE func_index)
+{
+	check_changes ();
+	printf ("{\"event\": [%d, %u, %u, %u, %u]}\n", (int) type,
+			(unsigned) month_index, (unsigned) day_index,
+			(unsigned) year_index, (unsigned) func_index);
+	return 0;
+}
+
 /* comm.c's: the commander's mouth stops while the Vux beast's report plays. */
 void
 EnableTalkingAnim (BOOLEAN enable)
@@ -535,6 +565,10 @@ print_key (void)
 		printf ("|%lu", (unsigned long) seed);
 	}
 	printf ("|%u,%u", (unsigned) escorts_worth, (unsigned) escort_room);
+#ifdef SCRIPT_spathi
+	/* The script's own state that the replies offered don't show. */
+	printf ("|%u", (unsigned) join_us_refusals);
+#endif
 #ifdef SCRIPT_starbas
 	/* The script's own state that the replies offered don't show. */
 	printf ("|%u,%u,%u,%u,%lx", stack0, stack1, stack2, stack3,
