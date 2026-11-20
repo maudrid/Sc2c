@@ -5853,6 +5853,9 @@ R_ILWRATH_SHIP, R_SLYLANDRO_SHIP = 14, 16
 # Ur-Quan's centre (in the Kohr-Ah's sphere too), others 416 and 417 from
 # it, and the Spathi's homeworld.
 S_SOL, S_COLONY, S_URQUAN, S_URQUAN2, S_URQUAN3, S_SPATHI = 82, 114, 311, 321, 303, 222
+# A system no race's sphere holds at the start (9708:250), but the races
+# met anywhere (stage 3b-1 item 8).
+S_NO_SPHERE = 14
 # Goals (groups.c's): a planet, the nearest group, wait, out, away.
 G_PLANET, G_GROUP, G_WAIT, G_EXIT, G_AWAY, G_CENTER = 0, 1, 2, 3, 4, 5
 # Game states groups.c sets, by its numbers.
@@ -5954,6 +5957,20 @@ def groups_scenarios():
                                  [G_WAIT, 0, 300]],
              [[1, 515, [-1, 0, 9]], [1, 616, [0, 0, 0, 0, 0, 0, 0]]]],
         ]),
+        # The Slylandro probes (stage 3b-1 item 8), in a system no sphere
+        # holds (at 9708:250): drawn at 5% times SLYLANDRO_MULTIPLIER, weighed
+        # as 4 (one or two groups of one probe); each met and destroyed (a
+        # battle won, or the destruct code's instant victory), and the
+        # probes turned on the flagship after. With the multiplier 0 (or
+        # the ramp-down's end), none.
+        groups_scenario("the probes in a system", [
+            [S_NO_SPHERE, 1, 0, [[G_WAIT, 0, 240], [G_GROUP, 0, 2500], [G_WAIT, 0, 300], [G_GROUP, 0, 2500],
+                                 [G_WAIT, 0, 300]],
+             [[1, 2418, [0]], [1, 2419, [0]]]],
+        ], states=[[ST_MULTIPLIER, 4], [ST_STARBASE, 1]]),
+        groups_scenario("no probes without the multiplier", [
+            [S_NO_SPHERE, 1, 0, [[G_WAIT, 0, 120]]],
+        ], states=[[ST_MULTIPLIER, 0], [ST_STARBASE, 1]]),
         # The Spathi at home: at least five groups.
         groups_scenario("the Spathi at home", [
             [S_SPATHI, 12, 0, [[G_WAIT, 0, 600], [G_GROUP, 0, 2000], [G_WAIT, 0, 400]]],
@@ -6052,6 +6069,16 @@ def check_groups(scenarios, runs):
     gone = fought[mets[1]][-1]
     if any(g[0] == gone for g in fought[mets[1] + 1][12]):
         raise RuntimeError("groups: a group destroyed whole is still in the system")
+    # The probes (stage 3b-1 item 8): drawn by the multiplier, each met
+    # and destroyed gone, none with the multiplier 0.
+    probes = visits("the probes in a system")[0][1]
+    if not probes[0][12] or any(g[1] != R_SLYLANDRO_SHIP for g in probes[0][12]):
+        raise RuntimeError("groups: no probes drawn, or another race's groups")
+    mets = [k for k, f in enumerate(probes) if f[8] == 1]
+    if len(mets) != len(probes[0][12]) or probes[-1][12]:
+        raise RuntimeError("groups: the probes weren't each met and gone")
+    if visits("no probes without the multiplier")[0][1][0][12]:
+        raise RuntimeError("groups: probes drawn with the multiplier 0")
 
 
 def record_groups(uqm, exe, strings_exe, images_exe, package):
