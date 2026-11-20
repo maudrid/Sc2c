@@ -157,7 +157,7 @@ Each is a row of `docs/differences.md`:
 - The clock runs at one rate in every activity, talks and the starbase too; only story pauses stop it (rows 1 and 2).
 - The story's talks and the two weeks passing are shown to every player while the game waits; whoever started replies (rows 2, 3 and 42).
 - The Ilwrath's battle counted as won until combat came in stage 4a, which fights it (row 39, closed; row 55).
-- The Ur-Quan drone isn't at Earth until ships in space come in stage 3b, so the commander can't be asked about "the red thing" (row 40).
+- The Ur-Quan drone orbits Earth since stage 3b-1 item 6: a player flying near it meets it, it gives its message and flies off, as UQM's; the commander's question about "the red thing" is offered either way, as UQM's (row 40, closed). The drone's message isn't drawn or sent to guests yet (stage 3b-1 items 10 and 11): a player in a windowed game meets it with nothing shown, and only the host's log has its lines.
 - The starbase's 2,500 resource units go to whoever answers, not split (row 37); each player has their own wallet and can give units and cargo (rows 11 and 22).
 - The Lunar base with several landers on Luna (row 38); the devices are the group's (row 10).
 - One player talks to the commander at a time; several players dock at once, each with their own screens; only the host saves (rows 17 and 46).
@@ -169,7 +169,7 @@ Each is a row of `docs/differences.md`:
 
 - **No sound:** no music, voices or the report's typing sound, as in every stage so far. The lines are paged at UQM's pace without voices.
 - **No combat:** the Ilwrath fight waited for stage 4a (`docs/how-to-try/stage-4a.md`); buying fleet ships and the Arilou's gift wait for stage 4b.
-- **No other races:** every other conversation, the drone, the Slylandro probes and the Melnorme come with ships in space in stage 3b (which comes after stage 4).
+- **No other races:** every other conversation, the Slylandro probes and the Melnorme come with ships in space in stage 3b (which comes after stage 4); the drone came with stage 3b-1 item 6 (above: met, its message not drawn yet).
 - **No story events:** the event calendar keeps its dates and is saved, but apart from the one a new game runs at once (the Slylandro's ramp-up, which only changes the story state) no event runs until stage 3c, nor do the devices do anything, the other energy nodes' stories (Fwiffo on Pluto among them) or the other time skips.
 - **The status panel** still stands for most of UQM's status area (the flagship's picture, crew, fuel, names, landers) outside outfitting and the shipyard.
 
