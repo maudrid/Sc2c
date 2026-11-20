@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-20, stage 3b-1 item 7 (the Ilwrath and the Spathi) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"); review round 1's one finding (a player whose meeting was still at its battle starting a second meeting at the Ilwrath homeworld) fixed; review round 2 found nothing; reviewed in two rounds and reported to the owner. Earlier: item 6 built, reviewed in five rounds and reported (2026-11-20); item 5 built, reviewed in three rounds and reported (2026-11-19); item 4 built, reviewed in five rounds and reported (2026-11-18); item 3 the same (2026-11-18); items 1 and 2 built, reviewed and reported (2026-11-17).
+**Last updated:** 2026-11-20, stage 3b-1 item 8 (the Slylandro probes) started with the owner's go-ahead for it alone. Before that, item 7 (the Ilwrath and the Spathi) built with the owner's go-ahead for it alone (`docs/plans/stage-3b.md`, "Progress"); review round 1's one finding (a player whose meeting was still at its battle starting a second meeting at the Ilwrath homeworld) fixed; review round 2 found nothing; reviewed in two rounds and reported to the owner. Earlier: item 6 built, reviewed in five rounds and reported (2026-11-20); item 5 built, reviewed in three rounds and reported (2026-11-19); item 4 built, reviewed in five rounds and reported (2026-11-18); item 3 the same (2026-11-18); items 1 and 2 built, reviewed and reported (2026-11-17).
 
 ## Where things are
 
@@ -42,7 +42,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for stage 3b-1 item 8 and their answers to the questions below (item 7 is built, reviewed in two rounds and reported; the go-ahead of 2026-11-20 was for item 7 alone).
+Build stage 3b-1 item 8, the Slylandro probes (the owner's go-ahead of 2026-11-20 for it alone; its "Progress" row says how far it is), then review round 1 of it.
 
 ## Decisions waiting on the owner
 
