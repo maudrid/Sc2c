@@ -68,7 +68,11 @@ public sealed record LineQueued(int Phrase, string? Clip, byte[] TextBytes) : Ta
 }
 
 /// <summary>Several voice clips joined into one with this text (SpliceMultiTrack).</summary>
-public sealed record MultiTrackQueued(int Clips, byte[] TextBytes) : TalkEvent;
+public sealed record MultiTrackQueued(IReadOnlyList<string> ClipNames, byte[] TextBytes) : TalkEvent
+{
+    /// <summary>How many voice clips (SpliceMultiTrack's TrackNames, to the first missing).</summary>
+    public int Clips => ClipNames.Count;
+}
 
 /// <summary>The script waits for the lines to play up to track <see cref="Track"/> (AlienTalkSegue); 65535 is all of them.</summary>
 public sealed record TalkWait(int Track) : TalkEvent;

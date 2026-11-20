@@ -264,6 +264,8 @@ public class SlylandroMeetingTests
         // so): 9708:250, so in the probe's coordinates +956.2, +937.5.
         var (world, d) = InProbesSystem();
         world.Story!.Set("SLYLANDRO_PROBE_ID", 3);
+        // Its hyperspace flight left elsewhere: the star's place counts, not where it was.
+        world.Host.Ship.Flight.PlaceAtUniverse(100, 100);
         var m = MeetInSystem(world, d, d.Groups.Single(g => g.SysLoc == 0));
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
         int from = m.Talk!.Events.Count;
@@ -286,6 +288,11 @@ public class SlylandroMeetingTests
         int dy = 9812 - Uqm.Units.LogYToUniverse(at.LogY), dx = Uqm.Units.LogXToUniverse(at.LogX) - 333;
         var want = new[] { "+", $"{dy / 10:000}", ".", $"{dy % 10}", ",", "+", $"{dx / 10:000}", ".", $"{dx % 10}" };
         Assert.Equal(want, hm.Talk.Events.Skip(from).OfType<MultiTrackQueued>().Select(t => Encoding.ASCII.GetString(t.TextBytes)));
+        // A visit's talks' ship is its answerer's, the place too.
+        var guest = hyper.Find("g")!;
+        var answerer = new AnswererTalkShip(() => guest, hyper.TalkLibrary!.Strings, hyper);
+        Assert.Equal((at.LogX, at.LogY), answerer.LogPlace);
+        Assert.Equal((at.LogX, at.LogY), new PlayerTalkShip(guest, hyper.TalkLibrary.Strings, hyper).LogPlace);
     }
 
     [ContentFact]

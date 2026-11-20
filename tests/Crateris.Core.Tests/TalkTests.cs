@@ -154,7 +154,7 @@ public class TalkTests
     {
         LineQueued { Clip: { } clip } l => new() { ["track"] = l.Phrase, ["clip"] = clip, ["text"] = Hash(l.TextBytes) },
         LineQueued l => new() { ["append"] = l.Phrase, ["text"] = Hash(l.TextBytes) },
-        MultiTrackQueued m => new() { ["multi"] = m.Clips, ["text"] = Hash(m.TextBytes) },
+        MultiTrackQueued m => new() { ["multi"] = m.Clips, ["clips"] = new JsonArray(m.ClipNames.Select(c => (JsonNode)c).ToArray()), ["text"] = Hash(m.TextBytes) },
         TalkWait w => new() { ["wait"] = w.Track },
         ColorTransform x => new() { ["xform"] = x.Map, ["time"] = x.Time },
         ScreenChanged s => new() { ["screen"] = s.ColorMap, ["ambient"] = new JsonArray(s.Ambient.Select(a => (JsonNode)(int)a).ToArray()) },

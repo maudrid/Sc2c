@@ -437,7 +437,7 @@ public sealed class Talk
         else
         {
             Check();
-            _events.Add(new MultiTrackQueued(1, _phrases[n - 1]));
+            _events.Add(new MultiTrackQueued(new[] { _clips[n - 1]! }, _phrases[n - 1]));
         }
     }
 
@@ -461,7 +461,8 @@ public sealed class Talk
             Check();
             // SpliceMultiTrack's TrackNames end at the first missing clip.
             int clips = tracks.IndexOf(null);
-            _events.Add(new MultiTrackQueued(clips < 0 ? tracks.Count : clips, Encoding.ASCII.GetBytes(Printf(format, number))));
+            _events.Add(new MultiTrackQueued(tracks.Take(clips < 0 ? tracks.Count : clips).Select(t => t!).ToList(),
+                Encoding.ASCII.GetBytes(Printf(format, number))));
             return;
         }
         Splice(null, Encoding.ASCII.GetBytes(Printf(format, number)), 0);

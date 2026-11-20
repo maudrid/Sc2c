@@ -58,7 +58,7 @@
  *                                             line's entry number from 1,
  *                                             0 for text not in the table
  *   {"append": phrase, "text": h}             SpliceTrack without a clip
- *   {"multi": n, "text": h}                   SpliceMultiTrack, n clips
+ *   {"multi": n, "clips": [c...], "text": h}  SpliceMultiTrack, its n clips
  *   {"wait": n}                               AlienTalkSegue (n tracks)
  *   {"xform": map, "time": t}                 XFormColorMap
  *   {"screen": map, "ambient": [flags...]}    CommData's colour map and its
@@ -238,7 +238,10 @@ SpliceMultiTrack (UNICODE *TrackNames[], UNICODE *TrackText)
 	check_changes ();
 	while (TrackNames[n])
 		++n;
-	printf ("{\"multi\": %d", n);
+	printf ("{\"multi\": %d, \"clips\": [", n);
+	for (n = 0; TrackNames[n]; ++n)
+		printf ("%s\"%s\"", n ? ", " : "", TrackNames[n]);
+	printf ("]");
 	print_text ("text", TrackText);
 	printf ("}\n");
 }
