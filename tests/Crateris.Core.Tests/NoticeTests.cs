@@ -278,6 +278,23 @@ public class NoticeTests
     }
 
     [ContentFact]
+    public void AGroupChasingAPlayerGoneAfterAnAttackWithNoBattleIsntToldTalkedAway()
+    {
+        // Review round 2: in hyperspace an attack with no battle's content
+        // ends the meeting unfought, so the group goes one-shot; those it
+        // chased are told it's gone after the meeting, not talked away.
+        var world = InHyperspace("g", "n");
+        var group = GroupBy(world, "h", "SPATHI_SHIP");
+        group.Chased.Add("g");
+        Meet(world, "h");
+        Told(world);
+        world.BattleKit = null;
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        Assert.Equal(new[] { ("g", "The Spathi chasing you are gone after Host's meeting with them."),
+            ("n", "Host's meeting with the Spathi is over.") }, Told(world));
+    }
+
+    [ContentFact]
     public void AFleeingGroupSpottingAPlayerEveryFrameIsToldOnce()
     {
         // Review round 1: a group fleeing out of the system (not standing

@@ -57,6 +57,9 @@ public enum NoticeEvent : byte
 
     /// <summary>A group that had flown at the player went after the battle another player's meeting started, which it survived (one-shot from its roll: the probes).</summary>
     ChaserGoneAfterBattle,
+
+    /// <summary>A group that had flown at the player went after another player's meeting with it ended hostile with no battle to fight (one-shot, not fought: <see cref="MeetingOver"/>).</summary>
+    ChaserGoneAfterMeeting,
 }
 
 /// <summary>
@@ -88,6 +91,7 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.ChaserDestroyed => $"The {Race} chasing you are gone: {By} destroyed them.",
         NoticeEvent.ChaserDestroyedInBattle => $"The {Race} chasing you were destroyed in the battle {By} started.",
         NoticeEvent.ChaserGoneAfterBattle => $"The {Race} chasing you are gone after the battle {By} started.",
+        NoticeEvent.ChaserGoneAfterMeeting => $"The {Race} chasing you are gone after {By}'s meeting with them.",
         _ => "",
     };
 }

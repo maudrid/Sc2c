@@ -86,9 +86,10 @@ public sealed partial class GameWorld
     // battle, are told instead if it goes (<paramref name="gone"/>: in
     // hyperspace written back one-shot or with no ships; in a system none
     // left, or sent off by the talk, the drone): destroyed in the battle,
-    // destroyed at once by the talk, gone after a battle it survived (one
-    // one-shot from its roll: the probes), or talked away; after a
-    // surrender they're told the surrender as everyone else is.
+    // destroyed at once by the talk, gone after a battle it survived (a
+    // group one-shot from its roll: the probes), gone after a meeting ending
+    // hostile with no battle (told over to the others), or talked away;
+    // after a surrender they're told the surrender as everyone else is.
     private void TellMeetingEnded(Meeting m, bool fought, bool gone, IReadOnlyCollection<string> chased)
     {
         bool surrendered = m.Talk is { Segue: Comm.Segue.Defeat };
@@ -101,7 +102,8 @@ public sealed partial class GameWorld
             : NoticeEvent.Peace;
         NoticeEvent chaser = m.Battle is not null
             ? (noneLeft ? NoticeEvent.ChaserDestroyedInBattle : NoticeEvent.ChaserGoneAfterBattle)
-            : m.InstantVictory && noneLeft ? NoticeEvent.ChaserDestroyed
+            : m.InstantVictory ? (noneLeft ? NoticeEvent.ChaserDestroyed : NoticeEvent.ChaserTalkedAway)
+            : ended is NoticeEvent.MeetingOver ? NoticeEvent.ChaserGoneAfterMeeting
             : NoticeEvent.ChaserTalkedAway;
         var fighters = m.Battle?.Fighters.Select(f => f.Player.Id).ToHashSet() ?? new HashSet<string>();
         string race = RaceNameOf(m.Race);
