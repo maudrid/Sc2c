@@ -193,6 +193,7 @@ public class MeetingWireTests
         var g1 = NewClient(1);
         var g2 = NewClient(2);
         var e = GroupBy(world, "g1", "SPATHI_SHIP", dx: 55);
+        var radar = GroupBy(world, "g2", "SPATHI_SHIP", dx: 300);   // in g2's span, on no one's screen
         int spathi = world.Story!.Rules.RaceIndex("SPATHI_SHIP");
         var last = Frame(host, g1, g2);
         for (int i = 0; i < 20 && e.Element is not { Drawn: true }; ++i)
@@ -201,15 +202,19 @@ public class MeetingWireTests
         int deltas = g1.Session.SnapshotsDelta;
         for (int i = 0; i < 6; ++i)
         {
-            // g1 is sent the group on its screen, as the world has it; g2, 1200 units off, and the host nothing.
+            // g1 is sent the group on its screen, as the world has it; g2,
+            // 600 units off, the other, in its span but on no one's screen
+            // (its radar's only: hidden); the host, 655 off the first,
+            // nothing.
             var seen = Assert.Single(g1.Session.Snapshot!.Groups!);
-            Assert.Equal(new GroupSnapshot(e.SnapshotId, null, spathi, 0, e.Element.NextX, e.Element.NextY, e.Element.Frame,
-                e.TransitionState), seen);
+            Assert.Equal((e.LogX, e.LogY), (e.Element.NextX, e.Element.NextY));
+            Assert.Equal(new GroupSnapshot(e.SnapshotId, null, spathi, 0, e.LogX, e.LogY, e.Element.Frame, e.TransitionState), seen);
             Assert.Equal(GroupSnapshot.SeenBy(last, "g1"), g1.Session.Snapshot.Groups);
             Assert.Equal(g1.Session.Snapshot.Groups, g1.Session.Groups);
-            Assert.Null(g2.Session.Snapshot!.Groups);
+            Assert.Equal(new GroupSnapshot(radar.SnapshotId, null, spathi, 0, radar.LogX, radar.LogY, radar.Element!.Frame,
+                radar.TransitionState, GroupSnapshotFlags.Hidden), Assert.Single(g2.Session.Snapshot!.Groups!));
             Assert.Empty(GroupSnapshot.SeenBy(last, "h"));
-            Assert.Equal(seen, Assert.Single(last.Groups!));
+            Assert.Equal(new[] { seen, g2.Session.Snapshot.Groups![0] }, last.Groups!);
             last = Frame(host, g1, g2);
         }
         Assert.True(g1.Session.SnapshotsDelta > deltas);   // sent as deltas, the group's moves with them
@@ -218,6 +223,7 @@ public class MeetingWireTests
         FramesUntil(host, () => world.MeetingOf("g1") is { Step: MeetingStep.Encounter }, 300, g1, g2);
         Frame(host, g1, g2);
         Assert.Null(g1.Session.Snapshot!.Groups);
+        Assert.Empty(g1.Session.Groups);
     }
 
     [ContentFact]
@@ -268,13 +274,13 @@ public class MeetingWireTests
         };
         int Log(int u) => Uqm.Units.UniverseToLogX((short)u);
         var near = new GroupSnapshot(4, null, 3, 0, Log(5030), Uqm.Units.UniverseToLogY(5000), 31, 0);
-        var far = new GroupSnapshot(5, null, 3, 0, Log(5200), Uqm.Units.UniverseToLogY(5000), 31, 0);
+        var far = new GroupSnapshot(5, null, 3, 0, Log(5600), Uqm.Units.UniverseToLogY(5000), 31, 0);   // out of a's span
         var inView = new GroupSnapshot(1, 7, 9, 3, -1200, 800, Flags: GroupSnapshotFlags.Met);
         var outer = new GroupSnapshot(2, 7, 9, 0, 300, 300, Flags: GroupSnapshotFlags.Hidden);
         var first = new WorldSnapshot(10, 2155, 2, 17, ships, Groups: new[] { near, far, inView, outer });
         var writer = new WireWriter();
 
-        // Each viewer is sent what it sees: a ship in hyperspace those on its screen, one in a system those in its view, one in orbit none.
+        // Each viewer is sent what it sees: a ship in hyperspace those in its span, one in a system those in its view, one in orbit none.
         SnapshotCodec.Encode(writer, first, null, "a");
         var a1 = SnapshotCodec.Decode(writer.Written);
         Assert.Equal(new[] { near }, a1.Groups);
@@ -289,7 +295,7 @@ public class MeetingWireTests
         // A delta: the group seen moved, another new, one gone; decoded
         // from the base the viewer was sent or from the host's whole one.
         var moved = near with { X = near.X - 40, Frame = 30 };
-        var come = new GroupSnapshot(6, null, 5, 0, Log(4990), Uqm.Units.UniverseToLogY(5010), 0, 9);
+        var come = new GroupSnapshot(6, null, 5, 0, Log(4600), Uqm.Units.UniverseToLogY(5300), 0, 9, GroupSnapshotFlags.Hidden);
         var second = first with { Frame = 11, Groups = new[] { come, moved, far, outer } };
         SnapshotCodec.Encode(writer, second, first, "a");
         Assert.Equal(new[] { come, moved }, SnapshotCodec.Decode(writer.Written, a1).Groups);

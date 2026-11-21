@@ -21,7 +21,12 @@ public enum GroupSnapshotFlags : byte
 {
     None = 0,
 
-    /// <summary>Not drawn this frame: a system's group re-forming after a meeting flashes, drawn every other frame (ip_group_preprocess).</summary>
+    /// <summary>
+    /// Its element not drawn this frame: in hyperspace one only on the
+    /// radar (off every player's screen, or in its vortex's first frames:
+    /// its primitive NO_PRIM), in a system a group re-forming after a
+    /// meeting, which flashes, drawn every other frame (ip_group_preprocess).
+    /// </summary>
     Hidden = 1,
 
     /// <summary>Being met by a player (stage 3b-1 item 5): it stays where it met them, untouchable, until the meeting is over.</summary>
@@ -31,11 +36,14 @@ public enum GroupSnapshotFlags : byte
 /// <summary>
 /// A group of alien ships as a client draws it (stage 3b-1 item 10; item
 /// 11 draws it as UQM does): in hyperspace (<see cref="Star"/> null) an
-/// encounter's element, at its place in hyperspace's logical units
+/// encounter, at its place in hyperspace's logical units
 /// (<see cref="X"/>, <see cref="Y"/>: log_x, log_y, as a ship's LogX and
-/// LogY), drawn as its frame of graphics.hyperstars (<see cref="Frame"/>:
-/// the vortex's frames, then the globe) with its vortex's state
-/// (<see cref="Transition"/>: transition_state); in a system a group's
+/// LogY; its universe place, loc_pt, is theirs in universe units), drawn
+/// on the screen, unless <see cref="GroupSnapshotFlags.Hidden"/>, as its
+/// frame of graphics.hyperstars (<see cref="Frame"/>: the vortex's frames,
+/// then the globe) with its vortex's state (<see cref="Transition"/>:
+/// transition_state), and on the radar as a blip (ProcessEncounter's
+/// stars_in_space frame 91, at loc_pt); in a system a group's
 /// element, in its view (<see cref="View"/>: 0 the outer system, else 1 +
 /// the planet whose inner system, a ship's IpFlight.View), at its place
 /// there (<see cref="X"/>, <see cref="Y"/>: the group's loc, in the view's
@@ -51,9 +59,12 @@ public sealed record GroupSnapshot(int Id, int? Star, int Race, int View, int X,
 {
     /// <summary>
     /// The groups a player sees (the snapshot sends them only these): in
-    /// hyperspace, the encounters drawn on their screen (hyper.c's: within
-    /// a screen of their ship, <see cref="HyperEncounters.ScreenX"/> and
-    /// <see cref="HyperEncounters.ScreenY"/> universe units); flying in a
+    /// hyperspace, the encounters within their span (hyper.c's XOFFS and
+    /// YOFFS round their ship, <see cref="HyperEncounters.SpanX"/> and
+    /// <see cref="HyperEncounters.SpanY"/> universe units: ProcessEncounter
+    /// draws each on the radar, and on the screen those within a screen of
+    /// the ship, <see cref="HyperEncounters.ScreenX"/> and
+    /// <see cref="HyperEncounters.ScreenY"/>, not hidden); flying in a
     /// system, the groups in their view (the outer system or the inner
     /// system they're in); anywhere else (orbit, a talk, a battle, the
     /// starbase) none, as UQM draws none there. Empty for a player not in
@@ -87,8 +98,8 @@ public sealed record GroupSnapshot(int Id, int? Star, int Race, int View, int X,
     {
         if (g.Star is null)
             return me.Activity == Activity.Hyperspace && me.SystemStar is null
-                   && Math.Abs(Units.LogXToUniverse(g.X) - me.UniverseX) <= HyperEncounters.ScreenX
-                   && Math.Abs(Units.LogYToUniverse(g.Y) - me.UniverseY) <= HyperEncounters.ScreenY;
+                   && Math.Abs(Units.LogXToUniverse(g.X) - me.UniverseX) <= HyperEncounters.SpanX
+                   && Math.Abs(Units.LogYToUniverse(g.Y) - me.UniverseY) <= HyperEncounters.SpanY;
         return me.Activity is Activity.OuterSystem or Activity.InnerSystem && me.SystemStar == g.Star
                && g.View == (me.InnerPlanet is int p ? p + 1 : 0);
     }

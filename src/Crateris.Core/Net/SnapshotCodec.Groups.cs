@@ -11,8 +11,8 @@ using Crateris.Core.World;
 namespace Crateris.Core.Net;
 
 // The snapshot's groups of alien ships (stage 3b-1 item 10, protocol 26):
-// the groups the viewer sees (GroupSnapshot.SeenBy: the encounters on its
-// screen in hyperspace, the groups in its view of a system), sent when they
+// the groups the viewer sees (GroupSnapshot.SeenBy: the encounters in its
+// span in hyperspace, the groups in its view of a system), sent when they
 // change, as a delta from those it was sent with the base: each group its id
 // and system (which find it in the base), a mask of the numbers that changed,
 // with a bit saying whether it's the base's, and those numbers as their

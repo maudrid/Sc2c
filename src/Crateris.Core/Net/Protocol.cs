@@ -131,8 +131,8 @@ public static class Protocol
     /// 26: groups of alien ships and meetings with them (stage 3b-1 item
     /// 10): a snapshot's parts are a number, not a byte, and carry the
     /// groups the viewer sees (GroupSnapshot: in hyperspace the encounters
-    /// on its screen, in a system those in its view; their race, place,
-    /// frame and vortex, sent as deltas); a player's meeting is sent to
+    /// in its span, for its radar and screen, in a system those in its
+    /// view; their race, place, frame and vortex, sent as deltas); a player's meeting is sent to
     /// them as a reliable message when it changes (MeetingView: its step,
     /// the race and ships met, where), and their choice at its encounter
     /// screen comes back as one (EncounterChoice, with the meeting's

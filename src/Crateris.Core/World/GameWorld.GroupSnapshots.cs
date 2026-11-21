@@ -16,24 +16,27 @@ public sealed partial class GameWorld
     // The last number given an encounter sent (HyperEncounter.SnapshotId).
     private int _encounterIds;
 
-    // The groups drawn where the present players fly, as the snapshot sends
-    // them (each player is sent those it sees, GroupSnapshot.SeenBy): every
-    // hyperspace encounter drawn (its element a stamp: on a player's screen
-    // and out of its vortex's first frames), and in each system a present
-    // player is in, every group with an element (in a view someone flies in),
-    // a re-forming one hidden on the frames it isn't drawn. Null for none.
+    // The groups where the present players fly, as the snapshot sends them
+    // (each player is sent those it sees, GroupSnapshot.SeenBy): every
+    // hyperspace encounter with an element (while a player is in
+    // hyperspace), hidden while its element isn't drawn (off every screen,
+    // or in its vortex's first frames: on the radar only), and in each
+    // system a present player is in, every group with an element (in a view
+    // someone flies in), a re-forming one hidden on the frames it isn't
+    // drawn. Null for none.
     private List<GroupSnapshot>? GroupsSnapshot(List<Player> present)
     {
         List<GroupSnapshot>? groups = null;
         if (Encounters is { } encounters)
             foreach (var e in encounters.List)
             {
-                if (e.Element is not { Drawn: true } el)
+                if (e.Element is not { } el)
                     continue;
                 if (e.SnapshotId == 0)
                     e.SnapshotId = ++_encounterIds;
-                (groups ??= new()).Add(new GroupSnapshot(e.SnapshotId, null, e.Race, 0, el.NextX, el.NextY, el.Frame,
-                    e.TransitionState, e.MeetingPlayer is null ? GroupSnapshotFlags.None : GroupSnapshotFlags.Met));
+                (groups ??= new()).Add(new GroupSnapshot(e.SnapshotId, null, e.Race, 0, e.LogX, e.LogY, el.Frame, e.TransitionState,
+                    (el.Drawn ? GroupSnapshotFlags.None : GroupSnapshotFlags.Hidden)
+                    | (e.MeetingPlayer is null ? GroupSnapshotFlags.None : GroupSnapshotFlags.Met)));
             }
         if (SystemGroups is { } sg)
             foreach (int star in present.Select(p => p.Ship.SystemStar).OfType<int>().Distinct().Order())

@@ -77,9 +77,9 @@ public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint 
 /// (<see cref="StoryPause"/>); and whether the host has paused it
 /// (<see cref="HostPaused"/>); the battles (<see cref="Battles"/>) and
 /// their markers (<see cref="Markers"/>); and the groups of alien ships
-/// drawn where a player flies (<see cref="Groups"/>, stage 3b-1 item 10: the
-/// encounters on a player's screen in hyperspace, the groups in a view of
-/// a system a player flies in). A guest is sent only its own
+/// where a player flies (<see cref="Groups"/>, stage 3b-1 item 10: the
+/// encounters in hyperspace while a player is there, the groups in the
+/// systems players are in). A guest is sent only its own
 /// lander's surface, only its own battle, the elements near its ship, and
 /// only the groups it sees (<see cref="GroupSnapshot.SeenBy"/>).
 /// </summary>
