@@ -197,6 +197,9 @@ public sealed class Meeting
     // The player's ship back in flight from the meeting (after its battle, or as it ended).
     internal bool Returned;
 
+    // How a saved copy's stand-in for a meeting at its closing lines ended its talk (no Talk there: question 13).
+    internal Segue? EndedAs;
+
     /// <summary>How many sets of replies the game's talks offered before this meeting's talk.</summary>
     public int FirstRound { get; }
 

@@ -534,6 +534,88 @@ public sealed partial class GameWorld
         return true;
     }
 
+    // Whether a meeting's talk, over, goes to a battle (hostile, with ships to fight, its player here).
+    private bool WouldFight(Meeting m)
+    {
+        var segue = m.Talk?.Segue ?? m.EndedAs;
+        bool hostile = m.Talk is not null || m.EndedAs is not null ? segue is Segue.Hostile : !m.Hailed;
+        return hostile && m.Ships.Count > 0 && BattleKit is not null
+               && m.Ships.All(s => BattleKit.Enemies.Contains(s.Ship)) && m.Player.Present && !GameOver;
+    }
+
+    /// <summary>
+    /// A meeting waiting at its closing lines, as a save carries its talk's end
+    /// (the owner, 2026-11-21, question 13): its player, the group met (by its
+    /// place in hyperspace, or its system and number), how the talk ended,
+    /// and whether it would fight.
+    /// </summary>
+    internal sealed record ClosingEnd(string PlayerId, int Race, IReadOnlyList<EnemyFleetShip> Ships, Segue? EndedAs, bool Hailed,
+        bool WouldFight, (int Race, short LocX, short LocY, short OriginX, short OriginY, string? Roller)? Encounter,
+        int? Star, int? GroupId, (int Planet, int? Moon)? World, bool Infinite);
+
+    /// <summary>The meetings waiting at their closing lines, as a save is to carry their ends (question 13).</summary>
+    internal List<ClosingEnd> ClosingEndsForSave()
+    {
+        var ends = new List<ClosingEnd>();
+        foreach (var p in _players)
+        {
+            if (p.Ship.Meeting is not { Step: MeetingStep.Closing } m)
+                continue;
+            var e = m.Encounter is not null ? MetEncounter(m) : null;
+            ends.Add(new ClosingEnd(p.Id, m.Race, m.Ships, m.Talk?.Segue, m.Hailed, WouldFight(m),
+                e is null ? null : (e.Race, e.LocX, e.LocY, e.OriginX, e.OriginY, e.Roller), m.Star, m.Group?.GroupId, m.World,
+                m.Infinite));
+        }
+        return ends;
+    }
+
+    /// <summary>
+    /// A saved copy of the game (question 13): each meeting that waited at
+    /// its closing lines ends here as leaving then would end it
+    /// (<see cref="AbandonMeeting"/>): its talk's end made (after a peace the
+    /// group written back, one-shot, the drone sent off; a surrender or an
+    /// instant victory as they go), no battle, a hostile ending's group as
+    /// it was. Only for a copy loaded from the save: the live game's meeting
+    /// goes on waiting for its player.
+    /// </summary>
+    internal void MakeClosingEnds(IEnumerable<ClosingEnd> ends)
+    {
+        foreach (var end in ends)
+        {
+            if (end.WouldFight || Find(end.PlayerId) is not { } player)
+                continue;   // a hostile ending: the group as it was (question 2)
+            HyperEncounter? met = null;
+            if (end.Encounter is var (race, x, y, ox, oy, roller))
+            {
+                met = Encounters?.List.FirstOrDefault(e => e.Race == race && e.LocX == x && e.LocY == y
+                                                           && e.OriginX == ox && e.OriginY == oy && e.Roller == roller);
+                if (met is null)
+                    continue;
+            }
+            IpGroup? group = null;
+            if (end.GroupId is int id)
+            {
+                if (end.Star is not int star || SystemGroups is not { } sg || !sg.Systems.TryGetValue(star, out var d)
+                    || (group = d.Groups.FirstOrDefault(g => g.GroupId == id && g.Race == end.Race)) is null)
+                    continue;
+            }
+            var m = new Meeting(player, end.Race, Story!.Rules.Races[end.Race], end.Ships, 0)
+            {
+                Encounter = met,
+                Star = end.Star,
+                Group = group,
+                World = end.World,
+                Infinite = end.Infinite,
+                Step = MeetingStep.Closing,
+                Hailed = end.Hailed,
+                EndedAs = end.EndedAs,
+            };
+            player.Ship.Meeting = m;
+            AfterTalk(m, mayFight: false);
+            player.Ship.Meeting = null;
+        }
+    }
+
     /// <summary>Closing lines gone through during a pause, held for its end, for tests.</summary>
     internal IReadOnlyList<(string Id, int Meeting)> HeldClosings => _heldClosings;
 
@@ -554,19 +636,18 @@ public sealed partial class GameWorld
         string id = m.Player.Id;
         if (!_storyClosingUntil.TryGetValue(id, out long until) || Frame > until)
             _ended.Remove(id);
-        if (m.Talk is { Segue: Segue.Defeat })
+        var segue = m.Talk?.Segue ?? m.EndedAs;
+        if (segue == Segue.Defeat)
         {
             Surrender(m);
             return true;
         }
-        if (m.Talk is { Segue: Segue.Victory } && m.Ships.Count > 0)
+        if (segue == Segue.Victory && m.Ships.Count > 0)
         {
             InstantVictory(m);
             return true;
         }
-        bool hostile = m.Talk is { } talk ? talk.Segue is Segue.Hostile : !m.Hailed;
-        if (hostile && m.Ships.Count > 0 && BattleKit is not null
-            && m.Ships.All(s => BattleKit.Enemies.Contains(s.Ship)) && m.Player.Present && !GameOver)
+        if (WouldFight(m))
         {
             if (!mayFight)
                 return false;

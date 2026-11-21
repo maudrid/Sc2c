@@ -200,6 +200,24 @@ public static class HostSave
     {
         if (world.FlagshipLost)
             throw new InvalidOperationException("the flagship is lost: the game isn't saved (its save is kept as it was)");
+        string json = Write(world);
+        // A meeting waiting at its player's closing lines is saved with its
+        // talk's end made, as leaving then makes it (the owner, 2026-11-21,
+        // question 13): on a copy loaded from the save, the live game's
+        // meeting waiting on. A flagship surrendering so isn't saved (the
+        // game is over once its lines are heard).
+        var ends = world.ClosingEndsForSave();
+        if (ends.Count == 0 || world.Systems is null || world.Shapes is null)
+            return json;
+        var copy = Load(json, world.Systems, world.Shapes);
+        copy.MakeClosingEnds(ends);
+        if (copy.FlagshipLost)
+            throw new InvalidOperationException("the flagship surrenders: the game isn't saved (its save is kept as it was)");
+        return Write(copy);
+    }
+
+    private static string Write(GameWorld world)
+    {
         // A visit going on is saved as not begun.
         var visit = world.Visit;
         var players = world.Players.Select(p =>

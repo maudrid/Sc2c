@@ -920,6 +920,130 @@ public class MeetingWireTests
         check(game, again, units, group);
     }
 
+    // A guest's meeting at its closing lines (a talk at once, ending as given): the game, the group, the meeting.
+    private static (Game Game, HyperEncounter Group, Meeting Meeting) AtClosing(Segue end, string race)
+    {
+        var game = NewGame(guests: 1);
+        game.Init = Segue.Peace;
+        game.End = end;
+        var g1 = NewClient(1);
+        var group = GroupBy(game.World, "g1", race);
+        FramesUntil(game.Host, () => g1.Session.Talk is { Replies.Count: > 0 }, 300, g1);
+        g1.Session.PressMenu(MenuKey.Select);
+        Frame(game.Host, g1);
+        var m = game.World.MeetingOf("g1")!;
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        return (game, group, m);
+    }
+
+    private static GameWorld SaveAndLoad(GameWorld world) =>
+        HostSave.FromJson(HostSave.ToJson(world), SystemGroupTests.Systems.Value, TestContent.Shapes);
+
+    // The live game as the save left it: the meeting waiting still, its group untouched, the lock held.
+    private static void Unchanged(Game game, HyperEncounter group, Meeting m, string conversation, uint units, int flags, int ships)
+    {
+        Assert.Same(m, game.World.MeetingOf("g1"));
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        Assert.Equal("g1", group.MeetingPlayer);
+        Assert.Equal((flags, ships), (group.Flags, group.Ships.Count));
+        Assert.Equal("g1", game.World.DialogueLocks!.Holder(conversation));
+        Assert.Equal(units, game.World.Find("g1")!.Ship.Hold.ResourceUnits);
+        Assert.False(game.World.Find("g1")!.Ship.Destroyed);
+    }
+
+    [ContentFact]
+    public void ASaveAtTheClosingLinesCarriesTheTalksEnd()
+    {
+        // The owner, 2026-11-21 (question 13): the saved copy has the talk's end made, as leaving then makes it;
+        // the live game goes on waiting for the player.
+        HyperEncounter Saved(GameWorld loaded, HyperEncounter live) =>
+            loaded.Encounters!.List.Single(e => e.Race == live.Race && e.LocX == live.LocX && e.LocY == live.LocY);
+
+        // After a peace: written back re-forming and one-shot.
+        var (game, group, m) = AtClosing(Segue.Peace, "SPATHI_SHIP");
+        uint units = game.World.Find("g1")!.Ship.Hold.ResourceUnits;
+        int flags = group.Flags, ships = group.Ships.Count;
+        var loaded = SaveAndLoad(game.World);
+        var e = Saved(loaded, group);
+        Assert.Equal(HyperEncounter.OneShot | HyperEncounter.Reforming, e.Flags & (HyperEncounter.OneShot | HyperEncounter.Reforming));
+        Assert.Equal(ships, e.Ships.Count);
+        Assert.Null(loaded.MeetingOf("g1"));
+        Unchanged(game, group, m, "SPATHI_CONVERSATION", units, flags, ships);
+        // Going through the closing lines after it, the live game ends the meeting as ever.
+        Assert.True(game.World.ClosingDone("g1", m.Id));
+        Assert.Equal(HyperEncounter.OneShot, group.Flags & HyperEncounter.OneShot);
+
+        // After an instant victory: the answerer paid, the group written back with none.
+        (game, group, m) = AtClosing(Segue.Victory, "SLYLANDRO_SHIP");
+        units = game.World.Find("g1")!.Ship.Hold.ResourceUnits;
+        (flags, ships) = (group.Flags, group.Ships.Count);
+        loaded = SaveAndLoad(game.World);
+        uint bounty = (uint)(loaded.Story!.Rules.RaceShip("SLYLANDRO_SHIP").Cost >> 3);
+        Assert.Equal(units + (uint)ships * bounty, loaded.Find("g1")!.Ship.Hold.ResourceUnits);
+        Assert.Empty(Saved(loaded, group).Ships);
+        Unchanged(game, group, m, "SLYLANDRO_CONVERSATION", units, flags, ships);
+
+        // After a guest's surrender: its ship a wreck; the group re-forming, one-shot.
+        (game, group, m) = AtClosing(Segue.Defeat, "URQUAN_SHIP");
+        units = game.World.Find("g1")!.Ship.Hold.ResourceUnits;
+        (flags, ships) = (group.Flags, group.Ships.Count);
+        loaded = SaveAndLoad(game.World);
+        var wreck = loaded.Find("g1")!.Ship;
+        Assert.True(wreck.Destroyed);
+        Assert.Equal(0, wreck.Hold.Crew);
+        Assert.False(loaded.GameOver);
+        Assert.Equal(HyperEncounter.OneShot, Saved(loaded, group).Flags & HyperEncounter.OneShot);
+        Unchanged(game, group, m, "URQUAN_CONVERSATION", units, flags, ships);
+
+        // After a hostile ending: no battle, the group as it was.
+        (game, group, m) = AtClosing(Segue.Hostile, "SPATHI_SHIP");
+        units = game.World.Find("g1")!.Ship.Hold.ResourceUnits;
+        (flags, ships) = (group.Flags, group.Ships.Count);
+        loaded = SaveAndLoad(game.World);
+        e = Saved(loaded, group);
+        Assert.Equal((flags & ~HyperEncounter.Reforming, ships), (e.Flags & ~HyperEncounter.Reforming, e.Ships.Count));
+        Assert.Equal(0, e.Flags & (HyperEncounter.OneShot | HyperEncounter.Reforming));
+        Assert.Empty(loaded.Battles);
+        Unchanged(game, group, m, "SPATHI_CONVERSATION", units, flags, ships);
+    }
+
+    [ContentFact]
+    public void ASaveAtTheDronesMessageSendsItOffInTheSavedGame()
+    {
+        var game = NewGame(guests: 1, testTalks: false);
+        game.World.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var g1 = NewClient(1);
+        game.World.PutInOrbit("g1", SolStar, Earth);
+        game.World.Find("g1")!.Ship.Ip!.ReturnFromOrbit();
+        FramesUntil(game.Host, () => game.World.SystemMeetings.Count > 0, 600, g1);
+        var met = game.World.SystemMeetings[0];
+        Assert.Equal(MeetingStep.Closing, game.World.MeetingOf("g1")?.Step);
+        IpGroup Drone(GameWorld w) => w.SystemGroups!.Systems[SolStar].Groups.Single(g => g.Race == met.Race);
+        var (task, dest) = (Drone(game.World).Task, Drone(game.World).DestLoc);
+        var loaded = SaveAndLoad(game.World);
+        Assert.Equal((IpGroup.Flee | IpGroup.IgnoreFlagship, (byte)0), (Drone(loaded).Task, Drone(loaded).DestLoc));
+        Assert.Equal(1, loaded.Story!.Get("PROBE_MESSAGE_DELIVERED"));
+        // The live drone waits for g1, as its meeting does.
+        Assert.Equal((task, dest), (Drone(game.World).Task, Drone(game.World).DestLoc));
+        Assert.Equal(MeetingStep.Closing, game.World.MeetingOf("g1")?.Step);
+    }
+
+    [ContentFact]
+    public void TheFlagshipSurrenderingAtItsClosingLinesIsntSaved()
+    {
+        var game = NewGame(guests: 0);
+        game.Init = Segue.Peace;
+        game.End = Segue.Defeat;
+        GroupBy(game.World, "h", "URQUAN_SHIP");
+        FramesUntil(game.Host, () => game.World.MeetingOf("h") is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 }, 300);
+        var m = game.World.MeetingOf("h")!;
+        Assert.True(game.World.ChooseReply("h", 0, m.Round));
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(game.World));   // the game over to come: its save kept
+        Assert.False(game.World.GameOver);
+        Assert.Equal(MeetingStep.Closing, m.Step);
+    }
+
     [ContentFact]
     public void TheDronesMessageIsShownToTheGuestItMet()
     {
