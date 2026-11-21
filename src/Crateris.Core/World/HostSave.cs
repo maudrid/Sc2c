@@ -193,8 +193,13 @@ public static class HostSave
     /// <summary>
     /// The world as a save. Refused (<see cref="InvalidOperationException"/>)
     /// once the flagship is lost or has surrendered
-    /// (<see cref="GameWorld.FlagshipLost"/>):
-    /// the host's save is kept as it was (decision 12).
+    /// (<see cref="GameWorld.FlagshipLost"/>), or while it waits at the
+    /// closing lines of a talk it surrendered in
+    /// (<see cref="GameWorld.FlagshipSurrendering"/>): the host's save is
+    /// kept as it was (decision 12). A meeting waiting at its closing lines
+    /// has its talk's end made in the save, not in the world (the owner,
+    /// 2026-11-21, question 13); <paramref name="log"/> is told when that
+    /// can't be done (the copy not loading, a group not found in it).
     /// </summary>
     public static string ToJson(GameWorld world, Action<string>? log = null)
     {

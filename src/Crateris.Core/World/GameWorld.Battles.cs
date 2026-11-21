@@ -61,7 +61,9 @@ public sealed partial class GameWorld
     /// (<see cref="FlagshipLost"/>) no save is made, so the host's save is
     /// kept as it was before the battle. The flagship surrendering to the
     /// Ur-Quan (stage 3b-1 item 6, <see cref="Surrendered"/>) is the game
-    /// over too, at once, from its talk: no battle, and no save from then.
+    /// over too, from its talk once its closing lines have been gone through
+    /// (stage 3b-1 item 11): no battle, and no save from the talk's end
+    /// (<see cref="FlagshipSurrendering"/> while the lines play).
     /// </summary>
     public bool GameOver { get; private set; }
 

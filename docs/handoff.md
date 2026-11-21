@@ -64,7 +64,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-The re-review of the fixes from the review of the question 12 and 13 builds (2026-11-21; one medium-high, two low, fixed; the plan's row 11 says what), then report and wait for the go-ahead for item 12 (stage 3b-1 item 11 is built, reviewed in five rounds and reported; the go-ahead of 2026-11-21 was for item 11 alone).
+Wait for the owner's go-ahead for stage 3b-1 item 12 (docs). Item 11 is built, reviewed in five rounds and reported; the owner's answers to questions 12 and 13 are built and reviewed (one review, its fixes re-reviewed: no bug, three doc comments fixed). No questions wait on the owner.
 
 ## Decisions waiting on the owner
 
