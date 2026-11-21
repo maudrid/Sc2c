@@ -25,14 +25,17 @@ namespace Crateris.Core.World;
 /// for its race's own), whether they're an infinite fleet (a race's world's:
 /// the screen repeats its one ship), and where (InitEncounter's "ENCOUNTER
 /// IN DEEP SPACE" in hyperspace, <see cref="Star"/> null; "ENCOUNTER AT" a
-/// system, and at a race's world, <see cref="World"/>). The talk itself
+/// system, and at a race's world, <see cref="World"/>), and the battle's
+/// planet whose gravity well the screen shows in its middle
+/// (<see cref="Well"/>: <see cref="Meeting.BattlePlanet"/>, item 11), and in a
+/// system the planet it names (<see cref="Named"/>: <see cref="Meeting.NamedPlanet"/>). The talk itself
 /// goes as a talk's view (<see cref="Comm.TalkView.Of(Meeting?)"/>), the
 /// battle in the snapshot, its tally in the battle's notice. Sent to the
 /// player met when it changes, as a reliable message;
 /// <see cref="Protocol.NoView"/> means no meeting.
 /// </summary>
 public sealed record MeetingView(int Id, MeetingStep Step, string Race, IReadOnlyList<EnemyFleetShip> Ships, bool Infinite = false,
-    int? Star = null, int? Planet = null, int? Moon = null)
+    int? Star = null, int? Planet = null, int? Moon = null, byte Well = 0, int? Named = null)
 {
     /// <summary>The most ships a view carries (a group in hyperspace has 7 at most, a system's no more).</summary>
     public const int MostShips = 64;
@@ -41,7 +44,7 @@ public sealed record MeetingView(int Id, MeetingStep Step, string Race, IReadOnl
     public static MeetingView? Of(Meeting? m) =>
         m is null || m.Step == MeetingStep.Done ? null
         : new MeetingView(m.Id, m.Step, m.RaceId, m.Ships.Select(s => new EnemyFleetShip(s.Ship, s.Crew)).ToList(), m.Infinite,
-            m.Star, m.World?.Planet, m.World?.Moon);
+            m.Star, m.World?.Planet, m.World?.Moon, m.BattlePlanet, m.NamedPlanet);
 
     /// <summary>Whether the encounter screen is up, offering Hail or Attack.</summary>
     public bool OffersChoice => Step == MeetingStep.Encounter;
@@ -63,6 +66,8 @@ public sealed record MeetingView(int Id, MeetingStep Step, string Race, IReadOnl
         w.UInt(Star is int s ? (ulong)s + 1 : 0);
         w.UInt(Planet is int p ? (ulong)p + 1 : 0);
         w.UInt(Moon is int mo ? (ulong)mo + 1 : 0);
+        w.Byte(Well);
+        w.UInt(Named is int nm ? (ulong)nm + 1 : 0);
         return w.Written.ToArray();
     }
 
@@ -100,13 +105,15 @@ public sealed record MeetingView(int Id, MeetingStep Step, string Race, IReadOnl
             return v == 0 ? null : v - 1 <= int.MaxValue ? (int)(v - 1) : throw new InvalidDataException("Bad meeting place.");
         }
         int? star = Optional(ref r), planet = Optional(ref r), moon = Optional(ref r);
+        byte well = r.Byte();
+        int? named = Optional(ref r);
         if (!r.AtEnd)
             throw new InvalidDataException("A meeting has bytes after its end.");
-        return new MeetingView((int)id, (MeetingStep)(int)(step - 1), race, ships, infinite, star, planet, moon);
+        return new MeetingView((int)id, (MeetingStep)(int)(step - 1), race, ships, infinite, star, planet, moon, well, named);
     }
 
     /// <summary>Whether two views show the same (records compare their lists by reference).</summary>
     public bool Same(MeetingView? other) =>
         other is not null && Id == other.Id && Step == other.Step && Race == other.Race && Ships.SequenceEqual(other.Ships)
-        && Infinite == other.Infinite && Star == other.Star && Planet == other.Planet && Moon == other.Moon;
+        && Infinite == other.Infinite && Star == other.Star && Planet == other.Planet && Moon == other.Moon && Well == other.Well && Named == other.Named;
 }

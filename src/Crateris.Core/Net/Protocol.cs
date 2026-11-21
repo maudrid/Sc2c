@@ -146,7 +146,9 @@ public static class Protocol
     /// (MeetingStep.Closing, numbered after the talk), its talk's view
     /// showing them with no replies, and the player's client says when
     /// they've gone through them (ClosingDone, with the meeting's number);
-    /// the closing lines are no longer a VisitStep.Done view.
+    /// the closing lines are no longer a VisitStep.Done view. A meeting's
+    /// view carries the battle's planet (MeetingView.Well), whose gravity
+    /// well the encounter screen draws.
     public const int Version = 27;
     public const int DefaultPort = 24642;
 

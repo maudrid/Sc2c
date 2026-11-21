@@ -448,6 +448,17 @@ public class MeetingWireTests
         Assert.Throws<InvalidDataException>(() => MeetingView.Decode(new byte[] { 3, 9 }));   // no such step
         Assert.Throws<InvalidDataException>(() => MeetingView.Decode(view.Encode().Concat(new byte[] { 0 }).ToArray()));
         Assert.Throws<InvalidDataException>(() => MeetingView.Decode(view.Encode()[..^2]));
+        // Since item 11: the closing lines' step, the battle's planet and the planet named.
+        var closing = view with { Step = MeetingStep.Closing, Well = 0x2C, Named = 3 };
+        var again = MeetingView.Decode(closing.Encode())!;
+        Assert.True(closing.Same(again));
+        Assert.Equal((MeetingStep.Closing, (byte)0x2C, (int?)3), (again.Step, again.Well, again.Named));
+        Assert.False(closing.Same(closing with { Well = 1 }));
+        Assert.False(closing.Same(closing with { Named = null }));
+        // A planet named on no star, or not on the star named, is refused by the client.
+        var client = new PlayerSession(SystemGroupTests.Systems.Value, null, "g1", TestContent.Shapes.HyperFlagship.Count);
+        Assert.Throws<InvalidDataException>(() => client.ShowMeeting(closing with { Star = null, Planet = null, Moon = null }));
+        Assert.Throws<InvalidDataException>(() => client.ShowMeeting(closing with { Planet = null, Moon = null, Named = 99 }));
 
         var talk = new TalkView(VisitStep.Meeting, "urquan", new[] { "Hello" }, new[] { "Hi", "Bye" }, 5, "g1", "");
         Assert.True(talk.Same(TalkView.Decode(talk.Encode())));
@@ -601,6 +612,9 @@ public class MeetingWireTests
         Assert.Null(g1.Session.Talk);   // attacked: no talk, no lines
         // Both Spathi destroyed, each once it's in and fighting.
         var wb = m.Battle!;
+        // The arena's planet is the gravity well the encounter screen showed (BuildBattle's, item 11).
+        Assert.Equal(m.BattlePlanet, wb.BattlePlanet);
+        Assert.Equal(m.BattlePlanet, g1.Meetings.First(v => v!.Step == MeetingStep.Encounter)!.Well);
         int inFor = 0;
         for (int i = 0; i < 3000 && wb.Outcome is null; ++i)
         {
@@ -622,6 +636,23 @@ public class MeetingWireTests
         Assert.Contains($"The spathi battle group is destroyed: 2 ships, {2 * bounty} RU of salvage.", g1.Session.Notice);
         Assert.DoesNotContain(g2.Notices, n => n.Kind == BattleNoticeKind.Ended);
         Assert.Null(g1.Session.Meeting);
+        // The battle-won screen (item 11) once g1 is out of the battle, the ship waiting meanwhile; g2 none.
+        Assert.Same(end, g1.Session.Tally);
+        Assert.Null(g2.Session.Tally);
+        FramesUntil(host, () => g1.Session.Me?.Activity == Activity.Hyperspace, 300, g1, g2);
+        Assert.Equal(PlayerScreen.BattleWon, g1.Session.Screen);
+        Assert.Equal(ShipInput.None, g1.Session.NextInput(ShipInput.Thrust));
+        Assert.Contains(g1.Session.StatusLines(), l => l.StartsWith("Battle won: 2 ships destroyed", StringComparison.Ordinal));
+        g1.Session.CloseTally();   // the screen has run
+        Assert.Equal(PlayerScreen.Hyperspace, g1.Session.Screen);
+        Assert.Equal(ShipInput.Thrust, g1.Session.NextInput(ShipInput.Thrust));
+        // A tally not yet shown goes when a talk or battle comes first, once the player's out of the battle.
+        g1.Session.ShowBattleNotice(end);
+        Frame(host, g1, g2);
+        var wb2 = world.StartBattle("g1", "spathi");
+        Frame(host, g1, g2);
+        Frame(host, g1, g2);
+        Assert.Null(g1.Session.Tally);
     }
 
     [ContentFact]

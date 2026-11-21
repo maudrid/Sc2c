@@ -151,8 +151,13 @@ public sealed partial class GameWorld
     public WorldBattle StartBattle(string id, EnemyFleet fleet, BattleStart? start = null) =>
         StartBattle(id, fleet, start ?? new BattleStart(), crewInStart: false);
 
+    // A meeting's battle, its arena's planet the one its encounter screen showed.
+    private WorldBattle StartBattle(string id, EnemyFleet fleet, byte battlePlanet) =>
+        StartBattle(id, fleet, new BattleStart(), crewInStart: false, battlePlanet);
+
     // crewInStart: the one ship's crew is the start's EnemyCrew, which the battle keeps in its Start.
-    private WorldBattle StartBattle(string id, EnemyFleet fleet, BattleStart start, bool crewInStart)
+    // battlePlanet: the arena's planet chosen already (a meeting's, shown on its encounter screen), or null for here and now.
+    private WorldBattle StartBattle(string id, EnemyFleet fleet, BattleStart start, bool crewInStart, byte? battlePlanet = null)
     {
         var kit = BattleKit ?? throw new InvalidOperationException("battles need the battle's content");
         if (fleet.Ships.Count is 0 or > EnemyFleet.MostShips)
@@ -181,18 +186,18 @@ public sealed partial class GameWorld
         int number = ++_battleIds;
         uint seed = unchecked((uint)(Frame * 1_000_003 + number * 7919));
         BattlePlace place;
-        byte battlePlanet;
+        byte planet;
         if (ship.Ip is { } ip)
         {
             ip.Stop();
             place = new BattlePlace(ship.SystemStar, ip.InnerPlanet, ip.Location.X, ip.Location.Y);
-            battlePlanet = BattlePlanetAt(ship, seed);
+            planet = battlePlanet ?? BattlePlanetAt(ship, seed);
         }
         else
         {
             ship.Flight.Stop();
             place = new BattlePlace(null, null, ship.Flight.LogX, ship.Flight.LogY);
-            battlePlanet = RandomPlanetType(seed);
+            planet = battlePlanet ?? RandomPlanetType(seed);
         }
 
         // BuildBattle's race_q[1] from the fleet: each ship with its crew (an infinite fleet's, its most),
@@ -222,11 +227,11 @@ public sealed partial class GameWorld
         var fighter = NewFighter(player);
         // Retreat is the world's to allow, per player and frame (RetreatAllowed): the battle lets side 0 run.
         // The host with fleet ships brings them all (race_q[0]), and picks the first (stage 4b item 8).
-        var battle = new Battle(kit.Graphics.Arena(battlePlanet),
+        var battle = new Battle(kit.Graphics.Arena(planet),
             new[] { fighter.Armada?.Ships ?? new[] { fighter.Starship }, enemies.Select(e => e.Item1).ToArray() },
             seed, runAwayAllowed: true, size: ArenaSize.Scaled(Settings.BattleArenaScale), maxElements: Settings.BattleMaxElements,
             infiniteEnemy: fleet.Infinite);
-        var wb = new WorldBattle(number, place, battlePlanet, battle, enemies, fleet, start, id, Frame)
+        var wb = new WorldBattle(number, place, planet, battle, enemies, fleet, start, id, Frame)
         {
             PlaceIp = ship.Ip is { } at ? IpFlight.AtRest(at.Save()) : null,
             PlaceStarJustLeft = ship.Ip is null ? ship.Flight.StarJustLeft : null,
@@ -244,30 +249,37 @@ public sealed partial class GameWorld
     // outer system the planet whose image is closest to the ship on the
     // screen (closestPlanetInterPlanetary); a system without planets (UQM
     // keeps the last BATTLE_PLANET) takes a random type.
-    private byte BattlePlanetAt(PlayerShip ship, uint seed)
+    internal byte BattlePlanetAt(PlayerShip ship, uint seed) =>
+        NamedPlanet(ship) is int p ? Systems![ship.SystemStar!.Value].Planets[p].DataIndex : RandomPlanetType(seed);
+
+    // The planet whose name and BATTLE_PLANET a system's encounter takes
+    // (generateName): the inner system's, or in the outer system the one
+    // whose image is closest to the ship (closestPlanetInterPlanetary);
+    // null for a system without planets.
+    internal int? NamedPlanet(PlayerShip ship)
     {
         var ip = ship.Ip!;
         var system = Systems![ship.SystemStar!.Value];
         if (ip.InnerPlanet is int inner)
-            return system.Planets[inner].DataIndex;
-        WorldDesc? best = null;
+            return inner;
+        int? best = null;
         long bestDistance = long.MaxValue;
-        foreach (var planet in system.Planets)
+        for (int i = 0; i < system.Planets.Count; ++i)
         {
-            var at = SystemLayout.OuterPlanet(planet, ip.ZoomRadius);
+            var at = SystemLayout.OuterPlanet(system.Planets[i], ip.ZoomRadius);
             long dx = ip.Screen.X - at.X, dy = ip.Screen.Y - at.Y;
             if (dx * dx + dy * dy < bestDistance)
             {
                 bestDistance = dx * dx + dy * dy;
-                best = planet;
+                best = i;
             }
         }
-        return best?.DataIndex ?? RandomPlanetType(seed);
+        return best;
     }
 
     // BuildBattle in hyperspace: (COUNT)TFB_Random () % NUMBER_OF_PLANET_TYPES,
     // drawn here from a generator of the battle's own.
-    private static byte RandomPlanetType(uint seed) =>
+    internal static byte RandomPlanetType(uint seed) =>
         (byte)((ushort)new TfbRandom(~seed).Next() % WorldTypes.NumberOfPlanetTypes);
 
     // A player's ship for a battle: the flagship's battle code with this

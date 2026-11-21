@@ -133,6 +133,21 @@ public sealed class Meeting
     /// </summary>
     public bool Infinite { get; internal init; }
 
+    /// <summary>
+    /// The battle's planet (BATTLE_PLANET's world, a data_index; in
+    /// hyperspace a random type), chosen as the meeting's talk loads, as
+    /// BuildBattle loads the gravity well before the encounter screen
+    /// draws it: its battle's arena has the same.
+    /// </summary>
+    public byte BattlePlanet { get; internal set; }
+
+    /// <summary>
+    /// In a system (not at a world), the planet the encounter screen names
+    /// (GLOBAL_SIS (PlanetName) as generateName sets it: the inner
+    /// system's, or the closest in the outer system), or null.
+    /// </summary>
+    public int? NamedPlanet { get; internal set; }
+
     public MeetingStep Step { get; internal set; }
 
     /// <summary>

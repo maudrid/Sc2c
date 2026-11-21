@@ -68,6 +68,7 @@ public partial class Main : Node2D
     private PlanetsideView _planetsideView = null!;
     private ReportView _reportView = null!;
     private CommView _commView = null!;
+    private EncounterView _encounterView = null!;
     private SellingView _sellingView = null!;
     private GivingView _givingView = null!;
     private DevicesView _devicesView = null!;
@@ -142,6 +143,9 @@ public partial class Main : Node2D
                 RpcId(1, MethodName.PageTalk, round, lines, (int)page);
         };
         AddChild(_commView);
+        // The encounter screen and the battle-won screen, in the same place (stage 3b-1 item 11).
+        _encounterView = new EncounterView { Position = systemScreenAt, Visible = false };
+        AddChild(_encounterView);
         // The minerals' count-down, in the status area left of the communication screen,
         // where the orbit screen's cargo display goes (SisScreen.StatusOrigin).
         var statusOrigin = new Vector2(12, systemScreenAt.Y + SisScreen.MenuTop)
@@ -370,6 +374,7 @@ public partial class Main : Node2D
                 _givingView.UseContent(content, sheets);
                 _devicesView.UseContent(content, sheets);
                 _battleView.UseContent(content, sheets, _ships, planetTypes);
+                _encounterView.UseContent(content, sheets, _ships, planetTypes, _names, _systems.Map);
                 _view.RaceLook = _systemView.RaceLook = _battleView.RaceLook;
                 _starbaseView.Races = YardRace;
                 _orbitView.Roster = new RosterPanel(() => _starbaseView.NewStatusArea(YardRace), YardRace,
@@ -1257,6 +1262,14 @@ public partial class Main : Node2D
             _sellingView.Stop();
         }
         _sellingView.Visible = _commView.Visible && _sellingView.Active;
+        // The encounter screen, drawn once a meeting; the battle-won screen run on with the keys held, and its
+        // tally closed at its end (headless, at once: nothing to show it on).
+        if (screen == PlayerScreen.BattleWon && Headless)
+            player.CloseTally();
+        _encounterView.Visible = !Headless && (screen == PlayerScreen.Encounter && player.Meeting is { } met
+            ? _encounterView.ShowEncounter(met)
+            : screen == PlayerScreen.BattleWon && _encounterView.ShowTally(player,
+                !player.Scripted && !_about.Visible && _down.Count > 0, !player.Scripted && Held(Key.Escape)));
         _starbaseView.Visible = screen == PlayerScreen.Starbase;
         _starbaseView.Show(player.Starbase);
         // The battle, drawn as the host sends each frame (said in the status lines if it can't be).

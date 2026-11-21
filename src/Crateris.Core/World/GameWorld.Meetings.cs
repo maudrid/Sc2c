@@ -399,6 +399,10 @@ public sealed partial class GameWorld
             seed = unchecked(seed * 31 + ch);
         // The talk's own random seed (decision 12), as a visit's talks have.
         var talk = m.World is not null ? RaceTalk(m.Player, m.Race, seed, 1 << 7) : MeetingTalks(m.Player, m.Race, seed);
+        // BuildBattle's centrepiece, loaded as the encounter screen comes up (its gravity well drawn in its middle):
+        // in a system BATTLE_PLANET's world, in hyperspace a random type; the battle's arena then has it.
+        m.BattlePlanet = m.Player.Ship.Ip is not null ? BattlePlanetAt(m.Player.Ship, seed) : RandomPlanetType(seed);
+        m.NamedPlanet = m.Player.Ship.Ip is not null && m.World is null ? NamedPlanet(m.Player.Ship) : null;
         m.Talk = talk;
         if (talk is not null)
         {
@@ -555,7 +559,7 @@ public sealed partial class GameWorld
             && m.Ships.All(s => BattleKit.Enemies.Contains(s.Ship)) && m.Player.Present && !GameOver)
         {
             m.Step = MeetingStep.Battle;
-            m.Battle = StartBattle(m.Player.Id, new EnemyFleet(m.Ships, m.Infinite));
+            m.Battle = StartBattle(m.Player.Id, new EnemyFleet(m.Ships, m.Infinite), m.BattlePlanet);
             return;
         }
         EndMeeting(m, fought: false);

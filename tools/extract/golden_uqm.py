@@ -6676,6 +6676,118 @@ def record_screens(uqm, exe, outfit_exe, strings_exe, package):
     return data
 
 
+# ------------------------------------------------------------ the encounter screens
+
+ENCOUNTER_PROGRAM = os.path.join(HERE, "golden", "encounter.c")
+# screens' and InitEncounter's second ring of ships' arithmetic (square_root, ARCTAN, SINE).
+ENCOUNTER_LINK = SCREENS_LINK + ["uqm/trans.c", "libs/math/sqrt.c"]
+ENCOUNTER_FRAMES = ["graphics.segue", "graphics.pickship", "graphics.playmenu", "graphics.fontgradient",
+                    "graphics.flagshipstatus", "graphics.status"]
+
+
+def encounter_scenarios():
+    """The encounter screen (InitEncounter) in deep space and in a system,
+    with groups of one ship to past the ten display points (the second
+    ring), and an infinite fleet (sixty of its ship); the battle-won
+    screen (UninitEncounter after a win) with one ship, five (a row), six
+    (the row cleared, a second), with no key, a key held (the fades cut
+    short) and Escape held."""
+    out = []
+
+    def add(name, where, planet, ships, step, ship_name="EARTHLING CRUISER"):
+        out.append({"name": name, "where": where, "planet": planet, "ship_name": ship_name,
+                    "ships": [list(s) for s in ships], "step": step})
+
+    add("deep-space-one", "hyper", "planet.oolite.large", [("SPATHI_SHIP", 30)], "encounter")
+    add("deep-space-three", "hyper", "planet.water.large", [("URQUAN_SHIP", 42)] * 3, "encounter")
+    add("system-seven", "system", "planet.redux.large", [("ILWRATH_SHIP", 22)] * 7, "encounter")
+    add("ring-two", "hyper", "planet.acid.large", [("SLYLANDRO_SHIP", 12)] * 12, "encounter")
+    add("infinite", "system", "planet.slaveshield.large", [("ILWRATH_SHIP", -1)], "encounter")
+    for keys in ("none", "any", "escape"):
+        add(f"won-one-{keys}", "hyper", "planet.oolite.large", [("SPATHI_SHIP", 30)], f"won:{keys}")
+    add("won-five", "hyper", "planet.oolite.large", [("URQUAN_SHIP", 42)] * 5, "won:none")
+    add("won-six", "system", "planet.water.large", [("ILWRATH_SHIP", 22)] * 6, "won:none",
+        ship_name="THE LONG VOYAGE")
+    add("won-seven-any", "system", "planet.water.large", [("BLACK_URQUAN_SHIP", 42)] * 7, "won:any")
+    return out
+
+
+def encounter_frames():
+    """The resources the encounter recording loads: its own, each race
+    ship's status icons, and the gravity wells the scenarios name."""
+    out = list(ENCOUNTER_FRAMES)
+    ships = race_ships()
+    for sc in encounter_scenarios():
+        out.append(sc["planet"])
+        for race, _ in sc["ships"]:
+            out.append(ships[RACES.index(race)]["graphics"]["icons"])
+    return list(dict.fromkeys(out))
+
+
+def record_encounter(uqm, exe, strings_exe, package):
+    """What UQM draws on the encounter screen and the battle-won screen
+    (golden/encounter.c), each scenario's every call in its one step."""
+    import zipfile
+    with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
+        index_file = os.path.join(tmp, "uqm.rmp")
+        with open(index_file, "wb") as f:
+            f.write(z.read("uqm.rmp"))
+        index = read_resource_index(strings_exe, index_file)
+        counts, rects = [], []
+        for res in encounter_frames():
+            ani_path = index[res][1]
+            lines = [l.split() for l in z.read(ani_path).decode("latin-1").splitlines() if l.strip()]
+            counts += [res, str(len(lines))]
+            for i, l in enumerate(lines):
+                png = z.read(os.path.dirname(ani_path) + "/" + l[0])
+                w, h = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")
+                rects.append(f"{res}:{i}:{l[3]}:{l[4]}:{w}:{h}")
+    ships = race_ships()
+    scenarios = []
+    for sc in encounter_scenarios():
+        group = " ".join(f"{RACES.index(r)} {ships[RACES.index(r)]['graphics']['icons']} {c}" for r, c in sc["ships"])
+        lines = [" ".join(counts), " ".join(rects), SCREENS_LEADING, sc["where"], sc["planet"], sc["ship_name"], group,
+                 sc["step"]]
+        out = subprocess.run([exe], input="\n".join(lines) + "\n", capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"encounter {sc['name']} ({out.returncode}): {out.stdout[-300:]}{out.stderr}")
+        drawn = json.loads(out.stdout)
+        scenarios.append(sc | {"drawn": drawn["draw"]})
+    data = header(uqm, ["tools/extract/golden/encounter.c", "tools/extract/golden/screens.c",
+                        "tools/extract/golden/screens_stubs.c", "src/uqm/encount.c", "src/uqm/sis.c",
+                        "src/uqm/menu.c", "src/uqm/border.c", "src/uqm/util.c", "src/uqm/pickship.c",
+                        "src/uqm/trans.c", "src/libs/math/sqrt.c"], [
+        "What UQM 0.8.0's own encounter screen and battle-won screen draw, "
+        "recorded by running its InitEncounter and UninitEncounter (encount.c, "
+        "with sis.c, menu.c, border.c, util.c and pickship.c's drawing) with "
+        "each drawing call recorded as screens.json's are "
+        "(tools/extract/golden/encounter.c); the frames counted from the "
+        f"official content package (SHA-256 {CONTENT_SHA256}), the fonts by "
+        "their leading.",
+        "Each scenario: where (hyper: IN_HYPERSPACE, \"ENCOUNTER IN DEEP "
+        "SPACE\"; system: IN_INTERPLANETARY, \"ENCOUNTER AT\" the cluster, "
+        "{cluster}, and GLOBAL_SIS (PlanetName), {planet}), the gravity "
+        "well's resource (planet[0], drawn in the screen's middle), the "
+        "flagship's name, the group's ships (npc_built_ship_q: [race, crew], "
+        "crew -1 an infinite fleet; each race's strings read {gs:1000 + its "
+        "number in races.h's order}), and the step: \"encounter\" draws "
+        "InitEncounter's screen up to its menu; \"won:KEYS\" UninitEncounter "
+        "after a battle won, every wait and fade in the one step: KEYS none "
+        "(no key), any (a key held: AnyButtonPress TRUE, so each fade is "
+        "cut to its last colour and WaitForAnyButton, waiting for a new "
+        "press, runs out), escape (Escape held too: the debris's part "
+        "skipped).",
+        "drawn: the calls as screens.json's; frames and rects as there.",
+    ])
+    data["frames"] = dict(zip(counts[::2], map(int, counts[1::2])))
+    data["rects"] = {res: [] for res in encounter_frames()}
+    for r in rects:
+        res, i, hx, hy, w, h = r.rsplit(":", 5)
+        data["rects"][res].append([-int(hx), -int(hy), int(w), int(h)])
+    data["scenarios"] = scenarios
+    return data
+
+
 # ------------------------------------------------------------ the lander report
 
 REPORT_PROGRAM = os.path.join(HERE, "golden", "report.c")
@@ -7240,6 +7352,11 @@ def main():
         screens = os.path.join(build_dir, "screens")
         if args.content:
             build(uqm, SCREENS_PROGRAM, SCREENS_LINK, screens, extra=[SCREENS_STUBS], libs=["-lm"])
+        encounter = os.path.join(build_dir, "encounter")
+        if args.content:
+            build(uqm, ENCOUNTER_PROGRAM, ENCOUNTER_LINK, encounter, extra=[SCREENS_STUBS],
+                  libs=["-lm", "-Wl,--wrap=AnyButtonPress", "-Wl,--wrap=GetClusterName"],
+                  includes=[os.path.join(HERE, "golden")])
         report = os.path.join(build_dir, "report")
         if args.content:
             build(uqm, REPORT_PROGRAM, REPORT_LINK, report)
@@ -7305,6 +7422,7 @@ def main():
                      ("talks", lambda: record_talks(uqm, strings, args.content)),
                      ("commtext", lambda: record_commtext(uqm, commtext, strings, args.content)),
                      ("screens", lambda: record_screens(uqm, screens, outfit, strings, args.content)),
+                     ("encounter-screens", lambda: record_encounter(uqm, encounter, strings, args.content)),
                      ("report", lambda: record_report(uqm, report, strings, args.content)),
                      ("selling", lambda: record_selling(uqm, sell, strings, args.content)),
                      ("contact", lambda: record_contact(uqm, systems, strings, images, args.content)),

@@ -42,10 +42,16 @@ public enum PlayerScreen
     /// <summary>
     /// A meeting's encounter screen (stage 3b-1 item 10, <see cref="PlayerSession.Meeting"/>):
     /// the group's ships, Hail or Attack; also a meeting's talk whose view
-    /// hasn't come yet. Item 11 draws UQM's screen; until then it's said in
-    /// the status lines.
+    /// hasn't come yet. Drawn as UQM's since item 11 (the choices in the status lines).
     /// </summary>
     Encounter,
+
+    /// <summary>
+    /// The battle-won screen (UninitEncounter's tally, stage 3b-1 item 11:
+    /// <see cref="PlayerSession.Tally"/>), after a battle this player was in
+    /// at its win: the ship waits until it's over.
+    /// </summary>
+    BattleWon,
 }
 
 /// <summary>
@@ -297,6 +303,14 @@ public sealed class PlayerSession
             return;
         Snapshot = snapshot;
         Me = snapshot.Ships.FirstOrDefault(s => s.Id == PlayerId);
+        // A tally waits for the player out of its battle; a talk or battle after that ends it.
+        if (Tally is not null)
+        {
+            if (Me?.Activity is not Activity.Battle)
+                _tallyOut = true;
+            if (_tallyOut && Me?.Activity is Activity.Talk or Activity.Starbase or Activity.Battle)
+                Tally = null;
+        }
         foreach (var s in snapshot.Ships)
         {
             if (_seenActivity.TryGetValue(s.Id, out var last) && last == s.Activity)
@@ -411,6 +425,7 @@ public sealed class PlayerSession
             if (_waitForRelease && keys == ShipInput.None)
                 _waitForRelease = false;
             input = Me?.Activity is Activity.Orbit or Activity.Talk or Activity.Starbase || StoryPaused || Trade is not null
+                    || Screen == PlayerScreen.BattleWon
                     || Rescue is not null || _waitForRelease
                 ? ShipInput.None : keys;   // on the surface, the lander's keys
         }
@@ -628,7 +643,8 @@ public sealed class PlayerSession
             return;
         if (view is { Star: int star } && ((uint)star >= (uint)_systems.Map.Stars.Count
                 || view.Planet is int planet && !_systems.HasWorld(star, planet, view.Moon))
-            || view is { Star: null, Planet: not null } || view is { Planet: null, Moon: not null })
+            || view is { Star: null, Planet: not null } || view is { Planet: null, Moon: not null }
+            || view is { Named: int named } && (view.Star is not int at || !_systems.HasWorld(at, named, null)))
             throw new InvalidDataException("A meeting's place isn't on the star map.");
         if (view is not null && view.Id != Meeting?.Id)
             EncounterCursor = EncounterEntry.Hail;   // a new meeting's screen starts on Hail (InitEncounter)
@@ -961,6 +977,10 @@ public sealed class PlayerSession
             case BattleNoticeKind.Revived when notice.Other == RescueOffer:
                 RescueOffer = null;
                 break;
+            case BattleNoticeKind.Ended when notice is { Outcome: BattleOutcome.Won, Destroyed: > 0 }:
+                Tally = notice;
+                _tallyOut = false;   // UninitEncounter's tally: the ships destroyed, each one's bounty, the player's salvage
+                break;
             case BattleNoticeKind.GameOver:
                 GameOver = true;
                 Surrendered = notice.Text == BattleNotice.Surrender;
@@ -973,6 +993,20 @@ public sealed class PlayerSession
         Notify(text);
         Log($"Battle notice: {notice.Kind} {text}");
     }
+
+    /// <summary>
+    /// A battle won's tally to show (the battle-won screen, stage 3b-1 item
+    /// 11): the notice of its end, with the enemy ships destroyed, each
+    /// one's bounty and this player's salvage; null when none is shown. It
+    /// shows once the player is back in flight, until the screen has run
+    /// (<see cref="CloseTally"/>); a talk or battle coming first ends it.
+    /// </summary>
+    public BattleNotice? Tally { get; private set; }
+
+    /// <summary>The battle-won screen has run to its end (or can't be drawn): the ship flies again.</summary>
+    public void CloseTally() => Tally = null;
+
+    private bool _tallyOut;
 
     private (string Wreck, int Crew)? _revive;
 
@@ -1335,6 +1369,8 @@ public sealed class PlayerSession
                 return PlayerScreen.Encounter;
             if (me?.Activity == Activity.Battle && Battle is not null)
                 return PlayerScreen.Battle;
+            if (Tally is not null && me is not null && !Entering && me.Activity is not (Activity.Talk or Activity.Starbase or Activity.Battle))
+                return PlayerScreen.BattleWon;
             // In a battle not yet sent (its first frame on its way): the place it's in, its marker's.
             if (me == null || me.Activity == Activity.Hyperspace || Entering
                 || me.Activity == Activity.Battle && me.SystemStar is null)
@@ -1420,6 +1456,8 @@ public sealed class PlayerSession
             lines.Add($"Choose a ship: {under}" + (pick.OnFlagship ? " (the last choice)" : ""));
             lines.Add("Arrows: another ship; Enter: send it in");
         }
+        else if (Screen == PlayerScreen.BattleWon && Tally is { } tally)
+            lines.Add($"Battle won: {tally.Destroyed} ship{(tally.Destroyed == 1 ? "" : "s")} destroyed, {tally.Salvage} RU scavenged; a key hurries it, Esc ends it");
         else if (Battle is { } battle)
         {
             // The status panel in words until item 12 draws the battle.
