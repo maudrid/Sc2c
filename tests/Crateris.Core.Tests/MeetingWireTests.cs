@@ -833,6 +833,29 @@ public class MeetingWireTests
         Assert.Null(world.DialogueLocks!.Holder("SPATHI_CONVERSATION"));
         Assert.Empty(world.Battles);
 
+        // An instant victory: the leaver is paid, and its tally waits for its return (the client opening on the
+        // battle-won screen then).
+        LeaveAtClosingAndComeBack(Segue.Victory, "SLYLANDRO_SHIP", (game, again, units) =>
+        {
+            var probe = game.World.Story!.Rules.RaceShip("SLYLANDRO_SHIP");
+            uint bounty = (uint)(probe.Cost >> 3);
+            Assert.Equal(units + 2 * bounty, game.World.Find("g1")!.Ship.Hold.ResourceUnits);
+            var won = again.Notices.Single(n => n.Kind == BattleNoticeKind.Ended);
+            Assert.Equal((BattleOutcome.Won, 2, bounty, 2 * bounty), (won.Outcome, won.Destroyed, won.Bounty, won.Salvage));
+            Assert.Same(won, again.Session.Tally);
+            Assert.Equal(PlayerScreen.BattleWon, again.Session.Screen);
+        });
+        // A surrender: the leaver's ship a wreck, told so as it's back; no game over (a guest's ship).
+        LeaveAtClosingAndComeBack(Segue.Defeat, "URQUAN_SHIP", (game, again, _) =>
+        {
+            Assert.False(game.World.GameOver);
+            var ship = game.World.Find("g1")!.Ship;
+            Assert.True(ship.Destroyed);
+            Assert.Equal(0, ship.Hold.Crew);
+            Assert.Contains(again.Notices, n => n.Kind == BattleNoticeKind.Wrecked);
+            Assert.DoesNotContain(again.Notices, n => n.Kind == BattleNoticeKind.GameOver);
+        });
+
         // The drone at Earth: its message given, the guest leaving at it, it flies off all the same (check_probe).
         var drone = NewGame(guests: 1, testTalks: false);
         drone.World.TalkLibrary = UrquanMeetingTests.Library.Value;
@@ -847,6 +870,35 @@ public class MeetingWireTests
         Assert.Equal(1, drone.World.Story!.Get("PROBE_MESSAGE_DELIVERED"));
         var probe = drone.World.SystemGroups!.Systems[SolStar].Groups.Single(g => g.Race == met.Race);
         Assert.Equal((IpGroup.Flee | IpGroup.IgnoreFlagship, (byte)0), (probe.Task, probe.DestLoc));
+    }
+
+    // A guest at its meeting's closing lines (a talk at once, ending as given) leaves, a frame passes, and it comes
+    // back on a new connection and is sent what waited for it; then the checks (with its resource units before).
+    private static void LeaveAtClosingAndComeBack(Segue end, string race, Action<Game, Client, uint> check)
+    {
+        var game = NewGame(guests: 1);
+        game.Init = Segue.Peace;
+        game.End = end;
+        var host = game.Host;
+        var world = game.World;
+        var g1 = NewClient(1);
+        GroupBy(world, "g1", race);
+        FramesUntil(host, () => g1.Session.Talk is { Replies.Count: > 0 }, 300, g1);
+        g1.Session.PressMenu(MenuKey.Select);
+        Frame(host, g1);
+        Assert.Equal(MeetingStep.Closing, world.MeetingOf("g1")?.Step);
+        uint units = world.Find("g1")!.Ship.Hold.ResourceUnits;
+        host.GuestLeft(1);
+        Assert.Null(world.MeetingOf("g1"));
+        Assert.Empty(world.Battles);
+        Frame(host, g1);
+        Frame(host, g1);
+        Assert.Equal(JoinResult.Rejoined, host.Hello(3, "g1", "Guest 1", Protocol.Version).Result);
+        var again = NewClient(3);
+        again.Session.PlayerId = "g1";
+        Frame(host, again);
+        Frame(host, again);
+        check(game, again, units);
     }
 
     [ContentFact]

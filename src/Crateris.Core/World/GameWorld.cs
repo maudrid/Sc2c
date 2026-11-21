@@ -366,7 +366,7 @@ public sealed partial class GameWorld
             return;
         }
         Withdraw(player);   // decision 5: its lander takes off at once, with its crew and cargo
-        AbandonMeeting(player);   // a meeting before its battle is dropped
+        AbandonMeeting(player);   // a meeting before its battle is dropped; at its closing lines, ended without a battle
         DisconnectFromBattle(player);   // decision 10: a retreat at once
         DialogueLocks?.ReleaseAll(id);
         // The replier of a story talk leaving hands the replies on to the
