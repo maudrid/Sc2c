@@ -162,7 +162,7 @@ Each is a row of `docs/differences.md`:
 - The Lunar base with several landers on Luna (row 38); the devices are the group's (row 10).
 - One player talks to the commander at a time; several players dock at once, each with their own screens; only the host saves (rows 17 and 46).
 - Of UQM's status area, outside outfitting and the shipyard (which draw UQM's whole screen, its status area with the names, fuel, crew, resource units and landers among it), only the cargo display, the minerals' count-down and the Devices list are drawn, with the giving screen, our own, laid out after the cargo display; the status panel's text stands for the rest (rows 11, 45 and 47). The shipyard crews each player's own ship only, and the Arilou's gift of ships waits for fleets (rows 43 and 44).
-- Touching the other starbases and homeworlds still does nothing until stage 3b (the Ilwrath homeworld since 3b-1, `stage-3b-1.md`; the rest in 3b-2, row 27).
+- Touching the other starbases still does nothing, and the other homeworlds are orbited as any world, until stage 3b (the Ilwrath homeworld starts their talk since 3b-1, `stage-3b-1.md`; the rest in 3b-2, row 27).
 - A talk's fields that aren't story (where it is, how it ends, the greeting) are the talk's or the player's own (row 36).
 
 ## Known limits of stage 3a

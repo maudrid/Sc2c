@@ -119,7 +119,7 @@ public sealed class PlayerSession
     /// <summary>
     /// The groups of alien ships this player sees (stage 3b-1 item 10:
     /// <see cref="GroupSnapshot.SeenBy"/>; a guest is sent only these, the
-    /// host's own snapshot has every one), drawn since item 11.
+    /// host's own snapshot has every one): the same list the views draw since item 11.
     /// </summary>
     public IReadOnlyList<GroupSnapshot> Groups => GroupSnapshot.SeenBy(Snapshot, PlayerId);
 

@@ -65,7 +65,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review round 3 of stage 3b-1 item 12 (docs, built 2026-11-21 with the owner's go-ahead for it alone; review round 1's five low findings fixed, round 2's three low ones fixed); then report it and wait. With item 12 stage 3b-1 is built; 3b-2 (the other races and the Melnorme) needs the owner's go-ahead to be planned in detail. No questions wait on the owner.
+Wait for the owner. Stage 3b-1 item 12 (docs) is built, reviewed in three rounds (round 3's two wording points fixed, not reviewed again) and reported; the go-ahead of 2026-11-21 was for item 12 alone. With item 12 stage 3b-1 is built; 3b-2 (the other races and the Melnorme) needs the owner's go-ahead to be planned in detail. No questions wait on the owner.
 
 ## Decisions waiting on the owner
 
