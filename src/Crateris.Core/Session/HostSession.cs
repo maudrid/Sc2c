@@ -795,8 +795,8 @@ public sealed class HostSession
     // What of each meeting going on has been logged: its step and how many of its talk's events.
     private readonly Dictionary<Meeting, (MeetingStep Step, int Events, bool Talked)> _meetingsLogged = new();
 
-    // The meetings in the log (the encounter screen isn't drawn yet, item
-    // 11): each step, the talk's lines and replies as they come, and how it
+    // The meetings in the log, the meeting's record for headless runs and
+    // bug reports: each step, the talk's lines and replies as they come, and how it
     // ended (a meeting begun and over in one frame too, as the drone's); an
     // instant victory's tally told its player (the battle-won screen's, as
     // a battle's end tells it).
