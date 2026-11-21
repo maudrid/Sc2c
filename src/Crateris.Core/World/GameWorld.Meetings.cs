@@ -472,8 +472,9 @@ public sealed partial class GameWorld
         if (m.Talk is not { Ended: false } talk || round is int r && r != m.Round
             || index < 0 || index >= talk.Replies.Count)
             return false;
-        if (HostPaused)
+        if (HostPaused || StoryPaused)
         {
+            // Kept for the pause's end (GameWorld.SetHostPause, StepFrame).
             _heldReplies.RemoveAll(h => h.Id == m.Player.Id);
             _heldReplies.Add((m.Player.Id, index, m.Round));
             return true;

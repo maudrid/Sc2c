@@ -16,7 +16,8 @@ namespace Crateris.Core.Net;
 /// snapshot the receiver has (its base).
 ///
 /// A message is: its kind (full or delta); the frame; for a delta, how many
-/// frames back its base is; a byte of which world parts changed (the date,
+/// frames back its base is; a number whose bits say which world parts
+/// changed (since protocol 26 a number, no longer a byte: the date,
 /// the orbited worlds, the surface, the story state, the pauses, the
 /// battle, the markers and the groups seen), then those parts;
 /// then the ships. Each ship is the

@@ -610,11 +610,19 @@ public sealed class PlayerSession
     private (int Meeting, EncounterAction Action)? _encounterChoice;
     private int _chosenMeeting;
 
-    /// <summary>The host sent this player's meeting (null: none).</summary>
+    /// <summary>
+    /// The host sent this player's meeting (null: none). One whose place
+    /// isn't on this player's star map (a star, or a world of it, that isn't
+    /// there) is refused with <see cref="InvalidDataException"/>, changing nothing.
+    /// </summary>
     public void ShowMeeting(MeetingView? view)
     {
         if (view is null ? Meeting is null : view.Same(Meeting))
             return;
+        if (view is { Star: int star } && ((uint)star >= (uint)_systems.Map.Stars.Count
+                || view.Planet is int planet && !_systems.HasWorld(star, planet, view.Moon))
+            || view is { Star: null, Planet: not null } || view is { Planet: null, Moon: not null })
+            throw new InvalidDataException("A meeting's place isn't on the star map.");
         if (view is not null && view.Id != Meeting?.Id)
             EncounterCursor = EncounterAction.Hail;   // a new meeting's screen starts on Hail (InitEncounter)
         if (view is { OffersChoice: true } && Meeting is not { OffersChoice: true })

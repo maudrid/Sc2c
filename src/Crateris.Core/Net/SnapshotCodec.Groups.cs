@@ -127,7 +127,9 @@ public static partial class SnapshotCodec
             for (int f = 0; f < GroupNumbers; ++f)
                 if ((mask & (1UL << f)) != 0)
                     v[f] = Add(v[f], r.Int());
-            if (v[GroupRace] < 0 || v[GroupView] is < 0 or > byte.MaxValue
+            // A frame is an index (from 0); transition_state a short (UQM's SIZE).
+            if (v[GroupRace] < 0 || v[GroupView] is < 0 or > byte.MaxValue || v[GroupFrame] < 0
+                    || v[GroupTransition] is < short.MinValue or > short.MaxValue
                     || v[GroupFlags] is < 0 or > (long)(GroupSnapshotFlags.Hidden | GroupSnapshotFlags.Met))
                 throw new InvalidDataException("Bad group.");
             groups[i] = new GroupSnapshot(id, star, ToInt(v[GroupRace]), ToInt(v[GroupView]),

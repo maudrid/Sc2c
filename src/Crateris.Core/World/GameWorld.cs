@@ -204,9 +204,10 @@ public sealed partial class GameWorld
         return true;
     }
 
-    // Replies chosen during the host's pause, kept for when it lifts: the
-    // replier's client counts a reply sent as said (one a set), so one
-    // refused would leave its talk waiting for good.
+    // Replies chosen during the host's pause (and a meeting's during a
+    // story talk's), kept for when it lifts (SetHostPause; StepFrame for
+    // the story's): the replier's client counts a reply sent as said (one a
+    // set), so one refused would leave its talk waiting for good.
     private readonly List<(string Id, int Index, int? Round)> _heldReplies = new();
 
     // The world can't be changed now: the host's pause or the game's end.
@@ -391,6 +392,8 @@ public sealed partial class GameWorld
         }
         _ended.Remove(id);
         _meetingClosing.Remove(id);
+        _heldReplies.RemoveAll(h => h.Id == id);   // the player's reply and choice held through a pause go with them
+        _heldChoices.RemoveAll(h => h.Id == id);
         EndSpin(player);   // out of hyperspace from where its spin had taken it
         player.Present = false;
         _inputs[id].Clear();
@@ -463,6 +466,15 @@ public sealed partial class GameWorld
                 _inputs[p.Id].DropThrough(Frame - 1);
         }
         _wasPaused = paused;
+        if (!paused && _heldReplies.Count > 0)
+        {
+            // Replies held through a story talk's pause (a meeting's), made
+            // now as the host's pause's are as it lifts.
+            var held = _heldReplies.ToList();
+            _heldReplies.Clear();
+            foreach (var (id, index, round) in held)
+                ChooseReply(id, index, round);
+        }
         if (!paused && _heldChoices.Count > 0)
         {
             // The encounter screens' choices made during a pause, made now
@@ -809,7 +821,7 @@ public sealed partial class GameWorld
         if (GameOver || Find(id) is not { Present: true } player)
             return false;
         if (player.Ship.Meeting is { Step: MeetingStep.Talk } meeting)
-            return !StoryPaused && ChooseMeetingReply(meeting, index, round);
+            return ChooseMeetingReply(meeting, index, round);   // held through any pause (stage 3b-1 item 10)
         var visit = Visit is { } story && story.Replier == player ? story
             : !StoryPaused && player.Ship.Visit is { Step: VisitStep.MenuTalk } own ? own
             : null;
@@ -1082,6 +1094,7 @@ public sealed partial class GameWorld
                 {
                     _ended[p.Id] = (v, closing with { Step = VisitStep.Done });
                     _meetingClosing.Remove(p.Id);   // the newer talk's closing lines shown, not a meeting's before
+                    _storyClosingUntil[p.Id] = Frame + 1;
                 }
         }
         // An opening whose starter went away (the replies passed on), or
@@ -1157,7 +1170,16 @@ public sealed partial class GameWorld
         if (Visit is not { Story: true } && Find(id)?.Ship is { Visit: null } ship)
         {
             if (ship.Meeting is { Step: MeetingStep.Talk, Talk: not null } m)
+            {
+                // A story's closing lines just kept for them (_ended) are
+                // theirs to see, as a notice, before their meeting's talk
+                // again (until the world frame after the story's end, so the
+                // view sent after the next step has them).
+                if (_ended.TryGetValue(id, out var story) && story.Frozen is { } lines
+                        && _storyClosingUntil.TryGetValue(id, out long until) && Frame <= until)
+                    return lines;
                 return TalkView.Of(m);
+            }
             if (_meetingClosing.TryGetValue(id, out var closing))
                 return closing;
         }
@@ -1168,6 +1190,10 @@ public sealed partial class GameWorld
 
     // The closing lines of each player's last meeting's talk (TalkFor), till their next talk.
     private readonly Dictionary<string, TalkView> _meetingClosing = new();
+
+    // The world frame through which a story's closing lines kept for a
+    // player (_ended) are shown before their meeting's talk (TalkFor).
+    private readonly Dictionary<string, long> _storyClosingUntil = new();
 
     private void EnterSystem(PlayerShip ship, Star star)
     {

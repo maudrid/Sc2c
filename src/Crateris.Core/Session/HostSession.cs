@@ -532,7 +532,7 @@ public sealed class HostSession
     {
         bool chosen = World.EncounterChoice(id, action, meeting);
         if (chosen)
-            Logged?.Invoke($"{id}: {action.ToString().ToLowerInvariant()}" + (World.HostPaused ? " (made as the pause lifts)" : ""));
+            Logged?.Invoke($"{id}: {action.ToString().ToLowerInvariant()}" + (World.HostPaused || World.StoryPaused ? " (made as the pause lifts)" : ""));
         return chosen;
     }
 

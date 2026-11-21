@@ -238,6 +238,8 @@ public class MeetingWireTests
         world.Find("g1")!.Ship.Ip!.ReturnFromOrbit();   // in Mars's inner system (Earth's has the drone)
         world.PutInOrbit("g2", SolStar, 4);
         world.Find("g2")!.Ship.Ip!.ReturnFromOrbit();   // in Jupiter's
+        world.PutInOrbit("h", SolStar, 3);
+        world.Host.Ship.Ip!.ReturnFromOrbit();   // the host in Mars's too
         Frame(host, g1, g2);
         world.AddEncounterNear("g1", world.Story!.Rules.RaceIndex("SPATHI_SHIP"), 1);
         var d = world.SystemGroups!.Systems[SolStar];
@@ -260,6 +262,12 @@ public class MeetingWireTests
         var after = g1.Session.Snapshot!.Groups!.Single(g => g.Id == spathi.GroupId);
         Assert.NotEqual((before.X, before.Y), (after.X, after.Y));
         Assert.Equal((spathi.LocX, spathi.LocY), ((short)after.X, (short)after.Y));
+        // It meets one of the two in Mars's view; the other sees it met, held where it is.
+        FramesUntil(host, () => world.MeetingOf("g1") is not null || world.MeetingOf("h") is not null, 2000, g1, g2);
+        string other = world.MeetingOf("g1") is not null ? "h" : "g1";
+        last = Frame(host, g1, g2);
+        var met = GroupSnapshot.SeenBy(last, other).Single(g => g.Id == spathi.GroupId);
+        Assert.Equal(GroupSnapshotFlags.Met, met.Flags & GroupSnapshotFlags.Met);
     }
 
     [Fact]
@@ -317,6 +325,16 @@ public class MeetingWireTests
         SnapshotCodec.Encode(writer, first with { Groups = new[] { near with { Flags = (GroupSnapshotFlags)4 } } }, null, "a");
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(writer.Written));
         SnapshotCodec.Encode(writer, first with { Groups = new[] { near, near with { X = near.X + 1 } } }, null, "a");
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(writer.Written));
+        SnapshotCodec.Encode(writer, first with { Groups = new[] { near with { Frame = -1 } } }, null, "a");
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(writer.Written));
+        SnapshotCodec.Encode(writer, first with { Groups = new[] { near with { Transition = short.MaxValue + 1 } } }, null, "a");
+        Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(writer.Written));
+        Assert.Equal(new[] { near with { Transition = -3 } },   // a vortex going out: transition_state below 0
+            SnapshotCodec.Decode(Encoded(writer, first with { Groups = new[] { near with { Transition = -3 } } }, null, "a")).Groups);
+        // A group in a system numbered below 0 (seen by a ship said to be there).
+        var odd = first with { Ships = new[] { Ship("b", Activity.InnerSystem, 0, 0, -5, 2) }, Groups = new[] { inView with { Star = -5 } } };
+        SnapshotCodec.Encode(writer, odd, null, "b");
         Assert.Throws<InvalidDataException>(() => SnapshotCodec.Decode(writer.Written));
         // A delta naming a base group the base hasn't.
         SnapshotCodec.Encode(writer, second, first, "a");
@@ -400,6 +418,11 @@ public class MeetingWireTests
         Assert.Empty(g2.Meetings);
         Assert.Empty(g2.Talks);
 
+        // A choice for another meeting changes nothing, the screen up.
+        host.GuestEncounterChoice(1, m.Id + 1, (int)EncounterAction.Attack);
+        Frame(host, g1, g2);
+        Assert.Equal(MeetingStep.Encounter, m.Step);
+        Assert.DoesNotContain("g1: attack", game.Log);
         // The keys go round Hail and Attack; Enter chooses, once.
         g1.Session.PressMenu(MenuKey.Down);
         Assert.Equal(EncounterAction.Attack, g1.Session.EncounterCursor);
@@ -577,6 +600,246 @@ public class MeetingWireTests
         public static readonly TalkViewSame Instance = new();
         public bool Equals(TalkView? a, TalkView? b) => a is null ? b is null : a.Same(b);
         public int GetHashCode(TalkView? v) => 0;
+    }
+
+    [Fact]
+    public void ANewMeetingsScreenStartsOnHailAndOneOffTheStarMapIsRefused()
+    {
+        var me = new PlayerSession(SystemGroupTests.Systems.Value, null, "g1", 32);
+        me.Observe(new WorldSnapshot(1, 2155, 2, 17, new[]
+        {
+            new ShipSnapshot("g1", "g1", false, ShipKind.Escort, 0, 0, 5000, 5000, 0, 0, 0, 100, 100, false, false, Activity.Talk),
+        }));
+        var first = new MeetingView(1, MeetingStep.Encounter, "SPATHI_SHIP", new[] { new EnemyFleetShip("spathi", 30) });
+        me.ShowMeeting(first);
+        me.PressMenu(MenuKey.Down);
+        Assert.Equal(EncounterAction.Attack, me.EncounterCursor);
+        me.ShowMeeting(first with { Step = MeetingStep.Talk });   // the same meeting on: where it was
+        Assert.Equal(EncounterAction.Attack, me.EncounterCursor);
+        me.ShowMeeting(first with { Id = 2 });   // the next meeting's screen: on Hail, as UQM's starts
+        Assert.Equal(EncounterAction.Hail, me.EncounterCursor);
+        me.PressMenu(MenuKey.Select);
+        Assert.Equal((2, EncounterAction.Hail), me.TakeEncounterChoice());
+        // A place not on this player's star map is refused, changing nothing.
+        int stars = SystemGroupTests.Systems.Value.Map.Stars.Count;
+        Assert.Throws<InvalidDataException>(() => me.ShowMeeting(first with { Id = 3, Star = stars }));
+        Assert.Throws<InvalidDataException>(() => me.ShowMeeting(first with { Id = 3, Star = SolStar, Planet = 40 }));
+        Assert.Throws<InvalidDataException>(() => me.ShowMeeting(first with { Id = 3, Planet = 2 }));
+        Assert.Equal(2, me.Meeting!.Id);
+        me.ShowMeeting(first with { Id = 3, Star = SolStar, Planet = Earth, Moon = 0 });
+        Assert.Contains(me.StatusLines(), l => l.StartsWith("Encounter: 1 Spathi ship at "));
+    }
+
+    [ContentFact]
+    public void AWinPayingNoSalvageTellsNoTallyAndNorDoesTheSaMatrasGuard()
+    {
+        var game = NewGame();
+        var host = game.Host;
+        var world = game.World;
+        var g1 = NewClient(1);
+        var g2 = NewClient(2);
+        // An Androsynth: of no race of the full game's, it pays nothing (UQM's VictoryState -1: no tally).
+        var wb = world.StartBattle("g1", Combat.AndrosynthShip.Id);
+        Win(host, wb, g1, g2);
+        var end = g1.Notices.Single(n => n.Kind == BattleNoticeKind.Ended);
+        Assert.Equal((BattleOutcome.Won, 0u, 0, 0u), (end.Outcome, end.Salvage, end.Destroyed, end.Bounty));
+        // The instant victory while the Ur-Quan guard the Sa-Matra wins nothing: no tally either.
+        world.Story!.Set("URQUAN_PROTECTING_SAMATRA", 1);
+        game.Init = Segue.Peace;
+        game.End = Segue.Victory;
+        GroupBy(world, "g2", "SLYLANDRO_SHIP", ships: 2);
+        FramesUntil(host, () => g2.Session.Talk is { Replies.Count: > 0 }, 300, g1, g2);
+        g2.Session.PressMenu(MenuKey.Select);
+        Frame(host, g1, g2);
+        Frame(host, g1, g2);
+        Assert.Null(world.MeetingOf("g2"));
+        Assert.Contains(game.Log, l => l.Contains("an instant victory that wins nothing"));
+        Assert.DoesNotContain(g2.Notices, n => n.Kind == BattleNoticeKind.Ended);
+    }
+
+    // A battle won: each enemy ship destroyed once it's in and fighting.
+    private static void Win(HostSession host, WorldBattle wb, params Client[] clients)
+    {
+        int inFor = 0;
+        for (int i = 0; i < 3000 && wb.Outcome is null; ++i)
+        {
+            inFor = wb.Enemy.Ship is not null && wb.Enemy.RaceDesc is { CrewLevel: > 0 } ? inFor + 1 : 0;
+            if (inFor > 30)
+            {
+                WorldBattleTests.Kill(wb.Battle, wb.Enemy);
+                inFor = 0;
+            }
+            else if (wb.Outcome is null)
+                wb.Enemy.WeaponCounter = wb.Enemy.SpecialCounter = 2;   // disarmed: nothing it does decides the test
+            Frame(host, clients);
+        }
+        Assert.Equal(BattleOutcome.Won, wb.Outcome);
+        Frame(host, clients);
+    }
+
+    [ContentFact]
+    public void APlayerDestroyedBeforeTheWinIsToldNoTally()
+    {
+        var game = NewGame();
+        var host = game.Host;
+        var world = game.World;
+        var g1 = NewClient(1);
+        var g2 = NewClient(2);
+        GroupBy(world, "g1", "SPATHI_SHIP", ships: 1);
+        FramesUntil(host, () => g1.Session.Meeting is { OffersChoice: true }, 300, g1, g2);
+        var m = world.MeetingOf("g1")!;
+        g1.Session.PressMenu(MenuKey.Down);
+        g1.Session.PressMenu(MenuKey.Select);
+        Frame(host, g1, g2);
+        var wb = m.Battle!;
+        // g2 flies into its marker and joins; destroyed once in, before the win.
+        var at = world.Find("g1")!.Ship.Flight;
+        world.Find("g2")!.Ship.Flight.PlaceAtUniverse(at.UniverseX, at.UniverseY);
+        Assert.True(world.LetIntoBattle("g2"));
+        FramesUntil(host, () => wb.FighterOf("g2")?.Starship.Ship is not null, 300, g1, g2);
+        for (int i = 0; i < 30; ++i)
+            Frame(host, g1, g2);
+        WorldBattleTests.Kill(wb.Battle, wb.FighterOf("g2")!.Starship);
+        FramesUntil(host, () => wb.FighterOf("g2")!.Exit is not null, 600, g1, g2);
+        Win(host, wb, g1, g2);
+        Assert.Equal(BattleExit.Destroyed, wb.FighterOf("g2")!.Exit);
+        var mine = g1.Notices.Single(n => n.Kind == BattleNoticeKind.Ended);
+        Assert.Equal((BattleOutcome.Won, 1), (mine.Outcome, mine.Destroyed));
+        var theirs = g2.Notices.Single(n => n.Kind == BattleNoticeKind.Ended);
+        Assert.Equal((BattleOutcome.Won, BattleExit.Destroyed, 0, 0u), (theirs.Outcome, theirs.Exit, theirs.Destroyed, theirs.Bounty));
+    }
+
+    [ContentFact]
+    public void ALeaversMeetingAndClosingLinesArentSentAgainToItsNewConnection()
+    {
+        var game = NewGame(guests: 1);
+        var host = game.Host;
+        var world = game.World;
+        var g1 = NewClient(1);
+        // A first meeting's talk at once, ended in peace: its closing lines kept for g1.
+        game.Init = Segue.Peace;
+        GroupBy(world, "g1", "SPATHI_SHIP");
+        FramesUntil(host, () => g1.Session.Talk is { Replies.Count: > 0 }, 300, g1);
+        g1.Session.PressMenu(MenuKey.Select);
+        Frame(host, g1);
+        Frame(host, g1);
+        Assert.Equal(VisitStep.Done, host.TalkFor("g1")!.Step);
+        // The next meeting's screen: the last one's closing lines no longer shown.
+        game.Init = Segue.Hostile;
+        GroupBy(world, "g1", "ZOQFOTPIK_SHIP");
+        FramesUntil(host, () => world.MeetingOf("g1") is { Step: MeetingStep.Encounter }, 300, g1);
+        Assert.Null(host.TalkFor("g1"));
+        g1.Session.PressMenu(MenuKey.Select);
+        FramesUntil(host, () => g1.Session.Talk is { Replies.Count: > 0 }, 10, g1);
+        g1.Session.PressMenu(MenuKey.Select);
+        Frame(host, g1);
+        Frame(host, g1);
+        Assert.Equal(new[] { "Bye" }, host.TalkFor("g1")!.Lines);
+        // g1 leaves and comes back on a new connection: its closing lines are gone with it.
+        host.GuestLeft(1);
+        Assert.Equal(JoinResult.Rejoined, host.Hello(3, "g1", "Guest 1", Protocol.Version).Result);
+        var again = NewClient(3);
+        again.Session.PlayerId = "g1";
+        Frame(host, again);
+        Assert.Null(host.TalkFor("g1"));
+        Assert.Empty(again.Talks);
+        // At a third meeting's screen it leaves again (the meeting dropped) and comes back: nothing is sent of it
+        // (flying on, it may meet the group again: a new meeting, sent as any).
+        GroupBy(world, "g1", "UMGAH_SHIP");
+        FramesUntil(host, () => again.Session.Meeting is { OffersChoice: true }, 300, again);
+        host.GuestLeft(3);
+        Assert.Equal(JoinResult.Rejoined, host.Hello(4, "g1", "Guest 1", Protocol.Version).Result);
+        Assert.Null(world.MeetingOf("g1"));
+        Assert.DoesNotContain(host.MeetingUpdates(), u => u.Peer == 4);
+        Assert.DoesNotContain(host.TalkUpdates(), u => u.Peer == 4);
+    }
+
+    [ContentFact]
+    public void ARepliesAndAChoiceSentDuringAStoryTalkAreMadeAfterItAndItsClosingLinesShown()
+    {
+        var game = NewGame(guests: 3);
+        var host = game.Host;
+        var world = game.World;
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var g1 = NewClient(1);
+        var g2 = NewClient(2);
+        var g3 = NewClient(3);
+        var all = new[] { g1, g2, g3 };
+        // g1 and g2 in their meetings' talks (at once), g3 at its encounter screen.
+        game.Init = Segue.Peace;
+        GroupBy(world, "g1", "SPATHI_SHIP");
+        GroupBy(world, "g2", "ZOQFOTPIK_SHIP");
+        FramesUntil(host, () => g1.Session.Talk is { Replies.Count: > 0 } && g2.Session.Talk is { Replies.Count: > 0 }, 300, all);
+        game.Init = Segue.Hostile;
+        GroupBy(world, "g3", "UMGAH_SHIP");
+        FramesUntil(host, () => g3.Session.Meeting is { OffersChoice: true }, 300, all);
+        var m1 = world.MeetingOf("g1")!;
+        var m3 = world.MeetingOf("g3")!;
+
+        // g1 replies and g3 chooses as the host's opening visit with the Lunar base reported starts: a story talk.
+        g1.Session.PressMenu(MenuKey.Select);
+        g3.Session.PressMenu(MenuKey.Select);
+        foreach (var f in new[] { "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED", "MOONBASE_ON_SHIP" })
+            world.Story!.Set(f, 1);
+        world.Story!.Set("STARBASE_AVAILABLE", 0);
+        world.CommanderMet = true;
+        world.VisitStarbase(world.Host);
+        Assert.True(world.StoryPaused);
+        Frame(host, all);
+        Frame(host, all);
+        // Kept, not refused: the talk and the screen wait for the story.
+        Assert.Contains("g1: reply 0", game.Log);
+        Assert.Contains("g3: hail (made as the pause lifts)", game.Log);
+        Assert.Equal((MeetingStep.Talk, false), (m1.Step, m1.Talk!.Ended));
+        Assert.Equal(MeetingStep.Encounter, m3.Step);
+        Assert.True(g1.Session.TalkShown && !g1.Session.Replying);   // shown the story's
+
+        // The commander's talk, then the Ilwrath's, end in its fight (no story pause): both made then.
+        Say(host, "comandr", "base_was_abandoned");
+        Say(host, "ilwrath", "surrender");
+        Assert.False(world.StoryPaused);
+        var wb = world.Visit!.Fight!;
+        Frame(host, all);
+        Assert.Null(world.MeetingOf("g1"));
+        Assert.Equal(MeetingStep.Talk, m3.Step);
+        Frame(host, all);
+        Assert.Equal(new[] { "Bye" }, g1.Talks[^1]!.Lines);
+        // g2, still in its meeting's talk, is shown the Ilwrath's closing lines as everyone is, then its talk again.
+        var ilwrathLines = g2.Talks[^2]!;
+        Assert.Equal((VisitStep.Done, "ilwrath"), (ilwrathLines.Step, ilwrathLines.Script));
+        Assert.Equal(VisitStep.Meeting, g2.Talks[^1]!.Step);
+        Assert.Equal(VisitStep.Meeting, g2.Session.Talk!.Step);
+
+        // The fight won, the alliance's story talk to its end.
+        Win(host, wb, all);
+        Say(host, "comandr", "cook_their_butts");
+        Say(host, "comandr", "name_2");
+        for (int i = 0; i < StarbaseVisit.TimePassingFrames + 2; ++i)
+            Frame(host, all);
+        Say(host, "starbas", "goodbye_commander");
+        Assert.Null(world.Visit);
+        // g1, whose meeting closed during the fight, is shown the story's closing lines, not its meeting's again.
+        var storyEnd = host.TalkFor("g1")!;
+        Assert.Equal((VisitStep.Done, "starbas"), (storyEnd.Step, storyEnd.Script));
+        Frame(host, all);
+        Assert.Equal("starbas", g1.Talks[^1]!.Script);
+        // g2, in its meeting's talk all along, gets them too (a frame), then its talk.
+        Frame(host, all);
+        Assert.Equal((VisitStep.Done, "starbas"), (g2.Talks[^2]!.Step, g2.Talks[^2]!.Script));
+        Assert.Equal(VisitStep.Meeting, g2.Talks[^1]!.Step);
+        Assert.Equal(VisitStep.Meeting, g2.Session.Talk!.Step);
+    }
+
+    private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);
+
+    // The story talk's replier (the host) says the reply with this phrase id.
+    private static void Say(HostSession host, string script, string phrase)
+    {
+        var talk = host.World.Visit!.Talk!;
+        int n = Scripts[script].PhraseNumber(phrase);
+        int i = talk.Replies.Select(r => r.Phrase).ToList().IndexOf(n);
+        Assert.True(i >= 0, $"{phrase} isn't offered");
+        Assert.True(host.ChooseReply(host.World.Visit.Replier.Id, host.World.Visit.Round, i));
     }
 
     // ---- one player, as before
