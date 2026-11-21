@@ -56,6 +56,7 @@ public partial class EncounterView : Node2D
     private BattleWonScreen? _won;
     private UqmCanvas? _wonCanvas;
     private int _wonPainted;
+    private ulong _tallyFrame;   // the physics frame the battle-won screen was last run on
 
     public EncounterView() => TextureFilter = TextureFilterEnum.Nearest;
 
@@ -174,6 +175,11 @@ public partial class EncounterView : Node2D
                 _drawnTally = tally;
                 _drawnMeeting = null;
             }
+            // Not shown on the frame before (another screen came between): Escape held through it isn't a fresh press.
+            ulong frame = Engine.GetPhysicsFrames();
+            if (_tallyFrame + 1 != frame)
+                _won!.ForgetEscape();
+            _tallyFrame = frame;
             bool done = _won!.Advance(Now, held, escape);
             var drawn = _wonCanvas!.Drawn;
             if (drawn.Count > _wonPainted)

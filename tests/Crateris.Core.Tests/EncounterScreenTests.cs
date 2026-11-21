@@ -209,6 +209,24 @@ public class EncounterScreenTests
     }
 
     [Fact]
+    public void EscapeHeldThroughAnotherScreenIsntAFreshPress()
+    {
+        BattleWonScreen New() => new(Canvas(), Placeholder, "S", "{gs:1006}", "ship.spathi.icons", 1, 225, 225, 0);
+        // Up, then down: pressed afresh, it ends the screen (question 12).
+        var a = New();
+        Assert.False(a.Advance(10, false, false));
+        Assert.True(a.Advance(20, true, true));
+        // Up, then another screen came between (the tally waiting), then held as it's back: not a fresh press.
+        var b = New();
+        Assert.False(b.Advance(10, false, false));
+        b.ForgetEscape();
+        Assert.False(b.Advance(20, true, true));
+        // Let go and pressed again: that one is.
+        Assert.False(b.Advance(30, false, false));
+        Assert.True(b.Advance(40, true, true));
+    }
+
+    [Fact]
     public void ShipsPastTheTenthGoRoundFurtherOut()
     {
         Assert.Equal((10, 51), EncounterScreen.ShipPoint(0));

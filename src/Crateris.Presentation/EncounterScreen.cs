@@ -216,6 +216,13 @@ public sealed class BattleWonScreen
     /// wait, `differences.md` row 18); held since before the screen, it
     /// plays as UQM's.
     /// </summary>
+    /// <summary>
+    /// The screen wasn't shown for a while (another screen came between, the
+    /// tally waiting): Escape at the next call is taken as at the first call
+    /// ever, held since before, not pressed afresh.
+    /// </summary>
+    public void ForgetEscape() => _lastEscape = null;
+
     public bool Advance(long now, bool held, bool escape)
     {
         if (escape && _lastEscape == false)

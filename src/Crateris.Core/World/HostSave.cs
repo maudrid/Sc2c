@@ -196,10 +196,12 @@ public static class HostSave
     /// (<see cref="GameWorld.FlagshipLost"/>):
     /// the host's save is kept as it was (decision 12).
     /// </summary>
-    public static string ToJson(GameWorld world)
+    public static string ToJson(GameWorld world, Action<string>? log = null)
     {
         if (world.FlagshipLost)
             throw new InvalidOperationException("the flagship is lost: the game isn't saved (its save is kept as it was)");
+        if (world.FlagshipSurrendering)
+            throw new InvalidOperationException("the flagship surrenders: the game isn't saved (its save is kept as it was)");
         string json = Write(world);
         // A meeting waiting at its player's closing lines is saved with its
         // talk's end made, as leaving then makes it (the owner, 2026-11-21,
@@ -207,12 +209,24 @@ public static class HostSave
         // meeting waiting on. A flagship surrendering so isn't saved (the
         // game is over once its lines are heard).
         var ends = world.ClosingEndsForSave();
-        if (ends.Count == 0 || world.Systems is null || world.Shapes is null)
+        if (ends.Count == 0)
             return json;
-        var copy = Load(json, world.Systems, world.Shapes);
-        copy.MakeClosingEnds(ends);
-        if (copy.FlagshipLost)
-            throw new InvalidOperationException("the flagship surrenders: the game isn't saved (its save is kept as it was)");
+        if (world.Systems is null || world.Shapes is null)
+        {
+            log?.Invoke("The save: no systems to load its copy with; the meetings at their closing lines are saved without their ends");
+            return json;
+        }
+        GameWorld copy;
+        try
+        {
+            copy = Load(json, world.Systems, world.Shapes);
+        }
+        catch (InvalidDataException e)
+        {
+            log?.Invoke($"The save: its copy couldn't be loaded ({e.Message}); the meetings at their closing lines are saved without their ends");
+            return json;
+        }
+        copy.MakeClosingEnds(ends, log);
         return Write(copy);
     }
 

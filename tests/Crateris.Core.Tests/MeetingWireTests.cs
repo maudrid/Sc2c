@@ -1003,8 +1003,42 @@ public class MeetingWireTests
         e = Saved(loaded, group);
         Assert.Equal((flags & ~HyperEncounter.Reforming, ships), (e.Flags & ~HyperEncounter.Reforming, e.Ships.Count));
         Assert.Equal(0, e.Flags & (HyperEncounter.OneShot | HyperEncounter.Reforming));
-        Assert.Empty(loaded.Battles);
+        var saved = loaded.Find("g1")!.Ship;   // the player as it was: nothing of the talk's end made on it
+        Assert.Equal((units, false), (saved.Hold.ResourceUnits, saved.Destroyed));
         Unchanged(game, group, m, "SPATHI_CONVERSATION", units, flags, ships);
+    }
+
+    [ContentFact]
+    public void ASaveWithTwoMeetingsAtTheirClosingLinesCarriesBothEnds()
+    {
+        // g1's Spathi talk ends in peace, g2's probes in an instant victory; both wait at their closing lines.
+        var game = NewGame(guests: 2);
+        game.Init = Segue.Peace;
+        game.End = Segue.Victory;
+        var world = game.World;
+        game.Own["SPATHI_SHIP"] = seed => RepeatTalk(world.Story!, 1, seed);
+        var g1 = NewClient(1);
+        var g2 = NewClient(2);
+        var spathi = GroupBy(world, "g1", "SPATHI_SHIP");
+        var probes = GroupBy(world, "g2", "SLYLANDRO_SHIP");
+        FramesUntil(game.Host, () => g1.Session.Talk is { Replies.Count: > 0 } && g2.Session.Talk is { Replies.Count: > 0 }, 300, g1, g2);
+        g1.Session.PressMenu(MenuKey.Select);
+        g2.Session.PressMenu(MenuKey.Select);
+        Frame(game.Host, g1, g2);
+        Assert.Equal((MeetingStep.Closing, MeetingStep.Closing), (world.MeetingOf("g1")?.Step, world.MeetingOf("g2")?.Step));
+        uint units = world.Find("g2")!.Ship.Hold.ResourceUnits;
+        var loaded = SaveAndLoad(world);
+        HyperEncounter Saved(HyperEncounter live) =>
+            loaded.Encounters!.List.Single(e => e.Race == live.Race && e.LocX == live.LocX && e.LocY == live.LocY);
+        Assert.Equal(HyperEncounter.OneShot | HyperEncounter.Reforming, Saved(spathi).Flags & (HyperEncounter.OneShot | HyperEncounter.Reforming));
+        Assert.Equal(2, Saved(spathi).Ships.Count);
+        Assert.Empty(Saved(probes).Ships);
+        uint bounty = (uint)(loaded.Story!.Rules.RaceShip("SLYLANDRO_SHIP").Cost >> 3);
+        Assert.Equal(units + 2 * bounty, loaded.Find("g2")!.Ship.Hold.ResourceUnits);
+        // Live: both still waiting, the groups and g2's units as they were.
+        Assert.Equal((MeetingStep.Closing, MeetingStep.Closing), (world.MeetingOf("g1")?.Step, world.MeetingOf("g2")?.Step));
+        Assert.Equal((0, 2), (spathi.Flags & HyperEncounter.OneShot, probes.Ships.Count));
+        Assert.Equal(units, world.Find("g2")!.Ship.Hold.ResourceUnits);
     }
 
     [ContentFact]
@@ -1039,7 +1073,10 @@ public class MeetingWireTests
         var m = game.World.MeetingOf("h")!;
         Assert.True(game.World.ChooseReply("h", 0, m.Round));
         Assert.Equal(MeetingStep.Closing, m.Step);
+        Assert.True(game.World.FlagshipSurrendering);
         Assert.Throws<InvalidOperationException>(() => HostSave.ToJson(game.World));   // the game over to come: its save kept
+        // The host's save (the autosave's, quitting's): none, as once the flagship is lost; nothing thrown.
+        Assert.Null(game.Host.SaveJson());
         Assert.False(game.World.GameOver);
         Assert.Equal(MeetingStep.Closing, m.Step);
     }

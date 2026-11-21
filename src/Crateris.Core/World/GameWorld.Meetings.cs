@@ -553,6 +553,14 @@ public sealed partial class GameWorld
         bool WouldFight, (int Race, short LocX, short LocY, short OriginX, short OriginY, string? Roller)? Encounter,
         int? Star, int? GroupId, (int Planet, int? Moon)? World, bool Infinite);
 
+    /// <summary>
+    /// Whether the flagship waits at the closing lines of a talk it
+    /// surrendered in: the game over comes once they're heard, so the game
+    /// isn't saved (its save kept as it was, as once the flagship is lost).
+    /// </summary>
+    public bool FlagshipSurrendering => _players.Any(p => p.Ship.Kind == ShipKind.Flagship
+        && p.Ship.Meeting is { Step: MeetingStep.Closing } m && (m.Talk?.Segue ?? m.EndedAs) == Segue.Defeat);
+
     /// <summary>The meetings waiting at their closing lines, as a save is to carry their ends (question 13).</summary>
     internal List<ClosingEnd> ClosingEndsForSave()
     {
@@ -578,7 +586,7 @@ public sealed partial class GameWorld
     /// it was. Only for a copy loaded from the save: the live game's meeting
     /// goes on waiting for its player.
     /// </summary>
-    internal void MakeClosingEnds(IEnumerable<ClosingEnd> ends)
+    internal void MakeClosingEnds(IEnumerable<ClosingEnd> ends, Action<string>? log = null)
     {
         foreach (var end in ends)
         {
@@ -590,14 +598,20 @@ public sealed partial class GameWorld
                 met = Encounters?.List.FirstOrDefault(e => e.Race == race && e.LocX == x && e.LocY == y
                                                            && e.OriginX == ox && e.OriginY == oy && e.Roller == roller);
                 if (met is null)
+                {
+                    log?.Invoke($"The save: {end.PlayerId}'s group in hyperspace isn't in it; its meeting's end isn't made");
                     continue;
+                }
             }
             IpGroup? group = null;
             if (end.GroupId is int id)
             {
                 if (end.Star is not int star || SystemGroups is not { } sg || !sg.Systems.TryGetValue(star, out var d)
                     || (group = d.Groups.FirstOrDefault(g => g.GroupId == id && g.Race == end.Race)) is null)
+                {
+                    log?.Invoke($"The save: {end.PlayerId}'s group in its system isn't in it; its meeting's end isn't made");
                     continue;
+                }
             }
             var m = new Meeting(player, end.Race, Story!.Rules.Races[end.Race], end.Ships, 0)
             {

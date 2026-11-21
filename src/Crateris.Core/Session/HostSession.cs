@@ -66,9 +66,14 @@ public sealed class HostSession
     /// the frame its crew ran out, or it surrendered to the Ur-Quan, through
     /// the game over: decision 12, the save is kept as it was, so loading it
     /// goes back to before the battle the flagship was lost in, or the talk
-    /// it surrendered in), so neither the autosave nor quitting writes one.
+    /// it surrendered in), or while it waits at the closing lines of the talk
+    /// it surrenders in (<see cref="GameWorld.FlagshipSurrendering"/>: the
+    /// game over to come), so neither the autosave nor quitting writes one.
+    /// Meetings at their closing lines are saved with their talks' ends
+    /// (question 13), what couldn't be made logged.
     /// </summary>
-    public string? SaveJson() => World.FlagshipLost ? null : HostSave.ToJson(World);
+    public string? SaveJson() =>
+        World.FlagshipLost || World.FlagshipSurrendering ? null : HostSave.ToJson(World, Logged);
 
     /// <summary>
     /// --start-at: the host's ship in hyperspace at universe coordinates, at
