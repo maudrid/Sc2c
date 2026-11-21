@@ -47,7 +47,8 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// Whether an event touches a player, who is then told it in words of
-    /// their own: at a star, their ship is in its system, in any view (the
+    /// their own: not a wreck (it doesn't fly: told as anyone), and at a
+    /// star, their ship is in its system, in any view (the
     /// race's standing there is the system's, decision 8); in hyperspace
     /// (<paramref name="star"/> null), they're in hyperspace within the span
     /// of (<paramref name="x"/>, <paramref name="y"/>) (universe units):
@@ -55,10 +56,11 @@ public sealed partial class GameWorld
     /// them by (<see cref="HyperEncounters.SpanX"/>).
     /// </summary>
     internal bool IsNear(Player p, int? star, short x, short y) =>
-        star is int s
+        !p.Ship.Destroyed
+        && (star is int s
             ? p.Ship.SystemStar == s
             : InHyperspace(p) && Math.Abs(HyperspaceFlightOf(p).UniverseX - x) <= HyperEncounters.SpanX
-                              && Math.Abs(HyperspaceFlightOf(p).UniverseY - y) <= HyperEncounters.SpanY;
+                              && Math.Abs(HyperspaceFlightOf(p).UniverseY - y) <= HyperEncounters.SpanY);
 
     // A player's name as notices give it ("Someone" for nobody's: a story talk's).
     private string NameOf(string id) => Find(id)?.Name ?? (id.Length == 0 ? "Someone" : id);

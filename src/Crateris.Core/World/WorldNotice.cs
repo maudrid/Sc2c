@@ -19,7 +19,7 @@ public enum NoticeEvent : byte
     /// <summary>A group passed through the player: another player is talking to its race (decision 5's notice).</summary>
     Talking,
 
-    /// <summary>In a system: another player met a group (or orbited the race's world), and the race's groups stand down (decision 8).</summary>
+    /// <summary>In the player's system: another player met a group (or orbited the race's world), and the race's groups stand down (decision 8).</summary>
     HoldOff,
 
     /// <summary>Another player met a group: in hyperspace, or in a system the player isn't in (the race's groups pass through the others while they talk).</summary>
@@ -40,10 +40,10 @@ public enum NoticeEvent : byte
     /// <summary>Another player's talk destroyed the group at once (the Slylandro probe's destruct code).</summary>
     Destroyed,
 
-    /// <summary>In a system: after another player's battle, the race's groups turn on the players (DoMissions).</summary>
+    /// <summary>In the player's system: after another player's battle, the race's groups turn on the players (DoMissions).</summary>
     TurnOnYou,
 
-    /// <summary>In a system: a group of the race spotted another player, and the race's groups turn on the players (NotifyOthers on detection).</summary>
+    /// <summary>In the player's system: a group of the race spotted another player, and the race's groups turn on the players (NotifyOthers on detection).</summary>
     Spotted,
 
     /// <summary>In a system the player isn't in: after another player's battle there, the race's groups turn on the players there (DoMissions).</summary>

@@ -280,13 +280,15 @@ public class NoticeTests
     }
 
     [ContentFact]
-    public void AWreckIsToldToo()
+    public void AWreckIsToldTooAsAnyone()
     {
+        // Review round 5: a wreck doesn't fly, so it's told in words for
+        // anyone, in a system as in hyperspace.
         var (world, d) = InUrQuanSystem("g", "k");
         AddGroup(world, d, 6000, 0);
         world.Find("g")!.Ship.Destroyed = true;
         MeetIn(world, "h");
-        Assert.Equal(new[] { ("g", "The Ur-Quan hold off: Host is meeting them."), ("k", "The Ur-Quan hold off: Host is meeting them.") },
+        Assert.Equal(new[] { ("g", "Host is meeting the Ur-Quan."), ("k", "The Ur-Quan hold off: Host is meeting them.") },
             Told(world));
     }
 
