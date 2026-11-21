@@ -77,24 +77,38 @@ public sealed partial class GameWorld
     }
 
     // A meeting ends (RaceCommunication's end): the others near are told how
-    // (peace, a surrender, the group destroyed at once; a battle's start is
-    // told as the battle starts, StartBattle). Those the group had flown at,
-    // near still and not in its battle, are told instead if it goes: talked
-    // away (in hyperspace one-shot after a talk; in a system sent off, the
-    // drone) or destroyed (none of its ships left).
+    // it ended: a surrender; the group destroyed at once (the instant
+    // victory: one that wins nothing, while the Ur-Quan guard the Sa-Matra,
+    // as peace); a talk ending hostile with no battle to fight (the game
+    // over, no battle's content, ships not fought) as over; else peace; a
+    // battle's start is told as the battle starts (StartBattle), its end to
+    // nobody. Those the group had flown at, near still and not in its
+    // battle, are told instead if it goes (<paramref name="gone"/>: in
+    // hyperspace written back one-shot or with no ships; in a system none
+    // left, or sent off by the talk, the drone): destroyed in the battle,
+    // destroyed at once by the talk, gone after a battle it survived (one
+    // one-shot from its roll: the probes), or talked away; after a
+    // surrender they're told the surrender as everyone else is.
     private void TellMeetingEnded(Meeting m, bool fought, bool gone, IReadOnlyCollection<string> chased)
     {
         bool surrendered = m.Talk is { Segue: Comm.Segue.Defeat };
+        bool hostile = m.Talk is { } talk ? talk.Segue is Comm.Segue.Hostile : !m.Hailed;
+        bool noneLeft = m.Left is { Count: 0 };
         NoticeEvent? ended = surrendered ? NoticeEvent.Surrendered
-            : m.InstantVictory ? (gone ? NoticeEvent.Destroyed : NoticeEvent.Peace)
+            : m.InstantVictory ? (noneLeft ? NoticeEvent.Destroyed : NoticeEvent.Peace)
             : fought ? null
+            : hostile ? NoticeEvent.MeetingOver
             : NoticeEvent.Peace;
+        NoticeEvent chaser = m.Battle is not null
+            ? (noneLeft ? NoticeEvent.ChaserDestroyedInBattle : NoticeEvent.ChaserGoneAfterBattle)
+            : m.InstantVictory && noneLeft ? NoticeEvent.ChaserDestroyed
+            : NoticeEvent.ChaserTalkedAway;
         var fighters = m.Battle?.Fighters.Select(f => f.Player.Id).ToHashSet() ?? new HashSet<string>();
         string race = RaceNameOf(m.Race);
         foreach (var p in NearMeeting(m))
         {
             if (gone && !surrendered && chased.Contains(p.Id) && !fighters.Contains(p.Id))
-                Notice(p, fought ? NoticeEvent.ChaserDestroyed : NoticeEvent.ChaserTalkedAway, m.Player.Id, race);
+                Notice(p, chaser, m.Player.Id, race);
             else if (ended is { } ev)
                 Notice(p, ev, m.Player.Id, race);
         }
@@ -128,6 +142,10 @@ public sealed partial class GameWorld
     {
         foreach (var (race, spotted) in d.Turned)
         {
+            // After a battle: who fought it, taken whether it's told or not.
+            (int Race, HashSet<string> Fighters)? battle = null;
+            if (spotted is null && _turnOnAfter.Remove(d.Star, out var a))
+                battle = a;
             // Only a turning that stands at the frame's end (a touch later in
             // the frame may have stood the race down again: told as that).
             if (!d.Groups.Any(g => g.Race == race && (g.Task & IpGroup.IgnoreFlagship) == 0
@@ -138,12 +156,24 @@ public sealed partial class GameWorld
                 foreach (var p in NearOthers(spotted, d.Star, 0, 0).ToList())
                     Notice(p, NoticeEvent.Spotted, spotted, RaceNameOf(race));
             }
-            else if (_turnOnAfter.Remove(d.Star, out var after) && after.Race == race)
+            else if (battle is { } after && after.Race == race)
             {
                 foreach (var p in NearOthers("", d.Star, 0, 0).Where(p => !after.Fighters.Contains(p.Id)).ToList())
                     Notice(p, NoticeEvent.TurnOnYou, "", RaceNameOf(race));
             }
         }
         d.Turned.Clear();
+    }
+
+    // A battle's turning that won't come: its system's draw no longer
+    // waits to turn the race (EncounterRace cleared as the last player
+    // left, or a new draw), or the system's gone. Before the systems' frames.
+    private void ForgetTurnings()
+    {
+        foreach (int star in _turnOnAfter.Keys.ToList())
+        {
+            if (SystemGroups is not { } sg || !sg.Systems.TryGetValue(star, out var d) || d.EncounterRace < 0)
+                _turnOnAfter.Remove(star);
+        }
     }
 }

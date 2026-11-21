@@ -26,7 +26,7 @@ namespace Crateris.Core.Tests;
 public class NoticeTests
 {
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
-    private const int UrQuanStar = 311;
+    private const int UrQuanStar = 311, SolStar = 82;
 
     private static void Run(GameWorld world, int frames = 1)
     {
@@ -158,7 +158,7 @@ public class NoticeTests
         WinTheBattle(world, m);
         Assert.DoesNotContain(met, d.Groups);
         // The group gone: told to the one it had chased; the battle's end to nobody else.
-        Assert.Equal(new[] { ("g", "The Ur-Quan chasing you are gone: Host destroyed them.") }, Told(world));
+        Assert.Equal(new[] { ("g", "The Ur-Quan chasing you were destroyed in the battle Host started.") }, Told(world));
         // As the host comes back into flight the race turns on the players
         // (DoMissions): told to those who weren't in the battle.
         for (int i = 0; i < 10 && d.EncounterRace >= 0; ++i)
@@ -251,11 +251,118 @@ public class NoticeTests
         Assert.Empty(world.TakeNotices());
     }
 
+    [ContentFact]
+    public void AWreckIsntTold()
+    {
+        var (world, d) = InUrQuanSystem("g", "k");
+        AddGroup(world, d, 6000, 0);
+        world.Find("g")!.Ship.Destroyed = true;
+        MeetIn(world, "h");
+        Assert.Equal(new[] { ("k", "The Ur-Quan hold off: Host is meeting them.") }, Told(world));
+    }
+
+    [ContentFact]
+    public void AHostileTalkThatCantFightIsToldOverNotPeace()
+    {
+        // Review round 1: an attack with no battle's content ends the
+        // meeting without a battle, as a talk ending hostile does with ships
+        // that can't be fought: not peace.
+        var (world, d) = InUrQuanSystem("g");
+        AddGroup(world, d, 6000, 0);
+        MeetIn(world, "h");
+        Told(world);
+        world.BattleKit = null;
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        Assert.Null(world.MeetingOf("h"));
+        Assert.Equal(new[] { ("g", "Host's meeting with the Ur-Quan is over.") }, Told(world));
+    }
+
+    [ContentFact]
+    public void AFleeingGroupSpottingAPlayerEveryFrameIsToldOnce()
+    {
+        // Review round 1: a group fleeing out of the system (not standing
+        // down) spots a player near on every frame; only the frame that
+        // turned the race (another group of it standing down) is told.
+        var (world, d) = InUrQuanSystem("g");
+        var fleeing = AddGroup(world, d, 6700, 0, task: IpGroup.Flee, dest: IpGroup.InterceptPlayer);
+        var other = AddGroup(world, d, 0, 9000);
+        Run(world, 2);
+        Assert.Equal((IpGroup.InterceptPlayer, 0), (other.DestLoc, other.Task & IpGroup.IgnoreFlagship));
+        Run(world, 6);
+        Assert.Contains(d.Groups, g => g == fleeing);
+        Assert.Equal(new[] { ("g", "The Ur-Quan turn on you: they spotted Host.") }, Told(world));
+    }
+
+    [ContentFact]
+    public void TheDroneSentOffByAnothersTalkIsToldGoneToThoseItChased()
+    {
+        // The drone at Earth met and hailed: check_probe sends it out of the
+        // system (it was flown at the guest): talked away.
+        var world = SystemGroupTests.NewWorld();
+        world.SystemSeeds = star => 1000u + (uint)star;
+        Assert.Equal(JoinResult.Joined, world.Join("g", "g"));
+        world.UndockShown("g");
+        Prepare(world);
+        world.PutInSystem("h", SolStar);
+        world.PutInSystem("g", SolStar);
+        Run(world);
+        var d = world.SystemGroups!.Systems[SolStar];
+        var drone = d.Groups.Single();
+        Assert.Equal(world.Story!.Rules.RaceIndex("URQUAN_DRONE_SHIP"), drone.Race);
+        drone.Chased.Add("g");
+        // In Earth's inner system, where it orbits, away from the world and the starbase.
+        (drone.LocX, drone.LocY) = ((short)3000, (short)-3000);
+        d.Elements = null;
+        world.Find("h")!.Ship.Ip = SystemGroupTests.FlightAt(SystemGroupTests.Systems.Value[SolStar], drone.LocX, drone.LocY,
+            inner: drone.SysLoc - 1);
+        world.Find("g")!.Ship.Ip = SystemGroupTests.FlightAt(SystemGroupTests.Systems.Value[SolStar], -6000, -6000);
+        Run(world, 2);
+        Assert.NotNull(world.MeetingOf("h"));
+        Assert.Equal(new[] { ("g", "The Ur-Quan hold off: Host is meeting them.") }, Told(world));
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.Equal(IpGroup.Flee, drone.Task & ~(IpGroup.IgnoreFlagship | IpGroup.ReformGroup));
+        Assert.Equal(new[] { ("g", "The Ur-Quan chasing you are gone: Host talked them away.") }, Told(world));
+    }
+
+    private static readonly Lazy<TalkLibrary> Library =
+        new(() => TestContent.With(p => TalkLibrary.Load(p, ConversationScripts.Load(DataDir))));
+
+    [ContentFact]
+    public void OrbitingARacesWorldHoldsItsGroupsOffForTheOthersAndItsBattleTurnsThem()
+    {
+        var world = SystemGroupTests.NewWorld();
+        Assert.Equal(JoinResult.Joined, world.Join("g", "g"));
+        world.UndockShown("g");
+        Prepare(world);
+        world.EncounterRaces = GameWorld.TalkingRaces;
+        world.TalkLibrary = Library.Value;
+        int star = world.Systems!.Map.Stars.First(s => s.Special == "ILWRATH_DEFINED").Number;
+        world.PutInSystem("g", star);
+        world.TakeNotices();
+        world.PutInOrbit("h", star, 0);
+        var m = world.MeetingOf("h")!;
+        Assert.Equal(new[] { ("g", "The Ilwrath hold off: Host is meeting them.") }, Told(world));
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        Assert.Equal(new[] { ("g", "Host is fighting the Ilwrath.") }, Told(world));
+        // The host retreats; as they come back into flight the race turns on the players.
+        for (int i = 0; i < 300 && m.Step == MeetingStep.Battle; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.TakeOff);
+            world.SubmitInput("g", world.Frame + 1, ShipInput.None);
+            world.Step();
+        }
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Run(world, 3);
+        var told = Told(world);
+        Assert.Contains(("g", "The Ilwrath's ships turn on you."), told);
+        Assert.DoesNotContain(told, t => t.Item1 == "h");
+    }
+
     // ---- in hyperspace
 
     // A game in hyperspace: the host at (5800, 6100) in the Ur-Quan's
-    // sphere, the guest "g" near (200 east) and "k" far (1200 east, outside
-    // the span), every race's groups kept, no day's roll.
+    // sphere, the guests "g" near (200 east), "n" near (100 east) and "k"
+    // far (1200 east, outside the span), every race's groups kept, no day's roll.
     private static GameWorld InHyperspace(params string[] guests)
     {
         var systems = SystemGroupTests.Systems.Value;
@@ -268,7 +375,7 @@ public class NoticeTests
         Prepare(world);
         foreach (var p in world.Players)
         {
-            p.Ship.Flight.PlaceAtUniverse(p.Id switch { "g" => 6000, "k" => 7000, _ => 5800 }, 6100);
+            p.Ship.Flight.PlaceAtUniverse(p.Id switch { "g" => 6000, "k" => 7000, "n" => 5900, _ => 5800 }, 6100);
             p.Ship.Flight.StarJustLeft = null;
         }
         Run(world);
@@ -339,7 +446,88 @@ public class NoticeTests
         Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
         Assert.Equal(new[] { ("g", "Host is fighting the Spathi.") }, Told(world));
         WinTheBattle(world, m);
-        Assert.Equal(new[] { ("g", "The Spathi chasing you are gone: Host destroyed them.") }, Told(world));
+        Assert.Equal(new[] { ("g", "The Spathi chasing you were destroyed in the battle Host started.") }, Told(world));
+    }
+
+    // A frame of input: the given player's keys, everyone else's none.
+    private static void Fly(GameWorld world, string id, ShipInput input)
+    {
+        foreach (var p in world.Players.Where(p => p.Present))
+            world.SubmitInput(p.Id, world.Frame + 1, p.Id == id ? input : ShipInput.None);
+        world.Step();
+    }
+
+    [ContentFact]
+    public void AOneShotGroupSurvivingABattleGoesAndThoseItChasedAreToldSo()
+    {
+        // Review round 1: a group one-shot from its roll (the probes; here
+        // a Spathi group made so) survives the battle as the host retreats,
+        // and goes as it's written back.
+        var world = InHyperspace("g", "k");
+        var group = GroupBy(world, "h", "SPATHI_SHIP", ships: 2);
+        group.Flags |= HyperEncounter.OneShot;
+        group.Chased.Add("g");
+        var m = Meet(world, "h");
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        Told(world);
+        for (int i = 0; i < 600 && m.Step == MeetingStep.Battle; ++i)
+            Fly(world, "h", ShipInput.TakeOff);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.NotEmpty(m.Left!);
+        Assert.Equal(new[] { ("g", "The Spathi chasing you are gone after the battle Host started.") }, Told(world));
+        Run(world, 5);
+        Assert.DoesNotContain(group, world.Encounters!.List);
+    }
+
+    // A meeting of the guest "g" with a group by them whose talk ends as given (after its one reply).
+    private static Meeting TalkEnding(GameWorld world, Comm.Segue end, HyperEncounter group)
+    {
+        world.MeetingTalks = (_, _, seed) => MeetingTests.TestTalk(world.Story!, Comm.Segue.Peace, end, seed).Talk;
+        var m = Meet(world, "g");
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        Told(world);
+        Assert.True(world.ChooseReply("g", 0));
+        return m;
+    }
+
+    [ContentFact]
+    public void ASurrenderIsToldAsSuchEvenToThoseTheGroupChased()
+    {
+        var world = InHyperspace("g", "n");
+        var group = GroupBy(world, "g", "URQUAN_SHIP");
+        group.Chased.Add("h");
+        TalkEnding(world, Comm.Segue.Defeat, group);
+        Assert.True(world.Find("g")!.Ship.Wreck);
+        Assert.Equal(new[] { ("h", "g surrendered to the Ur-Quan."), ("n", "g surrendered to the Ur-Quan.") }, Told(world));
+    }
+
+    [ContentFact]
+    public void AnInstantVictoryIsToldDestroyedAndToThoseTheGroupChasedGone()
+    {
+        var world = InHyperspace("g", "n");
+        var group = GroupBy(world, "g", "SPATHI_SHIP");
+        group.Chased.Add("h");
+        var m = TalkEnding(world, Comm.Segue.Victory, group);
+        Assert.True(m.InstantVictory);
+        Assert.Equal(new[] { ("h", "The Spathi chasing you are gone: g destroyed them."), ("n", "g destroyed the Spathi.") },
+            Told(world));
+    }
+
+    [ContentFact]
+    public void AnInstantVictoryWinningNothingIsToldPeaceAndAOneShotGroupTalkedAway()
+    {
+        // While the Ur-Quan guard the Sa-Matra nothing is destroyed; the
+        // probe (one-shot from its roll) goes all the same.
+        var world = InHyperspace("g", "n");
+        world.Story!.Set("URQUAN_PROTECTING_SAMATRA", 1);
+        var group = GroupBy(world, "g", "SLYLANDRO_SHIP");
+        group.Flags |= HyperEncounter.OneShot;
+        group.Chased.Add("h");
+        var m = TalkEnding(world, Comm.Segue.Victory, group);
+        Assert.True(m.InstantVictory);
+        Assert.NotEmpty(m.Left!);
+        Assert.Equal(new[] { ("h", "The Slylandro chasing you are gone: g talked them away."), ("n", "g made peace with the Slylandro.") },
+            Told(world));
     }
 
     [ContentFact]

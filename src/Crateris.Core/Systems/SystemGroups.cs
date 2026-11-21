@@ -77,9 +77,10 @@ public sealed class SystemDraw
 
     /// <summary>
     /// The races turned on the players in the last frame, for the world's
-    /// notices (stage 3b-1 item 9, decision 11): by a group spotting a
-    /// player (<c>Spotted</c>, that player's id: NotifyOthers on detection),
-    /// or after a battle (<c>Spotted</c> null: DoMissions' EncounterRace).
+    /// notices (stage 3b-1 item 9, decision 11), where that changed any of
+    /// their groups' standing: by a group spotting a player (<c>Spotted</c>,
+    /// that player's id: NotifyOthers on detection), or after a battle
+    /// (<c>Spotted</c> null: DoMissions' EncounterRace).
     /// </summary>
     public List<(int Race, string? Spotted)> Turned { get; } = new();
 }
@@ -582,8 +583,8 @@ public sealed class SystemGroups
         if (flyers.Any(f => f.Flight.ContactAppearing) && d.EncounterRace >= 0)
         {
             // DoMissions: after a battle, the race's reinforcements.
-            NotifyOthers(d, d.EncounterRace, IpGroup.InterceptPlayer);
-            d.Turned.Add((d.EncounterRace, null));
+            if (NotifyOthers(d, d.EncounterRace, IpGroup.InterceptPlayer))
+                d.Turned.Add((d.EncounterRace, null));
             d.EncounterRace = -1;
         }
         if (flyers.Any(f => !f.Flight.ContactAppearing) && --d.FlipWait == 0)
@@ -809,15 +810,23 @@ public sealed class SystemGroups
     public GroupShips? ShipsOf(SystemDraw d, IpGroup g) =>
         (d.Defined is { } special ? Defined.GetValueOrDefault(special) : d.RandomGroups)?.FirstOrDefault(s => s.Id == g.GroupId);
 
-    /// <summary>NotifyOthers: every group of the race in the system turns on the players, or stands down.</summary>
-    public void NotifyOthers(SystemDraw d, int race, byte target)
+    /// <summary>
+    /// NotifyOthers: every group of the race in the system turns on the
+    /// players, or stands down. Returns whether turning them changed any
+    /// group's standing (one of them standing down or not intercepting:
+    /// the world's notices tell only a change, stage 3b-1 item 9); true
+    /// for the other targets.
+    /// </summary>
+    public bool NotifyOthers(SystemDraw d, int race, byte target)
     {
+        bool changed = target != IpGroup.InterceptPlayer;
         foreach (var g in d.Groups)
         {
             if (g.Race != race)
                 continue;
             if (target == IpGroup.InterceptPlayer)
             {
+                changed |= (g.Task & IpGroup.IgnoreFlagship) != 0 || g.DestLoc != IpGroup.InterceptPlayer;
                 g.Task &= unchecked((byte)~IpGroup.IgnoreFlagship);
                 g.OrbitPos = g.DestLoc;
                 g.DestLoc = IpGroup.InterceptPlayer;
@@ -844,6 +853,7 @@ public sealed class SystemGroups
                 g.DestLoc = target;
             }
         }
+        return changed;
     }
 
     private static bool Colliding(Elem e) => (e.Flags & (ElementFlags.NonSolid | ElementFlags.Disappearing)) == 0;
@@ -1083,8 +1093,8 @@ public sealed class SystemGroups
                     {
                         el.ThrustWait = 0;
                         el.Velocity.Zero();
-                        _sg.NotifyOthers(_d, g.Race, IpGroup.InterceptPlayer);
-                        _d.Turned.Add((g.Race, by.Id));
+                        if (_sg.NotifyOthers(_d, g.Race, IpGroup.InterceptPlayer))
+                            _d.Turned.Add((g.Race, by.Id));   // told only a change (a fleeing group spots every frame)
                         task = g.Task;
                         targetLoc = g.DestLoc;
                         if (targetLoc == IpGroup.InterceptPlayer)

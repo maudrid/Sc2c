@@ -25,8 +25,11 @@ public enum NoticeEvent : byte
     /// <summary>In hyperspace: another player near met a group (the race's groups pass through the others while they talk).</summary>
     Meeting,
 
-    /// <summary>Another player's meeting ended without a battle.</summary>
+    /// <summary>Another player's meeting ended without a battle, in peace.</summary>
     Peace,
+
+    /// <summary>Another player's talk ended hostile but no battle could start (the game over, no battle's content, ships that can't be fought).</summary>
+    MeetingOver,
 
     /// <summary>Another player's battle started: a meeting's ending in one, or any other battle.</summary>
     Fighting,
@@ -46,8 +49,14 @@ public enum NoticeEvent : byte
     /// <summary>A group that had flown at the player went: another player talked it away (one-shot in hyperspace, or sent off: the drone).</summary>
     ChaserTalkedAway,
 
-    /// <summary>A group that had flown at the player went: another player destroyed it.</summary>
+    /// <summary>A group that had flown at the player went: another player's talk destroyed it at once (the instant victory).</summary>
     ChaserDestroyed,
+
+    /// <summary>A group that had flown at the player went: destroyed in the battle another player's meeting started.</summary>
+    ChaserDestroyedInBattle,
+
+    /// <summary>A group that had flown at the player went after the battle another player's meeting started, which it survived (one-shot from its roll: the probes).</summary>
+    ChaserGoneAfterBattle,
 }
 
 /// <summary>
@@ -69,6 +78,7 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.HoldOff => $"The {Race} hold off: {By} is meeting them.",
         NoticeEvent.Meeting => $"{By} is meeting the {Race}.",
         NoticeEvent.Peace => $"{By} made peace with the {Race}.",
+        NoticeEvent.MeetingOver => $"{By}'s meeting with the {Race} is over.",
         NoticeEvent.Fighting => $"{By} is fighting the {Race}.",
         NoticeEvent.Surrendered => $"{By} surrendered to the {Race}.",
         NoticeEvent.Destroyed => $"{By} destroyed the {Race}.",
@@ -76,6 +86,8 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.Spotted => $"The {Race} turn on you: they spotted {By}.",
         NoticeEvent.ChaserTalkedAway => $"The {Race} chasing you are gone: {By} talked them away.",
         NoticeEvent.ChaserDestroyed => $"The {Race} chasing you are gone: {By} destroyed them.",
+        NoticeEvent.ChaserDestroyedInBattle => $"The {Race} chasing you were destroyed in the battle {By} started.",
+        NoticeEvent.ChaserGoneAfterBattle => $"The {Race} chasing you are gone after the battle {By} started.",
         _ => "",
     };
 }

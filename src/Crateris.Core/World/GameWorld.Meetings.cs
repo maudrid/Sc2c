@@ -627,7 +627,6 @@ public sealed partial class GameWorld
         {
             if (MetEncounter(m) is { } e)
             {
-                gone = !fought || left.Count == 0;   // one-shot after a talk: it doesn't come back
                 chased = e.Chased.ToList();
                 e.MeetingPlayer = null;
                 e.Ships.Clear();
@@ -636,6 +635,9 @@ public sealed partial class GameWorld
                 if (!fought)
                     e.Flags |= HyperEncounter.OneShot;
                 e.Element = null;   // made afresh (AddEncounterElement: re-forming, or gone)
+                // Its fate as AddEncounterElement makes it: one-shot (after a
+                // talk, or from its roll: the probes) or with no ships, it goes.
+                gone = (e.Flags & HyperEncounter.OneShot) != 0 || e.Ships.Count == 0;
             }
         }
         else if (SystemGroups is { } sg && sg.Systems.TryGetValue(m.Star!.Value, out var d))

@@ -34,7 +34,7 @@ public class MeetingTests
     // A race's talk for the tests: its init sets how it would end (hostile:
     // the encounter screen), its intro one line and one reply, which ends it
     // as given.
-    private sealed class TestScript : CommScript
+    internal sealed class TestScript : CommScript
     {
         private readonly Segue _init, _end;
 
@@ -63,7 +63,7 @@ public class MeetingTests
 
     private static readonly CommDescription Plain = Scripts["comandr"].Description with { Ambient = Array.Empty<CommAnimation>() };
 
-    private static (Talk Talk, TestScript Script) TestTalk(StoryState story, Segue init, Segue end, uint seed)
+    internal static (Talk Talk, TestScript Script) TestTalk(StoryState story, Segue init, Segue end, uint seed)
     {
         var phrases = new ConversationScript("probe", "init_probe_comm", Plain, new[] { "HELLO", "BYE", "ask" });
         var lines = Conversation.Parse("#(HELLO)\nHello\n#(BYE)\nBye\n#(ask)\nWhat?\n"u8);

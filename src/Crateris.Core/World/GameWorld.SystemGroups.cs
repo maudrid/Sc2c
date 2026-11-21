@@ -119,6 +119,7 @@ public sealed partial class GameWorld
     private void StepSystems(int systemFrames)
     {
         SyncSystemPlayers();
+        ForgetTurnings();
         var sg = SystemGroups;
         for (int i = 0; i < systemFrames; ++i)
         {

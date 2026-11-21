@@ -31,9 +31,10 @@ public enum BattleNoticeKind : byte
     /// A notice in words (<see cref="BattleNotice.Text"/>): a battle the
     /// player flew into was too crowded to join just then, or what another
     /// player set off (<see cref="WorldNotice"/>, stage 3b-1 item 9: who's
-    /// talking to a race, a meeting near, a battle started, the race's ships
-    /// turning, a group chasing the player gone). Named Full until item 9;
-    /// its number on the wire is the same.
+    /// talking to a race, a meeting near and how it ended (peace, a
+    /// surrender, the instant victory, over without a fight), a battle
+    /// started, the race's ships turning, a group chasing the player gone).
+    /// Named Full until item 9; its number on the wire is the same.
     /// </summary>
     Told,
 
