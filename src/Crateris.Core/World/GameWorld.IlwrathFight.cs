@@ -41,7 +41,10 @@ public sealed partial class GameWorld
     {
         if (TalkView.Of(v) is { } closing)
             foreach (var p in _players.Where(p => p.Present))
+            {
                 _ended[p.Id] = (v, closing with { Step = VisitStep.Done });
+                _meetingClosing.Remove(p.Id);   // the newer talk's closing lines shown, not a meeting's before
+            }
         var starter = v.Starter;
         if (starter.Ship.Visit == v)
             starter.Ship.Visit = null;

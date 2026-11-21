@@ -781,6 +781,7 @@ public sealed partial class GameWorld
         if (visit.Done)
         {
             _ended[player.Id] = (visit, null);
+            _meetingClosing.Remove(player.Id);   // the newer talk's closing lines shown, not a meeting's before
             return;
         }
         player.Ship.Visit = visit;
@@ -1078,7 +1079,10 @@ public sealed partial class GameWorld
             // were: not the starter's own talks after it.
             if (!v.Undone && v.WasStory && TalkView.Of(v) is { } closing)
                 foreach (var p in _players.Where(p => p.Present && (p != v.Starter || !aboard)))
+                {
                     _ended[p.Id] = (v, closing with { Step = VisitStep.Done });
+                    _meetingClosing.Remove(p.Id);   // the newer talk's closing lines shown, not a meeting's before
+                }
         }
         // An opening whose starter went away (the replies passed on), or
         // whose ship didn't fight the Ilwrath to the end (wrecked, or gone),
@@ -1099,8 +1103,11 @@ public sealed partial class GameWorld
             // Once docked, the starter was shown its talks' closing lines on
             // the menu: leaving shows none again.
             else if (aboard)
+            {
                 _ended[v.Starter.Id] = (v, v.Menu is null ? null
                     : TalkView.Of(v) is { } last ? last with { Step = VisitStep.Done, Lines = Array.Empty<string>() } : null);
+                _meetingClosing.Remove(v.Starter.Id);
+            }
         }
     }
 
