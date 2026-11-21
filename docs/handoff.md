@@ -42,6 +42,8 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decided
 
+- **A meeting's closing lines (the owner, 2026-11-21, question 10): on the communication screen, the meeting waiting.** The alien's last lines after the player's last reply, and the drone's whole message, play on the talk screen as UQM's; only that player's meeting waits (a new step after the talk), and its battle starts or its ship flies on once they've gone through them; everyone else goes on as now (the race's lock held that much longer). To be built with item 11 (the step, the wire and the drawing together: built alone it would hold a windowed player at an undrawn screen); until then the notice as built. The starbase's story talks keep their closing lines as notices.
+
 - **The encounter screen's game menu (the owner, 2026-11-21, question 9): the host has it, as UQM's.** A third entry on the host's encounter screen (guests: Hail and Attack only); until a game menu is built it says it comes later, as orbit's does. A save made from it, when it comes, is an ordinary save: the meeting isn't in it (the guest's ship where it met the group, the group as before the meeting, the talk's story writes so far kept). Built (item 10's Progress row).
 
 - **When a meeting holds its race's lock (the owner, 2026-11-21, question 1): as built.** From the touch (the encounter screen too) until the talk is over, not through the battle.
@@ -56,13 +58,12 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for stage 3b-1 item 11 (client views) and their answers to questions 10 and 11 below (item 10 is built, reviewed in five rounds and reported; the go-ahead of 2026-11-21 was for item 10 alone).
+Wait for the owner's go-ahead for stage 3b-1 item 11 (client views) and their answer to question 11 below (item 10 is built, reviewed in five rounds and reported; the go-ahead of 2026-11-21 was for item 10 alone).
 
 ## Decisions waiting on the owner
 
 Placeholders built as the closest to the plan and UQM (stage 3b-1 item 10's Progress row, `differences.md` row 69):
 
-10. **A meeting's closing lines.** The alien's last words after the player's last reply (before the battle, or as the talk ends in peace), and the drone's whole message (its meeting begins and ends at once), are shown as a notice in the status area, as a visit's closing lines have been since stage 3a. UQM plays them on the communication screen before it closes. Keep, or have item 11 play them on the screen (the host's world has gone on meanwhile: the battle started, the ship in flight)?
 11. **A choice made during a pause.** An encounter screen's choice, or a reply in a meeting's talk, that reaches the host during the host's pause or a story talk's is kept and made as the pause ends (as any reply during the host's pause is), not refused, since the chooser's client counts it made. Keep?
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)

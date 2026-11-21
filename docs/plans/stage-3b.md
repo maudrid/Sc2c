@@ -121,7 +121,7 @@ Decided already (`docs/design.md`, stage 3 and 4 decisions):
 8. **The Slylandro probes.** `slyland.c`; the probes in hyperspace (from the start, one at a time) and in systems, by the multiplier.
 9. **Notices** (decision 11). The events another player sets off, told to the players they touch: the standing's changes, a chasing group gone through another's doing, another's battle starting in view; one notice type that later stages add their events to.
 10. **The wire.** Encounters and groups near each player, the notices, the encounter screen's choice, the battle-won screen (protocol version up).
-11. **Client views.** Groups drawn in hyperspace and systems as UQM draws them; `Presentation/EncounterScreen.cs`: UQM's encounter and battle-won screens, checked against UQM's (`screens.json`).
+11. **Client views.** Groups drawn in hyperspace and systems as UQM draws them; `Presentation/EncounterScreen.cs`: UQM's encounter and battle-won screens, checked against UQM's (`screens.json`). A meeting's closing lines (the alien's after the last reply, the drone's whole message) on the communication screen, the meeting waiting for that player at a new step until they've gone through them, then its battle or flight (the owner, 2026-11-21, question 10; item 10 sends them as a notice till then).
 12. **Docs.** `docs/how-to-try/stage-3b-1.md`; `design.md` (the build order); `porting-inventory.md` (the clock, encounter, system, fleet and script rows); `differences.md` (rows 17, 27, 40, and new rows for this plan's co-op rules); `uqm-data.md`.
 
 ## Progress
