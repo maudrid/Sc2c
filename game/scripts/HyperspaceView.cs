@@ -94,6 +94,12 @@ public partial class HyperspaceView : Control
             Sprites.Draw(this, Sprites.Sprites.Hyper(false, star.HyperspaceFrame), x, y);
         }
 
+        // The groups of alien ships it sees (stage 3b-1 item 11): each a stamp of its frame of the hyperspace
+        // stars' sheet (its vortex's, or the globe), where ProcessEncounter puts its element.
+        foreach (var g in GroupSnapshot.SeenBy(_snapshot, me.Id))
+            if (HyperScreen.Group(g, logX, logY) is var (gx, gy, frame))
+                Sprites.Draw(this, Sprites.Sprites.Hyper(false, frame), gx, gy);
+
         // Only ships in hyperspace are drawn here (stage 2, decision 3), and
         // only those near enough to be on the screen. As in UQM, a ship
         // shows no thrust outside battle (ion trails are battle only).

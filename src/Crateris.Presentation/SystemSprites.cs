@@ -16,6 +16,8 @@ using Crateris.Core.Hyperspace;
 using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
 
+using Crateris.Core.World;
+
 namespace Crateris.Presentation;
 
 /// <summary>
@@ -148,5 +150,25 @@ public static class SystemSprites
         Pieces(DimPieces, DimDrawn);
         Pieces(BrightPieces, BrightDrawn);
         return stamps;
+    }
+
+    /// <summary>spawn_ip_group: a system's group is drawn as its race's ship's melee icon, this frame.</summary>
+    public const int GroupIconFrame = 1;
+
+    /// <summary>
+    /// A system's group as the screen of a ship in view <paramref name="view"/>
+    /// (0 the outer system, else 1 + the planet whose inner system) at its
+    /// zoom (<paramref name="zoomRadius"/>, the outer system's) draws it
+    /// (ip_group_preprocess: locationToDisplay of its loc at the view's
+    /// zoom, an inner system's always MAX_ZOOM_RADIUS; not drawn in another
+    /// view, nor on the frames a re-forming group flashes off,
+    /// <see cref="GroupSnapshotFlags.Hidden"/>): its place on the screen,
+    /// or null.
+    /// </summary>
+    public static IpPoint? Group(GroupSnapshot g, int view, int zoomRadius)
+    {
+        if (g.Star is null || g.View != view || (g.Flags & GroupSnapshotFlags.Hidden) != 0)
+            return null;
+        return IpGeometry.LocationToDisplay(new IpPoint((short)g.X, (short)g.Y), view == 0 ? zoomRadius : IpGeometry.MaxZoomRadius);
     }
 }

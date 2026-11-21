@@ -146,6 +146,9 @@ public partial class SystemView : Control
     /// <summary>A race ship's icon and name for a battle's marker (<see cref="BattleScreenView.RaceLook"/>).</summary>
     public Func<string, (SpriteImage Icon, string Name)?>? RaceLook { get; set; }
 
+    /// <summary>A group's look by its race (races.h's number): its ship's melee icon, frame 1; null if it can't be drawn.</summary>
+    public Func<int, SpriteImage?>? GroupLook { get; set; }
+
     public SystemView(SystemCatalog systems)
     {
         _systems = systems;
@@ -248,6 +251,13 @@ public partial class SystemView : Control
             DrawString(font, new Vector2(8, 36), $"zoom {IpGeometry.MaxZoomRadius / zoom}x",
                 HorizontalAlignment.Left, -1, 13, Colors.Gray);
         }
+
+        // The groups of alien ships in this view (stage 3b-1 item 11): each its race's ship's melee icon where
+        // ip_group_preprocess puts it at this view's zoom, a re-forming one flashing.
+        int groupView = me.InnerPlanet is int gp ? gp + 1 : 0;
+        foreach (var g in GroupSnapshot.SeenBy(_snapshot, me.Id))
+            if (SystemSprites.Group(g, groupView, me.ZoomRadius) is { } at && GroupLook?.Invoke(g.Race) is { } icon)
+                Sprites.Draw(this, icon, at.X, at.Y);
 
         // Ships in this same view (flying or waiting in a battle; otherwise
         // in the same activity): the flagship's image by facing, with the

@@ -16,6 +16,7 @@ using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
+using Crateris.Core.World;
 
 namespace Crateris.Presentation;
 
@@ -69,4 +70,21 @@ public static class HyperScreen
     public static (int X, int Y) Star(Star star, int logX, int logY) =>
         (Display(Wrap(Units.UniverseToLogX(star.X) + (Units.LogSpaceWidth >> 1) - (long)logX, Units.LogSpaceWidth), OriginX),
          Display(Wrap(Units.UniverseToLogY(star.Y) + (Units.LogSpaceHeight >> 1) - (long)logY, Units.LogSpaceHeight), OriginY));
+
+    /// <summary>
+    /// A group of alien ships in hyperspace as the screen of the ship at
+    /// (<paramref name="viewerLogX"/>, <paramref name="viewerLogY"/>) draws
+    /// it (ProcessEncounter: its element at log_x, log_y less the ship's,
+    /// the view's middle added, as a star's; a stamp of its frame of
+    /// graphics.hyperstars, the vortex's or the globe's, which UQM doesn't
+    /// colour): its place and frame, or null when its element isn't drawn
+    /// (<see cref="GroupSnapshotFlags.Hidden"/>) or it's a system's group.
+    /// </summary>
+    public static (int X, int Y, int Frame)? Group(GroupSnapshot g, int viewerLogX, int viewerLogY)
+    {
+        if (g.Star is not null || (g.Flags & GroupSnapshotFlags.Hidden) != 0)
+            return null;
+        var (x, y) = Sprite(g.X, g.Y, viewerLogX, viewerLogY);
+        return (x, y, g.Frame);
+    }
 }

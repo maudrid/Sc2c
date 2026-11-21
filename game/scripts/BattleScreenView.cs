@@ -101,6 +101,25 @@ public partial class BattleScreenView : Node2D
         }
     }
 
+    /// <summary>
+    /// A race ship's melee icon, frame 1 (spawn_ip_group: a system's group
+    /// as it's drawn there, stage 3b-1 item 11); null without the content
+    /// or for a ship not known.
+    /// </summary>
+    public SpriteImage? GroupIcon(string ship)
+    {
+        if (_sprites is null || _ships is null)
+            return null;
+        try
+        {
+            return _ships[ship].Graphics.MeleeIcon is { } melee ? _sprites.Image(melee, SystemSprites.GroupIconFrame) : null;
+        }
+        catch (Exception e) when (e is KeyNotFoundException or ContentPackageException or IndexOutOfRangeException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Draws the player's battle as the host last sent it, if it's a frame not drawn yet: whether it's shown.</summary>
     public bool Show(PlayerSession player)
     {

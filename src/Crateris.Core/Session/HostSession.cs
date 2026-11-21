@@ -371,9 +371,15 @@ public sealed class HostSession
     /// <summary>
     /// --guests-in-battle (testing): each guest joining for the first time,
     /// put beside the host as ever, joins the battle there as if it had
-    /// flown into its marker (<see cref="GameWorld.LetIntoBattle"/>).
+    /// flown into its marker (<see cref="GameWorld.LetIntoBattle"/>): let in
+    /// again each frame until it's in a battle or gone, so one busy meanwhile
+    /// (a meeting's closing lines: the drone at Earth meets a guest undocking
+    /// there) joins once it flies again.
     /// </summary>
     public bool GuestsJoinBattle { get; set; }
+
+    // The guests --guests-in-battle lets in, until they're in a battle.
+    private readonly HashSet<string> _toJoinBattle = new();
 
     /// <summary>
     /// A guest says hello: refused if its version differs or its connection
@@ -409,7 +415,10 @@ public sealed class HostSession
         if (result == JoinResult.Joined && GuestsStartInOrbit && World.Host.Ship.OrbitedWorld is { } w)
             World.PutInOrbit(playerId, w.Star, w.Planet, w.Moon);
         if (result == JoinResult.Joined && GuestsJoinBattle)
+        {
             World.LetIntoBattle(playerId);
+            _toJoinBattle.Add(playerId);
+        }
         if (Protocol.Accepted(result))
         {
             _peers[peer] = playerId;
@@ -996,6 +1005,13 @@ public sealed class HostSession
     {
         World.SubmitInput(HostId, World.Frame + World.Settings.InputDelayFrames, hostInput);
         World.Step();
+        foreach (var id in _toJoinBattle.ToList())
+        {
+            if (World.Find(id) is not { Present: true } p || p.Ship.Battle is not null)
+                _toJoinBattle.Remove(id);
+            else
+                World.LetIntoBattle(id);
+        }
         LogMeetings();   // the encounter screen before a choice made at once (the talk is logged by Hailed)
         if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })
             World.EncounterChoice(HostId, choice);
