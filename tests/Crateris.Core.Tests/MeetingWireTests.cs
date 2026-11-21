@@ -835,8 +835,16 @@ public class MeetingWireTests
 
         // An instant victory: the leaver is paid, and its tally waits for its return (the client opening on the
         // battle-won screen then).
-        LeaveAtClosingAndComeBack(Segue.Victory, "SLYLANDRO_SHIP", (game, again, units) =>
+        LeaveAtClosingAndComeBack(Segue.Victory, "SLYLANDRO_SHIP", (game, group) =>
         {
+            // Written back with no ships, re-forming (gone on the next frame's encounters), the lock let go.
+            Assert.Empty(group.Ships);
+            Assert.Equal(HyperEncounter.Reforming, group.Flags & HyperEncounter.Reforming);
+            Assert.Null(group.MeetingPlayer);
+            Assert.Null(game.World.DialogueLocks!.Holder("SLYLANDRO_CONVERSATION"));
+        }, (game, again, units, group) =>
+        {
+            Assert.DoesNotContain(group, game.World.Encounters!.List);   // gone
             var probe = game.World.Story!.Rules.RaceShip("SLYLANDRO_SHIP");
             uint bounty = (uint)(probe.Cost >> 3);
             Assert.Equal(units + 2 * bounty, game.World.Find("g1")!.Ship.Hold.ResourceUnits);
@@ -846,7 +854,14 @@ public class MeetingWireTests
             Assert.Equal(PlayerScreen.BattleWon, again.Session.Screen);
         });
         // A surrender: the leaver's ship a wreck, told so as it's back; no game over (a guest's ship).
-        LeaveAtClosingAndComeBack(Segue.Defeat, "URQUAN_SHIP", (game, again, _) =>
+        LeaveAtClosingAndComeBack(Segue.Defeat, "URQUAN_SHIP", (game, group) =>
+        {
+            // The group as after a talk without a battle: its ships, re-forming and one-shot; the lock let go.
+            Assert.Equal(2, group.Ships.Count);
+            Assert.Equal(HyperEncounter.OneShot | HyperEncounter.Reforming, group.Flags & (HyperEncounter.OneShot | HyperEncounter.Reforming));
+            Assert.Null(group.MeetingPlayer);
+            Assert.Null(game.World.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
+        }, (game, again, _, _) =>
         {
             Assert.False(game.World.GameOver);
             var ship = game.World.Find("g1")!.Ship;
@@ -873,8 +888,11 @@ public class MeetingWireTests
     }
 
     // A guest at its meeting's closing lines (a talk at once, ending as given) leaves, a frame passes, and it comes
-    // back on a new connection and is sent what waited for it; then the checks (with its resource units before).
-    private static void LeaveAtClosingAndComeBack(Segue end, string race, Action<Game, Client, uint> check)
+    // back on a new connection and is sent what waited for it; then the checks (with its resource units before
+    // and the group it met).
+    // atLeave: checks as it leaves (the group as the leaving wrote it back, before frames move it on).
+    private static void LeaveAtClosingAndComeBack(Segue end, string race, Action<Game, HyperEncounter> atLeave,
+        Action<Game, Client, uint, HyperEncounter> check)
     {
         var game = NewGame(guests: 1);
         game.Init = Segue.Peace;
@@ -882,13 +900,14 @@ public class MeetingWireTests
         var host = game.Host;
         var world = game.World;
         var g1 = NewClient(1);
-        GroupBy(world, "g1", race);
+        var group = GroupBy(world, "g1", race);
         FramesUntil(host, () => g1.Session.Talk is { Replies.Count: > 0 }, 300, g1);
         g1.Session.PressMenu(MenuKey.Select);
         Frame(host, g1);
         Assert.Equal(MeetingStep.Closing, world.MeetingOf("g1")?.Step);
         uint units = world.Find("g1")!.Ship.Hold.ResourceUnits;
         host.GuestLeft(1);
+        atLeave(game, group);
         Assert.Null(world.MeetingOf("g1"));
         Assert.Empty(world.Battles);
         Frame(host, g1);
@@ -898,7 +917,7 @@ public class MeetingWireTests
         again.Session.PlayerId = "g1";
         Frame(host, again);
         Frame(host, again);
-        check(game, again, units);
+        check(game, again, units, group);
     }
 
     [ContentFact]
