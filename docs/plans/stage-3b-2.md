@@ -19,7 +19,7 @@ Stage 3a's, stage 4's, stage 4b's and 3b-1's decisions hold here unless a questi
 
 ### What the owner will be able to try when it's done
 
-- Fly into any race's sphere and meet its ships: each race talks and fights as in UQM. `--start-encounter RACE` brings a group of any race with a talk in space. It refuses the Syreen, with a message: UQM gives a Syreen group met in space no talk at all (`RACE_COMMUNICATION`'s `INVALID_CONVERSATION`). A Shofixti group runs Tanaka's talk, and a Chmmr group the Chmmr's, as UQM would.
+- Fly into any race's sphere and meet its ships: each race talks and fights as in UQM. `--start-encounter SHIP` (a ship id from `data/ships.json`) brings a group of any race with a talk in space. From item 11 it refuses a race UQM gives no talk in space (`RACE_COMMUNICATION`'s `INVALID_CONVERSATION`: the Syreen, the humans), with a message. A Shofixti group runs Tanaka's talk, and a Chmmr group the Chmmr's, as UQM would.
 - Orbit a race's homeworld: its talk, against its infinite fleet if it comes to a fight. Orbit Spathiwa's moon, the Slylandro gas giant and the Syreen's starbase: their talks.
 - Make an alliance (the Orz, the Zoq-Fot-Pik, the Spathi with the password, the Thraddash after 25 of their ships destroyed): the race's ships go on sale at the starbase. Win the Pkunk's friendship: they aren't allied in UQM (`pkunkc.c` never calls `SetRaceAllied`), but they give 4 ships, and more each year. Gifts of ships arrive in the host's fleet. Every player is told.
 - Run out of fuel in hyperspace: the Melnorme may come, and they strip the ship in exchange for fuel to get home. Fly into a super giant's system: a Melnorme ship is there. Trade with them:
@@ -86,8 +86,7 @@ Outside the scripts:
   - bit 6 talks (a race's second world);
   - finite guards that set a flag when none is left (the Druuge's 5 at the bomb, the Orz's 14 at the Taalo moon, the Mycon's 5 at the Sun Device once ambushed);
   - talks with no fleet (the Slylandro gas giant and the Syreen's starbase, now `NotEntered`);
-  - a talk before a talk (the Kohr-Ah ship at the Zoq-Fot-Pik's world in distress, 3c);
-  - a talk after a guard falls (the Talking Pet's, after the 10 zombie Umgah ships).
+  - a talk before a talk (the Kohr-Ah ship at the Zoq-Fot-Pik's world in distress, 3c).
 
 `GLOBAL_FLAGS_AND_DATA` is already each talk's own in the port (`StoryState.NotShared`), so a world's bit 7 can't leak into a later meeting, as UQM's clearing after every talk (`comm.c:1423`) ensures.
 
@@ -141,11 +140,11 @@ Outside the scripts:
 
 | Left out | Why | Goes to |
 | --- | --- | --- |
-| The events 3b-2's talks queue: the Yehat's revolt, the Shofixti's return, the Zoq-Fot-Pik's distress and death, the Spathi's shield, the Mycon's, Pkunk's, Thraddash's, Ilwrath's and Utwig-Supox missions, the Arilou's Umgah check | The event calendar is 3c's; they're set aside as they fall due (3b-1, decision 9; question 3) | 3c |
+| The events 3b-2's talks queue: the Yehat's revolt, the Shofixti's return, the Zoq-Fot-Pik's distress and death, the Spathi's shield, the Mycon's, Pkunk's, Thraddash's (and the Ilwrath's that follows it) and Utwig-Supox missions, the Arilou's Umgah check | The event calendar is 3c's; they're set aside as they fall due (3b-1, decision 9; question 3) | 3c |
 | Story worlds' pickups that are devices: the Maidens, the VUX beast, the Aqua Helix, the Ultron's parts, the Sun Device, the egg cases, the Clear Spindle's use, the Taalo protector, the bomb, the portal key, the broadcasters | Devices and energy nodes are 3c's | 3c |
 | The broadcaster's and the devices' talks (the Chmmr shielded, the Ilwrath's gods, the Talking Pet compelling) | Device use | 3c |
 | The Chmmr's bomb ship: the rebuild, the 14 days, whose ship it is | Needs the bomb, the Pet and the time skip; a co-op decision of its own (question 8) | 3c or the endgame |
-| The Talking Pet's jump to the Ur-Quan (`ZapToUrquanEncounter`: 15 days, the answerer moved) | A time skip | 3c |
+| The Talking Pet's world (`genpet.c`'s Pet half): the zombies with the Pet's talk, the hypnosis and the jump to the Ur-Quan (`ZapToUrquanEncounter`: 15 days, the answerer moved), the Pet once the Umgah are gone | The zombies need QuasiSpace, the jump is a time skip, the Umgah's end is the Kohr-Ah's genocide | 3c |
 | QuasiSpace and the Arilou at home | The portal | 3c |
 | The Yehat rebellion check (`check_yehat_rebellion`), the Sa-Matra's guards and talks, the rebels' cavalry | Story and the endgame | 3c, the endgame |
 | The alternate songs (`SPAHOME_MUSIC`, `REBEL_MUSIC`, `UTWIG_ULTRON_MUSIC`) | Nothing plays music yet | The audio stage |
@@ -173,7 +172,7 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
 1. **What talks can do.**
    - `Talk` gains `SetRaceAllied` (a dead race stays dead), `RemoveEscortShips`, `StartSphereTracking`, `HaveEscortShip`, the escort queue read in order, and `NPCPhrase_cb`.
    - Each gets the recorder's stub and a notice event: an alliance made or broken, ships given or taken.
-   - The world talks generalised: bit 6 worlds, finite guards with their "none left" flags, talks with no fleet, a talk after a guard falls.
+   - The world talks generalised: bit 6 worlds, finite guards with their "none left" flags, talks with no fleet.
    - The answering ship's bio data writable by a talk (the Umgah's reward). `ARILOU_SPACE_SIDE` given to a talk as the answering player's own field (whether they're in QuasiSpace).
    - The Thraddash's body count in the battle's end.
    - `--start-state`.
@@ -227,13 +226,13 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
 10. **The Thraddash, the Umgah and the Talking Pet.**
     - `thraddc.c`: the homeworld, the Aqua Helix guard, and the alliance by the body count.
     - `umgahc.c`: the Umgah's world (`genpet.c`'s Umgah half).
-    - `talkpet.c`: whole and recorded. `genpet.c`'s Pet half is wired, reached by `--start-state` until 3c: the 10 zombie ships, then the Pet's talk once they fall; the Pet's talk once the Umgah are gone. The jump to the Ur-Quan is left to 3c.
+    - `talkpet.c`: whole and recorded; reached only by tests until 3c. `genpet.c`'s Pet half goes to 3c whole: the zombies come with the Pet's own talk, which hypnotises a player without the Taalo protector (`PLAYER_HYPNOTIZED`) and jumps them to the Ur-Quan with 15 days gone (`ZapToUrquanEncounter`, a time skip); wiring it without the jump would leave the shared flag set for the next Ur-Quan meeting. The Pet's talk once the Umgah are gone needs the Kohr-Ah's genocide (3c) too.
 11. **The Arilou, the Syreen and the Chmmr.**
     - `arilouc.c`: their meetings in hyperspace (the answering player's `ARILOU_SPACE_SIDE`), and the home talk recorded.
     - `syreenc.c`: their starbase entered and talked at.
     - `chmmrc.c`: whole, recorded, reached only by set-up (question 8).
-    - Procyon's Ilwrath (`genchmmr.c`): orbiting the Chmmr's world with the Sun Device aboard while the Ilwrath aren't deceived builds their infinite fleet and starts the Ilwrath's talk at bit 6, the branch 3b-1 ported. Wired here, reached by `--start-devices` until 3c (row 27).
-    - With this item every race talks: `TalkingRaces` is every race, and the stand-in meeting and row 68 go.
+    - Procyon's Ilwrath (`genchmmr.c`): orbiting the Chmmr's world before they're unleashed, with the Sun Device aboard, while the Ilwrath live and aren't deceived, builds their infinite fleet and starts the Ilwrath's talk at bit 6, the branch 3b-1 ported. Wired here, reached by `--start-devices` until 3c (row 27).
+    - With this item every race talks: `TalkingRaces` is every race, and the stand-in meeting and row 68 go. `--start-encounter` refuses a race with no talk in space (the Syreen, the humans).
 12. **Docs.**
     - `docs/how-to-try/stage-3b-2.md`.
     - `design.md`: the build order.
