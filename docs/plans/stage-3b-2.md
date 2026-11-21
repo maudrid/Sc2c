@@ -4,7 +4,7 @@
 
 Build order item: the second part of stage 3b (`docs/design.md`; `docs/plans/stage-3b.md`, decision 1). 3b-1 built the engine: the clock's events, the fleets, hyperspace encounters, system groups, the meeting (encounter screen, talk, battle, battle-won screen), notices and five scripts. 3b-2 is mostly scripts on that engine: the other 20 conversations, the worlds that start them, what they do to the game, and the Melnorme's trading.
 
-Stage 3a's, stage 4's, stage 4b's and 3b-1's decisions hold here unless a question below changes one. Terms are 3b-1's (`docs/plans/stage-3b.md`): a hyperspace encounter, a system group, meeting a group.
+Stage 3a's, stage 4's, stage 4b's and 3b-1's decisions hold here unless a question below changes one. Two things the approved stage 3b plan gave to 3b-2 move to 3c here: the Talking Pet's world (its zombies, hypnosis and jump need QuasiSpace and a time skip; item 10) and the Kohr-Ah's ship at the Zoq-Fot-Pik's world (it comes with their distress, a 3c event). Terms are 3b-1's (`docs/plans/stage-3b.md`): a hyperspace encounter, a system group, meeting a group.
 
 ## Goal
 
@@ -27,7 +27,7 @@ Stage 3a's, stage 4's, stage 4b's and 3b-1's decisions hold here unless a questi
   - buy fuel, lander upgrades, modules and information;
   - another player can top up the trader's credits mid-talk.
 - Meet Tanaka three times to win him over. Meet the Zoq-Fot-Pik scout.
-- Reach the branches that need 3c's devices or events with testing flags (`--start-devices`, and the new `--start-state`, item 1).
+- Reach the branches that need 3c's devices or events with testing flags (`--start-devices`, and the new `--start-state`, item 1). The Talking Pet's talk is the one script with no way in until 3c: its world is 3c's (item 10), so only the tests run it.
 
 ## What the research found
 
@@ -51,7 +51,7 @@ Many branches of the 20 scripts open only through a device used, a story world's
 | Spathi at home (`spahome.c`) | 1,018 | Spathiwa's moon (infinite fleet) | The hostile talk; with the password (from the Melnorme), the quest and the alliance | Fwiffo; the shield event (the Evil Ones' count comes into 3b-2: question 2) |
 | Supox (`supoxc.c`) | 708 | Sphere (40% / 20%); homeworld | The neutral and hostile talks; the broken Ultron handed over | The alliance (by the Utwig's repaired Ultron), their mission, their ships |
 | Syreen (`syreenc.c`) | 878 | Their starbase (no fleet; never met in space) | The first talks | The shuttle, the vault, egg cases, the ambush, the alliance |
-| Talking Pet (`talkpet.c`) | 841 | The Umgah's world, only once the Umgah are zombies or the Kohr-Ah have destroyed them | None | The zombies (the Arilou in QuasiSpace), the Umgah's end, the devices, the jump to the Ur-Quan, the Sa-Matra |
+| Talking Pet (`talkpet.c`) | 841 | Nothing until 3c (tests only; in UQM, the Umgah's world once the Umgah are zombies or the Kohr-Ah have destroyed them) | None | The zombies (the Arilou in QuasiSpace), the Umgah's end, the devices, the jump to the Ur-Quan, the Sa-Matra |
 | Thraddash (`thraddc.c`) | 954 | Sphere (60% / 20%); homeworld; the Aqua Helix guard | The hostile talks; the alliance after 25 of their ships destroyed | The mission event; the Helix's pickup; the Ilwrath's war |
 | Umgah (`umgahc.c`) | 729 | Sphere (30% / 20%); homeworld | The Umgah before the Pet (every exit a fight) | The zombies and the reward |
 | Utwig (`utwigc.c`) | 996 | Sphere (40% / 20%); homeworld; the bomb's moon | The neutral and hostile talks, the bomb's guard | The Ultron's repairs (devices), the mission, their ships |
@@ -272,7 +272,7 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
 Each has a recommendation (first) and the plan as written follows it. The owner's answers change the items they name.
 
 1. **Branches that need 3c.** About a third of the 20 scripts' paths open only through 3c's devices or events (the table above).
-   - **Port every script whole and record every path; wire every entry play can reach now; reach the rest with `--start-devices` and `--start-state` until 3c (recommended).** This is how 3b-1 did the Ur-Quan's Sa-Matra branches. 3c then only wires entries to scripts already checked.
+   - **Port every script whole and record every path; wire every entry play can reach now; reach the rest with `--start-devices` and `--start-state` until 3c (recommended).** This is how 3b-1 did the Ur-Quan's Sa-Matra branches. 3c then only wires entries to scripts already checked. The Talking Pet's talk is the exception: it has no way in until 3c, so only the tests run it.
    - Port only what play can reach now, the rest with 3c: smaller items now, but 3c reopens every script and re-records it.
 2. **Small story pickups that unlock talk paths.** Two pickups need no device and are read by 3b-2's talks:
    - the rainbow worlds marked on orbit (`genrain.c`), which the Melnorme buy;
