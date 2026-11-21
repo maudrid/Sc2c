@@ -164,6 +164,7 @@ public class MeetingWireTests
         var all = Sets(mh).Concat(Sets(mg)).ToList();
         Assert.Equal(12, all.Count);
         Assert.Equal(all.Count, all.Distinct().Count());
+        Assert.Equal(all.Count - 1, all.Max() - all.Min());   // one after another: the counter skips none
         Assert.Null(world.MeetingOf("g1"));   // g1's replies all went to its own talk, by its rounds
     }
 
@@ -969,6 +970,56 @@ public class MeetingWireTests
         Assert.False(world.StoryPaused);
         Assert.Contains(m.Talk.Events, e => e is ReplyChosen);
     }
+
+    [ContentFact]
+    public void AStoryRepliersMeetingReplyGoesToTheMeetingThoughItsSetCameAsTheStorysNumberOnceWould()
+    {
+        // The host in a meeting's talk offering set after set; g1 starts the
+        // opening's story and fights its Ilwrath, the host answering its
+        // meeting meanwhile (no story pause then); after the fight g1 leaves,
+        // so the alliance's replies pass to the host. Counting on from each
+        // talk's first round, the meeting's set and the story's came to the
+        // same number here, and the meeting's reply went to the story.
+        var game = NewGame(guests: 1);
+        var host = game.Host;
+        var world = game.World;
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var g1 = NewClient(1);
+        game.Own["SPATHI_SHIP"] = seed => RepeatTalk(world.Story!, 30, seed);
+        GroupBy(world, "h", "SPATHI_SHIP");
+        FramesUntil(host, () => world.MeetingOf("h") is { Step: MeetingStep.Talk, Talk.Offers: > 0 }, 300, g1);
+        var m = world.MeetingOf("h")!;
+        foreach (var f in new[] { "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED", "MOONBASE_ON_SHIP" })
+            world.Story!.Set(f, 1);
+        world.Story!.Set("STARBASE_AVAILABLE", 0);
+        world.CommanderMet = true;
+        world.VisitStarbase(world.Find("g1")!);
+        var visit = world.Visit!;
+        Say(host, "comandr", "base_was_abandoned");
+        Say(host, "ilwrath", "surrender");
+        var wb = visit.Fight!;
+        for (int i = 0; i < Answers; ++i)
+            Assert.True(host.ChooseReply("h", m.Round, 0));   // no pause in the fight: made at once
+        Win(host, wb, g1);
+        host.GuestLeft(1);
+        Assert.Same(world.Host, visit.Replier);
+        Assert.True(world.StoryPaused);
+        int storyRound = visit.Round, meetingRound = m.Round, meetingSets = m.Talk!.Offers, storyEvents = visit.Talk!.Events.Count;
+        // The meeting's reply (for its set) is the meeting's: held through the story, not said in it.
+        Assert.True(host.ChooseReply("h", meetingRound, 0));
+        Assert.Equal(storyEvents, visit.Talk.Events.Count);
+        Assert.Contains(world.HeldReplies, h => h.Id == "h" && h.Round == meetingRound);
+        // The story's reply is the story's.
+        Say(host, "comandr", "cook_their_butts");
+        Assert.Equal(meetingSets, m.Talk.Offers);
+        Assert.NotEqual(storyRound, visit.Round);
+        Assert.NotEqual(storyRound, meetingRound);   // the game's numbers: the two sets never one
+    }
+
+    // The meeting's sets the host answers during the fight: with three, the
+    // meeting's set and the story's came to one number (4) as each talk
+    // counted on from its own first round.
+    private const int Answers = 3;
 
     private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);
 

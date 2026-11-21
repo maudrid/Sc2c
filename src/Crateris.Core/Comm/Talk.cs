@@ -347,9 +347,12 @@ public sealed class Talk
     {
         if (_offered.Count > 0)
         {
+            // Its number first, so the talk's count of sets (Offers) doesn't
+            // mix the events' with the numbers' while the counter runs.
+            int? round = RoundSource?.Invoke();
             _events.Add(new RepliesOffered(Replies));
-            if (RoundSource is { } next)
-                _offerRounds.Add(next());
+            if (round is int n)
+                _offerRounds.Add(n);
             return;
         }
         Ended = true;
