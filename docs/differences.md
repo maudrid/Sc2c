@@ -103,6 +103,7 @@ Newest first. Row numbers stay fixed so review notes keep pointing at the right 
 | Date | Rows | Change |
 | --- | --- | --- |
 | 2026-11-21 | 69, 71, 75, 76 | Stage 3b-1 item 10, the wire: a meeting sent to its player's client (the encounter screen's state, its choice back, the talk, its closing lines as a notice, the battle-won tally), the encounter screen's options not offered (69, 71); an instant victory's tally told (75); the notices kept in words (76) |
+| 2026-11-21 | 69 | The owner's answers to the handoff's questions 9 to 11: the host's game menu on the encounter screen (built), a meeting's closing lines on the communication screen with the meeting waiting (item 11), a choice during a pause kept |
 | 2026-11-21 | 73, 74, 76 | The owner's answers to the handoff's questions 1 to 8: every placeholder kept as built, but question 6 (the notices told to every player) |
 | 2026-11-21 | 76 | Stage 3b-1 item 9: the notices told to every player, not only those near (the owner's answer to question 6) |
 | 2026-11-21 | 76 | Stage 3b-1 item 9, notices of what other players set off (76, new) |
