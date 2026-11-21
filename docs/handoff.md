@@ -65,11 +65,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner. Stage 3b-1 is built (items 1 to 12, each reported). At the owner's request (2026-11-21) stage 3b-2 is planned in `docs/plans/stage-3b-2.md`: twelve items, ten open questions at its end with recommendations; review round 1's findings fixed (the Pkunk aren't allied in UQM, the Melnorme's ships wait for their talk, the rescue's rules, accuracy points), round 2 next. Nothing of 3b-2 is started; the plan needs the owner's answers and approval, then a go-ahead per item.
+Wait for the owner. Stage 3b-1 is built (items 1 to 12, each reported). At the owner's request (2026-11-21) stage 3b-2 is planned in `docs/plans/stage-3b-2.md`: twelve items, ten open questions at its end with recommendations; review round 1's findings fixed (the Pkunk aren't allied in UQM, the Melnorme's ships wait for their talk, the rescue's rules, accuracy points), round 2's fixed (Procyon's Ilwrath wired in item 11, the Talking Pet's world half, question 5 asking only the catalog's order, smaller points), round 3 next. Nothing of 3b-2 is started; the plan needs the owner's answers and approval, then a go-ahead per item.
 
 ## Decisions waiting on the owner
 
-The ten open questions of `docs/plans/stage-3b-2.md` (3c's branches ported whole; the rainbow worlds and the Evil Ones' count brought in; 3c's events left set aside; the host's fleet for the escort checks; the Melnorme's technology; rainbow worlds and the Melnorme's anger shared; the Melnorme's rescue; the Chmmr; the Thraddash's body count; the items' order), and the plan as a whole.
+The ten open questions of `docs/plans/stage-3b-2.md` (3c's branches ported whole; the rainbow worlds and the Evil Ones' count brought in; 3c's events left set aside; the host's fleet for the escort checks; the Melnorme's catalog; rainbow worlds and the Melnorme's anger shared; the Melnorme's rescue; the Chmmr; the Thraddash's body count; the items' order), and the plan as a whole.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 

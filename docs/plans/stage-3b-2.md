@@ -19,7 +19,7 @@ Stage 3a's, stage 4's, stage 4b's and 3b-1's decisions hold here unless a questi
 
 ### What the owner will be able to try when it's done
 
-- Fly into any race's sphere and meet its ships: each race talks and fights as in UQM. `--start-encounter RACE` brings a group of any race that has ships in space (UQM gives a Syreen group met in space no talk at all: `RACE_COMMUNICATION`'s `INVALID_CONVERSATION`).
+- Fly into any race's sphere and meet its ships: each race talks and fights as in UQM. `--start-encounter RACE` brings a group of any race with a talk in space. It refuses the Syreen, with a message: UQM gives a Syreen group met in space no talk at all (`RACE_COMMUNICATION`'s `INVALID_CONVERSATION`). A Shofixti group runs Tanaka's talk, and a Chmmr group the Chmmr's, as UQM would.
 - Orbit a race's homeworld: its talk, against its infinite fleet if it comes to a fight. Orbit Spathiwa's moon, the Slylandro gas giant and the Syreen's starbase: their talks.
 - Make an alliance (the Orz, the Zoq-Fot-Pik, the Spathi with the password, the Thraddash after 25 of their ships destroyed): the race's ships go on sale at the starbase. Win the Pkunk's friendship: they aren't allied in UQM (`pkunkc.c` never calls `SetRaceAllied`), but they give 4 ships, and more each year. Gifts of ships arrive in the host's fleet. Every player is told.
 - Run out of fuel in hyperspace: the Melnorme may come, and they strip the ship in exchange for fuel to get home. Fly into a super giant's system: a Melnorme ship is there. Trade with them:
@@ -48,7 +48,7 @@ Many branches of the 20 scripts open only through a device used, a story world's
 | Yehat rebels (`rebel.c`) | 449 | Nothing until `YEHAT_REBEL_EVENT` | None | The revolt's event; the endgame's cavalry |
 | Shofixti (`shofixt.c`) | 652 | Tanaka's scout (a special group) | The three meetings to his friendship | The Maidens to recruit him; the return event (the alliance) |
 | Slylandro at home (`slyhome.c`) | 921 | The gas giant (no fleet) | All of it: the self-destruct code | None |
-| Spathi at home (`spahome.c`) | 1,018 | Spathiwa's moon (infinite fleet) | The hostile talk; with the password (from the Melnorme), the quest and the alliance | Fwiffo; the shield event; the Evil Ones' count (question 2) |
+| Spathi at home (`spahome.c`) | 1,018 | Spathiwa's moon (infinite fleet) | The hostile talk; with the password (from the Melnorme), the quest and the alliance | Fwiffo; the shield event (the Evil Ones' count comes into 3b-2: question 2) |
 | Supox (`supoxc.c`) | 708 | Sphere (40% / 20%); homeworld | The neutral and hostile talks; the broken Ultron handed over | The alliance (by the Utwig's repaired Ultron), their mission, their ships |
 | Syreen (`syreenc.c`) | 878 | Their starbase (no fleet; never met in space) | The first talks | The shuttle, the vault, egg cases, the ambush, the alliance |
 | Talking Pet (`talkpet.c`) | 841 | The Umgah's world, only once the Umgah are zombies or the Kohr-Ah have destroyed them | None | The zombies (the Arilou in QuasiSpace), the Umgah's end, the devices, the jump to the Ur-Quan, the Sa-Matra |
@@ -86,7 +86,8 @@ Outside the scripts:
   - bit 6 talks (a race's second world);
   - finite guards that set a flag when none is left (the Druuge's 5 at the bomb, the Orz's 14 at the Taalo moon, the Mycon's 5 at the Sun Device once ambushed);
   - talks with no fleet (the Slylandro gas giant and the Syreen's starbase, now `NotEntered`);
-  - a talk before a talk (the Kohr-Ah ship at the Zoq-Fot-Pik's world in distress, 3c).
+  - a talk before a talk (the Kohr-Ah ship at the Zoq-Fot-Pik's world in distress, 3c);
+  - a talk after a guard falls (the Talking Pet's, after the 10 zombie Umgah ships).
 
 `GLOBAL_FLAGS_AND_DATA` is already each talk's own in the port (`StoryState.NotShared`), so a world's bit 7 can't leak into a later meeting, as UQM's clearing after every talk (`comm.c:1423`) ensures.
 
@@ -133,7 +134,7 @@ Outside the scripts:
   - the Zoq-Fot-Pik's two speakers on the comm screen;
   - the Melnorme's bio data counted down;
   - the alternate songs noted for the audio stage;
-  - the save's version and the protocol's go up.
+  - the save's version goes up once (14), for each player's credits, refused rescue and broadcaster flag; the protocol goes up.
 - **`--start-state NAME=VALUE`** (testing, new): set story fields at the start, to reach branches that wait on 3c.
 
 **Left out of 3b-2:**
@@ -172,7 +173,8 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
 1. **What talks can do.**
    - `Talk` gains `SetRaceAllied` (a dead race stays dead), `RemoveEscortShips`, `StartSphereTracking`, `HaveEscortShip`, the escort queue read in order, and `NPCPhrase_cb`.
    - Each gets the recorder's stub and a notice event: an alliance made or broken, ships given or taken.
-   - The world talks generalised: bit 6 worlds, finite guards with their "none left" flags, talks with no fleet, `GLOBAL_FLAGS_AND_DATA` cleared after every talk.
+   - The world talks generalised: bit 6 worlds, finite guards with their "none left" flags, talks with no fleet, a talk after a guard falls.
+   - The answering ship's bio data writable by a talk (the Umgah's reward). `ARILOU_SPACE_SIDE` given to a talk as the answering player's own field (whether they're in QuasiSpace).
    - The Thraddash's body count in the battle's end.
    - `--start-state`.
    - One golden file per script, so `talks.json` doesn't grow to tens of megabytes (risk below).
@@ -225,18 +227,19 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
 10. **The Thraddash, the Umgah and the Talking Pet.**
     - `thraddc.c`: the homeworld, the Aqua Helix guard, and the alliance by the body count.
     - `umgahc.c`: the Umgah's world (`genpet.c`'s Umgah half).
-    - `talkpet.c`: whole, recorded, reached only by set-up until 3c; the jump to the Ur-Quan left to 3c.
+    - `talkpet.c`: whole and recorded. `genpet.c`'s Pet half is wired, reached by `--start-state` until 3c: the 10 zombie ships, then the Pet's talk once they fall; the Pet's talk once the Umgah are gone. The jump to the Ur-Quan is left to 3c.
 11. **The Arilou, the Syreen and the Chmmr.**
-    - `arilouc.c`: their meetings in hyperspace, and the home talk recorded.
+    - `arilouc.c`: their meetings in hyperspace (the answering player's `ARILOU_SPACE_SIDE`), and the home talk recorded.
     - `syreenc.c`: their starbase entered and talked at.
     - `chmmrc.c`: whole, recorded, reached only by set-up (question 8).
+    - Procyon's Ilwrath (`genchmmr.c`): orbiting the Chmmr's world with the Sun Device aboard while the Ilwrath aren't deceived builds their infinite fleet and starts the Ilwrath's talk at bit 6, the branch 3b-1 ported. Wired here, reached by `--start-devices` until 3c (row 27).
     - With this item every race talks: `TalkingRaces` is every race, and the stand-in meeting and row 68 go.
 12. **Docs.**
     - `docs/how-to-try/stage-3b-2.md`.
     - `design.md`: the build order.
     - `porting-inventory.md`.
     - `differences.md`: rows 19, 27, 36 ("the credits come with 3b"), 68, 72 and 74, and new rows for this plan's co-op rules and the events set aside.
-   - Code comments that call the Ilwrath's broadcaster branches 3b-2's (`IlwrathScript.cs`, `IlwrathSpathiMeetingTests.cs`): they're 3c's, with the device.
+    - Code comments that call the Ilwrath's broadcaster branches 3b-2's (`IlwrathScript.cs`, `IlwrathSpathiMeetingTests.cs`): they're 3c's, with the device.
     - `uqm-data.md`.
 
 ## Progress
@@ -279,15 +282,15 @@ Each has a recommendation (first) and the plan as written follows it. The owner'
    Options:
    - **Bring both into 3b-2 (recommended):** small, no devices, and without them two branches can't be reached honestly.
    - Leave both with 3c's story worlds: the Melnorme never buy a rainbow world, and the Spathi's quest can only be lied about.
-3. **3c's events that 3b-2's talks queue.** These are the Yehat's revolt, the Shofixti's return, the Zoq-Fot-Pik's distress and death, the Spathi's shield, and the Mycon's, Pkunk's, Thraddash's and Utwig-Supox missions.
+3. **3c's events that 3b-2's talks queue.** These are the Yehat's revolt, the Shofixti's return, the Zoq-Fot-Pik's distress and death, the Spathi's shield, the Arilou's Umgah check, and the Mycon's, Pkunk's, Thraddash's and Utwig-Supox missions.
    - **Leave them all set aside until 3c runs the calendar (recommended), with a `differences.md` row:** alliances made now don't move on until 3c. Most of these events move fleets, kill races or change spheres, which is the calendar's work. Of the cheap ones, the revolt needs a Shofixti ship, which needs the Shofixti's return, which needs the Maidens (a 3c pickup), so bringing it forward gains nothing in play.
    - Bring the ones that only set flags or make a sphere (the revolt, the Shofixti's return, the Arilou's Umgah check) into 3b-2. They would run but stay hard to reach.
 4. **Whose fleet a talk looks at.** Gifts and their room check already go to the host's fleet, whoever answers (2026-11-15; stage 4b, decision 3). New in 3b-2 are the talks that look at the escorts or take them back: the Yehat's revolt needs a Shofixti ship, the Spathi at home ask after Fwiffo, the Druuge see an unarmed ship to salvage, and the Orz take their ships back when the alliance breaks.
    - **The host's fleet for these too, whoever answers (recommended),** so what's given is what's checked and taken back. For the Druuge's salvage test, an unarmed guest is covered by the host's escorts.
    - The answering player's own escorts: a guest has none, so a guest could never offer the Yehat a Shofixti, and the Orz would take back ships from a fleet they weren't given to.
-5. **What the Melnorme's technology is.** UQM's catalog sells 13 items in order, each once. Six are modules (the blaster, point defence, the high-efficiency fuel system, tracking, the cannon and the Shiva furnace): buying one sets the module's shared price, so it goes on sale at the starbase for everyone, escorts included where an escort can hold it (escorts can't hold the fuel system). The other seven are lander upgrades, which the port keeps per ship.
-   - **As UQM's, per kind: a module bought by anyone is for sale to everyone; a lander upgrade is the answering ship's; the catalog offers the first item the answering ship lacks (recommended).** Each player pays for their own lander upgrades.
-   - Everything shared: one player's lander upgrade is everyone's. Cheaper for the group, but upgrades are per ship already.
+5. **The Melnorme's technology: confirm, and one new rule.** UQM's catalog sells 13 items in order, each once. Six are modules (the blaster, point defence, the high-efficiency fuel system, tracking, the cannon and the Shiva furnace). Buying one sets the module's shared price, so it goes on sale at the starbase for everyone, escorts included where an escort can hold it (escorts can't hold the fuel system). The other seven are lander upgrades. Both follow rules already approved: module prices have been shared since stages 3 and 4, and lander upgrades have been each ship's own since stage 2b (row 36). What's new is the catalog's order with several ships.
+   - **The catalog offers the first item the answering ship lacks (recommended):** a module anyone has bought is skipped for everyone; a lander upgrade is skipped only for the ship that has it. Each player pays for their own lander upgrades.
+   - The catalog walks the group's purchases: a lander upgrade one player bought is skipped for everyone, and others can't buy it.
 6. **Rainbow worlds and the Melnorme's anger: confirm they stay shared.** Both are story fields, and story flags are shared (row 36), so these follow from rules already approved; the question is only whether the Melnorme should be an exception.
    - **Shared (recommended).** A rainbow world (500 credits) is found once for the group and paid for once, to whoever sells it first; the seller can give the credits on. Angering the Melnorme (up to `MELNORME_ANGER` 3, which also stops their coming to ships out of fuel) angers them with everyone, and every player is told. To calm them, any player can offer their ship to be stripped whole (`ok_strip_me`), whoever angered them.
    - Per player, as an exception: each player sells the worlds they orbited themselves (the group can be paid several times for one world), and each keeps their own standing with the Melnorme (the one race that would remember players apart).
