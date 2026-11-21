@@ -603,6 +603,9 @@ public partial class Main : Node2D
     private void EncounterChoice(int meeting, int action) =>
         _host?.GuestEncounterChoice(Multiplayer.GetRemoteSenderId(), meeting, action);
 
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ClosingDone(int meeting) => _host?.GuestClosingDone(Multiplayer.GetRemoteSenderId(), meeting);
+
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowMeeting(byte[] meeting)
     {
@@ -857,6 +860,8 @@ public partial class Main : Node2D
                     _host.ChooseReply(_host.HostId, round, reply);
                 if (inGame && _player.TakeEncounterChoice() is var (meeting, action))
                     _host.ChooseEncounter(_host.HostId, meeting, action);
+                if (inGame && _player.TakeClosingDone() is int closed)
+                    _host.ClosingDone(_host.HostId, closed);
                 if (inGame)
                 {
                     foreach (var gift in _player.TakeGifts())
@@ -929,6 +934,8 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.ChooseReply, round, reply);
                 if (_player.TakeEncounterChoice() is var (meeting, action))
                     RpcId(1, MethodName.EncounterChoice, meeting, (int)action);
+                if (_player.TakeClosingDone() is int closed)
+                    RpcId(1, MethodName.ClosingDone, closed);
                 foreach (var key in _player.TakeStarbaseKeys())
                     RpcId(1, MethodName.StarbaseKey, (int)key);
                 foreach (var gift in _player.TakeGifts())
@@ -1241,6 +1248,8 @@ public partial class Main : Node2D
                 linesFrom = _sellingView.LinesFrom(talk.LinesKey);
             }
             _commView.Show(player, linesFrom);
+            // A meeting's closing lines: gone through once played and the last replay's time is up (item 11).
+            player.FollowClosing(_commView.Busy, 1.0 / Engine.PhysicsTicksPerSecond);
         }
         else
         {

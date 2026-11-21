@@ -158,7 +158,7 @@ public sealed class PlayerShip
     public bool Wreck => Destroyed && Battle is null && Kind != ShipKind.Flagship;
 
     public Activity Activity => Battle is not null ? Activity.Battle : Visit is { AtMenu: true } ? Activity.Starbase
-        : Visit is not null || Meeting is { Step: MeetingStep.Encounter or MeetingStep.Talk } ? Activity.Talk : Ip switch
+        : Visit is not null || Meeting is { Step: MeetingStep.Encounter or MeetingStep.Talk or MeetingStep.Closing } ? Activity.Talk : Ip switch
     {
         null => Activity.Hyperspace,
         { Orbit: not null } when Lander is not null => Activity.Planetside,

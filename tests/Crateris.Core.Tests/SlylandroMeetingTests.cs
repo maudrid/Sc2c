@@ -129,7 +129,8 @@ public class SlylandroMeetingTests
         Assert.True(world.ChooseReply("h", Reply(m.Talk, "threat_1")));
         Assert.True(Said(m.Talk, "PROGRAMMED_TO_DEFEND_1") && Said(m.Talk, "HOSTILE"));
         Assert.Equal((1, 1), (world.Story.Get("SLYLANDRO_PROBE_THREAT"), world.Story.Get("PROBE_EXHIBITED_BUG")));
-        // The battle against the probe (stage 4b's slylandr), the lock let go.
+        // Its last lines on the screen (item 11), then the battle against the probe (stage 4b's slylandr), the lock let go.
+        MeetingTests.HearClosing(world, "h");
         Assert.Equal(MeetingStep.Battle, m.Step);
         Assert.Equal("slylandr", m.Battle!.EnemyShip.Id);
         Assert.False(m.InstantVictory);
@@ -152,6 +153,7 @@ public class SlylandroMeetingTests
         Assert.False(Said(m.Talk, "HOSTILE"));
         Assert.Equal(Segue.Victory, m.Talk.Segue);
         Assert.Equal(0, world.Story.Get("PROBE_EXHIBITED_BUG"));
+        MeetingTests.HearClosing(world, "g");   // its last lines on the screen first (item 11)
         // An instant victory (UninitEncounter after Battle's instantVictory):
         // no battle, every probe destroyed, each one's bounty to the
         // answerer alone; the encounter written back with none (status 1:
@@ -188,6 +190,7 @@ public class SlylandroMeetingTests
         var m = Meet(world, "h");
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
         Assert.True(world.ChooseReply("h", 0));
+        MeetingTests.HearClosing(world, "h");
         Assert.True(m.InstantVictory);
         Assert.Equal((0u, units), (m.Salvage, world.Host.Ship.Hold.ResourceUnits));
         Assert.Equal(new[] { 12 }, m.Left!.Select(l => l.Crew));
@@ -295,6 +298,7 @@ public class SlylandroMeetingTests
         uint units = world.Host.Ship.Hold.ResourceUnits;
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
         Assert.True(world.ChooseReply("h", Reply(m.Talk!, "destruct_code")));
+        MeetingTests.HearClosing(world, "h");
         // As after a battle won (comm.c's status 1; its clearing of the
         // Slylandro's group for status 0 never reached): the group gone, the
         // numbers seeded afresh (Battle's), the race turned on the players.
@@ -408,7 +412,7 @@ public class SlylandroMeetingTests
         host.EncounterChoice = EncounterAction.Hail;
         host.MeetingReplies.Enqueue(3);   // we_are_us_4: the coordinates (the destruct code first)
         for (int i = 0; i < 400 && host.World.Host.Ship.Battle is null; ++i)
-            host.Step(ShipInput.None);
+            MeetingTests.StepHearing(host);
         Assert.Contains(log, l => l.StartsWith("  Slylandro: ", StringComparison.Ordinal));
         Assert.Contains("  Slylandro (on): +", log);
         Assert.Contains("host fights the Slylandro", log);
@@ -429,7 +433,7 @@ public class SlylandroMeetingTests
         again.EncounterChoice = EncounterAction.Hail;
         again.MeetingReplies.Enqueue(0);   // destruct_code
         for (int i = 0; i < 400 && !log2.Any(l => l.StartsWith("host's meeting", StringComparison.Ordinal)); ++i)
-            again.Step(ShipInput.None);
+            MeetingTests.StepHearing(again);
         Assert.Contains("  The talk with the Slylandro ends: victory", log2);
         Assert.Contains($"host's meeting with the Slylandro is over: an instant victory, the Slylandro ships destroyed, {2 * Bounty(again.World)} RU of salvage", log2);
         Assert.DoesNotContain("host fights the Slylandro", log2);
@@ -451,10 +455,14 @@ public class SlylandroMeetingTests
         guarded.StartEncounter("slylandr:2");
         guarded.EncounterChoice = EncounterAction.Hail;
         guarded.MeetingReplies.Enqueue(0);   // destruct_code
-        for (int i = 0; i < 400 && !log3.Any(l => l.StartsWith("host's meeting", StringComparison.Ordinal)); ++i)
+        for (int i = 0; i < 400 && guarded.World.MeetingOf("host") is not { Step: MeetingStep.Closing }; ++i)
             guarded.Step(ShipInput.None);
+        // The probes' last lines gone through (item 11): the group written back with every ship (it goes in
+        // the next frame's encounters, one-shot from its roll), and the log says so.
+        Assert.True(guarded.ClosingDone("host", guarded.World.MeetingOf("host")!.Id));
+        Assert.Equal(new[] { 12, 12 }, guarded.World.Encounters!.List.Single(e => e.Race == Probe(guarded.World)).Ships);
+        guarded.Step(ShipInput.None);
         Assert.Contains("host's meeting with the Slylandro is over: an instant victory that wins nothing (the Ur-Quan guard the Sa-Matra), no ships destroyed", log3);
         Assert.DoesNotContain(log3, l => l.Contains("ships destroyed,", StringComparison.Ordinal));
-        Assert.Equal(new[] { 12, 12 }, guarded.World.Encounters!.List.Single(e => e.Race == Probe(guarded.World)).Ships);
     }
 }

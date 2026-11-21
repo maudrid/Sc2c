@@ -43,7 +43,6 @@ public sealed partial class GameWorld
             foreach (var p in _players.Where(p => p.Present))
             {
                 _ended[p.Id] = (v, closing with { Step = VisitStep.Done });
-                _meetingClosing.Remove(p.Id);   // the newer talk's closing lines shown, not a meeting's before
                 _storyClosingUntil[p.Id] = Frame + 1;
             }
         var starter = v.Starter;

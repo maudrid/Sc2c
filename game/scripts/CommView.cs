@@ -170,6 +170,9 @@ public partial class CommView : Node2D
     /// <summary>Whether the lines are still playing (the replies wait).</summary>
     public bool Talking => _screen?.Talking == true;
 
+    /// <summary>Whether the lines are playing or the summary is open (a meeting's closing lines wait for neither).</summary>
+    public bool Busy => _screen is { } s && (s.Talking || s.SummaryOpen);
+
     public override void _Process(double delta)
     {
         if (!Visible || _screen is null)

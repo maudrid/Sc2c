@@ -141,7 +141,13 @@ public static class Protocol
     /// a battle's end carries the battle-won screen's tally (the ships
     /// destroyed and each one's bounty), and a meeting's instant victory
     /// is told as one. Item 9's notices still go in words (BattleNoticeKind.Told).
-    public const int Version = 26;
+    /// 27: a meeting's closing lines (stage 3b-1 item 11; the owner's
+    /// answer to question 10): a meeting has a step for them
+    /// (MeetingStep.Closing, numbered after the talk), its talk's view
+    /// showing them with no replies, and the player's client says when
+    /// they've gone through them (ClosingDone, with the meeting's number);
+    /// the closing lines are no longer a VisitStep.Done view.
+    public const int Version = 27;
     public const int DefaultPort = 24642;
 
     /// <summary>

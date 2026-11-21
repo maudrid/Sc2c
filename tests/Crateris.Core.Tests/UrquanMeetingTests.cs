@@ -150,6 +150,10 @@ public class UrquanMeetingTests
         Assert.True(talk.Ended);
         Assert.Equal(Segue.Peace, talk.Segue);
         Assert.Equal(1, world.Story!.Get("PROBE_MESSAGE_DELIVERED"));
+        // Its message on the communication screen, the meeting waiting for the player to go through it
+        // (item 11), the lock held meanwhile; then it's over.
+        Assert.Equal("h", world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
+        MeetingTests.HearClosing(world, "h");
         Assert.Null(world.MeetingOf("h"));
         Assert.Null(world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
         // The drone's race has no sphere to track (InitCommunication skips it), nor the Ur-Quan's from it.
@@ -196,6 +200,7 @@ public class UrquanMeetingTests
         Assert.Empty(world.SystemMeetings);
         // The talk over (a battle), the lock let go: the guest meets the drone.
         Assert.True(world.ChooseReply("h", Reply(m.Talk!, "you_must_surrender"), m.Round));
+        MeetingTests.HearClosing(world, "h");
         Assert.Null(world.DialogueLocks.Holder("URQUAN_CONVERSATION"));
         for (int i = 0; i < 600 && world.SystemMeetings.Count == 0; ++i)
             Frames(world, 1);
@@ -232,6 +237,7 @@ public class UrquanMeetingTests
             var keys = turn == 0 ? ShipInput.Thrust : turn > Uqm.UqmMath.Facings / 2 ? ShipInput.Left : ShipInput.Right;
             world.SubmitInput("host", world.Frame + 1, keys);
             world.Step();
+            MeetingTests.HearAnyClosing(world, "host");   // the drone's message gone through (item 11)
         }
         var met = Assert.Single(world.SystemMeetings);
         Assert.Equal(Race(world, "URQUAN_DRONE_SHIP"), met.Race);
@@ -263,7 +269,9 @@ public class UrquanMeetingTests
         Assert.True(world.ChooseReply("h", Reply(talk, "you_must_surrender"), m.Round));
         Assert.True(Said(talk, "NOPE"));
         Assert.Equal(Segue.Hostile, talk.Segue);
-        // The battle against the group's dreadnoughts, the lock let go.
+        // Their last words on the screen first (item 11), then the battle against the group's dreadnoughts,
+        // the lock let go.
+        MeetingTests.HearClosing(world, "h");
         Assert.Equal(MeetingStep.Battle, m.Step);
         Assert.Equal(new[] { "urquan", "urquan" }, m.Battle!.EnemyFleet.Ships.Select(s => s.Ship));
         Assert.Null(world.DialogueLocks.Holder("URQUAN_CONVERSATION"));
@@ -306,6 +314,7 @@ public class UrquanMeetingTests
         Assert.True(world.ChooseReply("h", Reply(talk, "bye"), m.Round));
         Assert.True(Said(talk, "GOODBYE_AND_DIE"));
         Assert.Equal(1, world.Story!.Get("KOHR_AH_BYES"));
+        MeetingTests.HearClosing(world, "h");
         Assert.Equal(MeetingStep.Battle, m.Step);
         Assert.Equal("blackurq", m.Battle!.EnemyFleet.Ships.Single().Ship);
     }
@@ -325,6 +334,7 @@ public class UrquanMeetingTests
         Assert.Equal(MeetingStep.Encounter, m.Step);
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
         Assert.True(Said(talk, "CAUGHT_YA"));
+        MeetingTests.HearClosing(world, "h");
         Assert.Equal(MeetingStep.Battle, m.Step);
         Assert.Equal(0, world.Story!.Get("URQUAN_VISITS"));   // not a visit of theirs
     }
@@ -341,6 +351,7 @@ public class UrquanMeetingTests
         Assert.Equal(Segue.Defeat, talk.Segue);
         // The talk shows the crew as UQM's (COUNT)~0.
         Assert.Equal(Talk.DefeatedCrew, talk.Events.OfType<ShipChanged>().Last().Crew);
+        MeetingTests.HearClosing(world, id);   // their last words first (item 11)
         return m;
     }
 
@@ -526,7 +537,7 @@ public class UrquanMeetingTests
         host.EncounterChoice = EncounterAction.Hail;
         host.MeetingReplies.Enqueue(0);   // you_must_surrender
         for (int i = 0; i < 400 && host.World.Host.Ship.Battle is null; ++i)
-            host.Step(ShipInput.None);
+            MeetingTests.StepHearing(host);
         Assert.NotNull(host.World.Host.Ship.Battle);
         Assert.Empty(host.MeetingReplies);
         var talk = log.SkipWhile(l => !l.StartsWith("host talks to the Ur-Quan", StringComparison.Ordinal)).ToList();
@@ -579,7 +590,7 @@ public class UrquanMeetingTests
         host.MeetingReplies.Enqueue(first);
         host.MeetingReplies.Enqueue(second);
         for (int i = 0; i < 400 && !host.World.GameOver; ++i)
-            host.Step(ShipInput.None);
+            MeetingTests.StepHearing(host);
         Assert.Empty(host.MeetingReplies);
         Assert.Equal(new[] { $"  host chose reply {first}", $"  host chose reply {second}" },
             log.Where(l => l.StartsWith("  host chose reply", StringComparison.Ordinal)));
@@ -604,7 +615,7 @@ public class UrquanMeetingTests
         Assert.DoesNotContain(log, l => l.StartsWith("  host chose reply", StringComparison.Ordinal) || l.StartsWith("--meeting-replies", StringComparison.Ordinal));
         Assert.True(host.TogglePause());
         for (int i = 0; i < 400 && !host.World.GameOver; ++i)
-            host.Step(ShipInput.None);
+            MeetingTests.StepHearing(host);
         Assert.Equal(new[] { $"  host chose reply {first}", $"  host chose reply {second}" },
             log.Where(l => l.StartsWith("  host chose reply", StringComparison.Ordinal)));
         Assert.True(host.World.Surrendered);
@@ -659,6 +670,8 @@ public class UrquanMeetingTests
         var m = host.World.MeetingOf("host")!;
         Assert.True(host.World.ChooseReply("host", Reply(m.Talk!, "i_surrender"), m.Round));
         Assert.True(host.World.ChooseReply("host", Reply(m.Talk!, "i_will_surrender"), m.Round));
+        Assert.False(host.World.GameOver);   // the Ur-Quan's last words on the screen first (item 11)
+        Assert.True(host.ClosingDone("host", m.Id));
         host.Step(ShipInput.None);
         Assert.True(host.World.GameOver);
         Assert.Single(log, l => l == "Game over: the flagship surrendered");
@@ -693,7 +706,11 @@ public class UrquanMeetingTests
         var meeting = log.SkipWhile(l => l != "host talks to the Ur-Quan").ToList();
         Assert.Equal(4, meeting.Count);
         Assert.StartsWith("  Ur-Quan: ", meeting[1]);
-        Assert.Equal(new[] { "  The talk with the Ur-Quan ends: peace", "host's meeting with the Ur-Quan is over" }, meeting.Skip(2));
+        // The message on the communication screen (item 11), then the meeting over once the host has heard it.
+        Assert.Equal(new[] { "  The talk with the Ur-Quan ends: peace", "host hears the Ur-Quan's closing lines" }, meeting.Skip(2));
+        MeetingTests.StepHearing(host);
+        meeting = log.SkipWhile(l => l != "host talks to the Ur-Quan").ToList();
+        Assert.Equal(new[] { "host: the closing lines heard", "host's meeting with the Ur-Quan is over" }, meeting.Skip(4));
         host.Step(ShipInput.None);
         Assert.Equal(meeting.Count, log.SkipWhile(l => l != "host talks to the Ur-Quan").Count());
     }

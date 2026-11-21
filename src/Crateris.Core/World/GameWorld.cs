@@ -394,9 +394,9 @@ public sealed partial class GameWorld
             AfterVisit(docked);
         }
         _ended.Remove(id);
-        _meetingClosing.Remove(id);
-        _heldReplies.RemoveAll(h => h.Id == id);   // the player's reply and choice held through a pause go with them
+        _heldReplies.RemoveAll(h => h.Id == id);   // the player's reply, choice and closing held through a pause go with them
         _heldChoices.RemoveAll(h => h.Id == id);
+        _heldClosings.RemoveAll(h => h.Id == id);
         EndSpin(player);   // out of hyperspace from where its spin had taken it
         player.Present = false;
         _inputs[id].Clear();
@@ -486,6 +486,15 @@ public sealed partial class GameWorld
             _heldChoices.Clear();
             foreach (var (id, action, meeting) in choices)
                 EncounterChoice(id, action, meeting);
+        }
+        if (!paused && _heldClosings.Count > 0)
+        {
+            // Meetings' closing lines gone through during a pause: their
+            // battles or flights go on now (stage 3b-1 item 11).
+            var closings = _heldClosings.ToList();
+            _heldClosings.Clear();
+            foreach (var (id, meeting) in closings)
+                ClosingDone(id, meeting);
         }
         if (HostPaused)
         {
@@ -784,19 +793,12 @@ public sealed partial class GameWorld
         }
         var visit = new StarbaseVisit(this, player, NextRound());
         if (opening)
-        {
             _ended.Clear();
-            _meetingClosing.Clear();
-        }
         else
-        {
             _ended.Remove(player.Id);
-            _meetingClosing.Remove(player.Id);
-        }
         if (visit.Done)
         {
             _ended[player.Id] = (visit, null);
-            _meetingClosing.Remove(player.Id);   // the newer talk's closing lines shown, not a meeting's before
             return;
         }
         player.Ship.Visit = visit;
@@ -1116,7 +1118,6 @@ public sealed partial class GameWorld
                 foreach (var p in _players.Where(p => p.Present && (p != v.Starter || !aboard)))
                 {
                     _ended[p.Id] = (v, closing with { Step = VisitStep.Done });
-                    _meetingClosing.Remove(p.Id);   // the newer talk's closing lines shown, not a meeting's before
                     _storyClosingUntil[p.Id] = Frame + 1;
                 }
         }
@@ -1142,7 +1143,6 @@ public sealed partial class GameWorld
             {
                 _ended[v.Starter.Id] = (v, v.Menu is null ? null
                     : TalkView.Of(v) is { } last ? last with { Step = VisitStep.Done, Lines = Array.Empty<string>() } : null);
-                _meetingClosing.Remove(v.Starter.Id);
             }
         }
     }
@@ -1184,9 +1184,9 @@ public sealed partial class GameWorld
     /// The talk a player is shown (<see cref="VisitOf"/>): the closing lines
     /// of one they watched as they were when it ended. Outside a story
     /// talk and a visit, their meeting's talk (stage 3b-1 item 10:
-    /// <see cref="TalkView.Of(Meeting?)"/>), or the closing lines of their
-    /// last one (<see cref="VisitStep.Done"/>: the lines since their last
-    /// reply as it ended, the drone's message whole) until their next talk.
+    /// <see cref="TalkView.Of(Meeting?)"/>), its closing lines too while the
+    /// meeting waits for them (<see cref="MeetingStep.Closing"/>: the lines
+    /// since their last reply, the drone's message whole; item 11).
     /// </summary>
     public TalkView? TalkFor(string id)
     {
@@ -1194,24 +1194,19 @@ public sealed partial class GameWorld
         {
             // A story's closing lines just kept for them (_ended) are theirs
             // to see, as a notice, before their meeting's talk again or its
-            // closing lines (a reply held through the story ending it): until
+            // closing lines (a reply held through the story ending them): until
             // the world frame after the story's end, so the view sent after
             // the next step has them.
             if (_ended.TryGetValue(id, out var story) && story.Frozen is { } lines
                     && _storyClosingUntil.TryGetValue(id, out long until) && Frame <= until)
                 return lines;
-            if (ship.Meeting is { Step: MeetingStep.Talk, Talk: not null } m)
+            if (ship.Meeting is { Step: MeetingStep.Talk or MeetingStep.Closing, Talk: not null } m)
                 return TalkView.Of(m);
-            if (_meetingClosing.TryGetValue(id, out var closing))
-                return closing;
         }
         return Visit is { Story: true } || Find(id)?.Ship.Visit is not null || !_ended.TryGetValue(id, out var e)
             ? TalkView.Of(VisitOf(id))
             : e.Frozen ?? TalkView.Of(e.Visit);
     }
-
-    // The closing lines of each player's last meeting's talk (TalkFor), till their next talk.
-    private readonly Dictionary<string, TalkView> _meetingClosing = new();
 
     // The world frame through which a story's closing lines kept for a
     // player (_ended) are shown before their meeting's talk (TalkFor).

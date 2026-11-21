@@ -635,8 +635,72 @@ public sealed class PlayerSession
         if (view is { OffersChoice: true } && Meeting is not { OffersChoice: true })
             Log($"Encounter: {EncounterWith(view)}");
         if (view is null)
-            _chosenMeeting = 0;   // a game loaded anew numbers its meetings from 1 again
+            _chosenMeeting = _closingSent = 0;   // a game loaded anew numbers its meetings from 1 again
         Meeting = view;
+    }
+
+    /// <summary>
+    /// DoCommunication's last replay once the closing lines have played:
+    /// the talk ends after three seconds (FadeMusic (0, ONE_SECOND * 3)),
+    /// or two after the lines are heard again or the summary closed.
+    /// </summary>
+    public const double LastReplaySeconds = 3, AfterReplaySeconds = 2;
+
+    /// <summary>
+    /// Whether this player's meeting waits at its closing lines (stage 3b-1
+    /// item 11: <see cref="MeetingStep.Closing"/>), their communication
+    /// screen showing them: the talk's view with no replies to choose.
+    /// </summary>
+    public bool AtClosingLines =>
+        Meeting is { Step: MeetingStep.Closing } && Talk is { Step: VisitStep.Meeting, Replies.Count: 0 } t && t.Replier == PlayerId;
+
+    private string? _closingKey;
+    private double _closingLeft;
+    private bool _closingPlayed;
+    private int _closingSent;
+    private int? _closingDone;
+
+    /// <summary>
+    /// Time passes on the communication screen at a meeting's closing lines
+    /// (<see cref="AtClosingLines"/>; call each frame the screen is up):
+    /// <paramref name="busy"/> while the lines play (or play again) or the
+    /// summary is open. Once they've played and the last replay's time has
+    /// run out (<see cref="LastReplaySeconds"/>, <see cref="AfterReplaySeconds"/>
+    /// after a replay or the summary), they're gone through: said to the host
+    /// once a meeting (<see cref="TakeClosingDone"/>). New lines (a story's
+    /// closing lines shown meanwhile, then these again) play from the start.
+    /// </summary>
+    public void FollowClosing(bool busy, double seconds)
+    {
+        if (!AtClosingLines || Meeting!.Id == _closingSent)
+            return;
+        string key = $"{Meeting.Id}\u0001{Talk!.LinesKey}";
+        if (key != _closingKey)
+        {
+            _closingKey = key;
+            _closingLeft = LastReplaySeconds;
+            _closingPlayed = false;
+        }
+        if (busy)
+        {
+            if (_closingPlayed)
+                _closingLeft = AfterReplaySeconds;
+            return;
+        }
+        _closingPlayed = true;
+        _closingLeft -= seconds;
+        if (_closingLeft > 0)
+            return;
+        _closingDone = _closingSent = Meeting.Id;
+        Log("Closing lines heard");
+    }
+
+    /// <summary>The meeting whose closing lines this player has gone through, to send to the host once; null if none waits.</summary>
+    public int? TakeClosingDone()
+    {
+        var d = _closingDone;
+        _closingDone = null;
+        return d;
     }
 
     /// <summary>The encounter screen's choice made (its meeting and Hail or Attack), to send to the host once; null if none waits.</summary>
@@ -1267,7 +1331,7 @@ public sealed class PlayerSession
             if (TalkShown)
                 return PlayerScreen.Comm;
             var me = Me;
-            if (me?.Activity == Activity.Talk && Meeting is { Step: MeetingStep.Encounter or MeetingStep.Talk })
+            if (me?.Activity == Activity.Talk && Meeting is { Step: MeetingStep.Encounter or MeetingStep.Talk or MeetingStep.Closing })
                 return PlayerScreen.Encounter;
             if (me?.Activity == Activity.Battle && Battle is not null)
                 return PlayerScreen.Battle;

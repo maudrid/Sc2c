@@ -121,6 +121,7 @@ public class IlwrathSpathiMeetingTests
         // News, then goodbye: the battle against their two Avengers.
         Assert.True(world.ChooseReply("h", Reply(m.Talk, "whats_up_space_1"), m.Round));
         Assert.Equal(1, world.Story.Get("ILWRATH_INFO"));
+        MeetingTests.HearClosing(world, "h");   // their last words on the screen first (item 11)
         Assert.Equal(MeetingStep.Battle, m.Step);
         Assert.Equal(new[] { "ilwrath", "ilwrath" }, m.Battle!.EnemyFleet.Ships.Select(s => s.Ship));
         Assert.False(m.Battle.EnemyFleet.Infinite);
@@ -138,6 +139,7 @@ public class IlwrathSpathiMeetingTests
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
         Assert.True(Said(m.Talk, "INIT_NEUTRAL_HELLO_SPACE"));
         Assert.True(world.ChooseReply("h", Reply(m.Talk, "part_in_peace"), m.Round));
+        MeetingTests.HearClosing(world, "h");
         // In peace: no battle, the group one-shot, the Spathi as they were.
         Assert.Equal(Segue.Peace, m.Talk.Segue);
         Assert.Null(m.Battle);
@@ -151,6 +153,7 @@ public class IlwrathSpathiMeetingTests
         Assert.True(Said(m.Talk!, "SUBSEQUENT_NEUTRAL_HELLO_SPACE"));
         Assert.True(world.ChooseReply("h", Reply(m.Talk!, "prepare_to_die"), m.Round));
         Assert.True(world.ChooseReply("h", Reply(m.Talk!, "attack_you_now"), m.Round));
+        MeetingTests.HearClosing(world, "h");
         // A fight: post_spathi_enc makes them angry, their visits counted afresh.
         Assert.Equal(MeetingStep.Battle, m.Step);
         Assert.Equal("spathi", Assert.Single(m.Battle!.EnemyFleet.Ships).Ship);
@@ -192,6 +195,7 @@ public class IlwrathSpathiMeetingTests
         Assert.True(Said(talk, "SO_MUCH_TO_KNOW"));
         Assert.True(world.ChooseReply("h", Reply(talk, "enough_gods"), m.Round));
         Assert.True(world.ChooseReply("h", Reply(talk, "bye_homeworld"), m.Round));
+        MeetingTests.HearClosing(world, "h");
         // The battle against their infinite fleet: one Avenger, back each time it dies.
         Assert.Equal(MeetingStep.Battle, m.Step);
         var wb = m.Battle!;

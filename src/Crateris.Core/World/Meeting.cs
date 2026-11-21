@@ -28,6 +28,16 @@ public enum MeetingStep
     /// <summary>The race's talk (HailAlien), under its dialogue lock.</summary>
     Talk,
 
+    /// <summary>
+    /// The talk over, its closing lines on the player's communication screen
+    /// (the alien's lines after the last reply, the drone's message whole:
+    /// DoCommunication's last replay, num_responses 0), the meeting waiting
+    /// for that player alone until they've gone through them, under the
+    /// race's lock still, before its battle or flight (the owner,
+    /// 2026-11-21, question 10; stage 3b-1 item 11).
+    /// </summary>
+    Closing,
+
     /// <summary>The battle against the group's ships (EncounterBattle), its marker where they met.</summary>
     Battle,
 

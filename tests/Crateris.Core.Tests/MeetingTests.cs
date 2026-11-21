@@ -27,6 +27,33 @@ namespace Crateris.Core.Tests;
 [Trait("Topic", "world")]
 public class MeetingTests
 {
+    /// <summary>
+    /// A player's meeting at its closing lines (stage 3b-1 item 11), which
+    /// their client has played: gone through, its battle or flight goes on.
+    /// </summary>
+    internal static Meeting HearClosing(GameWorld world, string id)
+    {
+        var m = world.MeetingOf(id);
+        Assert.Equal(MeetingStep.Closing, m?.Step);
+        Assert.True(world.ClosingDone(id, m!.Id));
+        return m;
+    }
+
+    /// <summary>The player's closing lines gone through if their meeting waits at them (for loops of frames, as their client would).</summary>
+    internal static void HearAnyClosing(GameWorld world, string id)
+    {
+        if (world.MeetingOf(id) is { Step: MeetingStep.Closing } m)
+            world.ClosingDone(id, m.Id);
+    }
+
+    /// <summary>A host's frame, its own closing lines gone through first if its meeting waits at them, as its client would.</summary>
+    internal static WorldSnapshot StepHearing(HostSession host, ShipInput input = ShipInput.None)
+    {
+        if (host.World.MeetingOf(host.HostId) is { Step: MeetingStep.Closing } m)
+            host.ClosingDone(host.HostId, m.Id);
+        return host.Step(input);
+    }
+
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
     private static readonly Lazy<SystemCatalog> Systems = new(() => SystemCatalog.Load(DataDir));
     private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);

@@ -536,6 +536,26 @@ public sealed class HostSession
         return chosen;
     }
 
+    /// <summary>A guest has gone through its meeting's closing lines (stage 3b-1 item 11): <see cref="ClosingDone"/>.</summary>
+    public void GuestClosingDone(long peer, int meeting)
+    {
+        if (_peers.TryGetValue(peer, out var id))
+            ClosingDone(id, meeting);
+    }
+
+    /// <summary>
+    /// A player has gone through their meeting's closing lines, for that
+    /// meeting (the host's own through here too): its battle or flight goes
+    /// on (<see cref="GameWorld.ClosingDone"/>), logged; false if it changed nothing.
+    /// </summary>
+    public bool ClosingDone(string id, int meeting)
+    {
+        bool done = World.ClosingDone(id, meeting);
+        if (done)
+            Logged?.Invoke($"{id}: the closing lines heard" + (World.HostPaused || World.StoryPaused ? " (the meeting goes on as the pause lifts)" : ""));
+        return done;
+    }
+
     private readonly Dictionary<string, TalkView?> _talkSent = new();
     private readonly Dictionary<string, MeetingView?> _meetingSent = new();
 
@@ -814,6 +834,7 @@ public sealed class HostSession
                 {
                     MeetingStep.Spin => $"{id} meets a group of {ships}",
                     MeetingStep.Encounter => $"{id} at the encounter screen: {ships}, hail or attack",
+                    MeetingStep.Closing => $"{id} hears the {race}'s closing lines",
                     MeetingStep.Battle => $"{id} fights the {race}",
                     _ => m.InstantVictory
                         ? m.Left is { Count: > 0 }

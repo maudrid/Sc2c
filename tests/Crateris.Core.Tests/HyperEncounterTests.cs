@@ -216,6 +216,7 @@ public class HyperEncounterTests
                 Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
                 uint units = world.Host.Ship.Hold.ResourceUnits;
                 Assert.True(world.ChooseReply("h", 0, null));
+                MeetingTests.HearClosing(world, "h");   // its last lines on the screen, no frame passing (item 11)
                 Assert.True(meeting.InstantVictory);
                 Assert.Null(meeting.Battle);
                 Assert.Equal(units + meeting.Salvage, world.Host.Ship.Hold.ResourceUnits);

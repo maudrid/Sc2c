@@ -392,7 +392,6 @@ public sealed partial class GameWorld
     {
         // The player's last talk's closing lines are no longer shown (TalkFor).
         _ended.Remove(m.Player.Id);
-        _meetingClosing.Remove(m.Player.Id);
         if (m.RaceId != "URQUAN_DRONE_SHIP")
             Story!.StartSphereTracking(m.RaceId);
         uint seed = unchecked((uint)Frame * 2_654_435_761u + (uint)m.Race * 40_503u + 0x4D454554u);
@@ -487,17 +486,59 @@ public sealed partial class GameWorld
         return true;
     }
 
-    // The talk is over (InitCommunication after it): its lock let go; hostile
-    // (an attack, or a talk ending in battle) and with ships to fight, the
-    // battle (BuildBattle, EncounterBattle); else the meeting ends as a talk
-    // without a battle does.
+    // The talk is over (InitCommunication after it). Hailed, with lines
+    // since the player's last reply (the alien's after it, the drone's
+    // message whole), the meeting waits at its closing lines (Closing) for
+    // that player to go through them on their communication screen
+    // (DoCommunication's last replay; the owner, 2026-11-21, question 10),
+    // the race's lock held meanwhile; then, or at once without them, it
+    // goes on (AfterTalk).
     private void TalkOver(Meeting m)
     {
         _rounds = Math.Max(_rounds, m.Round);
-        // Its closing lines shown till the player's next talk (TalkFor): the
-        // lines since their last reply, which their screen may not have had.
-        if (TalkView.Of(m) is { Lines.Count: > 0 } closing)
-            _meetingClosing[m.Player.Id] = closing with { Step = VisitStep.Done, Replies = Array.Empty<string>() };
+        if (m.Hailed && m.Player.Present && !GameOver && TalkView.Of(m) is { Lines.Count: > 0 })
+        {
+            m.Step = MeetingStep.Closing;
+            return;
+        }
+        AfterTalk(m);
+    }
+
+    /// <summary>
+    /// The player has gone through their meeting's closing lines
+    /// (<see cref="MeetingStep.Closing"/>: their client played them on the
+    /// communication screen and the last replay's time ran out): its battle
+    /// starts or its ship flies on. During the host's pause or a story
+    /// talk's, kept and made as the pause ends (true), as an encounter
+    /// choice is. False, changing nothing, if the player's meeting isn't at
+    /// its closing lines, or the game is over, or it's for another meeting
+    /// (<paramref name="meeting"/>, a <see cref="Meeting.Id"/>; null for
+    /// whichever they're in).
+    /// </summary>
+    public bool ClosingDone(string id, int? meeting = null)
+    {
+        if (GameOver || Find(id) is not { Present: true, Ship.Meeting: { Step: MeetingStep.Closing } m }
+            || meeting is int n && n != m.Id)
+            return false;
+        if (HostPaused || StoryPaused)
+        {
+            _heldClosings.RemoveAll(h => h.Id == id);
+            _heldClosings.Add((id, m.Id));
+            return true;
+        }
+        AfterTalk(m);
+        return true;
+    }
+
+    // Closing lines gone through during a pause, made as it ends (StepFrame).
+    private readonly List<(string Id, int Meeting)> _heldClosings = new();
+
+    // After the talk and its closing lines: its lock let go; hostile (an
+    // attack, or a talk ending in battle) and with ships to fight, the
+    // battle (BuildBattle, EncounterBattle); else the meeting ends as a talk
+    // without a battle does.
+    private void AfterTalk(Meeting m)
+    {
         ReleaseMeetingLock(m);
         if (m.Talk is { Segue: Segue.Defeat })
         {
@@ -702,10 +743,12 @@ public sealed partial class GameWorld
     private static bool IsFleeing(IpGroup g) => (g.Task & ~(IpGroup.IgnoreFlagship | IpGroup.ReformGroup)) == IpGroup.Flee;
 
     /// <summary>
-    /// A player leaving mid-meeting (before its battle): the meeting is
-    /// dropped as a game aborted in it (RaceCommunication returns without
-    /// writing the group back): the group goes on as it was, its lock let go,
-    /// and a ship spinning into it stops where the spin took it.
+    /// A player leaving mid-meeting (before its battle, its closing lines
+    /// too): the meeting is dropped as a game aborted in it
+    /// (RaceCommunication returns without writing the group back, and an
+    /// abort during the last replay fights no battle): the group goes on as
+    /// it was, its lock let go, and a ship spinning into it stops where the
+    /// spin took it.
     /// </summary>
     private void AbandonMeeting(Player player)
     {
