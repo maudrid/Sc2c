@@ -837,7 +837,8 @@ public sealed class HostSession
     /// <summary>
     /// --meeting-replies I[,I...] (testing): the host's replies in its
     /// meetings' talks, each reply's place among those offered, chosen in
-    /// turn as each set comes (one a set, none while the host has paused);
+    /// turn as each set comes (one a set, none while the host has paused or
+    /// a story talk holds the game);
     /// past the last the host replies on the communication screen, as in
     /// any talk. A reply past those offered is logged and the rest of the
     /// queue dropped.
@@ -977,9 +978,10 @@ public sealed class HostSession
         LogMeetings();   // the encounter screen before a choice made at once (the talk is logged by Hailed)
         if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })
             World.EncounterChoice(HostId, choice);
-        // Not while the host has paused: a reply then is only held (and the
-        // next would replace it), so the queue waits for the pause to lift.
-        if (MeetingReplies.Count > 0 && !World.HostPaused
+        // Not while the host has paused or a story talk holds the game: a
+        // reply then is only held (and the next would replace it), so the
+        // queue waits for the pause to end.
+        if (MeetingReplies.Count > 0 && !World.HostPaused && !World.StoryPaused
             && World.MeetingOf(HostId) is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 } met)
         {
             int offered = met.Talk!.Replies.Count;

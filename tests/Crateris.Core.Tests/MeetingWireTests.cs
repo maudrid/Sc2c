@@ -804,6 +804,9 @@ public class MeetingWireTests
         Assert.Equal(MeetingStep.Talk, m3.Step);
         Frame(host, all);
         Assert.Equal(new[] { "Bye" }, g1.Talks[^1]!.Lines);
+        // g1 was shown the Ilwrath's closing lines first, as everyone (its reply ended its talk as they came).
+        Assert.Contains(g1.Talks, t => t is { Step: VisitStep.Done, Script: "ilwrath" });
+        Assert.Equal((VisitStep.Done, "ilwrath"), (g1.Talks[^2]!.Step, g1.Talks[^2]!.Script));
         // g2, still in its meeting's talk, is shown the Ilwrath's closing lines as everyone is, then its talk again.
         var ilwrathLines = g2.Talks[^2]!;
         Assert.Equal((VisitStep.Done, "ilwrath"), (ilwrathLines.Step, ilwrathLines.Script));
@@ -828,6 +831,42 @@ public class MeetingWireTests
         Assert.Equal((VisitStep.Done, "starbas"), (g2.Talks[^2]!.Step, g2.Talks[^2]!.Script));
         Assert.Equal(VisitStep.Meeting, g2.Talks[^1]!.Step);
         Assert.Equal(VisitStep.Meeting, g2.Session.Talk!.Step);
+    }
+
+    [ContentFact]
+    public void AStoryTalksRepliesPassedToAPlayerInTheirMeetingsTalkAreTheirsToSay()
+    {
+        var game = NewGame(guests: 1);
+        var host = game.Host;
+        var world = game.World;
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var g1 = NewClient(1);
+        game.Init = Segue.Peace;
+        GroupBy(world, "h", "SPATHI_SHIP");
+        FramesUntil(host, () => world.MeetingOf("h") is { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 }, 300, g1);
+        var m = world.MeetingOf("h")!;
+        // g1 starts the opening's story talk; the host's --meeting-replies wait for it, not held one after another.
+        foreach (var f in new[] { "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED", "MOONBASE_ON_SHIP" })
+            world.Story!.Set(f, 1);
+        world.Story!.Set("STARBASE_AVAILABLE", 0);
+        world.CommanderMet = true;
+        world.VisitStarbase(world.Find("g1")!);
+        Assert.True(world.StoryPaused);
+        host.MeetingReplies.Enqueue(0);
+        for (int i = 0; i < 3; ++i)
+            Frame(host, g1);
+        Assert.Single(host.MeetingReplies);
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        // g1 leaves: the story's replies pass to the host, in its meeting's talk, who is shown the story and says it.
+        host.GuestLeft(1);
+        Assert.Same(world.Host, world.Visit!.Replier);
+        var shown = host.TalkFor("h")!;
+        Assert.Equal(("comandr", "h"), (shown.Script, shown.Replier));
+        Say(host, "comandr", "base_was_abandoned");
+        Assert.Equal("ilwrath", host.TalkFor("h")!.Script);
+        // A reply for its meeting's set (sent before) is still the meeting's: held till the story's over.
+        Assert.True(world.ChooseReply("h", 0, m.Round));
+        Assert.Equal((MeetingStep.Talk, false), (m.Step, m.Talk!.Ended));
     }
 
     private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);

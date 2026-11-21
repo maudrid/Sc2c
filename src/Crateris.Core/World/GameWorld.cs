@@ -820,7 +820,11 @@ public sealed partial class GameWorld
     {
         if (GameOver || Find(id) is not { Present: true } player)
             return false;
-        if (player.Ship.Meeting is { Step: MeetingStep.Talk } meeting)
+        // The story talk's replier answers it (the replies passed to them,
+        // as its starter left, while in their own meeting's talk: they're
+        // shown the story's); a reply for their meeting's round goes to it.
+        var storyReplied = Visit is { Story: true } s && s.Replier == player ? s : null;
+        if (player.Ship.Meeting is { Step: MeetingStep.Talk } meeting && (storyReplied is null || round is int mr && mr != storyReplied.Round))
             return ChooseMeetingReply(meeting, index, round);   // held through any pause (stage 3b-1 item 10)
         var visit = Visit is { } story && story.Replier == player ? story
             : !StoryPaused && player.Ship.Visit is { Step: VisitStep.MenuTalk } own ? own
@@ -1169,17 +1173,16 @@ public sealed partial class GameWorld
     {
         if (Visit is not { Story: true } && Find(id)?.Ship is { Visit: null } ship)
         {
+            // A story's closing lines just kept for them (_ended) are theirs
+            // to see, as a notice, before their meeting's talk again or its
+            // closing lines (a reply held through the story ending it): until
+            // the world frame after the story's end, so the view sent after
+            // the next step has them.
+            if (_ended.TryGetValue(id, out var story) && story.Frozen is { } lines
+                    && _storyClosingUntil.TryGetValue(id, out long until) && Frame <= until)
+                return lines;
             if (ship.Meeting is { Step: MeetingStep.Talk, Talk: not null } m)
-            {
-                // A story's closing lines just kept for them (_ended) are
-                // theirs to see, as a notice, before their meeting's talk
-                // again (until the world frame after the story's end, so the
-                // view sent after the next step has them).
-                if (_ended.TryGetValue(id, out var story) && story.Frozen is { } lines
-                        && _storyClosingUntil.TryGetValue(id, out long until) && Frame <= until)
-                    return lines;
                 return TalkView.Of(m);
-            }
             if (_meetingClosing.TryGetValue(id, out var closing))
                 return closing;
         }
