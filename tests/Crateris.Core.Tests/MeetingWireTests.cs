@@ -1308,6 +1308,42 @@ public class MeetingWireTests
     }
 
     [ContentFact]
+    public void AnAttackHeldThroughAStoryTalkAndMadeInItsClosingWindowLeavesTheStorysLinesShown()
+    {
+        // Item 11, review round 5: a meeting's talk over in the story's closing window (here an attack held
+        // through the story, made as it ends) keeps the story's closing lines for its player (AfterTalk drops
+        // them only once the window has passed).
+        var game = NewGame(guests: 1);
+        var host = game.Host;
+        var world = game.World;
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var g1 = NewClient(1);
+        GroupBy(world, "g1", "UMGAH_SHIP");
+        FramesUntil(host, () => g1.Session.Meeting is { OffersChoice: true }, 300, g1);
+        var m = world.MeetingOf("g1")!;
+        foreach (var f in new[] { "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED", "MOONBASE_ON_SHIP" })
+            world.Story!.Set(f, 1);
+        world.Story!.Set("STARBASE_AVAILABLE", 0);
+        world.CommanderMet = true;
+        world.VisitStarbase(world.Host);
+        Assert.True(world.StoryPaused);
+        g1.Session.PressMenu(MenuKey.Down);
+        g1.Session.PressMenu(MenuKey.Select);   // Attack, held through the story
+        Frame(host, g1);
+        Assert.Contains("g1: attack (made as the pause lifts)", game.Log);
+        Assert.Equal(MeetingStep.Encounter, m.Step);
+        // The commander's talk, then the Ilwrath's, end in its fight: the story's closing lines kept for g1, and its
+        // attack made in the next frame, inside their window.
+        Say(host, "comandr", "base_was_abandoned");
+        Say(host, "ilwrath", "surrender");
+        Assert.False(world.StoryPaused);
+        int shown = g1.Talks.Count(t => t is { Step: VisitStep.Done, Script: "ilwrath" });
+        Frame(host, g1);
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        Assert.Equal(shown + 1, g1.Talks.Count(t => t is { Step: VisitStep.Done, Script: "ilwrath" }));
+    }
+
+    [ContentFact]
     public void AStoryTalksRepliesPassedToAPlayerInTheirMeetingsTalkAreTheirsToSay()
     {
         var game = NewGame(guests: 1);
