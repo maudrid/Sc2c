@@ -219,14 +219,42 @@ public class NoticeTests
     }
 
     [ContentFact]
-    public void APlayerAwayFromTheSystemIsntTold()
+    public void APlayerOutOfTheSystemIsToldWhosMeetingWhomAPlayerAwayIsnt()
     {
         var (world, d) = InUrQuanSystem("g", "k");
         AddGroup(world, d, 6000, 0);
-        world.Leave("k");
+        world.Leave("k");   // away (disconnected): not told
         world.PutInHyperspace("g");
         MeetIn(world, "h");
-        Assert.Empty(Told(world));
+        Assert.Equal(new[] { ("g", "Host is meeting the Ur-Quan.") }, Told(world));
+    }
+
+    [ContentFact]
+    public void APlayerOutOfTheSystemIsToldTheRaceTurnsOnThePlayersThere()
+    {
+        // The owner, 2026-11-21: everyone is told; one out of the system in
+        // words for anyone, not "on you". Spotted, then after a battle.
+        var (world, d) = InUrQuanSystem("g", "k");
+        world.PutInHyperspace("k");
+        Run(world);
+        Told(world);
+        var spotter = AddGroup(world, d, 6800, 0, task: IpGroup.OnStation);
+        AddGroup(world, d, 0, 9000);
+        for (int i = 0; i < 3 && spotter.DestLoc != IpGroup.InterceptPlayer; ++i)
+            Run(world);
+        Assert.Equal(new[] { ("g", "The Ur-Quan turn on you: they spotted Host."),
+            ("k", "The Ur-Quan spotted Host and turn on the players there.") }, Told(world));
+        var m = MeetIn(world, "h");
+        Assert.Same(spotter, m.Group);
+        Told(world);
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        WinTheBattle(world, m);
+        Told(world);
+        for (int i = 0; i < 10 && d.EncounterRace >= 0; ++i)
+            Run(world);
+        Assert.Equal(-1, d.EncounterRace);
+        Assert.Equal(new[] { ("g", "The Ur-Quan's ships turn on you."),
+            ("k", "The Ur-Quan's ships turn on the players where Host fought them.") }, Told(world));
     }
 
     [ContentFact]
@@ -252,13 +280,14 @@ public class NoticeTests
     }
 
     [ContentFact]
-    public void AWreckIsntTold()
+    public void AWreckIsToldToo()
     {
         var (world, d) = InUrQuanSystem("g", "k");
         AddGroup(world, d, 6000, 0);
         world.Find("g")!.Ship.Destroyed = true;
         MeetIn(world, "h");
-        Assert.Equal(new[] { ("k", "The Ur-Quan hold off: Host is meeting them.") }, Told(world));
+        Assert.Equal(new[] { ("g", "The Ur-Quan hold off: Host is meeting them."), ("k", "The Ur-Quan hold off: Host is meeting them.") },
+            Told(world));
     }
 
     [ContentFact]
@@ -426,15 +455,16 @@ public class NoticeTests
     }
 
     [ContentFact]
-    public void APlayerNearInHyperspaceIsToldOfAnothersMeetingAndItsPeaceOneFarOffIsnt()
+    public void EveryPlayerNearOrFarInHyperspaceIsToldOfAnothersMeetingAndItsPeace()
     {
+        // The owner, 2026-11-21: everyone is told, near or not.
         var world = InHyperspace("g", "k");
         GroupBy(world, "h", "SPATHI_SHIP");
         var m = Meet(world, "h");
-        Assert.Equal(new[] { ("g", "Host is meeting the Spathi.") }, Told(world));
+        Assert.Equal(new[] { ("g", "Host is meeting the Spathi."), ("k", "Host is meeting the Spathi.") }, Told(world));
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
         Assert.Equal(MeetingStep.Done, m.Step);
-        Assert.Equal(new[] { ("g", "Host made peace with the Spathi.") }, Told(world));
+        Assert.Equal(new[] { ("g", "Host made peace with the Spathi."), ("k", "Host made peace with the Spathi.") }, Told(world));
         Run(world, 30);
         Assert.Empty(Told(world));
     }
@@ -445,11 +475,12 @@ public class NoticeTests
         var world = InHyperspace("g", "k");
         var group = GroupBy(world, "h", "SPATHI_SHIP");
         group.Chased.Add("g");
-        group.Chased.Add("k");   // far off by now: not told
+        group.Chased.Add("k");   // far off by now: told the meeting's end, as anyone
         Meet(world, "h");
         Told(world);
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
-        Assert.Equal(new[] { ("g", "The Spathi chasing you are gone: Host talked them away.") }, Told(world));
+        Assert.Equal(new[] { ("g", "The Spathi chasing you are gone: Host talked them away."), ("k", "Host made peace with the Spathi.") },
+            Told(world));
     }
 
     [ContentFact]
@@ -461,8 +492,9 @@ public class NoticeTests
         var m = Meet(world, "h");
         Told(world);
         Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
-        Assert.Equal(new[] { ("g", "Host is fighting the Spathi.") }, Told(world));
+        Assert.Equal(new[] { ("g", "Host is fighting the Spathi."), ("k", "Host is fighting the Spathi.") }, Told(world));
         WinTheBattle(world, m);
+        // The battle's end to nobody but those the group chased.
         Assert.Equal(new[] { ("g", "The Spathi chasing you were destroyed in the battle Host started.") }, Told(world));
     }
 
@@ -548,11 +580,11 @@ public class NoticeTests
     }
 
     [ContentFact]
-    public void AnyBattleStartingNearIsTold()
+    public void AnyBattleStartingIsToldToEveryone()
     {
         var world = InHyperspace("g", "k");
         world.StartBattle("g", EnemyFleet.Of("ilwrath"));
-        Assert.Equal(new[] { ("h", "g is fighting the Ilwrath.") }, Told(world));
+        Assert.Equal(new[] { ("h", "g is fighting the Ilwrath."), ("k", "g is fighting the Ilwrath.") }, Told(world));
     }
 
     [ContentFact]

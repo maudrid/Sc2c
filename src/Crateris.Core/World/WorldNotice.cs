@@ -22,7 +22,7 @@ public enum NoticeEvent : byte
     /// <summary>In a system: another player met a group (or orbited the race's world), and the race's groups stand down (decision 8).</summary>
     HoldOff,
 
-    /// <summary>In hyperspace: another player near met a group (the race's groups pass through the others while they talk).</summary>
+    /// <summary>Another player met a group: in hyperspace, or in a system the player isn't in (the race's groups pass through the others while they talk).</summary>
     Meeting,
 
     /// <summary>Another player's meeting ended without a battle, in peace.</summary>
@@ -45,6 +45,12 @@ public enum NoticeEvent : byte
 
     /// <summary>In a system: a group of the race spotted another player, and the race's groups turn on the players (NotifyOthers on detection).</summary>
     Spotted,
+
+    /// <summary>In a system the player isn't in: after another player's battle there, the race's groups turn on the players there (DoMissions).</summary>
+    TurnOnThem,
+
+    /// <summary>In a system the player isn't in: a group of the race spotted another player, and the race's groups there turn on the players there.</summary>
+    SpottedThere,
 
     /// <summary>A group that had flown at the player went: another player talked it away (one-shot in hyperspace, or sent off: the drone).</summary>
     ChaserTalkedAway,
@@ -87,6 +93,8 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.Destroyed => $"{By} destroyed the {Race}.",
         NoticeEvent.TurnOnYou => $"The {Race}'s ships turn on you.",
         NoticeEvent.Spotted => $"The {Race} turn on you: they spotted {By}.",
+        NoticeEvent.TurnOnThem => $"The {Race}'s ships turn on the players where {By} fought them.",
+        NoticeEvent.SpottedThere => $"The {Race} spotted {By} and turn on the players there.",
         NoticeEvent.ChaserTalkedAway => $"The {Race} chasing you are gone: {By} talked them away.",
         NoticeEvent.ChaserDestroyed => $"The {Race} chasing you are gone: {By} destroyed them.",
         NoticeEvent.ChaserDestroyedInBattle => $"The {Race} chasing you were destroyed in the battle {By} started.",
