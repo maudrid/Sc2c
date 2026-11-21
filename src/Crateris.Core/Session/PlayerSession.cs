@@ -657,7 +657,9 @@ public sealed class PlayerSession
         if (Meeting is not { OffersChoice: true } m || _chosenMeeting == m.Id)
             return;
         var entries = EncounterEntries;
-        int at = Math.Max(0, Array.IndexOf(entries, EncounterCursor));
+        if (!entries.Contains(EncounterCursor))
+            EncounterCursor = EncounterEntry.Hail;   // an entry no longer this player's (not the host now): back to Hail
+        int at = Array.IndexOf(entries, EncounterCursor);
         switch (key)
         {
             case MenuKey.Up:
@@ -700,8 +702,9 @@ public sealed class PlayerSession
             yield return $"{EncounterCursor}...";
         else
         {
+            var cursor = EncounterEntries.Contains(EncounterCursor) ? EncounterCursor : EncounterEntry.Hail;
             yield return string.Join(" ", EncounterEntries.Select(e =>
-                e == EncounterCursor ? $"> {EntryLabel(e)} <" : $"  {EntryLabel(e)}  ")).TrimEnd();
+                e == cursor ? $"> {EntryLabel(e)} <" : $"  {EntryLabel(e)}  ")).TrimEnd();
             yield return EncounterEntries.Length > 2 ? "Up, down: hail, attack or the game menu; Enter: choose" : "Up, down: hail or attack; Enter: choose";
         }
     }

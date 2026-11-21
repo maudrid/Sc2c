@@ -703,6 +703,19 @@ public class MeetingWireTests
         h.PressMenu(MenuKey.Select);
         Assert.Equal((1, EncounterAction.Attack), h.TakeEncounterChoice());
 
+        // On the game menu as the player is no longer the host (review): the
+        // cursor shown and pressed from Hail, Select choosing Hail.
+        var was = At("h", true);
+        was.PressMenu(MenuKey.Up);
+        Assert.Equal(EncounterEntry.GameMenu, was.EncounterCursor);
+        was.Observe(new WorldSnapshot(2, 2155, 2, 17, new[]
+        {
+            new ShipSnapshot("h", "h", false, ShipKind.Escort, 0, 0, 5000, 5000, 0, 0, 0, 100, 100, false, false, Activity.Talk),
+        }));
+        Assert.Contains("> Hail <   Attack", was.StatusLines());
+        was.PressMenu(MenuKey.Select);
+        Assert.Equal((1, EncounterAction.Hail), was.TakeEncounterChoice());
+
         var g = At("g1", false);
         Assert.Contains("> Hail <   Attack", g.StatusLines());
         Assert.DoesNotContain(g.StatusLines(), l => l.Contains("Game menu"));
