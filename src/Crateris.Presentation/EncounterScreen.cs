@@ -16,6 +16,7 @@ using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
+using Crateris.Core.World;
 
 namespace Crateris.Presentation;
 
@@ -86,6 +87,31 @@ public static class EncounterScreen
             c.Stamp(shipIcons[i], 0, x + mx - (r.W >> 1), y + my - (r.H >> 1));
         }
         c.SetContext(old);
+    }
+
+    /// <summary>
+    /// The gravity well's sheet for a battle's planet (a data_index:
+    /// <see cref="MeetingView.Well"/>): load_gravity_well's big view of its
+    /// planet type, or a shielded world's ("slaveshield") whatever its type.
+    /// </summary>
+    public static string WellSheet(byte battlePlanet, PlanetTypes planets) =>
+        (WorldTypes.IsShielded(battlePlanet) ? planets.ShieldedBattleSprites
+            : planets[WorldTypes.PlanetType(battlePlanet)].BattleSprites)[0];
+
+    /// <summary>
+    /// Where the title says the meeting is: in deep space no cluster (null);
+    /// in a system its cluster, and GLOBAL_SIS (PlanetName) as generateName
+    /// sets it: the planet's own name (at a world, the planet whose moon it
+    /// is: a moon's name is never used), the planet named in a system
+    /// (<see cref="MeetingView.Named"/>), else nothing.
+    /// </summary>
+    public static (string? Cluster, string World) Place(MeetingView meeting, StarMap map, Names names)
+    {
+        if (meeting.Star is not int s)
+            return (null, "");
+        var star = map.Stars[s];
+        int? planet = meeting.Planet ?? meeting.Named;
+        return (names.Cluster(star), planet is int p ? names.PlanetName(star, p) : "");
     }
 
     /// <summary>

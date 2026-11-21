@@ -372,7 +372,8 @@ public sealed class HostSession
     /// --guests-in-battle (testing): each guest joining for the first time,
     /// put beside the host as ever, joins the battle there as if it had
     /// flown into its marker (<see cref="GameWorld.LetIntoBattle"/>): let in
-    /// again each frame until it's in a battle or gone, so one busy meanwhile
+    /// again each frame until it's in a battle, gone, or no battle is where
+    /// it is (so it's never put into a later one), so one busy meanwhile
     /// (a meeting's closing lines: the drone at Earth meets a guest undocking
     /// there) joins once it flies again.
     /// </summary>
@@ -414,11 +415,8 @@ public sealed class HostSession
             : $"{name} ({playerId}): {result}, peer {peer} is already {already}");
         if (result == JoinResult.Joined && GuestsStartInOrbit && World.Host.Ship.OrbitedWorld is { } w)
             World.PutInOrbit(playerId, w.Star, w.Planet, w.Moon);
-        if (result == JoinResult.Joined && GuestsJoinBattle)
-        {
-            World.LetIntoBattle(playerId);
+        if (result == JoinResult.Joined && GuestsJoinBattle && World.LetIntoBattle(playerId))
             _toJoinBattle.Add(playerId);
-        }
         if (Protocol.Accepted(result))
         {
             _peers[peer] = playerId;
@@ -1007,10 +1005,9 @@ public sealed class HostSession
         World.Step();
         foreach (var id in _toJoinBattle.ToList())
         {
-            if (World.Find(id) is not { Present: true } p || p.Ship.Battle is not null)
+            // In a battle, gone, or its battle gone (no battle where it is): it's let in no more.
+            if (World.Find(id) is not { Present: true } p || p.Ship.Battle is not null || !World.LetIntoBattle(id))
                 _toJoinBattle.Remove(id);
-            else
-                World.LetIntoBattle(id);
         }
         LogMeetings();   // the encounter screen before a choice made at once (the talk is logged by Hailed)
         if (EncounterChoice is { } choice && World.MeetingOf(HostId) is { Step: MeetingStep.Encounter })

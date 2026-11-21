@@ -678,17 +678,23 @@ public sealed class PlayerSession
 
     /// <summary>
     /// Time passes on the communication screen at a meeting's closing lines
-    /// (<see cref="AtClosingLines"/>; call each frame the screen is up):
+    /// (<see cref="AtClosingLines"/>; call it every frame):
     /// <paramref name="busy"/> while the lines play (or play again) or the
     /// summary is open. Once they've played and the last replay's time has
     /// run out (<see cref="LastReplaySeconds"/>, <see cref="AfterReplaySeconds"/>
     /// after a replay or the summary), they're gone through: said to the host
-    /// once a meeting (<see cref="TakeClosingDone"/>). New lines (a story's
-    /// closing lines shown meanwhile, then these again) play from the start.
+    /// once a meeting (<see cref="TakeClosingDone"/>). Lines shown again
+    /// after something else (a story's closing lines shown meanwhile) play
+    /// from the start, the wait with them.
     /// </summary>
     public void FollowClosing(bool busy, double seconds)
     {
-        if (!AtClosingLines || Meeting!.Id == _closingSent)
+        if (!AtClosingLines)
+        {
+            _closingKey = null;   // not shown now: from the start when they are again
+            return;
+        }
+        if (Meeting!.Id == _closingSent)
             return;
         string key = $"{Meeting.Id}\u0001{Talk!.LinesKey}";
         if (key != _closingKey)

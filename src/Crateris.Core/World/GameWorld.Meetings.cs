@@ -534,35 +534,48 @@ public sealed partial class GameWorld
         return true;
     }
 
+    /// <summary>Closing lines gone through during a pause, held for its end, for tests.</summary>
+    internal IReadOnlyList<(string Id, int Meeting)> HeldClosings => _heldClosings;
+
     // Closing lines gone through during a pause, made as it ends (StepFrame).
     private readonly List<(string Id, int Meeting)> _heldClosings = new();
 
     // After the talk and its closing lines: its lock let go; hostile (an
     // attack, or a talk ending in battle) and with ships to fight, the
     // battle (BuildBattle, EncounterBattle); else the meeting ends as a talk
-    // without a battle does.
-    private void AfterTalk(Meeting m)
+    // without a battle does. A story's closing lines kept for the player
+    // (_ended), shown already in their window, aren't shown again as the
+    // meeting's talk goes. With mayFight false (its player leaving at the
+    // closing lines) a battle isn't started: false, the meeting left for
+    // its caller to drop, the group as it was.
+    private bool AfterTalk(Meeting m, bool mayFight = true)
     {
         ReleaseMeetingLock(m);
+        string id = m.Player.Id;
+        if (!_storyClosingUntil.TryGetValue(id, out long until) || Frame > until)
+            _ended.Remove(id);
         if (m.Talk is { Segue: Segue.Defeat })
         {
             Surrender(m);
-            return;
+            return true;
         }
         if (m.Talk is { Segue: Segue.Victory } && m.Ships.Count > 0)
         {
             InstantVictory(m);
-            return;
+            return true;
         }
         bool hostile = m.Talk is { } talk ? talk.Segue is Segue.Hostile : !m.Hailed;
         if (hostile && m.Ships.Count > 0 && BattleKit is not null
             && m.Ships.All(s => BattleKit.Enemies.Contains(s.Ship)) && m.Player.Present && !GameOver)
         {
+            if (!mayFight)
+                return false;
             m.Step = MeetingStep.Battle;
             m.Battle = StartBattle(m.Player.Id, new EnemyFleet(m.Ships, m.Infinite), m.BattlePlanet);
-            return;
+            return true;
         }
         EndMeeting(m, fought: false);
+        return true;
     }
 
     /// <summary>
@@ -747,16 +760,22 @@ public sealed partial class GameWorld
     private static bool IsFleeing(IpGroup g) => (g.Task & ~(IpGroup.IgnoreFlagship | IpGroup.ReformGroup)) == IpGroup.Flee;
 
     /// <summary>
-    /// A player leaving mid-meeting (before its battle, its closing lines
-    /// too): the meeting is dropped as a game aborted in it
-    /// (RaceCommunication returns without writing the group back, and an
-    /// abort during the last replay fights no battle): the group goes on as
-    /// it was, its lock let go, and a ship spinning into it stops where the
-    /// spin took it.
+    /// A player leaving mid-meeting before its battle: the meeting is
+    /// dropped as a game aborted in it (RaceCommunication returns without
+    /// writing the group back): the group goes on as it was, its lock let
+    /// go, and a ship spinning into it stops where the spin took it. At its
+    /// closing lines (stage 3b-1 item 11, review round 1) the talk's end is
+    /// made all the same, as if they'd been heard, so leaving doesn't undo
+    /// what the talk decided: the group written back after a peace
+    /// (one-shot, the drone sent off), a surrender or an instant victory as
+    /// they'd go; only no battle starts, a hostile ending's group going on
+    /// as it was, as when everyone retreats before it.
     /// </summary>
     private void AbandonMeeting(Player player)
     {
         if (player.Ship.Meeting is not { } m || m.Step == MeetingStep.Battle)
+            return;
+        if (m.Step == MeetingStep.Closing && AfterTalk(m, mayFight: false))
             return;
         ReleaseMeetingLock(m);
         if (m.Step == MeetingStep.Spin && player.Ship.Spin is { } spin)

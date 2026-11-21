@@ -152,6 +152,38 @@ public class EncounterScreenTests
     }
 
     [Fact]
+    public void TheGravityWellIsTheBattlePlanetsBigView()
+    {
+        var planets = Data.PlanetTypes.Load(Path.Combine(AppContext.BaseDirectory, "data"));
+        // A data_index's type, or a shielded world's whatever its type (load_gravity_well).
+        byte water = (byte)Enumerable.Range(0, planets.Count).First(i => planets[i].BattleSprites[0] == "planet.water.large");
+        Assert.Equal("planet.water.large", EncounterScreen.WellSheet(water, planets));
+        byte shielded = (byte)Enumerable.Range(0, 256).First(i => Systems.WorldTypes.IsShielded((byte)i));
+        Assert.Equal("planet.slaveshield.large", EncounterScreen.WellSheet(shielded, planets));
+    }
+
+    [ContentFact]
+    public void TheTitleNamesTheClusterAndThePlanetsOwnName()
+    {
+        var names = TestContent.With(p => Content.Names.Load(p));
+        var map = SystemGroupTests.Systems.Value.Map;
+        var ships = new[] { new World.EnemyFleetShip("ilwrath") };
+        var deep = new World.MeetingView(1, World.MeetingStep.Encounter, "ILWRATH_SHIP", ships);
+        Assert.Equal(((string?)null, ""), EncounterScreen.Place(deep, map, names));
+        // A star with a planet that has a moon.
+        var star = map.Stars.First(s => SystemGroupTests.Systems.Value[s.Number].Planets.Count > 0
+                                        && SystemGroupTests.Systems.Value[s.Number].Moons(0).Length > 0);
+        string planet = names.PlanetName(star, 0), moon = names.PlanetOrMoon(star, 0, 0);
+        Assert.NotEqual(planet, moon);
+        // At a world's moon, the planet's own name (generateName: never a moon's); a group met, the planet named.
+        var atMoon = deep with { Star = star.Number, Planet = 0, Moon = 0 };
+        Assert.Equal((names.Cluster(star), planet), EncounterScreen.Place(atMoon, map, names));
+        var met = deep with { Star = star.Number, Named = 0 };
+        Assert.Equal((names.Cluster(star), planet), EncounterScreen.Place(met, map, names));
+        Assert.Equal((names.Cluster(star), ""), EncounterScreen.Place(deep with { Star = star.Number }, map, names));
+    }
+
+    [Fact]
     public void ShipsPastTheTenthGoRoundFurtherOut()
     {
         Assert.Equal((10, 51), EncounterScreen.ShipPoint(0));

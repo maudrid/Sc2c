@@ -119,16 +119,8 @@ public partial class EncounterView : Node2D
             var shipIcons = meeting.Infinite
                 ? Enumerable.Repeat(Icons(meeting.Ships[0].Ship), EncounterScreen.MostShips).ToList()
                 : meeting.Ships.Select(s => Icons(s.Ship)).ToList();
-            string well = (WorldTypes.IsShielded(meeting.Well) ? _planets!.ShieldedBattleSprites
-                : _planets![WorldTypes.PlanetType(meeting.Well)].BattleSprites)[0];
-            string? cluster = null, world = "";
-            if (meeting.Star is int s)
-            {
-                var star = _map!.Stars[s];
-                cluster = _names!.Cluster(star);
-                world = meeting.Planet is int p ? _names.PlanetOrMoon(star, p, meeting.Moon)
-                    : meeting.Named is int n ? _names.PlanetName(star, n) : "";
-            }
+            string well = EncounterScreen.WellSheet(meeting.Well, _planets!);
+            var (cluster, world) = EncounterScreen.Place(meeting, _map!, _names!);
             var canvas = NewCanvas();
             EncounterScreen.Draw(canvas, i => _strings![i], cluster, world, well, shipIcons);
             _raster = new ScreenRaster(Frame, f => _fonts[f]);

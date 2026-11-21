@@ -195,13 +195,19 @@ public class MeetingWireTests
         public readonly List<MeetingView?> Meetings = new();
         public readonly List<TalkView?> Talks = new();
         public readonly List<BattleNotice> Notices = new();
+        public readonly List<string> Said = new();   // the session's log
     }
 
-    private static Client NewClient(long peer) => new()
+    private static Client NewClient(long peer)
     {
-        Peer = peer,
-        Session = new PlayerSession(SystemGroupTests.Systems.Value, null, $"g{peer}", TestContent.Shapes.HyperFlagship.Count),
-    };
+        var c = new Client
+        {
+            Peer = peer,
+            Session = new PlayerSession(SystemGroupTests.Systems.Value, null, $"g{peer}", TestContent.Shapes.HyperFlagship.Count),
+        };
+        c.Session.Logged += c.Said.Add;
+        return c;
+    }
 
     // One host frame as the game runs it: the host's step (its own closing
     // lines gone through at once, as with no screen to play them on), then
@@ -683,6 +689,10 @@ public class MeetingWireTests
         Assert.Equal(new BattleNotice(BattleNoticeKind.Ended, 0, probe.Ship, BattleOutcome.Won, BattleExit.Fought, 3 * bounty,
             world.Find("g1")!.Ship.Hold.Crew, Destroyed: 3, Bounty: bounty), won);
         Assert.Empty(g2.Notices.Where(n => n.Kind == BattleNoticeKind.Ended));
+        // Its client plays the battle-won screen (item 11), there being no battle to come out of; g2 none.
+        Assert.Same(won, g1.Session.Tally);
+        Assert.Equal(PlayerScreen.BattleWon, g1.Session.Screen);
+        Assert.NotEqual(PlayerScreen.BattleWon, g2.Session.Screen);
     }
 
     [ContentFact]
@@ -747,6 +757,96 @@ public class MeetingWireTests
         // A done sent again changes nothing.
         Assert.False(host.ClosingDone("g1", m.Id));
         Assert.Same(group, world.Encounters!.List.Single(e => e.Race == m.Race));
+    }
+
+    [ContentFact]
+    public void ClosingLinesHeldThroughAPauseGoWithAPlayerWhoLeaves()
+    {
+        var game = NewGame(guests: 1);
+        game.End = Segue.Hostile;
+        var host = game.Host;
+        var world = game.World;
+        var g1 = NewClient(1);
+        var group = GroupBy(world, "g1", "SPATHI_SHIP");
+        FramesUntil(host, () => g1.Session.Meeting is { OffersChoice: true }, 300, g1);
+        g1.Session.PressMenu(MenuKey.Select);
+        FramesUntil(host, () => g1.Session.Talk is { Replies.Count: > 0 }, 10, g1);
+        g1.Session.PressMenu(MenuKey.Select);
+        Frame(host, g1);
+        var m = world.MeetingOf("g1")!;
+        Assert.True(host.TogglePause());
+        Assert.True(host.ClosingDone("g1", m.Id));   // held for the pause's end
+        Assert.Equal(new[] { ("g1", m.Id) }, world.HeldClosings);
+        host.GuestLeft(1);
+        Assert.Empty(world.HeldClosings);
+        Assert.Null(world.MeetingOf("g1"));
+        Assert.True(host.TogglePause());
+        host.Step(ShipInput.None);
+        Assert.Empty(world.Battles);   // nothing made as the pause lifts: no battle for the player gone
+        Assert.Null(group.MeetingPlayer);
+    }
+
+    [Fact]
+    public void ClosingLinesShownAgainAfterSomethingElsePlayFromTheStart()
+    {
+        // Item 11, review round 1: a story's closing lines shown over the meeting's, then these again: their wait
+        // starts afresh (three seconds once played), not where it was.
+        var s = new PlayerSession(SystemGroupTests.Systems.Value, null, "g1", TestContent.Shapes.HyperFlagship.Count);
+        var meeting = new MeetingView(4, MeetingStep.Closing, "SPATHI_SHIP", new[] { new EnemyFleetShip("spathi", 30) });
+        var lines = new TalkView(VisitStep.Meeting, "probe", new[] { "Bye" }, Array.Empty<string>(), 2, "g1", "What?");
+        s.ShowMeeting(meeting);
+        s.ShowTalk(lines);
+        Assert.True(s.AtClosingLines);
+        s.FollowClosing(false, PlayerSession.LastReplaySeconds - 0.5);
+        Assert.Null(s.TakeClosingDone());
+        // The story's closing lines come (a notice: no talk shown), then the meeting's again.
+        s.ShowTalk(new TalkView(VisitStep.Done, "ilwrath", new[] { "Die!" }, Array.Empty<string>(), 1, "h", ""));
+        Assert.False(s.AtClosingLines);
+        s.FollowClosing(false, 1.0 / 60);
+        s.ShowTalk(lines);
+        Assert.True(s.AtClosingLines);
+        s.FollowClosing(false, 1.0);
+        Assert.Null(s.TakeClosingDone());   // would have run out had the wait gone on
+        s.FollowClosing(false, PlayerSession.LastReplaySeconds - 1.0);
+        Assert.Equal(4, s.TakeClosingDone());
+    }
+
+    [ContentFact]
+    public void LeavingAtTheClosingLinesMakesTheTalksEndButStartsNoBattle()
+    {
+        // Item 11, review round 1: a player leaving at their meeting's closing lines doesn't undo the talk's end.
+        var game = NewGame(guests: 1);
+        game.Init = Segue.Peace;
+        var host = game.Host;
+        var world = game.World;
+        var g1 = NewClient(1);
+        var group = GroupBy(world, "g1", "SPATHI_SHIP");
+        FramesUntil(host, () => g1.Session.Talk is { Replies.Count: > 0 }, 300, g1);
+        g1.Session.PressMenu(MenuKey.Select);
+        Frame(host, g1);
+        Assert.Equal(MeetingStep.Closing, world.MeetingOf("g1")?.Step);
+        host.GuestLeft(1);
+        // In peace: written back as after the talk (re-forming, one-shot), the lock let go.
+        Assert.Null(world.MeetingOf("g1"));
+        Assert.Null(group.MeetingPlayer);
+        Assert.Equal(HyperEncounter.OneShot | HyperEncounter.Reforming, group.Flags & (HyperEncounter.OneShot | HyperEncounter.Reforming));
+        Assert.Null(world.DialogueLocks!.Holder("SPATHI_CONVERSATION"));
+        Assert.Empty(world.Battles);
+
+        // The drone at Earth: its message given, the guest leaving at it, it flies off all the same (check_probe).
+        var drone = NewGame(guests: 1, testTalks: false);
+        drone.World.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var d1 = NewClient(1);
+        drone.World.PutInOrbit("g1", SolStar, Earth);
+        drone.World.Find("g1")!.Ship.Ip!.ReturnFromOrbit();
+        FramesUntil(drone.Host, () => drone.World.SystemMeetings.Count > 0, 600, d1);
+        var met = drone.World.SystemMeetings[0];
+        Assert.Equal(MeetingStep.Closing, drone.World.MeetingOf("g1")?.Step);
+        drone.Host.GuestLeft(1);
+        Assert.Null(drone.World.MeetingOf("g1"));
+        Assert.Equal(1, drone.World.Story!.Get("PROBE_MESSAGE_DELIVERED"));
+        var probe = drone.World.SystemGroups!.Systems[SolStar].Groups.Single(g => g.Race == met.Race);
+        Assert.Equal((IpGroup.Flee | IpGroup.IgnoreFlagship, (byte)0), (probe.Task, probe.DestLoc));
     }
 
     [ContentFact]
@@ -989,8 +1089,9 @@ public class MeetingWireTests
         FramesUntil(host, () => world.MeetingOf("g1") is null, 400, g1);
         Assert.Null(host.TalkFor("g1"));
         Assert.Equal(HyperEncounter.OneShot, first.Flags & HyperEncounter.OneShot);   // a talk without a battle: one-shot
-        // The next meeting's talk, ended: g1 leaves at its closing lines and comes back on a new connection.
+        // The next meeting's talk, ended hostile: g1 leaves at its closing lines and comes back on a new connection.
         game.Init = Segue.Hostile;
+        game.End = Segue.Hostile;
         var second = GroupBy(world, "g1", "ZOQFOTPIK_SHIP");
         FramesUntil(host, () => world.MeetingOf("g1") is { Step: MeetingStep.Encounter }, 300, g1);
         Assert.Null(host.TalkFor("g1"));
@@ -1002,11 +1103,13 @@ public class MeetingWireTests
         Assert.Equal(new[] { "Bye" }, host.TalkFor("g1")!.Lines);
         Assert.Equal("g1", world.DialogueLocks!.Holder("ZOQFOTPIK_CONVERSATION"));
         host.GuestLeft(1);
-        // Dropped as a game aborted at the last replay (no battle, the group as it was: not one-shot), the lock let go.
+        // No battle starts (review round 1: the talk's end made, but no battle for a player gone): the group as it
+        // was, as when everyone retreats before it (not one-shot), the lock let go.
         Assert.Null(world.MeetingOf("g1"));
         Assert.Null(world.DialogueLocks.Holder("ZOQFOTPIK_CONVERSATION"));
         Assert.Equal(0, second.Flags & HyperEncounter.OneShot);
         Assert.Null(second.MeetingPlayer);
+        Assert.Empty(world.Battles);
         Assert.Equal(JoinResult.Rejoined, host.Hello(3, "g1", "Guest 1", Protocol.Version).Result);
         var again = NewClient(3);
         again.Session.PlayerId = "g1";
@@ -1085,6 +1188,19 @@ public class MeetingWireTests
         Assert.Equal((VisitStep.Done, "ilwrath"), (ilwrathLines.Step, ilwrathLines.Script));
         Assert.Equal(VisitStep.Meeting, g2.Talks[^1]!.Step);
         Assert.Equal(VisitStep.Meeting, g2.Session.Talk!.Step);
+        // g1 goes through its own closing lines and its meeting is over: the Ilwrath's lines kept for it aren't
+        // sent again (item 11, review round 1: they were, as a second notice), nor said again.
+        int ilwrathShown = g1.Talks.Count(t => t is { Step: VisitStep.Done, Script: "ilwrath" });
+        int said = g1.Said.Count;
+        Assert.True(host.ClosingDone("g1", m1.Id));   // as its client says it (quicker than its wait: the fight goes on)
+        Frame(host, all);
+        Frame(host, all);
+        Assert.Null(world.MeetingOf("g1"));
+        Assert.Equal(ilwrathShown, g1.Talks.Count(t => t is { Step: VisitStep.Done, Script: "ilwrath" }));
+        Assert.Null(g1.Talks[^1]);
+        Assert.Null(host.TalkFor("g1"));
+        string ilwrathLine = OneLine(g1.Talks.First(t => t is { Step: VisitStep.Done, Script: "ilwrath" })!.Lines[0]);
+        Assert.DoesNotContain(g1.Said.Skip(said), l => l.Contains(ilwrathLine, StringComparison.Ordinal));
         // g2 answers set after set in its talk during the fight, while the story's waits.
         var m2 = world.MeetingOf("g2")!;
         for (int i = 0; i < 4; ++i)

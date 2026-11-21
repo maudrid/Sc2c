@@ -1255,14 +1255,15 @@ public partial class Main : Node2D
                 linesFrom = _sellingView.LinesFrom(talk.LinesKey);
             }
             _commView.Show(player, linesFrom);
-            // A meeting's closing lines: gone through once played and the last replay's time is up (item 11).
-            player.FollowClosing(_commView.Busy, 1.0 / Engine.PhysicsTicksPerSecond);
         }
         else
         {
             _commView.Close();
             _sellingView.Stop();
         }
+        // A meeting's closing lines: gone through once played and the last replay's time is up (item 11);
+        // every frame, so lines shown again after something else start afresh.
+        player.FollowClosing(_commView.Visible && _commView.Busy, 1.0 / Engine.PhysicsTicksPerSecond);
         _sellingView.Visible = _commView.Visible && _sellingView.Active;
         // The encounter screen, drawn once a meeting; the battle-won screen run on with the keys held, and its
         // tally closed at its end (headless, at once: nothing to show it on).
