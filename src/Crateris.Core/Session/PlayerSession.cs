@@ -615,8 +615,8 @@ public sealed class PlayerSession
     /// its encounter screen (<see cref="MeetingView.OffersChoice"/>) the
     /// menu keys choose Hail or Attack (<see cref="EncounterCursor"/>), sent
     /// once (<see cref="TakeEncounterChoice"/>), or for the host the game
-    /// menu (which comes in a later stage); item 11 draws the screen, till
-    /// then the status lines say it.
+    /// menu (which comes in a later stage); the screen is drawn since item 11,
+    /// its choices said in the status lines.
     /// </summary>
     public MeetingView? Meeting { get; private set; }
 
@@ -780,7 +780,7 @@ public sealed class PlayerSession
         return m.Planet is int p ? $"{ships} at {_names?.PlanetOrMoon(at, p, m.Moon) ?? $"planet {p}"}, {cluster}" : $"{ships} at {cluster}";
     }
 
-    // The encounter screen in words, until item 11 draws it.
+    // The encounter screen's choices in words (the screen itself drawn since item 11, its menu not).
     private IEnumerable<string> EncounterLines(MeetingView m)
     {
         yield return $"Encounter: {EncounterWith(m)}";

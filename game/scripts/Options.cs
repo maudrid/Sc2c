@@ -45,8 +45,8 @@ namespace Crateris.Game;
 /// --start-fleet, the host chooses each ship to send in on the pick screen, the flagship the last choice),
 /// --start-encounter SHIP[:SHIPS] (host: a group of that ship's race, by data/ships.json's id as --start-battle's, of
 /// SHIPS ships or the race's fewest in a group, appears by the host and flies at it: in hyperspace with --start-at, else a
-/// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, not
-/// drawn yet, waits for --encounter-choice; the Ur-Quan's (urquan), the Kohr-Ah's (blackurq), the Ilwrath's (ilwrath),
+/// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, chosen
+/// on it or by --encounter-choice; the Ur-Quan's (urquan), the Kohr-Ah's (blackurq), the Ilwrath's (ilwrath),
 /// the Spathi's (spathi) and the Slylandro probe's (slylandr) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
 /// reads it: --start-at meets them in hyperspace), any other race's hail ends at once in peace, the group gone in
 /// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
@@ -123,10 +123,10 @@ public sealed class Options
     /// <summary>--start-encounter SHIP[:SHIPS]: a group of that ship's race appears by the host (in hyperspace with --start-at, else after the opening by Earth) and flies at it (testing, stage 3b-1 item 5).</summary>
     public string? StartEncounter { get; private set; }
 
-    /// <summary>--encounter-choice hail|attack: the host's choice at a meeting's encounter screen, made as it comes up (testing, until the screen is drawn).</summary>
+    /// <summary>--encounter-choice hail|attack: the host's choice at a meeting's encounter screen, made as it comes up (testing: headless runs, which have no keys).</summary>
     public EncounterAction? EncounterChoice { get; private set; }
 
-    /// <summary>--meeting-replies I[,I...]: the host's replies in its meetings' talks, by place among those offered, one a set in turn as each comes, none while the host has paused (testing, until the talk is drawn); past the last the host waits, and a place past those offered is logged and the rest dropped.</summary>
+    /// <summary>--meeting-replies I[,I...]: the host's replies in its meetings' talks, by place among those offered, one a set in turn as each comes, none while the host has paused (testing: headless runs); past the last the host waits, and a place past those offered is logged and the rest dropped.</summary>
     public int[]? MeetingReplies { get; private set; }
 
     /// <summary>--start-minerals N,N,N,N,N,N,N,N: the host's hold starts with these minerals, by element category (testing: selling them).</summary>

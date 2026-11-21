@@ -318,7 +318,7 @@ public sealed class HostSession
     /// opening as --start-battle leaves it (in flight in Earth's inner system,
     /// by Luna), in that system. Touching it, the host meets it: the
     /// encounter screen (chosen on it, or by <see cref="EncounterChoice"/>;
-    /// drawn with item 11, said in the status lines till then), the race's
+    /// drawn since item 11, its choices in the status lines), the race's
     /// talk (the Ur-Quan's and the Kohr-Ah's since stage 3b-1 item 6,
     /// logged, on the communication screen, its replies chosen there or by
     /// <see cref="MeetingReplies"/>; a race whose talk
