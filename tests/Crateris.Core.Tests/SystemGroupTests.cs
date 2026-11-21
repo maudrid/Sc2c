@@ -667,13 +667,13 @@ public class SystemGroupTests
         var (world, d, met) = MeetInUrQuanSystem("g");
         world.PutInSystem("g", UrQuanStar);
         Run(world);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         var other = d.Groups.First(g => g != met && g.Race == met.Race && g.SysLoc == 0);
         world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], other.LocX, other.LocY);
         Run(world, 10);
         Assert.Null(world.MeetingOf("g"));
         Assert.Single(world.SystemMeetings);
-        Assert.Contains(world.TakeBattleNotices(), n => n.PlayerId == "g" && n.Text == "Host is talking to the Ur-Quan.");
+        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "g" && n.Text == "Host is talking to the Ur-Quan.");
     }
 
     [ContentFact]
@@ -704,7 +704,7 @@ public class SystemGroupTests
         Assert.All(new[] { a, b }, g => Assert.Equal(0, g.Task & IpGroup.ReformGroup));
         world.Host.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], a.LocX, a.LocY);
         world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], b.LocX, b.LocY);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         Run(world, 2);
         var meeting = Assert.Single(world.SystemMeetings);
         string other = meeting.Player == "h" ? "g" : "h";
@@ -718,8 +718,9 @@ public class SystemGroupTests
         Assert.Single(world.SystemMeetings);
         Assert.Null(world.MeetingOf(other));
         Assert.Equal(0, passed.Task & IpGroup.ReformGroup);
-        Assert.Equal(new[] { $"{who} is talking to the Ur-Quan." },
-            world.TakeBattleNotices().Where(n => n.PlayerId == other).Select(n => n.Text));
+        // Told the race holds off as the meeting begins (decision 11), and who's talking as it passes through.
+        Assert.Equal(new[] { $"The Ur-Quan hold off: {who} is meeting them.", $"{who} is talking to the Ur-Quan." },
+            world.TakeNotices().Where(n => n.PlayerId == other).Select(n => n.Text));
     }
 
     [ContentFact]
@@ -731,14 +732,14 @@ public class SystemGroupTests
         world.SystemGroups!.CanMeet = (_, _) => true;
         world.PutInSystem("g", UrQuanStar);
         Run(world);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         var other = d.Groups.First(g => g != met && g.Race == met.Race && g.SysLoc == 0);
         world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], other.LocX, other.LocY);
         Run(world, 10);
         Assert.Null(world.MeetingOf("g"));
         Assert.Single(world.SystemMeetings);
         Assert.Equal("h", world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
-        Assert.Contains(world.TakeBattleNotices(), n => n.PlayerId == "g" && n.Text == "Host is talking to the Ur-Quan.");
+        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "g" && n.Text == "Host is talking to the Ur-Quan.");
     }
 
     [ContentFact]
@@ -747,13 +748,13 @@ public class SystemGroupTests
         var (world, d, met) = MeetInUrQuanSystem("g");
         world.PutInSystem("g", UrQuanStar);
         Run(world);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
         Run(world, 30);
         Assert.Null(world.MeetingOf("g"));
         Assert.Equal(MeetingStep.Encounter, world.MeetingOf("h")!.Step);
         Assert.Equal(new[] { "Host is talking to the Ur-Quan." },
-            world.TakeBattleNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
+            world.TakeNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
     }
 
     // A group of another race put where the group met is (its elements made again).
@@ -775,12 +776,12 @@ public class SystemGroupTests
         var (world, d, met) = MeetInUrQuanSystem("g");
         world.PutInSystem("g", UrQuanStar);
         Run(world);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         var z = OverTheGroupMet(world, d, met, "SPATHI_SHIP");
         world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
         Run(world, 30);
         Assert.Equal(z.Race, world.MeetingOf("g")!.Race);
-        Assert.DoesNotContain(world.TakeBattleNotices(), n => n.PlayerId == "g");
+        Assert.DoesNotContain(world.TakeNotices(), n => n.PlayerId == "g");
     }
 
     [ContentFact]
@@ -793,13 +794,13 @@ public class SystemGroupTests
         Assert.True(world.DialogueLocks!.TryTake("SPATHI_CONVERSATION", "k", out _));
         world.PutInSystem("g", UrQuanStar);
         Run(world);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         OverTheGroupMet(world, d, met, "SPATHI_SHIP");
         world.Find("g")!.Ship.Ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
         Run(world, 3);
         Assert.Null(world.MeetingOf("g"));
         Assert.Equal(new[] { "k is talking to the Spathi." },
-            world.TakeBattleNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
+            world.TakeNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
     }
 
     [ContentFact]
@@ -810,17 +811,17 @@ public class SystemGroupTests
         var (world, d, met) = MeetInUrQuanSystem("g");
         world.PutInSystem("g", UrQuanStar);
         Run(world);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         var ip = FlightAt(Systems.Value[UrQuanStar], met.LocX, met.LocY);
         ip.EscapeCounter = IpFlight.EscapeFrames;
         world.Find("g")!.Ship.Ip = ip;
         Run(world, 60);   // fewer system frames than the counter's
         Assert.InRange(ip.EscapeCounter, 1, IpFlight.EscapeFrames - 1);
-        Assert.DoesNotContain(world.TakeBattleNotices(), n => n.PlayerId == "g");
+        Assert.DoesNotContain(world.TakeNotices(), n => n.PlayerId == "g");
         Run(world, 100);
         Assert.Equal(0, ip.EscapeCounter);
         Assert.Equal(new[] { "Host is talking to the Ur-Quan." },
-            world.TakeBattleNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
+            world.TakeNotices().Where(n => n.PlayerId == "g").Select(n => n.Text));
     }
 
     [ContentFact]

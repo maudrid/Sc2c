@@ -76,11 +76,18 @@ public sealed class HyperEncounter
     /// </summary>
     public string? MeetingPlayer { get; internal set; }
 
+    /// <summary>
+    /// The players it has been steered at (stage 3b-1 item 9: told when
+    /// another player's doing makes it go, decision 11). Not saved.
+    /// </summary>
+    public HashSet<string> Chased { get; private set; } = new();
+
     public HyperEncounter Clone()
     {
         var c = (HyperEncounter)MemberwiseClone();
         c.Ships = new List<int>(Ships);
         c.KeptFor = new Dictionary<string, (short X, short Y)>(KeptFor);
+        c.Chased = new HashSet<string>(Chased);
         c.Element = Element?.Clone();
         return c;
     }

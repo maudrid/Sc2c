@@ -263,12 +263,12 @@ public class IlwrathSpathiMeetingTests
         GroupByHost(world, "ILWRATH_SHIP");
         Meet(world, "h");
         Assert.Equal("h", world.DialogueLocks!.Holder("ILWRATH_CONVERSATION"));
-        world.TakeBattleNotices();
+        world.TakeNotices();
         world.PutInOrbit("g", Star(world, "ILWRATH_DEFINED"), 0);
         // No meeting and no orbit for the guest: they're told who's talking.
         Assert.Null(world.MeetingOf("g"));
         Assert.Null(world.Find("g")!.Ship.Ip!.Orbit);
-        Assert.Contains(("g", "Host is talking to the Ilwrath."), world.TakeBattleNotices());
+        Assert.Contains(world.TakeNotices(), n => (n.PlayerId, n.Text) == ("g", "Host is talking to the Ilwrath."));
     }
 
     // The host's homeworld meeting at its battle, the host retreated from it
@@ -375,14 +375,14 @@ public class IlwrathSpathiMeetingTests
     {
         var world = NewGame("g");
         var (m, star) = HostOutOfTheHomeworldsBattleGuestFightingOn(world);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         world.PutInOrbit("h", star, 0);
         Assert.Same(m, world.MeetingOf("h"));
         Assert.Equal(MeetingStep.Battle, m.Step);
         Assert.Empty(world.TakeNewMeetings());
         Assert.Null(world.DialogueLocks!.Holder("ILWRATH_CONVERSATION"));
         Assert.Null(world.Host.Ship.Ip!.Orbit);
-        Assert.DoesNotContain(world.TakeBattleNotices(), n => n.PlayerId == "h");
+        Assert.DoesNotContain(world.TakeNotices(), n => n.PlayerId == "h");
         // The meeting ends with the guest's battle, as ever.
         GuestRetreats(world);
         Assert.Equal(MeetingStep.Done, m.Step);
@@ -438,12 +438,12 @@ public class IlwrathSpathiMeetingTests
         // homeworld starts nothing.
         var world = NewGame();
         world.Story!.Set("PROBE_ILWRATH_ENCOUNTER", 1);
-        world.TakeBattleNotices();
+        world.TakeNotices();
         var group = GroupByHost(world, "ILWRATH_SHIP");
         Frames(world, 60);
         Assert.Null(world.MeetingOf("h"));
         Assert.Null(group.MeetingPlayer);
-        Assert.Contains(("h", "Someone is talking to the Ilwrath."), world.TakeBattleNotices());
+        Assert.Contains(world.TakeNotices(), n => (n.PlayerId, n.Text) == ("h", "Someone is talking to the Ilwrath."));
         Assert.Equal(-1, world.WorldTalkRace(Star(world, "SPATHI_DEFINED"), 0, 0));
         world.PutInOrbit("h", Star(world, "ILWRATH_DEFINED"), 0);
         Assert.Null(world.MeetingOf("h"));

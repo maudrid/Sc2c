@@ -66,9 +66,16 @@ public sealed class IpGroup
     /// </summary>
     public string? InMeeting { get; internal set; }
 
+    /// <summary>
+    /// The players it has flown at, intercepting (stage 3b-1 item 9: told
+    /// when another player's doing makes it go, decision 11). Not saved.
+    /// </summary>
+    public HashSet<string> Chased { get; private set; } = new();
+
     public IpGroup Clone()
     {
         var c = (IpGroup)MemberwiseClone();
+        c.Chased = new HashSet<string>(Chased);
         c.Element = Element?.Clone();
         c.MetBy = null;
         return c;

@@ -74,6 +74,14 @@ public sealed class SystemDraw
     // A meeting started in this frame (START_ENCOUNTER, for the groups'
     // collisions with each other).
     internal bool MeetingThisFrame;
+
+    /// <summary>
+    /// The races turned on the players in the last frame, for the world's
+    /// notices (stage 3b-1 item 9, decision 11): by a group spotting a
+    /// player (<c>Spotted</c>, that player's id: NotifyOthers on detection),
+    /// or after a battle (<c>Spotted</c> null: DoMissions' EncounterRace).
+    /// </summary>
+    public List<(int Race, string? Spotted)> Turned { get; } = new();
 }
 
 /// <summary>A player flying in a system, as its groups see them: their id and their flight.</summary>
@@ -552,6 +560,7 @@ public sealed class SystemGroups
         }
         var ctx = new FrameContext(this, d, system, flyers);
         d.MeetingThisFrame = false;
+        d.Turned.Clear();
         if (d.Elements is null)
         {
             // DoMissions: the groups in the system get elements, in ip_group_q's order.
@@ -574,6 +583,7 @@ public sealed class SystemGroups
         {
             // DoMissions: after a battle, the race's reinforcements.
             NotifyOthers(d, d.EncounterRace, IpGroup.InterceptPlayer);
+            d.Turned.Add((d.EncounterRace, null));
             d.EncounterRace = -1;
         }
         if (flyers.Any(f => !f.Flight.ContactAppearing) && --d.FlipWait == 0)
@@ -1074,12 +1084,16 @@ public sealed class SystemGroups
                         el.ThrustWait = 0;
                         el.Velocity.Zero();
                         _sg.NotifyOthers(_d, g.Race, IpGroup.InterceptPlayer);
+                        _d.Turned.Add((g.Race, by.Id));
                         task = g.Task;
                         targetLoc = g.DestLoc;
                         if (targetLoc == IpGroup.InterceptPlayer)
                             targetLoc = flagshipLoc;
                     }
                 }
+                // Intercepting, it flies at the player it goes by (the world's notices: decision 11).
+                if (g.DestLoc == IpGroup.InterceptPlayer && task != IpGroup.Flee)
+                    g.Chased.Add(by.Id);
             }
 
             var (vdx, vdy) = el.Velocity.Current();

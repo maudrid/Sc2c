@@ -27,8 +27,15 @@ public enum BattleNoticeKind : byte
     /// <summary>The player's ship is a wreck (destroyed in a battle, its crew 0): it waits for a rescuer.</summary>
     Wrecked,
 
-    /// <summary>A battle the player flew into was too crowded to join just then (<see cref="BattleNotice.Text"/> says so).</summary>
-    Full,
+    /// <summary>
+    /// A notice in words (<see cref="BattleNotice.Text"/>): a battle the
+    /// player flew into was too crowded to join just then, or what another
+    /// player set off (<see cref="WorldNotice"/>, stage 3b-1 item 9: who's
+    /// talking to a race, a meeting near, a battle started, the race's ships
+    /// turning, a group chasing the player gone). Named Full until item 9;
+    /// its number on the wire is the same.
+    /// </summary>
+    Told,
 
     /// <summary>The player flew into a wreck it can revive (<see cref="BattleNotice.Other"/>: the wreck's player): item 12's rescue screen opens.</summary>
     RescueOffer,
@@ -47,7 +54,8 @@ public enum BattleNoticeKind : byte
 /// <summary>
 /// A battle's news for one player, sent reliably (stage 4a item 11): its
 /// start, end and wreck, a battle too full to join, a rescue offered or
-/// made, and the game over. A guest's client keeps it to show (item 12's
+/// made, and the game over; and the world's notices of what other players
+/// set off, in words (<see cref="BattleNoticeKind.Told"/>). A guest's client keeps it to show (item 12's
 /// screens) and says it in words meanwhile (<see cref="Describe"/>).
 /// </summary>
 public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string Enemy = "", BattleOutcome? Outcome = null,
@@ -106,7 +114,7 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
             _ => $"The battle against the {Enemy} is lost.",
         },
         BattleNoticeKind.Wrecked => "Your ship is a wreck: a friend can bring it crew.",
-        BattleNoticeKind.Full => Text,
+        BattleNoticeKind.Told => Text,
         BattleNoticeKind.RescueOffer => $"You're at {Other}'s wreck: you can give it crew.",
         BattleNoticeKind.Revived => Text == Rescued ? $"{Other} gave your ship {Crew} crew: it flies again."
             : $"You gave {Other}'s wreck {Crew} crew: it flies again.",

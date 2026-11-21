@@ -68,7 +68,7 @@ public class BattleWireTests
     {
         var host = Host();
         var wb = WreckTests.JoinedInSol(host, "g1");
-        var (own, guests) = host.TakeBattleNotices();
+        var (own, guests) = BattleNews(host);
         Assert.Equal(new BattleNotice(BattleNoticeKind.Joined, wb.Id, Ilwrath), Assert.Single(own));
         Assert.Equal((1L, new BattleNotice(BattleNoticeKind.Joined, wb.Id, Ilwrath)), Assert.Single(guests));
         // g1 destroyed, then the Ilwrath: won by the host, g1 a wreck.
@@ -93,7 +93,7 @@ public class BattleWireTests
         for (int i = 0; i < 600 && wb.Outcome is null; ++i)
             host.Step(ShipInput.None);
         Assert.Equal(BattleOutcome.Won, wb.Outcome);
-        (own, guests) = host.TakeBattleNotices();
+        (own, guests) = BattleNews(host);
         var hostEnd = Assert.Single(own);
         Assert.Equal((BattleNoticeKind.Ended, BattleOutcome.Won, BattleExit.Fought), (hostEnd.Kind, hostEnd.Outcome, hostEnd.Exit));
         Assert.Equal(wb.FighterOf("host")!.Salvage, hostEnd.Salvage);
@@ -102,7 +102,16 @@ public class BattleWireTests
         Assert.Equal(BattleExit.Destroyed, guests[0].Notice.Exit);
         // Nothing new is told again.
         host.Step(ShipInput.None);
-        Assert.Empty(host.TakeBattleNotices().Guests);
+        Assert.Empty(BattleNews(host).Guests);
+    }
+
+    // The battle notices since last asked, without the notices in words
+    // (Told: here the drone at Sol spotting and meeting the guests flying
+    // there, stage 3b-1 item 9).
+    private static (List<BattleNotice> Host, List<(long Peer, BattleNotice Notice)> Guests) BattleNews(HostSession host)
+    {
+        var (own, guests) = host.TakeBattleNotices();
+        return (own.Where(n => n.Kind != BattleNoticeKind.Told).ToList(), guests.Where(g => g.Notice.Kind != BattleNoticeKind.Told).ToList());
     }
 
     [ContentFact]
@@ -230,7 +239,7 @@ public class BattleWireTests
             new BattleNotice(BattleNoticeKind.Ended, 4, "ilwrath", BattleOutcome.Won, BattleExit.Fought, 125, 30),
             new BattleNotice(BattleNoticeKind.Ended, 4, "ilwrath", BattleOutcome.Lost, BattleExit.Disconnected, 0, 7),
             new BattleNotice(BattleNoticeKind.Wrecked),
-            new BattleNotice(BattleNoticeKind.Full, Text: "The battle is too crowded to join just now."),
+            new BattleNotice(BattleNoticeKind.Told, Text: "The battle is too crowded to join just now."),
             new BattleNotice(BattleNoticeKind.RescueOffer, Other: "g2"),
             new BattleNotice(BattleNoticeKind.Revived, Crew: 5, Other: "g2", Text: BattleNotice.Rescuer),
             new BattleNotice(BattleNoticeKind.GameOver),

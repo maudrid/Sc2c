@@ -170,6 +170,7 @@ public sealed partial class GameWorld
             ip.EscapeCounter = IpFlight.EscapeFrames;
         player.Ship.Meeting = m;
         _newMeetings.Add(m);
+        TellMeetingBegun(m);
         BeginTalk(m);
     }
 
@@ -227,8 +228,7 @@ public sealed partial class GameWorld
             return;
         if (!_toldTalking.Add((player.Id, holder, c)))
             return;
-        string who = Find(holder)?.Name ?? (holder.Length == 0 ? "Someone" : holder);
-        _battleNotices.Add((player.Id, $"{who} is talking to the {Meeting.RaceName(Story!.Rules.Races[race])}."));
+        Notice(player, NoticeEvent.Talking, holder, RaceNameOf(race));
     }
 
     // Forget who was told about locks let go since.
@@ -280,6 +280,7 @@ public sealed partial class GameWorld
         };
         ship.Meeting = m;
         _newMeetings.Add(m);
+        TellMeetingBegun(m);
         HoldInput(ship, Frame + m.SpinFrames + Settings.InputDelayFrames);
     }
 
@@ -346,6 +347,7 @@ public sealed partial class GameWorld
             f.Flight.EscapeCounter = IpFlight.EscapeFrames;
         player.Ship.Meeting = m;
         _newMeetings.Add(m);
+        TellMeetingBegun(m);
         BeginTalk(m);
     }
 
@@ -617,10 +619,16 @@ public sealed partial class GameWorld
         if (player.Ship.Meeting == m)
             player.Ship.Meeting = null;
 
+        // Whether the group goes through this meeting (the others it had
+        // flown at are told so, decision 11), and whom it had flown at.
+        bool gone = false;
+        IReadOnlyCollection<string> chased = Array.Empty<string>();
         if (m.Encounter is not null)
         {
             if (MetEncounter(m) is { } e)
             {
+                gone = !fought || left.Count == 0;   // one-shot after a talk: it doesn't come back
+                chased = e.Chased.ToList();
                 e.MeetingPlayer = null;
                 e.Ships.Clear();
                 e.Ships.AddRange(left.Select(s => s.Crew));
@@ -633,7 +641,13 @@ public sealed partial class GameWorld
         else if (SystemGroups is { } sg && sg.Systems.TryGetValue(m.Star!.Value, out var d))
         {
             if (m.Group is { } g)
+            {
+                chased = g.Chased.ToList();
+                bool fleeing = IsFleeing(g);
                 sg.EndMeeting(d, g, fought ? left : null, fought ? m.Race : -1);
+                // Gone: destroyed (none left), or sent off out of the system by the talk (the drone, check_probe).
+                gone = fought ? left.Count == 0 : !fleeing && IsFleeing(g);
+            }
             else
                 sg.EndWorldMeeting(d, fought ? m.Race : -1);   // the race's world's
 
@@ -645,9 +659,12 @@ public sealed partial class GameWorld
                                    && p.Ship.Activity is Activity.OuterSystem or Activity.InnerSystem))
                 d.Elements = null;
         }
+        TellMeetingEnded(m, fought, gone, chased);
         if (!m.Returned)
             ReturnToFlight(m);
     }
+
+    private static bool IsFleeing(IpGroup g) => (g.Task & ~(IpGroup.IgnoreFlagship | IpGroup.ReformGroup)) == IpGroup.Flee;
 
     /// <summary>
     /// A player leaving mid-meeting (before its battle): the meeting is

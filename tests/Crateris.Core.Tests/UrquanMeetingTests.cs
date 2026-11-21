@@ -182,14 +182,14 @@ public class UrquanMeetingTests
         GroupBy(world, "h", "URQUAN_SHIP");
         var m = Meet(world, "h");
         Assert.Equal("h", world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
-        world.TakeBattleNotices();
+        world.TakeNotices();
         world.PutInOrbit("g", SolStar, Earth);
         world.Find("g")!.Ship.Ip!.ReturnFromOrbit();   // in Earth's inner system, the drone orbiting there
         Frames(world, 400);
         Assert.Empty(world.SystemMeetings);
         Assert.Null(world.MeetingOf("g"));
         Assert.Equal(0, world.Story!.Get("PROBE_MESSAGE_DELIVERED"));
-        Assert.Contains(("g", "Host is talking to the Ur-Quan."), world.TakeBattleNotices());
+        Assert.Contains(world.TakeNotices(), n => (n.PlayerId, n.Text) == ("g", "Host is talking to the Ur-Quan."));
         // The host's talk goes on, the drone still passing through.
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
         Frames(world, 50);

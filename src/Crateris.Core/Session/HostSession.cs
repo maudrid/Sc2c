@@ -797,7 +797,8 @@ public sealed class HostSession
     // players present (stage 4a item 11), each logged: a ship joining a
     // battle (seen here, a frame on: the Ilwrath fight starts inside a
     // reply), a battle's end, a ship become a wreck, a battle too full to
-    // join, a wreck flown into and one revived, and the game over.
+    // join, a wreck flown into and one revived, and the game over; and the
+    // world's notices of what other players set off (WorldNotice).
     private void TakeBattleNews()
     {
         void Tell(string id, BattleNotice notice)
@@ -851,7 +852,16 @@ public sealed class HostSession
         foreach (var (player, text) in World.TakeBattleNotices())
         {
             Logged?.Invoke($"{player}: {text}");
-            Tell(player, new BattleNotice(BattleNoticeKind.Full, Text: text));
+            Tell(player, new BattleNotice(BattleNoticeKind.Told, Text: text));
+        }
+        // What other players set off (stage 3b-1 item 9, decision 11): in
+        // words, to a player present; one away isn't told (it'd be stale by
+        // the time they're back), unlike the battle news above.
+        foreach (var notice in World.TakeNotices())
+        {
+            Logged?.Invoke($"{notice.PlayerId}: {notice.Text}");
+            if (World.Find(notice.PlayerId) is { Present: true })
+                _notices.Add((notice.PlayerId, new BattleNotice(BattleNoticeKind.Told, Text: notice.Text)));
         }
         foreach (var (rescuer, wreck) in World.TakeRescueOffers())
         {

@@ -306,6 +306,7 @@ public sealed class HyperEncounters
             {
                 // Steered at the nearest player in hyperspace (decision 4).
                 var target = Nearest(players, e.LocX, e.LocY);
+                e.Chased.Add(target.Id);
                 int curFacing = UqmMath.AngleToFacing(el.Velocity.TravelAngle);
                 int deltaFacing = UqmMath.NormalizeFacing(curFacing - UqmMath.AngleToFacing(
                     UqmMath.ArcTan((short)(target.X - e.LocX), (short)(target.Y - e.LocY))));

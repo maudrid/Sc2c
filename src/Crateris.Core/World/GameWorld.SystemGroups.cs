@@ -146,6 +146,7 @@ public sealed partial class GameWorld
                     continue;
                 }
                 sg.Frame(d, Systems[d.Star], flyers, Shapes);
+                TellTurned(d);
                 foreach (var f in flyers.Where(f => f.Met is not null))
                     MeetInSystem(sg, d, f);
                 foreach (var f in flyers.Where(f => f.PassedThrough is not null))

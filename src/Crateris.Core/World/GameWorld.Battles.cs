@@ -236,6 +236,7 @@ public sealed partial class GameWorld
         // Those there already join only once they've been out of its reach and come back (JoinBattles).
         _battles.Add(wb);
         ship.Battle = wb;
+        TellBattleStarted(player, fleet);
         return wb;
     }
 

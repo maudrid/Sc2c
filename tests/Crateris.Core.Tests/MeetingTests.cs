@@ -301,13 +301,13 @@ public class MeetingTests
         GroupBy(world, "h", "URQUAN_SHIP");
         Meet(world, "h");
         Assert.Equal("h", world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
-        world.TakeBattleNotices();
+        world.TakeNotices();
         // An Ur-Quan group by the guest passes through them, who's told who's talking, once.
         var passing = GroupBy(world, "g", "URQUAN_SHIP", dx: 0);
         Frames(world, 30);
         Assert.Null(world.MeetingOf("g"));
         Assert.Null(passing.MeetingPlayer);
-        var told = world.TakeBattleNotices().Where(n => n.PlayerId == "g").ToList();
+        var told = world.TakeNotices().Where(n => n.PlayerId == "g").ToList();
         Assert.Equal("Host is talking to the Ur-Quan.", Assert.Single(told).Text);
         // A Kohr-Ah group meets them.
         GroupBy(world, "g", "BLACK_URQUAN_SHIP", dx: 0);
