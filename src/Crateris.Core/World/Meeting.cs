@@ -43,6 +43,19 @@ public enum EncounterAction
 }
 
 /// <summary>
+/// The encounter screen's entries as a player's cursor goes over them:
+/// Hail and Attack (<see cref="EncounterAction"/>), and for the host the
+/// game menu (DoSelectAction's ATTACK + 1, GameOptions; the owner,
+/// 2026-11-21, question 9), which comes in a later stage as orbit's does.
+/// </summary>
+public enum EncounterEntry
+{
+    Hail,
+    Attack,
+    GameMenu,
+}
+
+/// <summary>
 /// One player's meeting with a group of alien ships it touched
 /// (docs/plans/stage-3b.md, item 5; decision 5: the player it touches
 /// meets it alone): in hyperspace the ship's spin into the group, then

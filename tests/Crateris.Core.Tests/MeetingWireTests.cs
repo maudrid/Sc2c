@@ -496,12 +496,12 @@ public class MeetingWireTests
         Assert.DoesNotContain("g1: attack", game.Log);
         // The keys go round Hail and Attack; Enter chooses, once.
         g1.Session.PressMenu(MenuKey.Down);
-        Assert.Equal(EncounterAction.Attack, g1.Session.EncounterCursor);
+        Assert.Equal(EncounterEntry.Attack, g1.Session.EncounterCursor);
         Assert.Contains("  Hail   > Attack <", g1.Session.StatusLines());
         g1.Session.PressMenu(MenuKey.Up);
         g1.Session.PressMenu(MenuKey.Select);
         g1.Session.PressMenu(MenuKey.Down);   // chosen: the keys do nothing more
-        Assert.Equal(EncounterAction.Hail, g1.Session.EncounterCursor);
+        Assert.Equal(EncounterEntry.Hail, g1.Session.EncounterCursor);
         Frame(host, g1, g2);
         Assert.Contains("g1: hail", game.Log);
         Assert.Equal(MeetingStep.Talk, m.Step);
@@ -674,6 +674,45 @@ public class MeetingWireTests
     }
 
     [Fact]
+    public void TheHostsEncounterScreenHasTheGameMenuWhichComesLaterAGuestsHasHailAndAttackOnly()
+    {
+        // The owner, 2026-11-21 (question 9): UQM's third entry, the game
+        // menu, for the host; it says it comes later, as orbit's does, and
+        // chooses nothing.
+        PlayerSession At(string id, bool host)
+        {
+            var s = new PlayerSession(SystemGroupTests.Systems.Value, null, id, 32);
+            s.Observe(new WorldSnapshot(1, 2155, 2, 17, new[]
+            {
+                new ShipSnapshot(id, id, host, host ? ShipKind.Flagship : ShipKind.Escort, 0, 0, 5000, 5000, 0, 0, 0, 100, 100, false, false, Activity.Talk),
+            }));
+            s.ShowMeeting(new MeetingView(1, MeetingStep.Encounter, "SPATHI_SHIP", new[] { new EnemyFleetShip("spathi", 30) }));
+            return s;
+        }
+        var h = At("h", true);
+        Assert.Contains("> Hail <   Attack     Game menu", h.StatusLines());
+        h.PressMenu(MenuKey.Up);   // round, from Hail to the last
+        Assert.Equal(EncounterEntry.GameMenu, h.EncounterCursor);
+        Assert.Contains("  Hail     Attack   > Game menu <", h.StatusLines());
+        h.PressMenu(MenuKey.Select);
+        Assert.Equal("Game menu comes in a later stage.", h.Notice);
+        Assert.Null(h.TakeEncounterChoice());
+        h.PressMenu(MenuKey.Down);   // the screen still up: round to Hail
+        Assert.Equal(EncounterEntry.Hail, h.EncounterCursor);
+        h.PressMenu(MenuKey.Down);
+        h.PressMenu(MenuKey.Select);
+        Assert.Equal((1, EncounterAction.Attack), h.TakeEncounterChoice());
+
+        var g = At("g1", false);
+        Assert.Contains("> Hail <   Attack", g.StatusLines());
+        Assert.DoesNotContain(g.StatusLines(), l => l.Contains("Game menu"));
+        g.PressMenu(MenuKey.Up);
+        Assert.Equal(EncounterEntry.Attack, g.EncounterCursor);
+        g.PressMenu(MenuKey.Up);
+        Assert.Equal(EncounterEntry.Hail, g.EncounterCursor);
+    }
+
+    [Fact]
     public void ANewMeetingsScreenStartsOnHailAndOneOffTheStarMapIsRefused()
     {
         var me = new PlayerSession(SystemGroupTests.Systems.Value, null, "g1", 32);
@@ -684,11 +723,11 @@ public class MeetingWireTests
         var first = new MeetingView(1, MeetingStep.Encounter, "SPATHI_SHIP", new[] { new EnemyFleetShip("spathi", 30) });
         me.ShowMeeting(first);
         me.PressMenu(MenuKey.Down);
-        Assert.Equal(EncounterAction.Attack, me.EncounterCursor);
+        Assert.Equal(EncounterEntry.Attack, me.EncounterCursor);
         me.ShowMeeting(first with { Step = MeetingStep.Talk });   // the same meeting on: where it was
-        Assert.Equal(EncounterAction.Attack, me.EncounterCursor);
+        Assert.Equal(EncounterEntry.Attack, me.EncounterCursor);
         me.ShowMeeting(first with { Id = 2 });   // the next meeting's screen: on Hail, as UQM's starts
-        Assert.Equal(EncounterAction.Hail, me.EncounterCursor);
+        Assert.Equal(EncounterEntry.Hail, me.EncounterCursor);
         me.PressMenu(MenuKey.Select);
         Assert.Equal((2, EncounterAction.Hail), me.TakeEncounterChoice());
         // A place not on this player's star map is refused, changing nothing.

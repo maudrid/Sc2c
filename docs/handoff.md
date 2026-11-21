@@ -11,7 +11,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (3b-1 item 10 after review round 4's fixes, 2026-11-21): all topics 2,355 passed, 0 failed, 0 skipped with the content set; the topic map remade; round 4's mutations 2 tried, 2 caught (the counter taken out: the end-to-end test's meeting reply goes to the story; the old order: a number skipped); the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602, now line 1155; `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed (and on every run while item 10 was built and reviewed). Not run: the golden recorders and the data checks (no recorded behaviour or data changed).
+- **Last checks** (3b-1 item 10 after the owner's answer to question 9, 2026-11-21: all topics 2,356 passed, 0 failed, 0 skipped; the host's game menu entry's mutation caught; earlier: 3b-1 item 10 after review round 4's fixes, 2026-11-21): all topics 2,355 passed, 0 failed, 0 skipped with the content set; the topic map remade; round 4's mutations 2 tried, 2 caught (the counter taken out: the end-to-end test's meeting reply goes to the story; the old order: a number skipped); the game build has only the two long-standing warnings (`game/scripts/Main.cs` CS8602, now line 1155; `game/scripts/ReportView.cs` 78); `tools/test_network.py` passed (and on every run while item 10 was built and reviewed). Not run: the golden recorders and the data checks (no recorded behaviour or data changed).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
@@ -42,6 +42,8 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decided
 
+- **The encounter screen's game menu (the owner, 2026-11-21, question 9): the host has it, as UQM's.** A third entry on the host's encounter screen (guests: Hail and Attack only); until a game menu is built it says it comes later, as orbit's does. A save made from it, when it comes, is an ordinary save: the meeting isn't in it (the guest's ship where it met the group, the group as before the meeting, the talk's story writes so far kept). Built (item 10's Progress row).
+
 - **When a meeting holds its race's lock (the owner, 2026-11-21, question 1): as built.** From the touch (the encounter screen too) until the talk is over, not through the battle.
 - **A player leaving mid-meeting before its battle (the owner, 2026-11-21, question 2): as built.** Dropped as UQM's aborted game is: the group as it was (not re-forming, not one-shot), the talk's story writes kept.
 - **A player out of their meeting's battle while others fight on (the owner, 2026-11-21, question 3): as built.** They fly on and meet no group until the battle ends; the group is written back then.
@@ -54,13 +56,12 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for stage 3b-1 item 11 (client views) and their answers to questions 9 to 11 below (item 10 is built, reviewed in five rounds and reported; the go-ahead of 2026-11-21 was for item 10 alone).
+Wait for the owner's go-ahead for stage 3b-1 item 11 (client views) and their answers to questions 10 and 11 below (item 10 is built, reviewed in five rounds and reported; the go-ahead of 2026-11-21 was for item 10 alone).
 
 ## Decisions waiting on the owner
 
 Placeholders built as the closest to the plan and UQM (stage 3b-1 item 10's Progress row, `differences.md` row 69):
 
-9. **The encounter screen's third choice.** UQM's encounter screen offers Hail, Attack and the game options (save, load, quit: `DoSelectAction`'s `ATTACK + 1`). Built: Hail and Attack only, for everyone (the host saves from the starbase and the autosave, guests can't save). Keep, or offer the host the options there?
 10. **A meeting's closing lines.** The alien's last words after the player's last reply (before the battle, or as the talk ends in peace), and the drone's whole message (its meeting begins and ends at once), are shown as a notice in the status area, as a visit's closing lines have been since stage 3a. UQM plays them on the communication screen before it closes. Keep, or have item 11 play them on the screen (the host's world has gone on meanwhile: the battle started, the ship in flight)?
 11. **A choice made during a pause.** An encounter screen's choice, or a reply in a meeting's talk, that reaches the host during the host's pause or a story talk's is kept and made as the pause ends (as any reply during the host's pause is), not refused, since the chooser's client counts it made. Keep?
 

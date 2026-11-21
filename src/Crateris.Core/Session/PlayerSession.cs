@@ -599,13 +599,20 @@ public sealed class PlayerSession
     /// item 10): its step, the race and ships met, where; null if none. At
     /// its encounter screen (<see cref="MeetingView.OffersChoice"/>) the
     /// menu keys choose Hail or Attack (<see cref="EncounterCursor"/>), sent
-    /// once (<see cref="TakeEncounterChoice"/>); item 11 draws the screen,
-    /// till then the status lines say it.
+    /// once (<see cref="TakeEncounterChoice"/>), or for the host the game
+    /// menu (which comes in a later stage); item 11 draws the screen, till
+    /// then the status lines say it.
     /// </summary>
     public MeetingView? Meeting { get; private set; }
 
-    /// <summary>The encounter screen's choice the cursor is on (UQM's starts on Hail).</summary>
-    public EncounterAction EncounterCursor { get; private set; }
+    /// <summary>The encounter screen's entry the cursor is on (UQM's starts on Hail).</summary>
+    public EncounterEntry EncounterCursor { get; private set; }
+
+    // The encounter screen's entries for this player: Hail and Attack, and
+    // for the host the game menu (UQM's third; the owner, 2026-11-21).
+    private EncounterEntry[] EncounterEntries => Me?.IsHost == true
+        ? new[] { EncounterEntry.Hail, EncounterEntry.Attack, EncounterEntry.GameMenu }
+        : new[] { EncounterEntry.Hail, EncounterEntry.Attack };
 
     private (int Meeting, EncounterAction Action)? _encounterChoice;
     private int _chosenMeeting;
@@ -624,7 +631,7 @@ public sealed class PlayerSession
             || view is { Star: null, Planet: not null } || view is { Planet: null, Moon: not null })
             throw new InvalidDataException("A meeting's place isn't on the star map.");
         if (view is not null && view.Id != Meeting?.Id)
-            EncounterCursor = EncounterAction.Hail;   // a new meeting's screen starts on Hail (InitEncounter)
+            EncounterCursor = EncounterEntry.Hail;   // a new meeting's screen starts on Hail (InitEncounter)
         if (view is { OffersChoice: true } && Meeting is not { OffersChoice: true })
             Log($"Encounter: {EncounterWith(view)}");
         if (view is null)
@@ -640,26 +647,38 @@ public sealed class PlayerSession
         return c;
     }
 
-    // At the encounter screen the menu keys move between Hail and Attack (up
-    // and down, round, as DoMenuChooser) and choose (select): one choice a
-    // meeting, which the host makes (held through its pause).
+    // At the encounter screen the menu keys move over the entries (up and
+    // down, round, as DoMenuChooser) and choose (select): Hail or Attack is
+    // one choice a meeting, which the host makes (held through its pause);
+    // the host's game menu says it comes later, as orbit's does, and leaves
+    // the screen up.
     private void PressEncounter(MenuKey key)
     {
         if (Meeting is not { OffersChoice: true } m || _chosenMeeting == m.Id)
             return;
+        var entries = EncounterEntries;
+        int at = Math.Max(0, Array.IndexOf(entries, EncounterCursor));
         switch (key)
         {
             case MenuKey.Up:
+                EncounterCursor = entries[(at + entries.Length - 1) % entries.Length];
+                break;
             case MenuKey.Down:
-                EncounterCursor = EncounterCursor == EncounterAction.Hail ? EncounterAction.Attack : EncounterAction.Hail;
+                EncounterCursor = entries[(at + 1) % entries.Length];
+                break;
+            case MenuKey.Select when EncounterCursor == EncounterEntry.GameMenu:
+                Notify("Game menu comes in a later stage.");
                 break;
             case MenuKey.Select:
-                _encounterChoice = (m.Id, EncounterCursor);
+                var action = EncounterCursor == EncounterEntry.Attack ? EncounterAction.Attack : EncounterAction.Hail;
+                _encounterChoice = (m.Id, action);
                 _chosenMeeting = m.Id;
-                Log($"Encounter choice: {EncounterCursor}");
+                Log($"Encounter choice: {action}");
                 break;
         }
     }
+
+    private static string EntryLabel(EncounterEntry e) => e == EncounterEntry.GameMenu ? "Game menu" : e.ToString();
 
     // The group met, in words: "3 Ur-Quan ships in deep space".
     private string EncounterWith(MeetingView m)
@@ -681,8 +700,9 @@ public sealed class PlayerSession
             yield return $"{EncounterCursor}...";
         else
         {
-            yield return EncounterCursor == EncounterAction.Hail ? "> Hail <   Attack" : "  Hail   > Attack <";
-            yield return "Up, down: hail or attack; Enter: choose";
+            yield return string.Join(" ", EncounterEntries.Select(e =>
+                e == EncounterCursor ? $"> {EntryLabel(e)} <" : $"  {EntryLabel(e)}  ")).TrimEnd();
+            yield return EncounterEntries.Length > 2 ? "Up, down: hail, attack or the game menu; Enter: choose" : "Up, down: hail or attack; Enter: choose";
         }
     }
 
