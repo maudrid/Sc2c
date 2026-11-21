@@ -768,8 +768,9 @@ public sealed partial class GameWorld
     /// made all the same, as if they'd been heard, so leaving doesn't undo
     /// what the talk decided: the group written back after a peace
     /// (one-shot, the drone sent off), a surrender or an instant victory as
-    /// they'd go; only no battle starts, a hostile ending's group going on
-    /// as it was, as when everyone retreats before it.
+    /// they'd go; only no battle starts: a hostile ending is dropped as
+    /// above, the group going on as it was, as UQM's abort leaves it (the
+    /// owner's question 2).
     /// </summary>
     private void AbandonMeeting(Player player)
     {
