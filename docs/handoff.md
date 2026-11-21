@@ -42,6 +42,8 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decided
 
+- **The battle-won screen (the owner, 2026-11-21, question 12): watched or skipped.** It plays as UQM's, the ship waiting meanwhile; Escape pressed afresh ends it at any time (UQM's only after its first wait). Built (`BattleWonScreen.Advance`, `differences.md` row 18).
+
 - **A choice made during a pause (the owner, 2026-11-21, question 11): as built.** An encounter choice or a meeting's reply reaching the host during its pause or a story talk's is kept and made as the pause ends.
 
 - **A meeting's closing lines (the owner, 2026-11-21, question 10): on the communication screen, the meeting waiting.** The alien's last lines after the player's last reply, and the drone's whole message, play on the talk screen as UQM's; only that player's meeting waits (a new step after the talk), and its battle starts or its ship flies on once they've gone through them; everyone else goes on as now (the race's lock held that much longer). To be built with item 11 (the step, the wire and the drawing together: built alone it would hold a windowed player at an undrawn screen); until then the notice as built. The starbase's story talks keep their closing lines as notices.
@@ -60,11 +62,9 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's answers to questions 12 and 13 (below), then the go-ahead for item 12 (stage 3b-1 item 11 is built, reviewed in five rounds and reported; the go-ahead of 2026-11-21 was for item 11 alone).
+Build the owner's answer to question 13 (a save at the closing lines makes the talk's end, as leaving does), have it reviewed, report, then wait for the go-ahead for item 12 (stage 3b-1 item 11 is built, reviewed in five rounds and reported; the go-ahead of 2026-11-21 was for item 11 alone).
 
 ## Decisions waiting on the owner
-
-- **12. The battle-won screen's wait (item 11, built so).** After a battle won the player's client plays UQM's battle-won screen (about nine seconds for one ship, less with a key, Esc ending it after its first wait), the ship waiting meanwhile as UQM's flagship does, while the world goes on for the others. Kept as built, or let the ship fly while it plays (or shorten it)?
 
 - **13. A save made at a meeting's closing lines (item 11, built so).** A save while a player's meeting waits at its closing lines is an ordinary save (the owner: a save during a meeting is as any other): the talk's story writes are kept (the drone's `PROBE_MESSAGE_DELIVERED`, a race's visits), but the group isn't written back as the talk's end would: not re-forming or one-shot after a peace, and the drone not sent off. Checked: after such a load at Sol the drone stays in its orbit about Earth (the system's saved draw), its message marked delivered; once Sol is drawn afresh `init_probe` no longer puts it in orbit (the flag), and it goes by the default draw. Leaving at the closing lines, by contrast, makes the talk's end (review round 1). Options: (a) make the talk's end on the saved copy for a meeting at `Closing` (the group written back, the drone sent off; no battle, a hostile ending's group as it was), as leaving does; (b) keep it as built. Recommended: (a), so a save and a leave at the same moment agree and the drone isn't left orbiting with its message given.
 

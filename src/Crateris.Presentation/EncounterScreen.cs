@@ -177,6 +177,7 @@ public sealed class BattleWonScreen
     private readonly IEnumerator<long> _run;
     private long _now, _until = long.MinValue;
     private bool _held, _escape;
+    private bool? _lastEscape;   // Escape at the last call (none before the first)
 
     /// <param name="canvas">Where it draws (its calls in <see cref="UqmCanvas.Drawn"/>).</param>
     /// <param name="gameString">The game's strings by number.</param>
@@ -209,10 +210,17 @@ public sealed class BattleWonScreen
     /// Time passes to <paramref name="now"/>, a key held or not
     /// (<paramref name="held"/>: AnyButtonPress) and Escape among them
     /// (<paramref name="escape"/>): whatever is due is drawn. True once
-    /// it's over.
+    /// it's over. Escape pressed afresh (up at the last call, down now)
+    /// ends it at once (the owner, 2026-11-21, question 12: the player
+    /// watches it or skips it; UQM's lets Escape end it only after its first
+    /// wait, `differences.md` row 18); held since before the screen, it
+    /// plays as UQM's.
     /// </summary>
     public bool Advance(long now, bool held, bool escape)
     {
+        if (escape && _lastEscape == false)
+            Done = true;
+        _lastEscape = escape;
         _held = held;
         _escape = escape;
         _now = Math.Max(_now, now);

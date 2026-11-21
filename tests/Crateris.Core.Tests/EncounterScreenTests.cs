@@ -152,6 +152,31 @@ public class EncounterScreenTests
     }
 
     [Fact]
+    public void TheBattleWonScreenCanBeWatchedOrSkipped()
+    {
+        // The owner, 2026-11-21, question 12: the player may watch the whole
+        // screen or skip it. Escape pressed afresh at any time ends it at
+        // once; held since before the screen it plays as UQM's (to its
+        // first wait's end).
+        (long Over, BattleWonScreen Screen) Run(Func<long, bool> escape)
+        {
+            var c = Canvas();
+            var screen = new BattleWonScreen(c, Placeholder, "S", "{gs:1006}", "ship.spathi.icons", 1, 225, 225, 0);
+            long t = 0;
+            while (!screen.Advance(t, escape(t), escape(t)))
+                t += 1;
+            return (t, screen);
+        }
+        long watched = Run(_ => false).Over;
+        Assert.True(watched > 4 * 840, $"{watched}");
+        foreach (long at in new long[] { 1, 100, 500, 1000, 3000 })
+            Assert.Equal(at, Run(t => t >= at).Over);
+        // Held from the first call: not a fresh press, UQM's way (the first wait runs out).
+        long held = Run(_ => true).Over;
+        Assert.InRange(held, 840 * 2, watched - 1);
+    }
+
+    [Fact]
     public void TheGravityWellIsTheBattlePlanetsBigView()
     {
         var planets = Data.PlanetTypes.Load(Path.Combine(AppContext.BaseDirectory, "data"));
