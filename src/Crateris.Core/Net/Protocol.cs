@@ -148,7 +148,8 @@ public static class Protocol
     /// they've gone through them (ClosingDone, with the meeting's number);
     /// the closing lines are no longer a VisitStep.Done view. A meeting's
     /// view carries the battle's planet (MeetingView.Well), whose gravity
-    /// well the encounter screen draws.
+    /// well the encounter screen draws, and in a system the planet it names
+    /// (MeetingView.Named).
     public const int Version = 27;
     public const int DefaultPort = 24642;
 
