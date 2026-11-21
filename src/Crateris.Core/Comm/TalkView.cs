@@ -98,20 +98,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
                 if (t > talkFrom || at >= eventFrom)
                     (sale, seller) = (sold, visit.SellerOf(t, at));
             foreach (var e in visit.Talks[t].Events.Skip(t == talkFrom ? eventFrom : 0))
-            {
-                switch (e)
-                {
-                    case LineQueued { Clip: not null } l:
-                        lines.Add(l.Text);
-                        break;
-                    case LineQueued l when lines.Count > 0:
-                        lines[^1] += l.Text;
-                        break;
-                    case MultiTrackQueued m when lines.Count > 0:
-                        lines[^1] += System.Text.Encoding.UTF8.GetString(m.TextBytes);
-                        break;
-                }
-            }
+                AddLine(lines, e);
         }
         var talk = visit.Talk;
         string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
@@ -121,6 +108,59 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             // replies passed on to another player since, nobody's).
             Sale: seller is not null && seller == visit.Replier ? sale : null);
         return visit.Paging is { } paging && paging.Key == view.LinesKey ? view with { Paging = paging.Pages.ToList() } : view;
+    }
+
+    // A talk's event into the lines: a track, or what's spliced into the last.
+    private static void AddLine(List<string> lines, TalkEvent e)
+    {
+        switch (e)
+        {
+            case LineQueued { Clip: not null } l:
+                lines.Add(l.Text);
+                break;
+            case LineQueued l when lines.Count > 0:
+                lines[^1] += l.Text;
+                break;
+            case MultiTrackQueued m when lines.Count > 0:
+                lines[^1] += System.Text.Encoding.UTF8.GetString(m.TextBytes);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The view of a meeting's talk as it stands (stage 3b-1 item 10): the
+    /// race's lines since its player's last reply, the replies offered (none
+    /// once it's over), the round (<see cref="Meeting.Round"/>) and the reply
+    /// said, its player replying (<see cref="VisitStep.Meeting"/>; an
+    /// ordinary talk: nobody else is shown it). Null without a talk (a race
+    /// whose talk isn't ported).
+    /// </summary>
+    public static TalkView? Of(Meeting? meeting)
+    {
+        if (meeting?.Talk is not { } talk)
+            return null;
+        var events = talk.Events;
+        int from = 0, round = meeting.FirstRound;
+        string said = "";
+        RepliesOffered? offered = null;
+        for (int i = 0; i < events.Count; ++i)
+        {
+            if (events[i] is ReplyChosen chosen)
+            {
+                from = i + 1;
+                said = offered?.Replies[chosen.Index].Text ?? "";
+            }
+            else if (events[i] is RepliesOffered o)
+            {
+                offered = o;
+                round++;
+            }
+        }
+        var lines = new List<string>();
+        for (int i = from; i < events.Count; ++i)
+            AddLine(lines, events[i]);
+        return new TalkView(VisitStep.Meeting, talk.Script.Phrases.Name, lines,
+            talk.Ended ? new List<string>() : talk.Replies.Select(r => r.Text).ToList(), round, meeting.Player.Id, said);
     }
 
     public byte[] Encode()
@@ -152,7 +192,8 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             return null;
         var r = new WireReader(data);
         ulong step = r.UInt();
-        if (step == 0 || step - 1 > (ulong)VisitStep.Done)
+        // Any step but the Ilwrath's fight, which is never sent.
+        if (step == 0 || step - 1 > (ulong)VisitStep.Meeting || step - 1 == (ulong)VisitStep.IlwrathFight)
             throw new InvalidDataException("Bad talk step.");
         string script = r.String() ?? "";
         ulong round = r.UInt();

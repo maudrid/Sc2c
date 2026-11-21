@@ -54,6 +54,14 @@ public enum VisitStep
     /// shown the Ilwrath's closing lines meanwhile).
     /// </summary>
     IlwrathFight,
+
+    /// <summary>
+    /// Not a visit's: a meeting's talk with a race met in space (stage 3b-1
+    /// item 10), as a talk's view carries it (<see cref="Comm.TalkView.Of(Meeting?)"/>):
+    /// an ordinary talk, its player replying. Numbered last, as
+    /// <see cref="IlwrathFight"/> is.
+    /// </summary>
+    Meeting,
 }
 
 /// <summary>

@@ -160,6 +160,7 @@ public sealed partial class GameWorld
         var m = new Meeting(player, race, Story!.Rules.Races[race],
             new[] { new EnemyFleetShip(Story.Rules.RaceShips[race].Ship) }, NextRound())
         {
+            Id = ++_meetingIds,
             Star = star,
             World = world,
             Infinite = true,
@@ -176,6 +177,12 @@ public sealed partial class GameWorld
 
     // The meetings begun since the host's session last asked (its log).
     private readonly List<Meeting> _newMeetings = new();
+
+    // The last meeting's number (Meeting.Id).
+    private int _meetingIds;
+
+    // Encounter screens' choices made during a pause, made as it ends (StepFrame).
+    private readonly List<(string Id, EncounterAction Action, int Meeting)> _heldChoices = new();
 
     /// <summary>The meetings begun since last asked (over already, some of them: a talk ending at once), for the host's log.</summary>
     internal IReadOnlyList<Meeting> TakeNewMeetings()
@@ -273,6 +280,7 @@ public sealed partial class GameWorld
         var m = new Meeting(player, met.Race, Story!.Rules.Races[met.Race],
             FleetShips(met.Race, met.Ships.Select(c => (c, (int?)null))), NextRound())
         {
+            Id = ++_meetingIds,
             Encounter = met,
             Step = MeetingStep.Spin,
             SpinFrames = StarEntry.Turns(ship.Flight.Facing, frames) + 1,
@@ -339,6 +347,7 @@ public sealed partial class GameWorld
             FleetShips(g.Race, ships is null ? Array.Empty<(int, int?)>()
                 : ships.Ships.Zip(ships.Captains, (c, n) => (c, (int?)n))), NextRound())
         {
+            Id = ++_meetingIds,
             Star = d.Star,
             Group = g,
             Conversation = conversation,
@@ -381,6 +390,9 @@ public sealed partial class GameWorld
     // screen if it is, else the hail at once.
     private void BeginTalk(Meeting m)
     {
+        // The player's last talk's closing lines are no longer shown (TalkFor).
+        _ended.Remove(m.Player.Id);
+        _meetingClosing.Remove(m.Player.Id);
         if (m.RaceId != "URQUAN_DRONE_SHIP")
             Story!.StartSphereTracking(m.RaceId);
         uint seed = unchecked((uint)Frame * 2_654_435_761u + (uint)m.Race * 40_503u + 0x4D454554u);
@@ -414,14 +426,29 @@ public sealed partial class GameWorld
     /// <summary>
     /// The encounter screen's choice (InitEncounter's DoSelectAction): hail,
     /// and the race's talk runs (under its lock); attack, and the battle
-    /// starts against the group's ships. False, changing nothing, if the
-    /// player isn't at the encounter screen, or the game is paused or over.
+    /// starts against the group's ships; during the host's pause or a
+    /// story talk's, made as the pause ends (true; another choice before
+    /// then replaces it). False, changing nothing, if the player isn't at
+    /// the encounter screen, or the game is over,
+    /// or the choice is for another meeting than theirs
+    /// (<paramref name="meeting"/>, a <see cref="Meeting.Id"/>: a guest's,
+    /// stage 3b-1 item 10; null for whichever they're in).
     /// </summary>
-    public bool EncounterChoice(string id, EncounterAction action)
+    public bool EncounterChoice(string id, EncounterAction action, int? meeting = null)
     {
-        if (Held || StoryPaused || Find(id) is not { Present: true, Ship.Meeting: { Step: MeetingStep.Encounter } m }
-            || !Enum.IsDefined(action))
+        if (GameOver || Find(id) is not { Present: true, Ship.Meeting: { Step: MeetingStep.Encounter } m }
+            || !Enum.IsDefined(action) || meeting is int n && n != m.Id)
             return false;
+        if (HostPaused || StoryPaused)
+        {
+            // Kept for the pause's end (the host's, or a story talk's), as a
+            // reply is through the host's: the chooser's client counts a
+            // choice sent as made, so one refused would leave them at the
+            // screen for good.
+            _heldChoices.RemoveAll(h => h.Id == id);
+            _heldChoices.Add((id, action, m.Id));
+            return true;
+        }
         if (action == EncounterAction.Hail)
         {
             m.Hailed = true;
@@ -465,6 +492,10 @@ public sealed partial class GameWorld
     private void TalkOver(Meeting m)
     {
         _rounds = Math.Max(_rounds, m.Round);
+        // Its closing lines shown till the player's next talk (TalkFor): the
+        // lines since their last reply, which their screen may not have had.
+        if (TalkView.Of(m) is { Lines.Count: > 0 } closing)
+            _meetingClosing[m.Player.Id] = closing with { Step = VisitStep.Done, Replies = Array.Empty<string>() };
         ReleaseMeetingLock(m);
         if (m.Talk is { Segue: Segue.Defeat })
         {

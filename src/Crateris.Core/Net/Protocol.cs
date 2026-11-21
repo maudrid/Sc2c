@@ -128,7 +128,20 @@ public static class Protocol
     /// 25: each captain's window's mark carries its ordinal among the
     /// ship's marks (stage 4b item 10, review round 1), so a client draws
     /// exactly the marks newer than the last it drew.
-    public const int Version = 25;
+    /// 26: groups of alien ships and meetings with them (stage 3b-1 item
+    /// 10): a snapshot's parts are a number, not a byte, and carry the
+    /// groups the viewer sees (GroupSnapshot: in hyperspace the encounters
+    /// on its screen, in a system those in its view; their race, place,
+    /// frame and vortex, sent as deltas); a player's meeting is sent to
+    /// them as a reliable message when it changes (MeetingView: its step,
+    /// the race and ships met, where), and their choice at its encounter
+    /// screen comes back as one (EncounterChoice, with the meeting's
+    /// number); a meeting's talk is a talk's view (VisitStep.Meeting, its
+    /// closing lines as VisitStep.Done), its replies chosen as any talk's;
+    /// a battle's end carries the battle-won screen's tally (the ships
+    /// destroyed and each one's bounty), and a meeting's instant victory
+    /// is told as one. Item 9's notices still go in words (BattleNoticeKind.Told).
+    public const int Version = 26;
     public const int DefaultPort = 24642;
 
     /// <summary>

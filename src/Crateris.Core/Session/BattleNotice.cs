@@ -21,6 +21,12 @@ public enum BattleNoticeKind : byte
     /// The player's battle is over for it: its outcome, how the player's
     /// ship came out, its crew and salvage; or, out of a battle still going
     /// on (retreated, or disconnected and back), how it left, with no outcome.
+    /// Won and paying salvage, to each player in it at the end, it's the
+    /// battle-won screen's (UninitEncounter's tally, stage 3b-1 item 10):
+    /// <see cref="BattleNotice.Destroyed"/> enemy ships, each paying
+    /// <see cref="BattleNotice.Bounty"/>, the player's share
+    /// <see cref="BattleNotice.Salvage"/>; so is a meeting's instant victory
+    /// (the Slylandro probe's destruct code: no battle, <see cref="BattleNotice.Battle"/> 0).
     /// </summary>
     Ended,
 
@@ -57,11 +63,17 @@ public enum BattleNoticeKind : byte
 /// start, end and wreck, a battle too full to join, a rescue offered or
 /// made, and the game over; and the world's notices of what other players
 /// set off, in words (<see cref="BattleNoticeKind.Told"/>). A guest's client keeps it to show (item 12's
-/// screens) and says it in words meanwhile (<see cref="Describe"/>).
+/// screens) and says it in words meanwhile (<see cref="Describe"/>). A
+/// battle won's tally (the battle-won screen, stage 3b-1 item 10; item 11
+/// draws it) is its end's: <see cref="Destroyed"/> and <see cref="Bounty"/>
+/// (0 for none: lost, out of it before its end, or paying no salvage).
 /// </summary>
 public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string Enemy = "", BattleOutcome? Outcome = null,
-    BattleExit? Exit = null, uint Salvage = 0, int Crew = 0, string Other = "", string Text = "")
+    BattleExit? Exit = null, uint Salvage = 0, int Crew = 0, string Other = "", string Text = "", int Destroyed = 0, uint Bounty = 0)
 {
+    /// <summary>The most enemy ships a tally counts (a fleet has 14 at most; a probe's group a few).</summary>
+    public const int MostDestroyed = 256;
+
     /// <summary>A revival's <see cref="Text"/>: the notice is for the rescuer (<see cref="Other"/> the wreck's player), or for the wreck's player (<see cref="Other"/> the rescuer).</summary>
     public const string Rescuer = "rescuer", Rescued = "rescued";
 
@@ -80,6 +92,8 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
         w.UInt((ulong)Crew);
         w.String(Other);
         w.String(Text);
+        w.UInt((ulong)Destroyed);
+        w.UInt(Bounty);
         return w.Written.ToArray();
     }
 
@@ -96,10 +110,12 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
             throw new InvalidDataException("Bad battle outcome or exit.");
         ulong salvage = r.UInt(), crew = r.UInt();
         string other = r.String() ?? "", text = r.String() ?? "";
-        if (battle > int.MaxValue || salvage > uint.MaxValue || crew > int.MaxValue || !r.AtEnd)
+        ulong destroyed = r.UInt(), bounty = r.UInt();
+        if (battle > int.MaxValue || salvage > uint.MaxValue || crew > int.MaxValue || destroyed > MostDestroyed
+                || bounty > uint.MaxValue || !r.AtEnd)
             throw new InvalidDataException("Bad battle notice.");
         return new BattleNotice(kind, (int)battle, enemy, outcome == 0 ? null : (BattleOutcome)(outcome - 1),
-            exit == 0 ? null : (BattleExit)(exit - 1), (uint)salvage, (int)crew, other, text);
+            exit == 0 ? null : (BattleExit)(exit - 1), (uint)salvage, (int)crew, other, text, (int)destroyed, (uint)bounty);
     }
 
     /// <summary>In words, for the player it's for.</summary>
@@ -111,6 +127,7 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
             (BattleExit.Destroyed, _) => $"Your ship was destroyed fighting the {Enemy}.",
             (BattleExit.Retreated, _) => "You got away.",
             (BattleExit.Disconnected, _) => "You left the battle.",
+            (_, BattleOutcome.Won) when Destroyed > 1 => $"The {Enemy} battle group is destroyed: {Destroyed} ships, {Salvage} RU of salvage.",
             (_, BattleOutcome.Won) => Salvage > 0 ? $"The {Enemy} is destroyed: {Salvage} RU of salvage." : $"The {Enemy} is destroyed.",
             _ => $"The battle against the {Enemy} is lost.",
         },

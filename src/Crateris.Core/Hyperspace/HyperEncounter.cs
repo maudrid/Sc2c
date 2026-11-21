@@ -82,6 +82,13 @@ public sealed class HyperEncounter
     /// </summary>
     public HashSet<string> Chased { get; private set; } = new();
 
+    /// <summary>
+    /// Its number in the snapshots (stage 3b-1 item 10: a client tells the
+    /// groups apart by it from one frame to the next), given by the world
+    /// as it's first sent; 0 until then. Not saved.
+    /// </summary>
+    public int SnapshotId { get; internal set; }
+
     public HyperEncounter Clone()
     {
         var c = (HyperEncounter)MemberwiseClone();

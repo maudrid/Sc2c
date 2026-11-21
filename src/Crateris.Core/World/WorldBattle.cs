@@ -479,6 +479,16 @@ public sealed class WorldBattle
     /// <summary>The salvage paid on a win, before it's split (0 for a battle that pays none).</summary>
     public uint SalvagePaid { get; internal set; }
 
+    /// <summary>
+    /// On a win paying salvage, the battle-won screen's tally
+    /// (UninitEncounter's, stage 3b-1 item 10): the enemy ships destroyed
+    /// (every one), each paying <see cref="Bounty"/>; 0 otherwise.
+    /// </summary>
+    public int EnemiesDestroyed { get; internal set; }
+
+    /// <summary>The salvage each enemy ship destroyed paid (the encounter race's RACE_SHIP_COST / 8), on a win paying salvage; 0 otherwise.</summary>
+    public uint Bounty { get; internal set; }
+
     /// <summary>A player's ship in it (out of it or not), or null.</summary>
     public BattleFighter? FighterOf(string id) => _fighters.FirstOrDefault(f => f.Player.Id == id);
 

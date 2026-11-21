@@ -76,13 +76,18 @@ public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint 
 /// while the game is paused for a story talk, who replies in it
 /// (<see cref="StoryPause"/>); and whether the host has paused it
 /// (<see cref="HostPaused"/>); the battles (<see cref="Battles"/>) and
-/// their markers (<see cref="Markers"/>). A guest is sent only its own
-/// lander's surface, and only its own battle, the elements near its ship.
+/// their markers (<see cref="Markers"/>); and the groups of alien ships
+/// drawn where a player flies (<see cref="Groups"/>, stage 3b-1 item 10: the
+/// encounters on a player's screen in hyperspace, the groups in a view of
+/// a system a player flies in). A guest is sent only its own
+/// lander's surface, only its own battle, the elements near its ship, and
+/// only the groups it sees (<see cref="GroupSnapshot.SeenBy"/>).
 /// </summary>
 public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IReadOnlyList<ShipSnapshot> Ships,
     IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null, IReadOnlyList<SurfaceSnapshot>? Surfaces = null,
     Story.StorySnapshot? Story = null, string? StoryPause = null, bool HostPaused = false,
-    IReadOnlyList<BattleSnapshot>? Battles = null, IReadOnlyList<BattleMarkerSnapshot>? Markers = null);
+    IReadOnlyList<BattleSnapshot>? Battles = null, IReadOnlyList<BattleMarkerSnapshot>? Markers = null,
+    IReadOnlyList<GroupSnapshot>? Groups = null);
 
 /// <summary>
 /// The host's authoritative game: world state (clock, planets) and every
@@ -385,6 +390,7 @@ public sealed partial class GameWorld
             AfterVisit(docked);
         }
         _ended.Remove(id);
+        _meetingClosing.Remove(id);
         EndSpin(player);   // out of hyperspace from where its spin had taken it
         player.Present = false;
         _inputs[id].Clear();
@@ -457,6 +463,15 @@ public sealed partial class GameWorld
                 _inputs[p.Id].DropThrough(Frame - 1);
         }
         _wasPaused = paused;
+        if (!paused && _heldChoices.Count > 0)
+        {
+            // The encounter screens' choices made during a pause, made now
+            // in the order they came (stage 3b-1 item 10).
+            var choices = _heldChoices.ToList();
+            _heldChoices.Clear();
+            foreach (var (id, action, meeting) in choices)
+                EncounterChoice(id, action, meeting);
+        }
         if (HostPaused)
         {
             // The host's pause holds everything (decision 15), a story
@@ -754,9 +769,15 @@ public sealed partial class GameWorld
         }
         var visit = new StarbaseVisit(this, player, NextRound());
         if (opening)
+        {
             _ended.Clear();
+            _meetingClosing.Clear();
+        }
         else
+        {
             _ended.Remove(player.Id);
+            _meetingClosing.Remove(player.Id);
+        }
         if (visit.Done)
         {
             _ended[player.Id] = (visit, null);
@@ -1116,11 +1137,30 @@ public sealed partial class GameWorld
         : Find(id)?.Ship.Visit is { } v && v.Starter.Id == id ? v
         : _ended.TryGetValue(id, out var e) ? e.Visit : null;
 
-    /// <summary>The talk a player is shown (<see cref="VisitOf"/>): the closing lines of one they watched as they were when it ended.</summary>
-    public TalkView? TalkFor(string id) =>
-        Visit is { Story: true } || Find(id)?.Ship.Visit is not null || !_ended.TryGetValue(id, out var e)
+    /// <summary>
+    /// The talk a player is shown (<see cref="VisitOf"/>): the closing lines
+    /// of one they watched as they were when it ended. Outside a story
+    /// talk and a visit, their meeting's talk (stage 3b-1 item 10:
+    /// <see cref="TalkView.Of(Meeting?)"/>), or the closing lines of their
+    /// last one (<see cref="VisitStep.Done"/>: the lines since their last
+    /// reply as it ended, the drone's message whole) until their next talk.
+    /// </summary>
+    public TalkView? TalkFor(string id)
+    {
+        if (Visit is not { Story: true } && Find(id)?.Ship is { Visit: null } ship)
+        {
+            if (ship.Meeting is { Step: MeetingStep.Talk, Talk: not null } m)
+                return TalkView.Of(m);
+            if (_meetingClosing.TryGetValue(id, out var closing))
+                return closing;
+        }
+        return Visit is { Story: true } || Find(id)?.Ship.Visit is not null || !_ended.TryGetValue(id, out var e)
             ? TalkView.Of(VisitOf(id))
             : e.Frozen ?? TalkView.Of(e.Visit);
+    }
+
+    // The closing lines of each player's last meeting's talk (TalkFor), till their next talk.
+    private readonly Dictionary<string, TalkView> _meetingClosing = new();
 
     private void EnterSystem(PlayerShip ship, Star star)
     {
@@ -1467,6 +1507,7 @@ public sealed partial class GameWorld
             Story is null ? null : _storySnapshot, StoryPaused ? Visit!.Replier.Id : null, HostPaused,
             _battles.Select(BattleSnapshotOf).ToList(),
             _battles.Select(b => new BattleMarkerSnapshot(b.Id, b.Place.Star, b.Place.InnerPlanet, b.Place.X, b.Place.Y, b.EnemyShip.Id))
-                .ToList());
+                .ToList(),
+            GroupsSnapshot(present));
     }
 }

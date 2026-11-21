@@ -67,6 +67,13 @@ public sealed class Meeting
         FirstRound = firstRound;
     }
 
+    /// <summary>
+    /// The meeting's number in the game (from 1, not saved), which the
+    /// encounter screen's choice is sent with (stage 3b-1 item 10), so a
+    /// choice meant for one meeting can't choose in the next.
+    /// </summary>
+    public int Id { get; internal init; }
+
     /// <summary>The player meeting the group.</summary>
     public Player Player { get; }
 

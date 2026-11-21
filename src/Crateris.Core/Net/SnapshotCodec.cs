@@ -17,7 +17,8 @@ namespace Crateris.Core.Net;
 ///
 /// A message is: its kind (full or delta); the frame; for a delta, how many
 /// frames back its base is; a byte of which world parts changed (the date,
-/// the orbited worlds, the surface, the story state), then those parts;
+/// the orbited worlds, the surface, the story state, the pauses, the
+/// battle, the markers and the groups seen), then those parts;
 /// then the ships. Each ship is the
 /// place of its base ship in the base's list plus one (0 for a ship new
 /// since the base), a bitmask of the fields that changed, and those fields.
@@ -54,8 +55,10 @@ public static partial class SnapshotCodec
     /// earlier snapshot the receiver has, or in full without one. Of the
     /// surfaces, only <paramref name="viewer"/>'s goes: the one its own
     /// lander is on (none for no viewer), as a delta from the one it was
-    /// sent with the base, if it's the same world's.
-    /// Doesn't allocate once the writer's buffer is big enough.
+    /// sent with the base, if it's the same world's; and only the battle
+    /// and the groups of alien ships it sees (<see cref="GroupSnapshot.SeenBy"/>).
+    /// Doesn't allocate once the writer's buffer is big enough, but for the
+    /// lists of what a viewer sees of a battle and of groups.
     /// </summary>
     public static void Encode(WireWriter writer, WorldSnapshot snapshot, WorldSnapshot? baseSnapshot = null, string? viewer = null)
     {
@@ -79,9 +82,12 @@ public static partial class SnapshotCodec
         var battle = BattleSeen(snapshot, viewer);
         bool battleChanged = battle is not null || InBattle(baseSnapshot, viewer);
         bool markersChanged = !SameMarkers(snapshot.Markers, baseSnapshot?.Markers);
-        writer.Byte((byte)((dateChanged ? PartDate : 0) | (orbitedChanged ? PartOrbited : 0) | (surfaceChanged ? PartSurface : 0)
+        var groups = GroupSnapshot.SeenBy(snapshot, viewer);
+        var baseGroups = GroupSnapshot.SeenBy(baseSnapshot, viewer);
+        bool groupsChanged = !SameGroups(groups, baseGroups);
+        writer.UInt((ulong)((dateChanged ? PartDate : 0) | (orbitedChanged ? PartOrbited : 0) | (surfaceChanged ? PartSurface : 0)
             | (storyChanged ? PartStory : 0) | (pauseChanged ? PartPause : 0) | (hostPauseChanged ? PartHostPause : 0)
-            | (battleChanged ? PartBattle : 0) | (markersChanged ? PartMarkers : 0)));
+            | (battleChanged ? PartBattle : 0) | (markersChanged ? PartMarkers : 0) | (groupsChanged ? PartGroups : 0)));
         if (dateChanged)
         {
             writer.Int((long)snapshot.Year - (baseSnapshot?.Year ?? 0));
@@ -102,6 +108,8 @@ public static partial class SnapshotCodec
             WriteBattle(writer, battle);
         if (markersChanged)
             WriteMarkers(writer, snapshot.Markers);
+        if (groupsChanged)
+            WriteGroups(writer, groups, baseGroups);
 
         writer.UInt((ulong)snapshot.Ships.Count);
         Span<long> now = stackalloc long[Numbers];
@@ -306,8 +314,9 @@ public static partial class SnapshotCodec
             if (baseSnapshot.Frame != bf)
                 throw new ArgumentException($"the base given for frame {bf} is frame {baseSnapshot.Frame}", nameof(baseOf));
         }
-        byte parts = r.Byte();
-        if ((parts & ~(PartDate | PartOrbited | PartSurface | PartStory | PartPause | PartHostPause | PartBattle | PartMarkers)) != 0
+        ulong parts = r.UInt();
+        if ((parts & ~(ulong)(PartDate | PartOrbited | PartSurface | PartStory | PartPause | PartHostPause | PartBattle | PartMarkers
+                | PartGroups)) != 0
                 || (baseSnapshot is null && (parts & (PartDate | PartOrbited)) != (PartDate | PartOrbited)))
             throw new InvalidDataException("Bad snapshot parts.");
         int year = baseSnapshot?.Year ?? 0, month = baseSnapshot?.Month ?? 0, day = baseSnapshot?.Day ?? 0;
@@ -333,6 +342,7 @@ public static partial class SnapshotCodec
         // The battle isn't kept from the base: sent every frame the viewer is in one.
         var battles = (parts & PartBattle) != 0 ? ReadBattle(ref r) : null;
         var markers = (parts & PartMarkers) != 0 ? ReadMarkers(ref r) : baseSnapshot?.Markers;
+        var seenGroups = (parts & PartGroups) != 0 ? ReadGroups(ref r, baseSnapshot?.Groups) : baseSnapshot?.Groups;
 
         int count = Count(r.UInt(), MostShips);
         var ships = new ShipSnapshot[count];
@@ -390,7 +400,7 @@ public static partial class SnapshotCodec
         }
         if (!r.AtEnd)
             throw new InvalidDataException("The snapshot has bytes left over.");
-        return new WorldSnapshot(frame, year, month, day, ships, worlds, surfaces, story, pause, hostPaused, battles, markers);
+        return new WorldSnapshot(frame, year, month, day, ships, worlds, surfaces, story, pause, hostPaused, battles, markers, seenGroups);
     }
 
     private static void ToNumbers(ShipSnapshot s, Span<long> v)

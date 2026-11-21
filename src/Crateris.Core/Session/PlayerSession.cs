@@ -38,6 +38,14 @@ public enum PlayerScreen
 
     /// <summary>Docked at the allied starbase: its menu, outfitting or the shipyard (<see cref="PlayerSession.Starbase"/>).</summary>
     Starbase,
+
+    /// <summary>
+    /// A meeting's encounter screen (stage 3b-1 item 10, <see cref="PlayerSession.Meeting"/>):
+    /// the group's ships, Hail or Attack; also a meeting's talk whose view
+    /// hasn't come yet. Item 11 draws UQM's screen; until then it's said in
+    /// the status lines.
+    /// </summary>
+    Encounter,
 }
 
 /// <summary>
@@ -101,6 +109,13 @@ public sealed class PlayerSession
 
     /// <summary>The local player's ship in the snapshot (found once for each snapshot).</summary>
     public ShipSnapshot? Me { get; private set; }
+
+    /// <summary>
+    /// The groups of alien ships this player sees (stage 3b-1 item 10:
+    /// <see cref="GroupSnapshot.SeenBy"/>; a guest is sent only these, the
+    /// host's own snapshot has every one), for item 11 to draw.
+    /// </summary>
+    public IReadOnlyList<GroupSnapshot> Groups => GroupSnapshot.SeenBy(Snapshot, PlayerId);
 
     /// <summary>Whether the local player's entry into a star is playing.</summary>
     public bool Entering => Me != null && Entries.Playing(Me.Id);
@@ -580,6 +595,90 @@ public sealed class PlayerSession
     }
 
     /// <summary>
+    /// The meeting this player is in, as the host last sent it (stage 3b-1
+    /// item 10): its step, the race and ships met, where; null if none. At
+    /// its encounter screen (<see cref="MeetingView.OffersChoice"/>) the
+    /// menu keys choose Hail or Attack (<see cref="EncounterCursor"/>), sent
+    /// once (<see cref="TakeEncounterChoice"/>); item 11 draws the screen,
+    /// till then the status lines say it.
+    /// </summary>
+    public MeetingView? Meeting { get; private set; }
+
+    /// <summary>The encounter screen's choice the cursor is on (UQM's starts on Hail).</summary>
+    public EncounterAction EncounterCursor { get; private set; }
+
+    private (int Meeting, EncounterAction Action)? _encounterChoice;
+    private int _chosenMeeting;
+
+    /// <summary>The host sent this player's meeting (null: none).</summary>
+    public void ShowMeeting(MeetingView? view)
+    {
+        if (view is null ? Meeting is null : view.Same(Meeting))
+            return;
+        if (view is not null && view.Id != Meeting?.Id)
+            EncounterCursor = EncounterAction.Hail;   // a new meeting's screen starts on Hail (InitEncounter)
+        if (view is { OffersChoice: true } && Meeting is not { OffersChoice: true })
+            Log($"Encounter: {EncounterWith(view)}");
+        if (view is null)
+            _chosenMeeting = 0;   // a game loaded anew numbers its meetings from 1 again
+        Meeting = view;
+    }
+
+    /// <summary>The encounter screen's choice made (its meeting and Hail or Attack), to send to the host once; null if none waits.</summary>
+    public (int Meeting, EncounterAction Action)? TakeEncounterChoice()
+    {
+        var c = _encounterChoice;
+        _encounterChoice = null;
+        return c;
+    }
+
+    // At the encounter screen the menu keys move between Hail and Attack (up
+    // and down, round, as DoMenuChooser) and choose (select): one choice a
+    // meeting, which the host makes (held through its pause).
+    private void PressEncounter(MenuKey key)
+    {
+        if (Meeting is not { OffersChoice: true } m || _chosenMeeting == m.Id)
+            return;
+        switch (key)
+        {
+            case MenuKey.Up:
+            case MenuKey.Down:
+                EncounterCursor = EncounterCursor == EncounterAction.Hail ? EncounterAction.Attack : EncounterAction.Hail;
+                break;
+            case MenuKey.Select:
+                _encounterChoice = (m.Id, EncounterCursor);
+                _chosenMeeting = m.Id;
+                Log($"Encounter choice: {EncounterCursor}");
+                break;
+        }
+    }
+
+    // The group met, in words: "3 Ur-Quan ships in deep space".
+    private string EncounterWith(MeetingView m)
+    {
+        string race = World.Meeting.RaceName(m.Race);
+        string ships = m.Infinite ? $"an endless fleet of {race} ships" : $"{m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}";
+        if (m.Star is not int star)
+            return $"{ships} in deep space";
+        var at = _systems.Map.Stars[star];
+        string cluster = _names?.Cluster(at) ?? $"star {star}";
+        return m.Planet is int p ? $"{ships} at {_names?.PlanetOrMoon(at, p, m.Moon) ?? $"planet {p}"}, {cluster}" : $"{ships} at {cluster}";
+    }
+
+    // The encounter screen in words, until item 11 draws it.
+    private IEnumerable<string> EncounterLines(MeetingView m)
+    {
+        yield return $"Encounter: {EncounterWith(m)}";
+        if (_chosenMeeting == m.Id)
+            yield return $"{EncounterCursor}...";
+        else
+        {
+            yield return EncounterCursor == EncounterAction.Hail ? "> Hail <   Attack" : "  Hail   > Attack <";
+            yield return "Up, down: hail or attack; Enter: choose";
+        }
+    }
+
+    /// <summary>
     /// The docked player's starbase screen, as the host last sent it (the
     /// host runs it: the keys go there); null when not docked.
     /// </summary>
@@ -896,7 +995,9 @@ public sealed class PlayerSession
         }
         if (Me?.Activity == Activity.Talk || StoryPaused)
         {
-            if (Replying)
+            if (!StoryPaused && Meeting is { OffersChoice: true })
+                PressEncounter(key);
+            else if (Replying)
                 PressTalk(key);
             return;   // a watcher's keys do nothing while the story waits
         }
@@ -975,7 +1076,7 @@ public sealed class PlayerSession
     /// since before it opened, firing, mustn't pick the flagship under the
     /// cursor, for good; UQM's own menu would take it).
     /// </summary>
-    public bool IgnoresRepeatedSelect => Talk is not null || Picking;
+    public bool IgnoresRepeatedSelect => Talk is not null || Picking || Meeting is { OffersChoice: true };
 
     // The roster's lit ship and what to do, in words (its drawing is stage 4b item 10's).
     private string RosterMessage(RosterMenu roster, MenuOutcome outcome)
@@ -1135,6 +1236,8 @@ public sealed class PlayerSession
             if (TalkShown)
                 return PlayerScreen.Comm;
             var me = Me;
+            if (me?.Activity == Activity.Talk && Meeting is { Step: MeetingStep.Encounter or MeetingStep.Talk })
+                return PlayerScreen.Encounter;
             if (me?.Activity == Activity.Battle && Battle is not null)
                 return PlayerScreen.Battle;
             // In a battle not yet sent (its first frame on its way): the place it's in, its marker's.
@@ -1202,6 +1305,8 @@ public sealed class PlayerSession
                     : "Esc: skip the lines, then the summary; Left: hear them again");
             // Watching a story talk: the replier pages the lines, and this screen follows (decision 7).
         }
+        else if (Me?.Activity == Activity.Talk && Meeting is { OffersChoice: true } meeting)
+            lines.AddRange(EncounterLines(meeting));
         else if (Me?.Activity == Activity.Talk)
         {
             // In a talk whose view hasn't come yet: no keys to show.

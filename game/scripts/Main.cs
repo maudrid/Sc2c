@@ -599,6 +599,23 @@ public partial class Main : Node2D
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void PageTalk(int round, int lines, int page) => _host?.GuestPageTalk(Multiplayer.GetRemoteSenderId(), round, lines, page);
 
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void EncounterChoice(int meeting, int action) =>
+        _host?.GuestEncounterChoice(Multiplayer.GetRemoteSenderId(), meeting, action);
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowMeeting(byte[] meeting)
+    {
+        try
+        {
+            _player?.ShowMeeting(MeetingView.Decode(meeting));
+        }
+        catch (InvalidDataException e)
+        {
+            Log($"Bad meeting from the host: {e.Message}");
+        }
+    }
+
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowTalk(byte[] talk)
     {
@@ -838,6 +855,8 @@ public partial class Main : Node2D
                     _player.LandingRefused(refusal);
                 if (inGame && _player.TakeReply() is var (round, reply))
                     _host.ChooseReply(_host.HostId, round, reply);
+                if (inGame && _player.TakeEncounterChoice() is var (meeting, action))
+                    _host.ChooseEncounter(_host.HostId, meeting, action);
                 if (inGame)
                 {
                     foreach (var gift in _player.TakeGifts())
@@ -853,6 +872,7 @@ public partial class Main : Node2D
                 }
                 var snapshot = _host.Step(input);
                 _player.Observe(snapshot);
+                _player.ShowMeeting(_host.MeetingFor(_host.HostId));
                 _player.ShowTalk(_host.TalkFor(_host.HostId));
                 _starbaseView.Receive(_host.HostStarbaseDrawing());
                 _player.ShowStarbase(_host.StarbaseFor(_host.HostId));
@@ -863,6 +883,9 @@ public partial class Main : Node2D
                     foreach (long peer in _host.GuestPeers)
                         if (_host.SnapshotFor(peer) is { } message)   // none once it has the latest
                             RpcId(peer, MethodName.ReceiveSnapshot, message);
+                    // The meeting before its talk (both reliable, in order).
+                    foreach (var (peer, view) in _host.MeetingUpdates())
+                        RpcId(peer, MethodName.ShowMeeting, view);
                     foreach (var (peer, talk) in _host.TalkUpdates())
                         RpcId(peer, MethodName.ShowTalk, talk);
                     // The drawing before the screen it's for (both reliable, in order).
@@ -904,6 +927,8 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.DiscardCargo, category);
                 if (_player.TakeReply() is var (round, reply))
                     RpcId(1, MethodName.ChooseReply, round, reply);
+                if (_player.TakeEncounterChoice() is var (meeting, action))
+                    RpcId(1, MethodName.EncounterChoice, meeting, (int)action);
                 foreach (var key in _player.TakeStarbaseKeys())
                     RpcId(1, MethodName.StarbaseKey, (int)key);
                 foreach (var gift in _player.TakeGifts())

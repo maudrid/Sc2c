@@ -312,10 +312,11 @@ public sealed class HostSession
     /// in hyperspace if the host is there (--start-at), else after the
     /// opening as --start-battle leaves it (in flight in Earth's inner system,
     /// by Luna), in that system. Touching it, the host meets it: the
-    /// encounter screen (until items 10 and 11 draw it and send its choice,
-    /// <see cref="EncounterChoice"/> chooses), the race's talk (the
-    /// Ur-Quan's and the Kohr-Ah's since stage 3b-1 item 6, logged, its
-    /// replies chosen by <see cref="MeetingReplies"/>; a race whose talk
+    /// encounter screen (chosen on it, or by <see cref="EncounterChoice"/>;
+    /// drawn with item 11, said in the status lines till then), the race's
+    /// talk (the Ur-Quan's and the Kohr-Ah's since stage 3b-1 item 6,
+    /// logged, on the communication screen, its replies chosen there or by
+    /// <see cref="MeetingReplies"/>; a race whose talk
     /// isn't ported: a hail ends at once in peace), the battle (an attack,
     /// or a talk ending in one). In Earth's system a group joins Sol's own
     /// groups (the drone's), so an Ur-Quan group there gives the drone's
@@ -354,9 +355,9 @@ public sealed class HostSession
 
     /// <summary>
     /// --encounter-choice hail|attack (testing): the host's choice at a
-    /// meeting's encounter screen, made as the screen comes up, until items
-    /// 10 and 11 draw the screen and send its choice; null: none (the host
-    /// waits there).
+    /// meeting's encounter screen, made as the screen comes up; null: none
+    /// (the host chooses on the screen, <see cref="ChooseEncounter"/>, as a
+    /// guest does, <see cref="GuestEncounterChoice"/>).
     /// </summary>
     public EncounterAction? EncounterChoice { get; set; }
 
@@ -510,7 +511,57 @@ public sealed class HostSession
         return chosen;
     }
 
+    /// <summary>
+    /// A guest's choice at its meeting's encounter screen (stage 3b-1 item
+    /// 10), for that meeting (<see cref="MeetingView.Id"/>): anything wrong
+    /// (not a choice, another meeting, not at the screen) is ignored.
+    /// </summary>
+    public void GuestEncounterChoice(long peer, int meeting, int action)
+    {
+        if (_peers.TryGetValue(peer, out var id) && Enum.IsDefined((EncounterAction)action))
+            ChooseEncounter(id, meeting, (EncounterAction)action);
+    }
+
+    /// <summary>
+    /// A player's choice at their meeting's encounter screen, for that
+    /// meeting (the host's own through here too): hail or attack
+    /// (<see cref="GameWorld.EncounterChoice"/>), logged; false if it
+    /// changed nothing.
+    /// </summary>
+    public bool ChooseEncounter(string id, int meeting, EncounterAction action)
+    {
+        bool chosen = World.EncounterChoice(id, action, meeting);
+        if (chosen)
+            Logged?.Invoke($"{id}: {action.ToString().ToLowerInvariant()}" + (World.HostPaused ? " (made as the pause lifts)" : ""));
+        return chosen;
+    }
+
     private readonly Dictionary<string, TalkView?> _talkSent = new();
+    private readonly Dictionary<string, MeetingView?> _meetingSent = new();
+
+    /// <summary>A player's meeting as they're shown it (stage 3b-1 item 10): null if they're in none.</summary>
+    public MeetingView? MeetingFor(string id) => MeetingView.Of(World.MeetingOf(id));
+
+    /// <summary>
+    /// The meetings to send the guests: each guest whose meeting's view has
+    /// changed since it was last sent (empty for none), as reliable
+    /// messages, sent before <see cref="TalkUpdates"/>' talks (a meeting's
+    /// talk is shown once its screen has passed).
+    /// </summary>
+    public List<(long Peer, byte[] Data)> MeetingUpdates()
+    {
+        var updates = new List<(long, byte[])>();
+        foreach (var (peer, id) in _peers)
+        {
+            var view = MeetingFor(id);
+            var sent = _meetingSent.GetValueOrDefault(id);
+            if (view is null ? sent is null : view.Same(sent))
+                continue;
+            _meetingSent[id] = view;
+            updates.Add((peer, view?.Encode() ?? Protocol.NoView));
+        }
+        return updates;
+    }
 
     /// <summary>A guest gives another player something (item 9): refused with a reason, or None. Its sender is the guest, whatever the message says.</summary>
     public TradeRefusal GuestGive(long peer, byte[] data)
@@ -700,6 +751,7 @@ public sealed class HostSession
         if (_peers.Remove(peer, out var id))
         {
             _talkSent.Remove(id);
+            _meetingSent.Remove(id);
             _starbaseSent.Remove(id);
             World.Leave(id);
             Logged?.Invoke($"{id} left");
@@ -711,10 +763,11 @@ public sealed class HostSession
     // What of each meeting going on has been logged: its step and how many of its talk's events.
     private readonly Dictionary<Meeting, (MeetingStep Step, int Events, bool Talked)> _meetingsLogged = new();
 
-    // The meetings in the log, as the encounter screen and the talk aren't
-    // drawn yet (items 10 and 11): each step, the talk's lines and replies
-    // as they come, and how it ended (a meeting begun and over in one frame
-    // too, as the drone's).
+    // The meetings in the log (the encounter screen isn't drawn yet, item
+    // 11): each step, the talk's lines and replies as they come, and how it
+    // ended (a meeting begun and over in one frame too, as the drone's); an
+    // instant victory's tally told its player (the battle-won screen's, as
+    // a battle's end tells it).
     private void LogMeetings()
     {
         foreach (var begun in World.TakeNewMeetings())
@@ -768,6 +821,12 @@ public sealed class HostSession
                             : $"{id}'s meeting with the {race} is over: an instant victory, the {race} ships destroyed, {m.Salvage} RU of salvage"
                         : $"{id}'s meeting with the {race} is over",
                 });
+            if (m.Step != step && m.Step == MeetingStep.Done && m.InstantVictory && m.Left is { Count: 0 } && World.Story is { } story)
+            {
+                string ship = story.Rules.RaceShips[m.Race].Ship;
+                Tell(id, new BattleNotice(BattleNoticeKind.Ended, 0, ship, BattleOutcome.Won, BattleExit.Fought, m.Salvage,
+                    m.Player.Ship.Hold.Crew, Destroyed: m.Ships.Count, Bounty: m.Ships.Count == 0 ? 0 : m.Salvage / (uint)m.Ships.Count));
+            }
             if (m.Step == MeetingStep.Done)
                 _meetingsLogged.Remove(m);
             else
@@ -778,10 +837,10 @@ public sealed class HostSession
     /// <summary>
     /// --meeting-replies I[,I...] (testing): the host's replies in its
     /// meetings' talks, each reply's place among those offered, chosen in
-    /// turn as each set comes (one a set, none while the host has paused),
-    /// until the talk is sent and drawn (items 10 and 11); past the last the
-    /// host waits. A reply past those offered is logged and the rest of the
-    /// queue dropped (the host waits then too).
+    /// turn as each set comes (one a set, none while the host has paused);
+    /// past the last the host replies on the communication screen, as in
+    /// any talk. A reply past those offered is logged and the rest of the
+    /// queue dropped.
     /// </summary>
     public Queue<int> MeetingReplies { get; } = new();
     private readonly Dictionary<string, int> _inBattle = new();
@@ -799,15 +858,17 @@ public sealed class HostSession
     // reply), a battle's end, a ship become a wreck, a battle too full to
     // join, a wreck flown into and one revived, and the game over; and the
     // world's notices of what other players set off (WorldNotice).
+    // A notice for a player: now if present, else as they're back.
+    private void Tell(string id, BattleNotice notice)
+    {
+        if (World.Find(id) is { Present: true })
+            _notices.Add((id, notice));
+        else
+            _awayNotices.Add((id, notice));
+    }
+
     private void TakeBattleNews()
     {
-        void Tell(string id, BattleNotice notice)
-        {
-            if (World.Find(id) is { Present: true })
-                _notices.Add((id, notice));
-            else
-                _awayNotices.Add((id, notice));
-        }
         // Those back since: their notices from while they were away (none
         // of a battle they joined: they left it as they went).
         for (int i = 0; i < _awayNotices.Count; ++i)
@@ -837,10 +898,13 @@ public sealed class HostSession
         {
             Logged?.Invoke($"Battle {ended.Id} against the {ended.EnemyShip.Id} {ended.Outcome?.ToString().ToLowerInvariant()}: "
                 + string.Join(", ", ended.Fighters.Select(f => $"{f.Player.Id} {f.Exit?.ToString().ToLowerInvariant()}")));
+            // Those in it at a win paying salvage are told its tally (the battle-won screen's).
             foreach (var f in ended.Fighters)
                 if (!_toldOut.Remove((ended.Id, f.Player.Id)))
                     Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, ended.Id, ended.EnemyShip.Id, ended.Outcome, f.Exit,
-                        f.Salvage, f.CrewLeft));
+                        f.Salvage, f.CrewLeft,
+                        Destroyed: ended.Outcome == BattleOutcome.Won && f.Exit == BattleExit.Fought ? ended.EnemiesDestroyed : 0,
+                        Bounty: ended.Outcome == BattleOutcome.Won && f.Exit == BattleExit.Fought ? ended.Bounty : 0));
         }
         foreach (var p in World.Players)
         {

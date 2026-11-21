@@ -728,8 +728,12 @@ public sealed partial class GameWorld
         {
             // Every enemy ship counts on a victory (UninitEncounter), each paying the
             // encounter race's bounty (EncounterRace: the fleet's first ship's), whatever its own.
-            uint salvage = (uint)(battle.Fleet(1).Count * BattleKit!.Salvage(wb.EnemyShip));
+            int bounty = BattleKit!.Salvage(wb.EnemyShip);
+            uint salvage = (uint)(battle.Fleet(1).Count * bounty);
             wb.SalvagePaid = salvage;
+            // The battle-won screen's tally (stage 3b-1 item 10): the ships destroyed, each its bounty.
+            if (salvage > 0)
+                (wb.EnemiesDestroyed, wb.Bounty) = (battle.Fleet(1).Count, (uint)bounty);
             uint share = salvage / (uint)survivors.Count, remainder = salvage % (uint)survivors.Count;
             for (int i = 0; i < survivors.Count; ++i)
             {

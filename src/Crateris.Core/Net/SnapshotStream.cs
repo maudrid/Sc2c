@@ -62,7 +62,8 @@ public sealed class SnapshotSender
     /// <paramref name="viewer"/>: a delta from the newest snapshot it has,
     /// if that's still kept, otherwise in full, with the surface its lander
     /// is on (<see cref="SnapshotCodec.Encode"/>). Guests on the same base
-    /// and surface, and in no battle, share the message; don't change it.
+    /// and surface, in no battle and seeing no groups of alien ships, share
+    /// the message; don't change it.
     /// </summary>
     public byte[] For(long peer, string? viewer = null)
     {
@@ -72,7 +73,8 @@ public sealed class SnapshotSender
         var baseSnapshot = BaseFor(guest, latest);
         var key = (baseSnapshot?.Frame ?? -1, SnapshotCodec.SurfaceSeen(latest, viewer),
             SnapshotCodec.SurfaceSeen(baseSnapshot, viewer),
-            SnapshotCodec.InBattle(latest, viewer) || SnapshotCodec.InBattle(baseSnapshot, viewer) ? viewer : null);
+            SnapshotCodec.InBattle(latest, viewer) || SnapshotCodec.InBattle(baseSnapshot, viewer)
+            || SnapshotCodec.SeesGroups(latest, viewer) || SnapshotCodec.SeesGroups(baseSnapshot, viewer) ? viewer : null);
         if (!_messages.TryGetValue(key, out var message))
         {
             SnapshotCodec.Encode(_writer, latest, baseSnapshot, viewer);
