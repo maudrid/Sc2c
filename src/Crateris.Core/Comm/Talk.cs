@@ -129,6 +129,27 @@ public sealed class Talk
     /// <summary>Everything the talk has done so far.</summary>
     public IReadOnlyList<TalkEvent> Events => _events;
 
+    /// <summary>
+    /// Where the numbers of its sets of replies come from (the game's one
+    /// counter, stage 3b-1 item 10, so no two sets in the game, in any
+    /// talk, share one), set before it starts; without one they count on
+    /// from the talk's first round as <see cref="RoundOf"/> says.
+    /// </summary>
+    internal Func<int>? RoundSource { get; set; }
+
+    private readonly List<int> _offerRounds = new();
+
+    /// <summary>
+    /// The number of its <paramref name="offer"/>th set of replies (from 0,
+    /// in the order offered): the one <see cref="RoundSource"/> gave it, or
+    /// without one <paramref name="firstRound"/> + the offer + 1.
+    /// </summary>
+    public int RoundOf(int offer, int firstRound) =>
+        offer < _offerRounds.Count ? _offerRounds[offer] : firstRound + offer + 1;
+
+    /// <summary>How many sets of replies it has offered.</summary>
+    public int Offers => _offerRounds.Count > 0 ? _offerRounds.Count : _events.Count(e => e is RepliesOffered);
+
     private readonly List<(int At, MineralSale Sale)> _sales = new();
 
     /// <summary>
@@ -327,6 +348,8 @@ public sealed class Talk
         if (_offered.Count > 0)
         {
             _events.Add(new RepliesOffered(Replies));
+            if (RoundSource is { } next)
+                _offerRounds.Add(next());
             return;
         }
         Ended = true;

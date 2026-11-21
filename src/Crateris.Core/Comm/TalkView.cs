@@ -69,12 +69,13 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         if (visit is null)
             return null;
         // From the player's last reply, through the talks after it.
-        int talkFrom = 0, eventFrom = 0, round = visit.FirstRound;
+        int talkFrom = 0, eventFrom = 0, round = visit.FirstRound, before = 0;
         string said = "";
         RepliesOffered? offered = null;
         for (int t = 0; t < visit.Talks.Count; ++t)
         {
             var events = visit.Talks[t].Events;
+            int k = 0;
             for (int i = 0; i < events.Count; ++i)
             {
                 if (events[i] is ReplyChosen chosen)
@@ -85,9 +86,10 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
                 else if (events[i] is RepliesOffered o)
                 {
                     offered = o;
-                    round++;
+                    round = visit.Talks[t].RoundOf(k++, visit.FirstRound + before);   // the game's number for the set
                 }
             }
+            before += k;
         }
         var lines = new List<string>();
         MineralSale? sale = null;
@@ -140,7 +142,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         if (meeting?.Talk is not { } talk)
             return null;
         var events = talk.Events;
-        int from = 0, round = meeting.FirstRound;
+        int from = 0, round = meeting.FirstRound, offers = 0;
         string said = "";
         RepliesOffered? offered = null;
         for (int i = 0; i < events.Count; ++i)
@@ -153,7 +155,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             else if (events[i] is RepliesOffered o)
             {
                 offered = o;
-                round++;
+                round = talk.RoundOf(offers++, meeting.FirstRound);   // the game's number for the set
             }
         }
         var lines = new List<string>();

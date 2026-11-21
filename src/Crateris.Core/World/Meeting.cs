@@ -162,8 +162,13 @@ public sealed class Meeting
     /// <summary>How many sets of replies the game's talks offered before this meeting's talk.</summary>
     public int FirstRound { get; }
 
-    /// <summary>The set of replies offered now: a round names one set of replies in the whole game.</summary>
-    public int Round => FirstRound + (Talk?.Events.Count(e => e is RepliesOffered) ?? 0);
+    /// <summary>
+    /// The set of replies offered now: a round names one set of replies in
+    /// the whole game (the game's one counter numbers every set in every
+    /// talk, stage 3b-1 item 10, so a story's and a meeting's running side
+    /// by side never share one); <see cref="FirstRound"/> before any.
+    /// </summary>
+    public int Round => Talk is { Offers: > 0 } t ? t.RoundOf(t.Offers - 1, FirstRound) : FirstRound;
 
     /// <summary>A race's name for the players' notices.</summary>
     public static string RaceName(string race) => race switch

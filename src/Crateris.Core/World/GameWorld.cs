@@ -210,6 +210,9 @@ public sealed partial class GameWorld
     // set), so one refused would leave its talk waiting for good.
     private readonly List<(string Id, int Index, int? Round)> _heldReplies = new();
 
+    /// <summary>The replies held through a pause, for tests: a player's one for each set.</summary>
+    internal IReadOnlyList<(string Id, int Index, int? Round)> HeldReplies => _heldReplies;
+
     // The world can't be changed now: the host's pause or the game's end.
     private bool Held => HostPaused || GameOver;
 
@@ -801,20 +804,36 @@ public sealed partial class GameWorld
             Visit = visit;
     }
 
+    /// <summary>
+    /// The number of a set of replies a talk offers (Talk.RoundSource): one
+    /// counter for the whole game, past every round in use, so no two sets
+    /// share one (stage 3b-1 item 10, review round 3: a story's talk and a
+    /// player's meeting's run side by side, each once counting on from its
+    /// own first round).
+    /// </summary>
+    internal int NewRound() => _lastRound = Math.Max(_lastRound, NextRound()) + 1;
+
+    private int _lastRound;
+
     // Rounds count on through every visit (StarbaseVisit.FirstRound).
     private int NextRound() =>
-        Math.Max(_rounds, _players.Select(p => Math.Max(p.Ship.Visit?.Round ?? 0, p.Ship.Meeting?.Round ?? 0))
-            .DefaultIfEmpty(0).Max());
+        Math.Max(Math.Max(_rounds, Math.Max(_lastRound, Visit?.Round ?? 0)),
+            _players.Select(p => Math.Max(p.Ship.Visit?.Round ?? 0, p.Ship.Meeting?.Round ?? 0)).DefaultIfEmpty(0).Max());
 
     /// <summary>
     /// The player in a talk chooses a reply from the set offered in
-    /// <paramref name="round"/> (<see cref="StarbaseVisit.Round"/>; null for
-    /// whatever is offered now): the replier of the story talk, or a docked
-    /// player in their talk with the commander. False, changing nothing, if
-    /// they're in none, it's no reply offered, or it was for a set already
-    /// answered. During the host's pause one that fits now is kept (the
-    /// player's last), and chosen as the pause lifts if it still fits
-    /// (<see cref="SetHostPause"/>).
+    /// <paramref name="round"/> (each set's number in the game, one counter
+    /// for every talk: <see cref="StarbaseVisit.Round"/>, <see cref="Meeting.Round"/>;
+    /// null for whatever is offered now). It goes to the story talk if the
+    /// player replies in it (the replies passed to them) and the round is
+    /// the story's (or none); else to their meeting's talk (stage 3b-1 item
+    /// 10); else to a docked player's talk with the commander. False,
+    /// changing nothing, if they're in none, it's no reply offered, or it
+    /// was for a set already answered. During the host's pause one that
+    /// fits now is kept (the player's last for that set), and chosen as the
+    /// pause lifts if it still fits (<see cref="SetHostPause"/>); a
+    /// meeting's is kept through a story talk's pause too, chosen at the
+    /// first frame neither pause holds (<see cref="Step"/>).
     /// </summary>
     public bool ChooseReply(string id, int index, int? round = null)
     {
@@ -835,7 +854,7 @@ public sealed partial class GameWorld
         {
             if (visit.Talk is not { Ended: false } talk || index < 0 || index >= talk.Replies.Count)
                 return false;
-            _heldReplies.RemoveAll(h => h.Id == id);
+            _heldReplies.RemoveAll(h => h.Id == id && h.Round == visit.Round);   // the player's last for this set; a meeting's kept
             _heldReplies.Add((id, index, visit.Round));   // chosen as the pause lifts
             return true;
         }

@@ -244,8 +244,39 @@ public sealed class StarbaseVisit
 
     public bool Done => Step == VisitStep.Done;
 
-    /// <summary>How many sets of replies the visit's talks have offered: the set offered now is this one.</summary>
-    public int Round => FirstRound + Talks.Sum(t => t.Events.Count(e => e is RepliesOffered));
+    /// <summary>
+    /// The set of replies offered now (its number in the game: the last its
+    /// talks offered, each numbered by the game's one counter, stage 3b-1
+    /// item 10), or <see cref="FirstRound"/> before any.
+    /// </summary>
+    public int Round
+    {
+        get
+        {
+            int round = FirstRound, before = 0;
+            foreach (var t in Talks)
+            {
+                int n = t.Offers;
+                if (n > 0)
+                    round = t.RoundOf(n - 1, FirstRound + before);
+                before += n;
+            }
+            return round;
+        }
+    }
+
+    /// <summary>The numbers of every set of replies its talks have offered, in order.</summary>
+    public IEnumerable<int> Rounds()
+    {
+        int before = 0;
+        foreach (var t in Talks)
+        {
+            int n = t.Offers;
+            for (int i = 0; i < n; ++i)
+                yield return t.RoundOf(i, FirstRound + before);
+            before += n;
+        }
+    }
 
     /// <summary>
     /// The sets of replies offered in the game's earlier visits: rounds
@@ -347,6 +378,7 @@ public sealed class StarbaseVisit
         var library = _world.TalkLibrary!;
         _ship ??= new AnswererTalkShip(() => Replier, library.Strings, _world);
         Talk = library.Create(script, _world.Story!, own, _ship, _world.Clock, seed);
+        Talk.RoundSource = _world.NewRound;
         Talks.Add(Talk);
         Talk.Start();
         if (Talk.Ended)

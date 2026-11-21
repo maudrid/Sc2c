@@ -406,6 +406,7 @@ public sealed partial class GameWorld
             // Where the talk is, as its script reads it: LOBYTE (GLOBAL
             // (CurrentActivity)), and in a system its own groups' offset
             // (BattleGroupRef: Sol's drone, the colony's guard, ...).
+            talk.RoundSource = NewRound;   // before its first set of replies (Hail)
             talk.Activity = m.Star is null ? TalkActivity.InHyperspace : TalkActivity.InInterplanetary;
             talk.BattleGroup = m.Star is int star && SystemGroups is { } sg && sg.Systems.TryGetValue(star, out var d)
                 ? Crateris.Core.Systems.SystemGroups.OffsetField(d.Defined) : null;
@@ -475,7 +476,7 @@ public sealed partial class GameWorld
         if (HostPaused || StoryPaused)
         {
             // Kept for the pause's end (GameWorld.SetHostPause, StepFrame).
-            _heldReplies.RemoveAll(h => h.Id == m.Player.Id);
+            _heldReplies.RemoveAll(h => h.Id == m.Player.Id && h.Round == m.Round);   // the last for this set; a story's kept
             _heldReplies.Add((m.Player.Id, index, m.Round));
             return true;
         }

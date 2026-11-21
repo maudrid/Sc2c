@@ -42,6 +42,8 @@ public class MeetingWireTests
         public readonly List<TestScript> Made = new();
         public Segue Init = Segue.Hostile, End = Segue.Peace;
         public readonly List<string> Log = new();
+        // A race's talk of the test's own (by race id), instead of TestTalk's.
+        public readonly Dictionary<string, Func<uint, Talk>> Own = new();
         public GameWorld World => Host.World;
     }
 
@@ -65,8 +67,10 @@ public class MeetingWireTests
         if (testTalks)
         {
             world.EncounterRaces = world.Story.Rules.Races.ToHashSet();
-            world.MeetingTalks = (_, _, seed) =>
+            world.MeetingTalks = (_, race, seed) =>
             {
+                if (game.Own.TryGetValue(world.Story!.Rules.Races[race], out var own))
+                    return own(seed);
                 var (talk, script) = TestTalk(world.Story!, game.Init, game.End, seed);
                 game.Made.Add(script);
                 return talk;
@@ -95,6 +99,72 @@ public class MeetingWireTests
             new TalkTests.TestShip { Crew = 10, CrewCapacity = 50, Fuel = 100, FuelCapacity = 6000, Landers = 1 },
             new GameClock(2155, 2, 17), seed, _ => true);
         return (talk, script);
+    }
+
+    // A talk offering a set of replies again and again (sets of them), then over in peace.
+    private sealed class RepeatScript : CommScript
+    {
+        private int _left;
+
+        public RepeatScript(ConversationScript phrases, int sets) : base(phrases) => _left = sets;
+
+        protected internal override void Init() => T.SetSegue(Segue.Peace);
+
+        protected internal override void Intro() => Again(0);
+
+        private void Again(int r)
+        {
+            if (_left-- > 0)
+            {
+                NPCPhrase("HELLO");
+                Response("ask", Again);
+            }
+            else
+                NPCPhrase("BYE");
+        }
+    }
+
+    private static Talk RepeatTalk(Story.StoryState story, int sets, uint seed)
+    {
+        var plain = ConversationScripts.Load(DataDir)["comandr"].Description with { Ambient = Array.Empty<CommAnimation>() };
+        var phrases = new ConversationScript("probe", "init_probe_comm", plain, new[] { "HELLO", "BYE", "ask" });
+        var lines = Content.Conversation.Parse("#(HELLO) hello.ogg\nHello\n#(BYE) bye.ogg\nBye\n#(ask)\nWhat?\n"u8);
+        return new Talk(new RepeatScript(phrases, sets), plain, lines, 2, story, new Dictionary<string, int>(),
+            new TalkTests.TestShip { Crew = 10, CrewCapacity = 50, Fuel = 100, FuelCapacity = 6000, Landers = 1 },
+            new GameClock(2155, 2, 17), seed, _ => true);
+    }
+
+    // Every set of replies a meeting's talk has offered, by its number in the game.
+    private static IEnumerable<int> Sets(Meeting m) => Enumerable.Range(0, m.Talk!.Offers).Select(i => m.Talk.RoundOf(i, m.FirstRound));
+
+    [ContentFact]
+    public void EverySetOfRepliesInTheGameHasANumberOfItsOwn()
+    {
+        // Two meetings' talks side by side, each offering set after set: once
+        // each counted on from its own first round, so they shared numbers.
+        var game = NewGame(guests: 1);
+        var host = game.Host;
+        var world = game.World;
+        var g1 = NewClient(1);
+        game.Own["SPATHI_SHIP"] = seed => RepeatTalk(world.Story!, 6, seed);
+        game.Own["ZOQFOTPIK_SHIP"] = seed => RepeatTalk(world.Story!, 6, seed);
+        GroupBy(world, "h", "SPATHI_SHIP");
+        FramesUntil(host, () => world.MeetingOf("h") is { Step: MeetingStep.Talk }, 300, g1);
+        GroupBy(world, "g1", "ZOQFOTPIK_SHIP");
+        FramesUntil(host, () => world.MeetingOf("g1") is { Step: MeetingStep.Talk }, 300, g1);
+        var mh = world.MeetingOf("h")!;
+        var mg = world.MeetingOf("g1")!;
+        for (int i = 0; i < 6; ++i)
+        {
+            Assert.True(host.ChooseReply("h", mh.Round, 0));
+            g1.Session.PressMenu(MenuKey.Select);   // as its client says it, the round it was shown
+            Frame(host, g1);
+            Frame(host, g1);
+        }
+        var all = Sets(mh).Concat(Sets(mg)).ToList();
+        Assert.Equal(12, all.Count);
+        Assert.Equal(all.Count, all.Distinct().Count());
+        Assert.Null(world.MeetingOf("g1"));   // g1's replies all went to its own talk, by its rounds
     }
 
     // A group of a race in hyperspace by a player (as one kept from before,
@@ -765,6 +835,7 @@ public class MeetingWireTests
         var g2 = NewClient(2);
         var g3 = NewClient(3);
         var all = new[] { g1, g2, g3 };
+        game.Own["ZOQFOTPIK_SHIP"] = seed => RepeatTalk(world.Story!, 20, seed);   // g2's: set after set
         // g1 and g2 in their meetings' talks (at once), g3 at its encounter screen.
         game.Init = Segue.Peace;
         GroupBy(world, "g1", "SPATHI_SHIP");
@@ -812,8 +883,18 @@ public class MeetingWireTests
         Assert.Equal((VisitStep.Done, "ilwrath"), (ilwrathLines.Step, ilwrathLines.Script));
         Assert.Equal(VisitStep.Meeting, g2.Talks[^1]!.Step);
         Assert.Equal(VisitStep.Meeting, g2.Session.Talk!.Step);
+        // g2 answers set after set in its talk during the fight, while the story's waits.
+        var m2 = world.MeetingOf("g2")!;
+        for (int i = 0; i < 4; ++i)
+        {
+            g2.Session.PressMenu(MenuKey.Select);
+            Frame(host, all);
+            Frame(host, all);
+        }
+        Assert.Equal(5, m2.Talk!.Offers);
 
         // The fight won, the alliance's story talk to its end.
+        var visit = world.Visit!;
         Win(host, wb, all);
         Say(host, "comandr", "cook_their_butts");
         Say(host, "comandr", "name_2");
@@ -821,6 +902,10 @@ public class MeetingWireTests
             Frame(host, all);
         Say(host, "starbas", "goodbye_commander");
         Assert.Null(world.Visit);
+        // No set of the story's shares its number with one of g2's meeting's (each set numbered by the game's one counter).
+        var storySets = visit.Rounds().ToList();
+        Assert.True(storySets.Count >= 4);
+        Assert.Empty(storySets.Intersect(Sets(m2)));
         // g1, whose meeting closed during the fight, is shown the story's closing lines, not its meeting's again.
         var storyEnd = host.TalkFor("g1")!;
         Assert.Equal((VisitStep.Done, "starbas"), (storyEnd.Step, storyEnd.Script));
@@ -857,16 +942,32 @@ public class MeetingWireTests
             Frame(host, g1);
         Assert.Single(host.MeetingReplies);
         Assert.Equal(MeetingStep.Talk, m.Step);
+        host.MeetingReplies.Clear();   // the host replies by hand from here
         // g1 leaves: the story's replies pass to the host, in its meeting's talk, who is shown the story and says it.
         host.GuestLeft(1);
         Assert.Same(world.Host, world.Visit!.Replier);
         var shown = host.TalkFor("h")!;
         Assert.Equal(("comandr", "h"), (shown.Script, shown.Replier));
+        // During the host's pause it says the story's reply and its meeting's: each held, neither replacing the other.
+        int meetingRound = m.Round, sets = m.Talk!.Offers;
+        Assert.NotEqual(meetingRound, world.Visit.Round);
+        Assert.True(host.TogglePause());
         Say(host, "comandr", "base_was_abandoned");
+        Assert.True(host.ChooseReply("h", meetingRound, 0));
+        Assert.Equal(2, world.HeldReplies.Count(h => h.Id == "h"));   // the meeting's beside the story's
+        Say(host, "comandr", "base_was_abandoned");   // said again: it replaces its own, not the meeting's
+        Assert.Equal(new[] { world.Visit.Round, meetingRound }.Order(), world.HeldReplies.Where(h => h.Id == "h").Select(h => h.Round!.Value).Order());
+        Assert.Equal("comandr", host.TalkFor("h")!.Script);
+        Assert.True(host.TogglePause());
+        // The story's made as the pause lifts; the meeting's waits for the story's end.
         Assert.Equal("ilwrath", host.TalkFor("h")!.Script);
-        // A reply for its meeting's set (sent before) is still the meeting's: held till the story's over.
-        Assert.True(world.ChooseReply("h", 0, m.Round));
-        Assert.Equal((MeetingStep.Talk, false), (m.Step, m.Talk!.Ended));
+        Assert.Equal((MeetingStep.Talk, sets), (m.Step, m.Talk.Offers));
+        // The Ilwrath's answered: its fight has no starter (g1 gone), so the
+        // opening is taken back, the story over, and the meeting's reply made.
+        Say(host, "ilwrath", "surrender");
+        Frame(host);
+        Assert.False(world.StoryPaused);
+        Assert.Contains(m.Talk.Events, e => e is ReplyChosen);
     }
 
     private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);
