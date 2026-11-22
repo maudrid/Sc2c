@@ -504,6 +504,12 @@ public partial class Main : Node2D
     /// <summary>--start-at, --start-orbit and the other --start options (testing): a notice says if they can't be done.</summary>
     private void ApplyStartOptions(HostSession host)
     {
+        // Plain settings no --start option depends on, set first so a refused --start option doesn't drop them.
+        host.EncounterChoice = _options.EncounterChoice;
+        foreach (int reply in _options.MeetingReplies ?? Array.Empty<int>())
+            host.MeetingReplies.Enqueue(reply);
+        host.GuestsStartInOrbit = _options.GuestsInOrbit;
+        host.GuestsJoinBattle = _options.GuestsInBattle;
         try
         {
             // The story as it starts first, so a world's talk at --start-orbit sees it (Procyon's Ilwrath, the Sun Device).
@@ -532,11 +538,6 @@ public partial class Main : Node2D
                 Log(host.StartBattle(race));
             if (_options.StartEncounter is { } encounter)
                 Log(host.StartEncounter(encounter));
-            host.EncounterChoice = _options.EncounterChoice;
-            foreach (int reply in _options.MeetingReplies ?? Array.Empty<int>())
-                host.MeetingReplies.Enqueue(reply);
-            host.GuestsStartInOrbit = _options.GuestsInOrbit;
-            host.GuestsJoinBattle = _options.GuestsInBattle;
         }
         catch (Exception e) when (e is ArgumentException or InvalidOperationException)
         {

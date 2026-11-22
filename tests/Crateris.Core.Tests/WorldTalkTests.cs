@@ -258,6 +258,7 @@ public class WorldTalkTests
         // the generator returning after the talk (no Stays), no flag.
         void Plain(TalkWorld w, int bit, string? because)
         {
+            Assert.Equal(((int, int?))(0, null), (w.Planet, w.Moon));   // matchWorld (solarSys, world, 0, MATCH_PLANET)
             Assert.Equal(bit, w.GlobalFlags);
             Assert.Null(w.Conversation);
             Assert.Null(w.Matches);
@@ -291,6 +292,7 @@ public class WorldTalkTests
         // genvux.c:124-128: the Maidens' world while !ZEX_IS_DEAD, then StartSphereTracking; bit 6 (:143);
         // after the talk (:157-159) out of orbit while ZEX lives, whatever's left (no survivors test).
         var maidens = Listed("MAIDENS_DEFINED", "VUX_SHIP");
+        Assert.Equal(((int, int?))(0, null), (maidens.Planet, maidens.Moon));   // :124 matchWorld (0, MATCH_PLANET)
         Assert.Equal((false, false), Guard(maidens, StoryWith(("ZEX_IS_DEAD", 1))));
         Assert.Equal((true, true), Guard(maidens, s0));
         Assert.Equal((1 << 6, Infinite, true, true), (maidens.GlobalFlags, maidens.Fleet(s0), maidens.StandDown, maidens.PutAside));
@@ -303,6 +305,8 @@ public class WorldTalkTests
         // 14 ships, bit 6; :127-136 out of orbit while OrzSurvivors (the head link && (ORZ_DEFINED ||
         // !TAALO_UNPROTECTED)); :142 TAALO_UNPROTECTED set past the test, the Orz extinct too.
         var orz = Listed("ORZ_DEFINED", "ORZ_SHIP");
+        Assert.Equal(((int, int?))(0, null), (orz.Planet, orz.Moon));   // :87 matchWorld (0, MATCH_PLANET)
+        Assert.True(orz.PutAside);   // :99 PutGroupInfo
         Assert.Equal((true, true), Guard(orz, StoryWith(("TAALO_UNPROTECTED", 1))));
         Assert.Equal((1 << 7, Infinite), (orz.GlobalFlags, orz.Fleet(s0)));
         Assert.True(orz.Stays!(StoryWith(("TAALO_UNPROTECTED", 1)), true));
@@ -324,12 +328,15 @@ public class WorldTalkTests
         // :102-113 infinite unless the Sun Device world's Mycon fell for the ambush (5); :120 bit 7, :124
         // bit 6; :134-144 out of orbit while any is left, else SUN_DEVICE_UNGUARDED (not past the test).
         var mycon = Listed("MYCON_DEFINED", "MYCON_SHIP");
+        Assert.Equal(((int, int?))(0, null), (mycon.Planet, mycon.Moon));   // :88 matchWorld (0, MATCH_PLANET)
+        Assert.Equal((true, true), (mycon.StandDown, mycon.PutAside));   // :97 NotifyOthers, :98 PutGroupInfo
         Assert.Equal((true, true), Guard(mycon, StoryWith(("SUN_DEVICE_UNGUARDED", 1))));
         Assert.Equal(Infinite, mycon.Fleet(StoryWith(("MYCON_FELL_FOR_AMBUSH", 1))));
         Assert.True(mycon.Stays!(s0, true));
         Assert.False(mycon.Stays(s0, false));
         Assert.Equal((1 << 7, "SUN_DEVICE_UNGUARDED", false), (mycon.GlobalFlags, mycon.Unguarded, mycon.UnguardedWhenOrbited));
         var sun = Listed("SUN_DEVICE_DEFINED", "MYCON_SHIP");
+        Assert.Equal(((int, int?))(0, null), (sun.Planet, sun.Moon));   // genmyc.c:88 matchWorld (0, MATCH_PLANET)
         Assert.Equal((false, true), Guard(sun, StoryWith(("SUN_DEVICE_UNGUARDED", 1))));   // tracked first
         Assert.Equal((true, true), Guard(sun, s0));
         Assert.Equal(Infinite, sun.Fleet(s0));
@@ -369,6 +376,7 @@ public class WorldTalkTests
         // and (BYTE)(THRADD_MISSION - 1) >= 3 (the mission 0, or past 3); bit 6 (:119); after the talk
         // (:130-133) the same test, whatever's left.
         var helix = Listed("AQUA_HELIX_DEFINED", "THRADDASH_SHIP");
+        Assert.Equal(((int, int?))(0, null), (helix.Planet, helix.Moon));   // :97 matchWorld (0, MATCH_PLANET)
         Assert.Equal((false, true), Guard(helix, StoryWith(("HELIX_UNPROTECTED", 1))));
         Assert.Equal((true, true), Guard(helix, s0));
         foreach (var (mission, guarded) in new[] { (1, false), (2, false), (3, false), (4, true), (7, true) })
@@ -384,6 +392,7 @@ public class WorldTalkTests
         // genzoq.c:90 StartSphereTracking, :92 PutGroupInfo with no NotifyOthers, :117-121 infinite, bit
         // 7. ZOQFOT_DISTRESS (:96) brings the Kohr-Ah's ship first, 3c's: until then the entry waits.
         var zoq = Listed("ZOQFOT_DEFINED", "ZOQFOTPIK_SHIP");
+        Assert.Equal(((int, int?))(0, null), (zoq.Planet, zoq.Moon));   // :88 matchWorld (0, MATCH_PLANET)
         Assert.Equal((false, true), Guard(zoq, StoryWith(("ZOQFOT_DISTRESS", 1))));
         Assert.Equal((true, true), Guard(zoq, s0));
         Assert.Equal((1 << 7, Infinite, false, true, (Func<StoryState, bool, bool>?)null),
@@ -392,6 +401,7 @@ public class WorldTalkTests
         // genpet.c:83-101, the Umgah's half: their talk while they aren't zombies (:97), with
         // StartSphereTracking (:93); NotifyOthers (:88), infinite (:99), bit 7 (:96).
         var umgah = Listed("TALKING_PET_DEFINED", "UMGAH_SHIP");
+        Assert.Equal(((int, int?))(0, null), (umgah.Planet, umgah.Moon));   // :83 matchWorld (0, MATCH_PLANET)
         Assert.Equal((false, false), Guard(umgah, StoryWith(("UMGAH_ZOMBIE_BLOBBIES", 1))));
         Assert.Equal((true, true), Guard(umgah, s0));
         Assert.Equal((false, true), Guard(umgah, s0, lives: false));
