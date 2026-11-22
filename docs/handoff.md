@@ -25,7 +25,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
   - Item 8: the destruct code is reachable only through the Slylandro at home (3b-2), and their ramp-down with it; no testing option sets the probe's story counters or the code (a save's story fields can).
   - Item 7: Spathiwa's moon's talk (`spahome.c`, 3b-2; kept so by the owner till then); the Chmmr's Ilwrath branch (Procyon's, wired by 3b-2's item 11), the broadcaster's (3c, with the device), Fwiffo on Pluto and the Ilwrath's mission (3c) ported and recorded but not reachable.
   - Item 6: the endgame's and 3c's branches of the Ur-Quan's and the Kohr-Ah's scripts are ported and recorded but not reachable yet.
-  - Item 5: the Thraddash's body count (3b-2); the Chmmr's queue (3c, with the ways to the Chmmr: 3b-2's question 8).
+  - Item 5: the Thraddash's body count (3b-2's item 1); the Chmmr's queue (a Chmmr group emptied after its talk, `comm.c:1539`: 3b-2's item 11).
   - Items 3 and 4: the other races' groups fly with 3b-2 (row 68, `GameWorld.EncounterRaces`; flying now: the Ur-Quan, the drone, the Kohr-Ah, the Ilwrath, the Spathi and the Slylandro probes); the special systems' story (Tanaka lost, the scout and the recruited Shofixti flying off, the Yehat's rebellion check, the Sa-Matra's guards) left (row 72, a note in the 3b-2 row).
   - Item 2: the fleets' `crew_level`, `max_crew` and `max_energy` are the race's ship's, not kept per fleet; the fleets aren't sent to clients until there's a starmap.
   - Item 1: 3c's events are set aside, not run (`differences.md` row 66, which now says a fleet's arrival event would be set aside too).

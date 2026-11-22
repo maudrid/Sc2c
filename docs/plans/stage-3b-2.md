@@ -235,7 +235,7 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
 11. **The Arilou, the Syreen and the Chmmr.**
     - `arilouc.c`: their meetings in hyperspace (the answering player's `ARILOU_SPACE_SIDE`), and the home talk recorded.
     - `syreenc.c`: their starbase entered and talked at.
-    - `chmmrc.c`: whole, recorded, reached only by set-up (question 8).
+    - `chmmrc.c`: whole, recorded, reached only by set-up (question 8). After a meeting's talk with a Chmmr group, the group is emptied, with no battle (`comm.c:1539`, the Chmmr's queue 3b-1's item 5 left here); only a group made by `--start-encounter` reaches it before 3c.
     - Procyon's Ilwrath (`genchmmr.c`): orbiting the Chmmr's world before they're unleashed, with the Sun Device aboard, while the Ilwrath live and aren't deceived, builds their infinite fleet and starts the Ilwrath's talk at bit 6, the branch 3b-1 ported. Wired here, reached by `--start-devices` until 3c (row 27).
     - With this item every race talks: `TalkingRaces` is every race, and the stand-in meeting and row 68 go. `--start-encounter` refuses a race with no talk in space (the Syreen, the humans).
 12. **Docs.**
