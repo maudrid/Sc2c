@@ -1,6 +1,6 @@
 # Stage 3b-2 plan: the races
 
-**Status:** drafted 2026-11-21; every open question answered by the owner on 2026-11-22 (question 7 as the owner put it, the other nine as recommended). Nothing in it is built; each item waits for the owner's go-ahead. The questions are at the end, each with its answer; the plan as written follows them.
+**Status:** drafted 2026-11-21; every open question answered by the owner on 2026-11-22 (question 7 as the owner put it, the other nine as recommended). The draft was reviewed in four rounds against UQM's source (round 4's wording fixes not reviewed again), and question 7's answer in three (round 3's fixes not reviewed again). Nothing in it is built; each item waits for the owner's go-ahead. The questions are at the end, each with its answer; the plan as written follows them.
 
 Build order item: the second part of stage 3b (`docs/design.md`; `docs/plans/stage-3b.md`, decision 1). 3b-1 built the engine: the clock's events, the fleets, hyperspace encounters, system groups, the meeting (encounter screen, talk, battle, battle-won screen), notices and five scripts. 3b-2 is mostly scripts on that engine: the other 20 conversations, the worlds that start them, what they do to the game, and the Melnorme's trading.
 
