@@ -176,7 +176,7 @@ public class WorldTalkTests
     {
         // genchmmr.c:108: with the Sun Device aboard, the Ilwrath not deceived and the Chmmr not unleashed,
         // orbiting the Chmmr's world meets the Ilwrath's infinite fleet, their talk told bit 6.
-        var world = NewGame();
+        var world = NewGame("g");
         var story = world.Story!;
         int star = Star(world, "CHMMR_DEFINED");
         world.PutInOrbit("h", star, 1);
@@ -186,8 +186,20 @@ public class WorldTalkTests
         story.Set("SUN_DEVICE_ON_SHIP", 1);
         world.Host.Ship.Ip!.ReturnFromOrbit();
         world.Host.Ship.Ip.EscapeCounter = 0;
+        // An Ilwrath group in the system, and the guest there.
+        world.AddEncounterNear("h", story.Rules.RaceIndex("ILWRATH_SHIP"), 1);
+        world.PutInSystem("g", star);
+        world.TakeNotices();
         world.PutInOrbit("h", star, 1);
         var m = world.MeetingOf("h")!;
+        // genchmmr.c:112 puts the groups aside with no NotifyOthers first: the
+        // Ilwrath there don't stand down, and the guest is told who's meeting
+        // whom, not that they hold off.
+        Assert.Contains(world.SystemGroups!.Systems[star].Groups,
+            g => g.Race == m.Race && (g.Task & IpGroup.IgnoreFlagship) == 0);
+        var told = world.TakeNotices().Where(n => n.PlayerId == "g").Select(n => n.Text).ToList();
+        Assert.Contains("Host is meeting the Ilwrath.", told);
+        Assert.DoesNotContain(told, t => t.Contains("hold off"));
         Assert.Null(world.Host.Ship.Ip!.Orbit);
         Assert.Equal(IpFlight.EscapeFrames, world.Host.Ship.Ip.EscapeCounter);
         Assert.Equal(((int, int?)?)(1, null), m.World);
@@ -213,6 +225,208 @@ public class WorldTalkTests
         story.Set("ILWRATH_DECEIVED", 0);
         story.Set("CHMMR_UNLEASHED", 1);
         Assert.Null(world.WorldTalkAt(star, 1, null));
+    }
+
+    // A new game's story with these fields set.
+    private static StoryState StoryWith(params (string Field, int Value)[] sets)
+    {
+        var story = StoryState.NewGame(OutfitTests.Rules, new GameClock(2155, 2, 17));
+        foreach (var (f, v) in sets)
+            story.Set(f, v);
+        return story;
+    }
+
+    // An entry's starting test: its answer, and whether it asked StartSphereTracking (given its answer).
+    private static (bool Guarded, bool Asked) Guard(TalkWorld w, StoryState s, bool lives = true)
+    {
+        bool asked = false;
+        bool g = w.Guarded(s, () => { asked = true; return lives; });
+        return (g, asked);
+    }
+
+    private static TalkWorld Listed(string special, string race) =>
+        GameWorld.TalkWorlds.Single(w => w.Special == special && w.Race == race);
+
+    [Fact]
+    public void EachListedWorldIsItsGeneratorsTests()
+    {
+        var s0 = StoryWith();
+        const int Infinite = TalkWorld.InfiniteFleet;
+        // What every entry shares unless said below: the race's own
+        // conversation, matched always, guarded by StartSphereTracking alone
+        // (asked), an infinite fleet, the groups standing down and put aside,
+        // the generator returning after the talk (no Stays), no flag.
+        void Plain(TalkWorld w, int bit, string? because)
+        {
+            Assert.Equal(bit, w.GlobalFlags);
+            Assert.Null(w.Conversation);
+            Assert.Null(w.Matches);
+            Assert.Equal((true, true), Guard(w, s0));
+            Assert.Equal((false, true), Guard(w, s0, lives: false));
+            Assert.Equal(Infinite, w.Fleet(s0));
+            Assert.True(w.StandDown && w.PutAside, because);
+            Assert.Null(w.Stays);
+            Assert.Null(w.Unguarded);
+            Assert.False(w.UnguardedWhenOrbited);
+        }
+        // genilw.c:81 StartSphereTracking, 83 NotifyOthers, 84 PutGroupInfo, 88 INFINITE_FLEET, 92 bit 7, 101 return.
+        Plain(Listed("ILWRATH_DEFINED", "ILWRATH_SHIP"), 1 << 7, "genilw.c");
+        Plain(Listed("VUX_DEFINED", "VUX_SHIP"), 1 << 7, "genvux.c:128-139, 150");
+        Plain(Listed("YEHAT_DEFINED", "YEHAT_SHIP"), 1 << 7, "genyeh.c:80-101");
+        Plain(Listed("PKUNK_DEFINED", "PKUNK_SHIP"), 1 << 7, "genpku.c:82-102");
+        Plain(Listed("DRUUGE_DEFINED", "DRUUGE_SHIP"), 1 << 7, "gendru.c:91-110");
+        Plain(Listed("UTWIG_DEFINED", "UTWIG_SHIP"), 1 << 7, "genutw.c:111-139 (UTWIG_DEFINED ||)");
+        Plain(Listed("SUPOX_DEFINED", "SUPOX_SHIP"), 1 << 7, "gensup.c:82-102");
+        Plain(Listed("THRADD_DEFINED", "THRADDASH_SHIP"), 1 << 7, "genthrad.c:99-133 (THRADD_DEFINED ||)");
+        Assert.Equal(22, GameWorld.TalkWorlds.Count);
+
+        // genspa.c:123-124: !SPATHI_SHIELDED_SELVES first, then StartSphereTracking.
+        var spa = Listed("SPATHI_DEFINED", "SPATHI_SHIP");
+        Assert.Equal(((int, int?))(0, 0), (spa.Planet, spa.Moon));   // :120 matchWorld (0, 0)
+        Assert.Equal((false, false), Guard(spa, StoryWith(("SPATHI_SHIELDED_SELVES", 1))));
+        Assert.Equal((true, true), Guard(spa, s0));
+        Assert.Equal((1 << 7, Infinite, true, true, (Func<StoryState, bool, bool>?)null),
+            (spa.GlobalFlags, spa.Fleet(s0), spa.StandDown, spa.PutAside, spa.Stays));   // :126-134, :144
+
+        // genvux.c:124-128: the Maidens' world while !ZEX_IS_DEAD, then StartSphereTracking; bit 6 (:143);
+        // after the talk (:157-159) out of orbit while ZEX lives, whatever's left (no survivors test).
+        var maidens = Listed("MAIDENS_DEFINED", "VUX_SHIP");
+        Assert.Equal((false, false), Guard(maidens, StoryWith(("ZEX_IS_DEAD", 1))));
+        Assert.Equal((true, true), Guard(maidens, s0));
+        Assert.Equal((1 << 6, Infinite, true, true), (maidens.GlobalFlags, maidens.Fleet(s0), maidens.StandDown, maidens.PutAside));
+        Assert.True(maidens.Stays!(s0, false));
+        Assert.False(maidens.Stays(StoryWith(("ZEX_IS_DEAD", 1)), true));
+        Assert.Null(maidens.Unguarded);
+
+        // genorz.c:86-90: the homeworld always, the Taalo moon (1, 2) while !TAALO_PROTECTOR; :94-96
+        // (ORZ_DEFINED || !TAALO_UNPROTECTED) && StartSphereTracking; :105-107 infinite, bit 7; :111-116
+        // 14 ships, bit 6; :127-136 out of orbit while OrzSurvivors (the head link && (ORZ_DEFINED ||
+        // !TAALO_UNPROTECTED)); :142 TAALO_UNPROTECTED set past the test, the Orz extinct too.
+        var orz = Listed("ORZ_DEFINED", "ORZ_SHIP");
+        Assert.Equal((true, true), Guard(orz, StoryWith(("TAALO_UNPROTECTED", 1))));
+        Assert.Equal((1 << 7, Infinite), (orz.GlobalFlags, orz.Fleet(s0)));
+        Assert.True(orz.Stays!(StoryWith(("TAALO_UNPROTECTED", 1)), true));
+        Assert.False(orz.Stays(s0, false));
+        Assert.Equal(("TAALO_UNPROTECTED", true, true), (orz.Unguarded, orz.UnguardedWhenOrbited, orz.StandDown));
+        var taalo = Listed("TAALO_PROTECTOR_DEFINED", "ORZ_SHIP");
+        Assert.Equal(((int, int?))(1, 2), (taalo.Planet, taalo.Moon));
+        Assert.False(taalo.Matches!(StoryWith(("TAALO_PROTECTOR", 1))));
+        Assert.True(taalo.Matches(s0));
+        Assert.Equal((false, false), Guard(taalo, StoryWith(("TAALO_UNPROTECTED", 1))));
+        Assert.Equal((true, true), Guard(taalo, s0));
+        Assert.Equal((1 << 6, 14, true, true), (taalo.GlobalFlags, taalo.Fleet(s0), taalo.StandDown, taalo.PutAside));
+        Assert.True(taalo.Stays!(s0, true));
+        Assert.False(taalo.Stays(s0, false));
+        Assert.False(taalo.Stays(StoryWith(("TAALO_UNPROTECTED", 1)), true));
+        Assert.Equal(("TAALO_UNPROTECTED", true), (taalo.Unguarded, taalo.UnguardedWhenOrbited));
+
+        // genmyc.c:90-95: StartSphereTracking first, then (MYCON_DEFINED || !SUN_DEVICE_UNGUARDED);
+        // :102-113 infinite unless the Sun Device world's Mycon fell for the ambush (5); :120 bit 7, :124
+        // bit 6; :134-144 out of orbit while any is left, else SUN_DEVICE_UNGUARDED (not past the test).
+        var mycon = Listed("MYCON_DEFINED", "MYCON_SHIP");
+        Assert.Equal((true, true), Guard(mycon, StoryWith(("SUN_DEVICE_UNGUARDED", 1))));
+        Assert.Equal(Infinite, mycon.Fleet(StoryWith(("MYCON_FELL_FOR_AMBUSH", 1))));
+        Assert.True(mycon.Stays!(s0, true));
+        Assert.False(mycon.Stays(s0, false));
+        Assert.Equal((1 << 7, "SUN_DEVICE_UNGUARDED", false), (mycon.GlobalFlags, mycon.Unguarded, mycon.UnguardedWhenOrbited));
+        var sun = Listed("SUN_DEVICE_DEFINED", "MYCON_SHIP");
+        Assert.Equal((false, true), Guard(sun, StoryWith(("SUN_DEVICE_UNGUARDED", 1))));   // tracked first
+        Assert.Equal((true, true), Guard(sun, s0));
+        Assert.Equal(Infinite, sun.Fleet(s0));
+        Assert.Equal(5, sun.Fleet(StoryWith(("MYCON_FELL_FOR_AMBUSH", 1))));
+        Assert.True(sun.Stays!(s0, true));
+        Assert.False(sun.Stays(s0, false));
+        Assert.Equal((1 << 6, true, true, "SUN_DEVICE_UNGUARDED", false),
+            (sun.GlobalFlags, sun.StandDown, sun.PutAside, sun.Unguarded, sun.UnguardedWhenOrbited));
+
+        // genutw.c:104-108: the bomb's moon (5, 1) while !UTWIG_BOMB; :110-112 the Utwig while
+        // !UTWIG_HAVE_ULTRON, then StartSphereTracking (infinite, bit 6 :129, returning :139); else :142-144
+        // the Druuge while !BOMB_UNPROTECTED, then StartSphereTracking: no NotifyOthers (:148
+        // PutGroupInfo only), 5 ships (:152), bit 6 (:158), out of orbit while any is left, else
+        // BOMB_UNPROTECTED (:167-178).
+        var utwigBomb = Listed("BOMB_DEFINED", "UTWIG_SHIP");
+        var druugeBomb = Listed("BOMB_DEFINED", "DRUUGE_SHIP");
+        Assert.True(GameWorld.TalkWorlds.ToList().IndexOf(utwigBomb) < GameWorld.TalkWorlds.ToList().IndexOf(druugeBomb));
+        foreach (var w in new[] { utwigBomb, druugeBomb })
+        {
+            Assert.Equal(((int, int?))(5, 1), (w.Planet, w.Moon));
+            Assert.False(w.Matches!(StoryWith(("UTWIG_BOMB", 1))));
+            Assert.True(w.Matches(s0));
+            Assert.Equal(1 << 6, w.GlobalFlags);
+        }
+        Assert.Equal((false, false), Guard(utwigBomb, StoryWith(("UTWIG_HAVE_ULTRON", 1))));
+        Assert.Equal((true, true), Guard(utwigBomb, s0));
+        Assert.Equal((Infinite, true, true, (Func<StoryState, bool, bool>?)null),
+            (utwigBomb.Fleet(s0), utwigBomb.StandDown, utwigBomb.PutAside, utwigBomb.Stays));
+        Assert.Equal((false, false), Guard(druugeBomb, StoryWith(("BOMB_UNPROTECTED", 1))));
+        Assert.Equal((true, true), Guard(druugeBomb, s0));
+        Assert.Equal((5, false, true), (druugeBomb.Fleet(s0), druugeBomb.StandDown, druugeBomb.PutAside));
+        Assert.True(druugeBomb.Stays!(s0, true));
+        Assert.False(druugeBomb.Stays(s0, false));
+        Assert.Equal(("BOMB_UNPROTECTED", false), (druugeBomb.Unguarded, druugeBomb.UnguardedWhenOrbited));
+
+        // genthrad.c:99-102: StartSphereTracking first, then the Helix's world while !HELIX_UNPROTECTED
+        // and (BYTE)(THRADD_MISSION - 1) >= 3 (the mission 0, or past 3); bit 6 (:119); after the talk
+        // (:130-133) the same test, whatever's left.
+        var helix = Listed("AQUA_HELIX_DEFINED", "THRADDASH_SHIP");
+        Assert.Equal((false, true), Guard(helix, StoryWith(("HELIX_UNPROTECTED", 1))));
+        Assert.Equal((true, true), Guard(helix, s0));
+        foreach (var (mission, guarded) in new[] { (1, false), (2, false), (3, false), (4, true), (7, true) })
+        {
+            Assert.Equal(guarded, Guard(helix, StoryWith(("THRADD_MISSION", mission))).Guarded);
+            Assert.Equal(guarded, helix.Stays!(StoryWith(("THRADD_MISSION", mission)), true));
+        }
+        Assert.True(helix.Stays!(s0, false));
+        Assert.False(helix.Stays(StoryWith(("HELIX_UNPROTECTED", 1)), true));
+        Assert.Equal((1 << 6, Infinite, true, true, (string?)null),
+            (helix.GlobalFlags, helix.Fleet(s0), helix.StandDown, helix.PutAside, helix.Unguarded));
+
+        // genzoq.c:90 StartSphereTracking, :92 PutGroupInfo with no NotifyOthers, :117-121 infinite, bit
+        // 7. ZOQFOT_DISTRESS (:96) brings the Kohr-Ah's ship first, 3c's: until then the entry waits.
+        var zoq = Listed("ZOQFOT_DEFINED", "ZOQFOTPIK_SHIP");
+        Assert.Equal((false, true), Guard(zoq, StoryWith(("ZOQFOT_DISTRESS", 1))));
+        Assert.Equal((true, true), Guard(zoq, s0));
+        Assert.Equal((1 << 7, Infinite, false, true, (Func<StoryState, bool, bool>?)null),
+            (zoq.GlobalFlags, zoq.Fleet(s0), zoq.StandDown, zoq.PutAside, zoq.Stays));
+
+        // genpet.c:83-101, the Umgah's half: their talk while they aren't zombies (:97), with
+        // StartSphereTracking (:93); NotifyOthers (:88), infinite (:99), bit 7 (:96).
+        var umgah = Listed("TALKING_PET_DEFINED", "UMGAH_SHIP");
+        Assert.Equal((false, false), Guard(umgah, StoryWith(("UMGAH_ZOMBIE_BLOBBIES", 1))));
+        Assert.Equal((true, true), Guard(umgah, s0));
+        Assert.Equal((false, true), Guard(umgah, s0, lives: false));
+        Assert.Equal((1 << 7, Infinite, true, true, (Func<StoryState, bool, bool>?)null),
+            (umgah.GlobalFlags, umgah.Fleet(s0), umgah.StandDown, umgah.PutAside, umgah.Stays));
+
+        // gensly.c:61-64 (planet 3) and gensyr.c:91-95 (the starbase, moon 0 of planet 0): their own
+        // conversations, no test, no ship cloned, no group touched, no bit set, returning at once.
+        foreach (var (w, conversation, place) in new[]
+                 {
+                     (Listed("SLYLANDRO_DEFINED", "SLYLANDRO_SHIP"), "SLYLANDRO_HOME_CONVERSATION", ((int, int?))(3, null)),
+                     (Listed("SYREEN_DEFINED", "SYREEN_SHIP"), "SYREEN_CONVERSATION", ((int, int?))(0, 0)),
+                 })
+        {
+            Assert.Equal(place, (w.Planet, w.Moon));
+            Assert.Equal(conversation, w.Conversation);
+            Assert.Null(w.Matches);
+            Assert.Equal((true, false), Guard(w, s0, lives: false));
+            Assert.Equal((0, 0, false, false), (w.GlobalFlags, w.Fleet(s0), w.StandDown, w.PutAside));
+            Assert.Null(w.Stays);
+            Assert.Null(w.Unguarded);
+        }
+
+        // genchmmr.c:94-110: planet 1, the Chmmr's own talk first once CHMMR_UNLEASHED (:96, 3c's), else
+        // the Ilwrath while SUN_DEVICE_ON_SHIP and !ILWRATH_DECEIVED, then StartSphereTracking; :112
+        // PutGroupInfo with no NotifyOthers, :116 infinite, :119 bit 6, :130 returning.
+        var procyon = Listed("CHMMR_DEFINED", "ILWRATH_SHIP");
+        Assert.Equal(((int, int?))(1, null), (procyon.Planet, procyon.Moon));
+        Assert.False(procyon.Matches!(StoryWith(("CHMMR_UNLEASHED", 1))));
+        Assert.True(procyon.Matches(s0));
+        Assert.Equal((false, false), Guard(procyon, s0));
+        Assert.Equal((true, true), Guard(procyon, StoryWith(("SUN_DEVICE_ON_SHIP", 1))));
+        Assert.Equal((false, false), Guard(procyon, StoryWith(("SUN_DEVICE_ON_SHIP", 1), ("ILWRATH_DECEIVED", 1))));
+        Assert.Equal((1 << 6, Infinite, false, true, (Func<StoryState, bool, bool>?)null),
+            (procyon.GlobalFlags, procyon.Fleet(s0), procyon.StandDown, procyon.PutAside, procyon.Stays));
     }
 
     // A finite guard of two Ilwrath at their homeworld, by genutw.c's Druuge

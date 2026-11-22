@@ -61,6 +61,8 @@ namespace Crateris.Game;
 /// waits on stage 3c's devices and events; repeatable; a field that isn't one, a value past what its bits hold, or a
 /// field each talk, ship or player keeps of its own (StoryState.NotShared: GLOBAL_FLAGS_AND_DATA, the Melnorme's
 /// credits, ...) is refused; set before the other --start options, so --start-orbit's world sees them),
+/// (a --start option refused, with a notice, stops the ones after it: --start-state, then --start-devices, then the
+/// others in the order Main.ApplyStartOptions applies them),
 /// --start-fleet SHIP[:CREW][,SHIP[:CREW]] (host: the host's fleet is these ships, up to 12, by data/ships.json's id,
 /// each with that crew or its race's starting crew; not androsyn, chenjesu or mmrnmhrm, races with no fleet),
 /// --start-allied SHIP[,SHIP] (host: these ships' races are allied, so the shipyard builds their ships, by
