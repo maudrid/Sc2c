@@ -1,6 +1,6 @@
 # Stage 3b-2 plan: the races
 
-**Status:** draft, 2026-11-21, for the owner's review; question 7 answered by the owner on 2026-11-22. Nothing in it is built. The open questions are at the end, each with a recommendation; the plan as written follows the recommendations.
+**Status:** drafted 2026-11-21; every open question answered by the owner on 2026-11-22 (question 7 as the owner put it, the other nine as recommended). Nothing in it is built; each item waits for the owner's go-ahead. The questions are at the end, each with its answer; the plan as written follows them.
 
 Build order item: the second part of stage 3b (`docs/design.md`; `docs/plans/stage-3b.md`, decision 1). 3b-1 built the engine: the clock's events, the fleets, hyperspace encounters, system groups, the meeting (encounter screen, talk, battle, battle-won screen), notices and five scripts. 3b-2 is mostly scripts on that engine: the other 20 conversations, the worlds that start them, what they do to the game, and the Melnorme's trading.
 
@@ -158,7 +158,7 @@ Decided already:
 - **Melnorme credits** are one balance per player, giftable at any time (`design.md`; row 19).
 - **With one player, everything plays as UQM's.**
 
-New in this plan (the open questions below written here as recommended, and question 7 as the owner answered it):
+New in this plan (the open questions below, written here as the owner answered them on 2026-11-22):
 - **Ships in the fleet.** `HaveEscortShip`, `EscortFeasibilityStudy` and `RemoveEscortShips` read and change the host's fleet, where gifts go (question 4).
 - **Melnorme technology.** A module bought from the Melnorme goes on sale for everyone, as the shared module prices already do. A lander upgrade is the answering ship's. The catalog offers the first item the answering ship lacks (question 5).
 - **Rainbow worlds and the Melnorme's anger** stay shared, as story flags are: a world is paid for once, to whoever sells it first; one player angering the Melnorme angers them with everyone (question 6 asks the owner to confirm).
@@ -274,37 +274,37 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
 
 ## Open questions
 
-Each has a recommendation (first) and the plan as written follows it. The owner's answers change the items they name.
+Each has a recommendation (first). The owner answered all ten on 2026-11-22: question 7 as written there, the other nine as recommended, so the plan as written follows them.
 
-1. **Branches that need 3c.** About a third of the 20 scripts' paths open only through 3c's devices or events (the table above).
+1. **Branches that need 3c.** **Answered (the owner, 2026-11-22): as recommended.** About a third of the 20 scripts' paths open only through 3c's devices or events (the table above).
    - **Port every script whole and record every path; wire every entry play can reach now; reach the rest with `--start-devices` and `--start-state` until 3c (recommended).** This is how 3b-1 did the Ur-Quan's Sa-Matra branches. 3c then only wires entries to scripts already checked. The Talking Pet's talk is the exception: it has no way in until 3c, so only the tests run it.
    - Port only what play can reach now, the rest with 3c: smaller items now, but 3c reopens every script and re-records it.
-2. **Small story pickups that unlock talk paths.** Two pickups need no device and are read by 3b-2's talks:
+2. **Small story pickups that unlock talk paths.** **Answered (the owner, 2026-11-22): as recommended.** Two pickups need no device and are read by 3b-2's talks:
    - the rainbow worlds marked on orbit (`genrain.c`), which the Melnorme buy;
    - the Evil Ones' count on Spathiwa's moon (`genspa.c` sets `SPATHI_CREATURES_EXAMINED`/`_ELIMINATED`; the port makes those life forms but sets neither flag), which the Spathi at home ask about.
 
    Options:
    - **Bring both into 3b-2 (recommended):** small, no devices, and without them two branches can't be reached honestly.
    - Leave both with 3c's story worlds: the Melnorme never buy a rainbow world, and the Spathi's quest can only be lied about.
-3. **3c's events that 3b-2's talks queue.** These are the Yehat's revolt, the Shofixti's return, the Zoq-Fot-Pik's distress and death, the Spathi's shield, the Arilou's Umgah check, and the Mycon's, Pkunk's, Thraddash's and Utwig-Supox missions.
+3. **3c's events that 3b-2's talks queue.** **Answered (the owner, 2026-11-22): as recommended.** These are the Yehat's revolt, the Shofixti's return, the Zoq-Fot-Pik's distress and death, the Spathi's shield, the Arilou's Umgah check, and the Mycon's, Pkunk's, Thraddash's and Utwig-Supox missions.
    - **Leave them all set aside until 3c runs the calendar (recommended), with a `differences.md` row:** alliances made now don't move on until 3c. Most of these events move fleets, kill races or change spheres, which is the calendar's work. Of the cheap ones, the revolt needs a Shofixti ship, which needs the Shofixti's return, which needs the Maidens (a 3c pickup), so bringing it forward gains nothing in play.
    - Bring the ones that only set flags or make a sphere (the revolt, the Shofixti's return, the Arilou's Umgah check) into 3b-2. They would run but stay hard to reach.
-4. **Whose fleet a talk looks at.** Gifts and their room check already go to the host's fleet, whoever answers (2026-11-15; stage 4b, decision 3). New in 3b-2 are the talks that look at the escorts or take them back: the Yehat's revolt needs a Shofixti ship, the Spathi at home ask after Fwiffo, the Druuge see an unarmed ship to salvage, and the Orz take their ships back when the alliance breaks.
+4. **Whose fleet a talk looks at.** **Answered (the owner, 2026-11-22): as recommended.** Gifts and their room check already go to the host's fleet, whoever answers (2026-11-15; stage 4b, decision 3). New in 3b-2 are the talks that look at the escorts or take them back: the Yehat's revolt needs a Shofixti ship, the Spathi at home ask after Fwiffo, the Druuge see an unarmed ship to salvage, and the Orz take their ships back when the alliance breaks.
    - **The host's fleet for these too, whoever answers (recommended),** so what's given is what's checked and taken back. For the Druuge's salvage test, an unarmed guest is covered by the host's escorts.
    - The answering player's own escorts: a guest has none, so a guest could never offer the Yehat a Shofixti, and the Orz would take back ships from a fleet they weren't given to.
-5. **The Melnorme's technology: confirm, and one new rule.** UQM's catalog sells 13 items in order, each once. Six are modules (the blaster, point defence, the high-efficiency fuel system, tracking, the cannon and the Shiva furnace). Buying one sets the module's shared price, so it goes on sale at the starbase for everyone, escorts included where an escort can hold it (escorts can't hold the fuel system). The other seven are lander upgrades. Both follow rules already approved: module prices have been shared since stages 3 and 4, and lander upgrades have been each ship's own since stage 2b (row 36). What's new is the catalog's order with several ships.
+5. **The Melnorme's technology: confirm, and one new rule.** **Answered (the owner, 2026-11-22): as recommended.** UQM's catalog sells 13 items in order, each once. Six are modules (the blaster, point defence, the high-efficiency fuel system, tracking, the cannon and the Shiva furnace). Buying one sets the module's shared price, so it goes on sale at the starbase for everyone, escorts included where an escort can hold it (escorts can't hold the fuel system). The other seven are lander upgrades. Both follow rules already approved: module prices have been shared since stages 3 and 4, and lander upgrades have been each ship's own since stage 2b (row 36). What's new is the catalog's order with several ships.
    - **The catalog offers the first item the answering ship lacks (recommended):** a module anyone has bought is skipped for everyone; a lander upgrade is skipped only for the ship that has it. Each player pays for their own lander upgrades.
    - The catalog walks the group's purchases: a lander upgrade one player bought is skipped for everyone, and others can't buy it.
-6. **Rainbow worlds and the Melnorme's anger: confirm they stay shared.** Both are story fields, and story flags are shared (row 36), so these follow from rules already approved; the question is only whether the Melnorme should be an exception.
+6. **Rainbow worlds and the Melnorme's anger: confirm they stay shared.** **Answered (the owner, 2026-11-22): as recommended.** Both are story fields, and story flags are shared (row 36), so these follow from rules already approved; the question is only whether the Melnorme should be an exception.
    - **Shared (recommended).** A rainbow world (500 credits) is found once for the group and paid for once, to whoever sells it first; the seller can give the credits on. Angering the Melnorme (up to `MELNORME_ANGER` 3, which also stops their coming to ships out of fuel) angers them with everyone, and every player is told. To calm them, any player can offer their ship to be stripped whole (`ok_strip_me`), whoever angered them.
    - Per player, as an exception: each player sells the worlds they orbited themselves (the group can be paid several times for one world), and each keeps their own standing with the Melnorme (the one race that would remember players apart).
 7. **The Melnorme's rescue of a ship out of fuel. Answered (the owner, 2026-11-22).** The owner asked for the rescue to skip the one-race lock where it has no other consequences, and for players to be able to rescue each other with fuel. Checked in `melnorm.c`: the rescue branch only strips the answering ship, gives it fuel and sets two fields (the refusal and a count that picks the line), but every meeting runs the greeting first. A first meeting's small talk can anger them, an angry Melnorme's talk ends in a fight or a strip, and a ship with anything to trade gets the full trade menu, whose purchases are shared (`NatureOfConversation`, `melnorm.c:1324`).
    - **Decided:** a rescue-only talk (with a Melnorme ship not already in a meeting; the players have met them, got down to business and not angered them; the stranded player has nothing to trade) skips the lock and the greeting and goes straight to the rescue; its two fields are each player's own; the strip is applied as a change, so a gift mid-talk stays; any other meeting takes the lock, the rescuer following until it's free (item 4). Players can give fuel to a player close by (item 3).
-8. **The Chmmr.** Every way to them is 3c's: the broadcaster, the Sun Device, the bomb. Their `proceed` branch rebuilds the flagship as the bomb ship, takes its landers, gives 1,000,000 RU, moves it to Earth and runs 14 days.
+8. **The Chmmr.** **Answered (the owner, 2026-11-22): as recommended.** Every way to them is 3c's: the broadcaster, the Sun Device, the bomb. Their `proceed` branch rebuilds the flagship as the bomb ship, takes its landers, gives 1,000,000 RU, moves it to Earth and runs 14 days.
    - **Port and record their talk in 3b-2, and leave its entries and the bomb ship to 3c, with a question then about whose ship carries the bomb (recommended).**
    - Leave the whole script to 3c.
-9. **The Thraddash's body count.** Their alliance needs 25 of their ships destroyed in battles with them.
+9. **The Thraddash's body count.** **Answered (the owner, 2026-11-22): as recommended.** Their alliance needs 25 of their ships destroyed in battles with them.
    - **Every player's kills in a battle with the Thraddash count (recommended),** as a battle is the group's.
    - Only the host's: guests' kills wouldn't count toward the group's alliance.
-10. **The order of items.** As above (recommended): the engine pieces first; the Spathi and the Slylandro at home next, since they finish 3b-1's races; then the Melnorme, as they rescue ships out of fuel (3b-1's risk) and sell the Spathi's password. The other races then come in pairs.
+10. **The order of items.** **Answered (the owner, 2026-11-22): as recommended.** As above (recommended): the engine pieces first; the Spathi and the Slylandro at home next, since they finish 3b-1's races; then the Melnorme, as they rescue ships out of fuel (3b-1's risk) and sell the Spathi's password. The other races then come in pairs.
     - Another order, for example the Melnorme first.
