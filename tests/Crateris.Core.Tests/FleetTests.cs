@@ -259,6 +259,8 @@ public class FleetTests
         Assert.Equal(new[] { arilou, arilou, spathi }, talks.EscortRaces);   // into the free slots, before the Spathi's
         Assert.Equal(1, talks.RemoveEscorts(spathi, 0xFFFF));   // not one the talks gave
         Assert.Equal(2, talks.EscortsAdded.Count);
+        // One whose crew changed since (a battle, the roster) is still told by its slot, race and captain.
+        world.Fleet.SetCrew(Rules, talks.EscortsAdded[0].Slot, 2);
         Assert.Equal(2, talks.RemoveEscorts(arilou, 0xFFFF));
         Assert.Empty(talks.EscortsAdded);
         Assert.Empty(talks.EscortRaces);
@@ -292,7 +294,25 @@ public class FleetTests
         talks.Changes[guest].TakeBackFrom(guest.Ship);
         Assert.Equal((0, 5), (host.Ship.Hold.BioData, guest.Ship.Hold.BioData));
         Assert.Throws<ArgumentOutOfRangeException>(() => host.Ship.Hold.SetBioData(-1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => host.Ship.Hold.SetBioData(65536));
+    }
+
+    [ContentFact]
+    public void BioDataPastWhatAUqmCountHoldsDoesntStopATalk()
+    {
+        // Review round 1: the hold keeps bio data with no upper limit (gifts,
+        // the lander), so a talk adding to more than 65,535 goes on (UQM's
+        // COUNT would wrap; the port's doesn't), and its change comes back off.
+        var world = World(2);
+        var host = world.Host;
+        host.Ship.Hold.MoveCargo(new int[ShipHold.Categories], 65_530, +1);
+        var answerer = host;
+        var talks = new AnswererTalkShip(() => answerer, Library.Value.Strings, world);
+        talks.BioData += 500;
+        Assert.Equal(66_030, host.Ship.Hold.BioData);
+        new PlayerTalkShip(host, Library.Value.Strings, world).BioData = 70_000;
+        Assert.Equal(70_000 - 500, talks.Changes[host].Without(host.Ship.Hold.Save(), 0, 50).Hold.BioData);
+        talks.Changes[host].TakeBackFrom(host.Ship);
+        Assert.Equal(69_500, host.Ship.Hold.BioData);
     }
 
     [Fact]
@@ -374,6 +394,36 @@ public class FleetTests
         world.StarbaseKey("guest", MenuKey.Select, out _);
         Assert.Empty(visit.Talk!.Events.OfType<EscortsAdded>());
         Assert.Equal(3, world.Fleet.Count);
+    }
+
+    [ContentFact]
+    public void AStoryTalksGiftIsShownToEveryoneNotToldAgain()
+    {
+        // Review round 1: the allied commander's talk as the Chmmr's bomb is
+        // installed (CHMMR_BOMB_STATE 2: time passes, then his talk, story,
+        // shown to every player) brings the Arilou with its bulletins; nobody
+        // is told so in a notice as well (GameWorld.TellTalkEffects skips a
+        // story talk), not as it runs nor as its replies go on.
+        var world = AlliedWithTheSpawner();
+        world.Story!.Set("CHMMR_BOMB_STATE", 2);
+        world.TakeNotices();
+        var host = world.Host;
+        world.VisitStarbase(host);
+        var visit = host.Ship.Visit!;
+        Assert.Equal(VisitStep.TimePassing, visit.Step);
+        for (int i = 0; i < 1000 && visit.Step == VisitStep.TimePassing; ++i)
+        {
+            foreach (var p in world.Players.Where(p => p.Present))
+                world.SubmitInput(p.Id, world.Frame + 1, Hyperspace.ShipInput.None);
+            world.Step();
+        }
+        Assert.Equal(VisitStep.StarbaseReady, visit.Step);
+        Assert.True(visit.Story);
+        Assert.Equal(new EscortsAdded(Rules.RaceIndex(Arilou), 3, 3), Assert.Single(visit.Talk!.Events.OfType<EscortsAdded>()));
+        Assert.Equal(3, world.Fleet.CountOf(Arilou));
+        int bye = visit.Talk!.Replies.Select(r => r.Phrase).ToList().IndexOf(Scripts["starbas"].PhraseNumber("goodbye_commander"));
+        Assert.True(world.ChooseReply("host", bye, visit.Round));
+        Assert.DoesNotContain(world.TakeNotices(), n => n.Event is NoticeEvent.ShipsGiven);
     }
 
     [ContentFact]

@@ -149,7 +149,9 @@ internal sealed class AnswererTalkShip : ITalkShip
 
     // Taken from the host's fleet, whoever answers (question 4). A ship the
     // talks gave and now take back is no longer among those an opening
-    // taken back takes from the fleet (EscortsAdded): it's gone already.
+    // taken back takes from the fleet (EscortsAdded): it's gone already
+    // (told by its slot, race and captain, as FleetWithout tells them: its
+    // crew may have changed since).
     // One the talks didn't give isn't put back by an opening taken back:
     // that can't arise, as no opening talk takes ships (the commander's
     // and the Ilwrath's at Earth; the Orz's RemoveEscortShips is a meeting
@@ -162,7 +164,7 @@ internal sealed class AnswererTalkShip : ITalkShip
         var before = _world.Fleet.Ships.ToList();
         int removed = count - _world.Fleet.RemoveSome(story.Rules.Races[race], count);
         var gone = before.Except(_world.Fleet.Ships).ToList();
-        _escortsAdded.RemoveAll(gone.Contains);
+        _escortsAdded.RemoveAll(a => gone.Any(g => g.Slot == a.Slot && g.Race == a.Race && g.Captain == a.Captain));
         return removed;
     }
 
@@ -283,7 +285,7 @@ internal sealed class TalkChanges
         if (Fuel != 0)
             ship.Flight.Fuel = (uint)Math.Clamp(ship.Flight.Fuel - Fuel, 0, uint.MaxValue);
         if (BioData != 0)
-            hold.SetBioData(Math.Clamp(hold.BioData - BioData, 0, ushort.MaxValue));
+            hold.SetBioData(Math.Max(0, hold.BioData - BioData));
     }
 
     /// <summary>A hold and fuel without these changes (each no lower than 0, the crew and landers no more than the ship holds).</summary>
@@ -299,6 +301,6 @@ internal sealed class TalkChanges
             Landers = Math.Clamp(hold.Landers - Landers, Math.Min(landersAtLeast, hold.Landers), ShipHold.MaxLanders),
             ResourceUnits = (uint)Math.Clamp(hold.ResourceUnits - ResourceUnits, 0, uint.MaxValue),
             Minerals = hold.Minerals?.Select((m, i) => Math.Max(0, m - Minerals[i])).ToArray(),
-            BioData = Math.Clamp(hold.BioData - BioData, 0, ushort.MaxValue),
+            BioData = Math.Max(0, hold.BioData - BioData),
         }, (uint)Math.Clamp(fuel - Fuel, 0, uint.MaxValue));
 }

@@ -47,7 +47,9 @@ public interface ITalkShip
     /// <summary>
     /// The bio data aboard (TotalBioMass), which the cargo display shows as
     /// the minerals are sold; a script may change it (the Umgah's reward
-    /// adds to it, the Melnorme buy it). A COUNT in UQM: 0 to 65,535.
+    /// adds to it, the Melnorme buy it): 0 or more. A COUNT in UQM, which
+    /// would wrap at 65,536; the port's doesn't, as the hold keeps bio data
+    /// with no upper limit (row 22).
     /// </summary>
     int BioData { get; set; }
 

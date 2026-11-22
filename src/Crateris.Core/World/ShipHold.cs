@@ -227,13 +227,15 @@ public sealed class ShipHold
     public int BioData { get; private set; }
 
     /// <summary>
-    /// Sets the bio data aboard (TotalBioMass, a COUNT: 0 to 65,535), as a
-    /// talk does (the Umgah's reward, the Melnorme's buying it).
+    /// Sets the bio data aboard (TotalBioMass), as a talk does (the Umgah's
+    /// reward, the Melnorme's buying it): 0 or more, with no upper limit, as
+    /// the hold keeps it (gifts and the lander add to it without one; UQM's
+    /// COUNT would wrap at 65,536, the port's doesn't).
     /// </summary>
     public void SetBioData(int bioData)
     {
-        if (bioData < 0 || bioData > ushort.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(bioData), $"{bioData} bio data (0 to {ushort.MaxValue})");
+        if (bioData < 0)
+            throw new ArgumentOutOfRangeException(nameof(bioData), $"{bioData} bio data (0 or more)");
         BioData = bioData;
         _snapshot = null;
     }

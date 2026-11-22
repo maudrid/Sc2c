@@ -822,7 +822,10 @@ loads (const char *list, const char *res)
 }
 
 /* The talk's whole state, for the walk: the story, the ship, the phrases
- * blanked, the screen, the replies offered and the random seed. */
+ * blanked, the random seed, the escort fleet (worth, room and ships), the
+ * bio data, the races' standings and known spheres, the track player's
+ * no_page_break, the script's own state, the screen and the replies
+ * offered. */
 static void
 print_key (void)
 {
@@ -854,6 +857,9 @@ print_key (void)
 	printf ("|%u|", (unsigned) GLOBAL_SIS (TotalBioMass));
 	for (i = 0; i < NUM_AVAILABLE_RACES; ++i)
 		printf ("%u%s", (unsigned) alliances[i], known_strength[i] ? "k" : "");
+	/* trackplayer.c's no_page_break, kept across replies: whether the
+	 * next track joins the last (its first page's callback untagged). */
+	printf ("|%d", no_page_break);
 #ifdef SCRIPT_spathi
 	/* The script's own state that the replies offered don't show. */
 	printf ("|%u", (unsigned) join_us_refusals);
