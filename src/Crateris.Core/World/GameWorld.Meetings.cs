@@ -62,7 +62,8 @@ public sealed partial class GameWorld
     /// where it is by <paramref name="globalFlags"/> (GLOBAL_FLAGS_AND_DATA,
     /// the talk's own: bit 7 at the race's world, stage 3b-1 item 7), which
     /// also picks the script where init_race chooses by it (the Spathi at
-    /// Spathiwa run spahome.c, 3b-2's: <see cref="TalkLibrary.ScriptFor"/>);
+    /// Spathiwa run spahome.c, <see cref="Comm.Scripts.SpathiHomeScript"/>:
+    /// <see cref="TalkLibrary.ScriptFor"/>);
     /// null while that script isn't ported.
     /// </summary>
     internal Talk? RaceTalk(Player player, int race, uint seed, int globalFlags) =>

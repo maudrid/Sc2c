@@ -35,6 +35,9 @@ public sealed class TalkLibrary
         ["spathi"] = p => new SpathiScript(p),
         // Stage 3b-1 item 8.
         ["slyland"] = p => new SlylandroScript(p),
+        // Stage 3b-2 item 2.
+        ["spahome"] = p => new SpathiHomeScript(p),
+        ["slyhome"] = p => new SlylandroHomeScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

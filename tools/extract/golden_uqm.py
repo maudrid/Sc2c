@@ -4762,9 +4762,155 @@ def slyland_starts():
     return starts
 
 
+def home_start(name, state, flags=1 << 7, **kw):
+    """A start for a race's world's talk (a generator's InitCommunication):
+    in a system, GLOBAL_FLAGS_AND_DATA as the generator sets it."""
+    start = {"name": name, "state": {**({"GLOBAL_FLAGS_AND_DATA": flags} if flags else {}), **state},
+             "ship": talk_ship(), "activity": "IN_INTERPLANETARY"}
+    start.update(kw)
+    return start
+
+
+def spahome_starts():
+    """The Spathi at home (spahome.c, Spathiwa's moon), from states chosen
+    to reach every condition it reads: the password asked (each visit, the
+    visits past those the switch names, the names spliced in), known from
+    the Melnorme before any visit (SPATHI_HOME_VISITS 7) or from Fwiffo
+    (FOUND_PLUTO_SPATHI 1 to 3, with him in the escorts, after another
+    ship, or not), the council (each SPATHI_MANNER), angry with the password
+    told, hating, the quest learnt (the Evil Ones told of, already
+    eliminated), on the quest (lied about once or twice, the creatures
+    examined, eliminated), the party (each visit) and the allies (each
+    visit, each piece of news: SPATHI_INFO); the fights' post-encounter
+    from each manner."""
+    password = {"KNOW_SPATHI_PASSWORD": 1, "SPATHI_HOME_VISITS": 7}
+    allied = {"alliances": {"SPATHI_SHIP": "good"}}
+    starts = [home_start("first", {}),
+              # The council and on from the Melnorme's password: the whole talk.
+              home_start("melnorme-password", password),
+              home_start("melnorme-password-fwiffo", {**password, "FOUND_PLUTO_SPATHI": 2}, follow=[]),
+              home_start("council", {"KNOW_SPATHI_PASSWORD": 1},
+                         follow=["SpathiCouncil", "ExitConversation"]),
+              home_start("council-at-peace", {"KNOW_SPATHI_PASSWORD": 1, "SPATHI_MANNER": 3},
+                         follow=["SpathiCouncil", "AllianceOffer", "ExitConversation"]),
+              home_start("angry", {"KNOW_SPATHI_PASSWORD": 1, "SPATHI_MANNER": 1},
+                         follow=["SpathiAngry", "AllianceOffer", "ExitConversation"]),
+              home_start("angry-password-from-melnorme", {**password, "SPATHI_MANNER": 1},
+                         follow=["SpathiPassword", "SpathiCouncil", "ExitConversation"]),
+              home_start("angry-fwiffo", {"FOUND_PLUTO_SPATHI": 1, "SPATHI_MANNER": 1},
+                         follow=["SpathiPassword", "SpathiCouncil", "ExitConversation"]),
+              home_start("hating", {"SPATHI_MANNER": 2}),
+              home_start("hating-password", {"SPATHI_MANNER": 2, "KNOW_SPATHI_PASSWORD": 1}, follow=[])]
+    for visits in range(1, 8):
+        starts.append(home_start(f"password-visit-{visits}", {"SPATHI_HOME_VISITS": visits}, follow=[]))
+    for cname, captain, ship in (("long-names", "Captain Fifteen", "Fifteen bytes!!"),
+                                 ("accented-names", "Zoë", "Ñandú"),
+                                 ("empty-names", "", "")):
+        start = home_start(f"password-{cname}", {}, follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    # Fwiffo: found on Pluto (1), met after (2), told of before (3); in the
+    # escorts (with another ship before him) or not.
+    for found in (1, 2, 3):
+        for fname, fleet in (("", []), ("-escort", ["SPATHI_SHIP"]), ("-escort-second", ["HUMAN_SHIP", "SPATHI_SHIP"]),
+                             ("-other-escort", ["HUMAN_SHIP"])):
+            if found == 3 and fname:
+                continue
+            starts.append(home_start(f"fwiffo-{found}{fname}", {"FOUND_PLUTO_SPATHI": found},
+                                     escort_fleet=fleet, escorts=[0, 12 - len(fleet)],
+                                     follow=["SpathiPassword", "SpathiCouncil", "ExitConversation"]))
+    starts.append(home_start("fwiffo-1-told", {"FOUND_PLUTO_SPATHI": 1, "KNOW_SPATHI_PASSWORD": 1},
+                             escort_fleet=["SPATHI_SHIP"], escorts=[0, 11],
+                             follow=["SpathiCouncil", "ExitConversation"]))
+    # The quest learnt and not taken: the Evil Ones told of or not, already eliminated or not.
+    for evil in (0, 1):
+        for gone in (0, 1):
+            starts.append(home_start(f"learn-quest-evil-{evil}-eliminated-{gone}",
+                                     {"KNOW_SPATHI_QUEST": 1, "KNOW_SPATHI_EVIL": evil,
+                                      "SPATHI_CREATURES_ELIMINATED": gone}))
+    # On the quest.
+    for lied in range(3):
+        for examined in (0, 1):
+            for gone in (0, 1):
+                starts.append(home_start(f"quest-lied-{lied}-examined-{examined}-eliminated-{gone}",
+                                         {"SPATHI_QUEST": 1, "SPATHI_MANNER": 3, "LIED_ABOUT_CREATURES": lied,
+                                          "SPATHI_CREATURES_EXAMINED": examined,
+                                          "SPATHI_CREATURES_ELIMINATED": gone}))
+    for visits in range(4):
+        starts.append(home_start(f"party-visit-{visits}", {"SPATHI_PARTY": 1, "SPATHI_MANNER": 3,
+                                                           "SPATHI_HOME_VISITS": visits}))
+        starts.append(home_start(f"allied-visit-{visits}", {"SPATHI_PARTY": 1, "SPATHI_MANNER": 3,
+                                                            "SPATHI_HOME_VISITS": visits},
+                                 **allied, **({"follow": []} if visits else {})))
+    for info in range(1, 6):
+        starts.append(home_start(f"allied-info-{info}", {"SPATHI_MANNER": 3, "SPATHI_HOME_VISITS": 1,
+                                                         "SPATHI_INFO": info},
+                                 **allied, follow=["SpathiAllies"]))
+    return starts
+
+
+def slyhome_starts():
+    """The Slylandro at home (slyhome.c, their gas giant), from states
+    chosen to reach every condition it reads: each visit (the hello and
+    the goodbye; the visits past those the switch names), the recall
+    greeting once the code is known (RECALL_VISITS), the names spliced in,
+    and each stack of questions walked on its own (the others asked to
+    their ends, so the walks stay small): the visitors (SLYLANDRO_STACK1
+    to 3), the humans (STACK4 and what they know), the Slylandro
+    themselves, the probes (STACK5 to 8, with the bug shown or not), the
+    probe's programming (STACK9 and what the player knows) and the bug
+    and its fix, the self-destruct code with each SLYLANDRO_MULTIPLIER
+    (its ramp-down run at once: recorded as AddEvent)."""
+    done = {"SLYLANDRO_HOME_VISITS": 1, "SLYLANDRO_STACK1": 7, "SLYLANDRO_STACK2": 1, "SLYLANDRO_STACK3": 3}
+    probes = {**done, "SLYLANDRO_STACK4": 2, "PLAYER_KNOWS_PROBE": 1}
+    function = {**probes, "PROBE_EXHIBITED_BUG": 1, "SLYLANDRO_STACK5": 1, "SLYLANDRO_STACK6": 1,
+                "SLYLANDRO_STACK7": 3, "SLYLANDRO_STACK8": 2}
+    knows = {**function, "SLYLANDRO_STACK8": 3, "SLYLANDRO_STACK9": 3, "PLAYER_KNOWS_PROGRAM": 1,
+             "PLAYER_KNOWS_PRIORITY": 1, "PLAYER_KNOWS_EFFECTS": 1, "SLYLANDRO_MULTIPLIER": 2}
+    starts = [home_start("first", {}, 0, follow=["HomeWorld", "ExitConversation"])]
+    for visits in range(1, 8):
+        starts.append(home_start(f"visit-{visits}", {"SLYLANDRO_HOME_VISITS": visits}, 0,
+                                 follow=["ExitConversation"]))
+    for cname, captain, ship in (("long-names", "Captain Fifteen", "Fifteen bytes!!"),
+                                 ("accented-names", "Zoë", "Ñandú"),
+                                 ("empty-names", "", "")):
+        start = home_start(f"names-{cname}", {}, 0, follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    starts += [
+        home_start("recall", {"SLYLANDRO_KNOW_BROKEN": 1, "SLYLANDRO_HOME_VISITS": 1, "PLAYER_KNOWS_PROBE": 1}, 0,
+                   follow=["ExitConversation"]),
+        home_start("recall-first-visit", {"SLYLANDRO_KNOW_BROKEN": 1}, 0, follow=["ExitConversation"]),
+        home_start("recalled", {"SLYLANDRO_KNOW_BROKEN": 1, "RECALL_VISITS": 1, "SLYLANDRO_HOME_VISITS": 2,
+                                "PLAYER_KNOWS_PROBE": 1}, 0, follow=["ExitConversation"]),
+        home_start("recalled-3", {"SLYLANDRO_KNOW_BROKEN": 1, "RECALL_VISITS": 3}, 0, follow=[]),
+        home_start("humans", done, 0, follow=["HumanInfo", "HomeWorld", "ExitConversation"]),
+        home_start("humans-know-more", {**done, "SLYLANDRO_STACK4": 1, "SLYLANDRO_KNOW_EARTH": 1,
+                                        "SLYLANDRO_KNOW_EXPLORE": 1, "SLYLANDRO_KNOW_URQUAN": 2,
+                                        "SLYLANDRO_KNOW_GATHER": 1}, 0,
+                   follow=["HumanInfo", "HomeWorld", "ExitConversation"]),
+        home_start("slylandro", {**done, "SLYLANDRO_STACK4": 2}, 0,
+                   follow=["SlylandroInfo", "HomeWorld", "ExitConversation"]),
+        home_start("probes", probes, 0, follow=["ProbeInfo", "HomeWorld", "ExitConversation"]),
+        home_start("probes-bug", {**probes, "PROBE_EXHIBITED_BUG": 1}, 0,
+                   follow=["ProbeInfo", "HomeWorld", "ExitConversation"]),
+        # The probe's programming: know_more_probe, talk_more_probe_attack.
+        home_start("probe-function", function, 0, prefix=[1, 0], follow=["ProbeFunction", "ProbeInfo"]),
+        # The bug and its fix: know_more_probe, talk_more_probe_attack, probe_has_bug.
+        home_start("probe-bug", knows, 0, prefix=[1, 0, 0], follow=["ProbeBug", "FixBug", "HomeWorld",
+                                                                   "ExitConversation"])]
+    # The code asked for with each multiplier (the ramp up's 0 to 4, and
+    # the 3-bit field's last): think_about_rep_priorities through
+    # what_about_rep_priorities, then mega_self_destruct.
+    for m in (0, 1, 4, 7):
+        starts.append(home_start(f"self-destruct-multiplier-{m}", {**knows, "SLYLANDRO_MULTIPLIER": m}, 0,
+                                 prefix=[1, 0, 0, 0, 0, 0, 3], follow=[]))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
-                "slyland": slyland_starts}
+                "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts}
 # A script's file where it isn't named after its folder.
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c"}
 # The date where a start doesn't give one: a new game's.

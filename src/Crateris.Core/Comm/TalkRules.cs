@@ -43,6 +43,12 @@ public static class TalkRules
         // Stage 3b-1 item 8: the Slylandro probe met in space, ordinary
         // (decision 6), as any talk with a race's ships.
         ["slyland"] = _ => false,
+        // Stage 3b-2 item 2: the Spathi at home (Spathiwa's moon) and the
+        // Slylandro at home (their gas giant), ordinary, as every 3b-2
+        // script's is (the plan's scope): each under its race's lock (the
+        // Slylandro at home with the probes, RACE_SHIP_FOR_COMM).
+        ["spahome"] = _ => false,
+        ["slyhome"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

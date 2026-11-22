@@ -21,7 +21,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// (FOUND_PLUTO_SPATHI, which stage 3c's Pluto sets), who may join the
 /// escorts alone in his Eluder. Orbiting Spathiwa's moon runs another
 /// script, the Spathi at home (spahome.c, init_race by
-/// GLOBAL_FLAGS_AND_DATA bit 7), which is 3b-2's. Every path is checked
+/// GLOBAL_FLAGS_AND_DATA bit 7: SpathiHomeScript). Every path is checked
 /// against UQM's own script (tests/golden/talks-spathi.json).
 /// </summary>
 public sealed class SpathiScript : CommScript

@@ -7,9 +7,10 @@
 // (at your option) any later version.
 //
 // Follows The Ur-Quan Masters 0.8.0 (src/uqm/planets/generate/gensol.c's
-// GenerateSol_generateEnergy and GenerateSol_pickupEnergy), Copyright Paul
-// Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and the UQM
-// contributors, under the GNU GPL 2 or later.
+// GenerateSol_generateEnergy and GenerateSol_pickupEnergy, genspa.c's
+// GenerateSpathi_pickupLife), Copyright Paul Reiche, Fred Ford and Toys for
+// Bob, Inc. 1992-2002, and the UQM contributors, under the GNU GPL 2 or
+// later.
 
 using Crateris.Core.Planetside;
 using Crateris.Core.World;
@@ -20,7 +21,9 @@ namespace Crateris.Core.Story;
 /// The story worlds' energy nodes on the surface, as their generators have
 /// them: so far the Lunar base on Luna (stage 3a). The rest (Fwiffo on
 /// Pluto, the ruins, the artifacts) come with their stories in 3c; until
-/// then their nodes show on the scan but aren't on the surface.
+/// then their nodes show on the scan but aren't on the surface. And the
+/// story worlds' life: the Evil Ones on Spathiwa (the stage 3b-2 plan's
+/// question 2), which the Spathi at home ask about.
 /// </summary>
 public static class StoryWorlds
 {
@@ -57,5 +60,29 @@ public static class StoryWorlds
         story.Set("MOONBASE_DESTROYED", 1);
         story.Set("MOONBASE_ON_SHIP", 1);
         return true;
+    }
+
+    /// <summary>NUM_EVIL_ONES (genspa.c): the Evil Ones on Spathiwa.</summary>
+    public const int EvilOnes = 32;
+
+    private static bool IsSpathiwa(string? special, WorldId world) =>
+        special == "SPATHI_DEFINED" && world.Planet == 0 && world.Moon is null;
+
+    /// <summary>
+    /// GenerateSpathi_pickupLife for Spathiwa, as a creature there is taken
+    /// (before its node is marked retrieved; <paramref name="retrievedBefore"/>
+    /// is countNodesRetrieved's count until then): SPATHI_CREATURES_EXAMINED,
+    /// and SPATHI_CREATURES_ELIMINATED with the last of the 32 Evil Ones.
+    /// Both are shared story fields, as the world's taken nodes are, so
+    /// whichever players take them, the last one taken eliminates them.
+    /// Other worlds' life is the default generator's: nothing more.
+    /// </summary>
+    public static void PickupLife(string? special, WorldId world, StoryState story, int retrievedBefore)
+    {
+        if (!IsSpathiwa(special, world))
+            return;
+        story.Set("SPATHI_CREATURES_EXAMINED", 1);
+        if (retrievedBefore + 1 == EvilOnes)
+            story.Set("SPATHI_CREATURES_ELIMINATED", 1);   // the last creature picked up
     }
 }

@@ -636,8 +636,14 @@ public sealed partial class GameWorld
                 surface.Step(l => _landerInput.GetValueOrDefault(l));
                 foreach (var (scan, node) in surface.Taken)
                 {
-                    if (node < PlanetWorldState.MaxNodes)
-                        Planets.SetRetrieved(world, scan, node);
+                    if (node >= PlanetWorldState.MaxNodes)
+                        continue;
+                    // The world's pickupLife, before the node is marked
+                    // retrieved (lander.c): Spathiwa's Evil Ones.
+                    if (scan == ScanType.Biological && Story is { } story && Systems is not null)
+                        StoryWorlds.PickupLife(Systems.Map.Stars[world.Star].Special, world, story,
+                            Planets.CountRetrieved(world, scan));
+                    Planets.SetRetrieved(world, scan, node);
                 }
                 foreach (var gone in _landerPlayers.Keys.Where(l => l.Phase == LanderPhase.Gone).ToList())
                     LanderGone(gone);

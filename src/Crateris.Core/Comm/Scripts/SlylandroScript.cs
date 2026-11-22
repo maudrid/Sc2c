@@ -20,7 +20,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// or a system greets the ship (by its visits), offers its five replies,
 /// each answered by its own count of times asked, and every one ends in
 /// battle (PROBE_EXHIBITED_BUG); with the destruct code aboard
-/// (DESTRUCT_CODE_ON_SHIP, the Slylandro at home's, 3b-2's) the code sent
+/// (DESTRUCT_CODE_ON_SHIP, from the Slylandro at home: SlylandroHomeScript) the code sent
 /// makes it destroy itself: an instant victory. Asked who it is a fourth
 /// time, it says where it is, in its own coordinates (relative to B Corvi),
 /// spoken with its number speech. Every path is checked against UQM's own

@@ -22,10 +22,10 @@ namespace Crateris.Core.Tests;
 /// The Ilwrath and the Spathi met in space and at their worlds
 /// (docs/plans/stage-3b.md, item 7): their talks as RaceCommunication picks
 /// them, the Ilwrath homeworld's orbit starting the Ilwrath's talk against
-/// their infinite fleet (genilw.c), Spathiwa's moon orbited as any world
-/// until the Spathi at home (spahome.c, 3b-2's) are ported, and the
-/// opening's Ilwrath at Earth holding the Ilwrath's talk. The scripts'
-/// every path is TalkTests' recording.
+/// their infinite fleet (genilw.c), Spathiwa's moon running the Spathi at
+/// home (spahome.c, stage 3b-2 item 2: HomeTalkTests), and the opening's
+/// Ilwrath at Earth holding the Ilwrath's talk. The scripts' every path is
+/// TalkTests' recording.
 /// </summary>
 [Trait("Topic", "world")]
 public class IlwrathSpathiMeetingTests
@@ -414,10 +414,11 @@ public class IlwrathSpathiMeetingTests
     }
 
     [ContentFact]
-    public void SpathiwasMoonIsOrbitedAsAnyWorldUntilTheSpathiAtHomeAreTalkedTo()
+    public void SpathiwasMoonRunsTheSpathiAtHome()
     {
         // genspa.c starts SPATHI_CONVERSATION with GLOBAL_FLAGS_AND_DATA bit
-        // 7, which init_race runs as the Spathi at home (spahome.c), 3b-2's.
+        // 7, which init_race runs as the Spathi at home (spahome.c, stage
+        // 3b-2 item 2: HomeTalkTests).
         var world = NewGame();
         Assert.Equal("spahome", TalkLibrary.ScriptFor(Scripts, "SPATHI_CONVERSATION", world.Story!, 1 << 7));
         Assert.Equal("spathi", TalkLibrary.ScriptFor(Scripts, "SPATHI_CONVERSATION", world.Story!, 0));
@@ -426,11 +427,12 @@ public class IlwrathSpathiMeetingTests
         Assert.Equal("starbas", TalkLibrary.ScriptFor(Scripts, "COMMANDER_CONVERSATION", world.Story, 0));
         Assert.Equal("ilwrath", TalkLibrary.ScriptFor(Scripts, "ILWRATH_CONVERSATION", world.Story, 1 << 7));
         int star = Star(world, "SPATHI_DEFINED");
-        Assert.Equal(-1, world.WorldTalkRace(star, 0, 0));
-        Assert.Null(world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1, 1 << 7));
+        Assert.Equal(Race(world, "SPATHI_SHIP"), world.WorldTalkRace(star, 0, 0));
+        Assert.IsType<SpathiHomeScript>(world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1, 1 << 7)!.Script);
+        Assert.IsType<SpathiScript>(world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1, 0)!.Script);
         world.PutInOrbit("h", star, 0, 0);
-        Assert.Null(world.MeetingOf("h"));
-        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Assert.IsType<SpathiHomeScript>(world.MeetingOf("h")!.Talk!.Script);
+        Assert.Null(world.Host.Ship.Ip!.Orbit);
     }
 
     [ContentFact]
@@ -448,7 +450,8 @@ public class IlwrathSpathiMeetingTests
         Assert.Null(world.MeetingOf("h"));
         Assert.Null(group.MeetingPlayer);
         Assert.Contains(world.TakeNotices(), n => (n.PlayerId, n.Text) == ("h", "Someone is talking to the Ilwrath."));
-        Assert.Equal(-1, world.WorldTalkRace(Star(world, "SPATHI_DEFINED"), 0, 0));
+        // Another race's world isn't held by it (the Spathi at home, theirs).
+        Assert.Equal(Race(world, "SPATHI_SHIP"), world.WorldTalkRace(Star(world, "SPATHI_DEFINED"), 0, 0));
         world.PutInOrbit("h", Star(world, "ILWRATH_DEFINED"), 0);
         Assert.Null(world.MeetingOf("h"));
         // Once it's over, they're met.

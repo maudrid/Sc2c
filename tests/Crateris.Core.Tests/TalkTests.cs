@@ -131,6 +131,8 @@ public class TalkTests
         ["blackur"] = ("talks-blackur", p => new BlackUrquanScript(p)),
         ["spathi"] = ("talks-spathi", p => new SpathiScript(p)),
         ["slyland"] = ("talks-slyland", p => new SlylandroScript(p)),
+        ["spahome"] = ("talks-spahome", p => new SpathiHomeScript(p)),
+        ["slyhome"] = ("talks-slyhome", p => new SlylandroHomeScript(p)),
     };
 
     // A script's recorded starts.
