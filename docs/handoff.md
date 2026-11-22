@@ -2,12 +2,12 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-22, stage 3b-2 item 1 part A built (the owner's go-ahead for item 1): the talks' recordings one file per script, the talk engine's new calls with their recorder stubs, the world's talk ships and notices. Review round 1's findings fixed; not yet reviewed again.
+**Last updated:** 2026-11-22, stage 3b-2 item 1 part A built (the owner's go-ahead for item 1): the talks' recordings one file per script, the talk engine's new calls with their recorder stubs, the world's talk ships and notices. Reviewed in three rounds (round 1: six small findings fixed; round 2: row 22's wording fixed; round 3 found nothing).
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 1 part A).
-- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is under way: part A built, review round 1's findings fixed, not yet reviewed again (its Progress row: what was built and what it left open); part B (the world talks generalised: bit 6 worlds, finite guards, talks with no fleet; the Thraddash's body count; `--start-state`) not started. Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
+- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is under way: part A built and reviewed in three rounds (its Progress row: what was built and what it left open); part B (the world talks generalised: bit 6 worlds, finite guards, talks with no fleet; the Thraddash's body count; `--start-state`) not started. Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
@@ -66,7 +66,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review item 1 part A's round 1 fixes (round 2 of `CLAUDE.md`'s review rounds), then build part B (the world talks generalised, the Thraddash's body count, `--start-state`), under the owner's go-ahead for item 1. After item 1, wait for the owner's go-ahead for item 2 (one go-ahead per item).
+Build item 1 part B (the world talks generalised, the Thraddash's body count, `--start-state`), under the owner's go-ahead for item 1. After item 1, wait for the owner's go-ahead for item 2 (one go-ahead per item).
 
 ## Decisions waiting on the owner
 
