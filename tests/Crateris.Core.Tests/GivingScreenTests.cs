@@ -158,6 +158,36 @@ public class GivingScreenTests
     }
 
     [Fact]
+    public void WhileTheFuelRowIsLitTheFreeRowHasTheReceiversTankRoom()
+    {
+        // Review round 1 (item 3): over the lander's gauges three lines fit
+        // below the box, the keys taking two, so who it gives to has one and
+        // their tanks' room is cut from it; the box shows it instead, on the
+        // Free row while the fuel row is lit.
+        bool Fits(string s) => s.Length <= 40;
+        var below = GivingScreen.Below("To Guest, in this system. Their tanks have room for 18 units of fuel.", "",
+            "Up, down: the row. Left, right: who, how much (PgUp, PgDn: more). Enter: give.", 3, Fits);
+        Assert.Equal(3, below.Count);
+        Assert.DoesNotContain(below, l => l.Line.Contains("18"));
+        UqmDraw Free(TradeShown s) => Texts(Draw(s)).Single(t => t.Y == GivingScreen.FreeY + 6 && t.X == S + 59);
+        UqmDraw Label(TradeShown s) => Texts(Draw(s)).Single(t => t.Y == GivingScreen.FreeY + 6 && t.X == S + 5);
+        var fuel = Shown(TradeScreen.FuelRow);
+        Assert.Equal(("18", CargoDisplay.Worth), (Free(fuel).Text, Free(fuel).Color));
+        Assert.Equal(("Free", CargoDisplay.SelectedBack), (Label(fuel).Text, Label(fuel).Color));
+        // Dimmed unless the receiver is close by, whether or not they're in the system (cargo's test).
+        var far = Shown(TradeScreen.FuelRow, here: false, near: false);
+        Assert.Equal(("18", GivingScreen.Dim), (Free(far).Text, Free(far).Color));
+        Assert.Equal(GivingScreen.Dim, Label(far).Color);
+        var near = Shown(TradeScreen.FuelRow, here: false, near: true);
+        Assert.Equal(("18", CargoDisplay.Worth), (Free(near).Text, Free(near).Color));
+        // Without the receiver's ship: nothing; on any other row: their storage bays' room, as before.
+        Assert.Equal("", Free(fuel with { TankRoom = null }).Text);
+        foreach (int row in new[] { TradeScreen.PlayerRow, TradeScreen.CreditsRow, TradeScreen.FirstMineralRow, TradeScreen.BioRow })
+            Assert.Equal("469", Free(Shown(row)).Text);
+        Assert.Equal(GivingScreen.Dim, Free(Shown(TradeScreen.UnitsRow, here: false, near: true)).Color);
+    }
+
+    [Fact]
     public void ALongNameIsCutToFitTheBoxAndAShortOneIsWhole()
     {
         string Name(TradeShown s) => Texts(Draw(s)).Single(t => t.Y == GivingScreen.RowY(TradeScreen.PlayerRow) + 6).Text;

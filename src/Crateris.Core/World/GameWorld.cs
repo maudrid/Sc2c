@@ -1439,7 +1439,7 @@ public sealed partial class GameWorld
         var from = giver.Ship.Hold;
         var to = taker.Ship.Hold;
         if (from.ResourceUnits < gift.ResourceUnits || from.Credits < gift.Credits || from.BioData < gift.BioData
-                || giver.Ship.Flight.Fuel < gift.Fuel || gift.Minerals.Where((m, i) => from.Minerals[i] < m).Any())
+                || FuelAboard(giver.Ship) < gift.Fuel || gift.Minerals.Where((m, i) => from.Minerals[i] < m).Any())
             return TradeRefusal.NotEnough;
         if (gift.Cargo && (giver.Ship.SystemStar is not int star || taker.Ship.SystemStar != star))
             return TradeRefusal.NotHere;
@@ -1473,17 +1473,44 @@ public sealed partial class GameWorld
         Gift.CloseBy(a.Ship.SystemStar, a.Ship.Flight.UniverseX, a.Ship.Flight.UniverseY,
             b.Ship.SystemStar, b.Ship.Flight.UniverseX, b.Ship.Flight.UniverseY);
 
-    /// <summary>The fuel a ship's tanks have room for (1/100 units), as a gift fills them.</summary>
+    /// <summary>
+    /// The fuel aboard a ship (1/100 units), what it can give and what the
+    /// snapshot sends: its flight's, but while it spins into a group it met,
+    /// the spin's if less, as the spin burns fuel as it drifts and its fuel
+    /// becomes the flight's at its end (<see cref="HyperFlight.TakePlaceOf"/>;
+    /// a gift goes into both, <see cref="MoveFuel"/>). A spin into a star is
+    /// the encounters' copy, dropped at its end: the flight's fuel stays the
+    /// ship's then.
+    /// </summary>
+    internal static uint FuelAboard(PlayerShip ship) =>
+        SpinsIntoGroup(ship) ? Math.Min(ship.Flight.Fuel, ship.Spin!.Fuel) : ship.Flight.Fuel;
+
+    // Whether the ship spins into a group it met, its spin's flight to become its own.
+    private static bool SpinsIntoGroup(PlayerShip ship) => ship.Meeting is { Step: MeetingStep.Spin } && ship.Spin is not null;
+
+    /// <summary>
+    /// The fuel a ship's tanks have room for (1/100 units), as a gift fills
+    /// them: by its flight's fuel, which is at least the spin's into a group
+    /// (<see cref="FuelAboard"/>), so a gift fills neither past its capacity.
+    /// </summary>
     internal static uint TankRoom(PlayerShip ship) =>
         ship.Flight.FuelCapacity > ship.Flight.Fuel ? ship.Flight.FuelCapacity - ship.Flight.Fuel : 0;
 
     // Fuel in or out of a ship's tanks (a gift): its flight's, and the spin's
-    // into a group it met while it spins, whose fuel becomes the flight's
-    // at its end (HyperFlight.TakePlaceOf), so the gift stays.
+    // into a group it met while it spins, whose fuel becomes the flight's at
+    // its end (HyperFlight.TakePlaceOf), so the gift stays. Give checked it
+    // against FuelAboard and TankRoom, so neither goes below empty or past
+    // its top (checked: a gift that would is a bug, not to be clamped). A
+    // spin into a star (the encounters' copy, dropped at its end) is kept
+    // in step as far as it goes: it may have burnt more than the flight has.
     private static void MoveFuel(PlayerShip ship, long delta)
     {
-        ship.Flight.Fuel = (uint)(ship.Flight.Fuel + delta);
-        if (ship.Spin is { } spin)
+        ship.Flight.Fuel = checked((uint)(ship.Flight.Fuel + delta));
+        if (ship.Spin is not { } spin)
+            return;
+        if (SpinsIntoGroup(ship))
+            spin.Fuel = checked((uint)(spin.Fuel + delta));
+        else
             spin.Fuel = (uint)Math.Clamp(spin.Fuel + delta, 0, uint.MaxValue);
     }
 
@@ -1593,7 +1620,7 @@ public sealed partial class GameWorld
             var (vx, vy) = f.Velocity.Current();
             var (ivx, ivy) = ip?.Velocity.Current() ?? ((short)0, (short)0);
             return new ShipSnapshot(p.Id, p.Name, p.IsHost, p.Ship.Kind, f.LogX, f.LogY, f.UniverseX, f.UniverseY,
-                f.Facing, vx, vy, f.Fuel, f.FuelCapacity,
+                f.Facing, vx, vy, FuelAboard(p.Ship), f.FuelCapacity,
                 ip is null ? (f.Status & HyperFlight.StatusThrust) != 0 : ip.Orbit is null && ip.Thrusting,
                 p.UndockPending, p.Ship.Activity, p.Ship.SystemStar, ip?.InnerPlanet,
                 ip?.Location.X ?? 0, ip?.Location.Y ?? 0, ip?.Screen.X ?? 0, ip?.Screen.Y ?? 0,

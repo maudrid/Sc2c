@@ -207,6 +207,15 @@ public class TradingTests
         Assert.True(world.StoryPaused);
         Assert.Equal(TradeRefusal.Paused, world.Give(new Gift("guest", "host", 50, NoMinerals, 0)));
         Assert.Equal(TradeRefusal.Paused, world.Give(new Gift("host", "guest", 50, NoMinerals, 0)));
+        // Melnorme credits and fuel too, close by as they are (stage 3b-2 item 3, review round 1).
+        foreach (var p in world.Players)
+            (p.Ship.Hold.Credits, p.Ship.Flight.Fuel) = (100, 1000);
+        foreach (var (from, to) in new[] { ("guest", "host"), ("host", "guest") })
+        {
+            Assert.Equal(TradeRefusal.Paused, world.Give(new Gift(from, to, 0, NoMinerals, 0, Credits: 50)));
+            Assert.Equal(TradeRefusal.Paused, world.Give(new Gift(from, to, 0, NoMinerals, 0, Fuel: 50)));
+        }
+        Assert.All(world.Players, p => Assert.Equal((100u, 1000u), (p.Ship.Hold.Credits, p.Ship.Flight.Fuel)));
         world.Leave("host");     // the replies pass to the guest; the opening may yet be undone
         Assert.Equal((100u, 100u), (world.Host.Ship.Hold.ResourceUnits, world.Find("guest")!.Ship.Hold.ResourceUnits));
         Assert.Empty(world.TakeGifts());

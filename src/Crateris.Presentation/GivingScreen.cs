@@ -30,7 +30,8 @@ namespace Crateris.Presentation;
 /// string has one) are the player given to (their name, cut to fit the
 /// box), the resource units, the Melnorme credits and the fuel (in whole
 /// units; stage 3b-2 item 3), the eight element categories, the room the
-/// receiver has for minerals (the cargo display's Free row), and, below
+/// receiver has for minerals (the cargo display's Free row; while the fuel
+/// row is lit, the room in their fuel tanks), and, below
 /// the line, the bio data; each of the giver's rows has what they have
 /// (the cargo display's worth column) and the amount to give (its amount
 /// column), under the column heads "Have" and "Give" (a number too long
@@ -151,13 +152,18 @@ public static class GivingScreen
         Icon(BioOrgY, BioIcon);
         Amount(TradeScreen.BioRow, dim);
 
-        // The line over the bio data, and the receiver's room (the cargo display's Free row, ShowRemainingCapacity).
+        // The line over the bio data, and the receiver's room (the cargo display's Free row, ShowRemainingCapacity):
+        // in their storage bays, or while the fuel row is lit, in their fuel tanks (in whole units, dimmed unless
+        // they're close by), the box being the one place it fits over the lander's gauges.
         canvas.SetForeground(CargoDisplay.SelectedBack);
         canvas.FillRect(new URect(4, BioOrgY - 2, FieldWidth - 3, 1));
-        canvas.SetForeground(dim ? Dim : CargoDisplay.SelectedBack);
+        bool tanks = shown.Row == TradeScreen.FuelRow;
+        bool freeDim = tanks ? !shown.Near : dim;
+        int? free = tanks ? shown.TankRoom : shown.Room;
+        canvas.SetForeground(freeDim ? Dim : CargoDisplay.SelectedBack);
         canvas.Text(5, FreeOrgY + TextBaseline, TextAlign.Left, gameString(GameStrings.CargoBase + 1));
-        canvas.SetForeground(dim ? Dim : CargoDisplay.Worth);
-        canvas.Text(GiveCol + 1, FreeOrgY + TextBaseline, TextAlign.Right, shown.Room is int room ? N(room) : "");
+        canvas.SetForeground(freeDim ? Dim : CargoDisplay.Worth);
+        canvas.Text(GiveCol + 1, FreeOrgY + TextBaseline, TextAlign.Right, free is int room ? N(room) : "");
 
         canvas.SetContext(old);
 

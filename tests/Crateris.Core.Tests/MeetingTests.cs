@@ -473,6 +473,39 @@ public class MeetingTests
     }
 
     [ContentFact]
+    public void AShipSpinningIntoAGroupGivesOnlyTheFuelItsSpinHasLeft()
+    {
+        // Review round 1 (item 3): the spin burns fuel as it drifts, and its
+        // fuel becomes the ship's at its end, so a giver spinning into a group
+        // gives no more than the spin has left; what it gives is conserved.
+        var game = NewGame("g");
+        var world = game.World;
+        var guest = world.Find("g")!.Ship;
+        guest.Flight.PlaceAtUniverse(5830, 6100);   // within a screen of the host
+        GroupBy(world, "h", "URQUAN_SHIP");
+        for (int i = 0; i < 200 && world.MeetingOf("h") is null; ++i)
+            Frames(world, 1);
+        var m = world.MeetingOf("h")!;
+        Assert.Equal(MeetingStep.Spin, m.Step);
+        var ship = world.Host.Ship;
+        ship.Flight.Fuel = 1000;
+        ship.Spin!.Fuel = 995;                      // 5 burnt by the drift so far
+        guest.Flight.Fuel = 0;
+        // What the snapshot sends (the gauge, the giving screen's limit): the spin's.
+        Assert.Equal(995u, world.Snapshot().Ships.Single(s => s.Id == "h").Fuel);
+        Assert.Equal(TradeRefusal.NotEnough, world.Give(new Gift("h", "g", 0, new int[8], 0, Fuel: 1000)));
+        Assert.Equal(TradeRefusal.NotEnough, world.Give(new Gift("h", "g", 0, new int[8], 0, Fuel: 996)));
+        Assert.Equal((1000u, 995u, 0u), (ship.Flight.Fuel, ship.Spin.Fuel, guest.Flight.Fuel));
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("h", "g", 0, new int[8], 0, Fuel: 995)));
+        Assert.Equal((5u, 0u, 995u), (ship.Flight.Fuel, ship.Spin.Fuel, guest.Flight.Fuel));
+        for (int i = 0; i < 100 && m.Step == MeetingStep.Spin; ++i)
+            Frames(world, 1);
+        Assert.NotEqual(MeetingStep.Spin, m.Step);
+        // At its end the ship has the spin's fuel: none; the 995 given are the guest's, no more, no less.
+        Assert.Equal((0u, 995u), (ship.Flight.Fuel, guest.Flight.Fuel));
+    }
+
+    [ContentFact]
     public void APauseDuringTheSpinIntoAGroupDoesntShortenIt()
     {
         // Review round 1: the spin counts its own frames, as the spin back

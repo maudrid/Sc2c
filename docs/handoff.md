@@ -2,21 +2,22 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-22, stage 3b-2 item 3 built (the owner's go-ahead for item 3 only): each player's Melnorme credits (the hold, the snapshot, save version 14, the status lines, gifts at any time, to a player in a talk too), fuel given to a player close by (protocol 28, `differences.md` row 79), the rainbow worlds marked on orbit. Its review comes next. Items 1 and 2 were reviewed in three rounds each and reported.
+**Last updated:** 2026-11-22, stage 3b-2 item 3's review round 1 fixed: a giver spinning into a group gives only what its spin has left (`GameWorld.FuelAboard`, sent in the snapshot too); the giving screen's Free row shows the receiver's tank room while the fuel row is lit (cut from the text below over the lander's gauges); tests of credits and fuel refused in a battle, a story pause and the game over, and of an escort's capped tanks; item 4's notes in the plan. Round 2 comes next. Items 1 and 2 were reviewed in three rounds each and reported.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 3's build).
-- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built, not yet reviewed (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
+- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; review round 1 found no medium or high correctness bug and its findings are fixed; round 2 is next (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (3b-2 item 3's build, 2026-11-22): all topics 2,462 passed, 0 failed, 0 skipped with the content set; the topic map remade; the game builds with the two long-standing warnings; `tools/test_network.py` passed (protocol 28). Not run: the recordings and the data checks (no data or recorded code changed).
+- **Last checks** (3b-2 item 3's review round 1, 2026-11-22): all topics 2,465 passed, 0 failed, 0 skipped with the content set; the topic map remade; the game builds with the two long-standing warnings; windowed `--screenshot` over the lander's gauges with a guest (the Free row's tank room). `tools/test_network.py` passed (protocol 28 still: the snapshot's format is unchanged, only its fuel during a spin into a group). Not run: the recordings and the data checks (no data or recorded code changed).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
 
+- **3c, QuasiSpace and fuel gifts:** `Gift.CloseBy` (`World/Trading.cs`) takes any two ships with no star as both in hyperspace; QuasiSpace (`PlayerShip.ArilouSpaceSide`) must be added to it and to the snapshot when 3c brings it (3b-2 item 3's Progress row).
 - `tools/test_network.py`'s check "host's flagship is where the save left it" failed twice while 3b-1 item 9 was built (a Slylandro probe kept in the first session's save meeting the host after loading; when it reaches the host depends on the real-time joins) and passed in 9 runs since: a rare flake since the probes fly from day one (3b-1 item 8). If it comes back, keep the probes off in the scenario or compare the host's place before any meeting.
 - **Notices to everyone (the owner, 2026-11-21, question 6):** every player is told every notice (those it touches in words of their own, the others in words for anyone); built (3b-1 item 9's Progress row, `differences.md` row 76). Watch in playtesting whether it's too much; if so, add a "near" rule (`GameWorld.IsNear` already says who's near).
 - **Stage 3b-1's left-open points**, by its items (each item's Progress row in `docs/plans/stage-3b.md`):
@@ -65,7 +66,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review item 3 (commit `93bdd71` and the commits after it): a subagent reviews the diff, then fixes and rounds as `CLAUDE.md` says, then report it to the owner. Item 4 (the Melnorme) waits for the owner's go-ahead; it adds its two rescue fields and the broadcaster's use to save version 14 as optional parts (item 3's Progress row).
+Review item 3, round 2: a fresh subagent reviews the round 1 fix commit, then fixes and rounds as `CLAUDE.md` says, then report it to the owner. Item 4 (the Melnorme) waits for the owner's go-ahead; its notes from item 3's review are in its plan text (the answerer's credits read and written live, the rescue fields as version 14's optional parts).
 
 ## Decisions waiting on the owner
 

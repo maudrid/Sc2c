@@ -142,6 +142,37 @@ public class CreditsAndFuelTests
         Assert.Contains("fuel tanks", Gift.Why(TradeRefusal.NoTankRoom));
     }
 
+    [ContentFact]
+    public void AGuestsEscortTakesFuelOnlyUpToItsOwnTanks()
+    {
+        // Review round 1: an escort's tanks are its own modules' (its kit's
+        // tank, and those bought up to the caps), not the flagship's.
+        var world = InHyperspace();
+        var host = world.Host.Ship;
+        var guest = world.Find("guest")!.Ship;
+        Assert.Equal(ShipKind.Escort, guest.Kind);
+        uint kit = Hyperspace.Fuel.Reserve + Hyperspace.Fuel.TankSize;   // the loadout's one tank
+        Assert.Equal((kit, kit), (guest.Modules.FuelCapacity, guest.Flight.FuelCapacity));
+        guest.Flight.Fuel = kit - 200;   // room for 2 units
+        host.Flight.Fuel = host.Flight.FuelCapacity;
+        Assert.True(host.Flight.Fuel > Hyperspace.Fuel.TankSize + 200);   // enough to give past either room
+        Assert.Equal(TradeRefusal.NoTankRoom, world.Give(Fuel("h", "guest", 201)));
+        // A tank bought: room for it too, the giving screen agreeing, and no more.
+        guest.Modules.SetModule(3, ShipModules.FuelTank);
+        guest.Refit();
+        uint tanks = kit + Hyperspace.Fuel.TankSize;
+        Assert.Equal(tanks, guest.Flight.FuelCapacity);
+        var me = new PlayerSession(SystemGroupTests.Systems.Value, null, "h", TestContent.Shapes.HyperFlagship.Count);
+        me.Observe(world.Snapshot());
+        me.ToggleTrade();
+        Assert.Equal(52, me.Trade!.Follow(me.Snapshot, "h").TankRoom);
+        Assert.Equal(TradeRefusal.NoTankRoom, world.Give(Fuel("h", "guest", 5201)));
+        uint hostFuel = host.Flight.Fuel;
+        Assert.Equal(TradeRefusal.None, world.Give(Fuel("h", "guest", 5200)));
+        Assert.Equal((tanks, hostFuel - 5200), (guest.Flight.Fuel, host.Flight.Fuel));
+        Assert.Equal(TradeRefusal.NoTankRoom, world.Give(Fuel("h", "guest", 1)));
+    }
+
     [Fact]
     public void CloseByIsTheSameSystemOrAScreenInHyperspace()
     {

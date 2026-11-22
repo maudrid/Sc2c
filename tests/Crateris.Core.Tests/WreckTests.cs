@@ -548,6 +548,11 @@ public class WreckTests
         Assert.Equal((false, (BattleExit?)null, wb, g2Fuel), (world.Find("g2")!.Present, Fighter(wb, "g2").Exit, g2.Battle, g2.Flight.Fuel));
         Assert.Equal(JoinResult.GameOver, world.Join("g2", "Guest 2"));
         Assert.Equal(TradeRefusal.GameOver, world.Give(new Gift("g1", "host", 1, NoMinerals, 0)));
+        // Credits and fuel too (stage 3b-2 item 3, review round 1).
+        world.Find("g1")!.Ship.Hold.Credits = 10;
+        Assert.Equal(TradeRefusal.GameOver, world.Give(new Gift("g1", "g2", 0, NoMinerals, 0, Credits: 1)));
+        Assert.Equal(TradeRefusal.GameOver, world.Give(new Gift("g1", "g2", 0, NoMinerals, 0, Fuel: 1)));
+        Assert.Equal(10u, world.Find("g1")!.Ship.Hold.Credits);
         Assert.Equal(RescueRefusal.GameOver, world.Revive("g1", "host", 1));
         Assert.False(world.DiscardCargo("g1", 0));
         Assert.Throws<InvalidOperationException>(() => world.StartBattle("g1", Ilwrath));

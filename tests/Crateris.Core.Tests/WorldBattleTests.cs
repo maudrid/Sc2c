@@ -639,6 +639,17 @@ public class WorldBattleTests
         Assert.Equal(TradeRefusal.InBattle, world.Give(Units("host", "g1")));
         Assert.Equal(TradeRefusal.None, world.Give(Units("g2", "g3")));       // between two out of it
         Assert.Equal(new uint[] { 10, 10, 9, 11 }, world.Players.Select(p => p.Ship.Hold.ResourceUnits));
+        // Melnorme credits and fuel too (stage 3b-2 item 3, review round 1), whoever has them.
+        foreach (var p in world.Players)
+            (p.Ship.Hold.Credits, p.Ship.Flight.Fuel) = (10, 1000);
+        Gift Credits(string from, string to) => new(from, to, 0, new int[ShipHold.Categories], 0, Credits: 1);
+        Gift Fuel(string from, string to) => new(from, to, 0, new int[ShipHold.Categories], 0, Fuel: 100);
+        foreach (var (from, to) in new[] { ("g1", "g2"), ("g2", "g1"), ("host", "g1") })
+        {
+            Assert.Equal(TradeRefusal.InBattle, world.Give(Credits(from, to)));
+            Assert.Equal(TradeRefusal.InBattle, world.Give(Fuel(from, to)));
+        }
+        Assert.All(world.Players, p => Assert.Equal((10u, 1000u), (p.Ship.Hold.Credits, p.Ship.Flight.Fuel)));
     }
 
     // ------------------------------------------------------------ with the content
