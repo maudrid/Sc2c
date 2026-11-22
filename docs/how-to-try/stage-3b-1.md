@@ -90,7 +90,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 - **Hyperspace encounters** (item 3): `Hyperspace/HyperEncounters.cs`; frame by frame against UQM's own (`tests/golden/hyperspace-encounters.json`).
 - **System groups** (item 4): `Systems/SystemGroups.cs`; frame by frame (`tests/golden/system-groups.json`).
 - **The meeting** (item 5): `World/Meeting.cs`, `World/GameWorld.Meetings.cs`; recorded from UQM through a talk's and a battle's end in both recordings above.
-- **The talks** (items 6 to 8): `Comm/Scripts/UrquanScript.cs`, `BlackUrquanScript.cs`, `IlwrathScript.cs`, `SpathiScript.cs`, `SlylandroScript.cs`; every path recorded from UQM's own (`tests/golden/talks.json`).
+- **The talks** (items 6 to 8): `Comm/Scripts/UrquanScript.cs`, `BlackUrquanScript.cs`, `IlwrathScript.cs`, `SpathiScript.cs`, `SlylandroScript.cs`; every path recorded from UQM's own (`tests/golden/talks-NAME.json`, one file per script since stage 3b-2 item 1).
 - **Notices** (item 9): `World/WorldNotice.cs`, `World/GameWorld.Notices.cs`; `NoticeTests`.
 - **The wire** (item 10): `World/GroupSnapshot.cs`, `World/MeetingView.cs`, `Net/SnapshotCodec.Groups.cs`; `MeetingWireTests`. Protocol 27.
 - **The client's views** (item 11): `Presentation/EncounterScreen.cs` (the encounter and battle-won screens, call for call against UQM's own, `tests/golden/encounter-screens.json`), `HyperScreen.Group` and `SystemSprites.Group` (`GroupDrawingTests`), the closing lines (`MeetingStep.Closing`); the game's `EncounterView.cs`, `HyperspaceView.cs`, `SystemView.cs`.

@@ -18,7 +18,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// The Kohr-Ah's talk (blackurc.c), whole: the Kohr-Ah met in space, before
 /// and in their frenzy, the Sa-Matra's, once they've killed everyone, and
 /// the endgame's won battle. Every path is checked against UQM's own
-/// script (tests/golden/talks.json).
+/// script (tests/golden/talks-blackur.json).
 /// </summary>
 public sealed class BlackUrquanScript : CommScript
 {

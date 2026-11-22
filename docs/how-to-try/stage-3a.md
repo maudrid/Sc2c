@@ -135,7 +135,7 @@ As in 2b, UQM's own code is recorded and the port must do the same: the scripts 
 | The story state: UQM's 447 fields, the prices, the element worths, the races' standing, the clock's events; saves and snapshots | | `StoryStateTests` |
 | Captain and ship names | | `ShipNamesTests` |
 | The conversations' lines, descriptions and frames as UQM loads them | `conversation-cases.json`, `conversations.json`, `comm-graphics.json` | `ConversationContentTests` |
-| The talk engine and the commander's, the Ilwrath's and the allied commander's scripts | every path: the commander's from 174 starting states, the Ilwrath's, the allied commander's from 260 (`talks.json`) | `TalkTests` |
+| The talk engine and the commander's, the Ilwrath's and the allied commander's scripts | every path: the commander's from 174 starting states, the Ilwrath's, the allied commander's from 260 (`talks.json` then; `talks-comandr.json`, `talks-ilwrath.json` and `talks-starbas.json` since stage 3b-2 item 1) | `TalkTests` |
 | The opening's sequence, the Lunar base, story pauses and who replies | | `OpeningTests`, the network test |
 | The dialogue lock | | `DialogueLockTests` |
 | The allied starbase: docking, the menu, outfitting, the shipyard's crew, renaming | 129 outfitting scenarios (`outfit.json`) | `StarbaseTests`, `OutfitTests` |

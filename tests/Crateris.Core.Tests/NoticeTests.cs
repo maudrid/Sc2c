@@ -530,6 +530,80 @@ public class NoticeTests
         Assert.DoesNotContain(group, world.Encounters!.List);
     }
 
+    // A talk that makes the Orz's alliance (twice: told once) and gives two
+    // Orz ships as it opens, and with its one reply ends the alliance and
+    // takes them back (orzc.c's way).
+    private sealed class EffectsScript : CommScript
+    {
+        public EffectsScript(ConversationScript phrases) : base(phrases)
+        {
+        }
+
+        public bool SawThem;
+
+        private int Orz => T.Story.Rules.RaceIndex("ORZ_SHIP");
+
+        protected internal override void Init() => T.SetSegue(Comm.Segue.Peace);
+
+        protected internal override void Intro()
+        {
+            NPCPhrase("HELLO");
+            T.SetRaceAllied(Orz, true);
+            T.SetRaceAllied(Orz, true);
+            T.AddEscortShips(Orz, 2);
+            SawThem = T.HaveEscortShip(Orz) && !T.EscortFleetEmpty;
+            Response("ask", TakeBack);
+        }
+
+        private void TakeBack(int r)
+        {
+            T.SetRaceAllied(Orz, false);
+            T.RemoveEscortShips(Orz);
+        }
+    }
+
+    [ContentFact]
+    public void AnotherPlayersTalkMakingAnAllianceAndGivingAndTakingShipsIsToldToEveryoneElse()
+    {
+        // The stage 3b-2 plan's item 1: an alliance made or ended, ships given
+        // to the host's fleet or taken from it, told to every player but the
+        // talker (the owner's question 6, 2026-11-21: everyone); a guest's
+        // talk gives to, sees and takes from the host's fleet (question 4).
+        var world = InHyperspace("g", "k");
+        var scripts = ConversationScripts.Load(DataDir);
+        var plain = scripts["comandr"].Description with { Ambient = Array.Empty<CommAnimation>() };
+        EffectsScript? script = null;
+        world.MeetingTalks = (player, _, seed) =>
+        {
+            var phrases = new ConversationScript("probe", "init_probe_comm", plain, new[] { "HELLO", "BYE", "ask" });
+            script = new EffectsScript(phrases);
+            return new Talk(script, plain, Content.Conversation.Parse("#(HELLO)\nHello\n#(BYE)\nBye\n#(ask)\nWhat?\n"u8), 2,
+                world.Story!, new Dictionary<string, int>(), new PlayerTalkShip(player, Library.Value.Strings, world), world.Clock, seed,
+                _ => true);
+        };
+        GroupBy(world, "g", "SPATHI_SHIP");
+        var m = Meet(world, "g");
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        Assert.True(script!.SawThem);
+        Assert.Equal((Story.Allied.Good, 2), (world.Story!.Alliance("ORZ_SHIP"), world.Fleet.CountOf("ORZ_SHIP")));
+        Assert.Equal(new[]
+        {
+            ("h", "g is meeting the Spathi."), ("k", "g is meeting the Spathi."),
+            ("h", "g made an alliance with the Orz: their ships are for sale at the starbase."),
+            ("k", "g made an alliance with the Orz: their ships are for sale at the starbase."),
+            ("h", "2 Orz ships joined the fleet (g's talk)."), ("k", "2 Orz ships joined the fleet (g's talk)."),
+        }, Told(world));
+        Assert.True(world.ChooseReply("g", 0));
+        Assert.Equal((Story.Allied.Bad, 0), (world.Story.Alliance("ORZ_SHIP"), world.Fleet.CountOf("ORZ_SHIP")));
+        Assert.Equal(new[]
+        {
+            ("h", "The alliance with the Orz is over (g's talk): their ships are no longer for sale."),
+            ("k", "The alliance with the Orz is over (g's talk): their ships are no longer for sale."),
+            ("h", "2 Orz ships left the fleet (g's talk)."), ("k", "2 Orz ships left the fleet (g's talk)."),
+            ("h", "g made peace with the Spathi."), ("k", "g made peace with the Spathi."),
+        }, Told(world));
+    }
+
     // A meeting of the guest "g" with a group by them whose talk ends as given (after its one reply).
     private static Meeting TalkEnding(GameWorld world, Comm.Segue end, HyperEncounter group)
     {

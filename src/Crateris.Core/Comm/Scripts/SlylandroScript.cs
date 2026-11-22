@@ -24,7 +24,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// makes it destroy itself: an instant victory. Asked who it is a fourth
 /// time, it says where it is, in its own coordinates (relative to B Corvi),
 /// spoken with its number speech. Every path is checked against UQM's own
-/// script (tests/golden/talks.json).
+/// script (tests/golden/talks-slyland.json).
 /// </summary>
 public sealed class SlylandroScript : CommScript
 {

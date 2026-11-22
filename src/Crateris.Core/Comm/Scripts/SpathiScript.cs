@@ -22,7 +22,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// escorts alone in his Eluder. Orbiting Spathiwa's moon runs another
 /// script, the Spathi at home (spahome.c, init_race by
 /// GLOBAL_FLAGS_AND_DATA bit 7), which is 3b-2's. Every path is checked
-/// against UQM's own script (tests/golden/talks.json).
+/// against UQM's own script (tests/golden/talks-spathi.json).
 /// </summary>
 public sealed class SpathiScript : CommScript
 {

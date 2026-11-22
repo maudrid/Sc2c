@@ -25,7 +25,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// HyperWave Broadcaster's to a ship (bit 5) or to the homeworld (bit 4,
 /// the "gods" ordering the Ilwrath against the Thraddash:
 /// ADVANCE_ILWRATH_MISSION, set aside until 3c runs it). Every path is
-/// checked against UQM's own script (tests/golden/talks.json).
+/// checked against UQM's own script (tests/golden/talks-ilwrath.json).
 /// </summary>
 public sealed class IlwrathScript : CommScript
 {

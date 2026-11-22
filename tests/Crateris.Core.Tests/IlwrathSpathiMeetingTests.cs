@@ -501,6 +501,21 @@ public class IlwrathSpathiMeetingTests
         Assert.Equal(2, world.Story.Get("FOUND_PLUTO_SPATHI"));
     }
 
+    [ContentFact]
+    public void AMeetingsTalkIsGivenItsAnswerersArilouSpaceSide()
+    {
+        // ARILOU_SPACE_SIDE, each ship's own (the stage 3b-2 plan's item 1):
+        // the answerer's, in normal space (0) until stage 3c's QuasiSpace sets it.
+        var world = NewGame();
+        var talk = world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1)!;
+        Assert.Equal(0, talk.OwnFields["ARILOU_SPACE_SIDE"]);
+        world.Host.Ship.ArilouSpaceSide = 2;
+        talk = world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1)!;
+        Assert.Equal(2, talk.OwnFields["ARILOU_SPACE_SIDE"]);
+        Assert.Equal(2, talk.Get("ARILOU_SPACE_SIDE"));
+        Assert.True(StoryState.NotShared.ContainsKey("ARILOU_SPACE_SIDE"));   // kept out of the shared story
+    }
+
     [ContentTheory]
     [InlineData(1, "WILL_JOIN")]
     [InlineData(0, "TOO_SCARY")]

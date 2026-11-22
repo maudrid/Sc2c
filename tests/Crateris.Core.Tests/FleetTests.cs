@@ -229,6 +229,72 @@ public class FleetTests
         Assert.Equal((12, 0), (world.Fleet.Count, talks.EscortRoom));
     }
 
+    [ContentFact]
+    public void TheTalksShipLooksInAndTakesFromTheHostsFleetWhoeverAnswers()
+    {
+        // The stage 3b-2 plan's question 4: CountEscortShips, HaveEscortShip,
+        // GetHeadLink and RemoveEscortShips read and change the host's fleet,
+        // a guest's talk too (a guest sees the host's escorts).
+        var world = World(2);
+        world.AddFleetShips(Spathi, 1);
+        world.AddFleetShips(Arilou, 2);
+        world.AddFleetShips(Spathi, 1);
+        var strings = Library.Value.Strings;
+        var guestShip = new PlayerTalkShip(world.Find("g1")!, strings, world);
+        int spathi = Rules.RaceIndex(Spathi), arilou = Rules.RaceIndex(Arilou);
+        Assert.Equal(new[] { spathi, arilou, arilou, spathi }, guestShip.EscortRaces);
+        Assert.Equal(1, guestShip.RemoveEscorts(spathi, 1));   // the first first
+        Assert.Equal(new[] { Arilou, Arilou, Spathi }, world.Fleet.Ships.Select(s => s.Race));
+        Assert.Equal(0, guestShip.RemoveEscorts(Rules.Races.Count, 5));   // no such race
+        Assert.Equal(0, guestShip.RemoveEscorts(-1, 5));
+        Assert.Equal(2, guestShip.RemoveEscorts(arilou, 0xFFFF));
+        Assert.Equal(new[] { spathi }, new PlayerTalkShip(world.Host, strings, world).EscortRaces);
+
+        // The answerer's ship: a ship the talks gave and took back again isn't
+        // among those an opening taken back would take from the fleet.
+        var answerer = world.Find("g1")!;
+        var talks = new AnswererTalkShip(() => answerer, strings, world);
+        Assert.Equal(2, talks.AddEscorts(arilou, 2, Counting()));
+        Assert.Equal(2, talks.EscortsAdded.Count);
+        Assert.Equal(new[] { arilou, arilou, spathi }, talks.EscortRaces);   // into the free slots, before the Spathi's
+        Assert.Equal(1, talks.RemoveEscorts(spathi, 0xFFFF));   // not one the talks gave
+        Assert.Equal(2, talks.EscortsAdded.Count);
+        Assert.Equal(2, talks.RemoveEscorts(arilou, 0xFFFF));
+        Assert.Empty(talks.EscortsAdded);
+        Assert.Empty(talks.EscortRaces);
+    }
+
+    [ContentFact]
+    public void TheTalksShipsBioDataIsTheAnswerersAndTakenBackWithTheirChanges()
+    {
+        // ITalkShip.BioData is writable (the Umgah's reward, the Melnorme's
+        // buying): the answerer's hold's, and an opening taken back takes the
+        // talks' change back from each ship.
+        var world = World(2);
+        var strings = Library.Value.Strings;
+        var host = world.Host;
+        var guest = world.Find("g1")!;
+        host.Ship.Hold.SetBioData(10);
+        new PlayerTalkShip(guest, strings, world).BioData = 5;
+        Assert.Equal(5, guest.Ship.Hold.BioData);
+        var answerer = host;
+        var talks = new AnswererTalkShip(() => answerer, strings, world);
+        talks.BioData += 200;
+        answerer = guest;
+        talks.BioData = 0;
+        Assert.Equal((210, 0), (host.Ship.Hold.BioData, guest.Ship.Hold.BioData));
+        Assert.Equal(200, talks.Changes[host].BioData);
+        Assert.Equal(-5, talks.Changes[guest].BioData);
+        // Without the talks (a save during an opening), and taken back.
+        Assert.Equal(10, talks.Changes[host].Without(host.Ship.Hold.Save(), 0, 50).Hold.BioData);
+        host.Ship.Hold.SetBioData(150);   // sold meanwhile, say: no lower than 0
+        talks.Changes[host].TakeBackFrom(host.Ship);
+        talks.Changes[guest].TakeBackFrom(guest.Ship);
+        Assert.Equal((0, 5), (host.Ship.Hold.BioData, guest.Ship.Hold.BioData));
+        Assert.Throws<ArgumentOutOfRangeException>(() => host.Ship.Hold.SetBioData(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => host.Ship.Hold.SetBioData(65536));
+    }
+
     [Fact]
     public void AddingOutsideATalkNeedsTheStorysRules()
     {
@@ -291,6 +357,8 @@ public class FleetTests
         Assert.Equal(new[] { Arilou, Arilou, Arilou }, world.Fleet.Ships.Select(s => s.Race));
         Assert.Equal(new[] { 0, 1, 2 }, world.Fleet.Ships.Select(s => s.Slot));
         Assert.All(world.Fleet.Ships, s => Assert.Equal(6, s.Crew));
+        // The menu's talk is the guest's alone (not story): the host is told (the stage 3b-2 plan's item 1).
+        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "host" && n.Text == "3 Arilou ships joined the fleet (Guest's talk).");
         // The captains are named from the talk's own generator (NameCaptain's TFB_Random), drawn just before.
         int at = events.ToList().IndexOf(added);
         var drawn = events.Take(at).Reverse().TakeWhile(e => e is RandomDrawn).Reverse().Cast<RandomDrawn>().Select(r => r.Value).ToList();

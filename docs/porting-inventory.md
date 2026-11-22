@@ -114,28 +114,28 @@ Per-race conversation scripts. All are **Both** (tree is code, lines are content
 | Script dir (`src/uqm/comm/`) | Conversation id | Content id | Lines of C | `SET_GAME_STATE` calls | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `arilou` | `ARILOU_CONVERSATION` | `comm.arilou` | 855 | 40 | QuasiSpace, portal spawner |
-| `blackur` | `BLACKURQ_CONVERSATION` | `comm.kohrah` | 567 | 13 | Also the game-over talk once the Kohr-Ah have killed everyone (`KOHR_AH_KILLED_ALL`, 3c). **Ported (stage 3b-1 item 6):** `BlackUrquanScript.cs`, all of it, every path recorded (`talks.json`); ordinary (`TalkRules`), their groups flying and met |
+| `blackur` | `BLACKURQ_CONVERSATION` | `comm.kohrah` | 567 | 13 | Also the game-over talk once the Kohr-Ah have killed everyone (`KOHR_AH_KILLED_ALL`, 3c). **Ported (stage 3b-1 item 6):** `BlackUrquanScript.cs`, all of it, every path recorded (`talks-blackur.json`); ordinary (`TalkRules`), their groups flying and met |
 | `chmmr` | `CHMMR_CONVERSATION` | `comm.chmmr` | 641 | 14 | Flagship refit: story. Also the default case in `init_race` (`commglue.c`) |
 | `comandr` | `COMMANDER_CONVERSATION` (before starbase is available) | `comm.commander` | 694 | 19 | Opening of the game: story. **Ported (stage 3a):** `CommanderScript.cs` |
 | `starbas` | `COMMANDER_CONVERSATION` (after) | `comm.starbase` | 1961 | 43 | Largest script; story when a visit brings it on arrival (the starbase ready; the bomb installed, 3c), ordinary from the starbase's menu. **Ported (stage 3a):** `StarbaseScript.cs`, all of it |
 | `druuge` | `DRUUGE_CONVERSATION` | `comm.druuge` | 926 | 37 | Trades ships and crew: wallet and fleet effects |
-| `ilwrath` | `ILWRATH_CONVERSATION` | `comm.ilwrath` | 649 | 7 | **Opening branch ported (stage 3a):** `IlwrathScript.cs`, the ship at Earth (`PROBE_ILWRATH_ENCOUNTER`): story. **All of it ported (stage 3b-1 item 7):** met in space, at the homeworld (`genilw.c`'s orbit, against an infinite fleet), the Chmmr's and the broadcaster's branches (3b-2's, recorded but not reachable yet; `AddEvent`'s `ADVANCE_ILWRATH_MISSION` set aside until 3c), every path recorded (`talks.json`); ordinary but the opening's (`TalkRules`), their groups flying and met |
+| `ilwrath` | `ILWRATH_CONVERSATION` | `comm.ilwrath` | 649 | 7 | **Opening branch ported (stage 3a):** `IlwrathScript.cs`, the ship at Earth (`PROBE_ILWRATH_ENCOUNTER`): story. **All of it ported (stage 3b-1 item 7):** met in space, at the homeworld (`genilw.c`'s orbit, against an infinite fleet), the Chmmr's and the broadcaster's branches (3b-2's, recorded but not reachable yet; `AddEvent`'s `ADVANCE_ILWRATH_MISSION` set aside until 3c), every path recorded (`talks-ilwrath.json`); ordinary but the opening's (`TalkRules`), their groups flying and met |
 | `melnorm` | `MELNORME_CONVERSATION` | `comm.melnorme` | 1855 | 50 | Trading, see above |
 | `mycon` | `MYCON_CONVERSATION` | `comm.mycon` | 643 | 11 | |
 | `orz` | `ORZ_CONVERSATION` | `comm.orz` | 898 | 32 | |
 | `pkunk` | `PKUNK_CONVERSATION` | `comm.pkunk` | 1148 | 41 | |
 | `rebel` | `YEHAT_REBEL_CONVERSATION` | `comm.yehat.rebel` | 449 | 6 | |
 | `shofixt` | `SHOFIXTI_CONVERSATION` | `comm.shofixti` | 652 | 20 | |
-| `slyland` | `SLYLANDRO_CONVERSATION` | `comm.probe` | 518 | 7 | **Ported (stage 3b-1 item 8):** `SlylandroScript.cs`, all of it (the probe's hello by its visits, its five replies each answered by its count, the destruct code's instant victory, its place on the star map spoken with its number speech: `Talk.NPCNumber`'s `NPCNumberPhrase`, `NumberSpeech`), every path recorded (`talks.json`); ordinary (`TalkRules`), the probes flying and met in hyperspace and systems |
+| `slyland` | `SLYLANDRO_CONVERSATION` | `comm.probe` | 518 | 7 | **Ported (stage 3b-1 item 8):** `SlylandroScript.cs`, all of it (the probe's hello by its visits, its five replies each answered by its count, the destruct code's instant victory, its place on the star map spoken with its number speech: `Talk.NPCNumber`'s `NPCNumberPhrase`, `NumberSpeech`), every path recorded (`talks-slyland.json`); ordinary (`TalkRules`), the probes flying and met in hyperspace and systems |
 | `slyhome` | `SLYLANDRO_HOME_CONVERSATION` | `comm.slylandro` | 921 | 38 | |
-| `spathi` | `SPATHI_CONVERSATION` (away from home) | `comm.spathi` | 834 | 14 | **Ported (stage 3b-1 item 7):** `SpathiScript.cs`, all of it (met in space by `SPATHI_MANNER`, and Fwiffo on Pluto, 3c's start, with `SetEscortCrewComplement`), every path recorded (`talks.json`); ordinary (`TalkRules`), their groups flying and met. Spathiwa's moon runs `spahome` (`init_race`, `GLOBAL_FLAGS_AND_DATA` bit 7), 3b-2's |
+| `spathi` | `SPATHI_CONVERSATION` (away from home) | `comm.spathi` | 834 | 14 | **Ported (stage 3b-1 item 7):** `SpathiScript.cs`, all of it (met in space by `SPATHI_MANNER`, and Fwiffo on Pluto, 3c's start, with `SetEscortCrewComplement`), every path recorded (`talks-spathi.json`); ordinary (`TalkRules`), their groups flying and met. Spathiwa's moon runs `spahome` (`init_race`, `GLOBAL_FLAGS_AND_DATA` bit 7), 3b-2's |
 | `spahome` | `SPATHI_CONVERSATION` (at Spathiwa) | `comm.safeones` | 1018 | 38 | |
 | `supox` | `SUPOX_CONVERSATION` | `comm.supox` | 708 | 30 | |
 | `syreen` | `SYREEN_CONVERSATION` | `comm.syreen` | 878 | 25 | |
 | `talkpet` | `TALKING_PET_CONVERSATION` | `comm.talkingpet` | 841 | 22 | |
 | `thradd` | `THRADD_CONVERSATION` | `comm.thraddash` | 954 | 44 | |
 | `umgah` | `UMGAH_CONVERSATION` | `comm.umgah` | 729 | 13 | |
-| `urquan` | `URQUAN_CONVERSATION`, `URQUAN_DRONE_CONVERSATION` | `comm.urquan` | 555 | 11 | Also the drone's message at Earth and the surrender (`Segue_defeat`). **Ported (stage 3b-1 item 6):** `UrquanScript.cs`, all of it, every path recorded (`talks.json`); ordinary (`TalkRules`); the talk reads where it is (`Talk.Activity`, `Talk.BattleGroup`: the drone, the colony's guard, the Sa-Matra's); their groups and the drone flying and met |
+| `urquan` | `URQUAN_CONVERSATION`, `URQUAN_DRONE_CONVERSATION` | `comm.urquan` | 555 | 11 | Also the drone's message at Earth and the surrender (`Segue_defeat`). **Ported (stage 3b-1 item 6):** `UrquanScript.cs`, all of it, every path recorded (`talks-urquan.json`); ordinary (`TalkRules`); the talk reads where it is (`Talk.Activity`, `Talk.BattleGroup`: the drone, the colony's guard, the Sa-Matra's); their groups and the drone flying and met |
 | `utwig` | `UTWIG_CONVERSATION` | `comm.utwig` | 996 | 55 | Most state writes |
 | `vux` | `VUX_CONVERSATION` | `comm.vux` | 796 | 25 | |
 | `yehat` | `YEHAT_CONVERSATION` | `comm.yehat` | 685 | 27 | |
