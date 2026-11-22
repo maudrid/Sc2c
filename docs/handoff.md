@@ -2,17 +2,17 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-22, stage 3b-2 item 3's review round 2 fixed: a receiver spinning into a group has the spin's room, as the giving screen shows it (the flight taking the gift up to its tanks); tests of a meeting abandoned mid-spin after a gift and of gifts with a ship spinning into a star; a note on a save during a starbase visit (item 3's Progress row). Round 3 comes next. Round 1's fixes (a spinning giver gives only its spin's fuel, the tank room on the Free row, the refusal and escort tests, item 4's notes) are in the plan. Items 1 and 2 were reviewed in three rounds each and reported.
+**Last updated:** 2026-11-22, stage 3b-2 item 3's review round 3 fixed: no correctness bug; the starbase-visit note's wording made exact and a mid-spin save checked within the tanks (item 3's Progress row). Round 4 comes next. Rounds 1 and 2's fixes are in the plan. Items 1 and 2 were reviewed in three rounds each and reported.
 
 ## Where things are
 
-- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 3's review round 2 fixes).
-- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; review rounds 1 and 2 found no correctness bug of medium or high weight and their findings are fixed; round 3 is next (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
+- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 3's review round 3 fixes).
+- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; review rounds 1 to 3 found no correctness bug of medium or high weight and their findings are fixed; round 4 is next (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (3b-2 item 3's review round 2, 2026-11-22): all topics 2,468 passed, 0 failed, 0 skipped with the content set; the topic map remade; the game builds with the two long-standing warnings. Not run: `tools/test_network.py` (nothing on the wire changed; it passed after round 1, protocol 28), the recordings and the data checks (no data or recorded code changed).
+- **Last checks** (3b-2 item 3's review round 3, 2026-11-22): all topics 2,468 passed, 0 failed, 0 skipped with the content set; the topic map remade. Not run for these fixes (a test's assertion and docs): the game build, `tools/test_network.py` (nothing on the wire changed; it passed after round 1, protocol 28), the recordings and the data checks.
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
@@ -66,7 +66,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review item 3, round 3: a fresh subagent reviews the round 2 fix commit, then fixes and rounds as `CLAUDE.md` says, then report it to the owner. Item 4 (the Melnorme) waits for the owner's go-ahead; its notes from item 3's review are in its plan text (the answerer's credits read and written live, the rescue fields as version 14's optional parts).
+Review item 3, round 4: a fresh subagent reviews the round 3 fix commit, then fixes and rounds as `CLAUDE.md` says, then report it to the owner. Item 4 (the Melnorme) waits for the owner's go-ahead; its notes from item 3's review are in its plan text (the answerer's credits read and written live, the rescue fields as version 14's optional parts).
 
 ## Decisions waiting on the owner
 

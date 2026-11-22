@@ -540,6 +540,10 @@ public class MeetingTests
         // Conserved: the guest's 1000 are what the host's fuel will be by; the flight's up to its tanks.
         Assert.Equal((4000u, cap - 10, cap), (guest.Flight.Fuel, ship.Spin.Fuel, ship.Flight.Fuel));
         Assert.Equal(TradeRefusal.NoTankRoom, world.Give(new Gift("g", "h", 0, new int[8], 0, Fuel: 11)));
+        // A save meanwhile (the flight's place and fuel) stays within the tanks (review round 3).
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems.Value, TestContent.Shapes);
+        Assert.Equal(cap, saved.Host.Ship.Flight.Fuel);
+        Assert.True(saved.Host.Ship.Flight.Fuel <= saved.Host.Ship.Flight.FuelCapacity);
         uint last = ship.Spin.Fuel;
         for (int i = 0; i < 100 && m.Step == MeetingStep.Spin; ++i)
         {
