@@ -1,6 +1,6 @@
 # Stage 3b-2 plan: the races
 
-**Status:** draft, 2026-11-21, for the owner's review. Nothing in it is built. The open questions are at the end, each with a recommendation; the plan as written follows the recommendations.
+**Status:** draft, 2026-11-21, for the owner's review; question 7 answered by the owner on 2026-11-22. Nothing in it is built. The open questions are at the end, each with a recommendation; the plan as written follows the recommendations.
 
 Build order item: the second part of stage 3b (`docs/design.md`; `docs/plans/stage-3b.md`, decision 1). 3b-1 built the engine: the clock's events, the fleets, hyperspace encounters, system groups, the meeting (encounter screen, talk, battle, battle-won screen), notices and five scripts. 3b-2 is mostly scripts on that engine: the other 20 conversations, the worlds that start them, what they do to the game, and the Melnorme's trading.
 
@@ -22,7 +22,7 @@ Stage 3a's, stage 4's, stage 4b's and 3b-1's decisions hold here unless a questi
 - Fly into any race's sphere and meet its ships: each race talks and fights as in UQM. `--start-encounter SHIP` (a ship id from `data/ships.json`) brings a group of any race with a talk in space. From item 11 it refuses a race UQM gives no talk in space (`RACE_COMMUNICATION`'s `INVALID_CONVERSATION`: the Syreen, the humans), with a message. A Shofixti group runs Tanaka's talk, and a Chmmr group the Chmmr's, as UQM would.
 - Orbit a race's homeworld: its talk, against its infinite fleet if it comes to a fight. Orbit Spathiwa's moon, the Slylandro gas giant and the Syreen's starbase: their talks.
 - Make an alliance (the Orz, the Zoq-Fot-Pik, the Spathi with the password, the Thraddash after 25 of their ships destroyed): the race's ships go on sale at the starbase. Win the Pkunk's friendship: they aren't allied in UQM (`pkunkc.c` never calls `SetRaceAllied`), but they give 4 ships, and more each year. Gifts of ships arrive in the host's fleet. Every player is told.
-- Run out of fuel in hyperspace: the Melnorme may come, and they strip the ship in exchange for fuel to get home. Fly into a super giant's system: a Melnorme ship is there. Trade with them:
+- Run out of fuel in hyperspace: the Melnorme may come, and they strip the ship in exchange for fuel to get home, even while another player is trading with them. Or a friend flies over and gives you fuel from their own tanks. Fly into a super giant's system: a Melnorme ship is there. Trade with them:
   - sell bio data and rainbow worlds for credits;
   - buy fuel, lander upgrades, modules and information;
   - another player can top up the trader's credits mid-talk.
@@ -162,7 +162,8 @@ New in this plan (each an open question below, written here as recommended):
 - **Ships in the fleet.** `HaveEscortShip`, `EscortFeasibilityStudy` and `RemoveEscortShips` read and change the host's fleet, where gifts go (question 4).
 - **Melnorme technology.** A module bought from the Melnorme goes on sale for everyone, as the shared module prices already do. A lander upgrade is the answering ship's. The catalog offers the first item the answering ship lacks (question 5).
 - **Rainbow worlds and the Melnorme's anger** stay shared, as story flags are: a world is paid for once, to whoever sells it first; one player angering the Melnorme angers them with everyone (question 6 asks the owner to confirm).
-- **The Melnorme's rescue.** A refused rescue is that player's own; a rescuer that touches a player while another player trades with the Melnorme follows them until that talk ends (question 7).
+- **The Melnorme's rescue** (the owner, 2026-11-22, question 7). A rescue-only talk takes no lock: a stranded player who has met the Melnorme, hasn't angered them and has nothing to trade (no fuel, bio data, credits or unsold rainbow worlds) is rescued even while another player talks to them. Its fields (`MELNORME_RESCUE_REFUSED`, `MELNORME_RESCUE_COUNT`) are each player's own. Any other Melnorme meeting takes the lock as decided: a rescuer that touches a player while another trades follows them until that talk ends.
+- **Fuel between players** (the owner, 2026-11-22). A player can give fuel from their own tanks to a player close by: within a screen of each other in hyperspace, or in the same system (as minerals are given). UQM has no such thing.
 - **The Thraddash's body count** counts every player's kills in a battle with them (question 9).
 
 ## Work, in order
@@ -184,6 +185,7 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
    - The Evil Ones' count on Spathiwa's moon (question 2).
 3. **Melnorme credits.**
    - Each player's balance: the hold, the save (version up), the snapshot, the status line's credits mode, gifts between players (`Trading`), mid-talk too.
+   - Fuel given between players close by (question 7's answer): a new kind of gift in `Trading`, within a screen in hyperspace or in the same system, up to the giver's fuel and the receiver's room, with its refusals (too far, no room, none to give); the wire and the client's gift screen.
    - The rainbow worlds marked on orbit (`genrain.c`).
    - No talk and no Melnorme ships yet (3b-1, decision 2: a race's ships appear once its talk is ported).
 4. **The Melnorme.** `melnorm.c` whole, recorded over a matrix of states (anger, fuel, bio data, credits, new rainbow worlds, the catalog's place, the information stacks, the strip):
@@ -191,7 +193,8 @@ Each item is ported, recorded from UQM and reviewed as 3b-1's items were. Each i
    - trading: fuel by the ship's own tanks, the technology catalog, information with its story flags;
    - selling bio data (the count-down on the cargo display, skipped by a key) and rainbow worlds;
    - anger and its battles;
-   - the rescue's `StripShip` with its own seeded generator, measured to Sol from the answering ship, its worth and strip read from that ship's own slots (a guest's escort: its kit's pieces, its capped tanks, its kit crew; stage 4 item 8's note); `MELNORME_RESCUE_REFUSED` made each player's own (question 7);
+   - the rescue's `StripShip` with its own seeded generator, measured to Sol from the answering ship, its worth and strip read from that ship's own slots (a guest's escort: its kit's pieces, its capped tanks, its kit crew; stage 4 item 8's note); `MELNORME_RESCUE_REFUSED` and `MELNORME_RESCUE_COUNT` made each player's own (question 7);
+   - the rescue-only talk (question 7's answer): when another player holds the Melnorme's lock and the stranded player has met them, hasn't angered them (`MELNORME_ANGER` 0) and has nothing to trade, the meeting skips the lock and UQM's greeting and goes straight to `NatureOfConversation`'s rescue branch (the rescue lines or "changed your mind?", then the strip offer); it touches only that ship and that player's own fields, so two Melnorme talks can run at once; a `differences.md` row;
    - `ok_strip_me`: a whole ship stripped to calm their anger;
    - the out-of-fuel rule meeting the talk, and the broadcaster flag made its user's;
    - their nine super-giant groups flying (row 68's special groups).
@@ -293,10 +296,8 @@ Each has a recommendation (first) and the plan as written follows it. The owner'
 6. **Rainbow worlds and the Melnorme's anger: confirm they stay shared.** Both are story fields, and story flags are shared (row 36), so these follow from rules already approved; the question is only whether the Melnorme should be an exception.
    - **Shared (recommended).** A rainbow world (500 credits) is found once for the group and paid for once, to whoever sells it first; the seller can give the credits on. Angering the Melnorme (up to `MELNORME_ANGER` 3, which also stops their coming to ships out of fuel) angers them with everyone, and every player is told. To calm them, any player can offer their ship to be stripped whole (`ok_strip_me`), whoever angered them.
    - Per player, as an exception: each player sells the worlds they orbited themselves (the group can be paid several times for one world), and each keeps their own standing with the Melnorme (the one race that would remember players apart).
-7. **The Melnorme's rescue of a ship out of fuel.** UQM's Melnorme greet a ship that refused their rescue with "changed your mind?" (`MELNORME_RESCUE_REFUSED`). They're also one race under one dialogue lock: under 3b-1's decision 5, a group whose race is in another player's talk passes through a player it touches.
-   - **A refused rescue is that player's own (a field kept out of the story, as the credits are); a rescuer that touches a stranded player while another player is talking to the Melnorme passes through, keeps following them, and meets them once that talk is over (recommended):** the lock as decided, and nobody is left stranded by another's long trade.
-   - The refusal shared, as UQM's: a second stranded player is greeted as if they had refused.
-   - The rescue exempt from the lock: two Melnorme talks at once, against decision 5.
+7. **The Melnorme's rescue of a ship out of fuel. Answered (the owner, 2026-11-22).** The owner asked for the rescue to skip the one-race lock where it has no other consequences, and for players to be able to rescue each other with fuel. Checked in `melnorm.c`: the rescue branch only strips the answering ship, gives it fuel and sets two fields (the refusal and a count that picks the line), but every meeting runs the greeting first. A first meeting's small talk can anger them, an angry Melnorme's talk ends in a fight or a strip, and a ship with anything to trade gets the full trade menu, whose purchases are shared (`NatureOfConversation`, `melnorm.c:1324`).
+   - **Decided:** a rescue-only talk (met before, anger 0, nothing to trade) skips the lock and the greeting and goes straight to the rescue; its two fields are each player's own; any other meeting takes the lock, the rescuer following until it's free (item 4). Players can give fuel to a player close by (item 3).
 8. **The Chmmr.** Every way to them is 3c's: the broadcaster, the Sun Device, the bomb. Their `proceed` branch rebuilds the flagship as the bomb ship, takes its landers, gives 1,000,000 RU, moves it to Earth and runs 14 days.
    - **Port and record their talk in 3b-2, and leave its entries and the bomb ship to 3c, with a question then about whose ship carries the bomb (recommended).**
    - Leave the whole script to 3c.
