@@ -69,7 +69,7 @@ Wait for the owner. Stage 3b-1 is built (items 1 to 12, each reported). At the o
 
 ## Decisions waiting on the owner
 
-Nine of the ten open questions of `docs/plans/stage-3b-2.md` (question 7 answered by the owner on 2026-11-22: a rescue-only Melnorme talk skips the lock; fuel given between players close by): 3c's branches ported whole; the rainbow worlds and the Evil Ones' count brought in; 3c's events left set aside; the host's fleet for the escort checks; the Melnorme's catalog; rainbow worlds and the Melnorme's anger shared; the Chmmr; the Thraddash's body count; the items' order), and the plan as a whole.
+Nine of the ten open questions of `docs/plans/stage-3b-2.md` (question 7 answered by the owner on 2026-11-22: a rescue-only Melnorme talk skips the lock; fuel given between players close by): 3c's branches ported whole; the rainbow worlds and the Evil Ones' count brought in; 3c's events left set aside; the host's fleet for the escort checks; the Melnorme's catalog; rainbow worlds and the Melnorme's anger shared; the Chmmr; the Thraddash's body count; the items' order; and the plan as a whole.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
