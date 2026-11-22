@@ -65,10 +65,14 @@ public sealed partial class GameWorld
     /// Spathiwa run spahome.c, 3b-2's: <see cref="TalkLibrary.ScriptFor"/>);
     /// null while that script isn't ported.
     /// </summary>
-    internal Talk? RaceTalk(Player player, int race, uint seed, int globalFlags)
+    internal Talk? RaceTalk(Player player, int race, uint seed, int globalFlags) =>
+        RaceScript(race, globalFlags) is null ? null : ConversationTalk(player, ConversationOf(race)!, seed, globalFlags);
+
+    // A conversation's talk with the answerer's ship and the talk's own
+    // fields, its script ported (RaceScript, WorldScript: checked first).
+    private Talk ConversationTalk(Player player, string conversation, uint seed, int globalFlags)
     {
-        if (RaceScript(race, globalFlags) is not { } script)
-            return null;
+        string script = TalkLibrary.ScriptFor(TalkLibrary!.Scripts, conversation, Story!, globalFlags);
         if (TalkRules.IsStory(script, Story!))
             throw new InvalidOperationException($"the {script} talk is story: a race met in space starts an ordinary talk");
         // The talk's own fields: where it is, and the answerer's
@@ -90,93 +94,6 @@ public sealed partial class GameWorld
             return null;
         string script = TalkLibrary.ScriptFor(library.Scripts, conversation, story, globalFlags);
         return TalkLibrary.Ported.Contains(script) ? script : null;
-    }
-
-    /// <summary>
-    /// The worlds whose orbit starts a race's talk against an infinite
-    /// fleet of its ships (stage 3b-1 item 7), by the special system, the
-    /// planet and the moon: the Ilwrath homeworld (genilw.c) and Spathiwa's
-    /// moon (genspa.c, while the Spathi haven't shielded themselves).
-    /// </summary>
-    internal static readonly IReadOnlyList<(string Special, int Planet, int? Moon, string Race)> TalkWorlds = new[]
-    {
-        ("ILWRATH_DEFINED", 0, (int?)null, "ILWRATH_SHIP"),
-        ("SPATHI_DEFINED", 0, (int?)0, "SPATHI_SHIP"),
-    };
-
-    /// <summary>
-    /// The race whose talk orbiting a world starts now, or -1: one of the
-    /// <see cref="TalkWorlds"/> while its race lives (StartSphereTracking,
-    /// which tracks its sphere too) and, for Spathiwa's moon, the Spathi
-    /// haven't shielded themselves; its talk at the world ported (the
-    /// Spathi's there is spahome.c's, 3b-2's: till then the moon is orbited
-    /// as any world, docs/differences.md row 27). Else the world is orbited
-    /// as UQM's is when no talk starts there (the Ilwrath's ruins).
-    /// </summary>
-    internal int WorldTalkRace(int star, int planet, int? moon)
-    {
-        if (Systems is null || Story is not { } story)
-            return -1;
-        string? special = Systems.Map.Stars[star].Special;
-        foreach (var (s, p, m, raceId) in TalkWorlds)
-        {
-            if (s != special || p != planet || m != moon)
-                continue;
-            int race = story.Rules.RaceIndex(raceId);
-            if (RaceScript(race, 1 << 7) is null
-                || raceId == "SPATHI_SHIP" && story.Get("SPATHI_SHIELDED_SELVES") != 0
-                || !story.StartSphereTracking(raceId))
-                return -1;
-            return race;
-        }
-        return -1;
-    }
-
-    /// <summary>
-    /// A player's ship orbits a race's world (<see cref="WorldTalkRace"/>;
-    /// genilw.c's generateOrbital): no orbit, the ship by the world, and
-    /// the player meets the race's infinite fleet there. The race's groups
-    /// in the system stand down and are put aside for the talk
-    /// (<see cref="SystemGroups.StartWorldMeeting"/>); the talk is told
-    /// it's at the world (GLOBAL_FLAGS_AND_DATA 1 &lt;&lt; 7) and, hostile,
-    /// shows the encounter screen; a battle is against the infinite fleet.
-    /// Under the race's lock, as a group met (decision 5): while another
-    /// player holds it, nothing starts and the player is told who's talking.
-    /// A player in a meeting (one whose battle others fight on, handoff
-    /// question 3), a visit or a battle starts no talk, as such a player
-    /// meets no group and starts no starbase visit: the world is an
-    /// ordinary fly-by, the ship by it with no orbit (UQM never orbits it
-    /// while the race lives).
-    /// </summary>
-    private void MeetAtWorld(Player player, int star, (int Planet, int? Moon) world, int race)
-    {
-        if (player.Ship is not { Meeting: null, Visit: null, Battle: null })
-            return;
-        if (!MayMeet(player, race))
-        {
-            TellWhoIsTalking(player, race);
-            return;
-        }
-        if (!TakeMeetingLock(player, race, out var conversation))
-            return;
-        if (SystemGroups is { } sg && sg.Systems.TryGetValue(star, out var d))
-            sg.StartWorldMeeting(d, race);
-        var m = new Meeting(player, race, Story!.Rules.Races[race],
-            new[] { new EnemyFleetShip(Story.Rules.RaceShips[race].Ship) }, NextRound())
-        {
-            Id = ++_meetingIds,
-            Star = star,
-            World = world,
-            Infinite = true,
-            Conversation = conversation,
-        };
-        // BuildBattle (NPC_PLAYER_NUM) in a system: ESCAPE_COUNTER.
-        if (player.Ship.Ip is { Orbit: null } ip)
-            ip.EscapeCounter = IpFlight.EscapeFrames;
-        player.Ship.Meeting = m;
-        _newMeetings.Add(m);
-        TellMeetingBegun(m);
-        BeginTalk(m);
     }
 
     // The meetings begun since the host's session last asked (its log).
@@ -235,7 +152,14 @@ public sealed partial class GameWorld
     // The player is told once who is talking to the race of a group passing through them.
     private void TellWhoIsTalking(Player player, int race)
     {
-        if (ConversationOf(race) is not { } c || TalkHolder(race) is not { } holder || holder == player.Id)
+        if (ConversationOf(race) is { } c)
+            TellWhoIsTalking(player, c, race);
+    }
+
+    // The same for a conversation of the race's (a world's talk: the Syreen's, the Slylandro at home).
+    private void TellWhoIsTalking(Player player, string c, int race)
+    {
+        if (TalkHolder(c) is not { } holder || holder == player.Id)
             return;
         if (!_toldTalking.Add((player.Id, holder, c)))
             return;
@@ -402,7 +326,7 @@ public sealed partial class GameWorld
         foreach (char ch in m.Player.Id)
             seed = unchecked(seed * 31 + ch);
         // The talk's own random seed (decision 12), as a visit's talks have.
-        var talk = m.World is not null ? RaceTalk(m.Player, m.Race, seed, 1 << 7) : MeetingTalks(m.Player, m.Race, seed);
+        var talk = m.WorldTalk is { } w ? WorldTalk(m.Player, w, seed) : MeetingTalks(m.Player, m.Race, seed);
         // BuildBattle's centrepiece, loaded as the encounter screen comes up (its gravity well drawn in its middle):
         // in a system BATTLE_PLANET's world, in hyperspace a random type; the battle's arena then has it.
         m.BattlePlanet = m.Player.Ship.Ip is not null ? BattlePlanetAt(m.Player.Ship, seed) : RandomPlanetType(seed);
@@ -631,6 +555,7 @@ public sealed partial class GameWorld
                 Group = group,
                 World = end.World,
                 Infinite = end.Infinite,
+                WorldTalk = TalkWorldOf(end.Star, end.World, end.Race),
                 Step = MeetingStep.Closing,
                 Hailed = end.Hailed,
                 EndedAs = end.EndedAs,
@@ -752,7 +677,10 @@ public sealed partial class GameWorld
             if (p.Ship.Meeting is not { Step: MeetingStep.Battle, Battle: { } wb } m)
                 continue;
             if (!m.Returned && p.Ship.Battle != wb)
+            {
+                m.LeftBattleEarly = wb.Outcome is null;
                 ReturnToFlight(m);
+            }
             if (wb.Outcome is not null)
                 EndMeeting(m, fought: true);
         }
@@ -783,7 +711,9 @@ public sealed partial class GameWorld
         }
         if (m.Battle is null && ship.Ip is { Orbit: null } ip)
         {
-            ip.EscapeCounter = IpFlight.EscapeFrames;
+            // BuildBattle's, with ships to build (a world with none: none).
+            if (m.Ships.Count > 0)
+                ip.EscapeCounter = IpFlight.EscapeFrames;
             ip.Reenter();
         }
     }
@@ -811,6 +741,9 @@ public sealed partial class GameWorld
         else
             left = m.Ships.Select(s => (s.Crew ?? 0, s.Captain ?? 0)).ToList();
         m.Left = left;
+        // UninitEncounter's ships_killed: those it removes (an infinite fleet's never).
+        if (fought)
+            CountThraddashDead(Story!, m.RaceId, m.Infinite ? 0 : m.Ships.Count - left.Count);
         m.Step = MeetingStep.Done;
         var player = m.Player;
         if (player.Ship.Meeting == m)
@@ -847,7 +780,7 @@ public sealed partial class GameWorld
                 // Gone: destroyed (none left), or sent off out of the system by the talk (the drone, check_probe).
                 gone = fought ? left.Count == 0 : !fleeing && IsFleeing(g);
             }
-            else
+            else if (m.WorldTalk is not { PutAside: false })
                 sg.EndWorldMeeting(d, fought ? m.Race : -1);   // the race's world's
 
             if (fought)
@@ -861,6 +794,8 @@ public sealed partial class GameWorld
         TellMeetingEnded(m, fought, gone, chased);
         if (!m.Returned)
             ReturnToFlight(m);
+        if (m.World is not null)
+            AfterWorldTalk(m, m.Infinite || left.Count > 0);
     }
 
     private static bool IsFleeing(IpGroup g) => (g.Task & ~(IpGroup.IgnoreFlagship | IpGroup.ReformGroup)) == IpGroup.Flee;

@@ -332,6 +332,16 @@ public sealed class StoryState
         return i != 0;
     }
 
+    /// <summary>
+    /// What <see cref="StartSphereTracking"/> would answer, without
+    /// tracking the sphere: false if the race is extinct (or the Arilou).
+    /// </summary>
+    public bool WouldTrackSphere(string race)
+    {
+        int i = Rules.RaceIndex(race);
+        return !(_fleets[i].ActualStrength == 0 && _alliances[i] == Allied.Dead) && i != 0;
+    }
+
     /// <summary>The crew bought at the starbase (CREW_PURCHASED0 and 1, low byte first).</summary>
     public int CrewPurchased => Get("CREW_PURCHASED0") | (Get("CREW_PURCHASED1") << 8);
 

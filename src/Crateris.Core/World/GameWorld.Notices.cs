@@ -111,13 +111,15 @@ public sealed partial class GameWorld
     }
 
     // A meeting begins: in a system the race's groups stand down for
-    // everyone (decision 8), and the others there are told so; everyone
-    // else is told who's meeting them (the race's groups pass through them
+    // everyone (decision 8), and the others there are told so (not at a
+    // world whose generator doesn't stand them down); everyone else is
+    // told who's meeting them (the race's groups pass through them
     // meanwhile, decision 5).
     private void TellMeetingBegun(Meeting m)
     {
+        bool standDown = m.Star is not null && m.WorldTalk is not { StandDown: false };
         foreach (var p in Others(m.Player.Id))
-            Notice(p, m.Star is not null && NearMeeting(m, p) ? NoticeEvent.HoldOff : NoticeEvent.Meeting,
+            Notice(p, standDown && NearMeeting(m, p) ? NoticeEvent.HoldOff : NoticeEvent.Meeting,
                 m.Player.Id, RaceNameOf(m.Race));
     }
 

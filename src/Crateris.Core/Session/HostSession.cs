@@ -155,6 +155,46 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-state NAME=VALUE,... (testing, the stage 3b-2 plan's item 1):
+    /// these story fields set (SET_GAME_STATE, by globdata.h's name as
+    /// data/game-state.json has them), to reach what waits on stage 3c's
+    /// devices and events. Like --start-devices it changes whatever game is
+    /// loaded, and is saved with it. Needs the story
+    /// (InvalidOperationException); a field that isn't one, one kept out of
+    /// the shared story (<see cref="StoryState.NotShared"/>: each talk's,
+    /// ship's or player's own), or a value that isn't a number from 0 to
+    /// what the field's bits hold is an ArgumentException, before anything
+    /// changes. A field given twice takes the last value.
+    /// </summary>
+    public string StartWithState(IEnumerable<string> assignments)
+    {
+        if (World.Story is not { } story)
+            throw new InvalidOperationException("the story needs the content");
+        var table = story.Table;
+        var chosen = new Dictionary<string, int>();
+        foreach (var a in assignments)
+        {
+            int eq = a.IndexOf('=');
+            if (eq <= 0)
+                throw new ArgumentException($"{a}: a story field is set as NAME=VALUE");
+            string name = a[..eq].Trim(), text = a[(eq + 1)..].Trim();
+            if (!table.Contains(name))
+                throw new ArgumentException($"{name} isn't a story field (data/game-state.json's names)");
+            if (StoryState.NotShared.TryGetValue(name, out string? why))
+                throw new ArgumentException($"{name} isn't shared story state, so it can't be set at the start: {why}");
+            var field = table[name];
+            if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int value)
+                || value > field.Max)
+                throw new ArgumentException($"{name}={text}: {name} holds 0 to {field.Max} ({field.Bits} bit{(field.Bits == 1 ? "" : "s")})");
+            chosen[name] = value;
+        }
+        foreach (var (name, value) in chosen)
+            story.Set(name, value);
+        return $"Starting with {chosen.Count} story field{(chosen.Count == 1 ? "" : "s")} set"
+               + (chosen.Count == 0 ? "" : $" ({string.Join(", ", chosen.Select(c => $"{c.Key}={c.Value}"))})");
+    }
+
+    /// <summary>
     /// --start-fleet SHIP[:CREW],... (testing, stage 4b item 6): the host's
     /// fleet is these ships, by data/ships.json's id (arilou, spathi, ...),
     /// each in the next slot with that crew (1 to its most; its race's
@@ -808,6 +848,7 @@ public sealed class HostSession
         {
             string id = m.Player.Id, race = Meeting.RaceName(m.RaceId);
             string ships = m.Infinite ? $"an infinite fleet of {race} ships"
+                : m.Ships.Count == 0 ? $"no {race} ships"   // a world's talk with none there (the Syreen's starbase)
                 : $"{m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}";
             int events = logged;
             bool talked = told;

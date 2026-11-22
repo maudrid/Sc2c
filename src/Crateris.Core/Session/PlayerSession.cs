@@ -772,7 +772,9 @@ public sealed class PlayerSession
     private string EncounterWith(MeetingView m)
     {
         string race = World.Meeting.RaceName(m.Race);
-        string ships = m.Infinite ? $"an endless fleet of {race} ships" : $"{m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}";
+        string ships = m.Infinite ? $"an endless fleet of {race} ships"
+            : m.Ships.Count == 0 ? $"no {race} ships"
+            : $"{m.Ships.Count} {race} ship{(m.Ships.Count == 1 ? "" : "s")}";
         if (m.Star is not int star)
             return $"{ships} in deep space";
         var at = _systems.Map.Stars[star];

@@ -727,13 +727,12 @@ public sealed partial class GameWorld
         switch (ip.Step(input & ~ShipInput.Action))
         {
             case IpEvent.EnteredOrbit:
-                if (ip.Orbit is { } world && WorldTalkRace(ship.SystemStar!.Value, world.Planet, world.Moon) is var race
-                    && race >= 0)
+                if (ip.Orbit is { } world && WorldTalkAt(ship.SystemStar!.Value, world.Planet, world.Moon) is { } talkWorld)
                 {
-                    // A race's world (the Ilwrath homeworld): its talk
-                    // instead of the orbit, the ship by the world.
+                    // A world whose talk starts instead of the orbit (the
+                    // Ilwrath homeworld, TalkWorlds): the ship by the world.
                     ip.ReturnFromOrbit();
-                    MeetAtWorld(_players.First(p => p.Ship == ship), ship.SystemStar!.Value, world, race);
+                    MeetAtWorld(_players.First(p => p.Ship == ship), ship.SystemStar!.Value, world, talkWorld);
                 }
                 else if (!ip.OrbitData!.Entered)
                 {
@@ -1233,10 +1232,12 @@ public sealed partial class GameWorld
     /// <summary>
     /// Puts a player straight into orbit around a world, as if they had
     /// flown there (for testing and debugging: --start-orbit). Checks the
-    /// world first and changes nothing if it can't be orbited. At a race's
-    /// world whose orbit starts its talk (the Ilwrath homeworld:
-    /// <see cref="WorldTalkRace"/>) the talk starts instead, the ship by
-    /// the world in flight, as flying into it does.
+    /// world first and changes nothing if it can't be orbited. At a world
+    /// whose orbit starts a talk (the Ilwrath homeworld, the Syreen's
+    /// starbase: <see cref="WorldTalkAt"/>) the talk starts instead, the
+    /// ship by the world in flight, as flying into it does (a world whose
+    /// orbit is never entered, the Syreen's starbase, the Slylandro gas
+    /// giant, can be given for its talk).
     /// </summary>
     public void PutInOrbit(string id, int star, int planet, int? moon = null)
     {
@@ -1245,7 +1246,7 @@ public sealed partial class GameWorld
             throw new InvalidOperationException("this world has no systems");
         if (!Systems.HasWorld(star, planet, moon))
             throw new ArgumentException($"star {star} has no planet {planet}" + (moon is int m ? $" moon {m}" : ""));
-        if (!Systems[star].EnterOrbit(planet, moon).Entered)
+        if (!Systems[star].EnterOrbit(planet, moon).Entered && !StartsATalk(star, planet, moon))
             throw new ArgumentException($"star {star} planet {planet} moon {moon}: that world can't be orbited");
 
         if (player.Ship.Battle is not null)
@@ -1268,15 +1269,22 @@ public sealed partial class GameWorld
         if (ship.Ip!.Orbit is not null)
             LeaveOrbit(ship);
         ship.Ip.PlaceInOrbit(planet, moon);
-        if (WorldTalkRace(star, planet, moon) is var race && race >= 0)
+        if (WorldTalkAt(star, planet, moon) is { } talkWorld)
         {
-            // A race's world: its talk starts as if the ship had flown into
-            // it, the ship by the world (stage 3b-1 item 7).
+            // A world's talk starts as if the ship had flown into it, the
+            // ship by the world (stage 3b-1 item 7).
             ship.Ip.ReturnFromOrbit();
             SyncSystemPlayers();   // the system's draw made, the ship just come in
-            MeetAtWorld(player, star, (planet, moon), race);
+            MeetAtWorld(player, star, (planet, moon), talkWorld);
         }
+        else if (!ship.Ip.OrbitData!.Entered)
+            ship.Ip.ReturnFromOrbit();   // a world never entered whose talk doesn't start now: by it, as flying into it
     }
+
+    // Whether one of the worlds whose orbit starts a talk is this one (asked without its side effects).
+    private bool StartsATalk(int star, int planet, int? moon) =>
+        Systems!.Map.Stars[star].Special is { } special
+        && WorldTalkTable.Any(w => w.Special == special && w.Planet == planet && w.Moon == moon && WorldScript(w) is not null);
 
     /// <summary>
     /// Sends a present player's lander down at a landing site

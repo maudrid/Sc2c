@@ -141,4 +141,33 @@ public class DevicesTests
         Assert.Throws<ArgumentException>(() => host.StartWithDevices(new[] { "ULTRON_0_DEVICE", "ULTRON_3_DEVICE" }));
         Assert.Equal(new[] { 4, 9, 19, 27 }, Rules.Devices.Inventory(host.World.Story!.Get));   // a refusal changes nothing
     }
+
+    [ContentFact]
+    public void StartStateSetsSharedStoryFieldsAndRefusesTheRest()
+    {
+        var systems = SystemCatalog.Load(DataDir);
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host", systems,
+            TestContent.Shapes);
+        var story = host.World.Story!;
+        // --start-state NAME=VALUE (testing, the stage 3b-2 plan's item 1): shared fields, each to what its bits hold.
+        Assert.Equal("Starting with 3 story fields set (THRADDASH_BODY_COUNT=31, USED_BROADCASTER=1, MYCON_FELL_FOR_AMBUSH=1)",
+            host.StartWithState(new[] { "THRADDASH_BODY_COUNT=31", "USED_BROADCASTER=0", "USED_BROADCASTER=1", " MYCON_FELL_FOR_AMBUSH = 1 " }));
+        Assert.Equal((31, 1, 1), (story.Get("THRADDASH_BODY_COUNT"), story.Get("USED_BROADCASTER"), story.Get("MYCON_FELL_FOR_AMBUSH")));
+        var bits = story.Bits.ToArray();
+        void Refused(string assignment, string says)
+        {
+            var e = Assert.Throws<ArgumentException>(() => host.StartWithState(new[] { "SUN_DEVICE_ON_SHIP=1", assignment }));
+            Assert.Contains(says, e.Message);
+        }
+        Refused("NO_SUCH_FIELD=1", "isn't a story field");
+        Refused("THRADDASH_BODY_COUNT=32", "holds 0 to 31 (5 bits)");
+        Refused("USED_BROADCASTER=2", "holds 0 to 1 (1 bit)");
+        Refused("USED_BROADCASTER=-1", "holds 0 to 1");
+        Refused("USED_BROADCASTER=yes", "holds 0 to 1");
+        Refused("USED_BROADCASTER", "NAME=VALUE");
+        Refused("GLOBAL_FLAGS_AND_DATA=128", "isn't shared story state");
+        Refused("MELNORME_CREDIT0=5", "Melnorme credits");
+        Refused("ESCAPE_COUNTER=1", "isn't shared story state");
+        Assert.Equal(bits, story.Bits.ToArray());   // a refusal changes nothing, the good field before it either
+    }
 }

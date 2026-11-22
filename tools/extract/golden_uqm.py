@@ -6733,12 +6733,16 @@ def encounter_scenarios():
     ring), and an infinite fleet (sixty of its ship); the battle-won
     screen (UninitEncounter after a win) with one ship, five (a row), six
     (the row cleared, a second), with no key, a key held (the fades cut
-    short) and Escape held."""
+    short) and Escape held; and the Thraddash's body count (the stage 3b-2
+    plan's item 1): Thraddash battles won and not (only the ships with no
+    crew destroyed, an infinite fleet's never), the count capped at 25 and
+    brought back to it from past it, not counted with THRADD_MANNER set,
+    nor for another race."""
     out = []
 
-    def add(name, where, planet, ships, step, ship_name="EARTHLING CRUISER"):
+    def add(name, where, planet, ships, step, ship_name="EARTHLING CRUISER", body=0, manner=0):
         out.append({"name": name, "where": where, "planet": planet, "ship_name": ship_name,
-                    "ships": [list(s) for s in ships], "step": step})
+                    "ships": [list(s) for s in ships], "step": step, "body_count": body, "thradd_manner": manner})
 
     add("deep-space-one", "hyper", "planet.oolite.large", [("SPATHI_SHIP", 30)], "encounter")
     add("deep-space-three", "hyper", "planet.water.large", [("URQUAN_SHIP", 42)] * 3, "encounter")
@@ -6751,6 +6755,16 @@ def encounter_scenarios():
     add("won-six", "system", "planet.water.large", [("ILWRATH_SHIP", 22)] * 6, "won:none",
         ship_name="THE LONG VOYAGE")
     add("won-seven-any", "system", "planet.water.large", [("BLACK_URQUAN_SHIP", 42)] * 7, "won:any")
+    add("won-thraddash-three", "hyper", "planet.oolite.large", [("THRADDASH_SHIP", 8)] * 3, "won:none")
+    add("won-thraddash-capped", "system", "planet.water.large", [("THRADDASH_SHIP", 8)] * 4, "won:escape", body=23)
+    add("won-thraddash-past", "hyper", "planet.oolite.large", [("THRADDASH_SHIP", 8)], "won:escape", body=31)
+    add("won-thraddash-manner", "hyper", "planet.oolite.large", [("THRADDASH_SHIP", 8)] * 2, "won:escape", body=5,
+        manner=1)
+    add("won-ilwrath-not-counted", "hyper", "planet.oolite.large", [("ILWRATH_SHIP", 22)] * 2, "won:escape", body=7)
+    add("ended-thraddash-two-of-three", "hyper", "planet.oolite.large",
+        [("THRADDASH_SHIP", 0), ("THRADDASH_SHIP", 5), ("THRADDASH_SHIP", 0)], "ended", body=10)
+    add("ended-thraddash-none", "hyper", "planet.oolite.large", [("THRADDASH_SHIP", 8)] * 2, "ended", body=10)
+    add("ended-thraddash-infinite", "system", "planet.water.large", [("THRADDASH_SHIP", -1)], "ended", body=3)
     return out
 
 
@@ -6789,12 +6803,12 @@ def record_encounter(uqm, exe, strings_exe, package):
     for sc in encounter_scenarios():
         group = " ".join(f"{RACES.index(r)} {ships[RACES.index(r)]['graphics']['icons']} {c}" for r, c in sc["ships"])
         lines = [" ".join(counts), " ".join(rects), SCREENS_LEADING, sc["where"], sc["planet"], sc["ship_name"], group,
-                 sc["step"]]
+                 sc["step"], f"{sc['body_count']} {sc['thradd_manner']}"]
         out = subprocess.run([exe], input="\n".join(lines) + "\n", capture_output=True, text=True)
         if out.returncode:
             raise RuntimeError(f"encounter {sc['name']} ({out.returncode}): {out.stdout[-300:]}{out.stderr}")
         drawn = json.loads(out.stdout)
-        scenarios.append(sc | {"drawn": drawn["draw"]})
+        scenarios.append(sc | {"body_count_after": drawn["body"], "drawn": drawn["draw"]})
     data = header(uqm, ["tools/extract/golden/encounter.c", "tools/extract/golden/screens.c",
                         "tools/extract/golden/screens_stubs.c", "src/uqm/encount.c", "src/uqm/sis.c",
                         "src/uqm/menu.c", "src/uqm/border.c", "src/uqm/util.c", "src/uqm/pickship.c",
@@ -6818,8 +6832,13 @@ def record_encounter(uqm, exe, strings_exe, package):
         "(no key), any (a key held: AnyButtonPress TRUE, so each fade is "
         "cut to its last colour and WaitForAnyButton, waiting for a new "
         "press, runs out), escape (Escape held too: the debris's part "
-        "skipped).",
-        "drawn: the calls as screens.json's; frames and rects as there.",
+        "skipped); \"ended\" UninitEncounter after a battle not won "
+        "(battle_counter[1] 1: only the ships with crew 0 destroyed, an "
+        "infinite fleet's, crew -1, never). body_count and thradd_manner: "
+        "THRADDASH_BODY_COUNT and THRADD_MANNER before the step.",
+        "drawn: the calls as screens.json's; body_count_after: "
+        "THRADDASH_BODY_COUNT after the step (encount.c:760's count); frames "
+        "and rects as there.",
     ])
     data["frames"] = dict(zip(counts[::2], map(int, counts[1::2])))
     data["rects"] = {res: [] for res in encounter_frames()}

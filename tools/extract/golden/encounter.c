@@ -35,10 +35,15 @@
  *     UninitEncounter after a battle won (BATTLE_SEGUE set, battle_counter
  *     [1] 0), KEYS "none" (no key: every fade and wait runs out), "any"
  *     (a key held: AnyButtonPress always TRUE, the fades cut short) or
- *     "escape" (Escape held as well).
+ *     "escape" (Escape held as well); "ended" runs UninitEncounter after a
+ *     battle not won (BATTLE_SEGUE set, battle_counter [1] 1: only the
+ *     ships whose crew is 0 destroyed);
+ *   the story's THRADDASH_BODY_COUNT and THRADD_MANNER before it: "COUNT
+ *     MANNER" (the stage 3b-2 plan's item 1: the body count's arithmetic).
  *
- * Output: one JSON line, {"step": s, "draw": [...]}, each drawing call as
- * golden/screens.c writes it.
+ * Output: one JSON line, {"step": s, "body": n, "draw": [...]}, the body
+ * count after the step, and each drawing call as golden/screens.c writes
+ * it.
  */
 
 #define main screens_main
@@ -159,6 +164,15 @@ main (void)
 	StatusFrame = CaptureDrawable (LoadGraphic (STATUS_MASK_PMAP_ANIM));
 	SetStatusMessageMode (SMM_RES_UNITS);
 
+	{
+		static char state[256];
+		int body = 0, manner = 0;
+		read_line (state, sizeof state);
+		sscanf (state, "%d %d", &body, &manner);
+		SET_GAME_STATE (THRADDASH_BODY_COUNT, body);
+		SET_GAME_STATE (THRADD_MANNER, manner);
+	}
+
 	out[0] = '\0';
 	if (!strcmp (line, "encounter"))
 		InitEncounter ();
@@ -172,11 +186,19 @@ main (void)
 		battle_counter[1] = 0;
 		UninitEncounter ();
 	}
+	else if (!strcmp (line, "ended"))
+	{
+		SET_GAME_STATE (BATTLE_SEGUE, 1);
+		battle_counter[0] = 1;
+		battle_counter[1] = 1;
+		UninitEncounter ();
+	}
 	else
 	{
 		printf ("{\"error\": \"step %s\"}\n", line);
 		return 1;
 	}
-	printf ("{\"step\": \"%s\", \"draw\": [%s]}\n", line, out);
+	printf ("{\"step\": \"%s\", \"body\": %d, \"draw\": [%s]}\n", line,
+			(int) GET_GAME_STATE (THRADDASH_BODY_COUNT), out);
 	return 0;
 }

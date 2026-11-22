@@ -120,9 +120,11 @@ public sealed class Meeting
 
     /// <summary>
     /// The world whose orbit started the meeting (the Ilwrath homeworld:
-    /// genilw.c's generateOrbital), its planet and moon, or null for a
-    /// group met. Its talk knows it's at the race's world
-    /// (GLOBAL_FLAGS_AND_DATA bit 7), and its fleet is infinite.
+    /// genilw.c's generateOrbital; every one in GameWorld.TalkWorlds), its
+    /// planet and moon, or null for a group met. Its talk knows where it
+    /// is (GLOBAL_FLAGS_AND_DATA as the world's generator sets it: bit 7
+    /// at a race's own world, bit 6 at its second), and its ships are the
+    /// world's: an infinite fleet, a guard of so many, or none.
     /// </summary>
     public (int Planet, int? Moon)? World { get; internal init; }
 
@@ -196,6 +198,12 @@ public sealed class Meeting
 
     // The player's ship back in flight from the meeting (after its battle, or as it ended).
     internal bool Returned;
+
+    // The player out of the meeting's battle before it ended (a retreat while others fought on).
+    internal bool LeftBattleEarly;
+
+    // The world's entry whose orbit started the meeting (GameWorld.TalkWorlds), or null for a group met.
+    internal TalkWorld? WorldTalk;
 
     // How a saved copy's stand-in for a meeting at its closing lines ended its talk (no Talk there: question 13).
     internal Segue? EndedAs;

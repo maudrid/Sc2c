@@ -506,6 +506,11 @@ public partial class Main : Node2D
     {
         try
         {
+            // The story as it starts first, so a world's talk at --start-orbit sees it (Procyon's Ilwrath, the Sun Device).
+            if (_options.StartState is { } state)
+                Log(host.StartWithState(state));
+            if (_options.StartDevices is { } devices)
+                Log(host.StartWithDevices(devices));
             if (_options.StartAt is { } at)
                 Log(host.StartAt(at.X, at.Y));
             if (_options.StartOrbit is { } o)
@@ -519,8 +524,6 @@ public partial class Main : Node2D
                 Log(host.StartWithMinerals(minerals));
             if (_options.StartUnits is { } units)
                 Log(host.StartWithUnits(units));
-            if (_options.StartDevices is { } devices)
-                Log(host.StartWithDevices(devices));
             if (_options.StartVisit)
                 Log(host.StartVisit(_options.StartVisitStep));
             if (_options.StartDocked)
