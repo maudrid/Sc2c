@@ -66,19 +66,32 @@ public enum NoticeEvent : byte
 
     /// <summary>A group that had flown at the player went after another player's meeting with it ended hostile with no battle to fight (one-shot, not fought: <see cref="MeetingOver"/>).</summary>
     ChaserGoneAfterMeeting,
+
+    /// <summary>Another player's talk made an alliance with a race (SetRaceAllied): its ships go on sale at the starbase (stage 3b-2 item 1).</summary>
+    AllianceMade,
+
+    /// <summary>Another player's talk ended an alliance with a race (SetRaceAllied): its ships are no longer for sale (the Orz's).</summary>
+    AllianceBroken,
+
+    /// <summary>Another player's talk gave ships to the host's fleet (AddEscortShips): <see cref="WorldNotice.Count"/> of them, of the race named.</summary>
+    ShipsGiven,
+
+    /// <summary>Another player's talk took ships from the host's fleet (RemoveEscortShips: the Orz's, as their alliance breaks): <see cref="WorldNotice.Count"/> of them, of the race named.</summary>
+    ShipsTaken,
 }
 
 /// <summary>
 /// A notice for one player of what another player set off (stage 3b-1
 /// item 9, decision 11): the event, the other player (<see cref="By"/>,
 /// their name) and the race it's about (<see cref="Race"/>, as
-/// <see cref="Meeting.RaceName"/> names it). The world gathers them
+/// <see cref="Meeting.RaceName"/> names it), and for ships given or taken
+/// how many (<see cref="Count"/>; 0 for the other events). The world gathers them
 /// (<see cref="GameWorld.TakeNotices"/>), each once for each player it
 /// tells; the host's session sends each in words (<see cref="Text"/>) as
 /// the battle notices are sent (<c>BattleNoticeKind.Told</c>) to a player
 /// present, and drops it for one away (by the time they're back it's stale).
 /// </summary>
-public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, string Race)
+public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, string Race, int Count = 0)
 {
     /// <summary>In words, for the player it's for.</summary>
     public string Text => Event switch
@@ -100,6 +113,10 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.ChaserDestroyedInBattle => $"The {Race} chasing you were destroyed in the battle {By} started.",
         NoticeEvent.ChaserGoneAfterBattle => $"The {Race} chasing you are gone after the battle {By} started.",
         NoticeEvent.ChaserGoneAfterMeeting => $"The {Race} chasing you are gone after {By}'s meeting with them.",
+        NoticeEvent.AllianceMade => $"{By} made an alliance with the {Race}: their ships are for sale at the starbase.",
+        NoticeEvent.AllianceBroken => $"The alliance with the {Race} is over ({By}'s talk): their ships are no longer for sale.",
+        NoticeEvent.ShipsGiven => $"{Count} {Race} ship{(Count == 1 ? "" : "s")} joined the fleet ({By}'s talk).",
+        NoticeEvent.ShipsTaken => $"{Count} {Race} ship{(Count == 1 ? "" : "s")} left the fleet ({By}'s talk).",
         _ => "",
     };
 }

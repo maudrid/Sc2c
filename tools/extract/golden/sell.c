@@ -21,7 +21,8 @@
  * read from it, the pictures aren't needed). SellMinerals runs from its
  * start to its ClearSISRect (DRAW_SIS_DISPLAY), which puts the cargo
  * display away (linked with --wrap=ClearSISRect): the program records
- * when, and stops; the commander's lines after it are talks.json's.
+ * when, and stops; the commander's lines after it are
+ * talks-starbas.json's.
  *
  * The drawing primitives are this program's: each records itself, in
  * the screen's coordinates (the context's clip rectangle's corner added,

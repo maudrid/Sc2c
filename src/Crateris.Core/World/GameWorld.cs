@@ -1102,6 +1102,10 @@ public sealed partial class GameWorld
     private void AfterVisitChanged(StarbaseVisit v)
     {
         _rounds = Math.Max(_rounds, v.Round);
+        // What its ordinary talks did (the allied commander's from the menu:
+        // the Arilou's ships), told to the others; a story talk is shown to them.
+        foreach (var talk in v.Talks.Where(t => !v.IsStoryTalk(t)))
+            TellTalkEffects(v.Replier, talk);
         if (v.Step != VisitStep.MenuTalk)
             DialogueLocks?.Release("COMMANDER_CONVERSATION", v.Starter.Id);
         if (v == Visit && v.Step == VisitStep.IlwrathFight && v.Fight is null)

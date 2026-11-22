@@ -18,7 +18,9 @@ namespace Crateris.Core.World;
 /// commander grades them (decision 4: the flagship carries the mission
 /// and its upgrades); and the escort fleet, the host's (stage 4b,
 /// decision 3: only the host has one): worth what it is for the host,
-/// nothing for a guest, and the ships talks give join it whoever answers.
+/// nothing for a guest, and the ships talks give join it, are looked for
+/// in it and are taken from it whoever answers (the stage 3b-2 plan's
+/// question 4).
 /// </summary>
 internal sealed class PlayerTalkShip : ITalkShip
 {
@@ -74,7 +76,11 @@ internal sealed class PlayerTalkShip : ITalkShip
 
     public IList<int> Minerals => _minerals;
 
-    public int BioData => Hold.BioData;
+    public int BioData
+    {
+        get => Hold.BioData;
+        set => Hold.SetBioData(value);
+    }
 
     public int StorageCapacity => Hold.StorageCapacity;
 
@@ -94,6 +100,19 @@ internal sealed class PlayerTalkShip : ITalkShip
     public int EscortsWorth => _player.IsHost && _world.Story is { } story ? _world.Fleet.Worth(story.Rules) : 0;
 
     public int EscortRoom => _world.Fleet.Room;
+
+    // The host's fleet's ships, whoever answers (the stage 3b-2 plan's question 4): a guest sees the host's escorts.
+    public IReadOnlyList<int> EscortRaces => EscortRacesOf(_world);
+
+    /// <summary>The host's fleet's ships' races (races.h's numbers), in its order (built_ship_q's: by slot).</summary>
+    internal static IReadOnlyList<int> EscortRacesOf(GameWorld world) =>
+        world.Story is { } story ? world.Fleet.Ships.Select(s => story.Rules.RaceIndex(s.Race)).ToList() : Array.Empty<int>();
+
+    // Taken from the host's fleet, whoever answers (question 4), as gifts go to it.
+    public int RemoveEscorts(int race, int count) =>
+        _world.Story is { } story && race >= 0 && race < story.Rules.Races.Count
+            ? count - _world.Fleet.RemoveSome(story.Rules.Races[race], count)
+            : 0;
 
     public int AddEscorts(int race, int count, Func<uint> random) =>
         _world.Story is { } story && race >= 0 && race < story.Rules.Races.Count

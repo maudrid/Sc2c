@@ -4174,6 +4174,21 @@ RACES = ["ARILOU_SHIP", "CHMMR_SHIP", "HUMAN_SHIP", "ORZ_SHIP", "PKUNK_SHIP",
          "YEHAT_REBEL_SHIP", "URQUAN_DRONE_SHIP"]
 ALLIED = {"dead": 0, "good": 1, "bad": 2}
 RADIOACTIVE = 6   # elemdata.h's category
+# races.h's INFINITE_RADIUS ((COUNT) ~0): a race met anywhere.
+INFINITE_RADIUS = 0xFFFF
+
+
+def new_game_strengths():
+    """Each race's sphere's strength in a new game (InitGameStructures:
+    its ship's from the master ship list, data/ships.json; the Yehat
+    rebels' none, the drone's the probe's), in races.h's order, for
+    StartSphereTracking: 0 for none, INFINITE_RADIUS for a race met
+    anywhere."""
+    with open(os.path.join(REPO, "data", "ships.json")) as f:
+        by_species = {s["species"]: s["fleet"]["strength"] for s in json.load(f)["ships"]}
+    species = {"HUMAN_SHIP": "EARTHLING_ID", "BLACK_URQUAN_SHIP": "KOHR_AH_ID", "URQUAN_SHIP": "UR_QUAN_ID",
+               "URQUAN_DRONE_SHIP": "UR_QUAN_PROBE_ID"}
+    return [0 if r == "YEHAT_REBEL_SHIP" else by_species[species.get(r, r[:-len("_SHIP")] + "_ID")] for r in RACES]
 
 
 def talk_ship(crew=50, fuel=1000, landers=1, ru=0, elements=None,
@@ -4776,7 +4791,7 @@ def battle_group_ref(start):
     return sum(start["state"].get(f"{group[:-1]}{i}", 0) << (8 * i) for i in range(4))
 
 
-def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_worth):
+def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_worth, strengths):
     """Every path through a talk from one start: runs the script with each
     reply offered in turn, depth first, and stops a path at a talk state
     already walked (the story state, the ship, the phrases used up, the
@@ -4794,6 +4809,10 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
     alliances["HUMAN_SHIP"] = "good"
     alliances.update(start.get("alliances", {}))
     escorts = start.get("escorts", [0, 0])
+    # Each race's sphere as StartSphereTracking reads it: its strength and
+    # its known strength (a new game's: unknown) where the start doesn't
+    # say ("fleets": {race: [actual, known]}).
+    fleets = [start.get("fleets", {}).get(r, [strengths[i], 0]) for i, r in enumerate(RACES)]
     head = "\n".join([
         *files, state.hex(),
         " ".join(map(str, [ship["crew"], ship["fuel"], ship["landers"], ship["ru"],
@@ -4807,7 +4826,10 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
         str(start.get("seed", TALK_SEED)),
         " ".join(map(str, element_worth)),
         " ".join(str(ALLIED[alliances[r]]) for r in RACES),
+        " ".join(f"{a} {k}" for a, k in fleets),
         f"{escorts[0]} {escorts[1]}",
+        " ".join(str(RACES.index(r)) for r in start.get("escort_fleet", [])),
+        str(start.get("bio", 0)),
         " ".join(music),
         f"{ACTIVITIES[start.get('activity', 'SUPER_MELEE')]} {battle_group_ref(start)}",
         " ".join(map(str, start.get("log", SOL_LOG)))])
@@ -4826,6 +4848,10 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
                 e["set"] = by_bit[e["set"]]
             if "offer" in e:
                 e["offer"] = [[ref, functions[int(f, 16)], text] for ref, f, text in e["offer"]]
+            # NPCPhrase_cb's callbacks, by name: a line's, and each run.
+            for key in ("callback", "run"):
+                if key in e:
+                    e[key] = functions[int(e[key], 16)]
         return events
 
     prefix = start.get("prefix", [])
@@ -4853,7 +4879,8 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
 def record_talks(uqm, strings_exe, package):
     """Every path through the ported conversation scripts, as UQM's own
     scripts run them (golden/comm.c), from starting states chosen to reach
-    every condition each reads."""
+    every condition each reads: one file per script (talks-NAME.json),
+    so no one file grows with the scripts."""
     import hashlib
     import zipfile
     with open(package, "rb") as f:
@@ -4872,7 +4899,8 @@ def record_talks(uqm, strings_exe, package):
     with open(os.path.join(REPO, "data", "races.json")) as f:
         if [r["race"] for r in json.load(f)["races"]] != RACES:
             raise RuntimeError("data/races.json's races aren't races.h's")
-    talks = {}
+    strengths = new_game_strengths()
+    files_out = {}
     with zipfile.ZipFile(package) as z, tempfile.TemporaryDirectory() as tmp:
         index_file = os.path.join(tmp, "uqm.rmp")
         with open(index_file, "wb") as f:
@@ -4896,46 +4924,60 @@ def record_talks(uqm, strings_exe, package):
             functions = {int(a, 16): n for a, kind, n in
                          (line.split() for line in symbols if len(line.split()) == 3)
                          if kind in "tT"}
-            talks[script] = [{**start, "steps": walk_talk(exe, files, music, start, fields, state_bytes, functions,
-                                                                  element_worth)}
-                             for start in starts()]
-    data = header(uqm, ["tools/extract/golden/comm.c", "src/uqm/commglue.c", "src/uqm/sis.c",
-                        "src/libs/math/random.c", "src/libs/strings/getstr.c"]
-                  + [f"src/uqm/comm/{s}/{COMM_FILES.get(s, s + '.c')}" for s in COMM_SCRIPTS], [
-        "Every path through each ported conversation script, recorded by "
-        "running UQM's own script with UQM's commglue.c, sis.c and string "
-        "tables, and the rest of the talk engine stubbed "
-        "(tools/extract/golden/comm.c says what each event is). Each start "
-        "is a story state (fields not given are 0), a flagship (crew, fuel "
-        "in 1/100 units, landers, resource units, element amounts, module "
-        "slots, the drive and jet slots with a thruster or jets, captain's "
-        "and ship's names), the date (a new game's where not given), the "
-        "seed of the scripts' random numbers (TFB_SeedRandom; 12345 where "
-        "not given), the races' standings where not a new game's "
-        "(alliances: good, bad or dead), the escort fleet's worth and room "
-        "for more ships (escorts; none where not given), where the talk is "
-        "(activity: LOBYTE (GLOBAL (CurrentActivity)), SUPER_MELEE where not "
-        "given) and the system's own group met (battle_group: the field of "
-        "the offset BattleGroupRef holds; 0 where not given; the Ur-Quan's "
-        "and the Kohr-Ah's starts have URQUAN_PROBE_GRPOFFS0, COLONY_GRPOFFS0 "
-        "and SAMATRA_GRPOFFS0 set to 0x1100, 0x2200 and 0x3300), and its steps: the replies "
-        "chosen from the start, each the place in the replies offered, and "
-        "the events after the last of them up to the next replies offered "
-        "or the talk's end. An offer marked seen reaches a talk state "
-        "already walked from this start, so the walk goes no further; a "
-        "start with follow walks only the replies calling those functions, "
-        "and one with prefix starts its walk after those replies (the rest "
-        "is walked from other starts). Surrendering to the Ur-Quan "
-        "(setSegue (Segue_defeat)) sets the crew to (COUNT)~0, 65535, as UQM "
-        "marks the game lost. Voices are off (usingSpeech false); "
-        "selling minerals runs as if a button were pressed at once.",
-        "Texts are content (CC BY-NC-SA 2.5), so only the first 16 hex "
-        "digits of each line's SHA-256 are here; set names the field "
-        "written (data/game-state.json); offer gives each reply's phrase "
-        "number, the script's function it calls and its text's hash.",
-    ])
-    data["talks"] = talks
-    return data
+            data = header(uqm, ["tools/extract/golden/comm.c", "src/uqm/commglue.c", "src/uqm/sis.c",
+                                "src/libs/math/random.c", "src/libs/strings/getstr.c",
+                                f"src/uqm/comm/{script}/{COMM_FILES.get(script, script + '.c')}"], TALK_NOTES)
+            data["script"] = script
+            data["starts"] = [{**start, "steps": walk_talk(exe, files, music, start, fields, state_bytes,
+                                                           functions, element_worth, strengths)}
+                              for start in starts()]
+            files_out[f"talks-{script}"] = data
+    return files_out
+
+
+TALK_NOTES = [
+    "Every path through one ported conversation script (one file per "
+    "script: talks-NAME.json, NAME the script's folder in src/uqm/comm), "
+    "recorded by running UQM's own script with UQM's commglue.c, sis.c and "
+    "string tables, and the rest of the talk engine stubbed "
+    "(tools/extract/golden/comm.c says what each event is). Each start "
+    "is a story state (fields not given are 0), a flagship (crew, fuel "
+    "in 1/100 units, landers, resource units, element amounts, module "
+    "slots, the drive and jet slots with a thruster or jets, captain's "
+    "and ship's names), the date (a new game's where not given), the "
+    "seed of the scripts' random numbers (TFB_SeedRandom; 12345 where "
+    "not given), the races' standings where not a new game's "
+    "(alliances: good, bad or dead), the races' spheres where not a new "
+    "game's (fleets: each race's actual and known strength, which "
+    "StartSphereTracking reads and sets; a new game's are its ships' "
+    "strengths, unknown), the escort fleet's worth and room for more "
+    "ships (escorts; none where not given), its ships' races in "
+    "built_ship_q's order (escort_fleet, which CountEscortShips, "
+    "RemoveEscortShips and GetHeadLink read; none where not given), the "
+    "bio data aboard (bio: TotalBioMass; 0 where not given), where the "
+    "talk is (activity: LOBYTE (GLOBAL (CurrentActivity)), SUPER_MELEE "
+    "where not given) and the system's own group met (battle_group: the "
+    "field of the offset BattleGroupRef holds; 0 where not given; the "
+    "Ur-Quan's and the Kohr-Ah's starts have URQUAN_PROBE_GRPOFFS0, "
+    "COLONY_GRPOFFS0 and SAMATRA_GRPOFFS0 set to 0x1100, 0x2200 and "
+    "0x3300), and its steps: the replies "
+    "chosen from the start, each the place in the replies offered, and "
+    "the events after the last of them up to the next replies offered "
+    "or the talk's end. An offer marked seen reaches a talk state "
+    "already walked from this start, so the walk goes no further; a "
+    "start with follow walks only the replies calling those functions, "
+    "and one with prefix starts its walk after those replies (the rest "
+    "is walked from other starts). Surrendering to the Ur-Quan "
+    "(setSegue (Segue_defeat)) sets the crew to (COUNT)~0, 65535, as UQM "
+    "marks the game lost. Voices are off (usingSpeech false); "
+    "selling minerals runs as if a button were pressed at once.",
+    "Texts are content (CC BY-NC-SA 2.5), so only the first 16 hex "
+    "digits of each line's SHA-256 are here; set names the field "
+    "written (data/game-state.json); offer gives each reply's phrase "
+    "number, the script's function it calls and its text's hash; a "
+    "line's callback (NPCPhrase_cb) and a callback's run name the "
+    "script's function.",
+]
 
 
 # ------------------------------------------------------------ outfitting
@@ -5324,7 +5366,7 @@ def record_outfit(uqm, exe):
         "Each scenario: a story state (fields not given are 0), the module "
         "costs where not a new game's (before MODULE_COST_SCALE), FuelCost, "
         "CrewCost, whether the Shofixti are allied, a flagship as in "
-        "talks.json, and its steps: outfit opens outfitting; u, d, l, r, s, "
+        "the talks' files (talks-comandr.json and the rest), and its steps: outfit opens outfitting; u, d, l, r, s, "
         "c, pu and pd are keys (up, down, left, right, select, cancel, page "
         "up and down); hire and dismiss the shipyard's up and down on the "
         "flagship's crew. results: after each step, whether it was refused "

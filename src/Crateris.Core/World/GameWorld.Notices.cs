@@ -67,8 +67,41 @@ public sealed partial class GameWorld
 
     private string RaceNameOf(int race) => Meeting.RaceName(Story!.Rules.Races[race]);
 
-    private void Notice(Player to, NoticeEvent ev, string by, string race) =>
-        _worldNotices.Add(new WorldNotice(to.Id, ev, NameOf(by), race));
+    private void Notice(Player to, NoticeEvent ev, string by, string race, int count = 0) =>
+        _worldNotices.Add(new WorldNotice(to.Id, ev, NameOf(by), race, count));
+
+    // How many of each talk's events the others have been told of (TellTalkEffects).
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Comm.Talk, System.Runtime.CompilerServices.StrongBox<int>> _talkTold = new();
+
+    /// <summary>
+    /// What a talk did to the group (the stage 3b-2 plan's item 1, 3b-1's
+    /// decision 11), told to every player but its talker as it runs, once
+    /// each: an alliance made or ended (SetRaceAllied, where the standing
+    /// changed), ships given to the host's fleet (AddEscortShips) or taken
+    /// from it (RemoveEscortShips). Called after each step of a meeting's
+    /// talk and a visit's ordinary talks; a story talk (the opening's, the
+    /// allied commander's on arrival) is shown to everyone already, so
+    /// nobody is told it again.
+    /// </summary>
+    internal void TellTalkEffects(Player talker, Comm.Talk talk)
+    {
+        var told = _talkTold.GetValue(talk, _ => new System.Runtime.CompilerServices.StrongBox<int>(0));
+        var events = talk.Events;
+        for (; told.Value < events.Count; ++told.Value)
+        {
+            (NoticeEvent Event, int Race, int Count)? notice = events[told.Value] switch
+            {
+                Comm.RaceAllied { Changed: true } a => (a.Flag ? NoticeEvent.AllianceMade : NoticeEvent.AllianceBroken, a.Race, 0),
+                Comm.EscortsAdded { Added: > 0 } a => (NoticeEvent.ShipsGiven, a.Race, a.Added),
+                Comm.EscortsRemoved { Removed: > 0 } r => (NoticeEvent.ShipsTaken, r.Race, r.Removed),
+                _ => null,
+            };
+            if (notice is not { } n)
+                continue;
+            foreach (var p in Others(talker.Id))
+                Notice(p, n.Event, talker.Id, RaceNameOf(n.Race), n.Count);
+        }
+    }
 
     // Whether a meeting's event touches a player (near where they met the group).
     private bool NearMeeting(Meeting m, Player p)

@@ -71,7 +71,11 @@ public sealed partial class GameWorld
             return null;
         if (TalkRules.IsStory(script, Story!))
             throw new InvalidOperationException($"the {script} talk is story: a race met in space starts an ordinary talk");
-        var own = new Dictionary<string, int>();
+        // The talk's own fields: where it is, and the answerer's
+        // ARILOU_SPACE_SIDE (in hyperspace or QuasiSpace: the Arilou's read
+        // it), each ship's own (the stage 3b-2 plan's item 1; stage 3c's
+        // QuasiSpace sets it).
+        var own = new Dictionary<string, int> { ["ARILOU_SPACE_SIDE"] = player.Ship.ArilouSpaceSide };
         if (globalFlags != 0)
             own["GLOBAL_FLAGS_AND_DATA"] = globalFlags;
         return TalkLibrary!.Create(script, Story!, own, new PlayerTalkShip(player, TalkLibrary.Strings, this), Clock, seed);
@@ -414,6 +418,7 @@ public sealed partial class GameWorld
             talk.BattleGroup = m.Star is int star && SystemGroups is { } sg && sg.Systems.TryGetValue(star, out var d)
                 ? Crateris.Core.Systems.SystemGroups.OffsetField(d.Defined) : null;
             talk.Load();
+            TellTalkEffects(m.Player, talk);
         }
         if (talk is null || talk.OffersAttack)
         {
@@ -423,6 +428,7 @@ public sealed partial class GameWorld
         m.Step = MeetingStep.Talk;
         m.Hailed = true;
         talk.Hail();
+        TellTalkEffects(m.Player, talk);
         if (talk.Ended)
             TalkOver(m);
     }
@@ -460,12 +466,16 @@ public sealed partial class GameWorld
             if (m.Talk is { } talk)
             {
                 talk.Hail();
+                TellTalkEffects(m.Player, talk);
                 if (!talk.Ended)
                     return true;
             }
         }
-        else
-            m.Talk?.Attack();
+        else if (m.Talk is { } talk)
+        {
+            talk.Attack();
+            TellTalkEffects(m.Player, talk);
+        }
         TalkOver(m);
         return true;
     }
@@ -484,6 +494,7 @@ public sealed partial class GameWorld
             return true;
         }
         talk.Choose(index);
+        TellTalkEffects(m.Player, talk);
         _rounds = Math.Max(_rounds, m.Round);
         if (talk.Ended)
             TalkOver(m);

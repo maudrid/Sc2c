@@ -7,7 +7,12 @@
 // (at your option) any later version.
 //
 // Ported from The Ur-Quan Masters 0.8.0 (src/uqm/commglue.c, comm.c's
-// DoResponsePhrase, SelectResponse and HailAlien, sis.c's DeltaSISGauges),
+// DoResponsePhrase, SelectResponse, HailAlien, AlienTalkSegue and
+// DoCommunication, sis.c's DeltaSISGauges, build.c's SetRaceAllied,
+// StartSphereTracking, CountEscortShips, HaveEscortShip and
+// RemoveSomeEscortShips, libs/sound/trackplayer.c's SpliceTrack,
+// SpliceMultiTrack and SplitSubPages as far as NPCPhrase_cb's callbacks
+// need them),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002, and
 // the UQM contributors, under the GNU GPL 2 or later.
 
@@ -202,11 +207,120 @@ public sealed class Talk
         _events.Add(new TalkingAnimation(enable));
     }
 
-    /// <summary>AlienTalkSegue: the lines play up to this track before the script goes on.</summary>
+    /// <summary>
+    /// AlienTalkSegue: the lines play up to this track before the script
+    /// goes on, the callbacks of their chunks running as they play
+    /// (<see cref="PlayTo"/>).
+    /// </summary>
     public void AlienTalkSegue(int waitTrack)
     {
         Check();
         _events.Add(new TalkWait(waitTrack));
+        PlayTo(waitTrack);
+    }
+
+    // ------------------------------------------------------------ the track player
+
+    // What trackplayer.c keeps that NPCPhrase_cb's callbacks need, as the
+    // recording program emulates it (tools/extract/golden/comm.c): the
+    // tracks queued since the last StopTrack, its static no_page_break
+    // (never reset by StopTrack: kept for the talk), the chunks tagged with
+    // a callback (by track, in order), how many have run, and comm.c's
+    // TalkingFinished.
+    private int _trackCount, _tagsRun;
+    private bool _noPageBreak, _talkingFinished;
+    private readonly List<(int Track, Action Callback)> _tags = new();
+
+    // SplitSubPages' count of a text's pages: each run up to a line end,
+    // the line ends after it skipped.
+    private static int CountPages(byte[] text)
+    {
+        int pages = 0, i = 0;
+        while (i < text.Length && text[i] != 0)
+        {
+            while (i < text.Length && text[i] is not (0 or (byte)'\r' or (byte)'\n'))
+                ++i;
+            while (i < text.Length && text[i] is (byte)'\r' or (byte)'\n')
+                ++i;
+            ++pages;
+        }
+        return pages;
+    }
+
+    // SpliceTrack's chunks (trackplayer.c): without voices (no timestamp
+    // files) a page a chunk, each tagged with the line's callback. A line
+    // with a clip starts a track, unless SpliceMultiTrack's no_page_break
+    // joins it to the last (its first page then untagged); one without
+    // joins the last track's last page, its pages after the first chunks
+    // of their own.
+    private void QueueChunks(bool newTrack, byte[] text, Action? callback)
+    {
+        int pages = CountPages(text);
+        if (pages == 0)
+            return;
+        int tagged;
+        if (!newTrack)
+        {
+            if (_trackCount == 0)
+                return;   // nothing to append to: UQM warns and drops it
+            tagged = pages - 1;
+        }
+        else
+        {
+            bool firstUntagged = _noPageBreak;
+            if (!(_noPageBreak && _trackCount > 0))
+                ++_trackCount;
+            tagged = pages - (firstUntagged ? 1 : 0);
+            _noPageBreak = false;
+        }
+        if (callback is not null)
+            for (int i = 0; i < tagged; ++i)
+                _tags.Add((_trackCount, callback));
+    }
+
+    // SpliceMultiTrack after a SpliceTrack (chunks queued): its clips join
+    // the last track, and so will the next track (no_page_break).
+    private void MultiTrackQueued(int clips)
+    {
+        if (_trackCount > 0 && clips > 0)
+            _noPageBreak = true;
+    }
+
+    /// <summary>
+    /// Playback reaches the end of track <paramref name="waitTrack"/>
+    /// (AlienTalkSegue's TalkSegue, or DoCommunication's play-out with
+    /// <see cref="WaitAll"/> once a script function returns): the callbacks
+    /// of the chunks up to it run, in order (UQM runs each as its chunk
+    /// starts playing, DoTrackTag, on the audio thread; deterministically
+    /// here where playback reaches its track: the next track's first
+    /// chunk, which UQM starts while the script goes on, waits for the
+    /// next segue or the play-out). If no track is left after it, the
+    /// talking is finished (TalkingFinished): the segues after it until
+    /// the next reply play nothing, and lines queued meanwhile never play.
+    /// </summary>
+    private void PlayTo(int waitTrack)
+    {
+        if (_talkingFinished)
+            return;
+        while (_tagsRun < _tags.Count && _tags[_tagsRun].Track <= waitTrack)
+        {
+            var callback = _tags[_tagsRun++].Callback;
+            Check();
+            _events.Add(new CallbackRun(callback.Method.Name));
+            callback();
+        }
+        if (waitTrack >= _trackCount)
+            _talkingFinished = true;
+    }
+
+    // SelectResponse: StopTrack (what wasn't played is dropped), and the
+    // talking not finished.
+    private void StopTrack()
+    {
+        _trackCount = 0;
+        _tags.Clear();
+        _tagsRun = 0;
+        _talkingFinished = false;
     }
 
     // ------------------------------------------------------------ where the talk is
@@ -305,6 +419,7 @@ public sealed class Talk
         Check();
         _events.Add(new SongChosen(UseAltSong && AltSong != "" && _musicLoads(AltSong) ? AltSong : Description.Song));
         _script.Intro();
+        PlayTo(WaitAll);   // DoCommunication: the lines play out before the replies (or the end)
         Check();
         EndIfSilent();
     }
@@ -338,7 +453,9 @@ public sealed class Talk
         _events.Add(new ReplyChosen(index));
         var (r, func, _) = _offered[index];
         _offered.Clear();
+        StopTrack();
         func(r);
+        PlayTo(WaitAll);
         Check();
         EndIfSilent();
     }
@@ -423,18 +540,29 @@ public sealed class Talk
     public bool PlayerSaid(int r, string id) => r == Phrase(id);
 
     /// <summary>NPCPhrase by id.</summary>
-    public void NPCPhrase(string id) => NPCPhrase(Phrase(id));
+    public void NPCPhrase(string id) => NPCPhraseCb(Phrase(id), null);
+
+    /// <summary>
+    /// NPCPhrase_cb by id: the line with a callback, a script's method
+    /// (named by the line's event and each run's), which runs as the line
+    /// plays (each page of it), not as it's queued: the Zoq-Fot-Pik's
+    /// SelectAlienZOQ and SelectAlienPIK switching the speaker.
+    /// </summary>
+    public void NPCPhrase(string id, Action callback) => NPCPhraseCb(Phrase(id), callback);
 
     /// <summary>NPCPhrase (NPCPhrase_cb without a callback): a line, a name, or the alliance's name.</summary>
-    public void NPCPhrase(int index)
+    public void NPCPhrase(int index) => NPCPhraseCb(index, null);
+
+    /// <summary>NPCPhrase_cb: a line, a name, or the alliance's name, with a callback run as it plays (or none).</summary>
+    public void NPCPhraseCb(int index, Action? callback)
     {
         switch (index)
         {
             case GlobalPlayerName:
-                Splice(null, Name(Ship.CaptainName), 0);
+                Splice(null, Name(Ship.CaptainName), 0, callback);
                 return;
             case GlobalShipName:
-                Splice(null, Name(Ship.ShipName), 0);
+                Splice(null, Name(Ship.ShipName), 0, callback);
                 return;
             case 0:
                 return;
@@ -447,11 +575,11 @@ public sealed class Talk
             var buf = Entry(index - 1 + i + 1);
             if (i == 3)
                 buf = buf.Concat(Name(Ship.CaptainName)).ToArray();
-            Splice(null, buf, 0);
+            Splice(null, buf, 0, callback);
             return;
         }
         int n = EntryNumber(index);
-        Splice(_clips[n - 1], _phrases[n - 1], n);
+        Splice(_clips[n - 1], _phrases[n - 1], n, callback);
     }
 
     /// <summary>NPCPhrase_splice: a line joined to the page before, with no page break.</summary>
@@ -464,6 +592,7 @@ public sealed class Talk
         {
             Check();
             _events.Add(new MultiTrackQueued(new[] { _clips[n - 1]! }, _phrases[n - 1]));
+            MultiTrackQueued(1);
         }
     }
 
@@ -487,8 +616,9 @@ public sealed class Talk
             Check();
             // SpliceMultiTrack's TrackNames end at the first missing clip.
             int clips = tracks.IndexOf(null);
-            _events.Add(new MultiTrackQueued(tracks.Take(clips < 0 ? tracks.Count : clips).Select(t => t!).ToList(),
-                Encoding.ASCII.GetBytes(Printf(format, number))));
+            var names = tracks.Take(clips < 0 ? tracks.Count : clips).Select(t => t!).ToList();
+            _events.Add(new MultiTrackQueued(names, Encoding.ASCII.GetBytes(Printf(format, number))));
+            MultiTrackQueued(names.Count);
             return;
         }
         Splice(null, Encoding.ASCII.GetBytes(Printf(format, number)), 0);
@@ -554,10 +684,11 @@ public sealed class Talk
         _ => throw new NotSupportedException($"NPCNumber format {format}"),
     };
 
-    private void Splice(string? clip, byte[] text, int phrase)
+    private void Splice(string? clip, byte[] text, int phrase, Action? callback = null)
     {
         Check();
-        _events.Add(new LineQueued(phrase, clip, text));
+        _events.Add(new LineQueued(phrase, clip, text, callback?.Method.Name));
+        QueueChunks(clip is not null, text, callback);
     }
 
     private static byte[] Name(string name) => Encoding.UTF8.GetBytes(name);
@@ -762,11 +893,89 @@ public sealed class Talk
     /// <summary>CheckAlliance: a race's standing, by races.h's number.</summary>
     public Story.Allied CheckAlliance(int race) => _story.Alliances[race];
 
+    // Whether races.h's number names a race in avail_race_q (GetStarShipFromIndex).
+    private bool IsRace(int race) => race >= 0 && race < _story.Rules.Races.Count;
+
+    /// <summary>
+    /// SetRaceAllied (build.c:210): a race's alliance made
+    /// (<paramref name="flag"/>) or ended, which changes the shipyard
+    /// (<see cref="StoryState.SetRaceAllied"/>: a dead race stays dead).
+    /// Returns 1, or 0 for no such race.
+    /// </summary>
+    public int SetRaceAllied(int race, bool flag)
+    {
+        Check();
+        int result = 0;
+        bool changed = false;
+        if (IsRace(race))
+        {
+            changed = _story.SetRaceAllied(_story.Rules.Races[race], flag);
+            result = 1;
+        }
+        _events.Add(new RaceAllied(race, flag, result, changed));
+        return result;
+    }
+
+    /// <summary>
+    /// StartSphereTracking (build.c:240), from a script: the race's sphere
+    /// shown on the starmap from now on (<see cref="StoryState.StartSphereTracking"/>).
+    /// Returns the race's number, or 0 if it's extinct or no such race (as
+    /// UQM, 0 for the Arilou too, whose number it is, though their sphere is
+    /// tracked).
+    /// </summary>
+    public int StartSphereTracking(int race)
+    {
+        Check();
+        int result = IsRace(race) && _story.StartSphereTracking(_story.Rules.Races[race]) ? race : 0;
+        _events.Add(new SphereTracked(race, result));
+        return result;
+    }
+
+    /// <summary>
+    /// CountEscortShips (build.c:276): how many ships of a race the escort
+    /// fleet has (the host's, whoever answers: the owner's question 4 of the
+    /// stage 3b-2 plan); 0 for no such race.
+    /// </summary>
+    public int CountEscortShips(int race) => IsRace(race) ? Ship.EscortRaces.Count(r => r == race) : 0;
+
+    /// <summary>HaveEscortShip (build.c:308): whether the escort fleet has a ship of a race.</summary>
+    public bool HaveEscortShip(int race) => CountEscortShips(race) > 0;
+
+    /// <summary>
+    /// GetHeadLink (&amp;GLOBAL (built_ship_q)) == 0: the escort fleet has
+    /// no ships (the Druuge's check for a ship to salvage, druugec.c:822).
+    /// </summary>
+    public bool EscortFleetEmpty => Ship.EscortRaces.Count == 0;
+
+    /// <summary>
+    /// RemoveSomeEscortShips (build.c:358): up to <paramref name="count"/>
+    /// ships of a race (races.h's number) leave the escort fleet, the first
+    /// first. Returns, as UQM's does, the count it couldn't remove (not the
+    /// number removed its comment says). Its DeltaSISGauges redraw runs
+    /// whenever some of the count is left: for <see cref="RemoveEscortShips"/>
+    /// nearly always.
+    /// </summary>
+    public int RemoveSomeEscortShips(int race, int count)
+    {
+        if (count == 0)
+            return 0;
+        Check();
+        int removed = Ship.RemoveEscorts(race, count);
+        _events.Add(new EscortsRemoved(race, count, removed));
+        count -= removed;
+        if (count > 0)
+            DeltaSISGauges(UndefinedDelta, UndefinedDelta, UndefinedDelta);
+        return count;
+    }
+
+    /// <summary>RemoveEscortShips (build.c:400): every ship of a race leaves the escort fleet (RemoveSomeEscortShips with (COUNT) -1).</summary>
+    public void RemoveEscortShips(int race) => RemoveSomeEscortShips(race, 0xFFFF);
+
     // ------------------------------------------------------------ changes
 
     // What the recording program's check_changes does at each engine call
-    // and after each script function: the screen and the ship, when they
-    // changed since the last look.
+    // and after each script function: the screen, the ship and its bio
+    // data, when they changed since the last look.
     private void Check()
     {
         if (_screenLoaded && (ColorMap != _lastMap || !Ambient.SequenceEqual(_lastAmbient)))
@@ -776,13 +985,21 @@ public sealed class Talk
             _events.Add(new ScreenChanged(ColorMap, _lastAmbient));
         }
         var ship = (_defeated ? DefeatedCrew : Ship.Crew, Ship.Fuel, Ship.Landers, Ship.ResourceUnits, Ship.Minerals.ToArray());
-        if (_lastShip is { } last && (last.Item1, last.Item2, last.Item3, last.Item4) == (ship.Item1, ship.Item2, ship.Item3, ship.Item4)
-            && last.Item5.SequenceEqual(ship.Item5))
-            return;
-        if (_lastShip is not null)
-            _events.Add(new ShipChanged(ship.Item1, ship.Item2, ship.Item3, ship.Item4, ship.Item5));
-        _lastShip = ship;
+        if (_lastShip is not { } last || (last.Item1, last.Item2, last.Item3, last.Item4) != (ship.Item1, ship.Item2, ship.Item3, ship.Item4)
+            || !last.Item5.SequenceEqual(ship.Item5))
+        {
+            if (_lastShip is not null)
+                _events.Add(new ShipChanged(ship.Item1, ship.Item2, ship.Item3, ship.Item4, ship.Item5));
+            _lastShip = ship;
+        }
+        // The bio data, an event of its own (the recording's "bio").
+        int bio = Ship.BioData;
+        if (_lastBio is int b && b != bio)
+            _events.Add(new BioChanged(bio));
+        _lastBio = bio;
     }
+
+    private int? _lastBio;
 }
 
 /// <summary>A reply's text a script builds with construct_response into a buffer of its own.</summary>

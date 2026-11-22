@@ -60,9 +60,12 @@ public abstract record TalkEvent;
 /// A line queued (SpliceTrack): with a voice clip, a new track; without
 /// one, text added to the last track's last page (a name spliced in, say).
 /// <see cref="Phrase"/> is its entry number from 1, 0 for text not in the
-/// phrase table.
+/// phrase table. <see cref="Callback"/> names the script's function
+/// NPCPhrase_cb gave it, which runs as the line plays
+/// (<see cref="CallbackRun"/>): the Zoq-Fot-Pik's switch of speaker, which
+/// a client follows to show the line as the right one's; null for none.
 /// </summary>
-public sealed record LineQueued(int Phrase, string? Clip, byte[] TextBytes) : TalkEvent
+public sealed record LineQueued(int Phrase, string? Clip, byte[] TextBytes, string? Callback = null) : TalkEvent
 {
     public string Text => Encoding.UTF8.GetString(TextBytes);
 }
@@ -120,6 +123,41 @@ public sealed record EscortCrewSet(int Race, int Crew, int Captain) : TalkEvent;
 /// or sets aside (StoryState.AddEvent).
 /// </summary>
 public sealed record EventAdded(bool Relative, int Months, int Days, int Years, string Event) : TalkEvent;
+
+/// <summary>
+/// A line's callback (NPCPhrase_cb) ran: playback reached a chunk of the
+/// line (each page of it is one, each running it), as
+/// <see cref="Talk.AlienTalkSegue"/> or the play-out after a script
+/// function plays the lines; named by the script's function.
+/// </summary>
+public sealed record CallbackRun(string Callback) : TalkEvent;
+
+/// <summary>The bio data aboard changed (TotalBioMass): the Umgah's reward, the Melnorme's buying.</summary>
+public sealed record BioChanged(int BioData) : TalkEvent;
+
+/// <summary>
+/// Ships of a race (races.h's number) asked to leave the escort fleet,
+/// up to <see cref="Count"/> (65535 from RemoveEscortShips: every one),
+/// and those that did (RemoveSomeEscortShips: the Orz's, as their alliance
+/// breaks).
+/// </summary>
+public sealed record EscortsRemoved(int Race, int Count, int Removed) : TalkEvent;
+
+/// <summary>
+/// A race's alliance made (<see cref="Flag"/>) or ended (SetRaceAllied):
+/// <see cref="Result"/> 1, or 0 for no such race. <see cref="Changed"/>
+/// (not UQM's, nor recorded) whether its standing changed: not for a dead
+/// race, which stays dead, nor one already so.
+/// </summary>
+public sealed record RaceAllied(int Race, bool Flag, int Result, bool Changed) : TalkEvent;
+
+/// <summary>
+/// A race's sphere to be shown on the starmap from now on
+/// (StartSphereTracking, from a script): <see cref="Result"/> the race's
+/// number, or 0 for an extinct race or no such race (and for the Arilou,
+/// whose number is 0).
+/// </summary>
+public sealed record SphereTracked(int Race, int Result) : TalkEvent;
 
 /// <summary>The player chose the reply at <see cref="Index"/> of those offered.</summary>
 public sealed record ReplyChosen(int Index) : TalkEvent;

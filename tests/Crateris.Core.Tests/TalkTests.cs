@@ -22,7 +22,7 @@ namespace Crateris.Core.Tests;
 /// <summary>
 /// The conversation engine and the ported scripts (docs/plans/stage-3.md,
 /// item 4), against every path UQM's own scripts take from the recorded
-/// starts (tests/golden/talks.json).
+/// starts (tests/golden/talks-NAME.json, one file per script).
 /// </summary>
 [Trait("Topic", "talk")]
 public class TalkTests
@@ -30,7 +30,6 @@ public class TalkTests
     private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
     private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);
     private static readonly StoryRules Rules = StoryRules.Load(DataDir);
-    private static readonly JsonElement Recorded = Golden.Load("talks").GetProperty("talks");
 
     /// <summary>A flagship as the recordings give it, with the capacities its modules give (sis.c).</summary>
     internal sealed class TestShip : ITalkShip
@@ -44,6 +43,9 @@ public class TalkTests
         public int Landers { get; set; }
         public uint ResourceUnits { get; set; }
         public IList<int> Minerals { get; init; } = new int[8];
+        public int BioData { get; set; }
+        public List<int> Escorts { get; init; } = new();
+        public IReadOnlyList<int> EscortRaces => Escorts;
         public int Thrusters { get; init; } = 2;
         public int Jets { get; init; } = 2;
         public IReadOnlyList<string?> ModuleSlots { get; init; } = new string?[16];
@@ -51,13 +53,35 @@ public class TalkTests
         public int EscortRoom { get; set; }
         public (int X, int Y) LogPlace { get; init; } = (Uqm.Units.UniverseToLogX(1752), Uqm.Units.UniverseToLogY(1450));
 
-        // UQM's recorder stubs AddEscortShips (comm.c): no captains' names drawn.
+        // UQM's recorder stubs AddEscortShips (comm.c): no captains' names drawn; each joins the queue's tail.
         public int AddEscorts(int race, int count, Func<uint> random)
         {
             int added = Math.Min(count, EscortRoom);
             EscortRoom -= added;
             EscortsWorth += added * RaceCosts[race];
+            for (int i = 0; i < added && Escorts.Count < 12; ++i)
+                Escorts.Add(race);
             return added;
+        }
+
+        // The recorder's RemoveSomeEscortShips (comm.c): the first first, their room given back, their worth taken off.
+        public int RemoveEscorts(int race, int count)
+        {
+            int removed = 0;
+            for (int i = 0; i < Escorts.Count && removed < count;)
+            {
+                if (Escorts[i] == race)
+                {
+                    Escorts.RemoveAt(i);
+                    ++removed;
+                }
+                else
+                    ++i;
+            }
+            EscortRoom += removed;
+            if (race >= 0 && race < RaceCosts.Length)
+                EscortsWorth -= removed * RaceCosts[race];
+            return removed;
         }
 
         // UQM's recorder stubs SetEscortCrewComplement (comm.c): recorded only.
@@ -88,22 +112,34 @@ public class TalkTests
                 Landers = s.GetProperty("landers").GetInt32(),
                 ResourceUnits = s.GetProperty("ru").GetUInt32(),
                 Minerals = s.GetProperty("elements").Ints(),
+                BioData = start.TryGetProperty("bio", out var bio) ? bio.GetInt32() : 0,
+                Escorts = start.TryGetProperty("escort_fleet", out var fleet)
+                    ? fleet.EnumerateArray().Select(r => Rules.RaceIndex(r.GetString()!)).ToList() : new(),
                 LogPlace = start.TryGetProperty("log", out var log) ? (log[0].GetInt32(), log[1].GetInt32())
                     : (Uqm.Units.UniverseToLogX(1752), Uqm.Units.UniverseToLogY(1450)),
             };
         }
     }
 
-    private static readonly Dictionary<string, Func<ConversationScript, CommScript>> Ported = new()
+    // Each ported script, its recording (tests/golden/talks-NAME.json) and how it's made.
+    private static readonly Dictionary<string, (string Recording, Func<ConversationScript, CommScript> Make)> Ported = new()
     {
-        ["comandr"] = p => new CommanderScript(p),
-        ["ilwrath"] = p => new IlwrathScript(p),
-        ["starbas"] = p => new StarbaseScript(p),
-        ["urquan"] = p => new UrquanScript(p),
-        ["blackur"] = p => new BlackUrquanScript(p),
-        ["spathi"] = p => new SpathiScript(p),
-        ["slyland"] = p => new SlylandroScript(p),
+        ["comandr"] = ("talks-comandr", p => new CommanderScript(p)),
+        ["ilwrath"] = ("talks-ilwrath", p => new IlwrathScript(p)),
+        ["starbas"] = ("talks-starbas", p => new StarbaseScript(p)),
+        ["urquan"] = ("talks-urquan", p => new UrquanScript(p)),
+        ["blackur"] = ("talks-blackur", p => new BlackUrquanScript(p)),
+        ["spathi"] = ("talks-spathi", p => new SpathiScript(p)),
+        ["slyland"] = ("talks-slyland", p => new SlylandroScript(p)),
     };
+
+    // A script's recorded starts.
+    private static List<JsonElement> Recorded(string script)
+    {
+        var file = Golden.Load(Ported[script].Recording);
+        Assert.Equal(script, file.GetProperty("script").GetString());
+        return file.GetProperty("starts").EnumerateArray().ToList();
+    }
 
     private static Talk Start(ContentPackage package, string script, JsonElement start)
     {
@@ -128,8 +164,11 @@ public class TalkTests
                     "dead" => Allied.Dead,
                     var x => throw new InvalidDataException($"alliance {x}"),
                 });
+        if (start.TryGetProperty("fleets", out var fleets))
+            foreach (var f in fleets.EnumerateObject())
+                story.SetFleet(f.Name, story.Fleet(f.Name) with { ActualStrength = f.Value[0].GetInt32(), KnownStrength = f.Value[1].GetInt32() });
         uint seed = start.TryGetProperty("seed", out var sd) ? sd.GetUInt32() : 12345;
-        var talk = new Talk(Ported[script](s), s.Description, Conversation.Load(package, s.Description.Phrases),
+        var talk = new Talk(Ported[script].Make(s), s.Description, Conversation.Load(package, s.Description.Phrases),
             BinaryTable.Load(package, s.Description.ColorMap).Count, story, own, TestShip.From(start.GetProperty("ship"), start), clock, seed,
             id => package.Resources.TryGetValue(id, out var r) && r.Type == "MUSICRES" && package.HasFile(r.Value));
         if (start.TryGetProperty("activity", out var activity))
@@ -152,8 +191,13 @@ public class TalkTests
     /// <summary>An event as the recording program writes it.</summary>
     internal static JsonObject Json(TalkEvent e) => e switch
     {
-        LineQueued { Clip: { } clip } l => new() { ["track"] = l.Phrase, ["clip"] = clip, ["text"] = Hash(l.TextBytes) },
-        LineQueued l => new() { ["append"] = l.Phrase, ["text"] = Hash(l.TextBytes) },
+        LineQueued { Clip: { } clip } l => WithCallback(new() { ["track"] = l.Phrase, ["clip"] = clip, ["text"] = Hash(l.TextBytes) }, l),
+        LineQueued l => WithCallback(new() { ["append"] = l.Phrase, ["text"] = Hash(l.TextBytes) }, l),
+        CallbackRun r => new() { ["run"] = r.Callback },
+        BioChanged b => new() { ["bio"] = b.BioData },
+        EscortsRemoved r => new() { ["removed"] = new JsonArray(r.Race, r.Count, r.Removed) },
+        RaceAllied a => new() { ["allied"] = new JsonArray(a.Race, a.Flag ? 1 : 0, a.Result) },
+        SphereTracked t => new() { ["sphere"] = new JsonArray(t.Race, t.Result) },
         MultiTrackQueued m => new() { ["multi"] = m.Clips, ["clips"] = new JsonArray(m.ClipNames.Select(c => (JsonNode)c).ToArray()), ["text"] = Hash(m.TextBytes) },
         TalkWait w => new() { ["wait"] = w.Track },
         ColorTransform x => new() { ["xform"] = x.Map, ["time"] = x.Time },
@@ -184,13 +228,21 @@ public class TalkTests
         _ => throw new ArgumentException($"no recording for {e}"),
     };
 
+    // A line's callback after its text, as the recording program writes it.
+    private static JsonObject WithCallback(JsonObject o, LineQueued l)
+    {
+        if (l.Callback is { } callback)
+            o["callback"] = callback;
+        return o;
+    }
+
     public static IEnumerable<object[]> PortedScripts() => Ported.Keys.Select(k => new object[] { k });
 
     [ContentTheory]
     [MemberData(nameof(PortedScripts))]
     public void EveryRecordedPathIsUqms(string script)
     {
-        var starts = Recorded.GetProperty(script).EnumerateArray().ToList().Sample();
+        var starts = Recorded(script).Sample();
         Assert.NotEmpty(starts);
         TestContent.With(package =>
         {
@@ -244,19 +296,38 @@ public class TalkTests
         protected internal override void Uninit() => UninitCalls++;
 
         public void Said(int r) => T.NPCPhrase("BYE");
+
+        public readonly List<string> Ran = new();
+
+        // Two callbacks (NPCPhrase_cb's), as the Zoq-Fot-Pik's speakers: each
+        // notes its run, and Zoq changes the screen (its ambient flags).
+        public void Zoq()
+        {
+            Ran.Add(nameof(Zoq));
+            T.Ambient[0] ^= CommAnimationFlags.WaitTalking;
+        }
+
+        public void Pik() => Ran.Add(nameof(Pik));
     }
 
     private static readonly CommDescription Plain = Scripts["comandr"].Description with { Ambient = Array.Empty<CommAnimation>() };
 
     private static (Talk Talk, ProbeScript Script) Probe(Action<ProbeScript> intro, TestShip? ship = null,
-        Dictionary<string, int>? own = null, uint seed = 1)
+        Dictionary<string, int>? own = null, uint seed = 1, StoryState? story = null, bool paged = false)
     {
-        var phrases = new ConversationScript("probe", "init_probe_comm", Plain,
-            new[] { "HELLO", "BYE", "ask", "name_1", "name_2", "name_3", "name_4", "name_end" });
-        var lines = Conversation.Parse(
-            "#(HELLO) h.ogg\nHello\n#(BYE) b.ogg\nBye\n#(ask)\nWhat?\n#(name_1)\nThe One\n#(name_2)\nThe Two\n#(name_3)\nThe Three\n#(name_4)\nThe Empire of \n#(name_end)\n!\n"u8);
+        var ids = new List<string> { "HELLO", "BYE", "ask", "name_1", "name_2", "name_3", "name_4", "name_end" };
+        string text = "#(HELLO) h.ogg\nHello\n#(BYE) b.ogg\nBye\n#(ask)\nWhat?\n#(name_1)\nThe One\n#(name_2)\nThe Two\n#(name_3)\nThe Three\n#(name_4)\nThe Empire of \n#(name_end)\n!\n";
+        if (paged)
+        {
+            // A line of three pages (SplitSubPages: each run to a line end), and one of two without a clip.
+            ids.AddRange(new[] { "PAGED", "paged_append" });
+            text += "#(PAGED) p.ogg\nOne\nTwo\r\n\nThree\n#(paged_append)\nFour\nFive\n";
+        }
+        var phrases = new ConversationScript("probe", "init_probe_comm", Plain with { Ambient = Scripts["comandr"].Description.Ambient.Take(1).ToArray() },
+            ids.ToArray());
+        var lines = Conversation.Parse(System.Text.Encoding.UTF8.GetBytes(text));
         var script = new ProbeScript(phrases, intro);
-        var talk = new Talk(script, Plain, lines, 2, StoryState.NewGame(Rules, new GameClock(2155, 2, 17)),
+        var talk = new Talk(script, phrases.Description, lines, 2, story ?? StoryState.NewGame(Rules, new GameClock(2155, 2, 17)),
             own ?? new Dictionary<string, int>(), ship ?? new TestShip { Crew = 10, CrewCapacity = 50, Fuel = 100, FuelCapacity = 6000, Landers = 1 },
             new GameClock(2155, 2, 17), seed,
             _ => true);
@@ -466,5 +537,242 @@ public class TalkTests
             Assert.Equal(loads ? "comm.commander.lowpower.music" : phrases.Description.Song,
                 talk.Events.OfType<SongChosen>().Single().Resource);
         }
+    }
+
+    // ------------------------------------------------------------ what talks can do (stage 3b-2 item 1)
+
+    private static int RaceOf(string race) => Rules.RaceIndex(race);
+
+    [Fact]
+    public void SetRaceAlliedMakesAndEndsAnAllianceButADeadRaceStaysDead()
+    {
+        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        story.SetAlliance("VUX_SHIP", Allied.Dead);
+        int orz = RaceOf("ORZ_SHIP"), vux = RaceOf("VUX_SHIP");
+        var results = new List<int>();
+        var read = new List<Allied>();
+        var (talk, _) = Probe(s =>
+        {
+            results.Add(s.Talk.SetRaceAllied(orz, true));
+            read.Add(s.Talk.CheckAlliance(orz));   // the talk reads its own change
+            results.Add(s.Talk.SetRaceAllied(orz, true));   // already allied: unchanged
+            results.Add(s.Talk.SetRaceAllied(orz, false));
+            read.Add(s.Talk.CheckAlliance(orz));
+            results.Add(s.Talk.SetRaceAllied(vux, true));   // "strange request, silently ignore it"
+            read.Add(s.Talk.CheckAlliance(vux));
+            results.Add(s.Talk.SetRaceAllied(Rules.Races.Count, true));   // no such race: 0
+            results.Add(s.Talk.SetRaceAllied(-1, false));
+        }, story: story);
+        talk.Start();
+        Assert.Equal(new[] { 1, 1, 1, 1, 0, 0 }, results);
+        Assert.Equal(new[] { Allied.Good, Allied.Bad, Allied.Dead }, read);
+        Assert.Equal(new[]
+        {
+            new RaceAllied(orz, true, 1, true), new RaceAllied(orz, true, 1, false), new RaceAllied(orz, false, 1, true),
+            new RaceAllied(vux, true, 1, false), new RaceAllied(Rules.Races.Count, true, 0, false), new RaceAllied(-1, false, 0, false),
+        }, talk.Events.OfType<RaceAllied>());
+        Assert.Equal("{\"allied\":[3,1,1]}", Json(talk.Events.OfType<RaceAllied>().First()).ToJsonString());
+        Assert.Equal(Allied.Bad, story.Alliance("ORZ_SHIP"));
+    }
+
+    [Fact]
+    public void StartSphereTrackingFromAScriptTracksTheSphereAndSaysWhetherTheRaceLives()
+    {
+        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        story.SetFleet("SHOFIXTI_SHIP", story.Fleet("SHOFIXTI_SHIP") with { ActualStrength = 0 });
+        story.SetAlliance("SHOFIXTI_SHIP", Allied.Dead);
+        int utwig = RaceOf("UTWIG_SHIP"), umgah = RaceOf("UMGAH_SHIP"), shofixti = RaceOf("SHOFIXTI_SHIP");
+        var results = new List<int>();
+        var (talk, _) = Probe(s =>
+        {
+            results.Add(s.Talk.StartSphereTracking(utwig));
+            results.Add(s.Talk.StartSphereTracking(umgah));
+            results.Add(s.Talk.StartSphereTracking(shofixti));   // no sphere, dead: extinct
+            results.Add(s.Talk.StartSphereTracking(0));          // the Arilou: their number, 0, though tracked
+            results.Add(s.Talk.StartSphereTracking(Rules.Races.Count));
+        }, story: story);
+        talk.Start();
+        Assert.Equal(new[] { utwig, umgah, 0, 0, 0 }, results);
+        Assert.Equal(1, story.Fleet("UTWIG_SHIP").KnownStrength);
+        Assert.Equal((story.Fleet("UTWIG_SHIP").LocX, story.Fleet("UTWIG_SHIP").LocY),
+            (story.Fleet("UTWIG_SHIP").KnownLocX, story.Fleet("UTWIG_SHIP").KnownLocY));
+        Assert.Equal(1, story.Fleet("ARILOU_SHIP").KnownStrength);
+        Assert.Equal(new[] { new SphereTracked(utwig, utwig), new SphereTracked(umgah, umgah), new SphereTracked(shofixti, 0),
+            new SphereTracked(0, 0), new SphereTracked(Rules.Races.Count, 0) }, talk.Events.OfType<SphereTracked>());
+        Assert.Equal($"{{\"sphere\":[{utwig},{utwig}]}}", Json(talk.Events.OfType<SphereTracked>().First()).ToJsonString());
+    }
+
+    [Fact]
+    public void TheEscortFleetIsReadAndItsShipsOfARaceTakenAway()
+    {
+        int orz = RaceOf("ORZ_SHIP"), spathi = RaceOf("SPATHI_SHIP"), shofixti = RaceOf("SHOFIXTI_SHIP");
+        var ship = new TestShip { CrewCapacity = 50, FuelCapacity = 1000, Escorts = new() { orz, spathi, orz, orz },
+            EscortsWorth = 3 * Rules.RaceShips[orz].Cost + Rules.RaceShips[spathi].Cost, EscortRoom = 8 };
+        var seen = new List<(int, bool, bool, bool)>();
+        var left = new List<int>();
+        var (talk, _) = Probe(s =>
+        {
+            var t = s.Talk;
+            seen.Add((t.CountEscortShips(orz), t.HaveEscortShip(spathi), t.HaveEscortShip(shofixti), t.EscortFleetEmpty));
+            left.Add(t.RemoveSomeEscortShips(orz, 1));   // the first Orz; none left over: no redraw
+            left.Add(t.RemoveSomeEscortShips(orz, 0));   // nothing asked: nothing done, nothing recorded
+            t.RemoveEscortShips(orz);
+            seen.Add((t.CountEscortShips(orz), t.HaveEscortShip(spathi), false, t.EscortFleetEmpty));
+            t.RemoveEscortShips(spathi);
+            t.RemoveEscortShips(shofixti);   // none to take: the redraw all the same
+            seen.Add((t.CountEscortShips(Rules.Races.Count), t.HaveEscortShip(spathi), false, t.EscortFleetEmpty));
+        }, ship);
+        talk.Start();
+        Assert.Equal(new[] { (3, true, false, false), (0, true, false, false), (0, false, false, true) }, seen);
+        Assert.Equal(new[] { 0, 0 }, left);
+        Assert.Equal((0, 0, 12), (ship.Escorts.Count, ship.EscortsWorth, ship.EscortRoom));
+        Assert.Equal(new[]
+        {
+            "{\"removed\":[3,1,1]}", "{\"removed\":[3,65535,2]}", "{\"gauges\":[32767,32767,32767]}",
+            "{\"removed\":[6,65535,1]}", "{\"gauges\":[32767,32767,32767]}",
+            $"{{\"removed\":[{shofixti},65535,0]}}", "{\"gauges\":[32767,32767,32767]}",
+        }, talk.Events.Where(e => e is EscortsRemoved or GaugesChanged).Select(e => Json(e).ToJsonString()));
+    }
+
+    [Fact]
+    public void ShipsGivenJoinTheEscortQueuesTail()
+    {
+        int orz = RaceOf("ORZ_SHIP"), spathi = RaceOf("SPATHI_SHIP");
+        var ship = new TestShip { CrewCapacity = 50, FuelCapacity = 1000, Escorts = new() { spathi }, EscortRoom = 2 };
+        var (talk, _) = Probe(s => s.Talk.AddEscortShips(orz, 3), ship);
+        talk.Start();
+        Assert.Equal(new[] { spathi, orz, orz }, ship.Escorts);
+    }
+
+    [Fact]
+    public void TheBioDataAboardIsTheScriptsToChangeAndItsChangesAreRecorded()
+    {
+        var ship = new TestShip { CrewCapacity = 50, FuelCapacity = 1000, BioData = 7 };
+        var (talk, _) = Probe(s =>
+        {
+            s.Talk.Ship.BioData += 1000 / 5;   // umgahc.c's reward: 1000 / BIO_CREDIT_VALUE
+            s.Talk.NPCPhrase("HELLO");
+            s.Talk.Ship.BioData = 0;           // melnorm.c's
+            s.Talk.Ship.BioData = 0;
+            s.Talk.NPCPhrase("BYE");
+        }, ship);
+        talk.Start();
+        Assert.Equal(new[] { new BioChanged(207), new BioChanged(0) }, talk.Events.OfType<BioChanged>());
+        Assert.Equal("{\"bio\":207}", Json(talk.Events.OfType<BioChanged>().First()).ToJsonString());
+        // Each at the next engine call after it, as check_changes sees it.
+        var kinds = talk.Events.Where(e => e is BioChanged or LineQueued).Select(e => e.GetType().Name).ToList();
+        Assert.Equal(new[] { "BioChanged", "LineQueued", "BioChanged", "LineQueued" }, kinds);
+    }
+
+    // The events in words, for the callbacks' tests: lines (with their callbacks), waits, runs, screens.
+    private static List<string> Played(Talk talk) => talk.Events.Select(e => e switch
+    {
+        LineQueued l => $"line {l.Phrase}{(l.Callback is { } c ? " " + c : "")}",
+        TalkWait w => $"wait {w.Track}",
+        CallbackRun r => $"run {r.Callback}",
+        ScreenChanged x => $"screen {(int)x.Ambient[0]}",
+        ReplyChosen r => $"reply {r.Index}",
+        RepliesOffered => "offer",
+        TalkEnded => "end",
+        _ => null,
+    }).Where(e => e is not null).Select(e => e!).ToList();
+
+    [Fact]
+    public void ALinesCallbackRunsAsPlaybackReachesItsTrackNotAsItsQueued()
+    {
+        var (talk, script) = Probe(s =>
+        {
+            s.Talk.NPCPhrase("HELLO", s.Zoq);
+            s.Talk.NPCPhrase("BYE", s.Pik);
+            s.Talk.NPCPhrase("HELLO", s.Zoq);
+            s.Talk.AlienTalkSegue(1);   // the first track plays; the rest wait
+            s.Talk.NPCPhrase("BYE", s.Pik);
+            s.Talk.AlienTalkSegue(3);
+        });
+        talk.Start();
+        int ambient = (int)talk.Description.Ambient[0].Flags;
+        int other = ambient ^ (int)CommAnimationFlags.WaitTalking;
+        Assert.Equal(new[]
+        {
+            $"screen {ambient}", "line 1 Zoq", "line 2 Pik", "line 1 Zoq", "wait 1", "run Zoq",
+            $"screen {other}", "line 2 Pik", "wait 3", "run Pik", "run Zoq",
+            // The play-out as the intro returns: the fourth track.
+            $"screen {ambient}", "run Pik", "end",
+        }, Played(talk));
+        Assert.Equal(new[] { "Zoq", "Pik", "Zoq", "Pik" }, script.Ran);
+        Assert.Equal("{\"track\":1,\"clip\":\"h.ogg\",\"text\":\"" + Hash("Hello"u8.ToArray()) + "\",\"callback\":\"Zoq\"}",
+            Json(talk.Events.OfType<LineQueued>().First()).ToJsonString());
+        Assert.Equal("{\"run\":\"Zoq\"}", Json(talk.Events.OfType<CallbackRun>().First()).ToJsonString());
+    }
+
+    [Fact]
+    public void ASegueThatPlaysEveryTrackEndsTheTalkingTillTheNextReply()
+    {
+        // TalkingFinished: the segues after one that played every track queued
+        // play nothing, and lines queued meanwhile never play; a reply chosen
+        // drops them (StopTrack) and the talking starts afresh.
+        var (talk, script) = Probe(s =>
+        {
+            s.Talk.NPCPhrase("HELLO", s.Zoq);
+            s.Talk.AlienTalkSegue(1);   // every track queued: finished
+            s.Talk.NPCPhrase("BYE", s.Pik);
+            s.Talk.AlienTalkSegue(Talk.WaitAll);
+            s.Talk.Response("ask", r =>
+            {
+                s.Talk.NPCPhrase("BYE", s.Pik);
+            });
+        });
+        talk.Start();
+        Assert.Equal(new[] { "Zoq" }, script.Ran);
+        talk.Choose(0);
+        Assert.Equal(new[] { "Zoq", "Pik" }, script.Ran);
+        Assert.Equal(new[] { "line 2 Pik", "run Pik", "end" }, Played(talk).SkipWhile(e => e != "reply 0").Skip(1));
+    }
+
+    [Fact]
+    public void ASegueWithNothingQueuedEndsTheTalkingToo()
+    {
+        var (talk, script) = Probe(s =>
+        {
+            s.Talk.AlienTalkSegue(Talk.WaitAll);
+            s.Talk.NPCPhrase("HELLO", s.Zoq);
+        });
+        talk.Start();
+        Assert.Empty(script.Ran);
+    }
+
+    [Fact]
+    public void ACallbackRunsForEachPageOfItsLine()
+    {
+        // trackplayer.c tags every page's chunk with the callback (its "TODO:
+        // We may have to tag only one page"); a line without a clip appended
+        // to the last track tags its pages after the first.
+        var (talk, script) = Probe(s =>
+        {
+            s.Talk.NPCPhrase("PAGED", s.Zoq);          // three pages
+            s.Talk.NPCPhrase("paged_append", s.Pik);   // two: the second its own chunk
+        }, paged: true);
+        talk.Start();
+        Assert.Equal(new[] { "Zoq", "Zoq", "Zoq", "Pik" }, script.Ran);
+    }
+
+    [Fact]
+    public void ALineJoinedAfterASplicedClipHasItsFirstPageUntagged()
+    {
+        // SpliceMultiTrack (NPCPhrase_splice with a clip) sets no_page_break: the
+        // next line with a clip joins the last track, its first chunk untagged.
+        var (talk, script) = Probe(s =>
+        {
+            s.Talk.NPCPhrase("ask", s.Pik);            // no clip, nothing queued yet: dropped
+            s.Talk.NPCPhrase("HELLO");
+            s.Talk.NPCPhraseSplice("BYE");
+            s.Talk.NPCPhrase("HELLO", s.Zoq);          // joined: its one page untagged
+            s.Talk.NPCPhrase("PAGED", s.Pik);          // a track of its own again, three pages
+            s.Talk.AlienTalkSegue(2);
+        }, paged: true);
+        talk.Start();
+        Assert.Equal(new[] { "Pik", "Pik", "Pik" }, script.Ran);
+        Assert.Equal(new[] { "wait 2", "run Pik", "run Pik", "run Pik", "end" },
+            Played(talk).SkipWhile(e => !e.StartsWith("wait")).Where(e => !e.StartsWith("screen")));
     }
 }

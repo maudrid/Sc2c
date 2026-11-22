@@ -234,8 +234,8 @@ public sealed class StoryState
     public IReadOnlyList<Allied> Alliances => _alliances;
 
     /// <summary>
-    /// Sets a race's standing, whatever it was (SetRaceAllied, which leaves a
-    /// dead race dead, is the scripts' call and comes with them).
+    /// Sets a race's standing, whatever it was (the scripts' call is
+    /// <see cref="SetRaceAllied"/>, which leaves a dead race dead).
     /// </summary>
     public void SetAlliance(string race, Allied state)
     {
@@ -245,6 +245,21 @@ public sealed class StoryState
             _alliances[i] = state;
             ++Version;
         }
+    }
+
+    /// <summary>
+    /// SetRaceAllied (build.c:210), the scripts' call: a race's alliance
+    /// made (<paramref name="flag"/>: GOOD_GUY) or ended (BAD_GUY), which
+    /// puts its ships on sale at the shipyard or takes them off; a dead race
+    /// stays dead ("strange request, silently ignore it"). Returns whether
+    /// the standing changed.
+    /// </summary>
+    public bool SetRaceAllied(string race, bool flag)
+    {
+        if (Alliance(race) == Allied.Dead || Alliance(race) == (flag ? Allied.Good : Allied.Bad))
+            return false;
+        SetAlliance(race, flag ? Allied.Good : Allied.Bad);
+        return true;
     }
 
     // ---------------------------------------------------------------- the fleets

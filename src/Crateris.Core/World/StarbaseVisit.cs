@@ -205,6 +205,16 @@ public sealed class StarbaseVisit
 
     private bool _talkIsStory;
 
+    // The visit's talks that were story as they started (TalkRules).
+    private readonly HashSet<Talk> _storyTalks = new();
+
+    /// <summary>
+    /// Whether one of its talks was story as it started (decision 6): shown
+    /// to everyone, so what it did isn't told again in notices
+    /// (<see cref="GameWorld.TellTalkEffects"/>).
+    /// </summary>
+    internal bool IsStoryTalk(Talk talk) => _storyTalks.Contains(talk);
+
     public VisitStep Step { get; private set; }
 
     /// <summary>The talk going on, if any (none while time passes, or once done).</summary>
@@ -380,6 +390,8 @@ public sealed class StarbaseVisit
         Talk = library.Create(script, _world.Story!, own, _ship, _world.Clock, seed);
         Talk.RoundSource = _world.NewRound;
         Talks.Add(Talk);
+        if (_talkIsStory)
+            _storyTalks.Add(Talk);
         Talk.Start();
         if (Talk.Ended)
             TalkEnded();

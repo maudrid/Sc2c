@@ -227,6 +227,18 @@ public sealed class ShipHold
     public int BioData { get; private set; }
 
     /// <summary>
+    /// Sets the bio data aboard (TotalBioMass, a COUNT: 0 to 65,535), as a
+    /// talk does (the Umgah's reward, the Melnorme's buying it).
+    /// </summary>
+    public void SetBioData(int bioData)
+    {
+        if (bioData < 0 || bioData > ushort.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(bioData), $"{bioData} bio data (0 to {ushort.MaxValue})");
+        BioData = bioData;
+        _snapshot = null;
+    }
+
+    /// <summary>
     /// The minerals a lander can bring up (PlanetSide's MaxElementLevel):
     /// MAX_SCROUNGED, twice that with the cargo upgrade, and no more than the
     /// storage bays have room for.

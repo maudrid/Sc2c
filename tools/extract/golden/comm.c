@@ -31,9 +31,17 @@
  *   the seed of the scripts' random numbers (TFB_SeedRandom);
  *   each element category's worth (ElementWorth);
  *   each race's standing, in races.h's order (CheckAlliance: 0 extinct,
- *     1 allied, 2 not);
+ *     1 allied, 2 not), which SetRaceAllied changes;
+ *   each race's sphere, in races.h's order, as two numbers: its actual
+ *     and its known strength (FLEET_INFO's actual_strength and
+ *     known_strength), which StartSphereTracking reads and sets;
  *   the escort fleet: what its ships are worth (CalculateEscortsWorth)
  *     and how many more it has room for (EscortFeasibilityStudy);
+ *   the escort fleet's ships' races, in built_ship_q's order, space-
+ *     separated (may be empty), which CountEscortShips and RemoveEscortShips
+ *     read and AddEscortShips and RemoveEscortShips change, and
+ *     GetHeadLink (&GLOBAL (built_ship_q)) sees as empty or not;
+ *   the bio data aboard (GLOBAL_SIS (TotalBioMass));
  *   the music resources that load, space-separated (HailAlien plays the
  *     alternate song only if it loads);
  *   where the talk is: LOBYTE (GLOBAL (CurrentActivity)) (globdata.h's
@@ -48,6 +56,28 @@
  * pressed at once (AnyButtonPress gives TRUE): each category is sold in
  * one go, rather than counted down a unit at a time on the screen.
  *
+ * The track player (libs/sound/trackplayer.c) is emulated as far as
+ * NPCPhrase_cb's callbacks need it (the Zoq-Fot-Pik's speakers, zoqfotc.c):
+ * the tracks are numbered as SpliceTrack numbers them (a clip starts a
+ * track, unless SpliceMultiTrack's no_page_break joins it to the last,
+ * which is static there and kept across replies, as UQM's is), and each
+ * line's text is split into pages as SplitSubPages splits it (without
+ * voices there are no timestamp files, so a page a chunk, each tagged
+ * with the line's callback, but a page joined to the last track's). UQM
+ * runs a chunk's callback when its chunk starts playing (DoTrackTag),
+ * on the audio thread, as the lines play: here each runs, in order,
+ * where playback deterministically reaches its track. AlienTalkSegue (n)
+ * plays the tracks up to n (UQM goes on playing the next while the script
+ * goes on, its first chunk's callback a race with the script; here it
+ * waits for the next segue or the play-out); a segue that plays every
+ * track queued ends the talking (TalkingFinished) and the segues after it
+ * in the same function play nothing; when the function returns,
+ * DoCommunication's AlienTalkSegue (WAIT_TRACK_ALL) plays out the rest
+ * before the replies are offered or the talk ends (post and uninit run
+ * after, their lines never played); a reply chosen (SelectResponse's
+ * StopTrack) drops what wasn't played. The player's own seeking and
+ * replays (which may run a callback again, seek_track) aren't emulated.
+ *
  * Output: one JSON event a line, as the talk goes (HailAlien's order:
  * the init function, init_encounter_func, then a reply's function for each
  * reply). Texts are content, so they're given as the first 16 hex digits
@@ -56,8 +86,14 @@
  *   {"track": phrase, "clip": c, "text": h}   SpliceTrack with a voice clip
  *                                             (a new track); phrase is the
  *                                             line's entry number from 1,
- *                                             0 for text not in the table
+ *                                             0 for text not in the table;
+ *                                             with "callback": f (its
+ *                                             address) after the text if
+ *                                             NPCPhrase_cb gave one
  *   {"append": phrase, "text": h}             SpliceTrack without a clip
+ *                                             (with "callback" as above)
+ *   {"run": f}                                a line's callback run, as
+ *                                             playback reaches its chunk
  *   {"multi": n, "clips": [c...], "text": h}  SpliceMultiTrack, its n clips
  *   {"wait": n}                               AlienTalkSegue (n tracks)
  *   {"xform": map, "time": t}                 XFormColorMap
@@ -67,6 +103,9 @@
  *   {"set": start_bit, "value": v}            setGameState
  *   {"ship": [crew, fuel, landers, ru, ...8 element amounts]}
  *                                             when the ship changes
+ *   {"bio": n}                                the bio data aboard
+ *                                             (TotalBioMass), when it
+ *                                             changes
  *   {"gauges": [crew, fuel, ru]}              DeltaSISGauges
  *   {"random": n}                             TFB_Random's number drawn
  *   {"talking": b}                            EnableTalkingAnim (b 1 or 0)
@@ -77,6 +116,15 @@
  *                                             room for
  *   {"complement": [race, crew, captain]}     SetEscortCrewComplement (the
  *                                             Spathi's Fwiffo joining alone)
+ *   {"removed": [race, n, removed]}           RemoveSomeEscortShips (n
+ *                                             65535 from RemoveEscortShips):
+ *                                             removed those of the race the
+ *                                             fleet had, up to n
+ *   {"allied": [race, flag, result]}          SetRaceAllied (flag 1 or 0;
+ *                                             result 1, or 0 for no such
+ *                                             race)
+ *   {"sphere": [race, result]}                StartSphereTracking (result
+ *                                             the race, or 0)
  *   {"event": [type, month, day, year, id]}   AddEvent (clock.h's
  *                                             ABSOLUTE_EVENT 0 or
  *                                             RELATIVE_EVENT 1, gameev.h's
@@ -159,6 +207,8 @@ static int last_map = -1;
 static unsigned last_flags[MAX_ANIMATIONS];
 static DWORD last_ship[4 + NUM_ELEMENT_CATEGORIES];
 static int ship_known;
+static COUNT last_bio;
+static int bio_known;
 
 static int
 map_index (COLORMAP map)
@@ -205,6 +255,86 @@ check_changes (void)
 		memcpy (last_ship, ship, sizeof ship);
 		ship_known = 1;
 	}
+	if (bio_known && GLOBAL_SIS (TotalBioMass) != last_bio)
+		printf ("{\"bio\": %u}\n", (unsigned) GLOBAL_SIS (TotalBioMass));
+	last_bio = GLOBAL_SIS (TotalBioMass);
+	bio_known = 1;
+}
+
+/* ------------------------------------------------- the track player */
+
+/* What trackplayer.c keeps that the callbacks' runs need (see the top):
+ * the tracks queued since the last StopTrack (track_count), its static
+ * no_page_break (never reset by StopTrack), the chunks tagged with a
+ * callback (by track, in order), how many of them have run, and comm.c's
+ * TalkingFinished. */
+#define MAX_TAGS 512
+static int track_count, no_page_break, talking_finished;
+static struct
+{
+	int track;
+	CallbackFunction cb;
+} tags[MAX_TAGS];
+static int num_tags, tags_run;
+
+/* SplitSubPages' count of a text's pages: each run up to a line end, the
+ * line ends after it skipped. */
+static int
+count_pages (const UNICODE *text)
+{
+	int pages = 0;
+	while (*text != '\0')
+	{
+		text += strcspn (text, "\r\n");
+		text += strspn (text, "\r\n");
+		++pages;
+	}
+	return pages;
+}
+
+static void
+tag_chunks (int track, CallbackFunction cb, int chunks)
+{
+	if (!cb)
+		return;
+	for (; chunks > 0; --chunks)
+	{
+		if (num_tags >= MAX_TAGS)
+		{
+			printf ("{\"error\": \"more than %d tagged chunks\"}\n", MAX_TAGS);
+			exit (1);
+		}
+		tags[num_tags].track = track;
+		tags[num_tags].cb = cb;
+		++num_tags;
+	}
+}
+
+/* Playback reaches the end of track n (AlienTalkSegue's wait): the
+ * callbacks of the chunks up to it run, in order; if no track is left
+ * after it, the talking is finished (TalkSegue's ended). */
+static void
+play_to (COUNT wait_track)
+{
+	if (talking_finished)
+		return;
+	while (tags_run < num_tags && tags[tags_run].track <= (int) wait_track)
+	{
+		check_changes ();
+		printf ("{\"run\": \"%lx\"}\n", (unsigned long) tags[tags_run].cb);
+		(*tags[tags_run++].cb) (0);
+	}
+	if ((int) wait_track >= track_count)
+		talking_finished = 1;
+}
+
+/* SelectResponse: StopTrack, and the talking not finished. */
+static void
+stop_track (void)
+{
+	track_count = 0;
+	num_tags = tags_run = 0;
+	talking_finished = 0;
 }
 
 /* ----------------------------------------------------- the engine's calls */
@@ -213,8 +343,8 @@ void
 SpliceTrack (UNICODE *TrackName, UNICODE *TrackText, UNICODE *TimeStamp,
 		CallbackFunction cb)
 {
+	int pages;
 	(void) TimeStamp;
-	(void) cb;
 	check_changes ();
 	if (!TrackText)
 		return;
@@ -228,7 +358,32 @@ SpliceTrack (UNICODE *TrackName, UNICODE *TrackText, UNICODE *TimeStamp,
 		printf ("{\"append\": %d", phrase_of (TrackText));
 		print_text ("text", TrackText);
 	}
+	if (cb)
+		printf (", \"callback\": \"%lx\"", (unsigned long) cb);
 	printf ("}\n");
+
+	/* trackplayer.c's SpliceTrack, as far as the chunks go. */
+	pages = count_pages (TrackText);
+	if (pages == 0)
+		return;
+	if (!TrackName)
+	{
+		/* Appended to the last track's last page; the pages after the
+		 * first are chunks of their own, tagged. */
+		if (track_count == 0)
+			return;
+		tag_chunks (track_count, cb, pages - 1);
+	}
+	else
+	{
+		/* A new track, or joined to the last after SpliceMultiTrack:
+		 * every page a chunk, tagged but the first after a join. */
+		int first_untagged = no_page_break;
+		if (!(no_page_break && track_count))
+			++track_count;
+		tag_chunks (track_count, cb, pages - first_untagged);
+		no_page_break = 0;
+	}
 }
 
 void
@@ -244,6 +399,11 @@ SpliceMultiTrack (UNICODE *TrackNames[], UNICODE *TrackText)
 	printf ("]");
 	print_text ("text", TrackText);
 	printf ("}\n");
+	/* trackplayer.c's: after a SpliceTrack (chunks queued), the clips
+	 * (each loads, a null decoder without voices) join the last track, and
+	 * the next track joins it too. */
+	if (TrackText && track_count > 0 && TrackNames[0])
+		no_page_break = 1;
 }
 
 void
@@ -251,6 +411,7 @@ AlienTalkSegue (COUNT wait_track)
 {
 	check_changes ();
 	printf ("{\"wait\": %u}\n", (unsigned) wait_track);
+	play_to (wait_track);
 }
 
 DWORD
@@ -402,15 +563,65 @@ FONT TinyFont;
 FRAME FlagStatFrame;
 int optWhichFonts;
 
-/* What starbas.c asks of build.c's fleet (the escorts and the races'
- * alliances), from the input. */
+/* What the scripts ask of build.c's fleets (the escorts, the races'
+ * alliances and spheres), from the input; each changes as build.c's
+ * would. */
 static COUNT alliances[NUM_AVAILABLE_RACES];
+static COUNT actual_strength[NUM_AVAILABLE_RACES], known_strength[NUM_AVAILABLE_RACES];
 static COUNT escorts_worth, escort_room;
+static COUNT escort_fleet[MAX_BUILT_SHIPS];
+static int escort_count;
+
+/* GetHeadLink (&GLOBAL (built_ship_q)) (the Druuge's check for an
+ * unarmed ship) is the queue's head: non-zero while it has ships. Only
+ * whether it's 0 is read, so a stand-in link. */
+static void
+set_escort_queue (void)
+{
+	GLOBAL (built_ship_q).head = escort_count ? (HLINK) 1 : 0;
+	GLOBAL (built_ship_q).tail = GLOBAL (built_ship_q).head;
+}
 
 COUNT
 CheckAlliance (COUNT race)
 {
 	return race < NUM_AVAILABLE_RACES ? alliances[race] : 0;
+}
+
+/* build.c's SetRaceAllied: a dead race stays dead; 0 for no such race. */
+COUNT
+SetRaceAllied (COUNT race, BOOLEAN flag)
+{
+	COUNT result = 0;
+	check_changes ();
+	if (race < NUM_AVAILABLE_RACES)
+	{
+		if (alliances[race] != DEAD_GUY)
+			alliances[race] = flag ? GOOD_GUY : BAD_GUY;
+		result = 1;
+	}
+	printf ("{\"allied\": [%u, %d, %u]}\n", (unsigned) race, flag ? 1 : 0, (unsigned) result);
+	return result;
+}
+
+/* build.c's StartSphereTracking: the race, or 0 if it's extinct (no
+ * sphere and dead) or no such race; the sphere known from now on. */
+COUNT
+StartSphereTracking (COUNT race)
+{
+	COUNT result = race;
+	check_changes ();
+	if (race >= NUM_AVAILABLE_RACES)
+		result = 0;
+	else if (actual_strength[race] == 0)
+	{
+		if (alliances[race] == DEAD_GUY)
+			result = 0;
+	}
+	else if (known_strength[race] == 0 && actual_strength[race] != INFINITE_RADIUS)
+		known_strength[race] = 1;
+	printf ("{\"sphere\": [%u, %u]}\n", (unsigned) race, (unsigned) result);
+	return result;
 }
 
 COUNT
@@ -426,19 +637,84 @@ EscortFeasibilityStudy (COUNT race)
 	return escort_room;
 }
 
+/* build.c's CountEscortShips and HaveEscortShip. */
+COUNT
+CountEscortShips (COUNT race)
+{
+	COUNT n = 0;
+	int i;
+	if (race >= NUM_AVAILABLE_RACES)
+		return 0;
+	for (i = 0; i < escort_count; ++i)
+		if (escort_fleet[i] == race)
+			++n;
+	return n;
+}
+
+BOOLEAN
+HaveEscortShip (COUNT race)
+{
+	return CountEscortShips (race) > 0;
+}
+
 COUNT
 AddEscortShips (COUNT race, SIZE count)
 {
 	COUNT ShipCost[] = { RACE_SHIP_COST };
 	COUNT added = (COUNT) count < escort_room ? (COUNT) count : escort_room;
+	COUNT i;
 	check_changes ();
 	printf ("{\"escorts\": [%u, %d, %u]}\n", (unsigned) race, (int) count, (unsigned) added);
 	escort_room -= added;
 	escorts_worth += added * ShipCost[race];
+	/* Each joins the queue's tail. */
+	for (i = 0; i < added && escort_count < MAX_BUILT_SHIPS; ++i)
+		escort_fleet[escort_count++] = race;
+	set_escort_queue ();
 	/* DeltaSISGauges (UNDEFINED_DELTA, UNDEFINED_DELTA, UNDEFINED_DELTA):
 	 * recorded, but not run, as it only redraws the whole status panel. */
 	printf ("{\"gauges\": [%d, %d, %d]}\n", UNDEFINED_DELTA, UNDEFINED_DELTA, UNDEFINED_DELTA);
 	return added;
+}
+
+/* build.c's RemoveSomeEscortShips: up to count ships of the race leave
+ * the queue, the first first; their room given back and their worth
+ * taken off. Returns, as UQM's does, the count it couldn't remove. Its
+ * DeltaSISGauges, called whenever that count is left over (nearly always:
+ * RemoveEscortShips asks for (COUNT) -1), is recorded but not run, as in
+ * AddEscortShips. */
+COUNT
+RemoveSomeEscortShips (COUNT race, COUNT count)
+{
+	COUNT ShipCost[] = { RACE_SHIP_COST };
+	COUNT asked = count, removed;
+	int i, j;
+	if (count == 0)
+		return 0;
+	check_changes ();
+	for (i = 0, j = 0; i < escort_count; ++i)
+	{
+		if (count > 0 && escort_fleet[i] == race)
+			--count;
+		else
+			escort_fleet[j++] = escort_fleet[i];
+	}
+	removed = (COUNT) (escort_count - j);
+	escort_count = j;
+	set_escort_queue ();
+	escort_room += removed;
+	if (race < NUM_AVAILABLE_RACES)
+		escorts_worth -= removed * ShipCost[race];
+	printf ("{\"removed\": [%u, %u, %u]}\n", (unsigned) race, (unsigned) asked, (unsigned) removed);
+	if (count > 0)
+		printf ("{\"gauges\": [%d, %d, %d]}\n", UNDEFINED_DELTA, UNDEFINED_DELTA, UNDEFINED_DELTA);
+	return count;
+}
+
+void
+RemoveEscortShips (COUNT race)
+{
+	RemoveSomeEscortShips (race, (COUNT) -1);
 }
 
 /* build.c's: the Spathi's Fwiffo in the Eluder that joins, alone.
@@ -570,6 +846,14 @@ print_key (void)
 		printf ("|%lu", (unsigned long) seed);
 	}
 	printf ("|%u,%u", (unsigned) escorts_worth, (unsigned) escort_room);
+	/* The escorts' races, the bio data, and the races' standings and
+	 * known spheres, which the talk may change. */
+	printf ("|");
+	for (i = 0; i < (COUNT) escort_count; ++i)
+		printf ("%u,", (unsigned) escort_fleet[i]);
+	printf ("|%u|", (unsigned) GLOBAL_SIS (TotalBioMass));
+	for (i = 0; i < NUM_AVAILABLE_RACES; ++i)
+		printf ("%u%s", (unsigned) alliances[i], known_strength[i] ? "k" : "");
 #ifdef SCRIPT_spathi
 	/* The script's own state that the replies offered don't show. */
 	printf ("|%u", (unsigned) join_us_refusals);
@@ -662,12 +946,27 @@ main (void)
 		alliances[step] = v;
 	}
 	read_line (line, sizeof line);
+	for (step = 0, p = line; step < NUM_AVAILABLE_RACES; ++step, p += i)
+	{
+		unsigned a, k;
+		sscanf (p, "%u %u%n", &a, &k, &i);
+		actual_strength[step] = a;
+		known_strength[step] = k;
+	}
+	read_line (line, sizeof line);
 	{
 		unsigned w, r;
 		sscanf (line, "%u %u", &w, &r);
 		escorts_worth = w;
 		escort_room = r;
 	}
+	read_line (line, sizeof line);
+	for (p = line, escort_count = 0; escort_count < MAX_BUILT_SHIPS
+			&& sscanf (p, "%u%n", &v, &i) == 1; p += i)
+		escort_fleet[escort_count++] = v;
+	set_escort_queue ();
+	read_line (line, sizeof line);
+	GLOBAL_SIS (TotalBioMass) = (COUNT) strtoul (line, NULL, 10);
 	read_line (music, sizeof music);
 	read_line (line, sizeof line);
 	{
@@ -712,6 +1011,8 @@ main (void)
 
 	num_offered = 0;
 	(*CommData.init_encounter_func) ();
+	/* DoCommunication: the lines play out before the replies (or the end). */
+	play_to (WAIT_TRACK_ALL);
 	check_changes ();
 	for (step = 0; num_offered > 0; ++step)
 	{
@@ -745,7 +1046,9 @@ main (void)
 		ref = offered[choice].ref;
 		func = offered[choice].func;
 		num_offered = 0;
+		stop_track ();
 		(*func) (ref);
+		play_to (WAIT_TRACK_ALL);
 		check_changes ();
 	}
 	(*CommData.post_encounter_func) ();

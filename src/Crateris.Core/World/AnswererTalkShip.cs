@@ -118,7 +118,17 @@ internal sealed class AnswererTalkShip : ITalkShip
 
     public IList<int> Minerals => new AnswererMinerals(this);
 
-    public int BioData => Answerer.Ship.Hold.BioData;
+    public int BioData
+    {
+        get => Answerer.Ship.Hold.BioData;
+        set
+        {
+            var p = Answerer;
+            int before = p.Ship.Hold.BioData;
+            p.Ship.Hold.SetBioData(value);
+            Of(p).BioData += p.Ship.Hold.BioData - before;
+        }
+    }
 
     public int StorageCapacity => Answerer.Ship.Hold.StorageCapacity;
 
@@ -133,6 +143,28 @@ internal sealed class AnswererTalkShip : ITalkShip
     public int EscortsWorth => Answerer.IsHost && _world.Story is { } story ? _world.Fleet.Worth(story.Rules) : 0;
 
     public int EscortRoom => _world.Fleet.Room;
+
+    // The host's fleet's ships, whoever answers (the stage 3b-2 plan's question 4).
+    public IReadOnlyList<int> EscortRaces => PlayerTalkShip.EscortRacesOf(_world);
+
+    // Taken from the host's fleet, whoever answers (question 4). A ship the
+    // talks gave and now take back is no longer among those an opening
+    // taken back takes from the fleet (EscortsAdded): it's gone already.
+    // One the talks didn't give isn't put back by an opening taken back:
+    // that can't arise, as no opening talk takes ships (the commander's
+    // and the Ilwrath's at Earth; the Orz's RemoveEscortShips is a meeting
+    // talk's, and the allied commander's from the menu, which is no
+    // opening, never calls it).
+    public int RemoveEscorts(int race, int count)
+    {
+        if (_world.Story is not { } story || race < 0 || race >= story.Rules.Races.Count)
+            return 0;
+        var before = _world.Fleet.Ships.ToList();
+        int removed = count - _world.Fleet.RemoveSome(story.Rules.Races[race], count);
+        var gone = before.Except(_world.Fleet.Ships).ToList();
+        _escortsAdded.RemoveAll(gone.Contains);
+        return removed;
+    }
 
     public int AddEscorts(int race, int count, Func<uint> random)
     {
@@ -161,7 +193,8 @@ internal sealed class AnswererTalkShip : ITalkShip
     /// The ships the talks gave the host's fleet, as they joined it (each
     /// told by its slot, race and captain: its crew may change since, in a
     /// battle or the roster): what an opening taken back takes from the
-    /// fleet, and a save during it leaves out. The talks take no ships yet.
+    /// fleet, and a save during it leaves out; those the talks took back
+    /// again aren't among them.
     /// </summary>
     public IReadOnlyList<FleetShip> EscortsAdded => _escortsAdded;
 
@@ -215,7 +248,7 @@ internal sealed class AnswererTalkShip : ITalkShip
 /// <summary>What a visit's talks changed on one ship: each a net change, taken back by subtracting it.</summary>
 internal sealed class TalkChanges
 {
-    public int Crew, Landers;
+    public int Crew, Landers, BioData;
     public long Fuel, ResourceUnits;
     public int[] Minerals = new int[ShipHold.Categories];
 
@@ -249,6 +282,8 @@ internal sealed class TalkChanges
             hold.MoveCargo(back, 0, +1);
         if (Fuel != 0)
             ship.Flight.Fuel = (uint)Math.Clamp(ship.Flight.Fuel - Fuel, 0, uint.MaxValue);
+        if (BioData != 0)
+            hold.SetBioData(Math.Clamp(hold.BioData - BioData, 0, ushort.MaxValue));
     }
 
     /// <summary>A hold and fuel without these changes (each no lower than 0, the crew and landers no more than the ship holds).</summary>
@@ -264,5 +299,6 @@ internal sealed class TalkChanges
             Landers = Math.Clamp(hold.Landers - Landers, Math.Min(landersAtLeast, hold.Landers), ShipHold.MaxLanders),
             ResourceUnits = (uint)Math.Clamp(hold.ResourceUnits - ResourceUnits, 0, uint.MaxValue),
             Minerals = hold.Minerals?.Select((m, i) => Math.Max(0, m - Minerals[i])).ToArray(),
+            BioData = Math.Clamp(hold.BioData - BioData, 0, ushort.MaxValue),
         }, (uint)Math.Clamp(fuel - Fuel, 0, uint.MaxValue));
 }

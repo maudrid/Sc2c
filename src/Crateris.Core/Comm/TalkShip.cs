@@ -44,8 +44,12 @@ public interface ITalkShip
     /// <summary>The minerals in the hold by element category (ElementAmounts); a script may change them (selling them).</summary>
     IList<int> Minerals { get; }
 
-    /// <summary>The bio data aboard (TotalBioMass), which the cargo display shows as the minerals are sold.</summary>
-    int BioData => 0;
+    /// <summary>
+    /// The bio data aboard (TotalBioMass), which the cargo display shows as
+    /// the minerals are sold; a script may change it (the Umgah's reward
+    /// adds to it, the Melnorme buy it). A COUNT in UQM: 0 to 65,535.
+    /// </summary>
+    int BioData { get; set; }
 
     /// <summary>The minerals the storage holds (GetStorageBayCapacity): the ship's own, as its hold is.</summary>
     int StorageCapacity => ModuleSlots.Count(m => m == "STORAGE_BAY") * 500;
@@ -69,6 +73,13 @@ public interface ITalkShip
     /// <summary>What the escort fleet's ships are worth (CalculateEscortsWorth).</summary>
     int EscortsWorth { get; }
 
+    /// <summary>
+    /// The escort fleet's ships' races (races.h's numbers), in
+    /// built_ship_q's order: what CountEscortShips, HaveEscortShip and
+    /// RemoveEscortShips look through, and GetHeadLink sees as empty or not.
+    /// </summary>
+    IReadOnlyList<int> EscortRaces { get; }
+
     /// <summary>How many more ships the escort fleet has room for (EscortFeasibilityStudy).</summary>
     int EscortRoom { get; }
 
@@ -79,6 +90,13 @@ public interface ITalkShip
     /// the talk's generator).
     /// </summary>
     int AddEscorts(int race, int count, Func<uint> random);
+
+    /// <summary>
+    /// Up to <paramref name="count"/> ships of a race (races.h's number)
+    /// leave the escort fleet, the first in its order first; returns how
+    /// many did (RemoveSomeEscortShips).
+    /// </summary>
+    int RemoveEscorts(int race, int count);
 
     /// <summary>
     /// The first escort of a race (races.h's number) whose crew is its

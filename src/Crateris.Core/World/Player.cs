@@ -134,6 +134,15 @@ public sealed class PlayerShip
     /// </summary>
     internal int AppearFrames { get; set; }
 
+    /// <summary>
+    /// ARILOU_SPACE_SIDE, this ship's own (StoryState.NotShared): whether
+    /// it's in hyperspace (0 or 1) or QuasiSpace (2 or 3), which the
+    /// Arilou's talk reads (the stage 3b-2 plan's item 1: a meeting's talk
+    /// is given its answerer's). QuasiSpace is stage 3c's, which sets it;
+    /// until then every ship is in normal space (0).
+    /// </summary>
+    public int ArilouSpaceSide { get; internal set; }
+
     /// <summary>The battle this ship is in, fighting or watching (not saved: decision 14).</summary>
     public WorldBattle? Battle { get; internal set; }
 
