@@ -326,6 +326,37 @@ public class HomeTalkTests
         Assert.Equal(last ? 1 : 0, world.Story.Get("SPATHI_CREATURES_ELIMINATED"));
     }
 
+    [ContentFact]
+    public void AMineralTakenOnSpathiwaCountsNoEvilOne()
+    {
+        // Spathiwa's minerals go to GenerateDefault_pickupMinerals (genspa.c),
+        // never to pickupLife: with 31 Evil Ones taken, a mineral leaves both
+        // flags as they were.
+        var world = NewGame();
+        int star = Star(world, "SPATHI_DEFINED");
+        var spathiwa = new WorldId(star, 0, null);
+        world.PutInOrbit("h", star, 0);
+        for (int n = 1; n < StoryWorlds.EvilOnes; ++n)
+            world.Planets.SetRetrieved(spathiwa, ScanType.Biological, n);
+        Assert.Equal(DispatchRefusal.None, world.Dispatch("h", 120, 40));
+        var lander = world.Host.Ship.Lander!;
+        var surface = world.SurfaceOf(spathiwa)!;
+        for (int i = 0; i < 400 && lander.Phase != LanderPhase.Ground; ++i)
+            Frames(world, 1);
+        Assert.Equal(LanderPhase.Ground, lander.Phase);
+        var mineral = surface.Elements.First(e => e.Kind == SurfaceElementKind.Mineral);
+        int node = mineral.Node;
+        for (int i = 0; i < 20 && !world.Planets.IsRetrieved(spathiwa, ScanType.Mineral, node); ++i)
+        {
+            mineral.X = lander.X;
+            mineral.Y = lander.Y;
+            Frames(world, 1);
+        }
+        Assert.True(world.Planets.IsRetrieved(spathiwa, ScanType.Mineral, node));
+        Assert.Equal(0, world.Story!.Get("SPATHI_CREATURES_EXAMINED"));
+        Assert.Equal(0, world.Story.Get("SPATHI_CREATURES_ELIMINATED"));
+    }
+
     // ---- the Slylandro gas giant
 
     // Orbiting the Slylandro gas giant (gensly.c).
