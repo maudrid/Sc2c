@@ -1490,25 +1490,36 @@ public sealed partial class GameWorld
 
     /// <summary>
     /// The fuel a ship's tanks have room for (1/100 units), as a gift fills
-    /// them: by its flight's fuel, which is at least the spin's into a group
-    /// (<see cref="FuelAboard"/>), so a gift fills neither past its capacity.
+    /// them: by the fuel aboard (<see cref="FuelAboard"/>), so while it
+    /// spins into a group, by the spin's, which its fuel will be; the
+    /// giving screen takes it from the snapshot's fuel, the same.
     /// </summary>
     internal static uint TankRoom(PlayerShip ship) =>
-        ship.Flight.FuelCapacity > ship.Flight.Fuel ? ship.Flight.FuelCapacity - ship.Flight.Fuel : 0;
+        ship.Flight.FuelCapacity > FuelAboard(ship) ? ship.Flight.FuelCapacity - FuelAboard(ship) : 0;
 
     // Fuel in or out of a ship's tanks (a gift): its flight's, and the spin's
     // into a group it met while it spins, whose fuel becomes the flight's at
-    // its end (HyperFlight.TakePlaceOf), so the gift stays. Give checked it
-    // against FuelAboard and TankRoom, so neither goes below empty or past
-    // its top (checked: a gift that would is a bug, not to be clamped). A
-    // spin into a star (the encounters' copy, dropped at its end) is kept
-    // in step as far as it goes: it may have burnt more than the flight has.
+    // its end (HyperFlight.TakePlaceOf, at the spin's end or the meeting
+    // abandoned), so the gift stays. Give checked it against FuelAboard and
+    // TankRoom, so the spin goes neither below empty nor past the tanks
+    // (checked: a gift that would is a bug, not to be clamped), nor the
+    // flight below empty. While it spins into a group, the room is the
+    // spin's, and the flight, which hasn't burnt the drift's fuel, takes the
+    // gift only up to its capacity: a save meanwhile (of the flight, where
+    // it met the group) stays within the tanks, and the flight keeps at
+    // least the spin's fuel (min(F + g, cap) >= s + g, as F >= s and
+    // s + g <= cap). A spin into a star (the encounters' copy, dropped at
+    // its end) is kept in step as far as it goes: it may have burnt more
+    // than the flight has.
     private static void MoveFuel(PlayerShip ship, long delta)
     {
-        ship.Flight.Fuel = checked((uint)(ship.Flight.Fuel + delta));
+        bool group = SpinsIntoGroup(ship);
+        ship.Flight.Fuel = group && delta > 0
+            ? (uint)Math.Min(ship.Flight.Fuel + delta, ship.Flight.FuelCapacity)
+            : checked((uint)(ship.Flight.Fuel + delta));
         if (ship.Spin is not { } spin)
             return;
-        if (SpinsIntoGroup(ship))
+        if (group)
             spin.Fuel = checked((uint)(spin.Fuel + delta));
         else
             spin.Fuel = (uint)Math.Clamp(spin.Fuel + delta, 0, uint.MaxValue);

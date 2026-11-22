@@ -757,6 +757,33 @@ public class HyperEncounterTests
     }
 
     [ContentFact]
+    public void FuelGivenFromAndToAShipSpinningIntoAStarIsTheFlightsAtTheSpinsEnd()
+    {
+        // Stage 3b-2 item 3, review round 2: the spin into a star is the
+        // encounters' copy, dropped at its end, so the flight's fuel is the
+        // ship's: it gives what the flight has (the copy kept in step as far
+        // as it goes) and takes up to the flight's room.
+        var (world, _) = IntoAStar();
+        var host = world.Host.Ship;
+        var spin = host.Spin!;
+        Assert.Null(host.Meeting);
+        world.PutInSystem("g", host.SystemStar!.Value);
+        var guest = world.Find("g")!.Ship;
+        host.Flight.Fuel = 1000;
+        spin.Fuel = 990;   // burnt by the drift
+        guest.Flight.Fuel = 0;
+        Assert.Equal(1000u, world.Snapshot().Ships.Single(s => s.Id == "h").Fuel);
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("h", "g", 0, new int[8], 0, Fuel: 995)));
+        Assert.Equal((5u, 0u, 995u), (host.Flight.Fuel, spin.Fuel, guest.Flight.Fuel));
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("g", "h", 0, new int[8], 0, Fuel: 400)));
+        Assert.Equal((405u, 400u, 595u), (host.Flight.Fuel, spin.Fuel, guest.Flight.Fuel));
+        for (int i = 0; i < 100 && host.Spin is not null; ++i)
+            world.Step();
+        Assert.Null(host.Spin);
+        Assert.Equal((405u, 595u), (host.Flight.Fuel, guest.Flight.Fuel));
+    }
+
+    [ContentFact]
     public void ADayEndingInTheSpinRollsWhereTheSpinHasTakenTheShip()
     {
         // The Spathi's sphere moved (as 3c's events move fleets) so that its

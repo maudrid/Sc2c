@@ -506,6 +506,88 @@ public class MeetingTests
     }
 
     [ContentFact]
+    public void AShipSpinningIntoAGroupIsGivenFuelUpToTheRoomItsSpinLeaves()
+    {
+        // Review round 2 (item 3): the receiver's room is the spin's, which
+        // its fuel will be, as the giving screen takes it from the snapshot;
+        // the flight takes the gift up to its capacity.
+        var game = NewGame("g");
+        var world = game.World;
+        var guest = world.Find("g")!.Ship;
+        guest.Flight.PlaceAtUniverse(5830, 6100);   // within a screen of the host
+        GroupBy(world, "h", "URQUAN_SHIP");
+        for (int i = 0; i < 200 && world.MeetingOf("h") is null; ++i)
+            Frames(world, 1);
+        var m = world.MeetingOf("h")!;
+        Assert.Equal(MeetingStep.Spin, m.Step);
+        var ship = world.Host.Ship;
+        uint cap = ship.Flight.FuelCapacity;
+        // The flight's room 9.5 units (9 whole ones), the spin's 10.1 (10): the drift's burn crossed a unit.
+        ship.Flight.Fuel = cap - 950;
+        ship.Spin!.Fuel = cap - 1010;
+        guest.Flight.Fuel = 5000;
+        var me = new PlayerSession(Systems.Value, null, "g", TestContent.Shapes.HyperFlagship.Count);
+        me.Observe(world.Snapshot());
+        me.ToggleTrade();
+        Assert.Equal(10, me.Trade!.Follow(me.Snapshot, "g").TankRoom);
+        me.PressMenu(MenuKey.Down);     // the credits
+        me.PressMenu(MenuKey.Down);     // the fuel
+        me.PressMenu(MenuKey.PageUp);   // by 10: the room's 10
+        me.PressMenu(MenuKey.Select);
+        var gift = me.TakeGifts().Single();
+        Assert.Equal(1000u, gift.Fuel);
+        Assert.Equal(TradeRefusal.None, world.Give(gift));   // the screen's most, taken
+        // Conserved: the guest's 1000 are what the host's fuel will be by; the flight's up to its tanks.
+        Assert.Equal((4000u, cap - 10, cap), (guest.Flight.Fuel, ship.Spin.Fuel, ship.Flight.Fuel));
+        Assert.Equal(TradeRefusal.NoTankRoom, world.Give(new Gift("g", "h", 0, new int[8], 0, Fuel: 11)));
+        uint last = ship.Spin.Fuel;
+        for (int i = 0; i < 100 && m.Step == MeetingStep.Spin; ++i)
+        {
+            last = ship.Spin!.Fuel;
+            Frames(world, 1);
+        }
+        Assert.NotEqual(MeetingStep.Spin, m.Step);
+        Assert.Equal(last, ship.Flight.Fuel);
+        Assert.InRange(ship.Flight.Fuel, cap - 100, cap - 10);   // the gift kept, within the tanks
+    }
+
+    [ContentFact]
+    public void FuelGivenDuringTheSpinIntoAGroupStaysWhenTheMeetingIsAbandoned()
+    {
+        // Review round 2 (item 3): a player leaving mid-spin stops where the
+        // spin took them (AbandonMeeting), with the spin's fuel, the gift's
+        // in it either way.
+        foreach (bool spinnerGives in new[] { false, true })
+        {
+            var game = NewGame("g");
+            var world = game.World;
+            var guest = world.Find("g")!.Ship;
+            guest.Flight.PlaceAtUniverse(5830, 6100);   // within a screen of the host
+            GroupBy(world, "g", "URQUAN_SHIP");
+            for (int i = 0; i < 200 && world.MeetingOf("g") is null; ++i)
+                Frames(world, 1);
+            Assert.Equal(MeetingStep.Spin, world.MeetingOf("g")!.Step);
+            Assert.Null(world.MeetingOf("h"));
+            var host = world.Host.Ship;
+            host.Flight.Fuel = 2000;
+            guest.Flight.Fuel = 2000;
+            guest.Spin!.Fuel = 1990;
+            var gift = spinnerGives ? new Gift("g", "h", 0, new int[8], 0, Fuel: 300) : new Gift("h", "g", 0, new int[8], 0, Fuel: 300);
+            Assert.Equal(TradeRefusal.None, world.Give(gift));
+            uint spun = guest.Spin.Fuel;
+            Assert.Equal(spinnerGives ? 1690u : 2290u, spun);
+            Assert.Equal(spinnerGives ? 2300u : 1700u, host.Flight.Fuel);
+            world.Leave("g");
+            Assert.Null(guest.Spin);
+            Assert.Null(world.MeetingOf("g"));
+            // The guest's ship has the spin's fuel, the gift in it; the host's has its side: 300 moved, no more.
+            Assert.Equal(spun, guest.Flight.Fuel);
+            Assert.Equal(spinnerGives ? 2300u : 1700u, host.Flight.Fuel);
+            Assert.Equal(1990u + 2000u, guest.Flight.Fuel + host.Flight.Fuel);
+        }
+    }
+
+    [ContentFact]
     public void APauseDuringTheSpinIntoAGroupDoesntShortenIt()
     {
         // Review round 1: the spin counts its own frames, as the spin back
