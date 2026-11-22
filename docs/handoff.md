@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-22, the owner's answers to the 3b-2 plan's ten questions written in (question 7 as the owner put it, the other nine as recommended).
+**Last updated:** 2026-11-22, the owner's answers to the 3b-2 plan's ten questions written in (question 7 as the owner put it, the other nine as recommended). Reviewed in five rounds (stale handoff lines and the Chmmr's queue placed in item 11 among the findings, each fixed); round 5's fix not reviewed again, the review stopping at five.
 
 ## Where things are
 
