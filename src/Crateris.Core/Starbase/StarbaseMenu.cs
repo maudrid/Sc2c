@@ -423,11 +423,11 @@ public sealed class StarbaseMenu
     private StarbaseShip? _shown;
 
     /// <summary>
-    /// The story's version, the hold's units and minerals and the host's
-    /// fleet's version when the host last looked for others' changes (null after the player's own key
+    /// The story's version, the hold's units and minerals, the fuel and the
+    /// host's fleet's version when the host last looked for others' changes (null after the player's own key
     /// drew the ship: a change since can bring them back to what they were).
     /// </summary>
-    internal (long Story, uint ResourceUnits, int MineralMass, long Fleet)? NoticedAt { get; set; }
+    internal (long Story, uint ResourceUnits, int MineralMass, uint Fuel, long Fleet)? NoticedAt { get; set; }
 
     /// <summary>A key's drawing (none: nothing kept), with the ship as the key left it (null: the drawing doesn't read it).</summary>
     internal void Drew(StarbaseShip? ship, List<ScreenOp> ops)
@@ -453,8 +453,9 @@ public sealed class StarbaseMenu
     /// shows of it drawn again. The bomb's state: the screen drawn afresh.
     /// Outfitting and the shipyard: the resource units' message, or
     /// with the minerals the status area, which shows the storage bays
-    /// (in the shipyard, its blueprint too, which shows them as well); the
-    /// shipyard's menu with the crew price; in Modules, the price of the
+    /// (in the shipyard, its blueprint too, which shows them as well); fuel
+    /// given, its gauge and the tanks (outfitting's picture, or the
+    /// shipyard's blueprint); the shipyard's menu with the crew price; in Modules, the price of the
     /// module the radar shows. Called before the player's own keys, so a
     /// key's drawing goes over what others changed first.
     /// </summary>
@@ -492,6 +493,16 @@ public sealed class StarbaseMenu
             }
             else if (now.ResourceUnits != was.ResourceUnits)
                 ops.Add(new(ScreenOpKind.Gauges, 0, 0, ScreenOp.Undefined));
+            // Fuel another player gave (stage 3b-2 item 3): its gauge (DeltaSISGauges' fuel), and the tanks in
+            // outfitting's picture (RedistributeFuel) or the shipyard's blueprint, which show it too.
+            if (now.Fuel != was.Fuel)
+            {
+                ops.Add(new(ScreenOpKind.Gauges, 0, (int)(now.Fuel - (long)was.Fuel), 0));
+                if (Outfit is not null)
+                    ops.Add(new(ScreenOpKind.RedistributeFuel));
+                else if (Yard is not null && !minerals)
+                    ops.Add(new(ScreenOpKind.Blueprint));
+            }
             if (Yard is not null && now.CrewCost != was.CrewCost)
                 ops.Add(new(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, Yard.State));
             if (Outfit is { Installing: true } outfit && outfit.Shown is var piece && piece < World.ShipModules.EmptySlot

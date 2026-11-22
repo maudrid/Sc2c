@@ -1296,11 +1296,11 @@ public partial class Main : Node2D
             _planetsideView.Show(player);
         if (player.Snapshot != null && _systemView.Visible)
             _systemView.Show(player.Snapshot, player.PlayerId);
-        // The giving screen, while it's open, over whichever screen it was opened on: below it seven lines fit
-        // above the lander's gauges, more elsewhere (the orbit menu, which hasn't the keys meanwhile, isn't
+        // The giving screen, while it's open, over whichever screen it was opened on: below it three lines fit
+        // above the lander's gauges (seven before its credits and fuel rows, stage 3b-2 item 3), more elsewhere (the orbit menu, which hasn't the keys meanwhile, isn't
         // drawn). One that can't be drawn is closed.
         bool gauges = screen == PlayerScreen.Planetside || (screen == PlayerScreen.Orbit && player.OrbitMenu is { Picking: true });
-        _givingView.MostLines = gauges ? 7 : 12;
+        _givingView.MostLines = gauges ? 3 : 12;
         _givingView.Visible = !Headless && _givingView.Show(player);
         _orbitView.MenuCovered = _givingView.Visible;
         // The Manifest's Devices list, while it's open in orbit. One that can't be drawn is closed.

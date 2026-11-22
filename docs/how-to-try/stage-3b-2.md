@@ -12,6 +12,8 @@ As for stage 3b-1 (`docs/how-to-try/stage-3b-1.md`): build the game, give a test
 CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm python3 tools/run_tests.py   # every topic
 ```
 
+Item 3's tests: `CreditsAndFuelTests` (topic `trading`: the balances, gifts of credits and fuel, fuel's nearness and room, the wire, the save, the giving screen's rows), `RainbowWorldTests` (topic `world`), `MeetingTests.FuelGivenDuringTheSpinIntoAGroupStays`, and the giving screen's drawing in `GivingScreenTests` (topic `drawing`).
+
 Item 2's tests: `HomeTalkTests` (topic `world`: Spathiwa's moon, the Evil Ones, the Slylandro gas giant), the two scripts' recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-spahome.json`, `talks-slyhome.json`) and `WorldTalkTests` (the worlds' table, now with these two ported).
 
 ## Item 2: the Spathi and the Slylandro at home
@@ -54,3 +56,30 @@ Each is a row of `docs/differences.md`: Spathiwa's moon's talk with several play
 - **The password** comes from the Melnorme (item 4) or Fwiffo (stage 3c): until then only `--start-state` reaches the council.
 - **The Spathi never shield themselves** (their event is stage 3c's), so Spathiwa's moon keeps talking after the alliance.
 - **The alternate "Safe Ones" song** is chosen but nothing plays music yet.
+
+## Item 3: Melnorme credits, fuel between players, the rainbow worlds
+
+Each player has their own Melnorme credits (UQM keeps one balance in the game state). Until the Melnorme's trading (item 4) nobody earns any in play: `--start-credits N` gives the host some to try giving. The status panel shows them beside the resource units ("…, 0 RU, 300 Cr").
+
+**Giving.** T opens the giving screen as before; under the resource units are two new rows: the credits ("Cr", Page Up and Down by 100) and the fuel ("Fuel", in whole units). Credits go to anyone, anywhere, at any time, to a player in a talk too (topping up a Melnorme trader, once item 4 has the trader). Fuel goes only to a player close by, both in the same system or both in hyperspace within a screen of each other, and only up to the giver's whole units and the room in the receiver's tanks; with the receiver further off the fuel row is dimmed, as the cargo rows are with the receiver outside the system, and the host refuses it: "Fuel goes only to a player close by: within a screen in hyperspace, or in the same system." A full receiver: "Their fuel tanks haven't the room." The text below the box says where the receiver is, what can go to them there and their tanks' room. A player in a talk, or spinning into a group they met, can be given fuel. While docked at the starbase, fuel a friend gives is drawn on the fuel gauge and in outfitting's tanks or the shipyard's blueprint.
+
+Tried headless, the host with `--host --no-upnp --id host --name Host --save FILE` and a guest joining with `--join 127.0.0.1 --id guest --name Guest`:
+
+- `--start-orbit 82:2:1 --guests-in-orbit --start-credits 500 --script "none:200,give:1,none:5,down:1,none:3,pageup:1,none:3,pageup:1,none:3,select:1,none:150" --quit-after 420`: the giving screen on the credits row, two Page Ups make 200, Enter gives them: "host gave guest 200 credits", the host told "You gave Guest 200 credits.", the guest "Host gave you 200 credits."; the snapshots end with the host's 300 credits and the guest's 200.
+- `--start-at 4000:4000 --script "none:300,give:1,none:5,down:1,none:3,down:1,none:3,pageup:1,none:3,select:1,none:150" --quit-after 500` (the guest undocks beside the host in hyperspace): the fuel row, Page Up asks 10 units, the host's 9 whole ones given: "host gave guest 9 units of fuel", the guest's tanks from 9.98 to 18.98 units.
+- Windowed, `--screenshot FILE.png`: the giving screen in orbit round Luna with its new rows, and over the lander's gauges (three lines of text fit below the box there; landing as in `docs/how-to-try/stage-2b.md`).
+
+**The rainbow worlds.** Orbiting one of the ten rainbow worlds (the first planet of each `RAINBOW_DEFINED` star) marks it found for the group (`RAINBOW_WORLD0`/`1`, as UQM's generator does), whoever orbits it; the Melnorme will buy each once (item 4). `--start-orbit` to one does it too, and so does loading a game saved in orbit around one. `RainbowWorldTests` flies a ship into one's orbit; the stars are in `data/starmap.json`.
+
+**Saves and the wire.** Saves are version 14 (each player's credits; an older save loads with none); the protocol is 28, so an older client is refused.
+
+### What's different from UQM
+
+`docs/differences.md` row 19 (credits each player's, given at any time) and row 79 (fuel between players, new: UQM has one ship).
+
+### Known limits of item 3
+
+- **No Melnorme yet:** no talk, no ships, no trading, so credits come only from `--start-credits` and the rainbow worlds' marks are only kept.
+- **The credits' status message** (UQM's status area shows the credits during the Melnorme's talk) comes with their talk; the status panel shows them always.
+- **Fuel is given in whole units** from the giving screen; a fraction of a unit left in the giver's tanks, or of room in the receiver's, can't be given.
+

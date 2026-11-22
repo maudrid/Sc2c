@@ -165,7 +165,7 @@ public partial class GivingView : Node2D
     /// <summary>How wide the text below the box may be (to the space screen's left, less a margin).</summary>
     public float Width { get; set; } = 260;
 
-    /// <summary>How many lines of text fit below the box: seven above the lander's gauges, more elsewhere.</summary>
+    /// <summary>How many lines of text fit below the box: three above the lander's gauges, more elsewhere.</summary>
     public int MostLines
     {
         get => _mostLines;

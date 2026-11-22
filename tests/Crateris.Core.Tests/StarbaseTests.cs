@@ -900,6 +900,21 @@ public class StarbaseTests
         Assert.Equal(new[] { new ScreenOp(ScreenOpKind.MenuStrings, ScreenOp.PmCrew, ShipyardMenu.SaveLoad) }, Drawn(world).Single().Ops);
         world.Give(new Gift("guest", "host", 0, new[] { 0, 0, 0, 5, 0, 0, 0, 0 }, 0));
         Assert.Equal(new[] { new ScreenOp(ScreenOpKind.SisDisplay), new ScreenOp(ScreenOpKind.Blueprint) }, Drawn(world).Single().Ops);
+        // Fuel (stage 3b-2 item 3): its gauge, and the blueprint's tanks.
+        guest.Ship.Flight.Fuel = 1000;
+        host.Ship.Flight.Fuel = 0;
+        Drawn(world);
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("guest", "host", 0, none, 0, Fuel: 300)));
+        d = Drawn(world).Single();
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.Gauges, 0, 300, 0), new ScreenOp(ScreenOpKind.Blueprint) }, d.Ops);
+        Assert.Equal(300u, d.Ship!.Fuel);
+        // In outfitting: its gauge and the tanks in its picture.
+        Keys(world, "host", MenuKey.Cancel, MenuKey.Up, MenuKey.Select);
+        Assert.Equal(StarbaseScreen.Outfit, world.StarbaseFor("host")!.Screen);
+        Drawn(world);
+        world.Give(new Gift("guest", "host", 0, none, 0, Fuel: 150));
+        Assert.Equal(new[] { new ScreenOp(ScreenOpKind.Gauges, 0, 150, 0), new ScreenOp(ScreenOpKind.RedistributeFuel) },
+            Drawn(world).Single().Ops);
     }
 
     [ContentFact]
