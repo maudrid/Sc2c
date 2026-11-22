@@ -238,7 +238,7 @@ public class RaceFleetsTests
         Assert.Equal(Allied.Dead, story.Alliance("SPATHI_SHIP"));
         string json = HostSave.ToJson(world);
         var node = JsonNode.Parse(json)!;
-        Assert.Equal(13, node["version"]!.GetValue<int>());
+        Assert.Equal(HostSave.Version, node["version"]!.GetValue<int>());   // 13 since the fleets
         Assert.Equal(1, node["story"]!["fleets"]!["ILWRATH_SHIP"]!["known_strength"]!.GetValue<int>());
         var loaded = HostSave.FromJson(json, systems, TestContent.Shapes);
         Assert.Equal(story.Fleets, loaded.Story!.Fleets);

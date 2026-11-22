@@ -125,6 +125,13 @@ public sealed class HostSession
         return $"Starting with {units} resource units";
     }
 
+    /// <summary>--start-credits (testing): the host starts with these Melnorme credits (stage 3b-2 item 3: giving them).</summary>
+    public string StartWithCredits(uint credits)
+    {
+        World.Host.Ship.Hold.Credits = credits;
+        return $"Starting with {credits} Melnorme credits";
+    }
+
     /// <summary>
     /// --start-devices (testing): the group carries these devices (by
     /// globdata.h's name, as data/devices.json has them, or number): each

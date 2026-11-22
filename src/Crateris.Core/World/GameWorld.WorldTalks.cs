@@ -399,6 +399,8 @@ public sealed partial class GameWorld
         ip.PlaceInOrbit(planet, moon);
         if (ip.OrbitData is { Entered: false })
             ip.ReturnFromOrbit();
+        else
+            InOrbit(ship);
     }
 
     /// <summary>

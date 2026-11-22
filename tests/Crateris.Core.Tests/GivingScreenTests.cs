@@ -16,9 +16,10 @@ namespace Crateris.Core.Tests;
 /// The giving screen as it's drawn (docs/plans/stage-3.md, item 11): laid
 /// out after the Manifest's cargo display in the status area, with its
 /// title, the player given to (their name cut to fit), what the giver has
-/// and the amounts to give on each row, the receiver's room, the lit row,
-/// and the cargo rows dimmed when the receiver isn't in the giver's system;
-/// all within its area, painted from the content too.
+/// and the amounts to give on each row (the credits and the fuel since
+/// stage 3b-2 item 3), the receiver's room, the lit row, the cargo rows
+/// dimmed when the receiver isn't in the giver's system and the fuel's when
+/// they aren't close by; all within its area, painted from the content too.
 /// </summary>
 [Trait("Topic", "drawing")]
 public class GivingScreenTests
@@ -33,20 +34,24 @@ public class GivingScreenTests
     private static string GameString(int n) => n == GameStrings.CargoBase + 1 ? "Free" : $"{{gs:{n}}}";
 
     private static TradeShown Shown(int row = TradeScreen.UnitsRow, string name = "Guest", bool here = true, int? room = 469,
-        long units = 2500, int give = 300)
+        long units = 2500, int give = 300, bool? near = null)
     {
         var have = new long[TradeScreen.Rows];
         var amounts = new int[TradeScreen.Rows];
         have[TradeScreen.UnitsRow] = units;
         amounts[TradeScreen.UnitsRow] = give;
+        have[TradeScreen.CreditsRow] = 640;
+        amounts[TradeScreen.CreditsRow] = 25;
+        have[TradeScreen.FuelRow] = 42;
+        amounts[TradeScreen.FuelRow] = 5;
         for (int i = 0; i < 8; ++i)
         {
-            have[2 + i] = 10 * (i + 1);
-            amounts[2 + i] = i;
+            have[TradeScreen.FirstMineralRow + i] = 10 * (i + 1);
+            amounts[TradeScreen.FirstMineralRow + i] = i;
         }
         have[TradeScreen.BioRow] = 7;
         amounts[TradeScreen.BioRow] = 2;
-        return new TradeShown(row, "guest", name, here, room, have, amounts);
+        return new TradeShown(row, "guest", name, here, room, have, amounts, near ?? here, 18);
     }
 
     private static List<UqmDraw> Draw(TradeShown shown)
@@ -80,11 +85,15 @@ public class GivingScreenTests
             Assert.Equal(new[] { (have, S + 36), (give, S + 58) }, at.Select(t => (t.Text, t.X)));
         }
         Row(TradeScreen.UnitsRow, "2500", "300");
+        Row(TradeScreen.CreditsRow, "640", "25");
+        Row(TradeScreen.FuelRow, "42", "5");
         for (int i = 0; i < 8; ++i)
-            Row(2 + i, (10 * (i + 1)).ToString(), i.ToString());
+            Row(TradeScreen.FirstMineralRow + i, (10 * (i + 1)).ToString(), i.ToString());
         Row(TradeScreen.BioRow, "7", "2");
-        // The units' label, the receiver's room as the cargo display's Free row.
+        // The units', the credits' and the fuel's labels, the receiver's room as the cargo display's Free row.
         Assert.Contains(texts, t => t.Text == GivingScreen.UnitsLabel && t.Y == GivingScreen.RowY(TradeScreen.UnitsRow) + 6);
+        Assert.Contains(texts, t => t.Text == GivingScreen.CreditsLabel && t.Y == GivingScreen.RowY(TradeScreen.CreditsRow) + 6);
+        Assert.Contains(texts, t => t.Text == GivingScreen.FuelLabel && t.Y == GivingScreen.RowY(TradeScreen.FuelRow) + 6);
         Assert.Contains(texts, t => t.Text == "Free" && t.Y == GivingScreen.FreeY + 6);
         Assert.Contains(texts, t => t.Text == "469" && t.Y == GivingScreen.FreeY + 6 && t.X == S + 59);
         // The icons: the eight categories' (MiscDataFrame's from 11, five apart) and the bio data's (68).
@@ -92,8 +101,9 @@ public class GivingScreenTests
         Assert.Equal(Enumerable.Range(0, 8).Select(i => 11 + 5 * i).Append(68), stamps.Select(s => s.Frame));
         Assert.All(stamps, s => Assert.Equal(MineralSelling.IconSheet, s.Sheet));
         // Every row below the receiver's lies a row (9 pixels) apart, the bio data's after the Free row and the line.
-        Assert.Equal(GivingScreen.RowY(TradeScreen.UnitsRow) + 9, GivingScreen.RowY(2));
-        Assert.Equal(GivingScreen.FreeY, GivingScreen.RowY(9) + 9);
+        for (int r = TradeScreen.CreditsRow; r < TradeScreen.BioRow; ++r)
+            Assert.Equal(GivingScreen.RowY(r - 1) + 9, GivingScreen.RowY(r));
+        Assert.Equal(GivingScreen.FreeY, GivingScreen.RowY(TradeScreen.BioRow - 1) + 9);
         Assert.Equal(GivingScreen.FreeY + 12, GivingScreen.RowY(TradeScreen.BioRow));
     }
 
@@ -116,7 +126,9 @@ public class GivingScreenTests
     [Theory]
     [InlineData(TradeScreen.PlayerRow)]
     [InlineData(TradeScreen.UnitsRow)]
-    [InlineData(4)]
+    [InlineData(TradeScreen.CreditsRow)]
+    [InlineData(TradeScreen.FuelRow)]
+    [InlineData(TradeScreen.FirstMineralRow + 2)]
     [InlineData(TradeScreen.BioRow)]
     public void TheRowTheCursorIsOnIsLitAsDrawElementAmountLightsOne(int row)
     {
@@ -137,9 +149,12 @@ public class GivingScreenTests
                 Assert.Equal(r == row ? CargoDisplay.SelectedAmount : CargoDisplay.Amount, texts.Single(t => t.X == S + 58).Color);
             }
         }
-        // The cargo rows' fill starts past the icons, as UQM's; the receiver's and the units' across the box.
-        Assert.Equal(S + 19, drawn.First(d => d.Kind == UqmDrawKind.Rect && d.Y == GivingScreen.RowY(2) && d.Height == 7 && d.X != S + 7).X);
-        Assert.Equal(S + 4, drawn.First(d => d.Kind == UqmDrawKind.Rect && d.Y == GivingScreen.RowY(TradeScreen.UnitsRow)).X);
+        // The cargo rows' fill starts past the icons, as UQM's; the receiver's, the units', the credits' and the fuel's
+        // across the box.
+        Assert.Equal(S + 19, drawn.First(d => d.Kind == UqmDrawKind.Rect && d.Y == GivingScreen.RowY(TradeScreen.FirstMineralRow)
+            && d.Height == 7 && d.X != S + 7).X);
+        foreach (int wide in new[] { TradeScreen.UnitsRow, TradeScreen.CreditsRow, TradeScreen.FuelRow })
+            Assert.Equal(S + 4, drawn.First(d => d.Kind == UqmDrawKind.Rect && d.Y == GivingScreen.RowY(wide)).X);
     }
 
     [Fact]
@@ -226,18 +241,24 @@ public class GivingScreenTests
     [Fact]
     public void WithTheReceiverElsewhereTheCargoRowsAreDimmedAndTheUnitsAreNot()
     {
-        var drawn = Draw(Shown(here: false, row: 3));
+        var drawn = Draw(Shown(here: false, row: TradeScreen.FirstMineralRow + 1));
         var texts = Texts(drawn).ToList();
-        for (int r = 2; r < TradeScreen.Rows; ++r)
+        for (int r = TradeScreen.FuelRow; r < TradeScreen.Rows; ++r)
             Assert.All(texts.Where(t => t.Y == GivingScreen.RowY(r) + 6), t => Assert.Equal(GivingScreen.Dim, t.Color));
         Assert.All(texts.Where(t => t.Y == GivingScreen.FreeY + 6), t => Assert.Equal(GivingScreen.Dim, t.Color));
-        Assert.DoesNotContain(texts.Where(t => t.Y == GivingScreen.RowY(TradeScreen.UnitsRow) + 6), t => t.Color == GivingScreen.Dim);
+        foreach (int r in new[] { TradeScreen.UnitsRow, TradeScreen.CreditsRow })
+            Assert.DoesNotContain(texts.Where(t => t.Y == GivingScreen.RowY(r) + 6), t => t.Color == GivingScreen.Dim);
+        // Close by in hyperspace: the fuel isn't dimmed, the cargo is.
+        var near = Texts(Draw(Shown(here: false, near: true))).ToList();
+        Assert.DoesNotContain(near.Where(t => t.Y == GivingScreen.RowY(TradeScreen.FuelRow) + 6), t => t.Color == GivingScreen.Dim);
+        Assert.All(near.Where(t => t.Y == GivingScreen.RowY(TradeScreen.FirstMineralRow) + 6), t => Assert.Equal(GivingScreen.Dim, t.Color));
         // The icons are their shapes in the dim colour; the lit row is still lit.
         Assert.Empty(drawn.Where(d => d.Kind == UqmDrawKind.Stamp));
         var shapes = drawn.Where(d => d.Kind == UqmDrawKind.FilledStamp).ToList();
         Assert.Equal(9, shapes.Count);
         Assert.All(shapes, s => Assert.Equal(GivingScreen.Dim, s.Color));
-        Assert.Contains(drawn, d => d.Kind == UqmDrawKind.Rect && d.Y == GivingScreen.RowY(3) && d.Color == CargoDisplay.SelectedBack);
+        Assert.Contains(drawn, d => d.Kind == UqmDrawKind.Rect && d.Y == GivingScreen.RowY(TradeScreen.FirstMineralRow + 1)
+            && d.Color == CargoDisplay.SelectedBack);
         // Without the receiver's hold, no room is shown.
         Assert.Contains(Texts(Draw(Shown(room: null))), t => t.Y == GivingScreen.FreeY + 6 && t.Text == "" && t.Align == TextAlign.Right);
     }
@@ -294,7 +315,7 @@ public class GivingScreenTests
             };
             Assert.True(x0 >= area.X + 1 && y0 >= area.Y + 1 && x1 <= area.X + area.W - 1 && y1 <= area.Y + area.H - 1,
                 $"{d.Kind} {d.Text} ({x0}, {y0})-({x1}, {y1}) outside {area}'s border");
-            if (d.Kind == UqmDrawKind.Text && d.Y > GivingScreen.RowY(TradeScreen.UnitsRow) + 6 && d.Align == TextAlign.Right)
+            if (d.Kind == UqmDrawKind.Text && d.Y > GivingScreen.RowY(TradeScreen.FuelRow) + 6 && d.Align == TextAlign.Right)
                 Assert.True(x0 > S + 7 + IconW, $"{d.Text} runs over the icons");
         }
     }

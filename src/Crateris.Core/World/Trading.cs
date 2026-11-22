@@ -47,26 +47,55 @@ public enum TradeRefusal : byte
 
     /// <summary>The host has paused the game (<see cref="GameWorld.HostPaused"/>).</summary>
     HostPaused,
+
+    /// <summary>
+    /// Fuel goes only to a player close by (the stage 3b-2 plan's item 3):
+    /// within a screen in hyperspace, or in the same system (<see cref="Gift.CloseBy"/>).
+    /// </summary>
+    TooFar,
+
+    /// <summary>The receiver's fuel tanks haven't the room.</summary>
+    NoTankRoom,
 }
 
 /// <summary>
 /// A gift from one player to another (stage 3a, item 9; docs/differences.md
-/// rows 11 and 22): resource units, anywhere; minerals by element
-/// category and bio data, to a player in the same solar system, the
-/// minerals up to the room in the receiver's storage bays.
+/// rows 11, 19, 22 and 79): resource units and Melnorme credits,
+/// anywhere; minerals by element category and bio data, to a player in
+/// the same solar system, the minerals up to the room in the receiver's
+/// storage bays; fuel (in UQM's 1/100 units, FuelOnBoard's) to a player
+/// close by (<see cref="CloseBy"/>), up to the room in the receiver's
+/// tanks (the stage 3b-2 plan's item 3).
 /// </summary>
-public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyList<int> Minerals, int BioData)
+public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyList<int> Minerals, int BioData,
+    uint Credits = 0, uint Fuel = 0)
 {
     /// <summary>Whether it carries cargo (minerals or bio data), which goes only within a system.</summary>
     public bool Cargo => Minerals.Any(m => m != 0) || BioData != 0;
 
     public bool Equals(Gift? other) =>
-        other is not null && (From, To, ResourceUnits, BioData) == (other.From, other.To, other.ResourceUnits, other.BioData)
+        other is not null && (From, To, ResourceUnits, BioData, Credits, Fuel)
+            == (other.From, other.To, other.ResourceUnits, other.BioData, other.Credits, other.Fuel)
         && Minerals.SequenceEqual(other.Minerals);
 
-    public override int GetHashCode() => HashCode.Combine(From, To, ResourceUnits, BioData);
+    public override int GetHashCode() => HashCode.Combine(From, To, ResourceUnits, BioData, Credits, Fuel);
 
-    /// <summary>The gift as a message (from, to, the units, each category's minerals, the bio data).</summary>
+    /// <summary>
+    /// Whether two ships are close enough for fuel to go between them (the
+    /// owner, 2026-11-22, the stage 3b-2 plan's question 7): in the same
+    /// system (<paramref name="starA"/> and <paramref name="starB"/>, the
+    /// stars whose systems they're in), or both in hyperspace (no star)
+    /// within a screen of each other (UNIT_SCREEN_WIDTH and
+    /// UNIT_SCREEN_HEIGHT, universe units: hyper.c's test for a group on
+    /// the flagship's screen), at (<paramref name="ax"/>, <paramref name="ay"/>)
+    /// and (<paramref name="bx"/>, <paramref name="by"/>).
+    /// </summary>
+    public static bool CloseBy(int? starA, int ax, int ay, int? starB, int bx, int by) =>
+        starA is int a ? starB == a
+        : starB is null && Math.Abs(ax - bx) <= Hyperspace.HyperEncounters.ScreenX
+                        && Math.Abs(ay - by) <= Hyperspace.HyperEncounters.ScreenY;
+
+    /// <summary>The gift as a message (from, to, the units, each category's minerals, the bio data, the credits, the fuel).</summary>
     public byte[] Encode()
     {
         var w = new WireWriter();
@@ -76,6 +105,8 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         foreach (int m in Minerals)
             w.UInt((ulong)m);
         w.UInt((ulong)BioData);
+        w.UInt(Credits);
+        w.UInt(Fuel);
         return w.Written.ToArray();
     }
 
@@ -91,11 +122,16 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         for (int i = 0; i < minerals.Length; ++i)
             minerals[i] = Small(r.UInt());
         int bio = Small(r.UInt());
+        ulong credits = r.UInt(), fuel = r.UInt();
         if (units > uint.MaxValue)
             throw new InvalidDataException("Bad resource units.");
+        if (credits > uint.MaxValue)
+            throw new InvalidDataException("Bad credits.");
+        if (fuel > uint.MaxValue)
+            throw new InvalidDataException("Bad fuel.");
         if (!r.AtEnd)
             throw new InvalidDataException("A gift has bytes after its end.");
-        return new Gift(from, to, (uint)units, minerals, bio);
+        return new Gift(from, to, (uint)units, minerals, bio, (uint)credits, (uint)fuel);
     }
 
     /// <summary>The longest player id a gift may name (ids are short; a longer one is refused).</summary>
@@ -114,8 +150,16 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
             parts.Add($"{minerals} units of minerals");
         if (BioData != 0)
             parts.Add($"{BioData} bio data");
+        if (Credits != 0)
+            parts.Add($"{Credits} credits");
+        if (Fuel != 0)
+            parts.Add($"{FuelUnits(Fuel)} units of fuel");
         return string.Join(", ", parts);
     }
+
+    /// <summary>Fuel (1/100 units) in units, in words: whole, or with its hundredths.</summary>
+    public static string FuelUnits(uint fuel) =>
+        (fuel / (decimal)Hyperspace.Fuel.Scale).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>Why it can't go, in words.</summary>
     public static string Why(TradeRefusal refusal) => refusal switch
@@ -131,6 +175,8 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         TradeRefusal.Wrecked => "No one is aboard a wreck to give or take it.",
         TradeRefusal.GameOver => "The game is over.",
         TradeRefusal.HostPaused => "The host has paused the game.",
+        TradeRefusal.TooFar => "Fuel goes only to a player close by: within a screen in hyperspace, or in the same system.",
+        TradeRefusal.NoTankRoom => "Their fuel tanks haven't the room.",
         _ => "",
     };
 }

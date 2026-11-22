@@ -530,6 +530,8 @@ public partial class Main : Node2D
                 Log(host.StartWithMinerals(minerals));
             if (_options.StartUnits is { } units)
                 Log(host.StartWithUnits(units));
+            if (_options.StartCredits is { } credits)
+                Log(host.StartWithCredits(credits));
             if (_options.StartVisit)
                 Log(host.StartVisit(_options.StartVisitStep));
             if (_options.StartDocked)

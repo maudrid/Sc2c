@@ -116,8 +116,14 @@ public static class HostSave
     /// save with them is refused. During a visit's opening they're saved
     /// without what its two weeks rolled. Loaded, the players who were in
     /// hyperspace keep the groups in their span until they're back.
+    /// 14 has each player's Melnorme credits (HoldState.Credits, stage 3b-2
+    /// item 3: each player's own, docs/differences.md row 19); an older
+    /// save loads with none, and one with credits is refused. The stage
+    /// 3b-2 plan puts its other new player state in this version too (item
+    /// 4's two rescue fields and the broadcaster's use, each player's own),
+    /// as parts a version 14 save without them loads as none.
     /// </summary>
-    public const int Version = 13;
+    public const int Version = 14;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -382,6 +388,8 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have hyperspace encounters.");
         if (save.Version < 13 && save.SystemGroups is not null)
             throw new InvalidDataException($"A version {save.Version} save can't have system groups.");
+        if (save.Version < 14 && (save.Players ?? new()).Any(p => p.Hold?.Credits > 0))
+            throw new InvalidDataException($"A version {save.Version} save can't have Melnorme credits.");
         if ((save.Fleet ?? new()).Any(s => s is null || s.Race is null))
             throw new InvalidDataException("The save has a fleet ship that is null or of no race.");
         // A setting a save leaves out is the default, and so is the ship's
@@ -582,6 +590,11 @@ public static class HostSave
         if (save.SystemGroups is { } systemGroups)
             RestoreSystemGroups(world, systemGroups);
         world.LoadedInSystems();
+        // A ship saved in orbit: its world's generateOrbital runs again as
+        // UQM's does loading a game in orbit (a rainbow world marked found,
+        // which an older save may not have).
+        foreach (var p in world.Players)
+            world.InOrbit(p.Ship);
         world.CommanderMet = save.CommanderMet;
         // The events whose day has passed run now, in date order (an older
         // save's: it ran none); those of 3c are set aside (decision 9).

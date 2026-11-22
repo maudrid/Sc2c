@@ -178,6 +178,8 @@ public class TradingTests
         me.PressMenu(MenuKey.Left);
         me.PressMenu(MenuKey.Select);
         Assert.Equal(new Gift("host", "guest", 149, NoMinerals, 0), me.TakeGifts().Single());
+        me.PressMenu(MenuKey.Down);              // the credits
+        me.PressMenu(MenuKey.Down);              // the fuel
         me.PressMenu(MenuKey.Down);              // common
         me.PressMenu(MenuKey.Down);              // corrosive
         me.PressMenu(MenuKey.Down);              // base metal
@@ -281,7 +283,10 @@ public class TradingTests
         var shown = me.Trade!.Follow(me.Snapshot, "host");
         Assert.Equal(("guest", "Guest", true, TradeScreen.UnitsRow), (shown.To, shown.ToName, shown.Here, shown.Row));
         Assert.Equal(world.Find("guest")!.Ship.Hold.RoomForCargo, shown.Room);
-        Assert.Equal(new long[] { 0, 150, 0, 0, 12, 0, 0, 0, 0, 0, 3 }, shown.Have);
+        long fuel = world.Host.Ship.Flight.Fuel / 100;
+        Assert.Equal(new long[] { 0, 150, 0, fuel, 0, 0, 12, 0, 0, 0, 0, 0, 3 }, shown.Have);
+        Assert.True(shown.Near);   // in the same system, so close by
+        Assert.Equal((int)((world.Find("guest")!.Ship.Flight.FuelCapacity - world.Find("guest")!.Ship.Flight.Fuel) / 100), shown.TankRoom);
         Assert.All(shown.Give, a => Assert.Equal(0, a));
         // An amount chosen is never more than the player has now.
         me.PressMenu(MenuKey.PageUp);

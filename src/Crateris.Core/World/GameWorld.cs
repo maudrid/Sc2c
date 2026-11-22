@@ -749,6 +749,8 @@ public sealed partial class GameWorld
                     if (IsEarthsStarbase(ship.SystemStar!.Value, touched))
                         VisitStarbase(_players.First(p => p.Ship == ship));
                 }
+                else
+                    InOrbit(ship);
                 break;
             case IpEvent.LeftSystem:
                 SystemTransition.Leave(ship.Flight, Systems!.Map.Stars[ship.SystemStar!.Value], ip.Facing);
@@ -1285,6 +1287,20 @@ public sealed partial class GameWorld
         }
         else if (!ship.Ip.OrbitData!.Entered)
             ship.Ip.ReturnFromOrbit();   // a world never entered whose talk doesn't start now: by it, as flying into it
+        else
+            InOrbit(ship);
+    }
+
+    /// <summary>
+    /// A ship has gone into orbit (or a game is loaded with it there): what
+    /// the world's generator does as the orbit begins (generateOrbital's
+    /// story, past its talks): a rainbow world marked found
+    /// (<see cref="StoryWorlds.Orbited"/>).
+    /// </summary>
+    internal void InOrbit(PlayerShip ship)
+    {
+        if (Story is { } story && Systems is not null && ship.OrbitedWorld is { } world)
+            StoryWorlds.Orbited(Systems.Map, world, story);
     }
 
     // Whether one of the worlds whose orbit starts a talk is this one (asked without its side effects).
@@ -1379,12 +1395,17 @@ public sealed partial class GameWorld
     private readonly List<(string PlayerId, LanderReport Report)> _reports = new();
 
     /// <summary>
-    /// A player gives another resource units, anywhere, and minerals and
-    /// bio data within a solar system, the minerals up to the receiver's
-    /// room (stage 3a, item 9). Both must be in the game; not while the
+    /// A player gives another resource units and Melnorme credits,
+    /// anywhere, minerals and bio data within a solar system, the minerals
+    /// up to the receiver's room (stage 3a, item 9), and fuel to a player
+    /// close by (<see cref="Gift.CloseBy"/>: within a screen in hyperspace,
+    /// or in the same system) up to the room in the receiver's tanks (the
+    /// stage 3b-2 plan's item 3). Both must be in the game; not while the
     /// game waits for a story talk or is over, nor to or from a ship in a
-    /// battle or a wreck. Given, the gift goes on the list the
-    /// receivers are told of (<see cref="TakeGifts"/>).
+    /// battle or a wreck. A player in a talk (a meeting's, the starbase's
+    /// menu talk) can be given anything: a Melnorme trader topped up with
+    /// credits, a stranded player with fuel. Given, the gift goes on the
+    /// list the receivers are told of (<see cref="TakeGifts"/>).
     /// </summary>
     public TradeRefusal Give(Gift gift)
     {
@@ -1412,25 +1433,57 @@ public sealed partial class GameWorld
                 && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To))
             return TradeRefusal.Paused;
         if (gift.Minerals.Count != ShipHold.Categories || gift.Minerals.Any(m => m < 0) || gift.BioData < 0
-                || (gift.ResourceUnits == 0 && !gift.Cargo))
+                || (gift.ResourceUnits == 0 && gift.Credits == 0 && gift.Fuel == 0 && !gift.Cargo))
             return TradeRefusal.Nothing;
         var from = giver.Ship.Hold;
         var to = taker.Ship.Hold;
-        if (from.ResourceUnits < gift.ResourceUnits || from.BioData < gift.BioData
-                || gift.Minerals.Where((m, i) => from.Minerals[i] < m).Any())
+        if (from.ResourceUnits < gift.ResourceUnits || from.Credits < gift.Credits || from.BioData < gift.BioData
+                || giver.Ship.Flight.Fuel < gift.Fuel || gift.Minerals.Where((m, i) => from.Minerals[i] < m).Any())
             return TradeRefusal.NotEnough;
         if (gift.Cargo && (giver.Ship.SystemStar is not int star || taker.Ship.SystemStar != star))
             return TradeRefusal.NotHere;
+        if (gift.Fuel != 0 && !CloseBy(giver, taker))
+            return TradeRefusal.TooFar;
         if (gift.Minerals.Sum() > to.RoomForCargo)
             return TradeRefusal.NoRoom;
-        if ((ulong)to.ResourceUnits + gift.ResourceUnits > uint.MaxValue)
+        if (gift.Fuel > TankRoom(taker.Ship))
+            return TradeRefusal.NoTankRoom;
+        if ((ulong)to.ResourceUnits + gift.ResourceUnits > uint.MaxValue || (ulong)to.Credits + gift.Credits > uint.MaxValue)
             return TradeRefusal.TooMuch;
         from.ResourceUnits -= gift.ResourceUnits;
         to.ResourceUnits += gift.ResourceUnits;
+        from.Credits -= gift.Credits;
+        to.Credits += gift.Credits;
         from.MoveCargo(gift.Minerals, gift.BioData, -1);
         to.MoveCargo(gift.Minerals, gift.BioData, +1);
+        MoveFuel(giver.Ship, -(long)gift.Fuel);
+        MoveFuel(taker.Ship, gift.Fuel);
         _gifts.Add(gift);
         return TradeRefusal.None;
+    }
+
+    /// <summary>
+    /// Whether fuel can go between two players' ships (<see cref="Gift.CloseBy"/>):
+    /// in the same system, or both in hyperspace within a screen of each
+    /// other, where their ships are (in a meeting there, where it met the
+    /// group), as the snapshot gives them, so the giving screen agrees.
+    /// </summary>
+    internal static bool CloseBy(Player a, Player b) =>
+        Gift.CloseBy(a.Ship.SystemStar, a.Ship.Flight.UniverseX, a.Ship.Flight.UniverseY,
+            b.Ship.SystemStar, b.Ship.Flight.UniverseX, b.Ship.Flight.UniverseY);
+
+    /// <summary>The fuel a ship's tanks have room for (1/100 units), as a gift fills them.</summary>
+    internal static uint TankRoom(PlayerShip ship) =>
+        ship.Flight.FuelCapacity > ship.Flight.Fuel ? ship.Flight.FuelCapacity - ship.Flight.Fuel : 0;
+
+    // Fuel in or out of a ship's tanks (a gift): its flight's, and the spin's
+    // into a group it met while it spins, whose fuel becomes the flight's
+    // at its end (HyperFlight.TakePlaceOf), so the gift stays.
+    private static void MoveFuel(PlayerShip ship, long delta)
+    {
+        ship.Flight.Fuel = (uint)(ship.Flight.Fuel + delta);
+        if (ship.Spin is { } spin)
+            spin.Fuel = (uint)Math.Clamp(spin.Fuel + delta, 0, uint.MaxValue);
     }
 
     private readonly List<Gift> _gifts = new();

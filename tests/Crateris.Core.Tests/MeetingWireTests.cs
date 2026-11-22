@@ -483,9 +483,9 @@ public class MeetingWireTests
     [ContentFact]
     public void AnOldClientIsRefused()
     {
-        Assert.Equal(27, Protocol.Version);   // a meeting's closing lines (stage 3b-1 item 11)
+        Assert.Equal(28, Protocol.Version);   // 27 a meeting's closing lines (stage 3b-1 item 11), 28 credits and fuel (3b-2 item 3)
         var game = NewGame(guests: 0);
-        var refused = game.Host.Hello(9, "old", "Old", 26);
+        var refused = game.Host.Hello(9, "old", "Old", 27);
         Assert.False(Protocol.Accepted(refused.Result));
         Assert.Contains("Version mismatch", refused.Message);
     }

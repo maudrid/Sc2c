@@ -28,7 +28,8 @@ namespace Crateris.Presentation;
 /// place in the status area, with its box, colours, fonts, icons and lit
 /// row. Under its title (our own word, <see cref="Title"/>, as no game
 /// string has one) are the player given to (their name, cut to fit the
-/// box), the resource units, the eight element categories, the room the
+/// box), the resource units, the Melnorme credits and the fuel (in whole
+/// units; stage 3b-2 item 3), the eight element categories, the room the
 /// receiver has for minerals (the cargo display's Free row), and, below
 /// the line, the bio data; each of the giver's rows has what they have
 /// (the cargo display's worth column) and the amount to give (its amount
@@ -37,6 +38,8 @@ namespace Crateris.Presentation;
 /// is on is lit as DrawElementAmount lights one. Cargo goes only to a
 /// player in the same solar system: when the receiver is elsewhere the
 /// cargo rows are dimmed, their icons drawn as shapes in the dim colour.
+/// Fuel goes only to a player close by: when the receiver isn't, its row
+/// is dimmed.
 /// </summary>
 public static class GivingScreen
 {
@@ -49,13 +52,20 @@ public static class GivingScreen
     /// <summary>The resource units row's label (drawn only if the wallet's number leaves it room).</summary>
     public const string UnitsLabel = "RU";
 
+    /// <summary>The credits row's label (sis.c's credits message's STATUS_STRING_BASE "Cr"), as the units'.</summary>
+    public const string CreditsLabel = "Cr";
+
+    /// <summary>The fuel row's label, as the units'.</summary>
+    public const string FuelLabel = "Fuel";
+
     /// <summary>The cargo rows' colour while the receiver is in another system.</summary>
     public static readonly Rgb Dim = Rgb.From15(0x07, 0x07, 0x10);
 
     // cargo.c's places, the rows pushed down by the receiver's and the units' rows.
     private const int BoxX = 2, BoxY = 20, FieldWidth = UqmCanvas.StatusWidth - 5;
     private const int Spacing = 9, RowHeight = Spacing - 2, TextBaseline = 6;
-    private const int ToOrgY = 29, UnitsOrgY = 44, ElementOrgY = UnitsOrgY + Spacing;
+    private const int ToOrgY = 29, UnitsOrgY = 44, CreditsOrgY = UnitsOrgY + Spacing, FuelOrgY = CreditsOrgY + Spacing;
+    private const int ElementOrgY = FuelOrgY + Spacing;
     private const int FreeOrgY = ElementOrgY + Categories * Spacing, BioOrgY = FreeOrgY + 12;
     private const int BoxBottom = BioOrgY + Spacing;   // the box's last line, as the cargo display's
     private const int Col0 = 7, HaveCol = 36, GiveCol = 58, Gap = 3, SelOrgX = Col0 + 7 + 5;
@@ -77,8 +87,10 @@ public static class GivingScreen
     {
         TradeScreen.PlayerRow => ToOrgY,
         TradeScreen.UnitsRow => UnitsOrgY,
+        TradeScreen.CreditsRow => CreditsOrgY,
+        TradeScreen.FuelRow => FuelOrgY,
         TradeScreen.BioRow => BioOrgY,
-        _ => ElementOrgY + (row - 2) * Spacing,
+        _ => ElementOrgY + (row - TradeScreen.FirstMineralRow) * Spacing,
     };
 
     /// <summary>The Free row's top: the receiver's room for minerals.</summary>
@@ -123,15 +135,18 @@ public static class GivingScreen
         var icon = new URect(Col0, 0, bounds.W, bounds.H);
         int sx = icon.X + (icon.W >> 1);
 
-        // The resource units: no icon (UQM has none), so lit across the box, labelled if there's room.
+        // The resource units, the credits and the fuel: no icon (UQM has none), so lit across the box, labelled if
+        // there's room; the fuel dimmed unless the receiver is close by.
         Amount(TradeScreen.UnitsRow, dimmed: false);
+        Amount(TradeScreen.CreditsRow, dimmed: false);
+        Amount(TradeScreen.FuelRow, !shown.Near);
 
         // Each element's icon and amounts, then the receiver's room and the bio data's, as DrawCargoDisplay draws them.
         for (int i = 0; i < Categories; ++i)
         {
-            Icon(RowY(2 + i), frame);
+            Icon(RowY(TradeScreen.FirstMineralRow + i), frame);
             frame = canvas.Frame(MineralSelling.IconSheet, frame + 5);
-            Amount(2 + i, dim);
+            Amount(TradeScreen.FirstMineralRow + i, dim);
         }
         Icon(BioOrgY, BioIcon);
         Amount(TradeScreen.BioRow, dim);
@@ -164,21 +179,28 @@ public static class GivingScreen
         void Amount(int row, bool dimmed)
         {
             bool selected = shown.Row == row;
-            bool wide = row == TradeScreen.UnitsRow;
+            string? label = row switch
+            {
+                TradeScreen.UnitsRow => UnitsLabel,
+                TradeScreen.CreditsRow => CreditsLabel,
+                TradeScreen.FuelRow => FuelLabel,
+                _ => null,
+            };
+            bool wide = label is not null;
             int x = wide ? WideX : SelOrgX;
             var r = new URect(x, RowY(row), GiveCol - x + 1, RowHeight);
             canvas.SetForeground(selected ? CargoDisplay.SelectedBack : CargoDisplay.Back);
             canvas.FillRect(r);
             int y = r.Y + TextBaseline;
             string have = N(shown.Have[row]), give = N(shown.Give[row]);
-            // The units' numbers may be long: what they have moves left of a wide amount to give, and the label
+            // The wide rows' numbers may be long: what they have moves left of a wide amount to give, and the label
             // gives way to them.
             // A number too long for the room left of it (past the box's edge, or over the icon) is left out.
             int haveAt = wide ? Math.Min(HaveCol, GiveCol - tinyWidth(give) - Gap) : HaveCol;
             int left = wide ? WideX + 1 : icon.X + icon.W + 1;
             canvas.SetForeground(dimmed ? Dim : selected ? CargoDisplay.SelectedWorth : CargoDisplay.Worth);
-            if (wide && WideX + 1 + tinyWidth(UnitsLabel) + Gap <= haveAt - tinyWidth(have))
-                canvas.Text(WideX + 1, y, TextAlign.Left, UnitsLabel);
+            if (label is not null && WideX + 1 + tinyWidth(label) + Gap <= haveAt - tinyWidth(have))
+                canvas.Text(WideX + 1, y, TextAlign.Left, label);
             if (haveAt - tinyWidth(have) >= left)
                 canvas.Text(haveAt, y, TextAlign.Right, have);
             canvas.SetForeground(dimmed ? Dim : selected ? CargoDisplay.SelectedAmount : CargoDisplay.Amount);

@@ -8,10 +8,12 @@
 //
 // Follows The Ur-Quan Masters 0.8.0 (src/uqm/planets/generate/gensol.c's
 // GenerateSol_generateEnergy and GenerateSol_pickupEnergy, genspa.c's
-// GenerateSpathi_pickupLife), Copyright Paul Reiche, Fred Ford and Toys for
+// GenerateSpathi_pickupLife, genrain.c's
+// GenerateRainbowWorld_generateOrbital), Copyright Paul Reiche, Fred Ford and Toys for
 // Bob, Inc. 1992-2002, and the UQM contributors, under the GNU GPL 2 or
 // later.
 
+using Crateris.Core.Data;
 using Crateris.Core.Planetside;
 using Crateris.Core.World;
 
@@ -23,7 +25,9 @@ namespace Crateris.Core.Story;
 /// Pluto, the ruins, the artifacts) come with their stories in 3c; until
 /// then their nodes show on the scan but aren't on the surface. And the
 /// story worlds' life: the Evil Ones on Spathiwa (the stage 3b-2 plan's
-/// question 2), which the Spathi at home ask about.
+/// question 2), which the Spathi at home ask about. And the orbits that
+/// mark a world: the rainbow worlds (the plan's question 2), which the
+/// Melnorme buy.
 /// </summary>
 public static class StoryWorlds
 {
@@ -84,5 +88,37 @@ public static class StoryWorlds
         story.Set("SPATHI_CREATURES_EXAMINED", 1);
         if (retrievedBefore + 1 == EvilOnes)
             story.Set("SPATHI_CREATURES_ELIMINATED", 1);   // the last creature picked up
+    }
+
+    /// <summary>RAINBOW_DEFINED: the special generator of the stars whose first planet is a rainbow world.</summary>
+    public const string RainbowSpecial = "RAINBOW_DEFINED";
+
+    /// <summary>
+    /// The rainbow world's bit in RAINBOW_WORLD0/1 for a star
+    /// (GenerateRainbowWorld_generateOrbital's which_rainbow): the number
+    /// of RAINBOW_DEFINED stars before it in the map's order; null for a
+    /// star that isn't one.
+    /// </summary>
+    public static int? RainbowIndex(StarMap map, int star) =>
+        map.Stars[star].Special == RainbowSpecial
+            ? map.Stars.Take(star).Count(s => s.Special == RainbowSpecial)
+            : null;
+
+    /// <summary>
+    /// A ship goes into orbit around a world (the generator's
+    /// generateOrbital, as UQM's orbit runs it, a saved game loaded in
+    /// orbit too): around a rainbow world (planet 0 of a RAINBOW_DEFINED
+    /// star) its bit is set in RAINBOW_WORLD0/1 (genrain.c), the group's
+    /// one story field, so whoever orbits it, the group has found it, and
+    /// the Melnorme pay for it once (the plan's question 6).
+    /// </summary>
+    public static void Orbited(StarMap map, WorldId world, StoryState story)
+    {
+        if (world.Planet != 0 || world.Moon is not null || RainbowIndex(map, world.Star) is not int which)
+            return;
+        int mask = story.Get("RAINBOW_WORLD0") | (story.Get("RAINBOW_WORLD1") << 8);
+        mask |= 1 << which;
+        story.Set("RAINBOW_WORLD0", mask & 0xFF);
+        story.Set("RAINBOW_WORLD1", mask >> 8);
     }
 }

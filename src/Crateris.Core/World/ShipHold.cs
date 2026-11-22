@@ -39,20 +39,23 @@ public enum LanderUpgrades
 /// element category, bio data and lander upgrades. A lander that is out is
 /// saved as back aboard with its crew (stage 2b, decision 5: the lander
 /// takes off when its player leaves). Resource units are the player's
-/// wallet (ResUnits), 0 in saves from before stage 3a.
+/// wallet (ResUnits), 0 in saves from before stage 3a; Melnorme credits
+/// the player's balance with them (MELNORME_CREDIT0/1, each player's own:
+/// docs/differences.md row 19), 0 in saves from before stage 3b-2 item 3.
 /// </summary>
 public sealed record HoldState(int Crew, int Landers, int[]? Minerals, int BioData,
-    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0);
+    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0, uint Credits = 0);
 
 /// <summary>
 /// What a ship carries (<see cref="ShipHold"/>), as snapshots send it:
 /// crew, landers, storage capacity, minerals by element category, bio data,
-/// lander upgrades, resource units, and the room in the storage bays the
+/// lander upgrades, resource units, the room in the storage bays the
 /// lander that is out keeps for what it brings up (its MineralCapacity, 0
-/// when none is out). Equal by value, so snapshots compare by value.
+/// when none is out), and the Melnorme credits. Equal by value, so
+/// snapshots compare by value.
 /// </summary>
 public sealed record HoldSnapshot(int Crew, int Landers, int StorageCapacity, IReadOnlyList<int> Minerals, int BioData,
-    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0, int LanderRoom = 0)
+    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0, int LanderRoom = 0, uint Credits = 0)
 {
     public int MineralMass => Minerals.Sum();
 
@@ -60,8 +63,9 @@ public sealed record HoldSnapshot(int Crew, int Landers, int StorageCapacity, IR
     public int RoomForCargo => Math.Max(0, StorageCapacity - MineralMass - LanderRoom);
 
     public bool Equals(HoldSnapshot? other) =>
-        other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades, ResourceUnits, LanderRoom)
-            == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades, other.ResourceUnits, other.LanderRoom)
+        other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades, ResourceUnits, LanderRoom, Credits)
+            == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades, other.ResourceUnits, other.LanderRoom,
+                other.Credits)
         && Minerals.SequenceEqual(other.Minerals);
 
     public override int GetHashCode() => HashCode.Combine(Crew, Landers, StorageCapacity, BioData, Upgrades, MineralMass);
@@ -164,6 +168,24 @@ public sealed class ShipHold
     }
 
     private uint _resourceUnits;
+
+    /// <summary>
+    /// The player's Melnorme credits (MELNORME_CREDIT0/1, UQM's one balance
+    /// in the game state): each player's own here, given between players at
+    /// any time (docs/differences.md row 19). UQM keeps them in a 16-bit
+    /// COUNT, which wraps; the port's go up to uint's, as gifts may pool them.
+    /// </summary>
+    public uint Credits
+    {
+        get => _credits;
+        internal set
+        {
+            _credits = value;
+            _snapshot = null;
+        }
+    }
+
+    private uint _credits;
 
     /// <summary>A talk changes the crew aboard (the commander's lander with its crew).</summary>
     internal void SetCrew(int crew)
@@ -328,10 +350,11 @@ public sealed class ShipHold
     /// <summary>The hold for snapshots, made again only when it changes.</summary>
     public HoldSnapshot Snapshot() =>
         _snapshot ??= new HoldSnapshot(Crew, Landers, StorageCapacity, _minerals.ToArray(), BioData, _upgrades, _resourceUnits,
-            LanderOut?.MineralCapacity ?? 0);
+            LanderOut?.MineralCapacity ?? 0, _credits);
 
     /// <summary>The hold for the save; a lander that is out is saved as back aboard with its crew.</summary>
-    public HoldState Save() => new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades, _resourceUnits);
+    public HoldState Save() =>
+        new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades, _resourceUnits, _credits);
 
     /// <summary>
     /// The hold for the save while its lander is on a surface (decision 5:
@@ -344,9 +367,9 @@ public sealed class ShipHold
         if (LanderOut is null)
             return Save();
         if (crew == 0)
-            return new(Crew, Landers - 1, _minerals.ToArray(), BioData, _upgrades, _resourceUnits);
+            return new(Crew, Landers - 1, _minerals.ToArray(), BioData, _upgrades, _resourceUnits, _credits);
         return new(Crew + crew, Landers, _minerals.Zip(minerals, (a, b) => a + b).ToArray(), BioData + bioData, _upgrades,
-            _resourceUnits);
+            _resourceUnits, _credits);
     }
 
     /// <summary>Puts a saved hold back (the loadout gives the storage). A bad one is an <see cref="InvalidDataException"/>.</summary>
@@ -369,6 +392,7 @@ public sealed class ShipHold
         BioData = state.BioData;
         _upgrades = state.Upgrades;
         _resourceUnits = state.ResourceUnits;
+        _credits = state.Credits;
         LanderOut = null;
         _snapshot = null;
     }

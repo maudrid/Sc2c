@@ -439,6 +439,40 @@ public class MeetingTests
     }
 
     [ContentFact]
+    public void FuelGivenDuringTheSpinIntoAGroupStays()
+    {
+        // Stage 3b-2 item 3: the spin's flight becomes the ship's at its end
+        // (fuel too), so a friend's fuel given meanwhile goes into both.
+        var game = NewGame("g");
+        var world = game.World;
+        var guest = world.Find("g")!.Ship;
+        guest.Flight.PlaceAtUniverse(5830, 6100);   // within a screen of the host
+        GroupBy(world, "h", "URQUAN_SHIP");
+        for (int i = 0; i < 200 && world.MeetingOf("h") is null; ++i)
+            Frames(world, 1);
+        var m = world.MeetingOf("h")!;
+        Assert.Equal(MeetingStep.Spin, m.Step);
+        var ship = world.Host.Ship;
+        uint before = ship.Flight.Fuel;
+        guest.Flight.Fuel = 2000;
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("g", "h", 0, new int[8], 0, Fuel: 300)));
+        Assert.Equal((before + 300, before + 300), (ship.Flight.Fuel, ship.Spin!.Fuel));
+        uint last = ship.Spin.Fuel;
+        for (int i = 0; i < 100 && m.Step == MeetingStep.Spin; ++i)
+        {
+            last = ship.Spin!.Fuel;   // the drift may burn a little
+            Frames(world, 1);
+        }
+        Assert.NotEqual(MeetingStep.Spin, m.Step);
+        Assert.Equal(last, ship.Flight.Fuel);
+        Assert.InRange(ship.Flight.Fuel, before + 290, before + 300);   // the gift kept
+        // At the encounter screen, in a talk, it can be given more.
+        Assert.Equal(Activity.Talk, ship.Activity);
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("g", "h", 0, new int[8], 0, Fuel: 100)));
+        Assert.Equal(last + 100, ship.Flight.Fuel);
+    }
+
+    [ContentFact]
     public void APauseDuringTheSpinIntoAGroupDoesntShortenIt()
     {
         // Review round 1: the spin counts its own frames, as the spin back

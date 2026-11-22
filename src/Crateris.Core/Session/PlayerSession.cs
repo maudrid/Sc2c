@@ -1414,7 +1414,7 @@ public sealed class PlayerSession
                 lines.Add($"You: {Where(me)}");
                 lines.Add($"Fuel {me.Fuel / 100.0:0.00} / {me.FuelCapacity / 100}");
                 if (me.Hold is { } h)
-                    lines.Add($"Crew {h.Crew}, landers {h.Landers}, minerals {h.MineralMass} / {h.StorageCapacity}, bio {h.BioData}, {h.ResourceUnits} RU");
+                    lines.Add($"Crew {h.Crew}, landers {h.Landers}, minerals {h.MineralMass} / {h.StorageCapacity}, bio {h.BioData}, {h.ResourceUnits} RU, {h.Credits} Cr");
                 if (MyLander is { } l)
                     lines.Add($"Lander: {l.Phase.ToString().ToLowerInvariant()}, crew {l.Crew}, minerals {l.MineralMass}, bio {l.BioData}");
             }

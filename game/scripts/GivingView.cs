@@ -88,9 +88,7 @@ public partial class GivingView : Node2D
             return false;
         }
         var shown = trade.Follow(player.Snapshot, player.PlayerId);
-        string to = shown.To is null ? "There's no one else here." : shown.Here
-            ? $"To {shown.ToName}, in this system."
-            : $"To {shown.ToName}: resource units only, as cargo goes only within a system.";
+        string to = To(shown);
         if (to != _to || player.Notice != _notice)
         {
             (_to, _notice) = (to, player.Notice);
@@ -126,6 +124,21 @@ public partial class GivingView : Node2D
             QueueRedraw();
             return false;
         }
+    }
+
+    /// <summary>
+    /// Who it gives to, below the box: where they are, what can go to them
+    /// there (cargo only within a system, fuel only close by) and the room
+    /// in their tanks for fuel.
+    /// </summary>
+    public static string To(TradeShown shown)
+    {
+        if (shown.To is null)
+            return "There's no one else here.";
+        string tanks = shown.TankRoom is int room ? $" Their tanks have room for {room} units of fuel." : "";
+        return shown.Here ? $"To {shown.ToName}, in this system.{tanks}"
+            : shown.Near ? $"To {shown.ToName}, close by: no cargo, as cargo goes only within a system.{tanks}"
+            : $"To {shown.ToName}: resource units and credits only; fuel goes only to a player close by, cargo only within a system.";
     }
 
     public override void _Draw()

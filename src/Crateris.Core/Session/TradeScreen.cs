@@ -6,6 +6,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Hyperspace;
 using Crateris.Core.Systems;
 using Crateris.Core.World;
 
@@ -17,27 +18,33 @@ namespace Crateris.Core.Session;
 /// with no one else in the game but wrecks); whether they're in the giver's solar
 /// system, where alone cargo can go; the room in their storage bays for
 /// minerals, as the host takes it (null if the snapshot hasn't their hold);
-/// and, by <see cref="TradeScreen"/>'s rows, what the giver has and the
-/// amount chosen to give (the receiver's row's unused).
+/// whether they're close by, where alone fuel can go
+/// (<see cref="Gift.CloseBy"/>); the room in their fuel tanks, in whole
+/// units (null without their ship); and, by <see cref="TradeScreen"/>'s
+/// rows, what the giver has and the amount chosen to give (the receiver's
+/// row's unused; the fuel row's in whole units).
 /// </summary>
 public sealed record TradeShown(int Row, string? To, string ToName, bool Here, int? Room, IReadOnlyList<long> Have,
-    IReadOnlyList<int> Give);
+    IReadOnlyList<int> Give, bool Near = false, int? TankRoom = null);
 
 /// <summary>
-/// The screen for giving another player resource units, minerals or bio
-/// data (stage 3a, item 9), the player's own: its rows are the player to
-/// give to, the resource units, each element category and the bio data.
+/// The screen for giving another player resource units, Melnorme credits,
+/// fuel, minerals or bio data (stage 3a, item 9; the credits and the fuel
+/// since stage 3b-2 item 3), the player's own: its rows are the player to
+/// give to, the resource units, the credits, the fuel (in whole units, up
+/// to the receiver's room), each element category and the bio data.
 /// Up and down choose the row; left and right choose the player, or the
-/// amount (by 1; page up and down by 10, the units by 100); select gives
-/// the row's amount; cancel closes it. A gift goes to the host, which
+/// amount (by 1; page up and down by 10, the units and the credits by
+/// 100); select gives the row's amount; cancel closes it. A gift goes to the host, which
 /// refuses it with a reason if it can't go. It's drawn in the status area
 /// as the Manifest's cargo display is (item 11: Presentation's
 /// GivingScreen, from <see cref="Follow"/>).
 /// </summary>
 public sealed class TradeScreen
 {
-    /// <summary>The rows: the player, the units, the 8 categories, the bio data.</summary>
-    public const int PlayerRow = 0, UnitsRow = 1, BioRow = 2 + ShipHold.Categories, Rows = BioRow + 1;
+    /// <summary>The rows: the player, the units, the credits, the fuel, the 8 categories, the bio data.</summary>
+    public const int PlayerRow = 0, UnitsRow = 1, CreditsRow = 2, FuelRow = 3, FirstMineralRow = 4,
+        BioRow = FirstMineralRow + ShipHold.Categories, Rows = BioRow + 1;
 
     public int Row { get; private set; } = UnitsRow;
 
@@ -51,7 +58,7 @@ public sealed class TradeScreen
     public Gift? Press(MenuKey key, WorldSnapshot? snapshot, string me)
     {
         var others = Others(snapshot, me);
-        var mine = Follow(snapshot, me, others);
+        var (mine, tankRoom) = Follow(snapshot, me, others);
         switch (key)
         {
             case MenuKey.Up:
@@ -69,15 +76,17 @@ public sealed class TradeScreen
                 }
                 break;
             case MenuKey.Left or MenuKey.Right or MenuKey.PageUp or MenuKey.PageDown:
-                int step = key is MenuKey.PageUp or MenuKey.PageDown ? (Row == UnitsRow ? 100 : 10) : 1;
+                int step = key is MenuKey.PageUp or MenuKey.PageDown ? (Row is UnitsRow or CreditsRow ? 100 : 10) : 1;
                 int sign = key is MenuKey.Left or MenuKey.PageDown ? -1 : 1;
-                Amounts[Row] = Math.Clamp(Amounts[Row] + sign * step, 0, Have(mine, Row));
+                Amounts[Row] = Math.Clamp(Amounts[Row] + sign * step, 0, Most(mine, Row, tankRoom));
                 break;
             case MenuKey.Select when To is not null && Row != PlayerRow && Amounts[Row] > 0:
                 var minerals = new int[ShipHold.Categories];
-                if (Row >= 2 && Row < BioRow)
-                    minerals[Row - 2] = Amounts[Row];
-                var gift = new Gift(me, To, Row == UnitsRow ? (uint)Amounts[Row] : 0, minerals, Row == BioRow ? Amounts[Row] : 0);
+                if (Row >= FirstMineralRow && Row < BioRow)
+                    minerals[Row - FirstMineralRow] = Amounts[Row];
+                int amount = Amounts[Row];
+                var gift = new Gift(me, To, Row == UnitsRow ? (uint)amount : 0, minerals, Row == BioRow ? amount : 0,
+                    Row == CreditsRow ? (uint)amount : 0, Row == FuelRow ? (uint)amount * Fuel.Scale : 0);
                 Amounts[Row] = 0;
                 return gift;
         }
@@ -92,23 +101,37 @@ public sealed class TradeScreen
     // The screen follows the game: the receiver is one of the others in it
     // (the first, until one is chosen, or if theirs has left), and no
     // amount is more than the player has now.
-    private HoldSnapshot? Follow(WorldSnapshot? snapshot, string me, List<string> others)
+    // (Fuel goes up to the receiver's room too: the room in whole units, null without their ship.)
+    private (ShipSnapshot? Mine, int? TankRoom) Follow(WorldSnapshot? snapshot, string me, List<string> others)
     {
         if (To is null || !others.Contains(To))
             To = others.FirstOrDefault();
-        var mine = snapshot?.Ships.FirstOrDefault(s => s.Id == me)?.Hold;
+        var mine = snapshot?.Ships.FirstOrDefault(s => s.Id == me);
+        var taker = To is null ? null : snapshot?.Ships.FirstOrDefault(s => s.Id == To);
+        int? tankRoom = taker is null ? null : TankRoomOf(taker);
         for (int row = UnitsRow; row < Rows; ++row)
-            Amounts[row] = Math.Min(Amounts[row], Have(mine, row));
-        return mine;
+            Amounts[row] = Math.Min(Amounts[row], Most(mine, row, tankRoom));
+        return (mine, tankRoom);
     }
 
-    // What the player has of a row's kind, as the host last said.
-    private static int Have(HoldSnapshot? hold, int row) => hold is null ? 0 : row switch
-    {
-        UnitsRow => (int)Math.Min(hold.ResourceUnits, int.MaxValue),
-        BioRow => hold.BioData,
-        _ => hold.Minerals[row - 2],
-    };
+    // The most a row can give: what the player has, and for fuel no more than the receiver's room.
+    private static int Most(ShipSnapshot? mine, int row, int? tankRoom) =>
+        row == FuelRow ? Math.Min(Have(mine, row), tankRoom ?? 0) : Have(mine, row);
+
+    // What the player has of a row's kind, as the host last said (fuel in whole units).
+    private static int Have(ShipSnapshot? ship, int row) => row == FuelRow
+        ? (int)(ship?.Fuel / Fuel.Scale ?? 0)
+        : ship?.Hold is not { } hold ? 0 : row switch
+        {
+            UnitsRow => (int)Math.Min(hold.ResourceUnits, int.MaxValue),
+            CreditsRow => (int)Math.Min(hold.Credits, int.MaxValue),
+            BioRow => hold.BioData,
+            _ => hold.Minerals[row - FirstMineralRow],
+        };
+
+    /// <summary>The room in a ship's fuel tanks, in whole units (a fraction left over can't be given).</summary>
+    public static int TankRoomOf(ShipSnapshot ship) =>
+        ship.FuelCapacity > ship.Fuel ? (int)((ship.FuelCapacity - ship.Fuel) / Fuel.Scale) : 0;
 
     /// <summary>
     /// The screen as it stands with <paramref name="snapshot"/>, followed as
@@ -117,20 +140,24 @@ public sealed class TradeScreen
     /// </summary>
     public TradeShown Follow(WorldSnapshot? snapshot, string me)
     {
-        var mine = Follow(snapshot, me, Others(snapshot, me));
-        var giver = snapshot?.Ships.FirstOrDefault(s => s.Id == me);
+        var (giver, tankRoom) = Follow(snapshot, me, Others(snapshot, me));
         var taker = To is null ? null : snapshot?.Ships.FirstOrDefault(s => s.Id == To);
         var have = new long[Rows];
-        if (mine is not null)
+        if (giver is not null)
+            have[FuelRow] = giver.Fuel / Fuel.Scale;
+        if (giver?.Hold is { } mine)
         {
             have[UnitsRow] = mine.ResourceUnits;
+            have[CreditsRow] = mine.Credits;
             for (int i = 0; i < ShipHold.Categories; ++i)
-                have[2 + i] = mine.Minerals[i];
+                have[FirstMineralRow + i] = mine.Minerals[i];
             have[BioRow] = mine.BioData;
         }
         bool here = giver?.SystemStar is int star && taker?.SystemStar == star;
+        bool near = giver is not null && taker is not null && Gift.CloseBy(giver.SystemStar, giver.UniverseX, giver.UniverseY,
+            taker.SystemStar, taker.UniverseX, taker.UniverseY);
         return new TradeShown(Row, taker?.Id, taker?.Name ?? To ?? "", here, taker is null ? null : RoomFor(taker), have,
-            Amounts.ToArray());
+            Amounts.ToArray(), near, tankRoom);
     }
 
     /// <summary>

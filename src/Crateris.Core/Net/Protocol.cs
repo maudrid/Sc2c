@@ -150,7 +150,11 @@ public static class Protocol
     /// view carries the battle's planet (MeetingView.Well), whose gravity
     /// well the encounter screen draws, and in a system the planet it names
     /// (MeetingView.Named).
-    public const int Version = 27;
+    /// 28: Melnorme credits and fuel between players (stage 3b-2 item 3):
+    /// a ship's hold carries its Melnorme credits (HoldSnapshot.Credits),
+    /// and a gift carries credits and fuel (Gift.Credits, Gift.Fuel, after
+    /// the bio data), fuel refused as TradeRefusal.TooFar or NoTankRoom.
+    public const int Version = 28;
     public const int DefaultPort = 24642;
 
     /// <summary>

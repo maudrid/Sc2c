@@ -56,6 +56,7 @@ namespace Crateris.Game;
 /// last the host waits, and a place past those offered is logged and the rest dropped),
 /// --start-minerals N,N,N,N,N,N,N,N (host: the hold starts with these minerals, by element category, to sell at the starbase),
 /// --start-units N (host: the wallet starts with N resource units),
+/// --start-credits N (host: the host starts with N Melnorme credits, to give: the Melnorme's trading comes later),
 /// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
 /// --start-state NAME=VALUE[,NAME=VALUE] (host: these story fields set, by data/game-state.json's name, to reach what
 /// waits on stage 3c's devices and events; repeatable; a field that isn't one, a value past what its bits hold, or a
@@ -76,7 +77,7 @@ namespace Crateris.Game;
 /// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
 /// --start-at, --start-orbit, --start-visit, --start-docked, --start-battle and --start-encounter never load the default save
 /// nor write over it: a new game unless --load names one (then they apply to it), saved only to a --save file;
-/// --start-minerals, --start-units, --start-devices, --start-state, --start-fleet and --start-allied alone change whatever
+/// --start-minerals, --start-units, --start-credits, --start-devices, --start-state, --start-fleet and --start-allied alone change whatever
 /// game is loaded, and are saved with it.
 /// With no options the game starts as a solo host.
 /// </summary>
@@ -141,6 +142,9 @@ public sealed class Options
 
     /// <summary>--start-units N: the host's wallet starts with N resource units (testing: giving them).</summary>
     public uint? StartUnits { get; private set; }
+
+    /// <summary>--start-credits N: the host starts with N Melnorme credits (testing: giving them).</summary>
+    public uint? StartCredits { get; private set; }
 
     /// <summary>--start-devices DEVICE[,DEVICE]: the group carries these devices, by name (ROSY_SPHERE_DEVICE) or number (testing: the Manifest's Devices list).</summary>
     public string[]? StartDevices { get; private set; }
@@ -248,6 +252,7 @@ public sealed class Options
                     o.StartMinerals = Array.ConvertAll(Next().Split(','), int.Parse);
                     break;
                 case "--start-units": o.StartUnits = uint.Parse(Next()); break;
+                case "--start-credits": o.StartCredits = uint.Parse(Next()); break;
                 case "--start-devices": o.StartDevices = Next().Split(',', StringSplitOptions.TrimEntries); break;
                 case "--start-state":
                     (o.StartState ??= new()).AddRange(Next().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
