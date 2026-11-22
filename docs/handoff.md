@@ -2,12 +2,12 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-22, stage 3b-2 item 2 built (the owner's go-ahead for item 2 only): the Spathi at home (`spahome.c`) on Spathiwa's moon and the Slylandro at home (`slyhome.c`) at their gas giant, both recorded from UQM and matched path for path; the Evil Ones on Spathiwa counted (question 2). Review round 1 found no correctness bug and its three findings are fixed; round 2 found two stale handoff lines, fixed; round 3 next. Item 1 was reviewed in three rounds per part and reported.
+**Last updated:** 2026-11-22, stage 3b-2 item 2 built (the owner's go-ahead for item 2 only): the Spathi at home (`spahome.c`) on Spathiwa's moon and the Slylandro at home (`slyhome.c`) at their gas giant, both recorded from UQM and matched path for path; the Evil Ones on Spathiwa counted (question 2). Review round 1 found no correctness bug and its three findings are fixed; round 2 found two stale handoff lines, fixed; round 3 found nothing. Item 2 reported complete. Item 1 was reviewed in three rounds per part and reported.
 
 ## Where things are
 
-- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 2's review round 2).
-- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built; review rounds 1 and 2 fixed, round 3 next (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
+- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 2's report).
+- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
@@ -65,7 +65,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review item 2 (the Spathi and the Slylandro at home), round 3: round 1 found no correctness bug and its three findings are fixed (its Progress row); round 2 found the handoff's state lines stale, fixed. Then report it and wait for the owner's go-ahead for item 3 (Melnorme credits; one go-ahead per item).
+Wait for the owner's go-ahead for item 3 (Melnorme credits; one go-ahead per item). Item 2 is built, reviewed and reported.
 
 ## Decisions waiting on the owner
 
