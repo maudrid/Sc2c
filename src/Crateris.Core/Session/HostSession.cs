@@ -377,7 +377,9 @@ public sealed class HostSession
 
     /// <summary>
     /// --start-encounter SHIP[:SHIPS] (testing, stage 3b-1 item 5): a group of
-    /// that ship's race (data/ships.json's id; SHIPS ships, else the race's
+    /// that ship's race (data/ships.json's id, or a race by races.h's name as
+    /// data/races.json has it: YEHAT_REBEL_SHIP for the Yehat rebels, whose
+    /// ship is the Yehat's, stage 3b-2 item 6; SHIPS ships, else the race's
     /// fewest in a group, at least one) appears by the host and flies at it:
     /// in hyperspace if the host is there (--start-at), else after the
     /// opening as --start-battle leaves it (in flight in Earth's inner system,
@@ -399,8 +401,10 @@ public sealed class HostSession
         if (World.Story is not { } story || World.Systems is null)
             throw new InvalidOperationException("a group needs the game's content");
         var parts = spec.Split(':', StringSplitOptions.TrimEntries);
-        if (parts.Length > 2 || story.Rules.RaceOfShip(parts[0]) is not { } raceShip)
-            throw new ArgumentException($"{spec}: SHIP[:SHIPS], SHIP a race's ship by data/ships.json's id");
+        var raceShip = story.Rules.RaceOfShip(parts[0])
+                       ?? (story.Rules.Races.Contains(parts[0]) ? story.Rules.RaceShip(parts[0]) : null);
+        if (parts.Length > 2 || raceShip is null)
+            throw new ArgumentException($"{spec}: SHIP[:SHIPS], SHIP a race's ship by data/ships.json's id or a race by races.h's name");
         int race = story.Rules.RaceIndex(raceShip.Race);
         int ships = Math.Max(1, story.Rules.Fleets[race].MakeupMin);
         if (parts.Length == 2 && (!int.TryParse(parts[1], out ships) || ships < 1 || ships > Hyperspace.HyperEncounter.MaxShips))

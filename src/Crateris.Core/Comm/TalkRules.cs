@@ -58,6 +58,13 @@ public static class TalkRules
         // its race's lock.
         ["shofixt"] = _ => false,
         ["zoqfot"] = _ => false,
+        // Stage 3b-2 item 6: the VUX (in space, at home, Admiral ZEX at the
+        // Maidens' world) and the Yehat (in space, at home), ordinary, each
+        // under its race's lock; the Yehat rebels' under the Yehat's
+        // (RACE_SHIP_FOR_COMM).
+        ["vux"] = _ => false,
+        ["yehat"] = _ => false,
+        ["rebel"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

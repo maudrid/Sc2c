@@ -43,11 +43,12 @@ namespace Crateris.Game;
 /// (the Earthling), chmmr, shofixti, syreen, orz, melnorme, vux or pkunk; up to 14 ships, each warping in when the one
 /// before it dies, and a win pays the first ship's race's bounty for each; Escape retreats; with fleet ships, from
 /// --start-fleet, the host chooses each ship to send in on the pick screen, the flagship the last choice),
-/// --start-encounter SHIP[:SHIPS] (host: a group of that ship's race, by data/ships.json's id as --start-battle's, of
-/// SHIPS ships or the race's fewest in a group, appears by the host and flies at it: in hyperspace with --start-at, else a
+/// --start-encounter SHIP[:SHIPS] (host: a group of that ship's race, by data/ships.json's id as --start-battle's or a
+/// race by races.h's name, YEHAT_REBEL_SHIP for the Yehat rebels, of SHIPS ships or the race's fewest in a group, appears by the host and flies at it: in hyperspace with --start-at, else a
 /// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, chosen
 /// on it or by --encounter-choice; the Ur-Quan's (urquan), the Kohr-Ah's (blackurq), the Ilwrath's (ilwrath),
-/// the Spathi's (spathi) and the Slylandro probe's (slylandr) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
+/// the Spathi's (spathi), the Slylandro probe's (slylandr) and stage 3b-2's as its items port them (the Melnorme's,
+/// Tanaka's, the Zoq-Fot-Pik's, the VUX's, the Yehat's and the rebels' so far) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
 /// reads it: --start-at meets them in hyperspace), any other race's hail ends at once in peace, the group gone in
 /// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
 /// hail|attack (host: the choice at a meeting's encounter screen, made as it comes up), --meeting-replies I[,I...] (host:

@@ -43,6 +43,10 @@ public sealed class TalkLibrary
         // Stage 3b-2 item 5.
         ["shofixt"] = p => new ShofixtiScript(p),
         ["zoqfot"] = p => new ZoqFotPikScript(p),
+        // Stage 3b-2 item 6.
+        ["vux"] = p => new VuxScript(p),
+        ["yehat"] = p => new YehatScript(p),
+        ["rebel"] = p => new YehatRebelScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

@@ -5219,10 +5219,189 @@ def zoqfot_starts():
     return starts
 
 
+def vux_starts():
+    """The VUX (vuxc.c), from states chosen to reach every condition it
+    reads: the endgame's won battle (in space and at ZEX's world); in
+    space and at their homeworld (GLOBAL_FLAGS_AND_DATA bit 7), each
+    visit's greeting (VUX_VISITS, VUX_HOME_VISITS, the visits past those
+    the switch names), the first walked whole; each pair of the reasons
+    asked and the threats (VUX_STACK_1, every value of its 4 bits, past
+    "the truth" and its wrap; VUX_STACK_2), the news (VUX_INFO), the
+    friendship asked (VUX_STACK_3) and the farewells (VUX_STACK_4);
+    Admiral ZEX at the Maidens' world (bit 6): each visit's greeting
+    (ZEX_VISITS, before and after he's been threatened: ZEX_STACK_3 2),
+    walked whole from his first meeting with and without the beast aboard
+    (VUX_BEAST_ON_SHIP) and with his wish known (KNOW_ZEX_WANTS_MONSTER),
+    and each combination of his three stacks (ZEX_STACK_1 to 3)."""
+    zex = lambda name, state, **kw: home_start(name, state, flags=1 << 6, **kw)
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE"),
+              zex("zex-won-last-battle", {}, activity="WON_LAST_BATTLE")]
+    for visits in range(8):
+        more = {} if visits == 0 else {"follow": []}
+        starts.append(space_start(f"space-visit-{visits}", {"VUX_VISITS": visits}, **more))
+        starts.append(home_start(f"home-visit-{visits}", {"VUX_HOME_VISITS": visits}, **more))
+    for s1 in range(16):
+        for s2 in range(4):
+            starts.append(space_start(f"stacks-{s1}-{s2}", {"VUX_VISITS": 1, "VUX_STACK_1": s1, "VUX_STACK_2": s2}))
+    for info in range(1, 4):
+        starts.append(space_start(f"info-{info}", {"VUX_VISITS": 1, "VUX_INFO": info}))
+    for s1 in (14, 15):
+        for s3 in range(1, 4):
+            starts.append(space_start(f"friends-{s1}-{s3}", {"VUX_VISITS": 1, "VUX_STACK_1": s1, "VUX_STACK_3": s3}))
+    for s4 in range(1, 4):
+        starts.append(space_start(f"farewell-{s4}", {"VUX_VISITS": 1, "VUX_STACK_4": s4}))
+    for visits in range(8):
+        for threatened in (0, 2):
+            starts.append(zex(f"zex-visit-{visits}-stack3-{threatened}", {"ZEX_VISITS": visits, "ZEX_STACK_3": threatened},
+                              **({} if visits == 0 else {"follow": []})))
+    for beast in (0, 1):
+        for know in (0, 1):
+            starts.append(zex(f"zex-beast-{beast}-know-{know}", {"VUX_BEAST_ON_SHIP": beast,
+                                                                 "KNOW_ZEX_WANTS_MONSTER": know}))
+    for z1 in range(4):
+        for z2 in range(4):
+            for z3 in range(4):
+                starts.append(zex(f"zex-stacks-{z1}-{z2}-{z3}", {"ZEX_VISITS": 1, "ZEX_STACK_1": z1, "ZEX_STACK_2": z2,
+                                                                 "ZEX_STACK_3": z3}, follow=[]))
+    for z1 in (2, 3):
+        starts.append(zex(f"zex-creature-known-{z1}", {"ZEX_VISITS": 1, "ZEX_STACK_1": z1, "KNOW_ZEX_WANTS_MONSTER": 1}))
+    starts.append(zex("zex-beast-known-stacks", {"ZEX_VISITS": 1, "ZEX_STACK_1": 3, "ZEX_STACK_2": 2, "ZEX_STACK_3": 3,
+                                                 "KNOW_ZEX_WANTS_MONSTER": 1, "VUX_BEAST_ON_SHIP": 1}))
+    return starts
+
+
+def yehat_starts():
+    """The Yehat (yehatc.c), from states chosen to reach every condition it
+    reads: the endgame's won battle; in space and at their homeworld
+    (GLOBAL_FLAGS_AND_DATA bit 7), before and after the civil war
+    (YEHAT_CIVIL_WAR: the royalists), each visit's greeting (the visits
+    past those the switch names), the first of each walked whole; each
+    value of the space stacks (YEHAT_REBEL_INFO, NO_YEHAT_HELP_SPACE,
+    NO_YEHAT_ALLY_SPACE) and of the homeworld's and the royalists' (their
+    news, NO_YEHAT_HELP_HOME, NO_YEHAT_INFO, NO_YEHAT_ALLY_HOME); the Pkunk
+    asked about (met in space and at home, or one of them; absorbed or
+    not; told already); the Shofixti alive once Tanaka has been met
+    (SHOFIXTI_VISITS; YEHAT_REBEL_TOLD_PKUNK; the escort fleet with a
+    Shofixti ship, another's, or none; YEHAT_REBEL_VISITS), the revolt
+    sent; the names spliced into the alliance's demand (each alliance
+    name, the captain's and ship's names), at home and in space; and the
+    farewell in space from several seeds (its draw: peace or a fight)."""
+    home = lambda name, state, **kw: home_start(name, state, **kw)
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE"),
+              home_start("home-won-last-battle", {}, activity="WON_LAST_BATTLE")]
+    for war in (0, 1):
+        tag = "royalist-" if war else ""
+        for visits in range(8):
+            more = {} if visits == 0 else {"follow": []}
+            starts.append(space_start(f"{tag}space-visit-{visits}", {"YEHAT_CIVIL_WAR": war, "YEHAT_VISITS": visits},
+                                      **more))
+            starts.append(home(f"{tag}home-visit-{visits}", {"YEHAT_CIVIL_WAR": war, "YEHAT_HOME_VISITS": visits},
+                               **more))
+    for info in range(8):
+        starts.append(space_start(f"space-info-{info}", {"YEHAT_VISITS": 1, "YEHAT_REBEL_INFO": info}, follow=[]))
+        if info < 4:
+            # The news asked (the first reply while there's news: whats_up_space_N for 0 to 3).
+            starts.append(space_start(f"space-info-{info}-asked", {"YEHAT_VISITS": 1, "YEHAT_REBEL_INFO": info},
+                                      prefix=[0], follow=[]))
+    for help_ in range(4):
+        for ally in range(4):
+            starts.append(space_start(f"space-help-{help_}-ally-{ally}",
+                                      {"YEHAT_VISITS": 1, "NO_YEHAT_HELP_SPACE": help_, "NO_YEHAT_ALLY_SPACE": ally}))
+    for info in (0, 1):
+        for help_ in (0, 1):
+            for noinfo in (0, 1):
+                for ally in (0, 1):
+                    starts.append(home(f"home-info-{info}-help-{help_}-noinfo-{noinfo}-ally-{ally}",
+                                       {"YEHAT_HOME_VISITS": 1, "YEHAT_ROYALIST_INFO": info,
+                                        "NO_YEHAT_HELP_HOME": help_, "NO_YEHAT_INFO": noinfo,
+                                        "NO_YEHAT_ALLY_HOME": ally}))
+        for noinfo in (0, 1):
+            starts.append(space_start(f"royalist-info-{info}-noinfo-{noinfo}",
+                                      {"YEHAT_CIVIL_WAR": 1, "YEHAT_VISITS": 1, "YEHAT_ROYALIST_INFO": info,
+                                       "NO_YEHAT_INFO": noinfo}))
+    pkunk_met = [("both", {"PKUNK_VISITS": 1, "PKUNK_HOME_VISITS": 1}), ("space", {"PKUNK_VISITS": 1}),
+                 ("home", {"PKUNK_HOME_VISITS": 1})]
+    for met, state in pkunk_met:
+        for absorbed in (0, 1):
+            for told in (0, 1):
+                s = {**state, "YEHAT_ABSORBED_PKUNK": absorbed, "YEHAT_ROYALIST_TOLD_PKUNK": told}
+                name = f"pkunk-{met}-absorbed-{absorbed}-told-{told}"
+                starts.append(space_start(f"space-{name}", {"YEHAT_VISITS": 1, **s}))
+                starts.append(home(f"home-{name}", {"YEHAT_HOME_VISITS": 1, **s}))
+                starts.append(space_start(f"royalist-{name}", {"YEHAT_CIVIL_WAR": 1, "YEHAT_VISITS": 1, **s}))
+    revolt = ["StartRevolt", "ExitConversation"]
+    for told in (0, 1):
+        for fleet_name, fleet in (("none", []), ("shofixti", ["SHOFIXTI_SHIP"]),
+                                  ("spathi", ["SPATHI_SHIP"]), ("mixed", ["SPATHI_SHIP", "SHOFIXTI_SHIP"])):
+            for rebel_visits in range(3):
+                starts.append(space_start(f"shofixti-told-{told}-fleet-{fleet_name}-visits-{rebel_visits}",
+                                          {"YEHAT_VISITS": 1, "SHOFIXTI_VISITS": 1, "YEHAT_REBEL_TOLD_PKUNK": told,
+                                           "YEHAT_REBEL_VISITS": rebel_visits},
+                                          escort_fleet=fleet, follow=revolt))
+    for alliance in range(4):
+        starts.append(space_start(f"space-alliance-name-{alliance}", {"YEHAT_VISITS": 1, "NEW_ALLIANCE_NAME": alliance},
+                                  follow=[]))
+        starts.append(home(f"home-alliance-name-{alliance}", {"YEHAT_HOME_VISITS": 1, "NEW_ALLIANCE_NAME": alliance},
+                           follow=[]))
+    for cname, captain, ship in NAMES:
+        for where, make in (("space", space_start), ("home", home)):
+            start = make(f"{where}-{cname}", {"NEW_ALLIANCE_NAME": 3}, follow=[])
+            start["ship"] = talk_ship(captain=captain, ship=ship)
+            starts.append(start)
+    for seed in (1, 2, 3, 4):
+        starts.append(space_start(f"farewell-seed-{seed}", {"YEHAT_VISITS": 1}, seed=seed, follow=["ExitConversation"]))
+    return starts
+
+
+def rebel_starts():
+    """The Yehat rebels (rebel.c), from states chosen to reach every
+    condition it reads: the endgame's last battle (the cavalry, with the
+    escort fleet's room for none, some, 8 and more); each visit's greeting
+    (YEHAT_REBEL_VISITS, the visits past those the switch names), the
+    first walked whole; each value of the revolution's news
+    (YEHAT_REBEL_INFO, its 3 bits); the Pkunk asked about (met in space and
+    at home, or one of them; absorbed or not; told already); their ships
+    asked for, by the next ships' date (none given yet; a year, a month or
+    a day before it; on it; after it; the next date in January) and the
+    escort fleet's room (none, fewer than 4, 4, more)."""
+    sys_start = lambda name, state, **kw: space_start(name, state, "IN_INTERPLANETARY", **kw)
+    starts = []
+    for room in (0, 1, 2, 3, 8, 9, 12):
+        starts.append(space_start(f"cavalry-room-{room}", {}, "IN_LAST_BATTLE", escorts=[0, room]))
+    for visits in range(8):
+        starts.append(space_start(f"visit-{visits}", {"YEHAT_REBEL_VISITS": visits},
+                                  **({"escorts": [0, 12]} if visits == 0 else {"follow": []})))
+    for info in range(8):
+        starts.append(space_start(f"info-{info}", {"YEHAT_REBEL_VISITS": 1, "YEHAT_REBEL_INFO": info},
+                                  follow=["Rebels"]))
+    for met, state in (("both", {"PKUNK_VISITS": 1, "PKUNK_HOME_VISITS": 1}), ("space", {"PKUNK_VISITS": 1}),
+                       ("home", {"PKUNK_HOME_VISITS": 1})):
+        for absorbed in (0, 1):
+            for told in (0, 1):
+                starts.append(sys_start(f"pkunk-{met}-absorbed-{absorbed}-told-{told}",
+                                        {"YEHAT_REBEL_VISITS": 1, **state, "YEHAT_ABSORBED_PKUNK": absorbed,
+                                         "YEHAT_REBEL_TOLD_PKUNK": told}, follow=["Rebels"]))
+    # any_ships, the second reply (with no Pkunk to ask about), by the next ships' date (2156-03-10).
+    ship_date = {"YEHAT_SHIP_MONTH": 3, "YEHAT_SHIP_DAY": 10, "YEHAT_SHIP_YEAR": 1}
+    dates = [("year-before", (2155, 6, 1)), ("month-before", (2156, 2, 28)), ("day-before", (2156, 3, 9)),
+             ("on-the-day", (2156, 3, 10)), ("month-after", (2156, 4, 1)), ("year-after", (2157, 1, 1)),
+             ("december", (2156, 12, 31))]
+    for room in (0, 1, 3, 4, 12):
+        starts.append(space_start(f"ships-never-given-room-{room}", {"YEHAT_REBEL_VISITS": 1}, escorts=[0, room],
+                                  date=[2155, 2, 17], prefix=[1], follow=[]))
+        for when, date in dates:
+            starts.append(space_start(f"ships-{when}-room-{room}", {"YEHAT_REBEL_VISITS": 1, **ship_date},
+                                      escorts=[0, room], date=list(date), prefix=[1], follow=[]))
+    starts.append(space_start("ships-far-year", {"YEHAT_REBEL_VISITS": 1, "YEHAT_SHIP_MONTH": 1, "YEHAT_SHIP_YEAR": 31},
+                              escorts=[0, 12], prefix=[1], follow=[]))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
                 "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts,
-                "melnorm": melnorm_starts, "shofixt": shofixt_starts, "zoqfot": zoqfot_starts}
+                "melnorm": melnorm_starts, "shofixt": shofixt_starts, "zoqfot": zoqfot_starts,
+                "vux": vux_starts, "yehat": yehat_starts, "rebel": rebel_starts}
 # Files and notes a script's recording has besides every script's.
 COMM_EXTRA_FILES = {"melnorm": ["src/libs/math/random2.c", "src/libs/math/sqrt.c"]}
 COMM_EXTRA_NOTES = {"melnorm": [
@@ -5236,7 +5415,7 @@ COMM_EXTRA_NOTES = {"melnorm": [
     "it's sold in one go. MELNORME_CREDIT0 and 1 are the credits."]}
 # A script's file where it isn't named after its folder.
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c",
-              "zoqfot": "zoqfotc.c"}
+              "zoqfot": "zoqfotc.c", "vux": "vuxc.c", "yehat": "yehatc.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.

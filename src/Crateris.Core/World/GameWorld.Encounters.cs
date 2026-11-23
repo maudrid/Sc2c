@@ -35,7 +35,8 @@ public sealed partial class GameWorld
     /// The races whose talk is ported (stage 3b-1 item 6: the Ur-Quan,
     /// their drone, whose talk is theirs, and the Kohr-Ah; item 7 the
     /// Ilwrath and the Spathi; item 8 the Slylandro probes; stage 3b-2 item 4
-    /// the Melnorme, item 5 the Shofixti and the Zoq-Fot-Pik), whose groups fly.
+    /// the Melnorme, item 5 the Shofixti and the Zoq-Fot-Pik, item 6 the VUX
+    /// and the Yehat, the rebels too), whose groups fly.
     /// </summary>
     internal static readonly IReadOnlySet<string> TalkingRaces = new HashSet<string>
     {
@@ -45,6 +46,9 @@ public sealed partial class GameWorld
         // Stage 3b-2 item 5: Tanaka (or Katana) at the Shofixti's system, and the Zoq-Fot-Pik scout (the
         // Zoq-Fot-Pik have no other groups: 0% in hyperspace and systems, even at home).
         "SHOFIXTI_SHIP", "ZOQFOTPIK_SHIP",
+        // Stage 3b-2 item 6: the VUX and the Yehat, by their spheres; the Yehat rebels, whose fleet is none (their
+        // strength 0, as UQM's new game makes it) until 3c's revolt gives them one, so only --start-encounter brings them.
+        "VUX_SHIP", "YEHAT_SHIP", "YEHAT_REBEL_SHIP",
     };
 
     /// <summary>

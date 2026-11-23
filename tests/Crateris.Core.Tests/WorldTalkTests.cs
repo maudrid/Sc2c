@@ -163,9 +163,11 @@ public class WorldTalkTests
             if (!ported)
                 Assert.Equal(before, story.Bits.ToArray());
         }
-        // Ported: the Ilwrath's (their homeworld and Procyon), the Spathi at home, the Slylandro at home
-        // and the Zoq-Fot-Pik's homeworld (stage 3b-2 item 5).
-        Assert.Equal(new[] { "CHMMR_DEFINED", "ILWRATH_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED", "ZOQFOT_DEFINED" },
+        // Ported: the Ilwrath's (their homeworld and Procyon), the Spathi at home, the Slylandro at home,
+        // the Zoq-Fot-Pik's homeworld (stage 3b-2 item 5), the VUX's homeworld, ZEX at the Maidens' world
+        // and the Yehat's homeworld (item 6).
+        Assert.Equal(new[] { "CHMMR_DEFINED", "ILWRATH_DEFINED", "MAIDENS_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED",
+                "VUX_DEFINED", "YEHAT_DEFINED", "ZOQFOT_DEFINED" },
             GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is not null).Select(w => w.Special).OrderBy(s => s));
         // The Druuge at the bomb's moon once the Utwig have their Ultron: still waiting for theirs.
         story.Set("UTWIG_HAVE_ULTRON", 1);
@@ -654,12 +656,12 @@ public class WorldTalkTests
         story.Set("BOMB_UNPROTECTED", 1);   // the first not guarded: the next
         Assert.Same(ilwrath, world.WorldTalkAt(star, 0, null));
         // A guarded first entry whose script isn't ported: orbited as before, the next not tried.
-        var vux = new TalkWorld("ILWRATH_DEFINED", 0, null, "VUX_SHIP", 1 << 7, "test");
-        world.WorldTalkTable = new[] { vux, ilwrath };
+        var thraddash = new TalkWorld("ILWRATH_DEFINED", 0, null, "THRADDASH_SHIP", 1 << 7, "test");
+        world.WorldTalkTable = new[] { thraddash, ilwrath };
         Assert.Null(world.WorldTalkAt(star, 0, null));
-        Assert.Equal(0, story.Fleet("VUX_SHIP").KnownStrength);   // nothing tracked
+        Assert.Equal(0, story.Fleet("THRADDASH_SHIP").KnownStrength);   // nothing tracked
         // An entry the world isn't now (Matches): skipped.
-        world.WorldTalkTable = new[] { vux with { Matches = _ => false }, ilwrath };
+        world.WorldTalkTable = new[] { thraddash with { Matches = _ => false }, ilwrath };
         Assert.Same(ilwrath, world.WorldTalkAt(star, 0, null));
     }
 

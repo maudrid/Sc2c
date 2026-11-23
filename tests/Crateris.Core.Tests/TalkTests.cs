@@ -160,6 +160,9 @@ public class TalkTests
         ["melnorm"] = ("talks-melnorm", p => new MelnormeScript(p)),
         ["shofixt"] = ("talks-shofixt", p => new ShofixtiScript(p)),
         ["zoqfot"] = ("talks-zoqfot", p => new ZoqFotPikScript(p)),
+        ["vux"] = ("talks-vux", p => new VuxScript(p)),
+        ["yehat"] = ("talks-yehat", p => new YehatScript(p)),
+        ["rebel"] = ("talks-rebel", p => new YehatRebelScript(p)),
     };
 
     // A script's recorded starts.
@@ -207,6 +210,7 @@ public class TalkTests
             talk.Activity = activity.GetString() switch
             {
                 "SUPER_MELEE" => TalkActivity.SuperMelee,
+                "IN_LAST_BATTLE" => TalkActivity.InLastBattle,
                 "IN_HYPERSPACE" => TalkActivity.InHyperspace,
                 "IN_INTERPLANETARY" => TalkActivity.InInterplanetary,
                 "WON_LAST_BATTLE" => TalkActivity.WonLastBattle,
