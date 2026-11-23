@@ -82,7 +82,7 @@ The VUX's groups fly in their sphere. Every talk with them ends in a fight: thei
 
 1. **Their homeworld** (star 98, planet 0) starts their talk against their endless fleet: the encounter screen, the homeworld's greetings, the fight. The ship is never put in orbit there.
 2. **Admiral ZEX** at the Maidens' world (star 118, planet 0) talks at peace (no encounter screen): his menagerie, why he doesn't attack, the Precursor device he lied about. "Regardless" (after "we require the Maidens") fights his endless fleet. While he lives the ship is never put in orbit there.
-3. **The beast.** With the beast aboard (stage 3c's pickup: `--start-devices VUX_BEAST_DEVICE`) and his wish known (asked about the creature he wants), "we have captured the monster" offers it; given, it kills him: his colours fade (as his last line starts, on every client's communication screen: the screen-change fix below), `ZEX_IS_DEAD` is set, the beast leaves the ship, and the ship goes into orbit; from then on the world is orbited by anyone.
+3. **The beast.** With the beast aboard (stage 3c's pickup: `--start-devices VUX_BEAST_DEVICE`) and his wish known (asked about the creature he wants), "we have captured the monster" offers it; given, it kills him: his colours fade (as his last line starts, on every client's communication screen: the screen-change fix above), `ZEX_IS_DEAD` is set, the beast leaves the ship, and the ship goes into orbit; from then on the world is orbited by anyone.
 
 ### The Yehat
 
