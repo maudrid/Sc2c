@@ -40,8 +40,8 @@ public enum CommKeyResult
 /// alien talking (its talking animation) until they end; over them, the
 /// reply the player chose (FeedbackPlayerPhrase). Then the replies, the
 /// lit one the replier's cursor (none lit for a player watching). As
-/// UQM's keys: while the lines play, Cancel skips to their end and Left
-/// plays them again from the start; at the replies, Cancel shows the
+/// UQM's keys, but for the replay's start: while the lines play, Cancel
+/// skips to their end and Left plays them again (from the start: below); at the replies, Cancel shows the
 /// summary of the lines (a page at a time; Select, Cancel or Right turns
 /// it, and closes it after the last) and Left plays the lines again. The
 /// replay from the first page is the port's (docs/differences.md row 77):
