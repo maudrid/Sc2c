@@ -66,11 +66,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for item 5 (the Shofixti and the Zoq-Fot-Pik; one go-ahead per item). Item 4 is built, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open).
+Build item 5 (the Shofixti and the Zoq-Fot-Pik; the owner's go-ahead 2026-11-23), then review it round by round and report; then wait for the go-ahead for item 6. Item 4 is built, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open).
 
 ## Decisions waiting on the owner
 
-None open. The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 4 had their go-aheads, the others wait for one each.
+None open. The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 5 had their go-aheads, the others wait for one each.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
