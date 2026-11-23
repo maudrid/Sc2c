@@ -575,6 +575,16 @@ public static class HostSave
             world.Story = save.Story is { } story
                 ? StoryState.Restore(rules, story)
                 : StoryState.NewGame(rules, clock);
+            // A save from before stage 3b-2 item 4 keeps the rescue fields and the broadcaster's use in the
+            // shared story: they're the host's own now (the one player UQM's were), unless the host's own are saved.
+            if (world.Story.LoadedPlayerFields is { Count: > 0 } moved
+                && world.Players.FirstOrDefault(p => p.IsHost) is { } host
+                && save.Players?.FirstOrDefault(p => p.IsHost)?.Melnorme is null)
+            {
+                host.Ship.MelnormeRescueRefused = moved.GetValueOrDefault("MELNORME_RESCUE_REFUSED");
+                host.Ship.MelnormeRescueCount = moved.GetValueOrDefault("MELNORME_RESCUE_COUNT");
+                host.Ship.UsedBroadcaster = moved.GetValueOrDefault("USED_BROADCASTER") != 0;
+            }
             // The systems are made from the story state (Procyon's starbase, Spathiwa's
             // shield). Nothing in stage 3a changes what they read; the save must agree.
             if (world.Story.SystemStory != systems.Generator.Story)

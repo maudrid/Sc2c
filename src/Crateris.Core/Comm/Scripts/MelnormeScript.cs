@@ -1322,8 +1322,12 @@ public sealed class MelnormeScript : CommScript
         }
     }
 
-    // post_melnorme_enc: the status area's message as it was.
-    protected internal override void PostEncounter() => T.ShowsCredits = false;
+    // post_melnorme_enc: the status area's message as it was. UQM runs it once the closing lines
+    // have played (HailAlien, after DoCommunication); here the talk's view goes with the meeting's
+    // closing lines (MeetingStep.Closing), so the credits stay shown while they play.
+    protected internal override void PostEncounter()
+    {
+    }
 
     protected internal override void Init()
     {

@@ -1021,15 +1021,22 @@ public sealed class Talk
         if (_lastSlots is { } ls && !ls.Equals(slots))
             _events.Add(slots);
         _lastSlots = slots;
-        var costs = new CostsChanged(PurchaseModuleCosts()) { Was = _lastCosts?.Costs ?? Array.Empty<int>() };
-        if (_lastCosts is { } lc && !lc.Equals(costs))
-            _events.Add(costs);
-        _lastCosts = costs;
+        // The prices only as this talk changed them (SetModuleCost): another
+        // player's purchase meanwhile isn't this talk's (UQM's one talk is
+        // the only one to change them), though the prices printed are all of
+        // them as they stand.
+        if (_costsWere is { } was)
+        {
+            var costs = new CostsChanged(PurchaseModuleCosts()) { Was = was };
+            if (!costs.Costs.SequenceEqual(was))
+                _events.Add(costs);
+            _costsWere = null;
+        }
     }
 
     private int? _lastBio;
     private SlotsChanged? _lastSlots;
-    private CostsChanged? _lastCosts;
+    private int[]? _costsWere;
 
     /// <summary>NUM_PURCHASE_MODULES: the modules with a price, PLANET_LANDER to ANTIMISSILE_DEFENSE.</summary>
     public const int PurchaseModules = 14;
@@ -1051,14 +1058,19 @@ public sealed class Talk
     }
 
     /// <summary>GLOBAL (ModuleCost[module]) = cost: the shared price (a module goes on sale for everyone).</summary>
-    public void SetModuleCost(int module, int cost) => _story.SetModuleCost(World.ShipModules.Names[module], cost);
+    public void SetModuleCost(int module, int cost)
+    {
+        // Told at the next look (Check), as the recorder prints the prices it sees changed.
+        _costsWere ??= PurchaseModuleCosts();
+        _story.SetModuleCost(World.ShipModules.Names[module], cost);
+    }
 
     // ------------------------------------------------------------ the status area
 
     /// <summary>
     /// Whether the status area's message shows the answerer's Melnorme
     /// credits (SetStatusMessageMode (SMM_CREDITS)), as the Melnorme's talk
-    /// sets it for its time; drawn by the client, not recorded.
+    /// sets it for its time, closing lines too; drawn by the client, not recorded.
     /// </summary>
     public bool ShowsCredits { get; set; }
 

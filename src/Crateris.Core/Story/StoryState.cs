@@ -72,6 +72,20 @@ public sealed class StoryState
         ["PLANETARY_CHANGE"] = "whether a visit changed its world (for UQM's star info file): taken nodes are saved at once (PlanetWorldState)",
     };
 
+    /// <summary>
+    /// The fields shared until stage 3b-2 item 4 made them each player's own
+    /// (the Melnorme's rescue fields, the broadcaster's use): a save from
+    /// before has them in its story, which loads them as the host's own
+    /// (<see cref="LoadedPlayerFields"/>) rather than refusing the save.
+    /// </summary>
+    public static readonly IReadOnlySet<string> MovedToPlayers = new HashSet<string>
+    {
+        "MELNORME_RESCUE_REFUSED", "MELNORME_RESCUE_COUNT", "USED_BROADCASTER",
+    };
+
+    /// <summary>The <see cref="MovedToPlayers"/> fields a restored story had, for the host's own.</summary>
+    public Dictionary<string, int> LoadedPlayerFields { get; } = new();
+
     private readonly byte[] _bits;
     private readonly Dictionary<string, int> _moduleCost;
     private readonly Allied[] _alliances;
@@ -602,11 +616,17 @@ public sealed class StoryState
         {
             if (!rules.Table.Contains(name))
                 throw new InvalidDataException($"Story state: no field {name}.");
-            if (NotShared.ContainsKey(name))
-                throw new InvalidDataException($"Story state: {name} isn't shared story state.");
             var f = rules.Table[name];
             if (value < 0 || value > f.Max)
                 throw new InvalidDataException($"Story state: {name} is {value}, more than its {f.Bits} bits hold.");
+            if (MovedToPlayers.Contains(name))
+            {
+                // Shared before stage 3b-2 item 4: kept for the host's own (HostSave).
+                story.LoadedPlayerFields[name] = value;
+                continue;
+            }
+            if (NotShared.ContainsKey(name))
+                throw new InvalidDataException($"Story state: {name} isn't shared story state.");
             story.Set(name, value);
         }
         story.CrewCost = Byte(saved.CrewCost, "crew cost");

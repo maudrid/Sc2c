@@ -164,6 +164,9 @@ public class MelnormeTests
         Choose(world, "g", "no_buy_new_tech");   // out of credits now: how commerce works (NEED_CREDIT)
         Assert.True(Said(m.Talk, "NEED_CREDIT"));
         Choose(world, "g", "goodbye");
+        // The credits stay shown through the closing lines (post_melnorme_enc runs once they've played).
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        Assert.Equal(0u, TalkView.Of(m)!.Credits);
         MeetingTests.HearClosing(world, "g");
         Assert.Null(world.DialogueLocks.Holder("MELNORME_CONVERSATION"));
         world.Host.Ship.Hold.Credits = 150;
@@ -410,6 +413,78 @@ public class MelnormeTests
     }
 
     [ContentFact]
+    public void AStrandedPlayerInASystemIsRescuedWhileAnotherTrades()
+    {
+        // The system's touch (SystemGroups.CanMeet: MayMeetOrRescue) as hyperspace's.
+        var world = NewGame("g");
+        Business(world);
+        MelnormeBy(world, "h", 9000, 300);
+        Meet(world, "h");
+        Assert.Equal("h", world.DialogueLocks!.Holder("MELNORME_CONVERSATION"));
+        var guest = world.Find("g")!.Ship;
+        world.PutInSystem("g", NoSphereStar);
+        Frames(world, 1);
+        world.AddEncounterNear("g", Melnorme(world), 1);
+        guest.Flight.Fuel = 0;
+        var m = Meet(world, "g");
+        Assert.True(m.RescueOnly);
+        Assert.NotNull(m.Star);
+        Assert.True(Said(m.Talk!, "RESCUE_EXPLANATION"));
+        Assert.False(Said(m.Talk!, "HELLO_AND_DOWN_TO_BUSINESS_1"));
+        Assert.Equal("h", world.DialogueLocks.Holder("MELNORME_CONVERSATION"));
+    }
+
+    [ContentFact]
+    public void AModuleAnotherPlayerBuysMeanwhileIsntTheRescueOnlyTalksOwn()
+    {
+        var world = NewGame("g");
+        Business(world);
+        world.Host.Ship.Hold.Credits = 150;
+        MelnormeBy(world, "h", 9000, 300);
+        Meet(world, "h");
+        var guest = world.Find("g")!.Ship;
+        MelnormeBy(world, "g", 3000, 8000);
+        guest.Flight.Fuel = 0;
+        var m = Meet(world, "g");
+        Assert.True(m.RescueOnly);
+        // The host buys the blaster while the guest's rescue goes on.
+        Choose(world, "h", "buy");
+        Choose(world, "h", "buy_technology");
+        Choose(world, "h", "buy_new_tech");
+        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "g" && n.Event == NoticeEvent.ModuleForSale && n.By == "Host");
+        Choose(world, "g", "yes_help");
+        Choose(world, "g", "leave_it");
+        // The guest's talk records no price change, and tells nobody it bought the blaster.
+        Assert.DoesNotContain(m.Talk!.Events, e => e is CostsChanged);
+        Assert.DoesNotContain(world.TakeNotices(), n => n.Event == NoticeEvent.ModuleForSale);
+    }
+
+    [ContentFact]
+    public void ASaveFromBeforeItem4KeepsTheRescueFieldsAndTheBroadcasterAsTheHostsOwn()
+    {
+        var world = NewGame("g");
+        var json = HostSave.ToJson(world);
+        // As item 3's code saved them: in the shared story's fields.
+        var node = JsonNode.Parse(json)!.AsObject();
+        var fields = node["story"]!["fields"]!.AsObject();
+        fields["MELNORME_RESCUE_REFUSED"] = 1;
+        fields["MELNORME_RESCUE_COUNT"] = 3;
+        fields["USED_BROADCASTER"] = 1;
+        var loaded = HostSave.FromJson(node.ToJsonString(), world.Systems!, world.Shapes!);
+        Assert.Equal((1, 3, true), (loaded.Host.Ship.MelnormeRescueRefused, loaded.Host.Ship.MelnormeRescueCount,
+            loaded.Host.Ship.UsedBroadcaster));
+        Assert.Equal((0, 0, false), (loaded.Find("g")!.Ship.MelnormeRescueRefused, loaded.Find("g")!.Ship.MelnormeRescueCount,
+            loaded.Find("g")!.Ship.UsedBroadcaster));
+        // Saved again: the host's own, the shared story without them.
+        var again = JsonNode.Parse(HostSave.ToJson(loaded))!.AsObject();
+        Assert.Null(again["story"]!["fields"]!["USED_BROADCASTER"]);
+        Assert.NotNull(again["players"]!.AsArray().First(p => (bool)p!["is_host"]!)!["melnorme"]);
+        // A value past a field's bits is still refused.
+        fields["MELNORME_RESCUE_COUNT"] = 8;
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), world.Systems!, world.Shapes!));
+    }
+
+    [ContentFact]
     public void AStrandedPlayerWithSomethingToTradeWaitsForTheLock()
     {
         var world = NewGame("g");
@@ -465,12 +540,14 @@ public class MelnormeTests
         var world = NewGame();
         var stars = world.Systems!.Map.Stars.Where(s => s.Special is { } x && x.StartsWith("MELNORME", StringComparison.Ordinal)).ToList();
         Assert.Equal(9, stars.Count);
-        foreach (var star in stars.Take(2))
+        foreach (var star in stars)
         {
             world.PutInSystem("h", star.Number);
             Frames(world, 1);
+            // Its own group (genmel.c's), flying: kept in the system's groups, its element made.
             var d = world.SystemGroups!.Systems[star.Number];
-            Assert.Contains(d.Groups, g => g.Race == Melnorme(world));
+            Assert.Equal(new[] { Melnorme(world) }, d.Groups.Select(g => g.Race));
+            Assert.NotNull(d.Elements);
             world.PutInHyperspace("h");
             Frames(world, 1);
         }
