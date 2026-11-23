@@ -122,6 +122,17 @@ public class CommScreenTests
         while (screen.TextPlace.X != ZoqFotPikSpeakers.ZoqBaseX && screen.Talking)
             screen.Update(t += 21);
         Assert.Equal((18, 5, 23), anim.Talking);
+        // Played again (Left): UQM's replay has no ZFPTalkSegue, so the first page's SelectAlienZOQ runs with the last
+        // speaker as the lines left him (LastAlien), here Pik, whose talking plays out first (TALK_DONE).
+        screen.Show(new[] { "Zoq speaks.", "Pik ends." }, "", new[] { "Bye" }, 2, t, new[] { "SelectAlienZOQ", "SelectAlienPIK" });
+        while (screen.Talking)
+            screen.Update(t += 21);
+        Assert.Equal(ZoqFotPikSpeakers.PikBaseX, screen.TextPlace.X);
+        screen.Page(TalkPage.Replay);
+        Assert.Equal((29, 2, 26), anim.Talking);   // no segue: Pik's still, until the first page plays
+        screen.Update(t += 1);
+        Assert.Equal((18, 5, 23), anim.Talking);
+        Assert.Equal(ZoqFotPikSpeakers.ZoqBaseX, screen.TextPlace.X);
         // A race without speakers keeps its description's place.
         Assert.Null(CommSpeakers.For("starbas"));
     }

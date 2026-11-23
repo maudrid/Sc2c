@@ -123,16 +123,20 @@ public sealed class CommScreen
         _pages = _lines.SelectMany((l, i) => CommText.SplitPages(l).Select(p => (p.Page, p.Millis * 840 / 1000,
             speakers is not null && i < speakers.Count && speakers[i].Length > 0 ? speakers[i] : null))).ToList();
         _summary = null;
-        Play(now);
+        Play(now, segue: true);
     }
 
-    private void Play(long now)
+    // The lines from their start: new lines after the script's segue (the
+    // Zoq-Fot-Pik's ZFPTalkSegue), or a replay, which as UQM's (TalkSegue (0))
+    // plays them again with no segue of the script's: its speakers as the
+    // last page left them, each page's callback running again.
+    private void Play(long now, bool segue = false)
     {
         _start = now;
         _shownPage = -1;
         _talking = _pages.Count > 0;
         // The script's segue before its lines (the Zoq-Fot-Pik's ZFPTalkSegue: Zoq speaks first).
-        if (_talking)
+        if (_talking && segue)
             _speakers?.Segue(Window.Animation);
         if (_talking)
             Window.Animation.StartTalking();

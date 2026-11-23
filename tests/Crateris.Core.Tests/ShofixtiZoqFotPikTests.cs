@@ -261,6 +261,39 @@ public class ShofixtiZoqFotPikTests
     }
 
     [ContentFact]
+    public void TanakasDeathIsMarkedOnceThoughEveryPlayerLeavesWithTheMaidensAboard()
+    {
+        // UQM's single exit marks Tanaka (KIA), not his brother too: here each player's leaving runs uninitNpcs on the
+        // same draw, so only the first after his death marks it; leaving, coming back and leaving while another stays,
+        // and a save and load between them, mark nothing more. Katana then comes on a fresh entry.
+        var world = NewGame("g");
+        var story = world.Story!;
+        story.Set("MAIDENS_ON_SHIP", 1);
+        int star = Star(world, "SHOFIXTI_DEFINED");
+        world.PutInSystem("h", star);
+        world.PutInSystem("g", star);
+        Frames(world, 1);
+        DestroyHim(world, star);
+        world.PutInHyperspace("g");
+        Assert.Equal((1, 0), (story.Get("SHOFIXTI_KIA"), story.Get("SHOFIXTI_BRO_KIA")));
+        Frames(world, 1);
+        world.PutInSystem("g", star);
+        Frames(world, 1);
+        world.PutInHyperspace("g");
+        Frames(world, 1);
+        // Saved and loaded with the host still there: its leaving marks nothing in the loaded game either.
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), world.Systems!, world.Shapes!);
+        loaded.PutInHyperspace("h");
+        Assert.Equal((1, 0), (loaded.Story!.Get("SHOFIXTI_KIA"), loaded.Story.Get("SHOFIXTI_BRO_KIA")));
+        world.PutInHyperspace("h");
+        Assert.Equal((1, 0), (story.Get("SHOFIXTI_KIA"), story.Get("SHOFIXTI_BRO_KIA")));
+        Frames(world, 1);
+        world.PutInSystem("h", star);
+        Frames(world, 1);
+        Assert.Equal(new[] { 5 + 16 + 1 }, Assert.Single(world.SystemGroups!.Defined["SHOFIXTI_DEFINED"]).Captains);
+    }
+
+    [ContentFact]
     public void TheRecruitedShofixtiFlyOffAndArentMarkedLost()
     {
         var world = NewGame();
@@ -295,6 +328,20 @@ public class ShofixtiZoqFotPikTests
         world.PutInSystem("h", star);
         Frames(world, 1);
         Assert.Null(world.SystemGroups.Systems[star].Defined);
+    }
+
+    [ContentFact]
+    public void OnceRecruitedAnEncountersShofixtiFliesTheirOwnScout()
+    {
+        // After recruitment (3c's return brings their ships), a Shofixti met in an encounter is no longer the damaged scout.
+        var world = NewGame("g");
+        world.Story!.Set("SHOFIXTI_RECRUITED", 1);
+        var wb = world.StartBattle("h", new EnemyFleet(new[] { new EnemyFleetShip(ShofixtiShip.Id, 6) }));
+        Assert.Equal(ShofixtiShip.Id, wb.Enemies.Single().Ship.Id);
+        Assert.Equal(3, wb.Enemies.Single().Ship.Characteristics.WeaponWait);
+        world.Story.Set("SHOFIXTI_RECRUITED", 0);
+        var tanaka = world.StartBattle("g", new EnemyFleet(new[] { new EnemyFleetShip(ShofixtiShip.Id, 1) }));
+        Assert.Equal(ShipDescriptions.TanakasScout, tanaka.Enemies.Single().Ship.Id);
     }
 
     [ContentFact]
@@ -348,17 +395,32 @@ public class ShofixtiZoqFotPikTests
     [ContentFact]
     public void TheScoutFliesOffAfterABattleItSurvives()
     {
-        var world = NewGame();
+        var world = NewGame("g");
         int star = Star(world, "ZOQ_SCOUT_DEFINED");
         world.PutInSystem("h", star);
+        world.PutInSystem("g", star);
         Frames(world, 1);
-        Bring(world, "h", star);
+        var scout = Bring(world, "h", star);
         var m = Meet(world, "h");
+        scout.Chased.Add("g");   // it had flown at the guest too, who's near
         Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
         Assert.Equal(MeetingStep.Battle, m.Step);
+        world.TakeNotices();
         Retreat(world, "h");
-        var scout = world.SystemGroups!.Systems[star].Groups.Single();
         Assert.Equal((IpGroup.Flee | IpGroup.IgnoreFlagship | IpGroup.ReformGroup, (byte)0), (scout.Task, scout.DestLoc));
+        // The guest it chased is told it's gone.
+        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "g" && n.Event == NoticeEvent.ChaserGoneAfterBattle);
+        // As the host comes back into flight, DoMissions turns the race on the players (UQM's NotifyOthers): its
+        // IGNORE_FLAGSHIP cleared, it still flees, out of the system.
+        for (int i = 0; i < 4000 && scout.InSystem; ++i)
+        {
+            Frames(world, 1);
+            Assert.Null(world.MeetingOf("h"));
+            Assert.Null(world.MeetingOf("g"));
+        }
+        Assert.False(scout.InSystem);
+        Assert.Equal(IpGroup.Flee, scout.Task & ~(IpGroup.IgnoreFlagship | IpGroup.ReformGroup));
+        Assert.Equal(0, scout.Task & IpGroup.IgnoreFlagship);
     }
 
     [ContentFact]

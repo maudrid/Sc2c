@@ -69,7 +69,7 @@ Tanaka waits at the Shofixti's system (star 16) in his damaged scout: one crew, 
 
 1. **Two fights he survives.** "No one insults..." and, at the next meeting, "Mighty words..." each start a fight; retreat from it to keep him alive.
 2. **The third meeting.** "Donkey breath" (with the captain's, the alliance's and the ship's names spliced into the reply that follows): he realises his mistake, and he's friendly from then on: his reports and questions.
-3. **His death.** Destroy his scout and leave the system into hyperspace (any player leaving, the others still there or not): he's marked lost (`SHOFIXTI_KIA`). His brother Katana comes only with the Maidens aboard (stage 3c's pickup: `--start-devices MAIDENS_DEVICE`); his death is marked the same way.
+3. **His death.** Destroy his scout and leave the system into hyperspace (the first player to leave after it, the others still there or not; once): he's marked lost (`SHOFIXTI_KIA`). His brother Katana comes only with the Maidens aboard (stage 3c's pickup: `--start-devices MAIDENS_DEVICE`); his death is marked the same way.
 4. **Recruiting.** With the Maidens aboard, his friendly talk offers "an important duty": the Shofixti are recruited (`SHOFIXTI_RECRUITED`), the Maidens leave the ship, the return event is queued two months on and set aside until stage 3c, and his group flies off out of the system for good.
 
 Any Shofixti in a battle in the world is his damaged scout until the Shofixti are recruited, as UQM's (an enemy's, or a host's fleet ship before then: only `--start-fleet` brings one).
@@ -96,7 +96,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 
 ### Known limits of item 5
 
-- **The callbacks on the client** switch the speaker as each page starts playing; a skip runs none of the skipped pages' (UQM's seek runs them), and a replay plays the set again from Zoq. The lines' set boundaries within one reply's lines aren't sent: each reply's lines start from Zoq, as each of zoqfotc.c's reply functions plays one set.
+- **The callbacks on the client** switch the speaker as each page starts playing; a skip runs none of the skipped pages', as UQM's (its skip seeks past the end, `JumpTrack`, running no callback), and a replay plays the pages again, each one's callback running, from the speaker the last page left (UQM's replay has no segue of the script's). The lines' set boundaries within one reply's lines aren't sent: each reply's lines start from Zoq, as each of zoqfotc.c's reply functions plays one set.
 - **3c's events:** the Shofixti's return and the Zoq-Fot-Pik's distress (and the Kohr-Ah's ship at their world, the rescue with its 4 ships) are recorded and tested but not reached in play until stage 3c runs the calendar.
 
 ## Item 4: the Melnorme

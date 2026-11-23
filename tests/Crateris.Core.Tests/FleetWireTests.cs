@@ -244,6 +244,24 @@ public class FleetWireTests
         Assert.Equal(("shofixti", true, 16), (status.Ship, status.Gone, status.CaptainSpecial));
     }
 
+    [Fact]
+    public void AShofixtiInTheHostsFleetFliesAsTanakasScoutUntilTheyreRecruited()
+    {
+        // init_shofixti makes any Shofixti in an encounter Tanaka's damaged scout while SHOFIXTI_RECRUITED is 0 (stage 3b-2
+        // item 5: BattleKit.FlownAs), the host's fleet's too; recruited, the Shofixti's own scout. Its id goes on the wire.
+        foreach (var (recruited, ship) in new[] { (0, ShipDescriptions.TanakasScout), (1, ShofixtiShip.Id) })
+        {
+            var world = WithFleet(2, (Shofixti, 6));
+            world.Story!.Set("SHOFIXTI_RECRUITED", recruited);
+            var wb = world.StartBattle("g1", Ilwrath);
+            FlyIn(world, "host");
+            var fleetShip = Fighter(wb, "host").FleetShips.Single();
+            Assert.Equal(ship, fleetShip.Ship.Id);
+            Assert.Equal(recruited == 0 ? 10 : 3, fleetShip.Ship.Characteristics.WeaponWait);
+            Assert.Equal(ship, Sent(world.Snapshot(), "g1").Battles!.Single().FighterOf("host")!.Armada!.Ships.Single().Ship);
+        }
+    }
+
     // A sheet of our own with these frames' masks (each a width, a height, its hot spot and its solid pixels).
     private static Sheet Masks(string id, params (int W, int H, int HotX, int HotY, (int X, int Y)[] Solid)[] frames) => new(id, frames.Length,
         frames.Select(f =>

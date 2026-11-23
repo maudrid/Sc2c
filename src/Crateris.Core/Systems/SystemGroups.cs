@@ -746,8 +746,11 @@ public sealed class SystemGroups
     // GenerateZoqFotPikScout_reinitNpcs and check_old_shofixti: the special
     // system's own group (BattleGroupRef set), the head of the group list,
     // re-forming since a player touched it (ip_group_collision's
-    // REFORM_GROUP), flies off out of the system and stops chasing anyone:
-    // the Zoq-Fot-Pik scout after any meeting, the Shofixti once recruited.
+    // REFORM_GROUP), flies off out of the system ignoring the players: the
+    // Zoq-Fot-Pik scout after any meeting, the Shofixti once recruited. After
+    // a battle, DoMissions' NotifyOthers (the encounter's race turned on the
+    // players) clears its IGNORE_FLAGSHIP as UQM's does: it still flees, but
+    // can be touched on its way out.
     // Gone from the system, it's dead in the draw (FlushGroupInfo).
     private void SendOffOwnGroup(SystemDraw d, StoryState? story)
     {
@@ -773,11 +776,20 @@ public sealed class SystemGroups
     /// destroyed in a battle) he's marked lost: Tanaka (SHOFIXTI_KIA, his
     /// visits counted afresh for his brother), or once he is, Katana while
     /// the Maidens are aboard (SHOFIXTI_BRO_KIA). Returns whether it marked one.
+    /// <para>
+    /// UQM's flagship leaves once; here every player in the system leaves in
+    /// turn from the same draw, so his death is marked once: by the first to
+    /// leave after it, as his dead group, which the system's own groups keep
+    /// (saved with them), is taken out of them then; a later leaver finds no
+    /// dead group of his. The next group made there (Katana, on a fresh entry)
+    /// is marked by its own death.
+    /// </para>
     /// </summary>
     public bool MarkShofixtiLost(int star, StoryState story)
     {
         if (!Systems.TryGetValue(star, out var d) || d.Defined != "SHOFIXTI_DEFINED"
-            || story.Get("SHOFIXTI_RECRUITED") != 0 || d.Groups.Count != 0)
+            || story.Get("SHOFIXTI_RECRUITED") != 0 || d.Groups.Count != 0
+            || !Defined.TryGetValue("SHOFIXTI_DEFINED", out var own) || own.RemoveAll(g => g.Ships.Count == 0) == 0)
             return false;
         if (story.Get("SHOFIXTI_KIA") == 0)
         {
