@@ -371,7 +371,7 @@ public sealed class HostSession
         AfterTheOpening();
         var battle = World.StartBattle(HostId, EnemyFleet.Of(fleet));
         return fleet.Length == 1
-            ? $"Starting in a battle against the {battle.EnemyShip.Id} by Earth"
+            ? $"Starting in a battle against the {Combat.ShipDescriptions.Named(battle.EnemyShip.Id)} by Earth"
             : $"Starting in a battle against a fleet of {fleet.Length} ({string.Join(", ", fleet)}) by Earth";
     }
 
@@ -984,7 +984,7 @@ public sealed class HostSession
             {
                 _inBattle[p.Id] = wb.Id;
                 // Joining, the enemy ship fighting then; after, the encounter's race (a fleet's first ship's).
-                Tell(p.Id, new BattleNotice(BattleNoticeKind.Joined, wb.Id, wb.EnemyShipNow.Id));
+                Tell(p.Id, new BattleNotice(BattleNoticeKind.Joined, wb.Id, Combat.ShipDescriptions.Named(wb.EnemyShipNow.Id)));
             }
             else if (p.Ship.Battle is null)
                 _inBattle.Remove(p.Id);
@@ -994,15 +994,15 @@ public sealed class HostSession
         foreach (var wb in World.Battles)
             foreach (var f in wb.Fighters)
                 if (f.Exit is BattleExit.Retreated or BattleExit.Disconnected && _toldOut.Add((wb.Id, f.Player.Id)))
-                    Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, wb.Id, wb.EnemyShip.Id, null, f.Exit, 0, f.CrewLeft));
+                    Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, wb.Id, Combat.ShipDescriptions.Named(wb.EnemyShip.Id), null, f.Exit, 0, f.CrewLeft));
         foreach (var ended in World.TakeEndedBattles())
         {
-            Logged?.Invoke($"Battle {ended.Id} against the {ended.EnemyShip.Id} {ended.Outcome?.ToString().ToLowerInvariant()}: "
+            Logged?.Invoke($"Battle {ended.Id} against the {Combat.ShipDescriptions.Named(ended.EnemyShip.Id)} {ended.Outcome?.ToString().ToLowerInvariant()}: "
                 + string.Join(", ", ended.Fighters.Select(f => $"{f.Player.Id} {f.Exit?.ToString().ToLowerInvariant()}")));
             // Those in it at a win paying salvage are told its tally (the battle-won screen's).
             foreach (var f in ended.Fighters)
                 if (!_toldOut.Remove((ended.Id, f.Player.Id)))
-                    Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, ended.Id, ended.EnemyShip.Id, ended.Outcome, f.Exit,
+                    Tell(f.Player.Id, new BattleNotice(BattleNoticeKind.Ended, ended.Id, Combat.ShipDescriptions.Named(ended.EnemyShip.Id), ended.Outcome, f.Exit,
                         f.Salvage, f.CrewLeft,
                         Destroyed: ended.Outcome == BattleOutcome.Won && f.Exit == BattleExit.Fought ? ended.EnemiesDestroyed : 0,
                         Bounty: ended.Outcome == BattleOutcome.Won && f.Exit == BattleExit.Fought ? ended.Bounty : 0));

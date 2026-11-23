@@ -134,6 +134,7 @@ public class ShofixtiZoqFotPikTests
         Assert.Equal(MeetingStep.Battle, m.Step);
         var (enemy, ship) = m.Battle!.Enemies.Single();
         Assert.Equal(ShipDescriptions.TanakasScout, ship.Id);
+        Assert.Equal("shofixti", ShipDescriptions.Named(ship.Id));   // the players' notices name the Shofixti
         Assert.Equal(1, enemy.CrewLevel);
         Retreat(world, "h");
         Assert.Null(world.MeetingOf("h"));

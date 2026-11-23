@@ -135,6 +135,9 @@ public sealed class ShipDescriptions
             _ships[TanakasScout] = TanakasScoutOf(shofixti);
     }
 
+    /// <summary>A ship's id as the players' words name it: Tanaka's damaged scout is the Shofixti's, any other its own.</summary>
+    public static string Named(string id) => id == TanakasScout ? "shofixti" : id;
+
     /// <summary>
     /// init_shofixti for an encounter's Shofixti without SHOFIXTI_RECRUITED
     /// (Tanaka or Katana): the old scout's hull (OLDSHOF_*_MASK_PMAP_ANIM)

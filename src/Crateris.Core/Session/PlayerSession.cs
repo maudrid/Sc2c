@@ -1470,7 +1470,7 @@ public sealed class PlayerSession
         {
             // The status panel in words until item 12 draws the battle.
             var mine = battle.FighterOf(PlayerId)!.Status;
-            lines.Add($"In battle against the {battle.Enemy.Ship}: crew {mine.Crew}/{mine.MaxCrew}, energy {mine.Energy}/{mine.MaxEnergy}; "
+            lines.Add($"In battle against the {Combat.ShipDescriptions.Named(battle.Enemy.Ship)}: crew {mine.Crew}/{mine.MaxCrew}, energy {mine.Energy}/{mine.MaxEnergy}; "
                 + $"the enemy's crew {battle.Enemy.Crew}/{battle.Enemy.MaxCrew}");
             // Another player choosing their next ship (the host's pick screen, stage 4b item 10): only they see it drawn;
             // the battle runs on for the others.

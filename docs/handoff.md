@@ -2,17 +2,17 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-23, stage 3b-2 item 5 (the Shofixti and the Zoq-Fot-Pik) being built in parts: parts A (the two scripts ported and recorded), B (the world: groups, Tanaka's damaged scout, his death, the flights off) and C (the two speakers on the comm screen, protocol 30) committed; part D (docs, try-out, all topics, the topic map) next. Items 1 to 4 were reviewed and reported.
+**Last updated:** 2026-11-23, stage 3b-2 item 5 (the Shofixti and the Zoq-Fot-Pik) built in four parts (its Progress row: what was built, its readings, what's left open); its review rounds next. Items 1 to 4 were reviewed and reported.
 
 ## Where things are
 
 - **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 4's report).
-- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; reviewed in four rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 4 (the Melnorme) is built in two parts, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
+- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; reviewed in four rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 4 (the Melnorme) is built in two parts, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 5 (the Shofixti and the Zoq-Fot-Pik) is built in four parts and waits for its review (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte; `GOLDEN_TALKS=melnorm` (comma-separated) records only those scripts.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (3b-2 item 4's review round 1, all topics again after round 3, 2026-11-23): all topics 2,485 passed, 0 failed, 0 skipped with the content set; the topic map remade (part B); the game build (the two long-standing warnings); `tools/test_network.py` passed (protocol 29); every talks recording re-recorded byte for byte. Not run: the data checks (no data changed).
+- **Last checks** (3b-2 item 5's build, 2026-11-23): all topics 2,496 passed, 0 failed, 0 skipped with the content set; the topic map remade; the game build (the two long-standing warnings); `tools/test_network.py` passed (protocol 30); every talks recording re-recorded byte for byte (and the two new ones); `battle-masks.json` and `battle-races-3.json` re-recorded with Tanaka's damaged scout (parts 1 and 2 unchanged). Not run: the data checks (no data extraction changed).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
@@ -28,12 +28,12 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
   - Item 7: the broadcaster's Ilwrath branches (3c, with the device), Fwiffo on Pluto and the Ilwrath's mission (3c) ported and recorded but not reachable (the Chmmr's Ilwrath branch, Procyon's, is wired since 3b-2 item 1, reached with `--start-state SUN_DEVICE_ON_SHIP=1`).
   - Item 6: the endgame's and 3c's branches of the Ur-Quan's and the Kohr-Ah's scripts are ported and recorded but not reachable yet.
   - Item 5: the Chmmr's queue (a Chmmr group emptied after its talk, `comm.c:1539`: 3b-2's item 11).
-  - Items 3 and 4: the other races' groups fly with 3b-2 (row 68, `GameWorld.EncounterRaces`; flying now: the Ur-Quan, the drone, the Kohr-Ah, the Ilwrath, the Spathi and the Slylandro probes); the special systems' story (Tanaka lost, the scout and the recruited Shofixti flying off, the Yehat's rebellion check, the Sa-Matra's guards) left (row 72, a note in the 3b-2 row).
+  - Items 3 and 4: the other races' groups fly with 3b-2 (row 68, `GameWorld.EncounterRaces`; flying now: the Ur-Quan, the drone, the Kohr-Ah, the Ilwrath, the Spathi, the Slylandro probes, the Melnorme, the Shofixti and the Zoq-Fot-Pik scout); the special systems' story left: the Yehat's rebellion check and the Sa-Matra's guards (row 72; Tanaka lost and the flights off done in 3b-2 item 5).
   - Item 2: the fleets' `crew_level`, `max_crew` and `max_energy` are the race's ship's, not kept per fleet; the fleets aren't sent to clients until there's a starmap.
   - Item 1: 3c's events are set aside, not run (`differences.md` row 66, which now says a fleet's arrival event would be set aside too).
 - The escorts' caps are placeholders to be set by playtesting (`design.md`'s open item).
 
-Smaller items left for later stages are notes under the items that own them in the plans (`stage-3.md` for 3b and 3c; `stage-4b.md`'s notes for 3b; Tanaka's Shofixti scout and the Melnorme's trading for escorts are in `stage-3b.md`'s 3b-2 row).
+Smaller items left for later stages are notes under the items that own them in the plans (`stage-3.md` for 3b and 3c; `stage-4b.md`'s notes for 3b; the Melnorme's trading for escorts is in `stage-3b.md`'s 3b-2 row; Tanaka's scout is built, 3b-2 item 5).
 
 ## Owner's rules (2026-11-12)
 
@@ -66,7 +66,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Finish item 5 (the Shofixti and the Zoq-Fot-Pik; the owner's go-ahead 2026-11-23): parts A (the scripts and their recordings), B (the groups flying, Tanaka's damaged scout in battle, his death marked, the scout and the recruited Shofixti flying off) and C (the two speakers on the comm screen, the wire: protocol 30) are committed; next part D (docs, try-out). Then review it round by round and report; then wait for the go-ahead for item 6.
+Review item 5 (the Shofixti and the Zoq-Fot-Pik; the owner's go-ahead 2026-11-23; built in four parts, its Progress row) round by round and report; then wait for the go-ahead for item 6.
 
 ## Decisions waiting on the owner
 

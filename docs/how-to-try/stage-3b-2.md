@@ -12,6 +12,8 @@ As for stage 3b-1 (`docs/how-to-try/stage-3b-1.md`): build the game, give a test
 CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm python3 tools/run_tests.py   # every topic
 ```
 
+Item 5's tests: `ShofixtiZoqFotPikTests` (topic `world`: Tanaka's meetings, his two fights and his friendship, his damaged scout, his death marked as a player leaves, Katana with the Maidens, the recruited Shofixti flying off, the Zoq-Fot-Pik scout flying off, the homeworld's alliance, the speakers on the wire), the two scripts' recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-shofixt.json`, `talks-zoqfot.json`), the damaged scout's battles in `RaceShipBattleTests` (topic `combat`: `battle-races-3.json`'s `shofixti-old-keys` and `shofixti-old-ai`) and its sheets in `BattleContentTests`, and the two speakers on the communication screen in `CommScreenTests.TheZoqFotPiksLinesSwitchTheSpeakerAsEachPlays` (topic `drawing`).
+
 Item 4's tests: `MelnormeTests` (topic `world`: trading with the answerer's own credits, a gift mid-talk, the catalog, fuel by the ship's own tanks, the bio sale, the anger, the rescue's strip of a guest's escort, the strip offer's refusal, the rescue-only talk beside another player's, the rescue fields and broadcaster each player's own and saved, the super giants' ships), the script's recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-melnorm.json`), the bio data's count-down in `MineralSellingTests` (topic `drawing`).
 
 Item 3's tests: `CreditsAndFuelTests` (topic `trading`: the balances, gifts of credits and fuel, fuel's nearness and room, the wire, the save, the giving screen's rows), `RainbowWorldTests` (topic `world`), `MeetingTests.FuelGivenDuringTheSpinIntoAGroupStays`, and the giving screen's drawing in `GivingScreenTests` (topic `drawing`).
@@ -58,6 +60,44 @@ Each is a row of `docs/differences.md`: Spathiwa's moon's talk with several play
 - **The password** comes from the Melnorme (item 4) or Fwiffo (stage 3c): until then only `--start-state` reaches the council.
 - **The Spathi never shield themselves** (their event is stage 3c's), so Spathiwa's moon keeps talking after the alliance.
 - **The alternate "Safe Ones" song** is chosen but nothing plays music yet.
+
+## Item 5: the Shofixti and the Zoq-Fot-Pik
+
+### Tanaka
+
+Tanaka waits at the Shofixti's system (star 16) in his damaged scout: one crew, the old scout's hull and captain's window, slower, its gun slower to fire and no Glory Device to speak of (its blast draws nothing and its AI never presses it). He starts at peace (no encounter screen), but he's hostile: every reply but one ends in a fight.
+
+1. **Two fights he survives.** "No one insults..." and, at the next meeting, "Mighty words..." each start a fight; retreat from it to keep him alive.
+2. **The third meeting.** "Donkey breath" (with the captain's, the alliance's and the ship's names spliced into the reply that follows): he realises his mistake, and he's friendly from then on: his reports and questions.
+3. **His death.** Destroy his scout and leave the system into hyperspace (any player leaving, the others still there or not): he's marked lost (`SHOFIXTI_KIA`). His brother Katana comes only with the Maidens aboard (stage 3c's pickup: `--start-devices MAIDENS_DEVICE`); his death is marked the same way.
+4. **Recruiting.** With the Maidens aboard, his friendly talk offers "an important duty": the Shofixti are recruited (`SHOFIXTI_RECRUITED`), the Maidens leave the ship, the return event is queued two months on and set aside until stage 3c, and his group flies off out of the system for good.
+
+Any Shofixti in a battle in the world is his damaged scout until the Shofixti are recruited, as UQM's (an enemy's, or a host's fleet ship before then: only `--start-fleet` brings one).
+
+### The Zoq-Fot-Pik
+
+Every line is Zoq's (on the left) or Pik's (on the right): the communication screen moves the text to the one speaking, with his own talking frames and Fot's eye turning to him; each set of lines starts with Zoq. The host's log names him ("Zoq-Fot-Pik (Pik): ...").
+
+1. **The scout** waits at its own system (star 125). It's hostile (the encounter screen) until they're allied. After any meeting it survives it flies off out of the system for good.
+2. **Their homeworld** (star 293, planet 0) starts their talk against their endless fleet (UQM's generator tells no other groups to stand down there, and none of theirs fly anyway). The first meeting's introductions; "We want to help" there offers the alliance: their ships go on sale at the starbase, every other player is told, and the distress event is queued three months on and set aside until stage 3c. Allied, their greetings, the homeworld's news, the war's news by the date and what they've told, and the allies' questions.
+
+Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
+
+- `--start-orbit 293:0 --encounter-choice hail --meeting-replies 1,0,0,0,3,0 --quit-after 1500`: "host at the encounter screen: an infinite fleet of Zoq-Fot-Pik ships, hail or attack", "Zoq-Fot-Pik (Zoq): Attention starship! We are the Zoq-Fot-Pik.", "Zoq-Fot-Pik (Pik): Make no hostile actions!" and on, alternating; "We are The New Alliance of Free Stars' flagship Vindicator from Earth...", their species, their seeking and their nightmare, "We want to help. What can we do?", the pact offered, "...I accept your offer.", "The talk with the Zoq-Fot-Pik ends: peace". The save has the Zoq-Fot-Pik `good` among the alliances.
+- Windowed, the first run with `--screenshot FILE.png` and `--quit-after` 150, 230 and 300: Zoq's line ("We come in peace, and with good will.") over Zoq on the left, Pik's ("But if you make one false move, you're vapor!") over Pik on the right, then Zoq's again; Fot's eye turned to the one speaking.
+
+- `--start-at 4000:4000 --start-encounter shofixti --meeting-replies 1 --quit-after 400` (a Shofixti group in hyperspace runs Tanaka's talk, as UQM's would; his own group waits in the Shofixti's system): no encounter screen, "Attention huge alien vessel! ... I am the glorious Shofixti warrior Tanaka. ... Prepare to die!", the four replies, "No one insults us like that...", "You limp, bloodless sack of decaying flesh Ur-Quan! You die!", "The talk with the Shofixti ends: hostile", "host fights the Shofixti", "In battle against the shofixti." (his damaged scout: `shofixti.oldscout` in the snapshot). The save has `SHOFIXTI_VISITS` 1 and `SHOFIXTI_STACK2` 1.
+- `--start-state SHOFIXTI_KIA=1,SHOFIXTI_STACK2=3 --start-devices MAIDENS_DEVICE --start-at 4000:4000 --start-encounter shofixti --meeting-replies 3,0,0 --quit-after 600` (Katana, friendly, the Maidens aboard): "Greetings Captain. It is good to see you again.", the replies with his name ("What's your report Katana?"), "an important duty", "We have obtained females of your species.", "Great leaping mounds of happiness! ...", "The talk with the Shofixti ends: peace". The save has `SHOFIXTI_RECRUITED` 1, the Maidens gone and `SHOFIXTI_RETURN_EVENT` queued for 2155-04-17.
+- Tanaka's own group at the Shofixti's system wasn't met headless: after `--start-orbit 16:0` and leaving orbit he didn't come by within 6,000 frames (his group's task takes him elsewhere); `ShofixtiZoqFotPikTests` brings him to the ship and runs his meetings, his fights and his death there.
+
+### What's different from UQM
+
+`docs/differences.md` row 82 (Tanaka with several players: his damaged scout in any player's battle, his death marked as any player leaves), rows 68, 72 (its 3b-2 half done) and 77 (the callbacks on the client) updated.
+
+### Known limits of item 5
+
+- **The callbacks on the client** switch the speaker as each page starts playing; a skip runs none of the skipped pages' (UQM's seek runs them), and a replay plays the set again from Zoq. The lines' set boundaries within one reply's lines aren't sent: each reply's lines start from Zoq, as each of zoqfotc.c's reply functions plays one set.
+- **3c's events:** the Shofixti's return and the Zoq-Fot-Pik's distress (and the Kohr-Ah's ship at their world, the rescue with its 4 ships) are recorded and tested but not reached in play until stage 3c runs the calendar.
 
 ## Item 4: the Melnorme
 
