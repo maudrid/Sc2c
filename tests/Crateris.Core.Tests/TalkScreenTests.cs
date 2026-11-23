@@ -264,12 +264,14 @@ public class TalkScreenTests
         return world;
     }
 
+    // The host's reply by its phrase, in the visit they're shown (the opening's, or their own from the menu).
     private static void Say(GameWorld world, string script, string phrase)
     {
-        var talk = world.Visit!.Talk!;
+        var visit = world.VisitOf("host")!;
+        var talk = visit.Talk!;
         int i = talk.Replies.Select(r => r.Phrase).ToList().IndexOf(Phrase(script, phrase));
         Assert.True(i >= 0, $"{phrase} isn't offered");
-        Assert.True(world.ChooseReply(world.Visit.Replier.Id, i));
+        Assert.True(world.ChooseReply(visit.Replier.Id, i));
     }
 
     [ContentFact]
@@ -289,6 +291,7 @@ public class TalkScreenTests
         Assert.Equal(2, view.Lines.Count);
         Assert.Equal(new[] { ScreenChangeKind.AmbientOff, ScreenChangeKind.Fade }, view.Screen!.Changes.Select(c => c.Kind));
         Assert.All(view.Screen.Changes, c => Assert.Equal(1, c.Line));
+        WithinLines(view);
         var sent = TalkView.Decode(view.Encode())!;
         Assert.True(view.Same(sent));
         Assert.Equal(view.Screen.Changes, sent.Screen!.Changes);
@@ -310,5 +313,53 @@ public class TalkScreenTests
         Assert.True(his > 0 && view.Lines.Count > his);
         Assert.True(view.Screen!.Same(TalkScreen.Of(visit.Talks[1], 0, his)));
         Assert.Equal(Scripts["ilwrath"].Description.Ambient.Count, view.Screen.Ambient.Count);
+        WithinLines(view);
+    }
+
+    // A view's changes are at its lines or after them, never past (TalkScreen.Encode's clamp a safety net only).
+    private static void WithinLines(TalkView view) =>
+        Assert.All(view.Screen?.Changes ?? Array.Empty<ScreenChange>(), c => Assert.InRange(c.Line, 0, view.Lines.Count));
+
+    [ContentFact]
+    public void TheAlliedCommandersTalkFromTheMenuCarriesItsChangesAndLeavingShowsTheScreenAsTheyLeftIt()
+    {
+        // Docked, the VUX beast aboard: the new devices told of, the scientist's report with the mouth still
+        // (its two switches at its lines); goodbye; leaving shows the visit's end with no lines (GameWorld's
+        // TalkView.Over): the screen with no changes, which encodes.
+        var world = WithTalks();
+        var story = world.Story!;
+        foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED", "VUX_BEAST_ON_SHIP" })
+            story.Set(f, 1);
+        story.Set("STARBASE_MONTH", 3);
+        story.Set("STARBASE_DAY", 3);
+        story.Set32("STARBASE_BULLETS0", 0xFFFFFFFF);
+        world.CommanderMet = true;
+        world.DialogueLocks = DialogueLocks.Load(DataDir);
+        var host = world.Host;
+        world.VisitStarbase(host);
+        world.StarbaseKey("host", MenuKey.Select, out _);   // Talk
+        var visit = host.Ship.Visit!;
+        Assert.Equal(VisitStep.MenuTalk, visit.Step);
+        Say(world, "starbas", "new_devices");
+        var view = TalkView.Of(visit)!;
+        Assert.Equal(new[] { ScreenChangeKind.TalkingOff, ScreenChangeKind.TalkingOn }, view.Screen!.Changes.Select(c => c.Kind));
+        WithinLines(view);
+        Assert.True(view.Same(TalkView.Decode(view.Encode())));
+        Say(world, "starbas", "goodbye_commander");
+        Assert.Equal(VisitStep.Menu, visit.Step);
+        world.StarbaseKey("host", MenuKey.Up, out _);
+        world.StarbaseKey("host", MenuKey.Select, out _);   // Leave
+        Assert.Null(host.Ship.Visit);
+        var over = world.TalkFor("host")!;
+        Assert.Equal((VisitStep.Done, 0), (over.Step, over.Lines.Count));
+        Assert.Empty(over.Screen!.Changes);
+        Assert.True(over.Screen.Talking);
+        Assert.True(over.Same(TalkView.Decode(over.Encode())));
+        // What a visit's end makes of a last view with changes at its lines: none left, the screen as they leave it.
+        var cut = view.Over();
+        Assert.Empty(cut.Screen!.Changes);
+        Assert.True(cut.Screen.Same(view.Screen.AfterChanges()));
+        Assert.True(cut.Same(TalkView.Decode(cut.Encode())));
+        Assert.True((view with { Screen = view.Screen with { Talking = false } }).Over().Screen!.Talking);   // its switches made: on again
     }
 }

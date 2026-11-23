@@ -55,7 +55,10 @@ public enum CommKeyResult
 /// its colour fades, ambient animations turned on or off, the talking
 /// stopped or started) are made as the line each is at starts playing,
 /// once each: a skip makes the rest at once, a replay none again (UQM's
-/// script has run).
+/// script has run); and new lines start from the screen as their view has
+/// it (its colour map, ambient animations turned off, talking), where the
+/// views shown here left it otherwise, so a view never shown (two coming
+/// in one frame) loses none of its changes.
 /// </summary>
 public sealed class CommScreen
 {

@@ -505,11 +505,12 @@ public class MeetingWireTests
         Assert.False(view.Same(view with { Screen = screen with { Talking = false } }));
         Assert.False(view.Same(view with { Screen = screen with { Ambient = flags.Take(2).ToArray() } }));
         Assert.False(view.Same(view with { Screen = screen with { Changes = screen.Changes.Take(4).ToList() } }));
-        // A change past the lines' end (a view's lines cut) goes at their end, never refused by the client.
+        // A safety net (TalkView.Of makes none): a change past the lines' end goes at their end, not refused.
         var cut = TalkView.Decode((view with { Lines = Array.Empty<string>() }).Encode())!;
         Assert.All(cut.Screen!.Changes, c => Assert.Equal(0, c.Line));
         // The visit's end once docked (GameWorld: its last view with no lines): the screen as its changes leave it.
-        var done = view with { Step = VisitStep.Done, Lines = Array.Empty<string>(), Screen = screen.AfterChanges() };
+        var done = (view with { Speakers = new[] { "", "" } }).Over();
+        Assert.Equal((VisitStep.Done, 0, (IReadOnlyList<string>?)null), (done.Step, done.Lines.Count, done.Speakers));
         var doneSent = TalkView.Decode(done.Encode())!;
         Assert.True(done.Same(doneSent));
         Assert.Empty(doneSent.Screen!.Changes);

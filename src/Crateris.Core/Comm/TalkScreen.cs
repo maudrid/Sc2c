@@ -47,8 +47,10 @@ public readonly record struct ScreenChange(int Line, ScreenChangeKind Kind, int 
 /// <summary>
 /// The communication screen as a talk's script leaves it, for a talk's
 /// view (<see cref="TalkView.Screen"/>): how the screen is when the view's
-/// lines start, for a screen opened afresh (a player joining or coming
-/// back, a new talk), and what the script changes on it as the lines play
+/// lines start, which a screen opened afresh (a player joining or coming
+/// back, a new talk) is opened in and an open screen's new lines start
+/// from (so a view it never showed, two coming in one frame, loses none of
+/// its changes), and what the script changes on it as the lines play
 /// (<see cref="Changes"/>), which every screen showing the lines makes.
 /// <see cref="ColorMap"/> is the colour map shown: the one the screen was
 /// first drawn in (CommData.AlienColorMap at the talk's first segue, as the
@@ -197,7 +199,8 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
         w.UInt((ulong)Changes.Count);
         foreach (var c in Changes)
         {
-            // At one of the lines or after them: one past their end (a view's lines cut) goes at their end.
+            // At one of the lines or after them, as TalkView.Of makes them; a safety net, so a change past their
+            // end (none is made) goes at their end rather than failing the host's frame.
             w.UInt((ulong)Math.Clamp(c.Line, 0, lines));
             w.Byte((byte)c.Kind);
             switch (c.Kind)

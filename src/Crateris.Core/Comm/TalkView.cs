@@ -42,8 +42,9 @@ namespace Crateris.Core.Comm;
 /// on the communication screen.
 /// <see cref="Screen"/> is the communication screen as the talk's script
 /// leaves it (the screen-change fix, protocol 31): its colour map, ambient
-/// animations and talking animation as the lines start, for a screen
-/// opened afresh, and what the script changes on it as they play (the
+/// animations and talking animation as the lines start, which a screen
+/// opened afresh is opened in and an open one's new lines start from
+/// (what a view it never showed changed), and what the script changes on it as they play (the
 /// commander's power coming back, the colours' fades, the allied
 /// commander's mouth still through the scientist's report); null before
 /// the talk's screen is loaded.
@@ -82,6 +83,17 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             return unchecked((int)h);
         }
     }
+
+    /// <summary>
+    /// The visit's end shown with no lines (a docked player leaving: they
+    /// saw its closing lines on the menu): <see cref="VisitStep.Done"/>, no
+    /// lines, so no speakers for them and none of the script's changes at
+    /// them, the screen as its changes leave it (<see cref="TalkScreen.AfterChanges"/>).
+    /// </summary>
+    public TalkView Over() => this with
+    {
+        Step = VisitStep.Done, Lines = Array.Empty<string>(), Speakers = null, Screen = Screen?.AfterChanges(),
+    };
 
     /// <summary>The view of a visit as it stands (its closing lines once it's over), or null without one.</summary>
     public static TalkView? Of(StarbaseVisit? visit)

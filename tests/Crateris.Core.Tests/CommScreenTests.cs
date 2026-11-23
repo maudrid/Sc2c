@@ -264,6 +264,57 @@ public class CommScreenTests
         Assert.Equal(0, (int)(talking.TalkFlags & CommAnimationFlags.PauseTalking));
     }
 
+    [ContentFact]
+    public void ANewViewsScreenChangesNothingTheShownViewsHaveMade()
+    {
+        // The new lines' screen is matched only where the views shown here left it otherwise: on the normal path,
+        // nothing is made again or undone.
+        var flags = Scripts["comandr"].Description.Ambient.Select((a, i) => i == 2 ? a.Flags | CommAnimationFlags.Disabled : a.Flags).ToList();   // the flicker off
+        // (a) A fade still going as the next view's lines come (its screen at the colours it goes to) goes on.
+        var screen = Opened("comandr", new TalkScreen(1, flags, true, Array.Empty<ScreenChange>()), out var colors);
+        screen.Show(new[] { "Fading." }, "", new[] { "Next." }, 1, 0, null,
+            new TalkScreen(1, flags, true, new[] { new ScreenChange(0, ScreenChangeKind.Fade, 0, 840) }));
+        long t;
+        for (t = 0; t < 420; t += 21)
+            screen.Update(t);
+        screen.Show(new[] { "Next lines." }, "Next.", new[] { "Bye." }, 2, t, null, new TalkScreen(0, flags, true, Array.Empty<ScreenChange>()));
+        screen.Update(t += 21);
+        Assert.False(ColorsAre(screen, colors, 1));
+        Assert.False(ColorsAre(screen, colors, 0));   // halfway, still fading
+        for (int k = 0; k < 30; ++k)
+            screen.Update(t += 21);
+        Assert.True(ColorsAre(screen, colors, 0));
+
+        // (b) An ambient animation the client turned off itself (the allied commander's still frame, drawn whole and
+        // then disabled) stays off, though the host's flags have it on.
+        var d = Scripts["starbas"].Description;
+        int still = d.Ambient.ToList().FindIndex(a => (a.Flags & (CommAnimationFlags.Random | CommAnimationFlags.Circular | CommAnimationFlags.YoYo)) == 0);
+        Assert.True(still >= 0);
+        var hostFlags = d.Ambient.Select(a => a.Flags).ToList();
+        var starbase = Opened("starbas", new TalkScreen(0, hostFlags, true, Array.Empty<ScreenChange>()), out _);
+        starbase.Show(new[] { "Hello." }, "", new[] { "Bye." }, 1, 0, null, new TalkScreen(0, hostFlags, true, Array.Empty<ScreenChange>()));
+        starbase.Update(0);
+        Assert.NotEqual(0, (int)(starbase.Window.Animation.AmbientFlags[still] & CommAnimationFlags.Disabled));
+        starbase.Show(new[] { "Again." }, "Bye.", new[] { "Bye." }, 2, 21, null, new TalkScreen(0, hostFlags, true, Array.Empty<ScreenChange>()));
+        Assert.NotEqual(0, (int)(starbase.Window.Animation.AmbientFlags[still] & CommAnimationFlags.Disabled));   // not turned on
+        starbase.Update(21);
+        Assert.NotEqual(0, (int)(starbase.Window.Animation.AmbientFlags[still] & CommAnimationFlags.Disabled));
+
+        // (c) A view never shown here turned the talking on again: the next lines' mouth moves.
+        starbase = Opened("starbas", new TalkScreen(0, hostFlags, false, Array.Empty<ScreenChange>()), out _);
+        var talking = starbase.Window.Animation;
+        starbase.Show(new[] { "Quiet." }, "", new[] { "Go on." }, 1, 0, null, new TalkScreen(0, hostFlags, false, Array.Empty<ScreenChange>()));
+        for (t = 0; t < 210; t += 21)
+            starbase.Update(t);
+        Assert.False(talking.Running);
+        starbase.Show(new[] { "Talking again.", "And more." }, "Go on.", new[] { "Bye." }, 3, t, null,
+            new TalkScreen(0, hostFlags, true, Array.Empty<ScreenChange>()));
+        for (int k = 0; k < 10; ++k)
+            starbase.Update(t += 21);
+        Assert.True(starbase.Talking);
+        Assert.True(talking.Running);
+    }
+
     // The subtitle's x as drawn (each line of it centred there, in white traced in black).
     private static int ScreenTextX(CommScreen screen)
     {
