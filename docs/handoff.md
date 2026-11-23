@@ -2,12 +2,12 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-23, stage 3b-2 item 6 (the VUX and the Yehat) built in three parts (A: the scripts, B: the world's tests, C: docs and the try-out); review rounds 1 to 4 found no correctness bug and their doc findings are fixed; round 5 next. Items 1 to 5 were reviewed and reported.
+**Last updated:** 2026-11-23, stage 3b-2 item 6 (the VUX and the Yehat) built in three parts (A: the scripts, B: the world's tests, C: docs and the try-out); reviewed in five rounds (no correctness bug found) and reported. Items 1 to 5 were reviewed and reported.
 
 ## Where things are
 
-- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 6's review round 4 fixes).
-- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; reviewed in four rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 4 (the Melnorme) is built in two parts, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 5 (the Shofixti and the Zoq-Fot-Pik) is built in four parts, reviewed in five rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 6 (the VUX and the Yehat) is built in three parts; review rounds 1 to 4's doc findings are fixed, round 5 next (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
+- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is committed and pushed (as of item 6's report).
+- **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; reviewed in four rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 4 (the Melnorme) is built in two parts, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 5 (the Shofixti and the Zoq-Fot-Pik) is built in four parts, reviewed in five rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 6 (the VUX and the Yehat) is built in three parts; reviewed in five rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte; `GOLDEN_TALKS=melnorm` (comma-separated) records only those scripts.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
@@ -67,11 +67,14 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review item 6 (the VUX and the Yehat; the owner's go-ahead 2026-11-23) on from round 5 (rounds 1 to 4: no correctness bug, their doc findings fixed) and report, with its readings for the owner (the rebels brought by `--start-encounter YEHAT_REBEL_SHIP`; the revolt told to nobody else) and the screen-change gap (Open items, above); then wait for the go-ahead for item 7.
+Wait for the owner's go-ahead for item 7 (the Orz and the Pkunk; one go-ahead per item), and their answer on where the screen-change gap is fixed (below). Item 6 is built, reviewed in five rounds and reported (its Progress row).
 
 ## Decisions waiting on the owner
 
-None open. The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 6 had their go-aheads, the others wait for one each.
+- **Where the talks' screen changes are fixed** (asked 2026-11-23, item 6's report; `differences.md` row 83): the colour maps, ambient and talking animation switches a talk makes aren't sent to clients. Options: now, before item 7 (a `TalkView` field and a protocol bump); with item 12 (the docs item); or in the visual-fidelity pass.
+- **Readings put to the owner in the reports (not blocking):** item 5's Tanaka marked by the first player to leave after his death (row 82); item 6's rebels brought by `--start-encounter YEHAT_REBEL_SHIP` with `--start-state` for their story, and the Yehat revolt told to nobody else.
+
+The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 6 had their go-aheads, the others wait for one each.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
