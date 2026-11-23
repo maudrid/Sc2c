@@ -62,16 +62,16 @@ Smaller items left for later stages are notes under the items that own them in t
 - **A guest surrendering to the Ur-Quan (the owner, 2026-11-21, question 4): as built.** The host's flagship surrendering is the game over for everyone; a guest's ship surrendering is a wreck where it is, for a friend to revive (`differences.md` row 73).
 - **Notices for a player away (the owner, 2026-11-21, question 7): as built.** Not told, nor kept for their return (the battle news is kept, being about their own ship).
 - **A group "chasing" a player (the owner, 2026-11-21, question 8): as built.** One that has flown at them since it was made (not saved); its going is told to them instead of the meeting's end while they're near and not in its battle.
+- **Where the talks' screen changes are fixed (the owner, 2026-11-23): now, before item 7.** Being built (`differences.md` row 83).
 - **A shortcut for the Arilou's gift: not now (the owner, 2026-11-16).** No shortcut reaches the commander's bulletin (`--start-docked` marks every bulletin told; `--start-devices PORTAL_SPAWNER_DEVICE` sets `PORTAL_SPAWNER_ON_SHIP`, not the `PORTAL_SPAWNER` the bulletin reads); `FleetTests` checks it and the how-to-try says so.
 - **Backlog:** guests' alien hulls (`design.md`, "Backlog"), not to be built now.
 
 ## Next step
 
-Wait for the owner's go-ahead for item 7 (the Orz and the Pkunk; one go-ahead per item), and their answer on where the screen-change gap is fixed (below). Item 6 is built, reviewed in five rounds and reported (its Progress row).
+Build the screen-change gap's fix (`differences.md` row 83: the talk's colour map and fades, ambient animation flags and talking animation switch sent in the talk's view, the protocol up, the client drawing them), review it and report it; then wait for the owner's go-ahead for item 7 (the Orz and the Pkunk; one go-ahead per item). Item 6 is built, reviewed in five rounds and reported (its Progress row).
 
 ## Decisions waiting on the owner
 
-- **Where the talks' screen changes are fixed** (asked 2026-11-23, item 6's report; `differences.md` row 83): the colour maps, ambient and talking animation switches a talk makes aren't sent to clients. Options: now, before item 7 (a `TalkView` field and a protocol bump); with item 12 (the docs item); or in the visual-fidelity pass.
 - **Readings put to the owner in the reports (not blocking):** item 5's Tanaka marked by the first player to leave after his death (row 82); item 6's rebels brought by `--start-encounter YEHAT_REBEL_SHIP` with `--start-state` for their story, and the Yehat revolt told to nobody else.
 
 The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 6 had their go-aheads, the others wait for one each.
