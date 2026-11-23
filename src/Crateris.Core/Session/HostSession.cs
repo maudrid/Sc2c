@@ -187,7 +187,8 @@ public sealed class HostSession
             string name = a[..eq].Trim(), text = a[(eq + 1)..].Trim();
             if (!table.Contains(name))
                 throw new ArgumentException($"{name} isn't a story field (data/game-state.json's names)");
-            if (StoryState.NotShared.TryGetValue(name, out string? why))
+            // The broadcaster's use is each player's own (stage 3b-2 item 4): the host's is set.
+            if (StoryState.NotShared.TryGetValue(name, out string? why) && name != "USED_BROADCASTER")
                 throw new ArgumentException($"{name} isn't shared story state, so it can't be set at the start: {why}");
             var field = table[name];
             if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int value)
@@ -196,7 +197,12 @@ public sealed class HostSession
             chosen[name] = value;
         }
         foreach (var (name, value) in chosen)
-            story.Set(name, value);
+        {
+            if (name == "USED_BROADCASTER")
+                World.Host.Ship.UsedBroadcaster = value != 0;
+            else
+                story.Set(name, value);
+        }
         return $"Starting with {chosen.Count} story field{(chosen.Count == 1 ? "" : "s")} set"
                + (chosen.Count == 0 ? "" : $" ({string.Join(", ", chosen.Select(c => $"{c.Key}={c.Value}"))})");
     }

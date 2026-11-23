@@ -1247,7 +1247,7 @@ public partial class Main : Node2D
             if (player.Talk is { } talk)
             {
                 _sellingView.Follow(talk.LinesKey);
-                if (talk.Sale is { } sale && talk.Replier == player.PlayerId && !Headless)
+                if ((talk.Sale is not null || talk.BioSale is not null) && talk.Replier == player.PlayerId && !Headless)
                 {
                     // A key held as it starts is the count-down's, as a key pressed then would be (TakeHeld),
                     // and the game's again only once it's come up; taken as it's to start (if it can't be drawn, till they come up all the same).
@@ -1255,9 +1255,15 @@ public partial class Main : Node2D
                     {
                         var seen = _taken.TakeHeld(_down.Select(d => ((long)d.Key, (long)d.Value)),
                             _about.Visible || player.Scripted, (long)Key.F1);
-                        _sellingView.Count(sale, talk.LinesKey, seen.Select(k => (Key)k).ToList());
+                        var held = seen.Select(k => (Key)k).ToList();
+                        if (talk.Sale is { } sale)
+                            _sellingView.Count(sale, talk.LinesKey, held);
+                        else
+                            _sellingView.Count(talk.BioSale!, talk.LinesKey, held);   // the Melnorme's (stage 3b-2 item 4)
                     }
                 }
+                // The Melnorme's talk shows the replier's credits in the status area (SMM_CREDITS).
+                _sellingView.ShowCredits(Headless ? null : talk.Credits);
                 linesFrom = _sellingView.LinesFrom(talk.LinesKey);
             }
             _commView.Show(player, linesFrom);
@@ -1270,7 +1276,9 @@ public partial class Main : Node2D
         // A meeting's closing lines: gone through once played and the last replay's time is up (item 11);
         // every frame, so lines shown again after something else start afresh.
         player.FollowClosing(_commView.Visible && _commView.Busy, 1.0 / Engine.PhysicsTicksPerSecond);
-        _sellingView.Visible = _commView.Visible && _sellingView.Active;
+        if (!_commView.Visible || player.Talk is null)
+            _sellingView.ShowCredits(null);
+        _sellingView.Visible = _commView.Visible && _sellingView.Showing;
         // The encounter screen, drawn once a meeting; the battle-won screen run on with the keys held, and its
         // tally closed at its end (headless, at once: nothing to show it on).
         if (screen == PlayerScreen.BattleWon && Headless)

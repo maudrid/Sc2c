@@ -38,6 +38,8 @@ public sealed class TalkLibrary
         // Stage 3b-2 item 2.
         ["spahome"] = p => new SpathiHomeScript(p),
         ["slyhome"] = p => new SlylandroHomeScript(p),
+        // Stage 3b-2 item 4.
+        ["melnorm"] = p => new MelnormeScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

@@ -44,8 +44,9 @@ public sealed partial class GameWorld
             }
             _systemGroups!.Ported = EncounterRaces;
             // A player in a meeting meets no other group, nor does one while
-            // another player holds the group's race's lock (decision 5).
-            _systemGroups.CanMeet ??= (id, race) => Find(id) is { Ship.Meeting: null } p && MayMeet(p, race);
+            // another player holds the group's race's lock (decision 5), but
+            // for the Melnorme's rescue-only talk (question 7).
+            _systemGroups.CanMeet ??= (id, race) => Find(id) is { Ship.Meeting: null } p && MayMeetOrRescue(p, race);
             _systemGroups.OneLock ??= (a, b) => LockOf(a) is { } la && la == LockOf(b);
             return _systemGroups;
         }

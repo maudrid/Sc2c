@@ -67,7 +67,8 @@ public sealed class MineralSelling
     private readonly Func<int, string> _gameString;
     private readonly int[] _amounts;   // ElementAmounts
     private readonly IReadOnlyList<int> _worth;
-    private readonly int _bio, _capacity, _bombState;
+    private int _bio;
+    private readonly int _capacity, _bombState;
     private int _mass;                 // TotalElementMass
     private readonly AnyButton _input = new();
     private readonly IEnumerator<long> _run;
@@ -97,10 +98,41 @@ public sealed class MineralSelling
         _run = SellMinerals().GetEnumerator();
     }
 
+    /// <summary>
+    /// The Melnorme buying the bio data (melnorm.c's DoSell, sell_life_data;
+    /// stage 3b-2 item 4): the cargo display drawn, half a second, then the
+    /// bio data lit and sold a unit at a time, two credits each, the amount
+    /// and the credits in the status message redrawn with each; a key sells
+    /// the rest at once; half a second more, and it's put away. UQM's loop
+    /// has no wait of its own (its speed is the drawing's): here a unit
+    /// takes a millisecond (TaskSwitch), as SellMinerals' do.
+    /// <see cref="Backdrop"/> is the status message with the credits before.
+    /// </summary>
+    public MineralSelling(UqmCanvas canvas, BioSale sale, Func<int, string> gameString, long start)
+    {
+        _canvas = canvas;
+        _gameString = gameString;
+        _amounts = sale.Amounts.ToArray();
+        _worth = sale.Worth;
+        _bio = sale.BioData;
+        _capacity = sale.StorageCapacity;
+        _mass = _amounts.Sum();
+        ResourceUnits = sale.Credits;
+        _ms = _wake = start;
+        CreditsMessage(canvas, ResourceUnits, gameString);
+        Backdrop = canvas.Drawn.ToList();
+        canvas.Drawn.Clear();
+        _run = SellBioData().GetEnumerator();
+    }
+
+    /// <summary>sis.c's DrawStatusMessage (NULL) in SMM_CREDITS: the Melnorme credits ("Cr").</summary>
+    public static void CreditsMessage(UqmCanvas c, uint credits, Func<int, string> gameString) =>
+        StarbaseScreens.StatusMessage(c, $"{credits} {gameString(GameStrings.StatusBase + 0)}");
+
     /// <summary>The status message as it stands before the selling (DrawStatusMessage (NULL)): drawn under the rest.</summary>
     public IReadOnlyList<UqmDraw> Backdrop { get; }
 
-    /// <summary>The resource units as the status message shows them.</summary>
+    /// <summary>The resource units as the status message shows them (the credits, selling bio data).</summary>
     public uint ResourceUnits { get; private set; }
 
     /// <summary>Whether the cargo display is put away (ClearSISRect): the commander's reply plays.</summary>
@@ -213,6 +245,39 @@ public sealed class MineralSelling
         }
         yield return Sleep(OneSecond / 2);
         // ClearSISRect (DRAW_SIS_DISPLAY): the cargo display put away.
+    }
+
+    // melnorm.c's DoSell, sell_life_data's count-down.
+    private IEnumerable<long> SellBioData()
+    {
+        DrawCargoStrings(None, None);
+        yield return Sleep(OneSecond / 2);
+        DrawCargoStrings(Categories, Categories);
+        while (_bio > 0)
+        {
+            if (_input.Press(_ms))
+            {
+                DeltaCredit(_bio * BioSale.CreditValue);
+                _bio = 0;
+            }
+            else
+            {
+                --_bio;
+                DeltaCredit(BioSale.CreditValue);
+            }
+            DrawCargoStrings(Categories, Categories);
+            if (_bio > 0)
+                yield return TaskSwitch();
+        }
+        yield return Sleep(OneSecond / 2);
+        // ClearSISRect (DRAW_SIS_DISPLAY): the cargo display put away.
+    }
+
+    // melnorm.c's DeltaCredit: the credits' status message redrawn.
+    private void DeltaCredit(long delta)
+    {
+        ResourceUnits = (uint)Math.Clamp(ResourceUnits + delta, 0, uint.MaxValue);
+        CreditsMessage(_canvas, ResourceUnits, _gameString);
     }
 
     // sis.c's DeltaSISGauges (0, 0, delta): the resource units' part.

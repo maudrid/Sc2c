@@ -426,8 +426,9 @@ public class HyperEncounterTests
         // Its makeup and place drawn (AddEncounterElement), then dropped.
         Assert.Empty(world.Encounters.List);
         Assert.Contains("AddEncounterElement", random.Places.Skip(before));
-        // The game's own: the races whose talk is ported (items 6 and 7; item 8 the Slylandro).
-        Assert.Equal(new HashSet<string> { "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP" },
+        // The game's own: the races whose talk is ported (items 6 and 7; item 8 the Slylandro; 3b-2 item 4 the Melnorme).
+        Assert.Equal(new HashSet<string> { "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP",
+                "MELNORME_SHIP" },
             new GameWorld(new GameSettings(), new GameClock(2155, 2, 17)).EncounterRaces);
     }
 
@@ -856,17 +857,17 @@ public class HyperEncounterTests
         story.Set("STARBASE_AVAILABLE", 1);
         story.Set("SLYLANDRO_MULTIPLIER", 0);
         int melnorme = Race("MELNORME_SHIP");
-        int Rolled(int n, uint fuel)
+        int Rolled(int n, uint fuel, bool broadcaster = false)
         {
             var encounters = new HyperEncounters(Rules, 16);
-            encounters.Roll(story, "a", 9000, 300, fuel, new HyperspaceRandom(SeedRolling(n)));
+            encounters.Roll(story, "a", 9000, 300, fuel, new HyperspaceRandom(SeedRolling(n)), broadcaster);
             return encounters.List.Count(e => e.Race == melnorme);
         }
         Assert.Equal((1, 0, 0), (Rolled(29, 0), Rolled(30, 0), Rolled(0, 100)));
-        // The broadcaster used: 100%, its response set, and its use spent.
-        story.Set("USED_BROADCASTER", 1);
-        Assert.Equal(1, Rolled(99, 100));
-        Assert.Equal((1, 0), (story.Get("BROADCASTER_RESPONSE"), story.Get("USED_BROADCASTER")));
+        // The broadcaster used (the roller's own, stage 3b-2 item 4): 100%, its response set (the
+        // world spends the roller's use: GameWorld.HyperspaceEncounterRolls).
+        Assert.Equal(1, Rolled(99, 100, broadcaster: true));
+        Assert.Equal(1, story.Get("BROADCASTER_RESPONSE"));
         Assert.Equal(0, Rolled(0, 100));
         // Angered (MELNORME_ANGER 3), they don't come.
         story.Set("MELNORME_ANGER", 3);

@@ -56,6 +56,12 @@ public enum TradeRefusal : byte
 
     /// <summary>The receiver's fuel tanks haven't the room.</summary>
     NoTankRoom,
+
+    /// <summary>
+    /// Minerals don't go to a player the Melnorme offer to strip (stage
+    /// 3b-2 item 4): the strip may take storage bays they'd need.
+    /// </summary>
+    StripOffered,
 }
 
 /// <summary>
@@ -177,6 +183,7 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         TradeRefusal.HostPaused => "The host has paused the game.",
         TradeRefusal.TooFar => "Fuel goes only to a player close by: within a screen in hyperspace, or in the same system.",
         TradeRefusal.NoTankRoom => "Their fuel tanks haven't the room.",
+        TradeRefusal.StripOffered => "Not now: the Melnorme are offering to strip their ship, storage bays and all.",
         _ => "",
     };
 }

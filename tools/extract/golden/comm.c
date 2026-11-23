@@ -50,6 +50,8 @@
  *     none), which the Ur-Quan's and the Kohr-Ah's scripts read;
  *   where the flagship is on the star map: GLOBAL_SIS (log_x) and
  *     log_y (the Slylandro probe says where it is from them);
+ *   each purchasable module's price (GLOBAL (ModuleCost), PLANET_LANDER to
+ *     ANTIMISSILE_DEFENSE), which the Melnorme read and set;
  *   the replies: their count, then each one's place in the replies offered.
  *
  * Selling minerals (starbas.c's SellMinerals) runs as if a button were
@@ -106,6 +108,14 @@
  *   {"bio": n}                                the bio data aboard
  *                                             (TotalBioMass), when it
  *                                             changes
+ *   {"slots": [drives..., jets..., modules...]}
+ *                                             the flagship's 11 drive, 8 jet
+ *                                             and 16 module slots, when they
+ *                                             change (the Melnorme's strip)
+ *   {"costs": [c...]}                         the 14 purchasable modules'
+ *                                             prices (ModuleCost), when they
+ *                                             change (the Melnorme's
+ *                                             technology)
  *   {"gauges": [crew, fuel, ru]}              DeltaSISGauges
  *   {"random": n}                             TFB_Random's number drawn
  *   {"talking": b}                            EnableTalkingAnim (b 1 or 0)
@@ -209,6 +219,10 @@ static DWORD last_ship[4 + NUM_ELEMENT_CATEGORIES];
 static int ship_known;
 static COUNT last_bio;
 static int bio_known;
+static BYTE last_slots[NUM_DRIVE_SLOTS + NUM_JET_SLOTS + NUM_MODULE_SLOTS];
+static int slots_known;
+static BYTE last_costs[NUM_PURCHASE_MODULES];
+static int costs_known;
 
 static int
 map_index (COLORMAP map)
@@ -259,6 +273,35 @@ check_changes (void)
 		printf ("{\"bio\": %u}\n", (unsigned) GLOBAL_SIS (TotalBioMass));
 	last_bio = GLOBAL_SIS (TotalBioMass);
 	bio_known = 1;
+	{
+		BYTE slots[sizeof last_slots];
+		memcpy (slots, GLOBAL_SIS (DriveSlots), NUM_DRIVE_SLOTS);
+		memcpy (slots + NUM_DRIVE_SLOTS, GLOBAL_SIS (JetSlots), NUM_JET_SLOTS);
+		memcpy (slots + NUM_DRIVE_SLOTS + NUM_JET_SLOTS, GLOBAL_SIS (ModuleSlots), NUM_MODULE_SLOTS);
+		if (slots_known && memcmp (slots, last_slots, sizeof slots))
+		{
+			printf ("{\"slots\": [");
+			for (i = 0; i < (int) sizeof slots; ++i)
+				printf ("%s%u", i ? ", " : "", slots[i]);
+			printf ("]}\n");
+		}
+		memcpy (last_slots, slots, sizeof slots);
+		slots_known = 1;
+	}
+	{
+		BYTE costs[NUM_PURCHASE_MODULES];
+		for (i = 0; i < NUM_PURCHASE_MODULES; ++i)
+			costs[i] = GLOBAL (ModuleCost[i]);
+		if (costs_known && memcmp (costs, last_costs, sizeof costs))
+		{
+			printf ("{\"costs\": [");
+			for (i = 0; i < NUM_PURCHASE_MODULES; ++i)
+				printf ("%s%u", i ? ", " : "", costs[i]);
+			printf ("]}\n");
+		}
+		memcpy (last_costs, costs, sizeof costs);
+		costs_known = 1;
+	}
 }
 
 /* ------------------------------------------------- the track player */
@@ -506,6 +549,17 @@ __wrap_DeltaSISGauges (SIZE crew, SIZE fuel, int ru)
 {
 	check_changes ();
 	printf ("{\"gauges\": [%d, %d, %d]}\n", (int) crew, (int) fuel, ru);
+	/* An undefined crew delta redraws the whole status panel (its
+	 * modules, escorts and names), which changes nothing and needs the
+	 * drawing this program hasn't: the rest is run (the Melnorme's strip). */
+	if (crew == UNDEFINED_DELTA)
+	{
+		crew = 0;
+		if (ru == UNDEFINED_DELTA)
+			ru = 0;
+		if (fuel == 0 && ru == 0)
+			return;
+	}
 	__real_DeltaSISGauges (crew, fuel, ru);
 }
 
@@ -864,6 +918,21 @@ print_key (void)
 	/* The script's own state that the replies offered don't show. */
 	printf ("|%u", (unsigned) join_us_refusals);
 #endif
+#ifdef SCRIPT_melnorm
+	/* The script's own state that the replies offered don't show, and
+	 * the slots and prices it reads and changes. */
+	printf ("|%u,%u,%u,%u", (unsigned) AskedToBuy, (unsigned) local_stack0,
+			(unsigned) local_stack1, (unsigned) rescue_fuel);
+	printf ("|");
+	for (i = 0; i < NUM_DRIVE_SLOTS; ++i)
+		printf ("%u,", GLOBAL_SIS (DriveSlots[i]));
+	for (i = 0; i < NUM_JET_SLOTS; ++i)
+		printf ("%u,", GLOBAL_SIS (JetSlots[i]));
+	for (i = 0; i < NUM_MODULE_SLOTS; ++i)
+		printf ("%u,", GLOBAL_SIS (ModuleSlots[i]));
+	for (i = 0; i < NUM_PURCHASE_MODULES; ++i)
+		printf ("%u,", GLOBAL (ModuleCost[i]));
+#endif
 #ifdef SCRIPT_starbas
 	/* The script's own state that the replies offered don't show. */
 	printf ("|%u,%u,%u,%u,%lx", stack0, stack1, stack2, stack3,
@@ -988,6 +1057,12 @@ main (void)
 		sscanf (line, "%ld %ld", &lx, &ly);
 		GLOBAL_SIS (log_x) = (SDWORD) lx;
 		GLOBAL_SIS (log_y) = (SDWORD) ly;
+	}
+	read_line (line, sizeof line);
+	for (step = 0, p = line; step < NUM_PURCHASE_MODULES; ++step, p += i)
+	{
+		sscanf (p, "%u%n", &v, &i);
+		GLOBAL (ModuleCost[step]) = v;
 	}
 	read_line (line, sizeof line);
 	p = line;

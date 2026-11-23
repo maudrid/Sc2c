@@ -34,11 +34,14 @@ public sealed partial class GameWorld
     /// <summary>
     /// The races whose talk is ported (stage 3b-1 item 6: the Ur-Quan,
     /// their drone, whose talk is theirs, and the Kohr-Ah; item 7 the
-    /// Ilwrath and the Spathi; item 8 the Slylandro probes), whose groups fly.
+    /// Ilwrath and the Spathi; item 8 the Slylandro probes; stage 3b-2 item 4
+    /// the Melnorme), whose groups fly.
     /// </summary>
     internal static readonly IReadOnlySet<string> TalkingRaces = new HashSet<string>
     {
         "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP",
+        // Stage 3b-2 item 4: the Melnorme, in hyperspace (for an empty tank or the broadcaster) and at the nine super giants.
+        "MELNORME_SHIP",
     };
 
     /// <summary>
@@ -148,7 +151,9 @@ public sealed partial class GameWorld
         foreach (var p in _players.Where(InHyperspace))
         {
             var f = HyperspaceFlightOf(p);
-            encounters.Roll(Story!, p.Id, f.UniverseX, f.UniverseY, f.Fuel, HyperspaceRandomOf(p.Id));
+            encounters.Roll(Story!, p.Id, f.UniverseX, f.UniverseY, f.Fuel, HyperspaceRandomOf(p.Id), p.Ship.UsedBroadcaster);
+            // check_hyperspace_encounter spends the broadcaster's use: the roller's own (stage 3b-2 item 4).
+            p.Ship.UsedBroadcaster = false;
         }
     }
 
@@ -242,13 +247,13 @@ public sealed partial class GameWorld
             return;
         if (player.Ship.Meeting is null
             && encounters.Touch(player.Ship.Flight, Shapes, before,
-                e => e.Element is { Nonsolid: false, Met: null } && MayMeet(player, e.Race)) is { } met)
+                e => e.Element is { Nonsolid: false, Met: null } && MayMeetOrRescue(player, e.Race)) is { } met)
         {
             MeetInHyperspace(player, met);
             return;
         }
         if (encounters.Touch(player.Ship.Flight, Shapes, before,
-                e => e.Element is { Nonsolid: false } el && (el.Met is { } by && by != player.Id || !MayMeet(player, e.Race)))
+                e => e.Element is { Nonsolid: false } el && (el.Met is { } by && by != player.Id || !MayMeetOrRescue(player, e.Race)))
             is { } passing)
             TellWhoIsTalking(player, passing.Race);
     }

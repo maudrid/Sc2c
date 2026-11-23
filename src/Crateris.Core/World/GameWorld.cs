@@ -753,6 +753,8 @@ public sealed partial class GameWorld
                     InOrbit(ship);
                 break;
             case IpEvent.LeftSystem:
+                // endInterPlanetary: the broadcaster's use spent (the ship's own).
+                ship.UsedBroadcaster = false;
                 SystemTransition.Leave(ship.Flight, Systems!.Map.Stars[ship.SystemStar!.Value], ip.Facing);
                 ship.Ip = null;
                 ship.SystemStar = null;
@@ -1232,6 +1234,8 @@ public sealed partial class GameWorld
         ship.Flight.PlaceAtUniverse(star.X, star.Y);
         ship.Flight.Stop();
         ship.SystemStar = star.Number;
+        // InterplanetaryTransition: the broadcaster's use spent (the ship's own, stage 3b-2 item 4).
+        ship.UsedBroadcaster = false;
         ship.Ip = new IpFlight(Systems![star.Number], SystemTransition.Arrive(star),
             ship.Modules.Thrusters, ship.Modules.Jets, Shapes!);
     }
@@ -1445,6 +1449,10 @@ public sealed partial class GameWorld
             return TradeRefusal.NotHere;
         if (gift.Fuel != 0 && !CloseBy(giver, taker))
             return TradeRefusal.TooFar;
+        // The Melnorme's strip offered to the receiver may take the storage bays the minerals would need.
+        if (gift.Minerals.Any(m => m != 0)
+            && taker.Ship.Meeting?.Talk is { Ended: false, Script: Comm.Scripts.MelnormeScript { StripOffered: true } })
+            return TradeRefusal.StripOffered;
         if (gift.Minerals.Sum() > to.RoomForCargo)
             return TradeRefusal.NoRoom;
         if (gift.Fuel > TankRoom(taker.Ship))

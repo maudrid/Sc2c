@@ -4146,7 +4146,8 @@ def record_landing(uqm, systems_exe):
 
 # The conversation recording program (golden/comm.c) is built once per
 # script, with the script's own file included and these of UQM's linked.
-COMM_LINK = STRINGS_LINK + ["uqm/commglue.c", "uqm/sis.c", "libs/math/random.c"]
+COMM_LINK = STRINGS_LINK + ["uqm/commglue.c", "uqm/sis.c", "libs/math/random.c", "libs/math/random2.c",
+                            "libs/math/sqrt.c"]
 COMM_PROGRAM = os.path.join(HERE, "golden", "comm.c")
 
 # sis.h's module numbers, for the ship's module slots (EMPTY_SLOT + 2 is
@@ -4157,6 +4158,11 @@ MODULES = {"PLANET_LANDER": 0, "FUSION_THRUSTER": 1, "TURNING_JETS": 2,
            "GUN_WEAPON": 9, "BLASTER_WEAPON": 10, "CANNON_WEAPON": 11,
            "TRACKING_SYSTEM": 12, "ANTIMISSILE_DEFENSE": 13,
            "BOMB_MODULE_0": 14, "EMPTY": 22}
+# The modules with a price (NUM_PURCHASE_MODULES), in sis.h's order, and
+# a new game's prices (data/new-game.json; 0 for those not for sale).
+PURCHASE_MODULES = [m for m, n in sorted(MODULES.items(), key=lambda x: x[1]) if n < 14]
+with open(os.path.join(REPO, "data", "new-game.json")) as _f:
+    NEW_GAME_COSTS = json.load(_f)["prices"]["module_cost"]
 # Empty drive and jet slots (EMPTY_SLOT + 0 and + 1).
 EMPTY_DRIVE, EMPTY_JET = 20, 21
 # A new game's slots (InitGameStructures, data/new-game.json).
@@ -4908,9 +4914,189 @@ def slyhome_starts():
     return starts
 
 
+def melnorm_starts():
+    """The Melnorme (melnorm.c), from states chosen to reach every
+    condition it reads, each walk kept small by its credits and room or by
+    follow and prefix: the first meeting (its small talk's stacks walked
+    whole, the bluster, the alliance's names in its first reply, the hello
+    of each later meeting before business); getting down to business with
+    something to trade or nothing; the hello and down to business at each
+    YACK_STACK2; the trade menu (the first trade, why purple, out of
+    credits, nothing to sell); fuel (by the tanks' room and the credits,
+    filling up, no room, past 0x3FFF at once, the first time); each of the
+    catalog's 13 items with those before it had (modules by their prices,
+    lander upgrades by the ship's fields), short of credits, all gone;
+    information (each stack's last, the two pieces that set story fields,
+    each way, all gone); selling bio data and rainbow worlds (with and
+    without the other, the count past the worlds' bits); the anger (each
+    level's hellos and stacks, the apology, the strip to calm them worth it
+    or not, the fights); the rescue (each count's line, refused before,
+    and the strip from ships and places that give an offer, a full tank,
+    charity, and the searches' byte wrapping as the real ship's worth stays
+    while the copy has nothing left to take)."""
+    met = {"MET_MELNORME": 1}
+    business = {**met, "MELNORME_YACK_STACK2": 6, "WHY_MELNORME_PURPLE": 1, "TRADED_WITH_MELNORME": 1}
+    full = talk_ship(fuel=6000)       # a new game's ship, its tanks full: no fuel to buy
+    empty = talk_ship(fuel=0)
+    starts = [
+        # The first meeting's small talk, its bluster and back (not business: below).
+        {"name": "first", "state": {}, "ship": talk_ship(), "follow": ["DoFirstMeeting", "DoBluster", "ExitConversation"]},
+        {"name": "first-business-1", "state": {"MELNORME_BUSINESS_COUNT": 1}, "ship": talk_ship(), "follow": []},
+        {"name": "first-business-2", "state": {"MELNORME_BUSINESS_COUNT": 2}, "ship": talk_ship(), "follow": []},
+        {"name": "met-before-business", "state": {**met, "MELNORME_YACK_STACK2": 5, "MELNORME_BUSINESS_COUNT": 2,
+                                                  "MELNORME_YACK_STACK0": 2, "MELNORME_YACK_STACK1": 2},
+         "ship": talk_ship(), "follow": ["DoFirstMeeting", "ExitConversation"]},
+        # get_on_with_business (third offered with STACK1 1): to trade, or to the rescue.
+        {"name": "get-on-with-business", "state": {**met, "MELNORME_YACK_STACK1": 1}, "ship": talk_ship(),
+         "prefix": [2], "follow": []},
+        {"name": "get-on-with-business-stranded", "state": {**met, "MELNORME_YACK_STACK1": 1}, "ship": empty,
+         "prefix": [2], "follow": ["DoRescue", "ExitConversation"]},
+    ]
+    for alliance in range(4):
+        starts.append({"name": f"first-alliance-name-{alliance}", "state": {"NEW_ALLIANCE_NAME": alliance},
+                       "ship": talk_ship(), "follow": []})
+    starts.append({"name": "first-alliance-name-3-accented", "state": {"NEW_ALLIANCE_NAME": 3},
+                   "ship": talk_ship(captain="Zo\u00eb", ship="\u00d1and\u00fa"), "follow": []})
+    # Down to business at each YACK_STACK2 (the hello lines, the last kept).
+    for stack in range(6, 16):
+        starts.append({"name": f"hello-{stack}", "state": {**business, "MELNORME_YACK_STACK2": stack},
+                       "ship": talk_ship(), "follow": []})
+    # The trade menu: the first trade, why purple, out of credits, nothing to sell.
+    starts.append({"name": "trade-first", "state": {**met, "MELNORME_YACK_STACK2": 6}, "ship": full})
+    for name, state, ship in (("fuel-only", {}, full), ("bio-only", {}, talk_ship(fuel=0)),
+                              ("credits-only", {"MELNORME_CREDIT0": 1}, empty),
+                              ("rainbow-only", {"RAINBOW_WORLD0": 1}, empty)):
+        start = {"name": f"trade-{name}", "state": {**business, **state}, "ship": ship, "follow": []}
+        if name == "bio-only":
+            start["bio"] = 1
+        starts.append(start)
+    # Fuel: 30 units of room and 30 credits (fill up just affordable), 20 credits (not), no room for 25,
+    # a full tank once bought, the first time.
+    for name, fuel, credits, extra in (("room-30-credits-30", 3000, 30, {}), ("room-30-credits-20", 3000, 20, {}),
+                                       ("room-10", 5000, 40, {}), ("first-time", 5990, 3, {"MELNORME_FUEL_PROCEDURE": 0}),
+                                       ("empty-tank", 0, 2, {})):
+        starts.append({"name": f"fuel-{name}", "state": {**business, "MELNORME_FUEL_PROCEDURE": 1,
+                                                          "MELNORME_INFO_PROCEDURE": 1, "MELNORME_TECH_PROCEDURE": 1,
+                                                          "MELNORME_CREDIT0": credits, **extra},
+                       "ship": talk_ship(fuel=fuel),
+                       "prefix": [0], "follow": ["DoBuy"]})
+    # Past 0x3FFF at once: four high-efficiency tanks (410 units), empty, filled up with 500 credits.
+    he = ["EMPTY", "HIGHEFF_FUELSYS", "CREW_POD", "HIGHEFF_FUELSYS", "HIGHEFF_FUELSYS", "HIGHEFF_FUELSYS"] + \
+        ["EMPTY"] * 2 + ["STORAGE_BAY"] + ["EMPTY"] * 6 + ["GUN_WEAPON"]
+    starts.append({"name": "fuel-fill-past-0x3fff", "state": {**business, "MELNORME_FUEL_PROCEDURE": 1,
+                                                               "MELNORME_CREDIT0": 500 & 0xFF, "MELNORME_CREDIT1": 500 >> 8},
+                   "ship": talk_ship(fuel=0, modules=he), "prefix": [0, 0, 4], "follow": []})
+    # The catalog: each item with those before it had, 150 credits (one bought, the next shown).
+    techs = [("module", "BLASTER_WEAPON"), ("state", "IMPROVED_LANDER_SPEED"), ("module", "ANTIMISSILE_DEFENSE"),
+             ("shield", 0), ("state", "IMPROVED_LANDER_CARGO"), ("module", "HIGHEFF_FUELSYS"),
+             ("state", "IMPROVED_LANDER_SHOT"), ("shield", 1), ("module", "TRACKING_SYSTEM"), ("shield", 2),
+             ("shield", 3), ("module", "CANNON_WEAPON"), ("module", "SHIVA_FURNACE")]
+    for k in range(len(techs) + 1):
+        state = {**business, "MELNORME_FUEL_PROCEDURE": 1, "MELNORME_TECH_PROCEDURE": 1 if k else 0,
+                 "MELNORME_CREDIT0": 150}
+        costs = dict(NEW_GAME_COSTS)
+        shields = 0
+        for kind, what in techs[:k]:
+            if kind == "module":
+                costs[what] = 1
+            elif kind == "state":
+                state[what] = 1
+            else:
+                shields |= 1 << what
+        if shields:
+            state["LANDER_SHIELDS"] = shields
+        # buy, buy_technology (second with fuel full), then the item bought.
+        starts.append({"name": f"tech-{k}", "state": state, "ship": full, "costs": costs,
+                       "prefix": [0, 0], "follow": ["DoBuy"] if k == 0 else []})
+        if 0 < k < len(techs):
+            starts.append({"name": f"tech-{k}-buy", "state": state, "ship": full, "costs": costs,
+                           "prefix": [0, 0, 0], "follow": []})
+    starts.append({"name": "tech-short-of-credits", "state": {**business, "MELNORME_TECH_PROCEDURE": 1,
+                                                               "MELNORME_CREDIT0": 100},
+                   "ship": full, "prefix": [0, 0, 0], "follow": []})
+    # Information: each stack's last with 150 credits, the two pieces that set story fields, all gone.
+    info = {**business, "MELNORME_INFO_PROCEDURE": 1, "MELNORME_TECH_PROCEDURE": 1, "MELNORME_CREDIT0": 150}
+    starts.append({"name": "info-first-time", "state": {**info, "MELNORME_INFO_PROCEDURE": 0}, "ship": full,
+                   "prefix": [0], "follow": ["DoBuy"]})
+    starts.append({"name": "info-last-each", "state": {**info, "MELNORME_EVENTS_INFO_STACK": 7,
+                                                        "MELNORME_ALIEN_INFO_STACK": 15,
+                                                        "MELNORME_HISTORY_INFO_STACK": 8},
+                   "ship": full, "prefix": [0], "follow": ["DoBuy"]})
+    for pluto in (0, 1):
+        starts.append({"name": f"info-password-pluto-{pluto}",
+                       "state": {**info, "MELNORME_ALIEN_INFO_STACK": 13, "FOUND_PLUTO_SPATHI": pluto,
+                                 "MELNORME_EVENTS_INFO_STACK": 8, "MELNORME_HISTORY_INFO_STACK": 9},
+                       "ship": full, "prefix": [0, 1, 0], "follow": []})
+    for shattered in range(4):
+        starts.append({"name": f"info-shattered-{shattered}",
+                       "state": {**info, "MELNORME_ALIEN_INFO_STACK": 14, "KNOW_ABOUT_SHATTERED": shattered,
+                                 "MELNORME_EVENTS_INFO_STACK": 8, "MELNORME_HISTORY_INFO_STACK": 9},
+                       "ship": full, "prefix": [0, 1, 0], "follow": []})
+    starts.append({"name": "info-all-gone", "state": {**info, "MELNORME_EVENTS_INFO_STACK": 8,
+                                                       "MELNORME_ALIEN_INFO_STACK": 16, "MELNORME_HISTORY_INFO_STACK": 9},
+                   "ship": full, "prefix": [0], "follow": ["DoBuy"]})
+    # Selling: bio data with and without new rainbow worlds, the worlds alone, the count past the bits.
+    for name, bio, worlds, count in (("bio", 7, 0, 0), ("bio-and-rainbows", 3, 0b101, 1), ("rainbows", 0, 0b11, 0),
+                                     ("rainbows-high-bits", 0, 0x300, 0), ("rainbows-some-sold", 0, 0b1011, 2)):
+        state = {**business, "RAINBOW_WORLD0": worlds & 0xFF, "RAINBOW_WORLD1": worlds >> 8,
+                 "MELNORME_RAINBOW_COUNT": count}
+        starts.append({"name": f"sell-{name}", "state": state, "ship": full, "bio": bio,
+                       "follow": ["DoSell", "NatureOfConversation"]})
+    # The anger.
+    for count in range(3):
+        starts.append({"name": f"miffed-{count}", "state": {**met, "MELNORME_ANGER": 1, "MELNORME_MIFFED_COUNT": count},
+                       "ship": talk_ship(), "follow": ["DoMelnormeMiffed", "ExitConversation"] if count == 0 else []})
+        starts.append({"name": f"pissed-{count}", "state": {**met, "MELNORME_ANGER": 2, "MELNORME_PISSED_COUNT": count},
+                       "ship": talk_ship(), "follow": ["DoMelnormePissed", "ExitConversation"] if count == 0 else []})
+        starts.append({"name": f"hate-{count}", "state": {**met, "MELNORME_ANGER": 3, "MELNORME_HATE_COUNT": count},
+                       "ship": talk_ship()})
+    starts.append({"name": "miffed-apology", "state": {**met, "MELNORME_ANGER": 1, "MELNORME_YACK_STACK3": 4},
+                   "ship": talk_ship(), "prefix": [0], "follow": []})
+    # ok_strip_me (YACK_STACK4 2): worth it (cargo, fuel past the reserve, a spare crew pod), and not.
+    rich = talk_ship(crew=60, fuel=4000, landers=3, elements=[5, 0, 3, 0, 0, 0, 1, 0],
+                     modules=["EMPTY", "FUEL_TANK", "CREW_POD", "CREW_POD", "CREW_POD"] + ["EMPTY"] * 3 +
+                     ["STORAGE_BAY", "DYNAMO_UNIT"] + ["EMPTY"] * 5 + ["GUN_WEAPON"])
+    poor = talk_ship(landers=0, drives=[], jets=[5],
+                     modules=["EMPTY", "EMPTY", "CREW_POD"] + ["EMPTY"] * 13)
+    for name, ship, bio in (("rich", rich, 9), ("poor", poor, 0), ("new-game", talk_ship(), 0)):
+        starts.append({"name": f"strip-me-{name}", "state": {**met, "MELNORME_ANGER": 2, "MELNORME_YACK_STACK4": 2},
+                       "ship": ship, "bio": bio, "prefix": [0], "follow": []})
+    # The rescue: each count's line, refused before.
+    rescue = {**met, "MELNORME_YACK_STACK2": 6}
+    for count in range(8):
+        starts.append({"name": f"rescue-count-{count}", "state": {**rescue, "MELNORME_RESCUE_COUNT": count},
+                       "ship": empty, **({"follow": []} if count else {})})
+    starts.append({"name": "rescue-refused", "state": {**rescue, "MELNORME_RESCUE_REFUSED": 1}, "ship": empty})
+    # The strip offered: from ships and places (the seed's), a full tank (RESCUE_TANKS), charity (a ship
+    # worth nothing), the searches wrapping (the copy stripped bare short of the fuel's worth).
+    places = [("near-sol", (1800, 1500)), ("far", (9000, 9000)), ("corner", (0, 0)), ("mid", (5000, 4000))]
+    for pname, (ux, uy) in places:
+        for sname, ship in (("new-game", talk_ship(fuel=0)), ("rich", {**rich, "fuel": 0}), ("poor", {**poor, "fuel": 0})):
+            starts.append({"name": f"strip-{sname}-{pname}", "state": rescue, "ship": ship,
+                           "log": list(universe_to_log(ux, uy)), "prefix": [0]})
+    bare = talk_ship(fuel=0, landers=0, drives=[], jets=[], modules=["EMPTY", "EMPTY", "CREW_POD"] + ["EMPTY"] * 13)
+    starts.append({"name": "strip-charity", "state": rescue, "ship": bare, "log": list(universe_to_log(9000, 9000)),
+                   "prefix": [0]})
+    starts.append({"name": "strip-refused-before", "state": {**rescue, "MELNORME_RESCUE_REFUSED": 1},
+                   "ship": talk_ship(fuel=0), "log": list(universe_to_log(6000, 2000)), "prefix": [0]})
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
-                "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts}
+                "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts,
+                "melnorm": melnorm_starts}
+# Files and notes a script's recording has besides every script's.
+COMM_EXTRA_FILES = {"melnorm": ["src/libs/math/random2.c", "src/libs/math/sqrt.c"]}
+COMM_EXTRA_NOTES = {"melnorm": [
+    "The Melnorme's starts also give the modules' prices where not a new "
+    "game's (costs: ModuleCost by module, the catalog's modules bought by "
+    "a price set), and their steps have two more events: the flagship's "
+    "slots as the strip changes them (slots: the 11 drive, 8 jet and 16 "
+    "module slots, sis.h's numbers) and the prices as the catalog changes "
+    "them (costs: PLANET_LANDER to ANTIMISSILE_DEFENSE). Selling bio data "
+    "runs as if a button were pressed at once, as selling minerals does: "
+    "it's sold in one go. MELNORME_CREDIT0 and 1 are the credits."]}
 # A script's file where it isn't named after its folder.
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c"}
 # The date where a start doesn't give one: a new game's.
@@ -4978,7 +5164,8 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
         str(start.get("bio", 0)),
         " ".join(music),
         f"{ACTIVITIES[start.get('activity', 'SUPER_MELEE')]} {battle_group_ref(start)}",
-        " ".join(map(str, start.get("log", SOL_LOG)))])
+        " ".join(map(str, start.get("log", SOL_LOG))),
+        " ".join(str(start.get("costs", NEW_GAME_COSTS).get(m, 0)) for m in PURCHASE_MODULES)])
     by_bit = {f["start_bit"]: name for name, f in fields.items()}
 
     def run(replies):
@@ -5056,7 +5243,11 @@ def record_talks(uqm, strings_exe, package):
         # The music that loads: in the index, with its file in the package.
         music = sorted(k for k, (kind, path) in index.items()
                        if kind == "MUSICRES" and path in names)
+        # GOLDEN_TALKS (comma-separated scripts) records only those, while working on one.
+        wanted = os.environ.get("GOLDEN_TALKS")
         for script, starts in COMM_SCRIPTS.items():
+            if wanted and script not in wanted.split(","):
+                continue
             desc = scripts[script]["description"]
             files = []
             for key in (desc["phrases"], desc["color_map"]):
@@ -5072,7 +5263,8 @@ def record_talks(uqm, strings_exe, package):
                          if kind in "tT"}
             data = header(uqm, ["tools/extract/golden/comm.c", "src/uqm/commglue.c", "src/uqm/sis.c",
                                 "src/libs/math/random.c", "src/libs/strings/getstr.c",
-                                f"src/uqm/comm/{script}/{COMM_FILES.get(script, script + '.c')}"], TALK_NOTES)
+                                f"src/uqm/comm/{script}/{COMM_FILES.get(script, script + '.c')}"]
+                          + COMM_EXTRA_FILES.get(script, []), TALK_NOTES + COMM_EXTRA_NOTES.get(script, []))
             data["script"] = script
             data["starts"] = [{**start, "steps": walk_talk(exe, files, music, start, fields, state_bytes,
                                                            functions, element_worth, strengths)}

@@ -28,11 +28,16 @@ namespace Crateris.Core.Comm;
 /// lines play; everyone else's shows nothing of it. A talk sells its
 /// answerer's hold, so once the replies pass to another player the sale
 /// is nobody's to count.
+/// <see cref="Credits"/> is the replier's Melnorme credits while the talk
+/// shows them in the status area (the Melnorme's, SMM_CREDITS; null
+/// otherwise), and <see cref="BioSale"/> the bio data their reply sold to
+/// the Melnorme, for their cargo display to count down (stage 3b-2 item 4).
 /// Sent to them by the host when it changes, as a reliable message;
 /// <see cref="Protocol.NoView"/> means no talk.
 /// </summary>
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
-    int Round = 0, string Replier = "", string Said = "", IReadOnlyList<TalkPage>? Paging = null, MineralSale? Sale = null)
+    int Round = 0, string Replier = "", string Said = "", IReadOnlyList<TalkPage>? Paging = null, MineralSale? Sale = null,
+    uint? Credits = null, BioSale? BioSale = null)
 {
     /// <summary>The most paging a view carries (<see cref="Paging"/>): past it, the replier's paging isn't followed.</summary>
     public const int MostPaging = 256;
@@ -161,8 +166,14 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var lines = new List<string>();
         for (int i = from; i < events.Count; ++i)
             AddLine(lines, events[i]);
+        // The bio data the player's last reply sold (the Melnorme's), counted down on their screen.
+        BioSale? bioSale = null;
+        foreach (var (at, sold) in talk.BioSales)
+            if (at >= from)
+                bioSale = sold;
         return new TalkView(VisitStep.Meeting, talk.Script.Phrases.Name, lines,
-            talk.Ended ? new List<string>() : talk.Replies.Select(r => r.Text).ToList(), round, meeting.Player.Id, said);
+            talk.Ended ? new List<string>() : talk.Replies.Select(r => r.Text).ToList(), round, meeting.Player.Id, said,
+            Credits: talk.ShowsCredits ? meeting.Player.Ship.Hold.Credits : null, BioSale: bioSale);
     }
 
     public byte[] Encode()
@@ -184,6 +195,11 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             w.Byte((byte)p);
         w.Byte(Sale is null ? (byte)0 : (byte)1);
         Sale?.Encode(w);
+        w.Byte(Credits is null ? (byte)0 : (byte)1);
+        if (Credits is uint credits)
+            w.UInt(credits);
+        w.Byte(BioSale is null ? (byte)0 : (byte)1);
+        BioSale?.Encode(w);
         return w.Written.ToArray();
     }
 
@@ -219,10 +235,22 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             1 => MineralSale.Decode(ref r),
             var b => throw new InvalidDataException($"Bad talk sale {b}."),
         };
+        uint? credits = r.Byte() switch
+        {
+            0 => null,
+            1 => r.UInt() is var c && c <= uint.MaxValue ? (uint)c : throw new InvalidDataException("Bad talk credits."),
+            var b => throw new InvalidDataException($"Bad talk credits {b}."),
+        };
+        var bioSale = r.Byte() switch
+        {
+            0 => null,
+            1 => BioSale.Decode(ref r),
+            var b => throw new InvalidDataException($"Bad talk bio sale {b}."),
+        };
         if (!r.AtEnd)
             throw new InvalidDataException("A talk has bytes after its end.");
         return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier, said,
-            paging.Count == 0 ? null : paging, sale);
+            paging.Count == 0 ? null : paging, sale, credits, bioSale);
     }
 
     private static ulong Count(ulong n, int most) =>
@@ -231,5 +259,5 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
     public bool Same(TalkView? other) =>
         other is not null && Step == other.Step && Script == other.Script && Round == other.Round && Replier == other.Replier && Said == other.Said
         && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies) && PagingSoFar.SequenceEqual(other.PagingSoFar)
-        && Equals(Sale, other.Sale);
+        && Equals(Sale, other.Sale) && Credits == other.Credits && Equals(BioSale, other.BioSale);
 }

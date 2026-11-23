@@ -66,7 +66,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build item 4 (the Melnorme; the owner's go-ahead 2026-11-23), then review it round by round and report; then wait for the go-ahead for item 5. Item 4's notes from item 3's review are in its plan text (the answerer's credits read and written live, the rescue fields as version 14's optional parts).
+Item 4 (the Melnorme; the owner's go-ahead 2026-11-23) is being built: part A is committed (the script ported and recorded, wired to the world; see its Progress row); part B (the world's tests of trading, the rescue and the rescue-only talk, the save fields, the broadcaster; `differences.md` rows; the try-out; the full Progress row) is next. Then review it round by round and report; then wait for the go-ahead for item 5.
 
 ## Decisions waiting on the owner
 

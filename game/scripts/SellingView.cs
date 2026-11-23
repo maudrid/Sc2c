@@ -86,7 +86,17 @@ public partial class SellingView : Node2D
     /// hold is counted down, once for those lines. <paramref name="held"/>
     /// are the keys down as it starts (held, as UQM's input would see them).
     /// </summary>
-    public void Count(MineralSale sale, string linesKey, IEnumerable<Key> held)
+    public void Count(MineralSale sale, string linesKey, IEnumerable<Key> held) =>
+        Count(linesKey, held, canvas => new MineralSelling(canvas, sale, i => _strings![i], Now));
+
+    /// <summary>
+    /// The player's reply sold their bio data to the Melnorme (stage 3b-2
+    /// item 4): counted down on the cargo display, once for those lines.
+    /// </summary>
+    public void Count(BioSale sale, string linesKey, IEnumerable<Key> held) =>
+        Count(linesKey, held, canvas => new MineralSelling(canvas, sale, i => _strings![i], Now));
+
+    private void Count(string linesKey, IEnumerable<Key> held, Func<UqmCanvas, MineralSelling> make)
     {
         if (!CanCount(linesKey))
             return;
@@ -98,7 +108,7 @@ public partial class SellingView : Node2D
                 var f = Frame(i);
                 return new URect(-f.HotSpotX, -f.HotSpotY, f.Width, f.Height);
             }, new Dictionary<string, int> { ["starcon"] = _fonts["starcon"].Leading, ["tiny"] = _fonts["tiny"].Leading });
-            _selling = new MineralSelling(canvas, sale, i => _strings![i], Now);
+            _selling = make(canvas);
             foreach (var key in held)
                 _selling.Held((int)key);
             _raster = new ScreenRaster((_, i) => Frame(i), f => _fonts[f]);
@@ -181,13 +191,52 @@ public partial class SellingView : Node2D
         }
     }
 
+    private uint? _credits;
+    private ImageTexture? _creditsTexture;
+
+    /// <summary>Whether it shows anything: the count-down, or the credits' status message.</summary>
+    public bool Showing => Active || _creditsTexture is not null;
+
+    /// <summary>
+    /// The talk shows the replier's Melnorme credits in the status area
+    /// (the Melnorme's, SMM_CREDITS; stage 3b-2 item 4), or not (null): its
+    /// status message, drawn while no count-down covers it.
+    /// </summary>
+    public void ShowCredits(uint? credits)
+    {
+        if (credits == _credits)
+            return;
+        _credits = credits;
+        _creditsTexture = null;
+        if (credits is uint c && _content is not null)
+        {
+            try
+            {
+                var canvas = new UqmCanvas(_ => 0, (_, _) => new URect(0, 0, 0, 0),
+                    new Dictionary<string, int> { ["starcon"] = _fonts["starcon"].Leading, ["tiny"] = _fonts["tiny"].Leading });
+                MineralSelling.CreditsMessage(canvas, c, i => _strings![i]);
+                var raster = new ScreenRaster((_, i) => Frame(i), f => _fonts[f]);
+                foreach (var call in canvas.Drawn)
+                    raster.Paint(call);
+                _creditsTexture = ImageTexture.CreateFromImage(
+                    Image.CreateFromData(ScreenRaster.Width, ScreenRaster.Height, false, Image.Format.Rgba8, raster.Rgba));
+            }
+            catch (Exception e)
+            {
+                GD.PrintErr($"The credits couldn't be drawn: {e.Message}");
+            }
+        }
+        QueueRedraw();
+    }
+
     public override void _Draw()
     {
-        // The status area's part for it, until it's put away.
-        if (!Active || _texture is null)
+        // The status area's part for it, until it's put away; else the credits' message.
+        var texture = Active ? _texture : _creditsTexture;
+        if (texture is null)
             return;
         var area = MineralSelling.Area;
         var source = new Rect2(area.X, area.Y, area.W, area.H);
-        DrawTextureRectRegion(_texture, new Rect2(Vector2.Zero, source.Size * SisScreen.Scale), source);
+        DrawTextureRectRegion(texture, new Rect2(Vector2.Zero, source.Size * SisScreen.Scale), source);
     }
 }

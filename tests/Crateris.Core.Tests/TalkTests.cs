@@ -52,6 +52,13 @@ public class TalkTests
         public int EscortsWorth { get; set; }
         public int EscortRoom { get; set; }
         public (int X, int Y) LogPlace { get; init; } = (Uqm.Units.UniverseToLogX(1752), Uqm.Units.UniverseToLogY(1450));
+        public uint Credits { get; set; }
+        public LanderUpgrades Upgrades { get; set; }
+        public int RescueRefused { get; set; }
+        public int RescueCount { get; set; }
+        public IList<byte> OwnDriveSlots { get; init; } = Enumerable.Repeat(ShipModules.EmptyDrive, 11).ToArray();
+        public IList<byte> OwnJetSlots { get; init; } = Enumerable.Repeat(ShipModules.EmptyJet, 8).ToArray();
+        public IList<byte> OwnModuleSlots { get; init; } = Enumerable.Repeat(ShipModules.EmptyModule, 16).ToArray();
 
         // UQM's recorder stubs AddEscortShips (comm.c): no captains' names drawn; each joins the queue's tail.
         public int AddEscorts(int race, int count, Func<uint> random)
@@ -96,6 +103,10 @@ public class TalkTests
         {
             var modules = s.GetProperty("modules").EnumerateArray().Select(m => m.GetString()).ToList();
             var escorts = start.TryGetProperty("escorts", out var e) ? e.Ints() : new[] { 0, 0 };
+            var state = start.GetProperty("state");
+            int Field(string name) => state.TryGetProperty(name, out var v) ? v.GetInt32() : 0;
+            var drives = s.GetProperty("drives").Ints();
+            var jets = s.GetProperty("jets").Ints();
             return new TestShip
             {
                 Thrusters = s.GetProperty("drives").GetArrayLength(),
@@ -117,6 +128,19 @@ public class TalkTests
                     ? fleet.EnumerateArray().Select(r => Rules.RaceIndex(r.GetString()!)).ToList() : new(),
                 LogPlace = start.TryGetProperty("log", out var log) ? (log[0].GetInt32(), log[1].GetInt32())
                     : (Uqm.Units.UniverseToLogX(1752), Uqm.Units.UniverseToLogY(1450)),
+                // The Melnorme's: the credits, the lander's upgrades and the rescue's fields from the start's
+                // (each player's own) fields, and the ship's own slots.
+                Credits = (uint)(Field("MELNORME_CREDIT0") | Field("MELNORME_CREDIT1") << 8),
+                Upgrades = (LanderUpgrades)Field("LANDER_SHIELDS")
+                           | (Field("IMPROVED_LANDER_SPEED") != 0 ? LanderUpgrades.Speed : 0)
+                           | (Field("IMPROVED_LANDER_CARGO") != 0 ? LanderUpgrades.Cargo : 0)
+                           | (Field("IMPROVED_LANDER_SHOT") != 0 ? LanderUpgrades.Shot : 0),
+                RescueRefused = Field("MELNORME_RESCUE_REFUSED"),
+                RescueCount = Field("MELNORME_RESCUE_COUNT"),
+                OwnDriveSlots = Enumerable.Range(0, 11).Select(i => drives.Contains(i) ? ShipModules.FusionThruster : ShipModules.EmptyDrive).ToArray(),
+                OwnJetSlots = Enumerable.Range(0, 8).Select(i => jets.Contains(i) ? ShipModules.TurningJets : ShipModules.EmptyJet).ToArray(),
+                OwnModuleSlots = modules.Select(m => m == "EMPTY" ? ShipModules.EmptyModule
+                    : (byte)ShipModules.Names.ToList().IndexOf(m!)).ToArray(),
             };
         }
     }
@@ -133,6 +157,7 @@ public class TalkTests
         ["slyland"] = ("talks-slyland", p => new SlylandroScript(p)),
         ["spahome"] = ("talks-spahome", p => new SpathiHomeScript(p)),
         ["slyhome"] = ("talks-slyhome", p => new SlylandroHomeScript(p)),
+        ["melnorm"] = ("talks-melnorm", p => new MelnormeScript(p)),
     };
 
     // A script's recorded starts.
@@ -166,6 +191,9 @@ public class TalkTests
                     "dead" => Allied.Dead,
                     var x => throw new InvalidDataException($"alliance {x}"),
                 });
+        if (start.TryGetProperty("costs", out var costs))
+            foreach (var m in ShipModules.Names.Take(Talk.PurchaseModules))
+                story.SetModuleCost(m, costs.TryGetProperty(m, out var c) ? c.GetInt32() : 0);
         if (start.TryGetProperty("fleets", out var fleets))
             foreach (var f in fleets.EnumerateObject())
                 story.SetFleet(f.Name, story.Fleet(f.Name) with { ActualStrength = f.Value[0].GetInt32(), KnownStrength = f.Value[1].GetInt32() });
@@ -221,6 +249,8 @@ public class TalkTests
         {
             ["event"] = new JsonArray(a.Relative ? 1 : 0, a.Months, a.Days, a.Years, Rules.EventIds[a.Event]),
         },
+        SlotsChanged s => new() { ["slots"] = new JsonArray(s.Drives.Concat(s.Jets).Concat(s.Modules).Select(b => (JsonNode)(int)b).ToArray()) },
+        CostsChanged c => new() { ["costs"] = new JsonArray(c.Costs.Select(v => (JsonNode)v).ToArray()) },
         ReplyChosen r => new() { ["reply"] = r.Index },
         RepliesOffered o => new()
         {

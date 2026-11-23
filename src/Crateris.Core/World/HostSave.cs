@@ -120,8 +120,11 @@ public static class HostSave
     /// item 3: each player's own, docs/differences.md row 19); an older
     /// save loads with none, and one with credits is refused. The stage
     /// 3b-2 plan puts its other new player state in this version too (item
-    /// 4's two rescue fields and the broadcaster's use, each player's own),
-    /// as parts a version 14 save without them loads as none.
+    /// 4's two rescue fields and the broadcaster's use, each player's own:
+    /// PlayerState.Melnorme), as parts a version 14 save without them loads
+    /// as none (and an older save with them is refused); a version 14 save
+    /// with them loaded by item 3's code drops them silently (accepted: the
+    /// plan's single bump).
     /// </summary>
     public const int Version = 14;
     public const int OldestReadableVersion = 1;
@@ -194,7 +197,18 @@ public static class HostSave
     public sealed record PlayerState(
         string Id, string Name, bool IsHost, ShipKind Kind, ShipLoadout Loadout, bool UndockPending,
         FlightState Flight, int? SystemStar = null, IpFlightState? System = null, HoldState? Hold = null,
-        string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null, bool Wrecked = false);
+        string? ShipName = null, string? CaptainName = null, ModulesState? Modules = null, bool Wrecked = false,
+        MelnormeState? Melnorme = null);
+
+    /// <summary>
+    /// A player's own Melnorme state (stage 3b-2 item 4, save version 14's
+    /// optional part): whether they refused the rescue last time
+    /// (MELNORME_RESCUE_REFUSED, 0 or 1), how many times they were rescued
+    /// (MELNORME_RESCUE_COUNT, 0 to 7) and whether they used the broadcaster
+    /// since their last roll (USED_BROADCASTER). Saved only when not all
+    /// none; a save without it has none.
+    /// </summary>
+    public sealed record MelnormeState(int RescueRefused = 0, int RescueCount = 0, bool UsedBroadcaster = false);
 
     /// <summary>
     /// The world as a save. Refused (<see cref="InvalidOperationException"/>)
@@ -284,7 +298,9 @@ public static class HostSave
                     inHyperspace ? wb!.PlaceStarJustLeft : f.StarJustLeft),
                 p.Ship.SystemStar, inSystem ? wb!.PlaceIp : p.Ship.Ip?.Save(),
                 wreck ? hold with { Crew = 0 } : hold,
-                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save(), wreck);
+                p.Ship.Name, p.CaptainName, p.Ship.Modules.Save(), wreck,
+                p.Ship is { MelnormeRescueRefused: 0, MelnormeRescueCount: 0, UsedBroadcaster: false } ? null
+                    : new MelnormeState(p.Ship.MelnormeRescueRefused, p.Ship.MelnormeRescueCount, p.Ship.UsedBroadcaster));
         }).ToList();
         var c = world.Clock;
         var worlds = world.Planets.Worlds
@@ -390,6 +406,8 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have system groups.");
         if (save.Version < 14 && (save.Players ?? new()).Any(p => p.Hold?.Credits > 0))
             throw new InvalidDataException($"A version {save.Version} save can't have Melnorme credits.");
+        if (save.Version < 14 && (save.Players ?? new()).Any(p => p.Melnorme is not null))
+            throw new InvalidDataException($"A version {save.Version} save can't have the Melnorme's rescue or the broadcaster's use.");
         if ((save.Fleet ?? new()).Any(s => s is null || s.Race is null))
             throw new InvalidDataException("The save has a fleet ship that is null or of no race.");
         // A setting a save leaves out is the default, and so is the ship's
@@ -517,6 +535,15 @@ public static class HostSave
             if (ps.ShipName is { } shipName && ShipNames.Fit(shipName) != shipName
                     || ps.CaptainName is { } captain && ShipNames.Fit(captain) != captain)
                 throw new InvalidDataException($"Player {ps.Id}: a name isn't one UQM could hold (at most {ShipNames.MaxBytes} bytes, printable).");
+            // The player's own Melnorme state (version 14's optional part; none without it).
+            if (ps.Melnorme is { } mel)
+            {
+                if (mel.RescueRefused is < 0 or > 1 || mel.RescueCount is < 0 or > 7)
+                    throw new InvalidDataException($"Player {ps.Id}: a bad Melnorme rescue state ({mel.RescueRefused}, {mel.RescueCount}).");
+                ship.MelnormeRescueRefused = mel.RescueRefused;
+                ship.MelnormeRescueCount = mel.RescueCount;
+                ship.UsedBroadcaster = mel.UsedBroadcaster;
+            }
             // An escort from before names were kept gets the settings' name.
             ship.Name = ps.ShipName ?? (ps.Kind == ShipKind.Escort ? ShipNames.Fit(settings.EscortShipName) : null);
             if (ps.Wrecked)

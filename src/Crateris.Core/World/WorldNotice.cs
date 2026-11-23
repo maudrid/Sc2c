@@ -78,6 +78,23 @@ public enum NoticeEvent : byte
 
     /// <summary>Another player's talk took ships from the host's fleet (RemoveEscortShips: the Orz's, as their alliance breaks): <see cref="WorldNotice.Count"/> of them, of the race named.</summary>
     ShipsTaken,
+
+    /// <summary>
+    /// Another player angered the race (MELNORME_ANGER up: the Melnorme's,
+    /// shared, the stage 3b-2 plan's question 6), to the level
+    /// <see cref="WorldNotice.Count"/> (1 to 3; at 3 they come to no ship out of fuel).
+    /// </summary>
+    Angered,
+
+    /// <summary>Another player calmed the race (MELNORME_ANGER back to 0: an apology, or a ship stripped).</summary>
+    Calmed,
+
+    /// <summary>
+    /// Another player bought a module from the race (the Melnorme's
+    /// catalog): it's for sale at the starbase for everyone (question 5);
+    /// <see cref="WorldNotice.Race"/> names the module.
+    /// </summary>
+    ModuleForSale,
 }
 
 /// <summary>
@@ -117,6 +134,10 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.AllianceBroken => $"The alliance with the {Race} is over ({By}'s talk): their ships are no longer for sale.",
         NoticeEvent.ShipsGiven => $"{Count} {Race} ship{(Count == 1 ? "" : "s")} joined the fleet ({By}'s talk).",
         NoticeEvent.ShipsTaken => $"{Count} {Race} ship{(Count == 1 ? "" : "s")} left the fleet ({By}'s talk).",
+        NoticeEvent.Angered => Count >= 3 ? $"{By} angered the {Race}: they're hostile, and won't come to a ship out of fuel."
+            : $"{By} angered the {Race}.",
+        NoticeEvent.Calmed => $"{By} calmed the {Race}.",
+        NoticeEvent.ModuleForSale => $"{By} bought the {Race} from the Melnorme: it's for sale at the starbase.",
         _ => "",
     };
 }

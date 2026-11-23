@@ -107,4 +107,39 @@ public interface ITalkShip
     /// (SetEscortCrewComplement).
     /// </summary>
     void SetEscortCrewComplement(int race, int crew, int captain);
+
+    // ---- what the Melnorme read and change (stage 3b-2 item 4): the answering ship's own
+
+    /// <summary>
+    /// The answerer's Melnorme credits (MELNORME_CREDIT0/1, each player's
+    /// own: ShipHold.Credits), read and written live, so a gift that reaches
+    /// them mid-talk counts (the stage 3b-2 plan's item 4).
+    /// </summary>
+    uint Credits { get => 0; set { } }
+
+    /// <summary>The answering ship's lander upgrades and shields (IMPROVED_LANDER_*, LANDER_SHIELDS: each ship's own).</summary>
+    World.LanderUpgrades Upgrades { get => World.LanderUpgrades.None; set { } }
+
+    /// <summary>MELNORME_RESCUE_REFUSED: whether the answerer refused the Melnorme's rescue last time (each player's own).</summary>
+    int RescueRefused { get => 0; set { } }
+
+    /// <summary>MELNORME_RESCUE_COUNT: how many times the Melnorme have rescued the answerer, as their line counts it (each player's own).</summary>
+    int RescueCount { get => 0; set { } }
+
+    /// <summary>
+    /// The answering ship's own drive slots (sis.h's numbers: FUSION_THRUSTER
+    /// or EMPTY_SLOT + 0), which the Melnorme value and strip, where the
+    /// commander grades the flagship's (<see cref="Thrusters"/>): a guest's
+    /// escort its own (stage 4 item 8's note). Writable.
+    /// </summary>
+    IList<byte> OwnDriveSlots => Array.Empty<byte>();
+
+    /// <summary>The answering ship's own jet slots (TURNING_JETS or EMPTY_SLOT + 1), writable.</summary>
+    IList<byte> OwnJetSlots => Array.Empty<byte>();
+
+    /// <summary>The answering ship's own module slots (CREW_POD and after, or EMPTY_SLOT + 2), writable.</summary>
+    IList<byte> OwnModuleSlots => Array.Empty<byte>();
+
+    /// <summary>The crew the answering ship holds beside its crew pods (an escort's kit's; a flagship's none).</summary>
+    int KitCrew => 0;
 }

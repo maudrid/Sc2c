@@ -238,7 +238,7 @@ public class SlylandroMeetingTests
         Assert.NotEqual(0u, world.Host.Ship.Flight.Fuel);
         world.AddEncounterNear("h", melnorme, 1);
         Assert.Equal(0, world.Encounters.List[^1].Flags);
-        world.Story.Set("USED_BROADCASTER", 1);
+        world.Host.Ship.UsedBroadcaster = true;   // the host's own (stage 3b-2 item 4)
         world.AddEncounterNear("h", melnorme, 1);
         Assert.Equal(HyperEncounter.OneShot, world.Encounters.List[^1].Flags);
         world.Story.Set("MELNORME_ANGER", 3);

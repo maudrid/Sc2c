@@ -174,6 +174,15 @@ public sealed class Meeting
     /// <summary>Whether the player hailed (from the screen, or at once: the talk's init wasn't hostile).</summary>
     public bool Hailed { get; internal set; }
 
+    /// <summary>
+    /// The Melnorme's rescue-only talk (the owner's question 7, stage 3b-2
+    /// item 4): met while another player held the Melnorme's lock, by a
+    /// stranded player with nothing to trade, the players having met them,
+    /// got down to business and not angered them; it takes no lock, and its
+    /// talk goes straight to the rescue (<see cref="Comm.Scripts.MelnormeScript.RescueOnly"/>).
+    /// </summary>
+    public bool RescueOnly { get; internal set; }
+
     /// <summary>The battle against the group, once the talk ended hostile or the player attacked.</summary>
     public WorldBattle? Battle { get; internal set; }
 

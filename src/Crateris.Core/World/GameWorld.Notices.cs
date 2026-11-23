@@ -89,11 +89,24 @@ public sealed partial class GameWorld
         var events = talk.Events;
         for (; told.Value < events.Count; ++told.Value)
         {
+            if (events[told.Value] is Comm.CostsChanged costs)
+            {
+                // A module bought from the Melnorme: on sale for everyone (the stage 3b-2 plan's question 5).
+                for (int m = 0; m < costs.Costs.Length; ++m)
+                    if (costs.Costs[m] != 0 && (m >= costs.Was.Length || costs.Was[m] == 0))
+                        foreach (var p in Others(talker.Id))
+                            Notice(p, NoticeEvent.ModuleForSale, talker.Id, ModuleName(m));
+                continue;
+            }
+            int melnorme = Story?.Rules.RaceIndex("MELNORME_SHIP") ?? -1;
             (NoticeEvent Event, int Race, int Count)? notice = events[told.Value] switch
             {
                 Comm.RaceAllied { Changed: true } a => (a.Flag ? NoticeEvent.AllianceMade : NoticeEvent.AllianceBroken, a.Race, 0),
                 Comm.EscortsAdded { Added: > 0 } a => (NoticeEvent.ShipsGiven, a.Race, a.Added),
                 Comm.EscortsRemoved { Removed: > 0 } r => (NoticeEvent.ShipsTaken, r.Race, r.Removed),
+                // The Melnorme's anger, shared (question 6): everyone is told.
+                Comm.StateSet { Field: "MELNORME_ANGER", Value: > 0 } a => (NoticeEvent.Angered, melnorme, a.Value),
+                Comm.StateSet { Field: "MELNORME_ANGER", Value: 0 } => (NoticeEvent.Calmed, melnorme, 0),
                 _ => null,
             };
             if (notice is not { } n)
@@ -102,6 +115,18 @@ public sealed partial class GameWorld
                 Notice(p, n.Event, talker.Id, RaceNameOf(n.Race), n.Count);
         }
     }
+
+    // A module's name in a notice (sis.h's number).
+    private static string ModuleName(int module) => module switch
+    {
+        ShipModules.BlasterWeapon => "blaster",
+        ShipModules.AntimissileDefense => "point defense",
+        ShipModules.HighEfficiencyFuelSystem => "high-efficiency fuel system",
+        ShipModules.TrackingSystem => "tracking system",
+        ShipModules.CannonWeapon => "cannon",
+        ShipModules.ShivaFurnace => "Shiva furnace",
+        _ => ShipModules.Names[module].ToLowerInvariant().Replace('_', ' '),
+    };
 
     // Whether a meeting's event touches a player (near where they met the group).
     private bool NearMeeting(Meeting m, Player p)

@@ -152,7 +152,8 @@ public class DevicesTests
         // --start-state NAME=VALUE (testing, the stage 3b-2 plan's item 1): shared fields, each to what its bits hold.
         Assert.Equal("Starting with 3 story fields set (THRADDASH_BODY_COUNT=31, USED_BROADCASTER=1, MYCON_FELL_FOR_AMBUSH=1)",
             host.StartWithState(new[] { "THRADDASH_BODY_COUNT=31", "USED_BROADCASTER=0", "USED_BROADCASTER=1", " MYCON_FELL_FOR_AMBUSH = 1 " }));
-        Assert.Equal((31, 1, 1), (story.Get("THRADDASH_BODY_COUNT"), story.Get("USED_BROADCASTER"), story.Get("MYCON_FELL_FOR_AMBUSH")));
+        // USED_BROADCASTER is each player's own since stage 3b-2 item 4: the host's is set.
+        Assert.Equal((31, true, 1), (story.Get("THRADDASH_BODY_COUNT"), host.World.Host.Ship.UsedBroadcaster, story.Get("MYCON_FELL_FOR_AMBUSH")));
         var bits = story.Bits.ToArray();
         void Refused(string assignment, string says)
         {
@@ -167,6 +168,7 @@ public class DevicesTests
         Refused("USED_BROADCASTER", "NAME=VALUE");
         Refused("GLOBAL_FLAGS_AND_DATA=128", "isn't shared story state");
         Refused("MELNORME_CREDIT0=5", "Melnorme credits");
+        Refused("MELNORME_RESCUE_COUNT=1", "isn't shared story state");
         Refused("ESCAPE_COUNTER=1", "isn't shared story state");
         Assert.Equal(bits, story.Bits.ToArray());   // a refusal changes nothing, the good field before it either
     }

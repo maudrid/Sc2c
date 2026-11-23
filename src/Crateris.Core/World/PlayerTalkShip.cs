@@ -125,6 +125,95 @@ internal sealed class PlayerTalkShip : ITalkShip
             _world.Fleet.SetCrewComplement(story.Rules, story.Rules.Races[race], crew, (byte)captain);
     }
 
+    // ---- the Melnorme's (stage 3b-2 item 4): the answering ship's own
+
+    // The answerer's credits, read and written live (a gift mid-talk counts).
+    public uint Credits
+    {
+        get => Hold.Credits;
+        set => Hold.Credits = value;
+    }
+
+    public LanderUpgrades Upgrades
+    {
+        get => Hold.Upgrades;
+        set => Hold.Upgrades = value;
+    }
+
+    public int RescueRefused
+    {
+        get => _player.Ship.MelnormeRescueRefused;
+        set => _player.Ship.MelnormeRescueRefused = value;
+    }
+
+    public int RescueCount
+    {
+        get => _player.Ship.MelnormeRescueCount;
+        set => _player.Ship.MelnormeRescueCount = value;
+    }
+
+    // The answering ship's own slots (a guest's escort's: stage 4 item 8's note), the ship refitted as they change.
+    public IList<byte> OwnDriveSlots => new Slots(_player.Ship, ShipModules.DriveSlotCount, m => m.DriveSlots, (m, i, v) => m.SetDrive(i, v));
+
+    public IList<byte> OwnJetSlots => new Slots(_player.Ship, ShipModules.JetSlotCount, m => m.JetSlots, (m, i, v) => m.SetJet(i, v));
+
+    public IList<byte> OwnModuleSlots =>
+        new Slots(_player.Ship, ShipModules.ModuleSlotCount, m => m.ModuleSlots, (m, i, v) => m.SetModule(i, v));
+
+    public int KitCrew => _player.Ship.Modules.KitCrew;
+
+    // A ship's slots of a kind as a list a talk reads and changes: each change refits the ship.
+    private sealed class Slots : IList<byte>
+    {
+        private readonly PlayerShip _ship;
+        private readonly Func<ShipModules, IReadOnlyList<byte>> _get;
+        private readonly Action<ShipModules, int, byte> _set;
+
+        public Slots(PlayerShip ship, int count, Func<ShipModules, IReadOnlyList<byte>> get, Action<ShipModules, int, byte> set)
+        {
+            _ship = ship;
+            Count = count;
+            _get = get;
+            _set = set;
+        }
+
+        public byte this[int index]
+        {
+            get => _get(_ship.Modules)[index];
+            set
+            {
+                if (_get(_ship.Modules)[index] == value)
+                    return;
+                _set(_ship.Modules, index, value);
+                _ship.Refit();
+            }
+        }
+
+        public int Count { get; }
+
+        public bool IsReadOnly => false;
+
+        public IEnumerator<byte> GetEnumerator() => _get(_ship.Modules).GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public int IndexOf(byte item) => _get(_ship.Modules).ToList().IndexOf(item);
+
+        public bool Contains(byte item) => _get(_ship.Modules).Contains(item);
+
+        public void CopyTo(byte[] array, int arrayIndex) => _get(_ship.Modules).ToArray().CopyTo(array, arrayIndex);
+
+        public void Add(byte item) => throw new NotSupportedException();
+
+        public void Clear() => throw new NotSupportedException();
+
+        public void Insert(int index, byte item) => throw new NotSupportedException();
+
+        public bool Remove(byte item) => throw new NotSupportedException();
+
+        public void RemoveAt(int index) => throw new NotSupportedException();
+    }
+
     // The hold's minerals, which a talk may sell (set to 0) but not add to.
     private sealed class HoldMinerals : IList<int>
     {

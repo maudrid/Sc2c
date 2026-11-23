@@ -49,6 +49,10 @@ public static class TalkRules
         // Slylandro at home with the probes, RACE_SHIP_FOR_COMM).
         ["spahome"] = _ => false,
         ["slyhome"] = _ => false,
+        // Stage 3b-2 item 4: the Melnorme, met in hyperspace and at the super
+        // giants, ordinary, under their lock (but the rescue-only talk, which
+        // takes none: the owner's question 7).
+        ["melnorm"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

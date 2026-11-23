@@ -713,10 +713,28 @@ public sealed class Talk
         var buf = new List<byte>(Entry(Phrase(first)));
         for (int i = 0; i < rest.Length; i += 2)
         {
-            buf.AddRange(Name((string)rest[i]));
+            buf.AddRange(rest[i] is byte[] bytes ? bytes : Name((string)rest[i]));
             if (i + 1 >= rest.Length)
                 break;
             buf.AddRange(Entry(Phrase((string)rest[i + 1])));
+        }
+        return buf.ToArray();
+    }
+
+    /// <summary>
+    /// GetAllianceName (commglue.c): the alliance's name as the replies say
+    /// it, the phrase <paramref name="name1"/> + NEW_ALLIANCE_NAME, and for
+    /// the fourth (3) the captain's name and the phrase after it around it.
+    /// </summary>
+    public byte[] GetAllianceName(string name1)
+    {
+        int i = Get("NEW_ALLIANCE_NAME");
+        int n = Phrase(name1) + i;
+        var buf = new List<byte>(Entry(n));
+        if (i == 3)
+        {
+            buf.AddRange(Name(Ship.CaptainName));
+            buf.AddRange(Entry(n + 1));
         }
         return buf.ToArray();
     }
@@ -997,9 +1015,65 @@ public sealed class Talk
         if (_lastBio is int b && b != bio)
             _events.Add(new BioChanged(bio));
         _lastBio = bio;
+        // The answering ship's own slots (the Melnorme's strip) and the
+        // modules' prices (the Melnorme's technology), each when it changes.
+        var slots = new SlotsChanged(Ship.OwnDriveSlots.ToArray(), Ship.OwnJetSlots.ToArray(), Ship.OwnModuleSlots.ToArray());
+        if (_lastSlots is { } ls && !ls.Equals(slots))
+            _events.Add(slots);
+        _lastSlots = slots;
+        var costs = new CostsChanged(PurchaseModuleCosts()) { Was = _lastCosts?.Costs ?? Array.Empty<int>() };
+        if (_lastCosts is { } lc && !lc.Equals(costs))
+            _events.Add(costs);
+        _lastCosts = costs;
     }
 
     private int? _lastBio;
+    private SlotsChanged? _lastSlots;
+    private CostsChanged? _lastCosts;
+
+    /// <summary>NUM_PURCHASE_MODULES: the modules with a price, PLANET_LANDER to ANTIMISSILE_DEFENSE.</summary>
+    public const int PurchaseModules = 14;
+
+    // GLOBAL (ModuleCost[0 .. NUM_PURCHASE_MODULES - 1]), by sis.h's numbers.
+    private int[] PurchaseModuleCosts()
+    {
+        var costs = new int[PurchaseModules];
+        for (int i = 0; i < PurchaseModules; ++i)
+            costs[i] = ModuleCost(i);
+        return costs;
+    }
+
+    /// <summary>GLOBAL (ModuleCost[module]), by sis.h's number (0 for one the rules don't price).</summary>
+    public int ModuleCost(int module)
+    {
+        string name = World.ShipModules.Names[module];
+        return _story.Rules.Modules.Contains(name) ? _story.ModuleCost(name) : 0;
+    }
+
+    /// <summary>GLOBAL (ModuleCost[module]) = cost: the shared price (a module goes on sale for everyone).</summary>
+    public void SetModuleCost(int module, int cost) => _story.SetModuleCost(World.ShipModules.Names[module], cost);
+
+    // ------------------------------------------------------------ the status area
+
+    /// <summary>
+    /// Whether the status area's message shows the answerer's Melnorme
+    /// credits (SetStatusMessageMode (SMM_CREDITS)), as the Melnorme's talk
+    /// sets it for its time; drawn by the client, not recorded.
+    /// </summary>
+    public bool ShowsCredits { get; set; }
+
+    private readonly List<(int At, BioSale Sale)> _bioSales = new();
+
+    /// <summary>
+    /// The bio data the script sold (the Melnorme's DoSell), each with how
+    /// many events came before it: sold at once on the host, as the
+    /// recording sells it (a key pressed at once), the count-down on the
+    /// cargo display the seller's client's to draw.
+    /// </summary>
+    public IReadOnlyList<(int At, BioSale Sale)> BioSales => _bioSales;
+
+    /// <summary>The script sells the bio data aboard (<paramref name="sale"/>, as it was before): the seller's client counts it down.</summary>
+    public void SoldBioData(BioSale sale) => _bioSales.Add((_events.Count, sale));
 }
 
 /// <summary>A reply's text a script builds with construct_response into a buffer of its own.</summary>

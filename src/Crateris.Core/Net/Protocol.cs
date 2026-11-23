@@ -154,7 +154,11 @@ public static class Protocol
     /// a ship's hold carries its Melnorme credits (HoldSnapshot.Credits),
     /// and a gift carries credits and fuel (Gift.Credits, Gift.Fuel, after
     /// the bio data), fuel refused as TradeRefusal.TooFar or NoTankRoom.
-    public const int Version = 28;
+    /// 29: the Melnorme's talk (stage 3b-2 item 4): a talk's view carries
+    /// the credits the status area shows while it does (SMM_CREDITS) and
+    /// the bio data the replier's reply sold, for their cargo display to
+    /// count down.
+    public const int Version = 29;
     public const int DefaultPort = 24642;
 
     /// <summary>

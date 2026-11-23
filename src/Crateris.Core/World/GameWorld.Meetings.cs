@@ -136,6 +136,43 @@ public sealed partial class GameWorld
     /// </summary>
     internal bool MayMeet(Player player, int race) => TalkHolder(race) is not { } holder || holder == player.Id;
 
+    /// <summary>
+    /// Whether a player may meet a group of a race now, its lock held by
+    /// another or not: <see cref="MayMeet"/>, or the Melnorme's rescue-only
+    /// talk (<see cref="RescueOnly"/>).
+    /// </summary>
+    internal bool MayMeetOrRescue(Player player, int race) => MayMeet(player, race) || RescueOnly(player, race);
+
+    /// <summary>
+    /// The Melnorme's rescue-only talk (the owner's question 7): a group of
+    /// the Melnorme touching a player while another player holds their lock
+    /// is met all the same, without the lock, if the players have met them
+    /// (MET_MELNORME), got down to business (MELNORME_YACK_STACK2 past 5)
+    /// and not angered them (MELNORME_ANGER 0), and the player has nothing
+    /// to trade: no fuel, bio data or credits, and no rainbow world found
+    /// and unsold (NatureOfConversation's test). The anger is read once,
+    /// here, at the touch.
+    /// </summary>
+    internal bool RescueOnly(Player player, int race)
+    {
+        if (Story is not { } story || story.Rules.Races[race] != "MELNORME_SHIP"
+            || TalkHolder(race) is not { } holder || holder == player.Id)
+            return false;
+        var hold = player.Ship.Hold;
+        return story.Get("MET_MELNORME") != 0 && story.Get("MELNORME_YACK_STACK2") > 5 && story.Get("MELNORME_ANGER") == 0
+               && FuelAboard(player.Ship) == 0 && hold.BioData == 0 && hold.Credits == 0 && NewRainbowWorlds(story) == 0;
+    }
+
+    /// <summary>The rainbow worlds found and not yet sold to the Melnorme (melnorm.c's count, a byte).</summary>
+    internal static int NewRainbowWorlds(Story.StoryState story)
+    {
+        int mask = story.Get("RAINBOW_WORLD0") | story.Get("RAINBOW_WORLD1") << 8;
+        byte n = (byte)-story.Get("MELNORME_RAINBOW_COUNT");
+        for (; mask != 0; mask >>= 1)
+            n += (byte)(mask & 1);
+        return n;
+    }
+
     // Who holds a race's talk: its lock's holder, or while its talk is
     // story, the story visit's starter ("" with none); null for nobody.
     private string? TalkHolder(int race) => ConversationOf(race) is { } c ? TalkHolder(c) : null;
@@ -190,7 +227,7 @@ public sealed partial class GameWorld
     /// </summary>
     private void MeetInHyperspace(Player player, HyperEncounter met)
     {
-        if (!TakeMeetingLock(player, met.Race, out var conversation))
+        if (!TakeMeetingLock(player, met.Race, out var conversation, out bool rescueOnly))
             return;
         // encounter_collision: every group's element made non-solid (each
         // on a screen is solid again on the next frame, tested from where
@@ -214,6 +251,7 @@ public sealed partial class GameWorld
             Step = MeetingStep.Spin,
             SpinFrames = StarEntry.Turns(ship.Flight.Facing, frames) + 1,
             Conversation = conversation,
+            RescueOnly = rescueOnly,
         };
         ship.Meeting = m;
         _newMeetings.Add(m);
@@ -268,7 +306,7 @@ public sealed partial class GameWorld
     {
         var g = f.Met!;
         var player = Find(f.Id)!;
-        if (!TakeMeetingLock(player, g.Race, out var conversation))
+        if (!TakeMeetingLock(player, g.Race, out var conversation, out bool rescueOnly))
             return;
         SystemMeetings.Add((Frame, f.Id, d.Star, g.Race, g.GroupId));
         var ships = sg.StartMeeting(d, g, f.Id);
@@ -280,6 +318,7 @@ public sealed partial class GameWorld
             Star = d.Star,
             Group = g,
             Conversation = conversation,
+            RescueOnly = rescueOnly,
         };
         if (f.Flight.Orbit is null)
             f.Flight.EscapeCounter = IpFlight.EscapeFrames;
@@ -297,12 +336,19 @@ public sealed partial class GameWorld
     // of the race in one frame), so the take doesn't fail; if it did, no
     // meeting begins (no talk runs without the lock) and the player is told
     // who's talking, as a touch passing through is.
-    private bool TakeMeetingLock(Player player, int race, out string? conversation)
+    // The Melnorme's rescue-only talk (rescueOnly) takes none: the lock held by another, it begins without it.
+    private bool TakeMeetingLock(Player player, int race, out string? conversation, out bool rescueOnly)
     {
+        rescueOnly = false;
         conversation = ConversationOf(race);
         if (conversation is null || DialogueLocks!.TryTake(conversation, player.Id, out _))
             return true;
         conversation = null;
+        if (RescueOnly(player, race))
+        {
+            rescueOnly = true;
+            return true;
+        }
         TellWhoIsTalking(player, race);
         return false;
     }
@@ -333,6 +379,9 @@ public sealed partial class GameWorld
         m.BattlePlanet = m.Player.Ship.Ip is not null ? BattlePlanetAt(m.Player.Ship, seed) : RandomPlanetType(seed);
         m.NamedPlanet = m.Player.Ship.Ip is not null && m.World is null ? NamedPlanet(m.Player.Ship) : null;
         m.Talk = talk;
+        // The rescue-only talk starts at the rescue, without the greeting (question 7).
+        if (m.RescueOnly && talk?.Script is Comm.Scripts.MelnormeScript melnorme)
+            melnorme.RescueOnly = true;
         if (talk is not null)
         {
             // Where the talk is, as its script reads it: LOBYTE (GLOBAL
@@ -871,7 +920,7 @@ public sealed partial class GameWorld
                 Race = race, Roller = id, OriginX = f.UniverseX, OriginY = f.UniverseY, Radius = 2000,
                 LocX = x, LocY = f.UniverseY, LogX = Units.UniverseToLogX(x), LogY = Units.UniverseToLogY(f.UniverseY),
                 TransitionState = 9,
-                Flags = encounters.RolledFlags(Story, race, f.Fuel),   // a real roll's: the probes one-shot
+                Flags = encounters.RolledFlags(Story, race, f.Fuel, ship.UsedBroadcaster),   // a real roll's: the probes one-shot
             };
             for (int i = 0; i < ships; ++i)
                 e.Ships.Add(crew);

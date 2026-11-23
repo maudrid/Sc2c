@@ -159,6 +159,35 @@ public sealed record RaceAllied(int Race, bool Flag, int Result, bool Changed) :
 /// </summary>
 public sealed record SphereTracked(int Race, int Result) : TalkEvent;
 
+/// <summary>
+/// The answering ship's own slots changed (the Melnorme's strip, stage
+/// 3b-2 item 4): its drive, jet and module slots, each sis.h's module
+/// number or its kind's empty mark, as the recording's "slots" gives them.
+/// </summary>
+public sealed record SlotsChanged(byte[] Drives, byte[] Jets, byte[] Modules) : TalkEvent
+{
+    public bool Equals(SlotsChanged? other) =>
+        other is not null && Drives.SequenceEqual(other.Drives) && Jets.SequenceEqual(other.Jets) && Modules.SequenceEqual(other.Modules);
+
+    public override int GetHashCode() => HashCode.Combine(Drives.Length, Jets.Length, Modules.Length);
+}
+
+/// <summary>
+/// The modules' prices changed (GLOBAL (ModuleCost), shared: a module
+/// bought from the Melnorme goes on sale for everyone, stage 3b-2 item 4):
+/// each purchasable module's, PLANET_LANDER to ANTIMISSILE_DEFENSE, in
+/// units of MODULE_COST_SCALE, as the recording's "costs" gives them.
+/// </summary>
+public sealed record CostsChanged(int[] Costs) : TalkEvent
+{
+    /// <summary>The prices before (not UQM's, nor recorded): what the change made for sale.</summary>
+    public int[] Was { get; init; } = Array.Empty<int>();
+
+    public bool Equals(CostsChanged? other) => other is not null && Costs.SequenceEqual(other.Costs);
+
+    public override int GetHashCode() => Costs.Length;
+}
+
 /// <summary>The player chose the reply at <see cref="Index"/> of those offered.</summary>
 public sealed record ReplyChosen(int Index) : TalkEvent;
 

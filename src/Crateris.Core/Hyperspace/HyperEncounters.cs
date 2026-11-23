@@ -123,13 +123,15 @@ public sealed class HyperEncounters
     /// after its meeting, however it ends) for the Slylandro probes always,
     /// and for the Melnorme when they come for an empty tank or the
     /// broadcaster (while not angered three times); none for the others.
+    /// <paramref name="usedBroadcaster"/> is the player's own USED_BROADCASTER
+    /// (stage 3b-2 item 4: each player's).
     /// </summary>
-    public byte RolledFlags(StoryState story, int type, uint fuel)
+    public byte RolledFlags(StoryState story, int type, uint fuel, bool usedBroadcaster = false)
     {
         if (type == _slylandro)
             return HyperEncounter.OneShot;
         if (type == _melnorme
-            && (fuel == 0 || story.Get("USED_BROADCASTER") != 0)
+            && (fuel == 0 || usedBroadcaster)
             && story.Get("MELNORME_ANGER") < 3)
             return HyperEncounter.OneShot;
         return 0;
@@ -144,7 +146,13 @@ public sealed class HyperEncounters
     /// anywhere (the Slylandro, the Melnorme) have their own chances, and
     /// only one of each at a time for each player (decision 3).
     /// </summary>
-    public void Roll(StoryState story, string player, short x, short y, uint fuel, HyperspaceRandom random)
+    /// <para>
+    /// <paramref name="usedBroadcaster"/> is the player's own USED_BROADCASTER
+    /// (stage 3b-2 item 4): UQM's roll clears the one field after it, here
+    /// the caller clears the player's.
+    /// </para>
+    public void Roll(StoryState story, string player, short x, short y, uint fuel, HyperspaceRandom random,
+        bool usedBroadcaster = false)
     {
         var fleets = story.Fleets;
         for (int type = 0; type < fleets.Count; ++type)
@@ -160,7 +168,7 @@ public sealed class HyperEncounters
             else
             {
                 radius = (Units.MaxXUniverse + 1) << 1;
-                flags = RolledFlags(story, type, fuel);
+                flags = RolledFlags(story, type, fuel, usedBroadcaster);
                 if (type == _slylandro)
                 {
                     if (story.Get("STARBASE_AVAILABLE") == 0)
@@ -169,7 +177,7 @@ public sealed class HyperEncounters
                         percent = (ushort)(percent * story.Get("SLYLANDRO_MULTIPLIER"));
                 }
                 else if (type == _melnorme && flags != 0)
-                    percent = story.Get("USED_BROADCASTER") == 0 ? 30 : 100;
+                    percent = usedBroadcaster ? 100 : 30;
 
                 // "There can be only one!": of this player's.
                 if (List.Any(e => e.Race == type && e.Roller == player))
@@ -194,7 +202,6 @@ public sealed class HyperEncounters
                 }
             }
         }
-        story.Set("USED_BROADCASTER", 0);
     }
 
     /// <summary>

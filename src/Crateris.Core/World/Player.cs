@@ -143,6 +143,26 @@ public sealed class PlayerShip
     /// </summary>
     public int ArilouSpaceSide { get; internal set; }
 
+    /// <summary>
+    /// MELNORME_RESCUE_REFUSED: whether this player refused the Melnorme's
+    /// rescue last time (each player's own: the stage 3b-2 plan's question
+    /// 7), which their next rescue asks after. Saved (version 14's optional part).
+    /// </summary>
+    public int MelnormeRescueRefused { get; internal set; }
+
+    /// <summary>MELNORME_RESCUE_COUNT: how many times the Melnorme have rescued this player, as their lines count it (0 to 7; each player's own).</summary>
+    public int MelnormeRescueCount { get; internal set; }
+
+    /// <summary>
+    /// USED_BROADCASTER: this player used the broadcaster since their last
+    /// day's roll in hyperspace (each player's own, the stage 3b-2 plan's
+    /// scope): their next roll brings the Melnorme at 100%, and spends it, as
+    /// entering or leaving a system does. The device is stage 3c's;
+    /// <c>--start-state USED_BROADCASTER=1</c> sets the host's. Saved
+    /// (version 14's optional part).
+    /// </summary>
+    public bool UsedBroadcaster { get; internal set; }
+
     /// <summary>The battle this ship is in, fighting or watching (not saved: decision 14).</summary>
     public WorldBattle? Battle { get; internal set; }
 
