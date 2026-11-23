@@ -5225,8 +5225,9 @@ def vux_starts():
     space and at their homeworld (GLOBAL_FLAGS_AND_DATA bit 7), each
     visit's greeting (VUX_VISITS, VUX_HOME_VISITS, the visits past those
     the switch names), the first walked whole; each pair of the reasons
-    asked and the threats (VUX_STACK_1, every value of its 4 bits, past
-    "the truth" and its wrap; VUX_STACK_2), the news (VUX_INFO), the
+    asked and the threats (VUX_STACK_1, every value of its 4 bits: the
+    apologies stop it at 14, past "the truth", and 15 only a start
+    reaches; VUX_STACK_2), the news (VUX_INFO), the
     friendship asked (VUX_STACK_3) and the farewells (VUX_STACK_4);
     Admiral ZEX at the Maidens' world (bit 6): each visit's greeting
     (ZEX_VISITS, before and after he's been threatened: ZEX_STACK_3 2),

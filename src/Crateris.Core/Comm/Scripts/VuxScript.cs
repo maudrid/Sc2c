@@ -118,8 +118,8 @@ public sealed class VuxScript : CommScript
         }
         else
         {
-            // The apologies (VUX_STACK_1 4 to 13), each one's answer; past
-            // TRUTH the count goes on with no line, as UQM's BYTE does.
+            // The apologies (apology_1 to 10, offered while VUX_STACK_1 is 4
+            // to 13), each one's answer: the count stops at 14, past TRUTH.
             numVisits = GetGameState("VUX_STACK_1");
             switch (numVisits++)
             {

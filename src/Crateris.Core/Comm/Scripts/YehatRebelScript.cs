@@ -21,8 +21,9 @@ namespace Crateris.Core.Comm.Scripts;
 /// their own), the next ships' date kept (YEHAT_SHIP_MONTH, _DAY, _YEAR).
 /// In the endgame's last battle (IN_LAST_BATTLE), the cavalry: up to 8
 /// ships, half rebel Yehat and half Pkunk. Met only once the revolt's event
-/// has given them a fleet (stage 3c), so until then reached by testing
-/// flags. Every path is checked against UQM's own script
+/// has given them a fleet (stage 3c), so until then a group of them is
+/// brought by --start-encounter YEHAT_REBEL_SHIP, and --start-state sets the
+/// story their paths read. Every path is checked against UQM's own script
 /// (tests/golden/talks-rebel.json).
 /// </summary>
 public sealed class YehatRebelScript : CommScript
