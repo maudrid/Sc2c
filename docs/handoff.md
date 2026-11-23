@@ -66,11 +66,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for item 4 (the Melnorme; one go-ahead per item). Item 3 is built, reviewed and reported. Item 4's notes from item 3's review are in its plan text (the answerer's credits read and written live, the rescue fields as version 14's optional parts).
+Build item 4 (the Melnorme; the owner's go-ahead 2026-11-23), then review it round by round and report; then wait for the go-ahead for item 5. Item 4's notes from item 3's review are in its plan text (the answerer's credits read and written live, the rescue fields as version 14's optional parts).
 
 ## Decisions waiting on the owner
 
-None open. The 3b-2 plan's ten questions are answered (2026-11-22); items 1, 2 and 3 had their go-aheads, the others wait for one each.
+None open. The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 4 had their go-aheads, the others wait for one each.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
