@@ -347,10 +347,14 @@ public class TalkScreenTests
         Assert.True(view.Same(TalkView.Decode(view.Encode())));
         Say(world, "starbas", "goodbye_commander");
         Assert.Equal(VisitStep.Menu, visit.Step);
+        var last = TalkView.Of(visit)!.Over();
         world.StarbaseKey("host", MenuKey.Up, out _);
         world.StarbaseKey("host", MenuKey.Select, out _);   // Leave
         Assert.Null(host.Ship.Visit);
+        // The world's end view is the visit's last view made over (TalkView.Over). Goodbye's lines make no
+        // screen changes, and no reachable end view has any, so the direct Over() below is what pins the screen.
         var over = world.TalkFor("host")!;
+        Assert.True(over.Same(last));
         Assert.Equal((VisitStep.Done, 0), (over.Step, over.Lines.Count));
         Assert.Empty(over.Screen!.Changes);
         Assert.True(over.Screen.Talking);
