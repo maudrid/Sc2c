@@ -40,13 +40,16 @@ public enum CommKeyResult
 /// alien talking (its talking animation) until they end; over them, the
 /// reply the player chose (FeedbackPlayerPhrase). Then the replies, the
 /// lit one the replier's cursor (none lit for a player watching). As
-/// UQM's keys, but for the replay's start: while the lines play, Cancel
-/// skips to their end and Left plays them again (from the start: below); at the replies, Cancel shows the
-/// summary of the lines (a page at a time; Select, Cancel or Right turns
-/// it, and closes it after the last) and Left plays the lines again. The
-/// replay from the first page is the port's (docs/differences.md row 77):
-/// UQM's Left goes back one page while the lines play, and after them
-/// plays only the last page with a subtitle (FastReverse_Page). The
+/// UQM's keys, but for the replay's start and Right while the lines play
+/// (below): while they play, Cancel skips to their end and Left plays
+/// them again from the start; at the replies, Cancel shows the summary
+/// of the lines (a page at a time; Select, Cancel or Right turns it, and
+/// closes it after the last) and Left plays the lines again. The replay
+/// from the first page is the port's (docs/differences.md row 77): UQM's
+/// Left goes back one page while the lines play, and after them plays
+/// only the last page with a subtitle (FastReverse_Page); and its Right
+/// (FastForward_Page) goes on a page while they play, which the port
+/// lacks. The
 /// alien's voice isn't played yet: the lines take their subtitles' time.
 /// </summary>
 public sealed class CommScreen
@@ -210,8 +213,8 @@ public sealed class CommScreen
 
     /// <summary>
     /// What a key does to the lines now: while they play, Cancel skips and
-    /// Left plays them again (UQM's Right seeks on: the pages have no
-    /// voice to seek yet); at the replies, Cancel opens the summary and
+    /// Left plays them again (UQM's Right, a page on, isn't ported: row
+    /// 77); at the replies, Cancel opens the summary and
     /// Left plays the lines again; with the summary open, Select, Cancel
     /// and Right turn its page. Null for none.
     /// </summary>
