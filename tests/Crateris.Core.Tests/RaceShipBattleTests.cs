@@ -52,11 +52,13 @@ public class RaceShipBattleTests
                 : throw new InvalidDataException($"a rating {a}")).Select(r => (CyborgRating?)r).ToList()
             : null;
         int[] fleetSizes = input.TryGetProperty("fleet", out var fleet) ? fleet.Ints() : new[] { 1, 1 };
+        // shofixti-old-*: Tanaka's damaged scout (the Shofixti not recruited).
+        bool recruited = input.TryGetProperty("shofixti_recruited", out var rec) && rec.GetBoolean();
         var sis = new List<SisShip>();
         var fleets = input.GetProperty("ships").EnumerateArray().Select((s, side) =>
             (IReadOnlyList<Starship>)Enumerable.Range(0, fleetSizes[side]).Select(_ =>
             {
-                var (code, crew) = ShipBattleTests.Ship(s);
+                var (code, crew) = ShipBattleTests.Ship(s, shofixtiRecruited: recruited);
                 if (code is SisShip flagship)
                     sis.Add(flagship);
                 // Its status panel's icons, which the VUX's limpets are placed on (ModifySilhouette).
@@ -65,7 +67,8 @@ public class RaceShipBattleTests
             }).ToList()).ToList();
 
         bool runaway = input.TryGetProperty("runaway", out var r) && r.GetBoolean() && !sis.Any(s => s.BombCarrier);
-        var shipIds = input.GetProperty("ships").EnumerateArray().Select(s => s.GetProperty("ship").GetString()!).ToArray();
+        var shipIds = input.GetProperty("ships").EnumerateArray().Select(s => s.GetProperty("ship").GetString()!)
+            .Select(id => id == ShofixtiShip.Id && !recruited ? ShipDescriptions.TanakasScout : id).ToArray();
         int frame = 0, mostMarks = 0, mostShown = 0, mostBytes = 0;
         var battle = BattleReplay.Run(reference, name, fleets, runaway, colours: true, ai, b =>
         {

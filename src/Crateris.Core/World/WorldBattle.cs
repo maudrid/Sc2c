@@ -64,13 +64,26 @@ public sealed class BattleKit
 
     /// <summary>
     /// Every ship a battle can have, its code ported yet or not: the
-    /// flagship (which escorts fly too, stage 4 decision 3) and every race
-    /// ship (<see cref="RaceShips"/>). The game makes their shapes as the
-    /// content is opened, headless too, and with a window their sprites, so
-    /// a broken sheet of any of them is found then, not in a battle.
+    /// flagship (which escorts fly too, stage 4 decision 3), every race
+    /// ship (<see cref="RaceShips"/>), and Tanaka's damaged Shofixti scout
+    /// (<see cref="ShipDescriptions.TanakasScout"/>, stage 3b-2 item 5). The
+    /// game makes their shapes as the content is opened, headless too, and
+    /// with a window their sprites, so a broken sheet of any of them is
+    /// found then, not in a battle.
     /// </summary>
     public static IEnumerable<ShipDescription> Fighters(ShipDescriptions ships) =>
-        RaceShips(ships).Prepend(ships[ShipDescriptions.Flagship]);
+        RaceShips(ships).Prepend(ships[ShipDescriptions.Flagship]).Append(ships[ShipDescriptions.TanakasScout]);
+
+    /// <summary>
+    /// The ship a battle in the world flies for a race ship's id: the
+    /// Shofixti's is Tanaka's (or Katana's) damaged scout while the Shofixti
+    /// aren't recruited (init_shofixti, for any Shofixti made in an
+    /// encounter: IN_ENCOUNTER without SHOFIXTI_RECRUITED); every other the
+    /// ship itself.
+    /// </summary>
+    public static string FlownAs(string ship, Story.StoryState? story) =>
+        ship == Combat.ShofixtiShip.Id && story is not null && story.Get("SHOFIXTI_RECRUITED") == 0
+            ? ShipDescriptions.TanakasScout : ship;
 
     /// <summary>
     /// The salvage for a ship destroyed (UninitEncounter's bounty): its

@@ -35,13 +35,16 @@ public sealed partial class GameWorld
     /// The races whose talk is ported (stage 3b-1 item 6: the Ur-Quan,
     /// their drone, whose talk is theirs, and the Kohr-Ah; item 7 the
     /// Ilwrath and the Spathi; item 8 the Slylandro probes; stage 3b-2 item 4
-    /// the Melnorme), whose groups fly.
+    /// the Melnorme, item 5 the Shofixti and the Zoq-Fot-Pik), whose groups fly.
     /// </summary>
     internal static readonly IReadOnlySet<string> TalkingRaces = new HashSet<string>
     {
         "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP",
         // Stage 3b-2 item 4: the Melnorme, in hyperspace (for an empty tank or the broadcaster) and at the nine super giants.
         "MELNORME_SHIP",
+        // Stage 3b-2 item 5: Tanaka (or Katana) at the Shofixti's system, and the Zoq-Fot-Pik scout (the
+        // Zoq-Fot-Pik have no other groups: 0% in hyperspace and systems, even at home).
+        "SHOFIXTI_SHIP", "ZOQFOTPIK_SHIP",
     };
 
     /// <summary>

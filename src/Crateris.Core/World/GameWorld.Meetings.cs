@@ -826,9 +826,10 @@ public sealed partial class GameWorld
             {
                 chased = g.Chased.ToList();
                 bool fleeing = IsFleeing(g);
-                sg.EndMeeting(d, g, fought ? left : null, fought ? m.Race : -1);
-                // Gone: destroyed (none left), or sent off out of the system by the talk (the drone, check_probe).
-                gone = fought ? left.Count == 0 : !fleeing && IsFleeing(g);
+                sg.EndMeeting(d, g, fought ? left : null, fought ? m.Race : -1, Story);
+                // Gone: destroyed (none left), or sent off out of the system as the game comes back (the drone,
+                // check_probe; the Zoq-Fot-Pik scout after a talk or a battle it survives, the recruited Shofixti).
+                gone = fought && left.Count == 0 || !fleeing && IsFleeing(g);
             }
             else if (m.WorldTalk is not { PutAside: false })
                 sg.EndWorldMeeting(d, fought ? m.Race : -1);   // the race's world's

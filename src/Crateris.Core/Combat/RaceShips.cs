@@ -68,7 +68,8 @@ public static class RaceShips
             ChmmrShip.Id => new ChmmrShip(d, hull, weapon, special),
             MelnormeShip.Id => new MelnormeShip(d, hull, weapon, special),
             OrzShip.Id => new OrzShip(d, hull, weapon, special),
-            ShofixtiShip.Id => new ShofixtiShip(d, hull, weapon, special, views(new[] { d.Graphics.Captain, null, null })),
+            ShofixtiShip.Id or ShipDescriptions.TanakasScout =>
+                new ShofixtiShip(d, hull, weapon, special, views(new[] { d.Graphics.Captain, null, null })),
             _ => throw new ArgumentException($"{d.Id}'s code isn't ported (ported: {string.Join(", ", Ported)})"),
         };
     }

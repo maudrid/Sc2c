@@ -210,7 +210,8 @@ public sealed partial class GameWorld
         var enemies = new List<(Starship, ShipDescription)>();
         foreach (var s in fleet.Ships)
         {
-            var description = kit.Ships[s.Ship];
+            // An encounter's Shofixti is Tanaka's damaged scout until they're recruited (init_shofixti).
+            var description = kit.Ships[BattleKit.FlownAs(s.Ship, Story)];
             int crew = fleet.Infinite ? description.MaxCrew : s.Crew ?? description.Crew;
             var enemyShip = new Starship(RaceShips.Code(description, kit.Graphics.Views, start.NoCloak), 1, (ushort)crew,
                 (ushort)description.MaxCrew) { Icons = RaceShips.Icons(description, kit.Graphics.Views) };

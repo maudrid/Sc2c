@@ -304,8 +304,9 @@ public sealed class SystemGroups
                 break;
             case "SHOFIXTI_DEFINED":
                 // GenerateShofixti_initNpcs: Tanaka (or his brother), while
-                // neither is recruited or lost. Their group's captain and
-                // its end on leaving (SHOFIXTI_KIA) are 3b-2's.
+                // neither is recruited or lost; his death is marked as a
+                // player leaves with his group gone (MarkShofixtiLost), and
+                // once recruited his group flies off (SendOffOwnGroup).
                 if (story.Get("SHOFIXTI_RECRUITED") == 0
                     && (story.Get("SHOFIXTI_KIA") == 0
                         || (story.Get("SHOFIXTI_BRO_KIA") == 0 && story.Get("MAIDENS_ON_SHIP") != 0)))
@@ -709,8 +710,13 @@ public sealed class SystemGroups
     /// left them. After a battle (<paramref name="battleRace"/>, the
     /// encounter's race, UninitEncounter's EncounterRace), the race's groups
     /// turn on the players as one comes back into flight there (DoMissions).
+    /// The special systems' reinitNpcs: at the Zoq-Fot-Pik scout's system its
+    /// scout, re-forming from the touch, flies off (GenerateZoqFotPikScout_reinitNpcs);
+    /// at the Shofixti's, the recruited Shofixti do (check_old_shofixti, by
+    /// <paramref name="story"/>'s SHOFIXTI_RECRUITED).
     /// </summary>
-    public void EndMeeting(SystemDraw d, IpGroup met, IReadOnlyList<(int Crew, int Captain)>? left, int battleRace = -1)
+    public void EndMeeting(SystemDraw d, IpGroup met, IReadOnlyList<(int Crew, int Captain)>? left, int battleRace = -1,
+        StoryState? story = null)
     {
         met.InMeeting = null;
         if (left is not null && ShipsOf(d, met) is { } ships)
@@ -734,6 +740,57 @@ public sealed class SystemGroups
             head.Task = IpGroup.Flee | IpGroup.IgnoreFlagship;
             head.DestLoc = 0;
         }
+        SendOffOwnGroup(d, story);
+    }
+
+    // GenerateZoqFotPikScout_reinitNpcs and check_old_shofixti: the special
+    // system's own group (BattleGroupRef set), the head of the group list,
+    // re-forming since a player touched it (ip_group_collision's
+    // REFORM_GROUP), flies off out of the system and stops chasing anyone:
+    // the Zoq-Fot-Pik scout after any meeting, the Shofixti once recruited.
+    // Gone from the system, it's dead in the draw (FlushGroupInfo).
+    private void SendOffOwnGroup(SystemDraw d, StoryState? story)
+    {
+        if (d.Groups.Count == 0 || d.Groups[0] is not { } head || (head.Task & IpGroup.ReformGroup) == 0)
+            return;
+        bool off = d.Defined switch
+        {
+            "ZOQ_SCOUT_DEFINED" => head.Race == _zoqfot,
+            "SHOFIXTI_DEFINED" => head.Race == _shofixti && story?.Get("SHOFIXTI_RECRUITED") is > 0,
+            _ => false,
+        };
+        if (!off)
+            return;
+        head.Task = IpGroup.Flee | IpGroup.IgnoreFlagship | IpGroup.ReformGroup;
+        head.DestLoc = 0;
+    }
+
+    /// <summary>
+    /// GenerateShofixti_uninitNpcs, as a player leaves the system into
+    /// hyperspace (endInterPlanetary): at the Shofixti's system, while its
+    /// own group was made there (BattleGroupRef: Tanaka, or Katana) and the
+    /// Shofixti aren't recruited, with no group left in the system (his
+    /// destroyed in a battle) he's marked lost: Tanaka (SHOFIXTI_KIA, his
+    /// visits counted afresh for his brother), or once he is, Katana while
+    /// the Maidens are aboard (SHOFIXTI_BRO_KIA). Returns whether it marked one.
+    /// </summary>
+    public bool MarkShofixtiLost(int star, StoryState story)
+    {
+        if (!Systems.TryGetValue(star, out var d) || d.Defined != "SHOFIXTI_DEFINED"
+            || story.Get("SHOFIXTI_RECRUITED") != 0 || d.Groups.Count != 0)
+            return false;
+        if (story.Get("SHOFIXTI_KIA") == 0)
+        {
+            story.Set("SHOFIXTI_KIA", 1);
+            story.Set("SHOFIXTI_VISITS", 0);
+            return true;
+        }
+        if (story.Get("MAIDENS_ON_SHIP") != 0)
+        {
+            story.Set("SHOFIXTI_BRO_KIA", 1);
+            return true;
+        }
+        return false;
     }
 
     /// <summary>

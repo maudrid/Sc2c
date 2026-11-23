@@ -224,6 +224,8 @@ public class FleetWireTests
     public void AGoneShofixtisPanelKeepsItsGloryDevicesFrame()
     {
         var world = WithFleet(2, (Shofixti, 6), (Spathi, 20));
+        // The recruited Shofixti's scout (before they're recruited, it would be Tanaka's damaged one: stage 3b-2 item 5).
+        world.Story!.Set("SHOFIXTI_RECRUITED", 1);
         var wb = world.StartBattle("g1", Ilwrath);
         FlyIn(world, "host");
         Assert.Equal(PickOutcome.Chosen, PickAt(world, 0));

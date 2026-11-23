@@ -115,12 +115,70 @@ public sealed class ShipDescriptions
     /// <summary>The Ilwrath Avenger's id (ships/ilwrath).</summary>
     public const string Ilwrath = "ilwrath";
 
+    /// <summary>
+    /// Tanaka's (and Katana's) damaged Shofixti scout: the Shofixti as
+    /// init_shofixti makes an encounter's while the Shofixti aren't
+    /// recruited (SHOFIXTI_RECRUITED; <see cref="TanakasScoutOf"/>). Its own
+    /// id, so the battle's snapshot names it and a client draws its hull
+    /// and captain's window; found by the indexer, but not among
+    /// <see cref="All"/> (not a ship of data/ships.json's).
+    /// </summary>
+    public const string TanakasScout = "shofixti.oldscout";
+
     private readonly Dictionary<string, ShipDescription> _ships;
 
     private ShipDescriptions(IReadOnlyList<ShipDescription> all)
     {
         All = all;
         _ships = all.ToDictionary(s => s.Id);
+        if (_ships.TryGetValue("shofixti", out var shofixti))
+            _ships[TanakasScout] = TanakasScoutOf(shofixti);
+    }
+
+    /// <summary>
+    /// init_shofixti for an encounter's Shofixti without SHOFIXTI_RECRUITED
+    /// (Tanaka or Katana): the old scout's hull (OLDSHOF_*_MASK_PMAP_ANIM)
+    /// and captain's window (OLDSHOF_CAPTAIN_MASK_PMAP_ANIM), no special's
+    /// sheets, its weapon waiting 10 frames, and three VUX limpets' worth
+    /// of slowness (NUM_LIMPETS, each as limpet_collision slows a ship: a
+    /// turn and thrust wait more each, the byte held at its top, and the
+    /// thrust's increment one less, the most thrust as many of them as
+    /// before, or twice the increment once it's down to MIN_THRUST_INCREMENT).
+    /// </summary>
+    public static ShipDescription TanakasScoutOf(ShipDescription shofixti)
+    {
+        var c = shofixti.Characteristics;
+        int turnWait = c.TurnWait, thrustWait = c.ThrustWait, thrustIncrement = c.ThrustIncrement, maxThrust = c.MaxThrust;
+        int limpets = shofixti.Define("NUM_LIMPETS"), minThrustIncrement = shofixti.Define("MIN_THRUST_INCREMENT");
+        for (int i = 0; i < limpets; ++i)
+        {
+            // BYTE ++ that wraps to 0 is taken back (held at 255).
+            if ((byte)++turnWait == 0)
+                --turnWait;
+            if ((byte)++thrustWait == 0)
+                --thrustWait;
+            if (thrustIncrement <= minThrustIncrement)
+                maxThrust = thrustIncrement << 1;
+            else
+            {
+                int numThrusts = maxThrust / thrustIncrement;
+                --thrustIncrement;
+                maxThrust = thrustIncrement * numThrusts;
+            }
+        }
+        const string old = "ship.shofixti.graphics.oldscout";
+        return shofixti with
+        {
+            Id = TanakasScout,
+            Characteristics = c with { TurnWait = turnWait, ThrustWait = thrustWait, ThrustIncrement = thrustIncrement,
+                MaxThrust = maxThrust, WeaponWait = 10 },
+            Graphics = shofixti.Graphics with
+            {
+                Ship = new[] { $"{old}.large", $"{old}.medium", $"{old}.small" },
+                Special = new string?[] { null, null, null },
+                Captain = "ship.shofixti.graphics.oldcaptain",
+            },
+        };
     }
 
     /// <summary>Every ship, in ships.json's order (by directory name).</summary>

@@ -18,7 +18,10 @@ namespace Crateris.Core.Combat;
 
 /// <summary>
 /// shofixti.c: the Shofixti Scout, as the recruited Shofixti fly it
-/// (SHOFIXTI_RECRUITED; Tanaka's and Katana's damaged scout is stage 3b's).
+/// (SHOFIXTI_RECRUITED), or as Tanaka and Katana fly their damaged scout
+/// (<see cref="ShipDescriptions.TanakasScout"/>: its own hull and captain's
+/// window, no special's sheets, so its Glory Device's blast draws nothing
+/// and its AI never presses it; slower, its weapon waiting longer).
 /// Its weapon is a dart ahead; its special is the Glory Device, which
 /// counts on the captain's window: each press and each release of the key
 /// moves its frame on, and at the third from the end the ship blows
@@ -48,7 +51,7 @@ public sealed class ShofixtiShip : IShipCode
     private readonly ShipDescription _description;
     private readonly Views? _hull, _dart, _destruct, _captain;
 
-    /// <param name="description">The Shofixti's description (data/ships.json's shofixti).</param>
+    /// <param name="description">The Shofixti's description (data/ships.json's shofixti), or Tanaka's damaged scout's.</param>
     /// <param name="hull">Its ship sheets (ship_data.ship).</param>
     /// <param name="dart">Its dart's sheets (ship_data.weapon).</param>
     /// <param name="destruct">The Glory Device's explosion's sheets (ship_data.special).</param>
@@ -59,7 +62,7 @@ public sealed class ShofixtiShip : IShipCode
     /// </param>
     public ShofixtiShip(ShipDescription description, Views? hull, Views? dart, Views? destruct, Views? captain)
     {
-        _description = RaceShips.Check(description, Id);
+        _description = description.Id == ShipDescriptions.TanakasScout ? description : RaceShips.Check(description, Id);
         _hull = hull;
         _dart = dart;
         _destruct = destruct;
@@ -160,9 +163,11 @@ public sealed class ShofixtiShip : IShipCode
                 destruct.StateFlags = ElementFlags.Appearing | ElementFlags.FiniteLife | ElementFlags.NonSolid;
                 destruct.Prim = PrimType.StampFill;
                 destruct.PrimColor = White;
-                var special = starShip.RaceDesc!.Special!;
+                // Tanaka's damaged scout has no special's sheets (init_shofixti's
+                // NULL_RESOURCE): no frame, so no life (GetFrameCount (NULL) is 0).
+                var special = starShip.RaceDesc!.Special;
                 destruct.Current.FrameArray = special;
-                destruct.Current.Frame = special[0];
+                destruct.Current.Frame = special?[0] ?? default;
                 destruct.LifeSpan = (ushort)destruct.Current.Frame.Count;
                 destruct.Current.X = e.Current.X;
                 destruct.Current.Y = e.Current.Y;

@@ -48,9 +48,13 @@ public class BattleContentTests
         Assert.Equal(all.Append(PickScreenDrawing.PickSheet).OrderBy(r => r), sprites.Resources.OrderBy(r => r));
         Assert.Equal(2, sprites.Count(PickScreenDrawing.PickSheet));
         // The flagship and 25 race ships, each with its ship sheets, a
-        // captain's window and icons.
-        Assert.Equal(26, Fighters.Length);
+        // captain's window and icons, and Tanaka's damaged scout (stage 3b-2
+        // item 5), the Shofixti's icons with a hull and captain's window of its own.
+        Assert.Equal(27, Fighters.Length);
+        Assert.Equal(ShipDescriptions.TanakasScout, Fighters[^1].Id);
         Assert.Equal(26, all.Count(r => r.EndsWith(".captain")));
+        Assert.Single(all, r => r.EndsWith(".oldcaptain"));
+        Assert.Equal(3, all.Count(r => r.Contains(".oldscout.")));
         Assert.Equal(26, all.Count(r => r.EndsWith(".icons")));
         // Every resource's frames as UQM's loader loads them (battle-masks.json's frames).
         var frames = Golden.Load("battle-masks").GetProperty("frames");
@@ -147,13 +151,15 @@ public class BattleContentTests
             }
         }
         // The flagship's and the Ilwrath's (and their icons), the arena's
-        // and the planets', then stage 4b's race ships' and their icons.
+        // and the planets', then stage 4b's race ships' and their icons
+        // (Tanaka's damaged scout's own hull among them).
         int raceFrames = Fighters.Where(f => f.Id is not (ShipDescriptions.Flagship or ShipDescriptions.Ilwrath))
             .SelectMany(f => new[] { f.Graphics.Ship, f.Graphics.Weapon, f.Graphics.Special }
                 .Select(ShipGraphics.Sheets).OfType<IReadOnlyList<string>>().Select(v => v[0]).Append(f.Graphics.Icons!))
-            .Sum(id => want.GetProperty(id).GetArrayLength());
+            .Distinct().Sum(id => want.GetProperty(id).GetArrayLength());
         Assert.Equal(16 + 27 + 1 + 16 + 8 + 2 + 21 + 8 + 9 + 3 + 60, frames - raceFrames);
-        Assert.Equal(1202, frames);
+        // Stage 4b's 1,202, and the damaged scout's hull (16).
+        Assert.Equal(1218, frames);
         // The VUX's limpets are placed on a ship's silhouette, its icons'
         // frame 1 (ModifySilhouette): every race ship's icons have it.
         Assert.All(Fighters[1..], f => Assert.Equal(2, shapes[f.Graphics.Icons!].Count));

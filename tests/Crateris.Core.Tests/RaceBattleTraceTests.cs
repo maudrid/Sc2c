@@ -58,7 +58,9 @@ public class RaceBattleTraceTests
         foreach (var (n, file) in Files())
         {
             var names = file.GetProperty("battles").EnumerateArray().Select(b => b.GetProperty("name").GetString()!).ToList();
-            var want = Parts[n - 1].SelectMany(s => new[] { $"{s}-keys", $"{s}-ai" }).ToList();
+            // Tanaka's damaged scout (the Shofixti not recruited) after the Shofixti, as a ship of its own.
+            var want = Parts[n - 1].SelectMany(s => s == ShofixtiShip.Id ? new[] { s, "shofixti-old" } : new[] { s })
+                .SelectMany(s => new[] { $"{s}-keys", $"{s}-ai" }).ToList();
             if (n == 3)
                 want.Add("pkunk-rebirth");   // the Pkunk dying and reborn
             Assert.Equal(want, names);
@@ -79,8 +81,9 @@ public class RaceBattleTraceTests
                 Assert.Equal(name.EndsWith("-ai"), ai);
                 if (ai)
                     Assert.Equal(new[] { "awesome", "awesome" }, sides.EnumerateArray().Select(s => s.GetString()));
-                // The recorded Shofixti is the recruited one (not Tanaka's scout).
-                Assert.Equal(race.Id == "shofixti", input.TryGetProperty("shofixti_recruited", out var r) && r.GetBoolean());
+                // The recorded Shofixti is the recruited one, but shofixti-old's, Tanaka's damaged scout.
+                Assert.Equal(race.Id == "shofixti" && !name.StartsWith("shofixti-old-"),
+                    input.TryGetProperty("shofixti_recruited", out var r) && r.GetBoolean());
             }
         }
     }
@@ -96,6 +99,8 @@ public class RaceBattleTraceTests
                 string name = battle.GetProperty("name").GetString()!;
                 var input = battle.GetProperty("input");
                 var race = Ships[input.GetProperty("ships")[1].GetProperty("ship").GetString()!];
+                if (name.StartsWith("shofixti-old-"))
+                    race = Ships[ShipDescriptions.TanakasScout];   // flying the old scout's hull
                 int steps = input.GetProperty("steps").EnumerateArray().Sum(s => s[0].GetInt32());
                 var frames = battle.GetProperty("frames").EnumerateArray().ToList();
                 int full = battle.GetProperty("full").GetInt32();
@@ -146,6 +151,12 @@ public class RaceBattleTraceTests
                 var uses = battle.GetProperty("uses");
                 foreach (var (what, key, without) in new[] { ("weapon", Weapon, Special), ("special", Special, 0) })
                 {
+                    if (name == "shofixti-old-ai" && what == "special")
+                    {
+                        // The damaged scout's AI never presses its special: it has no special's sheets.
+                        Assert.Equal(JsonValueKind.Null, uses.GetProperty(what).ValueKind);
+                        continue;
+                    }
                     int at = uses.GetProperty(what).GetInt32();
                     Assert.InRange(at, 2, inputs.Count - 1);
                     Assert.True(Enumerable.Range(2, at - 1).Any(t => inputs[t] > 0 && (inputs[t] & key) != 0 && (inputs[t] & without) == 0),

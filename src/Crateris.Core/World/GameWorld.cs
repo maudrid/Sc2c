@@ -753,13 +753,22 @@ public sealed partial class GameWorld
                     InOrbit(ship);
                 break;
             case IpEvent.LeftSystem:
-                // endInterPlanetary: the broadcaster's use spent (the ship's own).
-                ship.UsedBroadcaster = false;
-                SystemTransition.Leave(ship.Flight, Systems!.Map.Stars[ship.SystemStar!.Value], ip.Facing);
-                ship.Ip = null;
-                ship.SystemStar = null;
+                LeaveSystem(ship);
                 break;
         }
+    }
+
+    // The ship flies out of its system into hyperspace (endInterPlanetary): the system's uninitNpcs (at the
+    // Shofixti's, Tanaka or Katana marked lost with his group gone), and the broadcaster's use spent (the
+    // ship's own).
+    private void LeaveSystem(PlayerShip ship)
+    {
+        if (Story is { } story)
+            SystemGroups?.MarkShofixtiLost(ship.SystemStar!.Value, story);
+        ship.UsedBroadcaster = false;
+        SystemTransition.Leave(ship.Flight, Systems!.Map.Stars[ship.SystemStar!.Value], ship.Ip!.Facing);
+        ship.Ip = null;
+        ship.SystemStar = null;
     }
 
     // Earth's first moon is the starbase (GenerateSol_generateMoons).

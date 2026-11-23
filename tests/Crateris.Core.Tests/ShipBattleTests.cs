@@ -79,12 +79,15 @@ public class ShipBattleTests
     /// <summary>
     /// A recorded ship: the flagship from its slots and crew, or the Ilwrath
     /// (its AI not cloaking with <paramref name="noCloak"/>) or a race ship
-    /// (<see cref="RaceShips.Code"/>) with its crew;
+    /// (<see cref="RaceShips.Code"/>) with its crew, the Shofixti as Tanaka's
+    /// damaged scout without <paramref name="shofixtiRecruited"/>;
     /// and the crew its STARSHIP comes with (0: the flagship's own).
     /// </summary>
-    internal static (IShipCode Code, ushort Crew) Ship(JsonElement s, bool noCloak = false)
+    internal static (IShipCode Code, ushort Crew) Ship(JsonElement s, bool noCloak = false, bool shofixtiRecruited = true)
     {
-        var description = BattleReplay.Ships[s.GetProperty("ship").GetString()!];
+        // An encounter's Shofixti without SHOFIXTI_RECRUITED is Tanaka's damaged scout (init_shofixti).
+        string id = s.GetProperty("ship").GetString()!;
+        var description = BattleReplay.Ships[id == ShofixtiShip.Id && !shofixtiRecruited ? ShipDescriptions.TanakasScout : id];
         var hull = BattleReplay.ViewsOf(description.Graphics.Ship);
         var weapon = BattleReplay.ViewsOf(description.Graphics.Weapon);
         int crew = s.GetProperty("crew").GetInt32();

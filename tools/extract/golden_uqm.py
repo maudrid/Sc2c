@@ -1703,6 +1703,12 @@ HAZARD_SHEETS = LANDER_SHEETS + [
 
 # The ships ported so far (data/ships.json ids): stage 4a's.
 BATTLE_SHIPS = ["sis_ship", "ilwrath"]
+# Tanaka's (and Katana's) damaged scout: init_shofixti's sheets for an
+# encounter's Shofixti without SHOFIXTI_RECRUITED (shofixti/resinst.h's
+# OLDSHOF_*): its hull at three sizes and its captain's window, no special.
+OLD_SCOUT = ["ship.shofixti.graphics.oldscout.large", "ship.shofixti.graphics.oldscout.medium",
+             "ship.shofixti.graphics.oldscout.small"]
+OLD_CAPTAIN = "ship.shofixti.graphics.oldcaptain"
 
 
 def battle_sheets():
@@ -1715,8 +1721,9 @@ def battle_sheets():
     and explosions (InitSpace, init.c), stars_in_space, whose last frame
     is floating crew, lasers and ion trails (graphics.stars), and every
     planet the battle can have (load_gravity_well, cons_res.c: each
-    planet type's and a shielded world's, data/planet-types.json). The
-    sheet numbers only name the images program's files."""
+    planet type's and a shielded world's, data/planet-types.json); and
+    Tanaka's damaged scout's hull (OLD_SCOUT). The sheet numbers only name
+    the images program's files."""
     with open(os.path.join(REPO, "data", "ships.json")) as f:
         ships = {s["id"]: s for s in json.load(f)["ships"]}
     with open(os.path.join(REPO, "data", "planet-types.json")) as f:
@@ -1726,6 +1733,7 @@ def battle_sheets():
         g = ships[ship]["graphics"]
         ids += [g[k][0] for k in ("ship", "weapon", "special") if g[k][0]]
         ids.append(g["icons"])
+    ids.append(OLD_SCOUT[0])
     ids += ["graphics.asteroid.large", "graphics.blast.large",
             "graphics.boom.large", "graphics.stars"]
     ids += [t["battle_sprites"][0] for t in planets["planet_types"]]
@@ -1738,7 +1746,8 @@ def battle_resources():
     fighting ship's sheets at its three sizes, captain's window and status
     icons as data/ships.json names them, InitSpace's stars, explosions,
     blasts and asteroids, the status panel's frames and every planet's
-    battle sprites (data/planet-types.json)."""
+    battle sprites (data/planet-types.json); and Tanaka's damaged scout's
+    hull and captain's window (OLD_SCOUT, OLD_CAPTAIN)."""
     ships, _ = battle_ships()
     with open(os.path.join(REPO, "data", "planet-types.json")) as f:
         planets = json.load(f)
@@ -1748,6 +1757,7 @@ def battle_resources():
         for k in ("ship", "weapon", "special"):
             ids += [r for r in g[k] if r]
         ids += [g["captain"], g["icons"]]
+    ids += OLD_SCOUT + [OLD_CAPTAIN]
     ids += ["graphics.stars", "graphics.status"]
     for base in ["graphics.boom", "graphics.blast", "graphics.asteroid"]:
         ids += [f"{base}.large", f"{base}.medium", f"{base}.small"]
@@ -3360,6 +3370,8 @@ def race_program_sheets(part):
         for k in ("ship", "weapon", "special"):
             ids += [r for r in g[k] if r]
         ids += [g["icons"], g["captain"]]
+        if ship == "shofixti":
+            ids += OLD_SCOUT + [OLD_CAPTAIN]   # Tanaka's damaged scout (shofixti-old-*)
     for base in ["graphics.asteroid", "graphics.blast", "graphics.boom"] + BATTLE_PLANETS:
         ids += [f"{base}.large", f"{base}.medium", f"{base}.small"]
     ids.append("graphics.stars")
@@ -3425,17 +3437,23 @@ def race_battle_scenarios(program, part, seed):
     weapon and special (race_pilot), and flown by UQM's AI (awesome, the
     story's enemy's) against the flagship flown by the AI too (sis_intelligence)."""
     out = []
-    for n, ship in enumerate(part):
+    # Tanaka's damaged scout (the Shofixti without SHOFIXTI_RECRUITED) after
+    # the recruited Shofixti, as a ship of its own (shofixti-old).
+    flown = [(n, ship, ship) for n, ship in enumerate(part)]
+    if "shofixti" in part:
+        at = part.index("shofixti")
+        flown.insert(at + 1, (at, "shofixti", "shofixti-old"))
+    for n, ship, label in flown:
         opts = RACE_PILOTS.get(ship, {})
         planet = BATTLE_PLANETS[n % 2]
-        extra = dict(shofixti_recruited=True) if ship == "shofixti" else {}
+        extra = dict(shofixti_recruited=True) if label == "shofixti" else {}
         if ship in RACE_FLEETS:
             extra["fleet"] = RACE_FLEETS[ship]
         # The keys' battle: the first seed (from seed + 2n, a thousand
         # apart) in which the weapon and the special each have an effect
         # (key_effects; a small ship may die before its special's turn).
         for k in range(RACE_SEEDS):
-            s = dict(name=f"{ship}-keys", seed=seed + 2 * n + 1000 * k, planet=planet,
+            s = dict(name=f"{label}-keys", seed=seed + 2 * n + 1000 * k + (500 if label != ship else 0), planet=planet,
                      ships=[race_flagship(keys=True), race(ship)], steps=[(20, 0, 0)], full=RACE_FULL, **extra)
             s = piloted(program, s, RACE_KEYS_FRAMES, [flagship_pilot(), race_pilot(**opts)], chunk=6)
             if all(key_effects(program, s, program.run([s], colours=True)[0]).values()):
@@ -3446,10 +3464,12 @@ def race_battle_scenarios(program, part, seed):
         # special to some effect (some, as the Arilou's teleport, only when
         # a shot is about to hit).
         for k in range(RACE_SEEDS):
-            s = dict(name=f"{ship}-ai", seed=seed + 2 * n + 1 + 1000 * k, planet=BATTLE_PLANETS[(n + 1) % 2],
+            s = dict(name=f"{label}-ai", seed=seed + 2 * n + 1 + 1000 * k + (500 if label != ship else 0),
+                     planet=BATTLE_PLANETS[(n + 1) % 2],
                      ships=[race_flagship(), race(ship)], ai=["awesome", "awesome"],
                      steps=[(RACE_AI_FRAMES, 0, 0)], full=RACE_FULL, **extra)
-            if all(key_effects(program, s, program.run([s], colours=True)[0]).values()):
+            used = key_effects(program, s, program.run([s], colours=True)[0])
+            if all(t is not None for what, t in used.items() if what in race_ai_uses(s["name"])):
                 break
         out.append(s)
         if ship == "pkunk":
@@ -3534,6 +3554,14 @@ def key_effects(program, scenario, battle):
     return out
 
 
+def race_ai_uses(name):
+    """What a race ship's AI battle must use to some effect: its weapon and
+    its special, but Tanaka's damaged scout's AI never presses its special
+    (shofixti_intelligence presses it only with a special sheet, which the
+    damaged scout hasn't: init_shofixti's NULL_RESOURCE)."""
+    return ("weapon",) if name == "shofixti-old-ai" else ("weapon", "special")
+
+
 def check_race_battles(program, scenarios, battles):
     """Each race ship's duels show what they're for: by keys and by the
     AI, its weapon and its special each have an effect (key_effects); the
@@ -3551,7 +3579,7 @@ def check_race_battles(program, scenarios, battles):
             continue
         used = key_effects(program, scenario, battle)
         for what, t in used.items():
-            if t is None:
+            if t is None and (not name.endswith("-ai") or what in race_ai_uses(name)):
                 fail(name, f"its {what} never had an effect")
         effects.append(used)
     return effects

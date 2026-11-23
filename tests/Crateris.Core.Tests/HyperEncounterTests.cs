@@ -426,9 +426,10 @@ public class HyperEncounterTests
         // Its makeup and place drawn (AddEncounterElement), then dropped.
         Assert.Empty(world.Encounters.List);
         Assert.Contains("AddEncounterElement", random.Places.Skip(before));
-        // The game's own: the races whose talk is ported (items 6 and 7; item 8 the Slylandro; 3b-2 item 4 the Melnorme).
+        // The game's own: the races whose talk is ported (items 6 and 7; item 8 the Slylandro; 3b-2 item 4 the Melnorme,
+        // item 5 the Shofixti and the Zoq-Fot-Pik).
         Assert.Equal(new HashSet<string> { "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP",
-                "MELNORME_SHIP" },
+                "MELNORME_SHIP", "SHOFIXTI_SHIP", "ZOQFOTPIK_SHIP" },
             new GameWorld(new GameSettings(), new GameClock(2155, 2, 17)).EncounterRaces);
     }
 

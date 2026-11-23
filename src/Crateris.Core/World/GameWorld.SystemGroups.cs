@@ -178,11 +178,9 @@ public sealed partial class GameWorld
     internal void PutInHyperspace(string id)
     {
         var ship = (Find(id) ?? throw new ArgumentException($"no player {id}")).Ship;
-        if (ship.Ip is not { } ip)
+        if (ship.Ip is null)
             return;
-        SystemTransition.Leave(ship.Flight, Systems!.Map.Stars[ship.SystemStar!.Value], ip.Facing);
-        ship.Ip = null;
-        ship.SystemStar = null;
+        LeaveSystem(ship);
     }
 
     /// <summary>

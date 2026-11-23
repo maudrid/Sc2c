@@ -36,7 +36,9 @@ public sealed partial class GameWorld
             // A ship of no crew is the shipyard's, never in flight; every race ship's code is ported.
             if (s.Crew <= 0 || !BattleKit.Enemies.Contains(id))
                 continue;
-            var d = kit.Ships[id];
+            // A Shofixti before they're recruited (only --start-fleet's) flies as Tanaka's damaged scout, as UQM's
+            // init_shofixti makes any in an encounter.
+            var d = kit.Ships[BattleKit.FlownAs(id, Story)];
             var starship = new Starship(RaceShips.Code(d, kit.Graphics.Views), 0, (ushort)s.Crew, (ushort)d.MaxCrew)
             {
                 Icons = RaceShips.Icons(d, kit.Graphics.Views),
