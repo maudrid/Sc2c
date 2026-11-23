@@ -95,8 +95,19 @@ public class TalkScreenTests
                         Assert.True(screen.Changes.Select(c => c.Line).SequenceEqual(screen.Changes.Select(c => c.Line).Order()), where);
                         Assert.Equal(range.Count(e => e is ColorTransform), screen.Changes.Count(c => c.Kind == ScreenChangeKind.Fade));
                         if (j > 0)
+                        {
                             Assert.Equal(range.Count(e => e is TalkingAnimation),
                                 screen.Changes.Count(c => c.Kind is ScreenChangeKind.TalkingOn or ScreenChangeKind.TalkingOff));
+                            // Each ambient animation turned on or off between the screen's recorded changes.
+                            var last = talk.Events.Take(from).OfType<ScreenChanged>().Last().Ambient;
+                            int flips = 0;
+                            foreach (var s in range.OfType<ScreenChanged>())
+                            {
+                                flips += s.Ambient.Zip(last).Count(a => ((a.First ^ a.Second) & CommAnimationFlags.Disabled) != 0);
+                                last = s.Ambient;
+                            }
+                            Assert.Equal(flips, screen.Changes.Count(c => c.Kind is ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff));
+                        }
                         if (j + 1 == views.Count)
                             continue;
                         // The changes made on this view's start leave the next's.

@@ -131,7 +131,7 @@ public partial class CommView : Node2D
         }
         // The lines play from when the count-down was put away (the first time they're shown after it).
         _screen?.Show(talk.Lines, talk.Said, talk.Replies, talk.Round, _holding ? Math.Min(linesFrom, Now) : Now, talk.Speakers,
-            talk.Screen?.Changes);
+            talk.Screen);
         _holding = false;
         _cursor = session.Replying ? session.ReplyCursor : -1;
         // Every screen follows the replier's paging of these lines that it hasn't applied (decision 7);

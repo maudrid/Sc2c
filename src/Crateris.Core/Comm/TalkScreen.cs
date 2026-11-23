@@ -164,6 +164,29 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
             changes.Count > MostChanges ? changes.Take(MostChanges).ToList() : changes);
     }
 
+    /// <summary>
+    /// The screen once all its changes are made, with none left: the
+    /// colour map the last fade went to, the ambient animations turned on
+    /// or off, the talking as the last switch left it (for a view with no
+    /// lines, the visit's end).
+    /// </summary>
+    public TalkScreen AfterChanges()
+    {
+        int map = ColorMap;
+        var ambient = Ambient.ToArray();
+        bool talking = Talking;
+        foreach (var c in Changes)
+            switch (c.Kind)
+            {
+                case ScreenChangeKind.Fade: map = c.Value; break;
+                case ScreenChangeKind.AmbientOn when c.Value < ambient.Length: ambient[c.Value] &= ~CommAnimationFlags.Disabled; break;
+                case ScreenChangeKind.AmbientOff when c.Value < ambient.Length: ambient[c.Value] |= CommAnimationFlags.Disabled; break;
+                case ScreenChangeKind.TalkingOn: talking = true; break;
+                case ScreenChangeKind.TalkingOff: talking = false; break;
+            }
+        return new TalkScreen(map, ambient, talking, Array.Empty<ScreenChange>());
+    }
+
     internal void Encode(WireWriter w, int lines)
     {
         w.UInt((ulong)ColorMap);
@@ -174,9 +197,8 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
         w.UInt((ulong)Changes.Count);
         foreach (var c in Changes)
         {
-            if (c.Line < 0 || c.Line > lines)
-                throw new InvalidOperationException("a talk's screen change is at one of its lines, or after them");
-            w.UInt((ulong)c.Line);
+            // At one of the lines or after them: one past their end (a view's lines cut) goes at their end.
+            w.UInt((ulong)Math.Clamp(c.Line, 0, lines));
             w.Byte((byte)c.Kind);
             switch (c.Kind)
             {

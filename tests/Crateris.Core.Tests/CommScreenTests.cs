@@ -174,18 +174,22 @@ public class CommScreenTests
         // (map 1) with the flicker on; as the transfer's second line starts the flicker goes off and the colours
         // fade to full power over half a second.
         var flags = Scripts["comandr"].Description.Ambient.Select(a => a.Flags).ToList();
-        var screen = Opened("comandr", new TalkScreen(1, flags, true, Array.Empty<ScreenChange>()), out var colors);
+        // A view's screen as the host sends it: the colour map, the flicker off or not, and the changes at the lines.
+        TalkScreen View(int map, bool flickerOff, params ScreenChange[] changes) =>
+            new(map, flags.Select((f, i) => i == 2 && flickerOff ? f | CommAnimationFlags.Disabled : f).ToList(), true, changes);
+        bool FlickerOff(CommScreen s) => (s.Window.Animation.AmbientFlags[2] & CommAnimationFlags.Disabled) != 0;
+        var screen = Opened("comandr", View(1, false), out var colors);
         var anim = screen.Window.Animation;
         Assert.True(ColorsAre(screen, colors, 1));
         Assert.False(ColorsAre(screen, colors, 0));
-        var transfer = new[] { new ScreenChange(1, ScreenChangeKind.AmbientOff, 2), new ScreenChange(1, ScreenChangeKind.Fade, 0, 420) };
+        var transfer = View(1, false, new ScreenChange(1, ScreenChangeKind.AmbientOff, 2), new ScreenChange(1, ScreenChangeKind.Fade, 0, 420));
         screen.Show(new[] { "Fuel up.", "Power coming." }, "Transfer them.", new[] { "Who are you?" }, 2, 0, null, transfer);
         long t = 0;
         screen.Update(t);
-        Assert.Equal(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));   // the first line: not yet
+        Assert.False(FlickerOff(screen));   // the first line: not yet
         while (screen.Draw(-1).OverTexts[0] is var p && Encoding.UTF8.GetString(p) != "Power coming.")
             screen.Update(t += 21);
-        Assert.NotEqual(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        Assert.True(FlickerOff(screen));
         long faded = t + 420;
         while (t <= faded + 21)
             screen.Update(t += 21);
@@ -198,29 +202,49 @@ public class CommScreenTests
         screen.Page(TalkPage.Replay);
         while (screen.Talking)
             screen.Update(t += 21);
-        Assert.Equal(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
-        // A skip makes what's left at once; lines replaced before their changes were made make them then.
+        Assert.False(FlickerOff(screen));
+        anim.SetAmbientFlags(2, anim.AmbientFlags[2] | CommAnimationFlags.Disabled);   // as the host has it again
+        // A skip makes what's left at once; lines replaced before their changes were made make them then, and the
+        // next view's screen, which they lead to, changes nothing more.
         screen.Show(new[] { "One.", "Two.", "Three." }, "Again.", Array.Empty<string>(), 3, t, null,
-            new[] { new ScreenChange(2, ScreenChangeKind.AmbientOff, 2) });
+            View(0, true, new ScreenChange(2, ScreenChangeKind.AmbientOn, 2)));
         screen.Update(t += 1);
-        Assert.Equal(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        Assert.True(FlickerOff(screen));
         screen.Page(TalkPage.Skip);
-        Assert.NotEqual(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        Assert.False(FlickerOff(screen));
         screen.Show(new[] { "Four.", "Five." }, "More.", Array.Empty<string>(), 4, t, null,
-            new[] { new ScreenChange(1, ScreenChangeKind.AmbientOn, 2), new ScreenChange(2, ScreenChangeKind.Fade, 1, 0) });
+            View(0, false, new ScreenChange(1, ScreenChangeKind.AmbientOff, 2), new ScreenChange(2, ScreenChangeKind.Fade, 1, 0)));
         screen.Update(t += 1);
-        Assert.NotEqual(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
-        screen.Show(new[] { "Six." }, "Last.", Array.Empty<string>(), 5, t, null, null);
-        Assert.Equal(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
-        anim.SetAmbientFlags(2, anim.AmbientFlags[2] | CommAnimationFlags.Disabled);   // the flicker off again, to see the fade's end steady
+        Assert.False(FlickerOff(screen));
+        screen.Show(new[] { "Six." }, "Last.", Array.Empty<string>(), 5, t, null, View(1, true));
+        Assert.True(FlickerOff(screen));
         screen.Update(t += 21);
         Assert.True(ColorsAre(screen, colors, 1));
+
+        // A view never shown here (two in one frame, the client showing the last): the next lines start from the
+        // screen as it has it, the colours at once, the flicker off.
+        screen = Opened("comandr", View(1, false), out _);
+        screen.Show(new[] { "Do you have them?" }, "", new[] { "Transfer them." }, 1, 0, null, View(1, false));
+        for (t = 0; t < 840; t += 21)
+            screen.Update(t);
+        Assert.False(ColorsAre(screen, colors, 0));
+        screen.Show(new[] { "Who are you?" }, "We are the Vindicator.", new[] { "Bye." }, 3, t, null, View(0, true));
+        screen.Update(t += 21);
+        Assert.True(FlickerOff(screen));
+        Assert.True(ColorsAre(screen, colors, 0));
+        for (int k = 0; k < 100; ++k)
+            screen.Update(t += 21);
+        Assert.True(ColorsAre(screen, colors, 0));
+        // The talking too: a view starting with it off stops it.
+        screen.Show(new[] { "Quiet." }, "Hush.", new[] { "Bye." }, 4, t, null, View(0, true) with { Talking = false });
+        Assert.NotEqual(0, (int)(screen.Window.Animation.TalkFlags & CommAnimationFlags.PauseTalking));
 
         // The allied commander: his mouth stops as the scientist's report starts, and moves again with the line after.
         var starbase = Opened("starbas", null, out _);
         var talking = starbase.Window.Animation;
         starbase.Show(new[] { "Devices.", "About the beast.", "The scientist's report.", "The rest." }, "", new[] { "Bye" }, 1, 0, null,
-            new[] { new ScreenChange(2, ScreenChangeKind.TalkingOff), new ScreenChange(3, ScreenChangeKind.TalkingOn) });
+            new TalkScreen(0, Scripts["starbas"].Description.Ambient.Select(a => a.Flags).ToList(), true,
+                new[] { new ScreenChange(2, ScreenChangeKind.TalkingOff), new ScreenChange(3, ScreenChangeKind.TalkingOn) }));
         t = 0;
         starbase.Update(t);
         for (int k = 0; k < 10; ++k)

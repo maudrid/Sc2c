@@ -72,6 +72,11 @@ public sealed class CommScreen
     private IReadOnlyList<ScreenChange> _changes = Array.Empty<ScreenChange>();
     private int _changesMade;
     private bool _restartTalking;
+    // The screen as the host's views have left it here (not the client's own animations' doing): the colour map
+    // last set or faded to, each ambient animation turned off or not, the talking on or not.
+    private int _shownMap;
+    private bool[] _ambientOff = Array.Empty<bool>();
+    private bool _talkingOn = true;
     private List<byte[]> _lines = new();
     private byte[] _said = Array.Empty<byte>();
     private List<byte[]> _replies = new();
@@ -103,7 +108,10 @@ public sealed class CommScreen
             for (int i = 0; i < Math.Min(screen.Ambient.Count, window.Animation.AmbientFlags.Count); ++i)
                 window.Animation.SetAmbientFlags(i, screen.Ambient[i]);
             window.Animation.PauseTalking(!screen.Talking);
+            _shownMap = screen.ColorMap;
+            _talkingOn = screen.Talking;
         }
+        _ambientOff = window.Animation.AmbientFlags.Select(f => (f & CommAnimationFlags.Disabled) != 0).ToArray();
         _race = race;
         _alienFont = alienFont;
         _playerFont = playerFont;
@@ -128,14 +136,18 @@ public sealed class CommScreen
     /// nothing. The replies can change without the lines (they're shown
     /// once the lines end). <paramref name="speakers"/> is each line's
     /// callback (the view's <see cref="Core.Comm.TalkView.Speakers"/>), run
-    /// as each of its pages plays; <paramref name="changes"/> the script's
-    /// changes to the screen at the lines (the view's
-    /// <see cref="TalkScreen.Changes"/>): those of lines replaced before
-    /// they were all made are made at once.
+    /// as each of its pages plays; <paramref name="screen"/> the talk's
+    /// screen (the view's <see cref="TalkView.Screen"/>): its changes at
+    /// the lines are made as they play, those of lines replaced before
+    /// they were all made at once; and new lines start from the screen as
+    /// the view has it (a view this screen never showed, two coming in one
+    /// frame, missed none of its changes: its colour map faded to at once,
+    /// its ambient animations turned on or off, its talking).
     /// </summary>
     public void Show(IReadOnlyList<string> lines, string said, IReadOnlyList<string> replies, int round, long now,
-        IReadOnlyList<string>? speakers = null, IReadOnlyList<ScreenChange>? changes = null)
+        IReadOnlyList<string>? speakers = null, TalkScreen? screen = null)
     {
+        var changes = screen?.Changes;
         _now = now;   // a page followed as it's shown (a replay) plays from now
         string repliesKey = $"{round}\u0001{string.Join("\u0002", replies)}";
         if (repliesKey != _repliesKey)
@@ -151,6 +163,8 @@ public sealed class CommScreen
             return;
         }
         MakeChanges(int.MaxValue);   // the lines replaced: what they had left to change happens now
+        if (screen is not null)
+            Reconcile(screen);
         _changes = changes ?? Array.Empty<ScreenChange>();
         _changesMade = 0;
         _key = key;
@@ -230,32 +244,68 @@ public sealed class CommScreen
         return Window.Update(now) | changed;
     }
 
+    // The screen as a view's lines start, where the views shown here left it otherwise (one never shown): nothing
+    // when they've shown every one.
+    private void Reconcile(TalkScreen screen)
+    {
+        if (screen.ColorMap != _shownMap)
+        {
+            Window.FadeTo(screen.ColorMap, 0, _now);
+            _shownMap = screen.ColorMap;
+        }
+        for (int i = 0; i < Math.Min(screen.Ambient.Count, _ambientOff.Length); ++i)
+        {
+            bool off = (screen.Ambient[i] & CommAnimationFlags.Disabled) != 0;
+            if (off != _ambientOff[i])
+                SetAmbient(i, off);
+        }
+        if (screen.Talking != _talkingOn)
+            SetTalking(screen.Talking);
+    }
+
+    private void SetAmbient(int i, bool off)
+    {
+        var animation = Window.Animation;
+        var flags = animation.AmbientFlags[i];
+        animation.SetAmbientFlags(i, off ? flags | CommAnimationFlags.Disabled : flags & ~CommAnimationFlags.Disabled);
+        _ambientOff[i] = off;
+    }
+
+    private void SetTalking(bool on)
+    {
+        var animation = Window.Animation;
+        _talkingOn = on;
+        if (on)
+        {
+            animation.PauseTalking(false);
+            _restartTalking = true;   // started again at the next segue, once it has stopped
+        }
+        else
+        {
+            // TalkSegue stops the talking at a segue's end, and the next doesn't start it.
+            animation.PauseTalking(true);
+            animation.StopTalking();
+            _restartTalking = false;
+        }
+    }
+
     // The script's changes at lines up to <paramref name="line"/>, in order, each once.
     private void MakeChanges(int line)
     {
         for (; _changesMade < _changes.Count && _changes[_changesMade].Line <= line; ++_changesMade)
         {
             var c = _changes[_changesMade];
-            var animation = Window.Animation;
             switch (c.Kind)
             {
                 case ScreenChangeKind.Fade:
                     Window.FadeTo(c.Value, c.Time, _now);
+                    _shownMap = c.Value;
                     break;
-                case ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff when c.Value < animation.AmbientFlags.Count:
-                    var flags = animation.AmbientFlags[c.Value];
-                    animation.SetAmbientFlags(c.Value, c.Kind == ScreenChangeKind.AmbientOff
-                        ? flags | CommAnimationFlags.Disabled : flags & ~CommAnimationFlags.Disabled);
+                case ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff when c.Value < _ambientOff.Length:
+                    SetAmbient(c.Value, c.Kind == ScreenChangeKind.AmbientOff);
                     break;
-                case ScreenChangeKind.TalkingOff:
-                    // TalkSegue stops the talking at a segue's end, and the next doesn't start it.
-                    animation.PauseTalking(true);
-                    animation.StopTalking();
-                    _restartTalking = false;
-                    break;
-                case ScreenChangeKind.TalkingOn:
-                    animation.PauseTalking(false);
-                    _restartTalking = true;
+                case ScreenChangeKind.TalkingOff or ScreenChangeKind.TalkingOn:
+                    SetTalking(c.Kind == ScreenChangeKind.TalkingOn);
                     break;
             }
         }

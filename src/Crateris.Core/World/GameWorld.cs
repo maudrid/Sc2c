@@ -1165,7 +1165,12 @@ public sealed partial class GameWorld
             else if (aboard)
             {
                 _ended[v.Starter.Id] = (v, v.Menu is null ? null
-                    : TalkView.Of(v) is { } last ? last with { Step = VisitStep.Done, Lines = Array.Empty<string>() } : null);
+                    : TalkView.Of(v) is { } last ? last with
+                    {
+                        Step = VisitStep.Done, Lines = Array.Empty<string>(),
+                        // No lines, so none of the script's changes at them: the screen as the talk left it.
+                        Screen = last.Screen is { } screen ? screen.AfterChanges() : null,
+                    } : null);
             }
         }
     }

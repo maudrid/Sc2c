@@ -505,8 +505,17 @@ public class MeetingWireTests
         Assert.False(view.Same(view with { Screen = screen with { Talking = false } }));
         Assert.False(view.Same(view with { Screen = screen with { Ambient = flags.Take(2).ToArray() } }));
         Assert.False(view.Same(view with { Screen = screen with { Changes = screen.Changes.Take(4).ToList() } }));
-        // A change after the lines' end is the host's error, not sent.
-        Assert.Throws<InvalidOperationException>(() => (view with { Screen = screen with { Changes = new[] { new ScreenChange(3, ScreenChangeKind.TalkingOn) } } }).Encode());
+        // A change past the lines' end (a view's lines cut) goes at their end, never refused by the client.
+        var cut = TalkView.Decode((view with { Lines = Array.Empty<string>() }).Encode())!;
+        Assert.All(cut.Screen!.Changes, c => Assert.Equal(0, c.Line));
+        // The visit's end once docked (GameWorld: its last view with no lines): the screen as its changes leave it.
+        var done = view with { Step = VisitStep.Done, Lines = Array.Empty<string>(), Screen = screen.AfterChanges() };
+        var doneSent = TalkView.Decode(done.Encode())!;
+        Assert.True(done.Same(doneSent));
+        Assert.Empty(doneSent.Screen!.Changes);
+        Assert.Equal((0, true), (doneSent.Screen.ColorMap, doneSent.Screen.Talking));
+        Assert.Equal(new[] { CommAnimationFlags.YoYo, CommAnimationFlags.Circular,
+            CommAnimationFlags.Random | CommAnimationFlags.PauseTalking | CommAnimationFlags.Disabled }, doneSent.Screen.Ambient);
 
         // A hostile client's view: each of the screen's numbers past its bound is refused.
         byte[] Hostile(Action<Net.WireWriter> write, int lines = 2)
