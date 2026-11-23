@@ -206,6 +206,10 @@ public class VuxYehatTests
         Choose(world, "g", "ok_take_beast");
         Assert.True(Said(m.Talk!, "FOOL_AIEE0"));
         Assert.Contains(m.Talk!.Events, e => e is ColorTransform { Map: 1 });   // his colours fade
+        // Drawn on the client: the fade comes in the view, as FOOL_AIEE1 starts (differences.md row 83).
+        var view = TalkView.Of(m)!;
+        Assert.Equal(new[] { new ScreenChange(1, ScreenChangeKind.Fade, 1, Talk.OneSecond / 4) }, view.Screen!.Changes);
+        Assert.Equal(2, view.Lines.Count);
         Assert.Equal((1, 0), (story.Get("ZEX_IS_DEAD"), story.Get("VUX_BEAST_ON_SHIP")));
         Assert.Equal(Segue.Peace, m.Talk.Segue);
         MeetingTests.HearClosing(world, "g");

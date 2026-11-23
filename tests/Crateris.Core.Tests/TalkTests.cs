@@ -146,7 +146,7 @@ public class TalkTests
     }
 
     // Each ported script, its recording (tests/golden/talks-NAME.json) and how it's made.
-    private static readonly Dictionary<string, (string Recording, Func<ConversationScript, CommScript> Make)> Ported = new()
+    internal static readonly Dictionary<string, (string Recording, Func<ConversationScript, CommScript> Make)> Ported = new()
     {
         ["comandr"] = ("talks-comandr", p => new CommanderScript(p)),
         ["ilwrath"] = ("talks-ilwrath", p => new IlwrathScript(p)),
@@ -166,14 +166,14 @@ public class TalkTests
     };
 
     // A script's recorded starts.
-    private static List<JsonElement> Recorded(string script)
+    internal static List<JsonElement> Recorded(string script)
     {
         var file = Golden.Load(Ported[script].Recording);
         Assert.Equal(script, file.GetProperty("script").GetString());
         return file.GetProperty("starts").EnumerateArray().ToList();
     }
 
-    private static Talk Start(ContentPackage package, string script, JsonElement start)
+    internal static Talk Start(ContentPackage package, string script, JsonElement start)
     {
         var s = Scripts[script];
         var date = start.TryGetProperty("date", out var dt) ? dt.Ints() : new[] { 2155, 2, 17 };

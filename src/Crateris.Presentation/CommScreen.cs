@@ -51,6 +51,11 @@ public enum CommKeyResult
 /// (FastForward_Page) goes on a page while they play, which the port
 /// lacks. The
 /// alien's voice isn't played yet: the lines take their subtitles' time.
+/// The talk's script's changes to the screen (<see cref="TalkView.Screen"/>:
+/// its colour fades, ambient animations turned on or off, the talking
+/// stopped or started) are made as the line each is at starts playing,
+/// once each: a skip makes the rest at once, a replay none again (UQM's
+/// script has run).
 /// </summary>
 public sealed class CommScreen
 {
@@ -61,8 +66,12 @@ public sealed class CommScreen
     private readonly UqmFont _alienFont, _playerFont, _tiny;
     private readonly int _sliderSpace;
     private readonly CommSpeakers? _speakers;
-    // Each page with its time and its line's callback (NPCPhrase_cb's, run as it plays), or null.
-    private List<(byte[] Page, int Ticks, string? Callback)> _pages = new();
+    // Each page with its time, its line's callback (NPCPhrase_cb's, run as it plays) or null, and its line.
+    private List<(byte[] Page, int Ticks, string? Callback, int Line)> _pages = new();
+    // The script's changes to the screen for these lines, how many are made, and whether the talking waits to start again.
+    private IReadOnlyList<ScreenChange> _changes = Array.Empty<ScreenChange>();
+    private int _changesMade;
+    private bool _restartTalking;
     private List<byte[]> _lines = new();
     private byte[] _said = Array.Empty<byte>();
     private List<byte[]> _replies = new();
@@ -78,11 +87,23 @@ public sealed class CommScreen
 
     /// <param name="buttonWidth">The slider button's width (ActivityFrame 2): the slider moves over the window less it.</param>
     /// <param name="speakers">The race's speakers, whose lines' callbacks switch them (<see cref="CommSpeakers.For"/>), or null.</param>
+    /// <param name="screen">
+    /// The talk's screen as its lines start (<see cref="TalkView.Screen"/>),
+    /// the screen opened in it: its colour map, its ambient animations'
+    /// flags, its talking; null for the race's description's.
+    /// </param>
     public CommScreen(AlienWindow window, CommDescription race, UqmFont alienFont, UqmFont playerFont, UqmFont tiny, int buttonWidth,
-        CommSpeakers? speakers = null)
+        CommSpeakers? speakers = null, TalkScreen? screen = null)
     {
         _speakers = speakers;
         Window = window;
+        if (screen is not null)
+        {
+            window.SetColorMap(screen.ColorMap);
+            for (int i = 0; i < Math.Min(screen.Ambient.Count, window.Animation.AmbientFlags.Count); ++i)
+                window.Animation.SetAmbientFlags(i, screen.Ambient[i]);
+            window.Animation.PauseTalking(!screen.Talking);
+        }
         _race = race;
         _alienFont = alienFont;
         _playerFont = playerFont;
@@ -107,10 +128,13 @@ public sealed class CommScreen
     /// nothing. The replies can change without the lines (they're shown
     /// once the lines end). <paramref name="speakers"/> is each line's
     /// callback (the view's <see cref="Core.Comm.TalkView.Speakers"/>), run
-    /// as each of its pages plays.
+    /// as each of its pages plays; <paramref name="changes"/> the script's
+    /// changes to the screen at the lines (the view's
+    /// <see cref="TalkScreen.Changes"/>): those of lines replaced before
+    /// they were all made are made at once.
     /// </summary>
     public void Show(IReadOnlyList<string> lines, string said, IReadOnlyList<string> replies, int round, long now,
-        IReadOnlyList<string>? speakers = null)
+        IReadOnlyList<string>? speakers = null, IReadOnlyList<ScreenChange>? changes = null)
     {
         _now = now;   // a page followed as it's shown (a replay) plays from now
         string repliesKey = $"{round}\u0001{string.Join("\u0002", replies)}";
@@ -122,12 +146,18 @@ public sealed class CommScreen
         }
         string key = $"{round}\u0001{said}\u0001{string.Join("\u0002", lines)}";
         if (key == _key)
+        {
+            _changes = changes ?? Array.Empty<ScreenChange>();   // the same lines' (more, if the talk went on without new lines)
             return;
+        }
+        MakeChanges(int.MaxValue);   // the lines replaced: what they had left to change happens now
+        _changes = changes ?? Array.Empty<ScreenChange>();
+        _changesMade = 0;
         _key = key;
         _lines = lines.Select(l => Encoding.UTF8.GetBytes(l)).ToList();
         _said = Encoding.UTF8.GetBytes(said);
         _pages = _lines.SelectMany((l, i) => CommText.SplitPages(l).Select(p => (p.Page, p.Millis * 840 / 1000,
-            speakers is not null && i < speakers.Count && speakers[i].Length > 0 ? speakers[i] : null))).ToList();
+            speakers is not null && i < speakers.Count && speakers[i].Length > 0 ? speakers[i] : null, i))).ToList();
         _summary = null;
         Play(now, segue: true);
     }
@@ -188,7 +218,47 @@ public sealed class CommScreen
                 changed = true;
             }
         }
+        // The script's changes at the lines up to the one playing (all of them once the lines are over).
+        MakeChanges(_talking ? (_shownPage >= 0 ? _pages[_shownPage].Line : -1) : int.MaxValue);
+        // The talking started again (EnableTalkingAnim (TRUE)) at the next segue, once it has stopped.
+        if (_restartTalking && (!_talking || !Window.Animation.Running))
+        {
+            if (_talking)
+                Window.Animation.StartTalking();
+            _restartTalking = false;
+        }
         return Window.Update(now) | changed;
+    }
+
+    // The script's changes at lines up to <paramref name="line"/>, in order, each once.
+    private void MakeChanges(int line)
+    {
+        for (; _changesMade < _changes.Count && _changes[_changesMade].Line <= line; ++_changesMade)
+        {
+            var c = _changes[_changesMade];
+            var animation = Window.Animation;
+            switch (c.Kind)
+            {
+                case ScreenChangeKind.Fade:
+                    Window.FadeTo(c.Value, c.Time, _now);
+                    break;
+                case ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff when c.Value < animation.AmbientFlags.Count:
+                    var flags = animation.AmbientFlags[c.Value];
+                    animation.SetAmbientFlags(c.Value, c.Kind == ScreenChangeKind.AmbientOff
+                        ? flags | CommAnimationFlags.Disabled : flags & ~CommAnimationFlags.Disabled);
+                    break;
+                case ScreenChangeKind.TalkingOff:
+                    // TalkSegue stops the talking at a segue's end, and the next doesn't start it.
+                    animation.PauseTalking(true);
+                    animation.StopTalking();
+                    _restartTalking = false;
+                    break;
+                case ScreenChangeKind.TalkingOn:
+                    animation.PauseTalking(false);
+                    _restartTalking = true;
+                    break;
+            }
+        }
     }
 
     /// <summary>A key, as UQM's talk takes it (see the class).</summary>

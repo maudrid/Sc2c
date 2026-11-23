@@ -689,7 +689,21 @@ public sealed class Talk
         Check();
         _events.Add(new LineQueued(phrase, clip, text, callback?.Method.Name));
         QueueChunks(clip is not null, text, callback);
+        if (clip is not null)
+            _lineTracks[_events.Count - 1] = _trackCount;
     }
+
+    // Each line with a clip (by its event's index): the track it went into.
+    private readonly Dictionary<int, int> _lineTracks = new();
+
+    /// <summary>
+    /// The track (from 1 since the last reply, as <see cref="TalkWait"/>
+    /// numbers them) that the line with a clip queued at event
+    /// <paramref name="eventIndex"/> plays in: a line joined to the last
+    /// track (after SpliceMultiTrack) or with no text plays in the last
+    /// one; 0 for none before it.
+    /// </summary>
+    public int TrackOf(int eventIndex) => _lineTracks.GetValueOrDefault(eventIndex);
 
     private static byte[] Name(string name) => Encoding.UTF8.GetBytes(name);
 

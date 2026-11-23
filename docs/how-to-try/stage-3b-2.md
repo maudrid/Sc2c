@@ -63,6 +63,17 @@ Each is a row of `docs/differences.md`: Spathiwa's moon's talk with several play
 - **The Spathi never shield themselves** (their event is stage 3c's), so Spathiwa's moon keeps talking after the alliance.
 - **The alternate "Safe Ones" song** is chosen but nothing plays music yet.
 
+## The talks' screen changes (after item 6)
+
+A talk's script changes the communication screen as its lines play (`differences.md` row 83), and every client now draws it: the talk's view carries the screen as the lines start and the script's changes at the lines they're made at (protocol 31). Tests: `TalkScreenTests` (topic `talk`: every recorded path's changes, and the five talks below at their lines), `MeetingWireTests.ATalksScreenGoesOverTheWireAndBadOnesAreRefused`, `CommScreenTests.ATalksScreenChangesAreMadeAsTheirLinesPlay`, `VuxYehatTests` (ZEX's fade in his view).
+
+- `--start-visit --screenshot FILE.png --quit-after 150` (and again at 200): the commander in his dark low-power colours, flickering (the two shots differ).
+- `--start-visit base-report --screenshot FILE.png --quit-after 150` (and at 200): the commander at full power after the radioactives, steady (the two shots are the same).
+- `--start-devices VUX_BEAST_DEVICE --start-orbit 118:0 --meeting-replies 0,0,0,0,1 --screenshot FILE.png`: at `--quit-after 1500` ZEX in his colours as `FOOL_AIEE0` plays; at 2000, as `FOOL_AIEE1` plays ("No, Sub-Commander, this is impossible..."), his window gone black (the VUX colour table's second entry is all black: his console dead, as UQM's).
+- Not looked at windowed: the transfer's fade to full power ("We'll transfer them now"), the allied commander's still mouth through the scientist's report, the Spathi's and the Melnorme's fades; the tests check each at its line.
+
+Left different (row 83): UQM's mouth stops for a moment at the end of each `AlienTalkSegue`, the port's moves on through; a fade the script begins before the screen is first drawn (the Melnorme's angry greetings) runs from the first colours as the screen opens.
+
 ## Item 6: the VUX and the Yehat
 
 ### The VUX
@@ -71,7 +82,7 @@ The VUX's groups fly in their sphere. Every talk with them ends in a fight: thei
 
 1. **Their homeworld** (star 98, planet 0) starts their talk against their endless fleet: the encounter screen, the homeworld's greetings, the fight. The ship is never put in orbit there.
 2. **Admiral ZEX** at the Maidens' world (star 118, planet 0) talks at peace (no encounter screen): his menagerie, why he doesn't attack, the Precursor device he lied about. "Regardless" (after "we require the Maidens") fights his endless fleet. While he lives the ship is never put in orbit there.
-3. **The beast.** With the beast aboard (stage 3c's pickup: `--start-devices VUX_BEAST_DEVICE`) and his wish known (asked about the creature he wants), "we have captured the monster" offers it; given, it kills him: his colours fade (on the host; not yet drawn on the communication screen, below), `ZEX_IS_DEAD` is set, the beast leaves the ship, and the ship goes into orbit; from then on the world is orbited by anyone.
+3. **The beast.** With the beast aboard (stage 3c's pickup: `--start-devices VUX_BEAST_DEVICE`) and his wish known (asked about the creature he wants), "we have captured the monster" offers it; given, it kills him: his colours fade (as his last line starts, on every client's communication screen: the screen-change fix below), `ZEX_IS_DEAD` is set, the beast leaves the ship, and the ship goes into orbit; from then on the world is orbited by anyone.
 
 ### The Yehat
 
@@ -97,7 +108,6 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 
 ### Known limits of item 6
 
-- **The talks' screen changes aren't drawn:** the talks' screen changes (colour maps and fades, ambient animations turned off, the talking animation stopped) run on the host and match UQM but aren't sent to the client, so the communication screen doesn't show them: the commander's, the allied commander's, the Spathi at home's, the Melnorme's and ZEX's (`differences.md` row 83, which lists them); where that's built is the owner's to place.
 - **The rebels and the revolt** need stage 3c: the revolt's event, which cuts the royalists' fleet to two thirds and gives the rebels as much, is set aside; the Shofixti ship it needs comes only with the Shofixti's return (3c) or `--start-fleet`; the endgame's cavalry (the rebels' last-battle branch) is recorded and tested only.
 - **The beast** is stage 3c's pickup (`--start-devices VUX_BEAST_DEVICE` until then).
 

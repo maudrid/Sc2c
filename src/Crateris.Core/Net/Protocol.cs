@@ -161,7 +161,13 @@ public static class Protocol
     /// 30: the Zoq-Fot-Pik's two speakers (stage 3b-2 item 5): a talk's
     /// view carries each line's speaker (TalkView.Speakers: the callback
     /// its NPCPhrase_cb named), for the communication screen to switch.
-    public const int Version = 30;
+    /// 31: the talks' screen changes (docs/differences.md row 83): a
+    /// talk's view carries its communication screen (TalkView.Screen: the
+    /// colour map, the ambient animations' flags and the talking animation
+    /// as the lines start, and the fades, the ambient animations turned on
+    /// or off and the talking stopped or started at the lines they're made
+    /// at).
+    public const int Version = 31;
     public const int DefaultPort = 24642;
 
     /// <summary>

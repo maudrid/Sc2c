@@ -40,9 +40,16 @@ namespace Crateris.Core.Comm;
 /// SelectAlienPIK), "" for a line without one, or null when no line has
 /// one; the client runs it as the line's pages play, switching the speaker
 /// on the communication screen.
+/// <see cref="Screen"/> is the communication screen as the talk's script
+/// leaves it (the screen-change fix, protocol 31): its colour map, ambient
+/// animations and talking animation as the lines start, for a screen
+/// opened afresh, and what the script changes on it as they play (the
+/// commander's power coming back, the colours' fades, the allied
+/// commander's mouth still through the scientist's report); null before
+/// the talk's screen is loaded.
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
     int Round = 0, string Replier = "", string Said = "", IReadOnlyList<TalkPage>? Paging = null, MineralSale? Sale = null,
-    uint? Credits = null, BioSale? BioSale = null, IReadOnlyList<string>? Speakers = null)
+    uint? Credits = null, BioSale? BioSale = null, IReadOnlyList<string>? Speakers = null, TalkScreen? Screen = null)
 {
     /// <summary>The longest name a speaker's callback has on the wire.</summary>
     public const int MostSpeakerName = 64;
@@ -108,8 +115,12 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var speakers = new List<string>();
         MineralSale? sale = null;
         World.Player? seller = null;
+        // The screen is the last talk's (its script's), its lines after the others' (another talk's closing lines).
+        int screenTalk = visit.Talks.Count - 1, screenLine = 0;
         for (int t = talkFrom; t < visit.Talks.Count; ++t)
         {
+            if (t == screenTalk)
+                screenLine = lines.Count;
             foreach (var (at, sold) in visit.Talks[t].Sales)
                 if (t > talkFrom || at >= eventFrom)
                     (sale, seller) = (sold, visit.SellerOf(t, at));
@@ -122,7 +133,8 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             visit.Replier.Id, said,
             // The talk sells its answerer's hold: counted down on their screen while they reply (the
             // replies passed on to another player since, nobody's).
-            Sale: seller is not null && seller == visit.Replier ? sale : null, Speakers: SpeakersOf(speakers));
+            Sale: seller is not null && seller == visit.Replier ? sale : null, Speakers: SpeakersOf(speakers),
+            Screen: screenTalk >= 0 ? TalkScreen.Of(visit.Talks[screenTalk], screenTalk == talkFrom ? eventFrom : 0, screenLine) : null);
         return visit.Paging is { } paging && paging.Key == view.LinesKey ? view with { Paging = paging.Pages.ToList() } : view;
     }
 
@@ -193,7 +205,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         return new TalkView(VisitStep.Meeting, talk.Script.Phrases.Name, lines,
             talk.Ended ? new List<string>() : talk.Replies.Select(r => r.Text).ToList(), round, meeting.Player.Id, said,
             Credits: talk.ShowsCredits ? meeting.Player.Ship.Hold.Credits : null, BioSale: bioSale,
-            Speakers: SpeakersOf(speakers));
+            Speakers: SpeakersOf(speakers), Screen: TalkScreen.Of(talk, from));
     }
 
     public byte[] Encode()
@@ -229,6 +241,9 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             foreach (var sp in speakers)
                 w.String(sp);
         }
+        // The screen (0 for none), its changes at the lines.
+        w.Byte(Screen is null ? (byte)0 : (byte)1);
+        Screen?.Encode(w, Lines.Count);
         return w.Written.ToArray();
     }
 
@@ -290,10 +305,16 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             case var b:
                 throw new InvalidDataException($"Bad talk speakers {b}.");
         }
+        var screen = r.Byte() switch
+        {
+            0 => null,
+            1 => TalkScreen.Decode(ref r, lines.Count),
+            var b => throw new InvalidDataException($"Bad talk screen {b}."),
+        };
         if (!r.AtEnd)
             throw new InvalidDataException("A talk has bytes after its end.");
         return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier, said,
-            paging.Count == 0 ? null : paging, sale, credits, bioSale, speakers);
+            paging.Count == 0 ? null : paging, sale, credits, bioSale, speakers, screen);
     }
 
     private static ulong Count(ulong n, int most) =>
@@ -303,5 +324,6 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         other is not null && Step == other.Step && Script == other.Script && Round == other.Round && Replier == other.Replier && Said == other.Said
         && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies) && PagingSoFar.SequenceEqual(other.PagingSoFar)
         && Equals(Sale, other.Sale) && Credits == other.Credits && Equals(BioSale, other.BioSale)
-        && (Speakers ?? Array.Empty<string>()).SequenceEqual(other.Speakers ?? Array.Empty<string>());
+        && (Speakers ?? Array.Empty<string>()).SequenceEqual(other.Speakers ?? Array.Empty<string>())
+        && (Screen is null ? other.Screen is null : Screen.Same(other.Screen));
 }

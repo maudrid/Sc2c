@@ -116,8 +116,9 @@ public partial class CommView : Node2D
             {
                 var race = _scripts[talk.Script].Description;
                 var window = new AlienWindow(_sheets!, _content, race, _seed++, Now);
+                // Opened as the talk's script leaves the screen as these lines start (its colour map, ambient animations, talking).
                 _screen = new CommScreen(window, race, Font(race.Font), _player!, _tiny!, _button!.Width,
-                    CommSpeakers.For(talk.Script));
+                    CommSpeakers.For(talk.Script), talk.Screen);
             }
         }
         if (linesFrom < 0)
@@ -129,7 +130,8 @@ public partial class CommView : Node2D
             return;
         }
         // The lines play from when the count-down was put away (the first time they're shown after it).
-        _screen?.Show(talk.Lines, talk.Said, talk.Replies, talk.Round, _holding ? Math.Min(linesFrom, Now) : Now, talk.Speakers);
+        _screen?.Show(talk.Lines, talk.Said, talk.Replies, talk.Round, _holding ? Math.Min(linesFrom, Now) : Now, talk.Speakers,
+            talk.Screen?.Changes);
         _holding = false;
         _cursor = session.Replying ? session.ReplyCursor : -1;
         // Every screen follows the replier's paging of these lines that it hasn't applied (decision 7);

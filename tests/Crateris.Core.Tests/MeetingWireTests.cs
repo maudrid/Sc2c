@@ -480,14 +480,92 @@ public class MeetingWireTests
             BattleNotice.Decode((tally with { Destroyed = BattleNotice.MostDestroyed + 1 }).Encode()));
     }
 
+    [Fact]
+    public void ATalksScreenGoesOverTheWireAndBadOnesAreRefused()
+    {
+        // Protocol 31 (differences.md row 83): the screen as the lines start and the script's changes at them.
+        var flags = new[] { CommAnimationFlags.YoYo, CommAnimationFlags.Circular, CommAnimationFlags.Random | CommAnimationFlags.PauseTalking };
+        var screen = new TalkScreen(1, flags, true, new[]
+        {
+            new ScreenChange(1, ScreenChangeKind.AmbientOff, 2),
+            new ScreenChange(1, ScreenChangeKind.Fade, 0, 420),
+            new ScreenChange(2, ScreenChangeKind.TalkingOff),
+            new ScreenChange(2, ScreenChangeKind.TalkingOn),
+            new ScreenChange(2, ScreenChangeKind.AmbientOn, 0),
+        });
+        var view = new TalkView(VisitStep.Meeting, "comandr", new[] { "One", "Two" }, new[] { "Bye" }, 3, "g1", "", Screen: screen);
+        var sent = TalkView.Decode(view.Encode())!;
+        Assert.True(view.Same(sent));
+        Assert.Equal((1, true), (sent.Screen!.ColorMap, sent.Screen.Talking));
+        Assert.Equal(flags, sent.Screen.Ambient);
+        Assert.Equal(screen.Changes, sent.Screen.Changes);
+        Assert.Null(TalkView.Decode((view with { Screen = null }).Encode())!.Screen);
+        Assert.False(view.Same(view with { Screen = null }));
+        Assert.False(view.Same(view with { Screen = screen with { ColorMap = 0 } }));
+        Assert.False(view.Same(view with { Screen = screen with { Talking = false } }));
+        Assert.False(view.Same(view with { Screen = screen with { Ambient = flags.Take(2).ToArray() } }));
+        Assert.False(view.Same(view with { Screen = screen with { Changes = screen.Changes.Take(4).ToList() } }));
+        // A change after the lines' end is the host's error, not sent.
+        Assert.Throws<InvalidOperationException>(() => (view with { Screen = screen with { Changes = new[] { new ScreenChange(3, ScreenChangeKind.TalkingOn) } } }).Encode());
+
+        // A hostile client's view: each of the screen's numbers past its bound is refused.
+        byte[] Hostile(Action<Net.WireWriter> write, int lines = 2)
+        {
+            var bare = new TalkView(VisitStep.Meeting, "comandr", Enumerable.Repeat("x", lines).ToArray(), Array.Empty<string>()).Encode();
+            var w = new Net.WireWriter();
+            foreach (byte b in bare[..^1])   // all but its "no screen"
+                w.Byte(b);
+            w.Byte(1);
+            write(w);
+            return w.Written.ToArray();
+        }
+        void Screen(Net.WireWriter w, ulong map = 0, ulong ambient = 1, byte talking = 1, ulong changes = 0)
+        {
+            w.UInt(map);
+            w.UInt(ambient);
+            for (ulong i = 0; i < Math.Min(ambient, 64); ++i)
+                w.Byte(0);
+            w.Byte(talking);
+            w.UInt(changes);
+        }
+        var plain = TalkView.Decode(Hostile(w => Screen(w)))!.Screen!;
+        Assert.Equal((0, 1, true, 0), (plain.ColorMap, plain.Ambient.Count, plain.Talking, plain.Changes.Count));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Screen(w, map: TalkScreen.MostColorMap + 1))));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Screen(w, ambient: TalkScreen.MostAmbient + 1))));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Screen(w, ambient: 1UL << 40))));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Screen(w, talking: 2))));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Screen(w, changes: TalkScreen.MostChanges + 1))));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Screen(w, changes: ulong.MaxValue))));
+        void Change(Net.WireWriter w, ulong line, byte kind, params ulong[] values)
+        {
+            Screen(w, changes: 1);
+            w.UInt(line);
+            w.Byte(kind);
+            foreach (var v in values)
+                w.UInt(v);
+        }
+        Assert.Equal(new ScreenChange(2, ScreenChangeKind.Fade, 255, TalkScreen.MostTime),
+            TalkView.Decode(Hostile(w => Change(w, 2, 0, 255, TalkScreen.MostTime)))!.Screen!.Changes.Single());
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 3, 3))));   // after the lines' end
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 5))));   // no such change
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 0, 256, 1))));   // no such colour map
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 0, 1, TalkScreen.MostTime + 1))));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 2, 1))));   // the only ambient is 0
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 1))));   // its number cut off
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Screen(w)).Append((byte)0).ToArray()));
+        var noScreen = (view with { Screen = null }).Encode();
+        noScreen[^1] = 2;   // no such screen flag
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(noScreen));
+    }
+
     [ContentFact]
     public void AnOldClientIsRefused()
     {
         // 27 a meeting's closing lines (stage 3b-1 item 11), 28 credits and fuel (3b-2 item 3), 29 the Melnorme's talk
-        // (item 4), 30 the Zoq-Fot-Pik's speakers (item 5).
-        Assert.Equal(30, Protocol.Version);
+        // (item 4), 30 the Zoq-Fot-Pik's speakers (item 5), 31 the talks' screen changes (row 83).
+        Assert.Equal(31, Protocol.Version);
         var game = NewGame(guests: 0);
-        var refused = game.Host.Hello(9, "old", "Old", 29);
+        var refused = game.Host.Hello(9, "old", "Old", 30);
         Assert.False(Protocol.Accepted(refused.Result));
         Assert.Contains("Version mismatch", refused.Message);
     }

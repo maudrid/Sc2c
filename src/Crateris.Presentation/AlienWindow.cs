@@ -20,11 +20,13 @@ namespace Crateris.Presentation;
 /// <summary>
 /// The alien's window in the communication screen: SIS_SCREEN_WIDTH wide
 /// and as tall as the race's main frame, drawn as UQM draws it. At the
-/// start the race's colour table's first entry is set and the main frame
+/// start the race's colour table's first entry is set (or the one the
+/// talk's script chose, <see cref="SetColorMap"/>) and the main frame
 /// drawn; then every <see cref="AlienAnimation.FrameTicks"/> the colour
 /// fades step (a change redraws the whole picture), the animations step,
 /// colour animations start their fades, and the frames that changed are
-/// stamped over what was there. <see cref="Pixels"/> is the window's RGBA.
+/// stamped over what was there. The script's own fades start with
+/// <see cref="FadeTo"/>. <see cref="Pixels"/> is the window's RGBA.
 /// </summary>
 public sealed class AlienWindow
 {
@@ -68,6 +70,21 @@ public sealed class AlienWindow
 
     /// <summary>The subtitles were cleared: the next frame redraws the whole picture (clear_subtitles).</summary>
     public void Clear() => _clear = true;
+
+    /// <summary>
+    /// The race's colour table's entry <paramref name="map"/> set at once
+    /// (AlienTalkSegue's SetColorMap as the screen is first drawn, in the
+    /// colour map the talk's script chose), the whole picture drawn again.
+    /// </summary>
+    public void SetColorMap(int map)
+    {
+        _fades.Maps.Set(_colors[map]);
+        _rendered.Clear();
+        _clear = true;
+    }
+
+    /// <summary>The talk's script fades the colours to its race's colour table's entry <paramref name="map"/> over <paramref name="ticks"/> from <paramref name="now"/> (XFormColorMap).</summary>
+    public void FadeTo(int map, int ticks, long now) => _fades.Start(_colors[map].ToArray(), ticks, now);
 
     /// <summary>
     /// UpdateAnimations at <paramref name="now"/>: each frame due steps

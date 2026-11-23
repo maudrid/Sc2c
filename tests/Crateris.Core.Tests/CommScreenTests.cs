@@ -139,6 +139,107 @@ public class CommScreenTests
         Assert.Null(CommSpeakers.For("starbas"));
     }
 
+    // A race's communication screen opened as a talk's view gives it (TalkView.Screen), with its colour table.
+    private static CommScreen Opened(string script, TalkScreen? start, out BinaryTable colors)
+    {
+        var d = Scripts[script].Description;
+        BinaryTable table = null!;
+        var screen = TestContent.With(package =>
+        {
+            var sheets = new AnimationSheets(package);
+            var activity = SpriteSheet.Load(sheets, "graphics.activity");
+            var maps = new ColorMaps();
+            maps.Set(BinaryTable.Load(package, "colortable.main")[0]);
+            table = BinaryTable.Load(package, d.ColorMap);
+            return new CommScreen(new AlienWindow(sheets, package, d, 1, 0), d, UqmFont.Load(package, d.Font),
+                UqmFont.Load(package, "font.player"), UqmFont.Load(package, "font.tiny"),
+                activity.Render(CommScreen.SliderButtonFrame, maps).Width, null, start);
+        });
+        colors = table;
+        return screen;
+    }
+
+    // Whether the window's colours are the colour table's entry (its first map, where the alien's colours are).
+    private static bool ColorsAre(CommScreen screen, BinaryTable colors, int entry)
+    {
+        var e = colors[entry].ToArray();
+        var map = screen.Window.Maps[e[0]]!;
+        return Enumerable.Range(0, 256).All(i => map[i] == new Rgb(e[2 + i * 3], e[3 + i * 3], e[4 + i * 3]));
+    }
+
+    [ContentFact]
+    public void ATalksScreenChangesAreMadeAsTheirLinesPlay()
+    {
+        // Differences.md row 83. The commander before the radioactives: the screen opened in his low-power colours
+        // (map 1) with the flicker on; as the transfer's second line starts the flicker goes off and the colours
+        // fade to full power over half a second.
+        var flags = Scripts["comandr"].Description.Ambient.Select(a => a.Flags).ToList();
+        var screen = Opened("comandr", new TalkScreen(1, flags, true, Array.Empty<ScreenChange>()), out var colors);
+        var anim = screen.Window.Animation;
+        Assert.True(ColorsAre(screen, colors, 1));
+        Assert.False(ColorsAre(screen, colors, 0));
+        var transfer = new[] { new ScreenChange(1, ScreenChangeKind.AmbientOff, 2), new ScreenChange(1, ScreenChangeKind.Fade, 0, 420) };
+        screen.Show(new[] { "Fuel up.", "Power coming." }, "Transfer them.", new[] { "Who are you?" }, 2, 0, null, transfer);
+        long t = 0;
+        screen.Update(t);
+        Assert.Equal(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));   // the first line: not yet
+        while (screen.Draw(-1).OverTexts[0] is var p && Encoding.UTF8.GetString(p) != "Power coming.")
+            screen.Update(t += 21);
+        Assert.NotEqual(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        long faded = t + 420;
+        while (t <= faded + 21)
+            screen.Update(t += 21);
+        Assert.True(ColorsAre(screen, colors, 0));   // full power, and steady: no flicker
+        for (int k = 0; k < 100; ++k)
+            screen.Update(t += 21);
+        Assert.True(ColorsAre(screen, colors, 0));
+        // Played again: the script has run, nothing is made again (the flicker turned back on by hand stays on).
+        anim.SetAmbientFlags(2, anim.AmbientFlags[2] & ~CommAnimationFlags.Disabled);
+        screen.Page(TalkPage.Replay);
+        while (screen.Talking)
+            screen.Update(t += 21);
+        Assert.Equal(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        // A skip makes what's left at once; lines replaced before their changes were made make them then.
+        screen.Show(new[] { "One.", "Two.", "Three." }, "Again.", Array.Empty<string>(), 3, t, null,
+            new[] { new ScreenChange(2, ScreenChangeKind.AmbientOff, 2) });
+        screen.Update(t += 1);
+        Assert.Equal(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        screen.Page(TalkPage.Skip);
+        Assert.NotEqual(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        screen.Show(new[] { "Four.", "Five." }, "More.", Array.Empty<string>(), 4, t, null,
+            new[] { new ScreenChange(1, ScreenChangeKind.AmbientOn, 2), new ScreenChange(2, ScreenChangeKind.Fade, 1, 0) });
+        screen.Update(t += 1);
+        Assert.NotEqual(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        screen.Show(new[] { "Six." }, "Last.", Array.Empty<string>(), 5, t, null, null);
+        Assert.Equal(0, (int)(anim.AmbientFlags[2] & CommAnimationFlags.Disabled));
+        anim.SetAmbientFlags(2, anim.AmbientFlags[2] | CommAnimationFlags.Disabled);   // the flicker off again, to see the fade's end steady
+        screen.Update(t += 21);
+        Assert.True(ColorsAre(screen, colors, 1));
+
+        // The allied commander: his mouth stops as the scientist's report starts, and moves again with the line after.
+        var starbase = Opened("starbas", null, out _);
+        var talking = starbase.Window.Animation;
+        starbase.Show(new[] { "Devices.", "About the beast.", "The scientist's report.", "The rest." }, "", new[] { "Bye" }, 1, 0, null,
+            new[] { new ScreenChange(2, ScreenChangeKind.TalkingOff), new ScreenChange(3, ScreenChangeKind.TalkingOn) });
+        t = 0;
+        starbase.Update(t);
+        for (int k = 0; k < 10; ++k)
+            starbase.Update(t += 21);
+        Assert.True(talking.Running);
+        while (Encoding.UTF8.GetString(starbase.Draw(-1).OverTexts[0]) != "The scientist's report.")
+            starbase.Update(t += 21);
+        Assert.NotEqual(0, (int)(talking.TalkFlags & CommAnimationFlags.PauseTalking));
+        for (int k = 0; k < 20 && starbase.Talking; ++k)
+            starbase.Update(t += 21);
+        Assert.Equal("The scientist's report.", Encoding.UTF8.GetString(starbase.Draw(-1).OverTexts[0]));
+        Assert.False(talking.Running);   // still through the report
+        while (Encoding.UTF8.GetString(starbase.Draw(-1).OverTexts[0]) != "The rest.")
+            starbase.Update(t += 21);
+        starbase.Update(t += 21);
+        Assert.True(talking.Running);
+        Assert.Equal(0, (int)(talking.TalkFlags & CommAnimationFlags.PauseTalking));
+    }
+
     // The subtitle's x as drawn (each line of it centred there, in white traced in black).
     private static int ScreenTextX(CommScreen screen)
     {
