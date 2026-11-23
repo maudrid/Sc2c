@@ -124,7 +124,10 @@ public static class HostSave
     /// PlayerState.Melnorme), as parts a version 14 save without them loads
     /// as none (and an older save with them is refused); a version 14 save
     /// with them loaded by item 3's code drops them silently (accepted: the
-    /// plan's single bump).
+    /// plan's single bump). A save from before item 4 holding
+    /// MELNORME_RESCUE_REFUSED, MELNORME_RESCUE_COUNT or USED_BROADCASTER in
+    /// the shared story loads them as the host's own
+    /// (StoryState.MovedToPlayers), unless the host's own part is saved.
     /// </summary>
     public const int Version = 14;
     public const int OldestReadableVersion = 1;
