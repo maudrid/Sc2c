@@ -158,6 +158,8 @@ public class TalkTests
         ["spahome"] = ("talks-spahome", p => new SpathiHomeScript(p)),
         ["slyhome"] = ("talks-slyhome", p => new SlylandroHomeScript(p)),
         ["melnorm"] = ("talks-melnorm", p => new MelnormeScript(p)),
+        ["shofixt"] = ("talks-shofixt", p => new ShofixtiScript(p)),
+        ["zoqfot"] = ("talks-zoqfot", p => new ZoqFotPikScript(p)),
     };
 
     // A script's recorded starts.

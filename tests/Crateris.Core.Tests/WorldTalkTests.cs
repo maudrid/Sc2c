@@ -163,8 +163,9 @@ public class WorldTalkTests
             if (!ported)
                 Assert.Equal(before, story.Bits.ToArray());
         }
-        // Ported: the Ilwrath's (their homeworld and Procyon), the Spathi at home and the Slylandro at home.
-        Assert.Equal(new[] { "CHMMR_DEFINED", "ILWRATH_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED" },
+        // Ported: the Ilwrath's (their homeworld and Procyon), the Spathi at home, the Slylandro at home
+        // and the Zoq-Fot-Pik's homeworld (stage 3b-2 item 5).
+        Assert.Equal(new[] { "CHMMR_DEFINED", "ILWRATH_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED", "ZOQFOT_DEFINED" },
             GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is not null).Select(w => w.Special).OrderBy(s => s));
         // The Druuge at the bomb's moon once the Utwig have their Ultron: still waiting for theirs.
         story.Set("UTWIG_HAVE_ULTRON", 1);

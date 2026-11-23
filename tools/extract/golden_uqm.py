@@ -5082,10 +5082,119 @@ def melnorm_starts():
     return starts
 
 
+NAMES = (("long-names", "Captain Fifteen", "Fifteen bytes!!"), ("accented-names", "Zoë", "Ñandú"),
+         ("empty-names", "", ""))
+
+
+def shofixt_starts():
+    """Tanaka (or Katana) at the Shofixti's system (shofixt.c), from
+    states chosen to reach every condition it reads: the endgame's won
+    battle; hostile, each visit's greeting for Tanaka and for Katana
+    (SHOFIXTI_KIA; the visits past those the switch names), each
+    combination of the three stacks of hostile replies (SHOFIXTI_STACK1 to
+    3, with the Maidens aboard or not), each count of "don't want to fight"
+    (STACK4), the names spliced into "I am captain" (each alliance name,
+    the captain's and ship's names); friendly (STACK2 past 2, its own
+    bits' last too), each value of the friendly stacks (STACK1, STACK3) for
+    Tanaka and Katana, with the Maidens aboard (the recruitment) or not."""
+    sys_start = lambda name, state, **kw: space_start(name, state, "IN_INTERPLANETARY", **kw)
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE")]
+    for kia in (0, 1):
+        who = "katana" if kia else "tanaka"
+        for visits in range(8):
+            starts.append(sys_start(f"{who}-visit-{visits}", {"SHOFIXTI_KIA": kia, "SHOFIXTI_VISITS": visits},
+                                    **({} if visits == 0 else {"follow": []})))
+    for s1 in range(4):
+        for s2 in range(3):
+            for s3 in range(4):
+                for maidens in ((0, 1) if s2 == 2 else (0,)):
+                    starts.append(sys_start(f"stacks-{s1}-{s2}-{s3}" + ("-maidens" if maidens else ""),
+                                            {"SHOFIXTI_VISITS": 1, "SHOFIXTI_STACK1": s1, "SHOFIXTI_STACK2": s2,
+                                             "SHOFIXTI_STACK3": s3, "MAIDENS_ON_SHIP": maidens}))
+    starts.append(sys_start("stacks-katana-look", {"SHOFIXTI_KIA": 1, "SHOFIXTI_VISITS": 1, "SHOFIXTI_STACK3": 1}))
+    for fights in range(1, 4):
+        starts.append(sys_start(f"dont-want-to-fight-{fights}", {"SHOFIXTI_VISITS": 1, "SHOFIXTI_STACK4": fights}))
+    # "I am captain ...": donkey_breath (the second reply with STACK1 3 and STACK3 3).
+    for alliance in range(4):
+        starts.append(sys_start(f"captain-alliance-name-{alliance}",
+                                {"SHOFIXTI_STACK1": 3, "SHOFIXTI_STACK2": 2, "SHOFIXTI_STACK3": 3,
+                                 "NEW_ALLIANCE_NAME": alliance}, prefix=[0], follow=[]))
+    for cname, captain, ship in NAMES:
+        start = sys_start(f"captain-{cname}", {"SHOFIXTI_STACK1": 3, "SHOFIXTI_STACK2": 2, "SHOFIXTI_STACK3": 3,
+                                               "NEW_ALLIANCE_NAME": 3}, prefix=[0], follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    for kia in (0, 1):
+        who = "katana" if kia else "tanaka"
+        for maidens in (0, 1):
+            starts.append(sys_start(f"friendly-{who}" + ("-maidens" if maidens else ""),
+                                    {"SHOFIXTI_KIA": kia, "SHOFIXTI_STACK2": 3, "MAIDENS_ON_SHIP": maidens}))
+        for s1 in range(4):
+            for s3 in range(4):
+                starts.append(sys_start(f"friendly-{who}-stacks-{s1}-{s3}",
+                                        {"SHOFIXTI_KIA": kia, "SHOFIXTI_STACK2": 3, "SHOFIXTI_STACK1": s1,
+                                         "SHOFIXTI_STACK3": s3}, follow=[]))
+    starts.append(sys_start("friendly-stack2-7", {"SHOFIXTI_STACK2": 7}, follow=[]))
+    return starts
+
+
+def zoqfot_starts():
+    """The Zoq-Fot-Pik (zoqfotc.c), from states chosen to reach every
+    condition it reads: the endgame's won battle; hostile, each visit
+    (ZOQFOT_HOME_VISITS, the visits past those the switch names); the first
+    meeting at their homeworld (GLOBAL_FLAGS_AND_DATA bit 7) and with their
+    scout (no bit, in a system), each walked whole, with each alliance's
+    and ship's names in "we are"; the thanks for a rescue from distress
+    (ZOQFOT_DISTRESS, each value; the host's fleet with room for the 4
+    ships, for some, for none); the neutral homeworld's and the allies'
+    greetings (each visit), the neutral one's walked whole (the alliance
+    made in it, and the allies' questions after it); each piece of the
+    homeworld's news (ZOQFOT_INFO); and the war's news by what they've
+    told (ZOQFOT_KNOW_MASK), the Kohr-Ah's frenzy, the Utwig and Supox's
+    mission (UTWIG_SUPOX_MISSION) and the date (the years to the Kohr-Ah's
+    victory, its last year from March)."""
+    home = lambda name, state, **kw: home_start(name, {"MET_ZOQFOT": 1, **state}, **kw)
+    allied = {"alliances": {"ZOQFOTPIK_SHIP": "good"}}
+    starts = [home_start("won-last-battle", {}, activity="WON_LAST_BATTLE"),
+              home_start("first-home", {}),
+              space_start("first-scout", {}, "IN_INTERPLANETARY")]
+    for alliance in range(4):
+        starts.append(home_start(f"first-alliance-name-{alliance}", {"NEW_ALLIANCE_NAME": alliance}, follow=[]))
+    for cname, captain, ship in NAMES:
+        start = home_start(f"first-{cname}", {"NEW_ALLIANCE_NAME": 3}, follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    for visits in range(8):
+        starts.append(home("hostile-visit-%d" % visits, {"ZOQFOT_HOSTILE": 1, "ZOQFOT_HOME_VISITS": visits}))
+        starts.append(home(f"neutral-visit-{visits}", {"ZOQFOT_HOME_VISITS": visits},
+                           **({} if visits == 0 else {"follow": []})))
+        # Allied: the replies walked from the neutral homeworld's alliance made.
+        starts.append(home(f"allied-visit-{visits}", {"ZOQFOT_HOME_VISITS": visits}, **allied, follow=[]))
+    for distress in (1, 2, 3):
+        starts.append(home(f"distress-{distress}", {"ZOQFOT_DISTRESS": distress}, escorts=[0, 12], **allied,
+                           follow=[]))
+    for room in (2, 0):
+        starts.append(home(f"distress-room-{room}", {"ZOQFOT_DISTRESS": 1}, escorts=[0, room], **allied, follow=[]))
+    for info in range(4):
+        starts.append(home(f"info-{info}", {"ZOQFOT_INFO": info}, prefix=[0], follow=[]))
+    # The war's news: any_war_news, the second reply.
+    dates = [(2155, 2, 17), (2158, 2, 28), (2158, 3, 1), (2159, 2, 28), (2159, 3, 1), (2160, 6, 1)]
+    for mask in (0, 1, 2, 6):
+        for mission in (0, 1, 4, 5):
+            for date in dates:
+                starts.append(home(f"war-news-mask-{mask}-mission-{mission}-{date[0]}-{date[1]}",
+                                   {"ZOQFOT_KNOW_MASK": mask, "UTWIG_SUPOX_MISSION": mission},
+                                   date=list(date), prefix=[1], follow=[]))
+    for mask in (0, 7, 8, 15):
+        starts.append(home(f"war-news-frenzy-mask-{mask}", {"ZOQFOT_KNOW_MASK": mask, "KOHR_AH_FRENZY": 1},
+                           prefix=[1], follow=[]))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
                 "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts,
-                "melnorm": melnorm_starts}
+                "melnorm": melnorm_starts, "shofixt": shofixt_starts, "zoqfot": zoqfot_starts}
 # Files and notes a script's recording has besides every script's.
 COMM_EXTRA_FILES = {"melnorm": ["src/libs/math/random2.c", "src/libs/math/sqrt.c"]}
 COMM_EXTRA_NOTES = {"melnorm": [
@@ -5098,7 +5207,8 @@ COMM_EXTRA_NOTES = {"melnorm": [
     "runs as if a button were pressed at once, as selling minerals does: "
     "it's sold in one go. MELNORME_CREDIT0 and 1 are the credits."]}
 # A script's file where it isn't named after its folder.
-COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c"}
+COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c",
+              "zoqfot": "zoqfotc.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.

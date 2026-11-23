@@ -40,6 +40,9 @@ public sealed class TalkLibrary
         ["slyhome"] = p => new SlylandroHomeScript(p),
         // Stage 3b-2 item 4.
         ["melnorm"] = p => new MelnormeScript(p),
+        // Stage 3b-2 item 5.
+        ["shofixt"] = p => new ShofixtiScript(p),
+        ["zoqfot"] = p => new ZoqFotPikScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

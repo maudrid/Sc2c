@@ -53,6 +53,11 @@ public static class TalkRules
         // giants, ordinary, under their lock (but the rescue-only talk, which
         // takes none: the owner's question 7).
         ["melnorm"] = _ => false,
+        // Stage 3b-2 item 5: Tanaka (or Katana) at the Shofixti's system, and
+        // the Zoq-Fot-Pik (their scout, their homeworld), ordinary, each under
+        // its race's lock.
+        ["shofixt"] = _ => false,
+        ["zoqfot"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

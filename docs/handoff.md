@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-23, stage 3b-2 item 4 (the Melnorme) built in two parts, reviewed in four rounds and reported (its Progress row). Items 1 to 3 were reviewed and reported too.
+**Last updated:** 2026-11-23, stage 3b-2 item 5 (the Shofixti and the Zoq-Fot-Pik) being built in parts: part A (the two scripts ported and recorded) committed; parts B (the world), C (the two speakers and the wire) and D (docs) next. Items 1 to 4 were reviewed and reported.
 
 ## Where things are
 
@@ -66,7 +66,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build item 5 (the Shofixti and the Zoq-Fot-Pik; the owner's go-ahead 2026-11-23), then review it round by round and report; then wait for the go-ahead for item 6. Item 4 is built, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open).
+Finish item 5 (the Shofixti and the Zoq-Fot-Pik; the owner's go-ahead 2026-11-23): part A (the scripts and their recordings) is committed; next part B (the groups flying, Tanaka's damaged scout in battle, his death marked, the scout and the recruited Shofixti flying off), part C (the two speakers on the comm screen, the wire), part D (docs, try-out). Then review it round by round and report; then wait for the go-ahead for item 6.
 
 ## Decisions waiting on the owner
 
