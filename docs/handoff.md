@@ -2,11 +2,11 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-23, the talks' screen changes built (`differences.md` row 83, the owner's place for it: before item 7); its review next. Stage 3b-2 items 1 to 6 were reviewed and reported.
+**Last updated:** 2026-11-23, the talks' screen changes built (`differences.md` row 83, the owner's place for it: before item 7), reviewed in five rounds and reported. Stage 3b-2 items 1 to 6 were reviewed and reported.
 
 ## Where things are
 
-- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. The owner's placing of the screen-change fix (`3ea8871`) and the fix itself are committed, not pushed; everything up to item 6's report is pushed.
+- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is pushed (as of the screen-change fix's report).
 - **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; reviewed in four rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 4 (the Melnorme) is built in two parts, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 5 (the Shofixti and the Zoq-Fot-Pik) is built in four parts, reviewed in five rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 6 (the VUX and the Yehat) is built in three parts; reviewed in five rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte; `GOLDEN_TALKS=melnorm` (comma-separated) records only those scripts.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
@@ -61,13 +61,13 @@ Smaller items left for later stages are notes under the items that own them in t
 - **A guest surrendering to the Ur-Quan (the owner, 2026-11-21, question 4): as built.** The host's flagship surrendering is the game over for everyone; a guest's ship surrendering is a wreck where it is, for a friend to revive (`differences.md` row 73).
 - **Notices for a player away (the owner, 2026-11-21, question 7): as built.** Not told, nor kept for their return (the battle news is kept, being about their own ship).
 - **A group "chasing" a player (the owner, 2026-11-21, question 8): as built.** One that has flown at them since it was made (not saved); its going is told to them instead of the meeting's end while they're near and not in its battle.
-- **Where the talks' screen changes are fixed (the owner, 2026-11-23): now, before item 7.** Built (`differences.md` row 83: `TalkView.Screen`, `Comm/TalkScreen.cs`, protocol 31, the client's `CommScreen`; what's left different is in the row); its review next. Views aren't saved, so saves are untouched.
+- **Where the talks' screen changes are fixed (the owner, 2026-11-23): now, before item 7.** Built (`differences.md` row 83: `TalkView.Screen`, `Comm/TalkScreen.cs`, protocol 31, the client's `CommScreen`; what's left different is in the row); reviewed in five rounds (`640fb1e`, fixes `acb21da`, `de45db5`, `4a11919`, `c12c754`; round 5's one finding, this Next step's stale round number, fixed with the report and not reviewed again) and reported. Views aren't saved, so saves are untouched.
 - **A shortcut for the Arilou's gift: not now (the owner, 2026-11-16).** No shortcut reaches the commander's bulletin (`--start-docked` marks every bulletin told; `--start-devices PORTAL_SPAWNER_DEVICE` sets `PORTAL_SPAWNER_ON_SHIP`, not the `PORTAL_SPAWNER` the bulletin reads); `FleetTests` checks it and the how-to-try says so.
 - **Backlog:** guests' alien hulls (`design.md`, "Backlog"), not to be built now.
 
 ## Next step
 
-Review round 4 of the screen-change fix (`differences.md` row 83; built in `640fb1e`, round 1's findings fixed in `acb21da`, round 2's in `de45db5`, round 3's in `4a11919`, round 4's (the handoff's pushed line, a how-to-try pointer) in the commit after it), fix what holds up and report it; then wait for the owner's go-ahead for item 7 (the Orz and the Pkunk; one go-ahead per item). Item 6 is built, reviewed in five rounds and reported (its Progress row).
+Wait for the owner's go-ahead for item 7 (the Orz and the Pkunk; one go-ahead per item). Item 6 and the screen-change fix (`differences.md` row 83) are built, reviewed in five rounds and reported.
 
 ## Decisions waiting on the owner
 
