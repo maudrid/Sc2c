@@ -751,6 +751,23 @@ public class MeetingTests
     }
 
     [ContentFact]
+    public void StartEncounterTakesARaceByItsNameForTheRebels()
+    {
+        // The Yehat rebels' ship is the Yehat's, so no ship id names them (stage 3b-2 item 6): races.h's name does.
+        var host = Session();
+        host.World.TalkLibrary = UrquanMeetingTests.Library.Value;
+        Assert.Throws<ArgumentException>(() => host.StartEncounter("NO_SUCH_SHIP"));
+        host.StartAt(5800, 6100);
+        Assert.Equal("A group of 2 Yehat ships comes in by the host in hyperspace", host.StartEncounter("YEHAT_REBEL_SHIP:2"));
+        var group = host.World.Encounters!.List.Single();
+        Assert.Equal((host.World.Story!.Rules.RaceIndex("YEHAT_REBEL_SHIP"), 2), (group.Race, group.Ships.Count));
+        // Met: the rebels' talk, at peace (no encounter screen).
+        for (int i = 0; i < 600 && host.World.MeetingOf("h") is not { Step: MeetingStep.Talk }; ++i)
+            host.Step(ShipInput.None);
+        Assert.IsType<Comm.Scripts.YehatRebelScript>(host.World.MeetingOf("h")!.Talk!.Script);
+    }
+
+    [ContentFact]
     public void StartEncounterAfterTheOpeningPutsAGroupInEarthsSystem()
     {
         var host = Session();
