@@ -133,6 +133,18 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-fuel N (testing, stage 3b-2 item 4): the host's ship starts
+    /// with N units of fuel, up to its tanks (0: stranded, for the
+    /// Melnorme's rescue).
+    /// </summary>
+    public string StartWithFuel(uint units)
+    {
+        var flight = World.Host.Ship.Flight;
+        flight.Fuel = Math.Min(units * Hyperspace.Fuel.Scale, flight.FuelCapacity);
+        return $"Starting with {flight.Fuel / Hyperspace.Fuel.Scale} units of fuel";
+    }
+
+    /// <summary>
     /// --start-devices (testing): the group carries these devices (by
     /// globdata.h's name, as data/devices.json has them, or number): each
     /// one's story field set (to its value, for the Ultron's states). Ones

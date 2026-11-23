@@ -231,12 +231,19 @@ public partial class SellingView : Node2D
 
     public override void _Draw()
     {
-        // The status area's part for it, until it's put away; else the credits' message.
-        var texture = Active ? _texture : _creditsTexture;
-        if (texture is null)
-            return;
+        // The status area's part for it, until it's put away; else the credits' message alone.
         var area = MineralSelling.Area;
-        var source = new Rect2(area.X, area.Y, area.W, area.H);
-        DrawTextureRectRegion(texture, new Rect2(Vector2.Zero, source.Size * SisScreen.Scale), source);
+        if (Active && _texture is not null)
+        {
+            var source = new Rect2(area.X, area.Y, area.W, area.H);
+            DrawTextureRectRegion(_texture, new Rect2(Vector2.Zero, source.Size * SisScreen.Scale), source);
+        }
+        else if (_creditsTexture is not null)
+        {
+            var box = StarbaseScreens.StatusMessageRect;
+            var source = new Rect2(area.X, box.Y, area.W, box.H);
+            DrawTextureRectRegion(_creditsTexture,
+                new Rect2(new Vector2(0, (box.Y - area.Y) * SisScreen.Scale), source.Size * SisScreen.Scale), source);
+        }
     }
 }

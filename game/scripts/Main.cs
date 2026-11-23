@@ -532,6 +532,8 @@ public partial class Main : Node2D
                 Log(host.StartWithUnits(units));
             if (_options.StartCredits is { } credits)
                 Log(host.StartWithCredits(credits));
+            if (_options.StartFuel is { } fuel)
+                Log(host.StartWithFuel(fuel));
             if (_options.StartVisit)
                 Log(host.StartVisit(_options.StartVisitStep));
             if (_options.StartDocked)

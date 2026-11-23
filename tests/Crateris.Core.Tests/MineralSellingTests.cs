@@ -257,4 +257,25 @@ public class MineralSellingTests
             }
         Assert.True(colours.Count > 6, $"only {colours.Count} colours in the area");
     }
+
+    [Fact]
+    public void TheMelnormeCountTheBioDataDownTwoCreditsAUnitAndAKeySellsTheRest()
+    {
+        // melnorm.c's DoSell (stage 3b-2 item 4): the cargo display, half a second, then a unit a millisecond
+        // (TaskSwitch: UQM's loop has no wait of its own), the credits' status message redrawn with each.
+        var sale = new BioSale(new int[8], Root.GetProperty("worth").Ints(), 5, 500, 10);
+        var counting = new MineralSelling(Canvas(), sale, GameString, 0);
+        Assert.Contains(counting.Backdrop, d => d.ToString()!.Contains("10 {gs:"));
+        var drawn = counting.Run(100_000);
+        Assert.True(counting.Done);
+        Assert.Equal(20u, counting.ResourceUnits);   // 10 + 5 * 2 credits
+        Assert.Contains(drawn, d => d.Call.ToString()!.Contains("20 {gs:"));
+        long done = counting.DoneAt;
+        // A key held as it starts sells the rest at once: done sooner, the same credits.
+        var quick = new MineralSelling(Canvas(), sale, GameString, 0);
+        quick.Held();
+        quick.Run(100_000);
+        Assert.Equal(20u, quick.ResourceUnits);
+        Assert.True(quick.DoneAt < done, $"{quick.DoneAt} not before {done}");
+    }
 }

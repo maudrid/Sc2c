@@ -12,6 +12,8 @@ As for stage 3b-1 (`docs/how-to-try/stage-3b-1.md`): build the game, give a test
 CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm python3 tools/run_tests.py   # every topic
 ```
 
+Item 4's tests: `MelnormeTests` (topic `world`: trading with the answerer's own credits, a gift mid-talk, the catalog, fuel by the ship's own tanks, the bio sale, the anger, the rescue's strip of a guest's escort, the strip offer's refusal, the rescue-only talk beside another player's, the rescue fields and broadcaster each player's own and saved, the super giants' ships), the script's recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-melnorm.json`), the bio data's count-down in `MineralSellingTests` (topic `drawing`).
+
 Item 3's tests: `CreditsAndFuelTests` (topic `trading`: the balances, gifts of credits and fuel, fuel's nearness and room, the wire, the save, the giving screen's rows), `RainbowWorldTests` (topic `world`), `MeetingTests.FuelGivenDuringTheSpinIntoAGroupStays`, and the giving screen's drawing in `GivingScreenTests` (topic `drawing`).
 
 Item 2's tests: `HomeTalkTests` (topic `world`: Spathiwa's moon, the Evil Ones, the Slylandro gas giant), the two scripts' recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-spahome.json`, `talks-slyhome.json`) and `WorldTalkTests` (the worlds' table, now with these two ported).
@@ -57,6 +59,34 @@ Each is a row of `docs/differences.md`: Spathiwa's moon's talk with several play
 - **The Spathi never shield themselves** (their event is stage 3c's), so Spathiwa's moon keeps talking after the alliance.
 - **The alternate "Safe Ones" song** is chosen but nothing plays music yet.
 
+## Item 4: the Melnorme
+
+The Melnorme trade from their ships: one waits at each of the nine super giants, and in hyperspace they come to a ship out of fuel (30% a day, 100% after the broadcaster, stage 3c's device; `--start-state USED_BROADCASTER=1` sets the host's use until then). They start at peace: no encounter screen, straight to the communication screen, the status area's message showing the answerer's credits ("1234 Cr").
+
+1. **The first meeting.** Small talk, and the bluster ("trade is for the weak!"), which can anger them; "Let's get down to business" starts the trading.
+2. **Trading**, with the answering player's own credits, read live: a friend's gift of credits mid-talk counts at once. Fuel up to the answering ship's own tanks, a credit a unit. The technology catalog, 150 credits an item: the first item the answering ship lacks; a module (the blaster, point defense, the high-efficiency fuel system, tracking, the cannon, the Shiva furnace) goes on sale at the starbase for everyone, and every other player is told ("Host bought the blaster from the Melnorme: it's for sale at the starbase."), a lander upgrade is the answering ship's own. Information, 75 credits a piece (one piece sells the Spathi's password).
+3. **Selling** bio data (two credits a unit, counted down on the cargo display left of the communication screen; any key sells the rest at once) and the rainbow worlds the group has found (500 credits each, paid once, to whoever sells them first).
+4. **Anger.** Angering them is shared: every other player is told, and they fight. Any player can calm them by having their ship stripped whole (`ok_strip_me`).
+5. **The rescue.** A ship with nothing to trade (no fuel, bio data, credits or unsold rainbow worlds) is offered fuel to get home for parts of its own ship (its own slots: a guest's escort's); taking it strips those parts and adds the fuel up to the tanks' room, so fuel a friend gave meanwhile stays. While the offer stands, minerals can't be given to that player ("Not now: the Melnorme are offering to strip their ship, storage bays and all."). While another player trades with the Melnorme, a stranded player met by another Melnorme ship is rescued all the same (once the players have got down to business with them and while they aren't angry): straight to the rescue, without the greeting.
+
+Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
+
+- `--start-at 4000:4000 --start-encounter melnorme --start-state MET_MELNORME=1,MELNORME_YACK_STACK2=6,WHY_MELNORME_PURPLE=1,TRADED_WITH_MELNORME=1,MELNORME_TECH_PROCEDURE=1 --start-credits 500 --meeting-replies 0,1,0,1,2 --quit-after 900`: "host talks to the Melnorme", "How nice to see you again, Captain.", the purchases' replies, "...plans for building blaster weapons twice as powerful as your ion-bolt guns.", bought ("Please remember that these weapons consume energy..."), the next item (the lander's speed) declined, then the information menu. The save has the host's 350 credits and the blaster's price (80, on sale at the starbase).
+- `--start-at 5000:4000 --start-fuel 0 --start-encounter melnorme --start-state MET_MELNORME=1,MELNORME_YACK_STACK2=6 --meeting-replies 0,0 --quit-after 900` (`--start-fuel`, new: the host's fuel in units): "...you are immobile in HyperSpace with no fuel reserves...", "Would you like us to help you at this time?", yes: "...we will take: one of your Planet Landers, two of your Fusion Thrusters, one of your empty Storage Bays", accepted: "The exchange of fuel for equipment is complete.", "The talk with the Melnorme ends: peace". The save has the flagship's fuel 43.30 units, no lander, no thrusters, its storage bay gone, and the host's own rescue count (`"melnorme": {"rescue_refused": 0, "rescue_count": 1, ...}`).
+- Windowed, the first run with `--start-credits 1234 --screenshot FILE.png --quit-after 400`: the Melnorme on the communication screen, "1234 Cr" in the status message box to its left.
+
+The rescue-only talk beside another player's, the bio data's count-down and gifts mid-talk weren't run by hand (two players at once, and bio data needs a lander's catch): `MelnormeTests` runs them, and `MineralSellingTests` the count-down's drawing calls.
+
+### What's different from UQM
+
+`docs/differences.md` rows 80 (the rescue with several players: the rescue-only talk, the strip as a change, the fields each player's own) and 81 (trading with several players: the catalog by the answering ship, modules for everyone, the bio count-down), and rows 17, 19, 68 and 79 updated.
+
+### Known limits of item 4
+
+- **The bio count-down** plays before the reply's lines (UQM's comes after the first of them), as the minerals' at the starbase does; a unit a millisecond (UQM's loop has no wait of its own).
+- **The broadcaster** is stage 3c's device: only `--start-state USED_BROADCASTER=1` (the host's) brings the Melnorme at 100% until then.
+- **Saves:** item 4's rescue fields and broadcaster's use are version 14's optional part (`players[].melnorme`); item 3's code loading such a save drops them.
+
 ## Item 3: Melnorme credits, fuel between players, the rainbow worlds
 
 Each player has their own Melnorme credits (UQM keeps one balance in the game state). Until the Melnorme's trading (item 4) nobody earns any in play: `--start-credits N` gives the host some to try giving. The status panel shows them beside the resource units ("…, 0 RU, 300 Cr").
@@ -72,7 +102,7 @@ Tried headless, the host with `--host --no-upnp --id host --name Host --save FIL
 
 **The rainbow worlds.** Orbiting one of the ten rainbow worlds (the first planet of each `RAINBOW_DEFINED` star) marks it found for the group (`RAINBOW_WORLD0`/`1`, as UQM's generator does), whoever orbits it; the Melnorme will buy each once (item 4). `--start-orbit` to one does it too, and so does loading a game saved in orbit around one. `RainbowWorldTests` flies a ship into one's orbit; the stars are in `data/starmap.json`.
 
-**Saves and the wire.** Saves are version 14 (each player's credits; an older save loads with none); the protocol is 28, so an older client is refused.
+**Saves and the wire.** Saves are version 14 (each player's credits; an older save loads with none); the protocol was 28 (29 since item 4), so an older client is refused.
 
 ### What's different from UQM
 
@@ -80,7 +110,6 @@ Tried headless, the host with `--host --no-upnp --id host --name Host --save FIL
 
 ### Known limits of item 3
 
-- **No Melnorme yet:** no talk, no ships, no trading, so credits come only from `--start-credits` and the rainbow worlds' marks are only kept.
-- **The credits' status message** (UQM's status area shows the credits during the Melnorme's talk) comes with their talk; the status panel shows them always.
+- **No Melnorme in item 3** (item 4 brings them, above).
 - **Fuel is given in whole units** from the giving screen; a fraction of a unit left in the giver's tanks, or of room in the receiver's, can't be given.
 
