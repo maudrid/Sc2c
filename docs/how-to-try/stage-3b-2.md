@@ -92,11 +92,11 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 
 ### What's different from UQM
 
-`docs/differences.md` row 82 (Tanaka with several players: his damaged scout in any player's battle, his death marked as any player leaves), rows 68, 72 (its 3b-2 half done) and 77 (the callbacks on the client) updated.
+`docs/differences.md` row 82 (Tanaka with several players: his damaged scout in any player's battle, his death marked once, as the first player to leave after it does), rows 68, 72 (its 3b-2 half done) and 77 (the callbacks on the client) updated.
 
 ### Known limits of item 5
 
-- **The callbacks on the client** switch the speaker as each page starts playing; a skip runs none of the skipped pages', as UQM's (its skip seeks past the end, `JumpTrack`, running no callback), and a replay plays the pages again, each one's callback running, from the speaker the last page left (UQM's replay has no segue of the script's). The lines' set boundaries within one reply's lines aren't sent: each reply's lines start from Zoq, as each of zoqfotc.c's reply functions plays one set.
+- **The callbacks on the client** switch the speaker as each page starts playing; a skip runs none of the skipped pages', as UQM's (its skip seeks past the end, `JumpTrack`, running no callback), and a replay plays the pages again, each one's callback running (as UQM's pages do), from the speaker the last page left with no segue of the script's; but it replays from the first page, the port's replay (UQM's Left goes back one page, or once the lines have ended plays only the last page: a set ending with Pik replays the Pik-to-Zoq change, which UQM's wouldn't; `differences.md` row 77). The lines' set boundaries within one reply's lines aren't sent: each reply's lines start from Zoq, as each of zoqfotc.c's reply functions plays one set.
 - **3c's events:** the Shofixti's return and the Zoq-Fot-Pik's distress (and the Kohr-Ah's ship at their world, the rescue with its 4 ships) are recorded and tested but not reached in play until stage 3c runs the calendar.
 
 ## Item 4: the Melnorme

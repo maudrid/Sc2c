@@ -122,8 +122,10 @@ public class CommScreenTests
         while (screen.TextPlace.X != ZoqFotPikSpeakers.ZoqBaseX && screen.Talking)
             screen.Update(t += 21);
         Assert.Equal((18, 5, 23), anim.Talking);
-        // Played again (Left): UQM's replay has no ZFPTalkSegue, so the first page's SelectAlienZOQ runs with the last
-        // speaker as the lines left him (LastAlien), here Pik, whose talking plays out first (TALK_DONE).
+        // Played again (Left): no ZFPTalkSegue (UQM's replay has none), so the first page's SelectAlienZOQ runs with the
+        // last speaker as the lines left him (LastAlien), here Pik, whose talking plays out first (TALK_DONE). Replaying
+        // from the first page is the port's (differences.md row 77): UQM's, once the lines have ended, plays only the
+        // last page, so it wouldn't make this Pik-to-Zoq change.
         screen.Show(new[] { "Zoq speaks.", "Pik ends." }, "", new[] { "Bye" }, 2, t, new[] { "SelectAlienZOQ", "SelectAlienPIK" });
         while (screen.Talking)
             screen.Update(t += 21);

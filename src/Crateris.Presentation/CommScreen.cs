@@ -44,6 +44,9 @@ public enum CommKeyResult
 /// plays them again from the start; at the replies, Cancel shows the
 /// summary of the lines (a page at a time; Select, Cancel or Right turns
 /// it, and closes it after the last) and Left plays the lines again. The
+/// replay from the first page is the port's (docs/differences.md row 77):
+/// UQM's Left goes back one page while the lines play, and after them
+/// plays only the last page with a subtitle (FastReverse_Page). The
 /// alien's voice isn't played yet: the lines take their subtitles' time.
 /// </summary>
 public sealed class CommScreen
@@ -127,9 +130,11 @@ public sealed class CommScreen
     }
 
     // The lines from their start: new lines after the script's segue (the
-    // Zoq-Fot-Pik's ZFPTalkSegue), or a replay, which as UQM's (TalkSegue (0))
-    // plays them again with no segue of the script's: its speakers as the
-    // last page left them, each page's callback running again.
+    // Zoq-Fot-Pik's ZFPTalkSegue), or a replay, which plays them again with
+    // no segue of the script's: its speakers as the last page left them, each
+    // page's callback running again as UQM's pages do. The replay's start
+    // from the first page is the port's (UQM's Left goes back a page, or
+    // after the lines plays only the last: docs/differences.md row 77).
     private void Play(long now, bool segue = false)
     {
         _start = now;
