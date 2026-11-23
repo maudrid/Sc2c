@@ -888,7 +888,8 @@ public sealed class HostSession
                     switch (talk.Events[events])
                     {
                         case LineQueued { Clip: not null } l:
-                            Logged?.Invoke($"  {race}: {l.Text}");
+                            // A line with a speaker's callback (the Zoq-Fot-Pik's) names him: "Zoq-Fot-Pik (Zoq)".
+                            Logged?.Invoke($"  {race}{(l.Callback is { } cb && cb.StartsWith("SelectAlien", StringComparison.Ordinal) ? $" ({cb["SelectAlien".Length..][..1]}{cb["SelectAlien".Length..][1..].ToLowerInvariant()})" : "")}: {l.Text}");
                             break;
                         case LineQueued { Text.Length: > 0 } l:
                             Logged?.Invoke($"  {race} (on): {l.Text}");

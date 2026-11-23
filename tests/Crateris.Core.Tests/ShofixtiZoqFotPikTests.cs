@@ -156,6 +156,7 @@ public class ShofixtiZoqFotPikTests
         // The first meeting: his first greeting; "no one insults" fights.
         var m = MeetTanaka(world, star);
         Assert.True(Said(m.Talk!, "HOSTILE_TANAKA_1"));
+        Assert.Null(TalkView.Of(m)!.Speakers);   // his lines have no callbacks
         FightAndRetreat(world, "no_one_insults");
         Assert.Equal(1, world.Story!.Get("SHOFIXTI_STACK2"));
         // He's alive, in the system with his one crew.
@@ -316,6 +317,14 @@ public class ShofixtiZoqFotPikTests
         Assert.Equal(1, story.Get("MET_ZOQFOT"));
         // Every line spoken by Zoq or Pik, named by its callback (sent to the client: the two speakers).
         Assert.All(m.Talk!.Events.OfType<LineQueued>(), l => Assert.Contains(l.Callback, new[] { "SelectAlienZOQ", "SelectAlienPIK" }));
+        // The view sends each line's speaker (protocol 30), Zoq first and alternating, through the codec whole.
+        var view = TalkView.Of(m)!;
+        Assert.Equal(view.Lines.Count, view.Speakers!.Count);
+        Assert.Equal(new[] { "SelectAlienZOQ", "SelectAlienPIK", "SelectAlienZOQ" }, view.Speakers.Take(3));
+        var sent = TalkView.Decode(view.Encode())!;
+        Assert.True(view.Same(sent));
+        Assert.Equal(view.Speakers, sent.Speakers);
+        Assert.False(view.Same(view with { Speakers = view.Speakers.Select(_ => "SelectAlienPIK").ToList() }));
         Choose(world, "h", "valuable_info");
         Assert.Equal(Segue.Peace, m.Talk!.Segue);
         MeetingTests.HearClosing(world, "h");

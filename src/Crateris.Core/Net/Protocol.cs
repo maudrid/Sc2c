@@ -158,7 +158,10 @@ public static class Protocol
     /// the credits the status area shows while it does (SMM_CREDITS) and
     /// the bio data the replier's reply sold, for their cargo display to
     /// count down.
-    public const int Version = 29;
+    /// 30: the Zoq-Fot-Pik's two speakers (stage 3b-2 item 5): a talk's
+    /// view carries each line's speaker (TalkView.Speakers: the callback
+    /// its NPCPhrase_cb named), for the communication screen to switch.
+    public const int Version = 30;
     public const int DefaultPort = 24642;
 
     /// <summary>

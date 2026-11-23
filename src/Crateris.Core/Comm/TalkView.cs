@@ -35,10 +35,18 @@ namespace Crateris.Core.Comm;
 /// Sent to them by the host when it changes, as a reliable message;
 /// <see cref="Protocol.NoView"/> means no talk.
 /// </summary>
+/// <see cref="Speakers"/> is each line's speaker (stage 3b-2 item 5): the
+/// callback its NPCPhrase_cb named (the Zoq-Fot-Pik's SelectAlienZOQ and
+/// SelectAlienPIK), "" for a line without one, or null when no line has
+/// one; the client runs it as the line's pages play, switching the speaker
+/// on the communication screen.
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
     int Round = 0, string Replier = "", string Said = "", IReadOnlyList<TalkPage>? Paging = null, MineralSale? Sale = null,
-    uint? Credits = null, BioSale? BioSale = null)
+    uint? Credits = null, BioSale? BioSale = null, IReadOnlyList<string>? Speakers = null)
 {
+    /// <summary>The longest name a speaker's callback has on the wire.</summary>
+    public const int MostSpeakerName = 64;
+
     /// <summary>The most paging a view carries (<see cref="Paging"/>): past it, the replier's paging isn't followed.</summary>
     public const int MostPaging = 256;
 
@@ -97,6 +105,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             before += k;
         }
         var lines = new List<string>();
+        var speakers = new List<string>();
         MineralSale? sale = null;
         World.Player? seller = null;
         for (int t = talkFrom; t < visit.Talks.Count; ++t)
@@ -105,7 +114,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
                 if (t > talkFrom || at >= eventFrom)
                     (sale, seller) = (sold, visit.SellerOf(t, at));
             foreach (var e in visit.Talks[t].Events.Skip(t == talkFrom ? eventFrom : 0))
-                AddLine(lines, e);
+                AddLine(lines, speakers, e);
         }
         var talk = visit.Talk;
         string script = (talk ?? visit.Talks.LastOrDefault())?.Script.Phrases.Name ?? "";
@@ -113,17 +122,22 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             visit.Replier.Id, said,
             // The talk sells its answerer's hold: counted down on their screen while they reply (the
             // replies passed on to another player since, nobody's).
-            Sale: seller is not null && seller == visit.Replier ? sale : null);
+            Sale: seller is not null && seller == visit.Replier ? sale : null, Speakers: SpeakersOf(speakers));
         return visit.Paging is { } paging && paging.Key == view.LinesKey ? view with { Paging = paging.Pages.ToList() } : view;
     }
 
-    // A talk's event into the lines: a track, or what's spliced into the last.
-    private static void AddLine(List<string> lines, TalkEvent e)
+    // A talk's event into the lines: a track (with its callback, its
+    // speaker), or what's spliced into the last (its speaker the track's:
+    // what's spliced on plays as the track's pages, the callback a line
+    // without a clip names left to the track's own, as every script that
+    // has callbacks gives each line a clip).
+    private static void AddLine(List<string> lines, List<string> speakers, TalkEvent e)
     {
         switch (e)
         {
             case LineQueued { Clip: not null } l:
                 lines.Add(l.Text);
+                speakers.Add(l.Callback ?? "");
                 break;
             case LineQueued l when lines.Count > 0:
                 lines[^1] += l.Text;
@@ -133,6 +147,10 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
                 break;
         }
     }
+
+    // The lines' speakers, or null when none has one.
+    private static IReadOnlyList<string>? SpeakersOf(List<string> speakers) =>
+        speakers.Any(s => s.Length > 0) ? speakers : null;
 
     /// <summary>
     /// The view of a meeting's talk as it stands (stage 3b-1 item 10): the
@@ -164,8 +182,9 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             }
         }
         var lines = new List<string>();
+        var speakers = new List<string>();
         for (int i = from; i < events.Count; ++i)
-            AddLine(lines, events[i]);
+            AddLine(lines, speakers, events[i]);
         // The bio data the player's last reply sold (the Melnorme's), counted down on their screen.
         BioSale? bioSale = null;
         foreach (var (at, sold) in talk.BioSales)
@@ -173,7 +192,8 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
                 bioSale = sold;
         return new TalkView(VisitStep.Meeting, talk.Script.Phrases.Name, lines,
             talk.Ended ? new List<string>() : talk.Replies.Select(r => r.Text).ToList(), round, meeting.Player.Id, said,
-            Credits: talk.ShowsCredits ? meeting.Player.Ship.Hold.Credits : null, BioSale: bioSale);
+            Credits: talk.ShowsCredits ? meeting.Player.Ship.Hold.Credits : null, BioSale: bioSale,
+            Speakers: SpeakersOf(speakers));
     }
 
     public byte[] Encode()
@@ -200,6 +220,15 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             w.UInt(credits);
         w.Byte(BioSale is null ? (byte)0 : (byte)1);
         BioSale?.Encode(w);
+        // Each line's speaker (0 for none: every line's ""), as many as the lines.
+        w.Byte(Speakers is null ? (byte)0 : (byte)1);
+        if (Speakers is { } speakers)
+        {
+            if (speakers.Count != Lines.Count)
+                throw new InvalidOperationException("a talk's view has a speaker for each line");
+            foreach (var sp in speakers)
+                w.String(sp);
+        }
         return w.Written.ToArray();
     }
 
@@ -247,10 +276,24 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
             1 => BioSale.Decode(ref r),
             var b => throw new InvalidDataException($"Bad talk bio sale {b}."),
         };
+        List<string>? speakers = null;
+        switch (r.Byte())
+        {
+            case 0:
+                break;
+            case 1:
+                speakers = new List<string>();
+                for (int n = 0; n < lines.Count; ++n)
+                    speakers.Add(r.String() is { Length: <= MostSpeakerName } sp ? sp
+                        : throw new InvalidDataException("Bad talk speaker."));
+                break;
+            case var b:
+                throw new InvalidDataException($"Bad talk speakers {b}.");
+        }
         if (!r.AtEnd)
             throw new InvalidDataException("A talk has bytes after its end.");
         return new TalkView((VisitStep)(int)(step - 1), script, lines, replies, (int)round, replier, said,
-            paging.Count == 0 ? null : paging, sale, credits, bioSale);
+            paging.Count == 0 ? null : paging, sale, credits, bioSale, speakers);
     }
 
     private static ulong Count(ulong n, int most) =>
@@ -259,5 +302,6 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
     public bool Same(TalkView? other) =>
         other is not null && Step == other.Step && Script == other.Script && Round == other.Round && Replier == other.Replier && Said == other.Said
         && Lines.SequenceEqual(other.Lines) && Replies.SequenceEqual(other.Replies) && PagingSoFar.SequenceEqual(other.PagingSoFar)
-        && Equals(Sale, other.Sale) && Credits == other.Credits && Equals(BioSale, other.BioSale);
+        && Equals(Sale, other.Sale) && Credits == other.Credits && Equals(BioSale, other.BioSale)
+        && (Speakers ?? Array.Empty<string>()).SequenceEqual(other.Speakers ?? Array.Empty<string>());
 }

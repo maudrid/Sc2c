@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-23, stage 3b-2 item 5 (the Shofixti and the Zoq-Fot-Pik) being built in parts: parts A (the two scripts ported and recorded) and B (the world: groups, Tanaka's damaged scout, his death, the flights off) committed; parts C (the two speakers and the wire) and D (docs) next. Items 1 to 4 were reviewed and reported.
+**Last updated:** 2026-11-23, stage 3b-2 item 5 (the Shofixti and the Zoq-Fot-Pik) being built in parts: parts A (the two scripts ported and recorded), B (the world: groups, Tanaka's damaged scout, his death, the flights off) and C (the two speakers on the comm screen, protocol 30) committed; part D (docs, try-out, all topics, the topic map) next. Items 1 to 4 were reviewed and reported.
 
 ## Where things are
 
@@ -66,7 +66,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Finish item 5 (the Shofixti and the Zoq-Fot-Pik; the owner's go-ahead 2026-11-23): parts A (the scripts and their recordings) and B (the groups flying, Tanaka's damaged scout in battle, his death marked, the scout and the recruited Shofixti flying off) are committed; next part C (the two speakers on the comm screen, the wire), part D (docs, try-out). Then review it round by round and report; then wait for the go-ahead for item 6.
+Finish item 5 (the Shofixti and the Zoq-Fot-Pik; the owner's go-ahead 2026-11-23): parts A (the scripts and their recordings), B (the groups flying, Tanaka's damaged scout in battle, his death marked, the scout and the recruited Shofixti flying off) and C (the two speakers on the comm screen, the wire: protocol 30) are committed; next part D (docs, try-out). Then review it round by round and report; then wait for the go-ahead for item 6.
 
 ## Decisions waiting on the owner
 

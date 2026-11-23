@@ -76,6 +76,65 @@ public class CommScreenTests
         });
     }
 
+    private static CommScreen ZoqFotPik(out AlienWindow window)
+    {
+        var d = Scripts["zoqfot"].Description;
+        var screen = TestContent.With(package =>
+        {
+            var sheets = new AnimationSheets(package);
+            var activity = SpriteSheet.Load(sheets, "graphics.activity");
+            var maps = new ColorMaps();
+            maps.Set(BinaryTable.Load(package, "colortable.main")[0]);
+            return new CommScreen(new AlienWindow(sheets, package, d, 1, 0), d, UqmFont.Load(package, d.Font),
+                UqmFont.Load(package, "font.player"), UqmFont.Load(package, "font.tiny"),
+                activity.Render(CommScreen.SliderButtonFrame, maps).Width, CommSpeakers.For("zoqfot"));
+        });
+        window = screen.Window;
+        return screen;
+    }
+
+    [ContentFact]
+    public void TheZoqFotPiksLinesSwitchTheSpeakerAsEachPlays()
+    {
+        // Stage 3b-2 item 5: each line's callback (the view's speakers) runs as its pages play: Zoq on the
+        // left, Pik on the right (zoqfotc.c's ZOQ_BASE_X, PIK_BASE_X, BASE_Y 24), each with his own talking
+        // frames and the eye's move to him, Fot's smoke waiting while Pik talks.
+        var screen = ZoqFotPik(out var window);
+        var anim = window.Animation;
+        screen.Show(new[] { "Zoq speaks.", "Pik speaks.", "Zoq again." }, "", new[] { "Bye" }, 1, 0,
+            new[] { "SelectAlienZOQ", "SelectAlienPIK", "SelectAlienZOQ" });
+        // Each run of lines starts with Zoq (ZFPTalkSegue).
+        screen.Update(1);
+        Assert.Equal(new CommTextPlace(ZoqFotPikSpeakers.ZoqBaseX, 24, new Rgb(255, 255, 255), new Rgb(0, 0, 0)), screen.TextPlace);
+        Assert.Equal((18, 5, 23), anim.Talking);
+        Assert.Equal(0, (int)(anim.AmbientFlags[1] & CommAnimationFlags.WaitTalking));
+        Assert.Equal(61, ScreenTextX(screen));
+        // The second page is Pik's.
+        long t = 1;
+        while (screen.TextPlace.X != ZoqFotPikSpeakers.PikBaseX && screen.Talking)
+            screen.Update(t += 21);
+        Assert.True(screen.Talking);
+        Assert.Equal(181, ZoqFotPikSpeakers.PikBaseX);
+        Assert.Equal((29, 2, 26), anim.Talking);
+        Assert.NotEqual(0, (int)(anim.AmbientFlags[1] & CommAnimationFlags.WaitTalking));
+        Assert.Equal(181, ScreenTextX(screen));
+        // Then Zoq's again.
+        while (screen.TextPlace.X != ZoqFotPikSpeakers.ZoqBaseX && screen.Talking)
+            screen.Update(t += 21);
+        Assert.Equal((18, 5, 23), anim.Talking);
+        // A race without speakers keeps its description's place.
+        Assert.Null(CommSpeakers.For("starbas"));
+    }
+
+    // The subtitle's x as drawn (each line of it centred there, in white traced in black).
+    private static int ScreenTextX(CommScreen screen)
+    {
+        var over = screen.Draw(-1).Over;
+        Assert.NotEmpty(over);
+        Assert.All(over, d => Assert.Equal((new Rgb(255, 255, 255), new Rgb(0, 0, 0)), (d.Color, d.Trace)));
+        return Assert.Single(over.Select(d => d.X).Distinct());
+    }
+
     private const string First = "Greetings, Captain. This line is long enough to wrap and to take a while to say.";
     private const string Second = "Another line.\nIts second page.";
 

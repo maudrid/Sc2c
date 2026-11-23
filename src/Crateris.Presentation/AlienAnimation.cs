@@ -112,6 +112,27 @@ public sealed class AlienAnimation
     /// <summary>A script set an ambient animation's flags (CommData.AlienAmbientArray[i].AnimFlags).</summary>
     public void SetAmbientFlags(int i, CommAnimationFlags flags) => _ambient[i].Flags = (CommAnimationFlags)(byte)flags;
 
+    /// <summary>
+    /// A line's callback switches the speaker (zoqfotc.c's SelectAlienZOQ
+    /// and SelectAlienPIK on CommData): the talking animation's frames from
+    /// <paramref name="talkStart"/>, <paramref name="talkFrames"/> of them,
+    /// and the transition's from <paramref name="transitionStart"/>, played in
+    /// (TALK_INTRO), after playing the last speaker's out first
+    /// (<paramref name="talkDone"/>: TALK_DONE).
+    /// </summary>
+    public void SelectTalking(int talkStart, int talkFrames, int transitionStart, bool talkDone)
+    {
+        if (talkDone)
+            _transitData.Flags |= CommAnimationFlags.TalkDone;
+        _transitData.Flags |= CommAnimationFlags.TalkIntro;
+        _transitData.StartIndex = transitionStart;
+        _talkData.StartIndex = talkStart;
+        _talkData.NumFrames = (byte)talkFrames;
+    }
+
+    /// <summary>The talking animation's first frame and frame count (CommData.AlienTalkDesc), and the transition's first frame.</summary>
+    public (int TalkStart, int TalkFrames, int TransitionStart) Talking => (_talkData.StartIndex, _talkData.NumFrames, _transitData.StartIndex);
+
     /// <summary>The script doesn't want the talking (PAUSE_TALKING set), or wants it again.</summary>
     public void PauseTalking(bool pause)
     {

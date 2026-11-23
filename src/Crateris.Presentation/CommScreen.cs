@@ -54,7 +54,9 @@ public sealed class CommScreen
     private readonly CommDescription _race;
     private readonly UqmFont _alienFont, _playerFont, _tiny;
     private readonly int _sliderSpace;
-    private List<(byte[] Page, int Ticks)> _pages = new();
+    private readonly CommSpeakers? _speakers;
+    // Each page with its time and its line's callback (NPCPhrase_cb's, run as it plays), or null.
+    private List<(byte[] Page, int Ticks, string? Callback)> _pages = new();
     private List<byte[]> _lines = new();
     private byte[] _said = Array.Empty<byte>();
     private List<byte[]> _replies = new();
@@ -69,8 +71,11 @@ public sealed class CommScreen
     private int _top, _lastCursor;
 
     /// <param name="buttonWidth">The slider button's width (ActivityFrame 2): the slider moves over the window less it.</param>
-    public CommScreen(AlienWindow window, CommDescription race, UqmFont alienFont, UqmFont playerFont, UqmFont tiny, int buttonWidth)
+    /// <param name="speakers">The race's speakers, whose lines' callbacks switch them (<see cref="CommSpeakers.For"/>), or null.</param>
+    public CommScreen(AlienWindow window, CommDescription race, UqmFont alienFont, UqmFont playerFont, UqmFont tiny, int buttonWidth,
+        CommSpeakers? speakers = null)
     {
+        _speakers = speakers;
         Window = window;
         _race = race;
         _alienFont = alienFont;
@@ -94,9 +99,12 @@ public sealed class CommScreen
     /// The talk as the host sent it, at <paramref name="now"/>: new lines,
     /// or a new reply said, play from their start; the same again changes
     /// nothing. The replies can change without the lines (they're shown
-    /// once the lines end).
+    /// once the lines end). <paramref name="speakers"/> is each line's
+    /// callback (the view's <see cref="Core.Comm.TalkView.Speakers"/>), run
+    /// as each of its pages plays.
     /// </summary>
-    public void Show(IReadOnlyList<string> lines, string said, IReadOnlyList<string> replies, int round, long now)
+    public void Show(IReadOnlyList<string> lines, string said, IReadOnlyList<string> replies, int round, long now,
+        IReadOnlyList<string>? speakers = null)
     {
         _now = now;   // a page followed as it's shown (a replay) plays from now
         string repliesKey = $"{round}\u0001{string.Join("\u0002", replies)}";
@@ -112,7 +120,8 @@ public sealed class CommScreen
         _key = key;
         _lines = lines.Select(l => Encoding.UTF8.GetBytes(l)).ToList();
         _said = Encoding.UTF8.GetBytes(said);
-        _pages = _lines.SelectMany(l => CommText.SplitPages(l)).Select(p => (p.Page, p.Millis * 840 / 1000)).ToList();
+        _pages = _lines.SelectMany((l, i) => CommText.SplitPages(l).Select(p => (p.Page, p.Millis * 840 / 1000,
+            speakers is not null && i < speakers.Count && speakers[i].Length > 0 ? speakers[i] : null))).ToList();
         _summary = null;
         Play(now);
     }
@@ -122,6 +131,9 @@ public sealed class CommScreen
         _start = now;
         _shownPage = -1;
         _talking = _pages.Count > 0;
+        // The script's segue before its lines (the Zoq-Fot-Pik's ZFPTalkSegue: Zoq speaks first).
+        if (_talking)
+            _speakers?.Segue(Window.Animation);
         if (_talking)
             Window.Animation.StartTalking();
         Window.Clear();
@@ -155,6 +167,10 @@ public sealed class CommScreen
             }
             if (page != _shownPage)
             {
+                // The pages from the last shown to this one start playing: their callbacks run (DoTrackTag).
+                for (int p = Math.Max(_shownPage + 1, 0); page >= 0 && p <= page; ++p)
+                    if (_pages[p].Callback is { } callback)
+                        _speakers?.Run(callback, Window.Animation);
                 _shownPage = page;
                 Window.Clear();   // ClearSubtitles: the picture is drawn again under the next page
                 changed = true;
@@ -296,9 +312,10 @@ public sealed class CommScreen
         else if (_talking && _shownPage >= 0)
         {
             var page = _pages[_shownPage].Page;
-            over = CommText.Subtitle(_alienFont, page, _race.TextBaselineX, _race.TextBaselineY, (TextAlign)_race.TextAlign,
-                _race.TextValign, _race.TextWidth, new Rgb(_race.TextFore.R, _race.TextFore.G, _race.TextFore.B),
-                new Rgb(_race.TextBack.R, _race.TextBack.G, _race.TextBack.B));
+            // The speaker's place and colours where the race's lines switch them (CommData's, as the callbacks set them).
+            var place = TextPlace;
+            over = CommText.Subtitle(_alienFont, page, place.X, place.Y, (TextAlign)_race.TextAlign,
+                _race.TextValign, _race.TextWidth, place.Fore, place.Back);
             overTexts = new[] { page };
             overFont = _alienFont;
         }
@@ -322,6 +339,10 @@ public sealed class CommScreen
         }
         return new Drawing(over, overTexts, overFont, below, belowTexts, _playerFont);
     }
+
+    /// <summary>Where the alien's text goes now: the speaker's (<see cref="CommSpeakers.Text"/>), else the race's description's.</summary>
+    public CommTextPlace TextPlace => _speakers?.Text ?? new CommTextPlace(_race.TextBaselineX, _race.TextBaselineY,
+        new Rgb(_race.TextFore.R, _race.TextFore.G, _race.TextFore.B), new Rgb(_race.TextBack.R, _race.TextBack.G, _race.TextBack.B));
 
     /// <summary>
     /// The first reply shown with <paramref name="cursor"/> lit, as
