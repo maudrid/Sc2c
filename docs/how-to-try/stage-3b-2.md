@@ -12,6 +12,8 @@ As for stage 3b-1 (`docs/how-to-try/stage-3b-1.md`): build the game, give a test
 CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm python3 tools/run_tests.py   # every topic
 ```
 
+Item 6's tests: `VuxYehatTests` (topic `world`: the VUX homeworld's fight, ZEX at peace and his fleet, the beast given and ZEX's death, a VUX group in space, the Yehat homeworld, the revolt offered with and without a Shofixti ship in the host's fleet by a guest, the royalists after, the rebels under the Yehat's lock giving ships to the host's fleet), `MeetingTests.StartEncounterTakesARaceByItsNameForTheRebels`, and the three scripts' recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-vux.json`, `talks-yehat.json`, `talks-rebel.json`).
+
 Item 5's tests: `ShofixtiZoqFotPikTests` (topic `world`: Tanaka's meetings, his two fights and his friendship, his damaged scout, his death marked as a player leaves, Katana with the Maidens, the recruited Shofixti flying off, the Zoq-Fot-Pik scout flying off, the homeworld's alliance, the speakers on the wire), the two scripts' recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-shofixt.json`, `talks-zoqfot.json`), the damaged scout's battles in `RaceShipBattleTests` (topic `combat`: `battle-races-3.json`'s `shofixti-old-keys` and `shofixti-old-ai`) and its sheets in `BattleContentTests`, and the two speakers on the communication screen in `CommScreenTests.TheZoqFotPiksLinesSwitchTheSpeakerAsEachPlays` (topic `drawing`).
 
 Item 4's tests: `MelnormeTests` (topic `world`: trading with the answerer's own credits, a gift mid-talk, the catalog, fuel by the ship's own tanks, the bio sale, the anger, the rescue's strip of a guest's escort, the strip offer's refusal, the rescue-only talk beside another player's, the rescue fields and broadcaster each player's own and saved, the super giants' ships), the script's recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-melnorm.json`), the bio data's count-down in `MineralSellingTests` (topic `drawing`).
@@ -60,6 +62,44 @@ Each is a row of `docs/differences.md`: Spathiwa's moon's talk with several play
 - **The password** comes from the Melnorme (item 4) or Fwiffo (stage 3c): until then only `--start-state` reaches the council.
 - **The Spathi never shield themselves** (their event is stage 3c's), so Spathiwa's moon keeps talking after the alliance.
 - **The alternate "Safe Ones" song** is chosen but nothing plays music yet.
+
+## Item 6: the VUX and the Yehat
+
+### The VUX
+
+The VUX's groups fly in their sphere. Every talk with them ends in a fight: their reasons asked (to the apologies, never accepted), the threats, their news, the friendship asked once the apologies are spent, the farewells.
+
+1. **Their homeworld** (star 98, planet 0) starts their talk against their endless fleet: the encounter screen, the homeworld's greetings, the fight. The ship is never put in orbit there.
+2. **Admiral ZEX** at the Maidens' world (star 118, planet 0) talks at peace (no encounter screen): his menagerie, why he doesn't attack, the Precursor device he lied about. "Regardless" (after "we require the Maidens") fights his endless fleet. While he lives the ship is never put in orbit there.
+3. **The beast.** With the beast aboard (stage 3c's pickup: `--start-devices VUX_BEAST_DEVICE`) and his wish known (asked about the creature he wants), "we have captured the monster" offers it; given, it kills him: his colours fade (on the host; not yet drawn on the communication screen, below), `ZEX_IS_DEAD` is set, the beast leaves the ship, and the ship goes into orbit; from then on the world is orbited by anyone.
+
+### The Yehat
+
+The Yehat's groups fly in their sphere; they're hostile (the encounter screen) and nearly every talk ends in a fight. The farewell in space is a draw: sometimes they let you go in peace.
+
+1. **Their homeworld** (star 21, planet 0) starts their talk against their endless fleet: their news, help and information refused, the alliance demanded (with the answerer's names) and refused, the fight.
+2. **The revolt.** Once Tanaka has been met (`SHOFIXTI_VISITS`), a Yehat ship in space can be told the Shofixti are reborn. With a Shofixti ship in the host's fleet (whoever is talking: the plan's question 4; before stage 3c only `--start-fleet shofixti` gives one) they can be sent the Shofixti: the civil war begins (`YEHAT_CIVIL_WAR`), the revolt's event is set aside until stage 3c runs the calendar, and from then on the Yehat met are the royalists. Without one it's "a trick", and a fight. The Shofixti ship stays in the fleet, as UQM's does.
+3. **The rebels** come only with the revolt's event (stage 3c), which gives them their fleet. Until then `--start-encounter YEHAT_REBEL_SHIP` brings a group of them for testing: at peace, under the Yehat's lock (nobody meets a Yehat group meanwhile), their news and information, and their ships: as many royalist Yehat ships as the host's fleet has room for, up to 4, once a month, every other player told.
+
+Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
+
+- `--start-orbit 98:0 --encounter-choice hail --meeting-replies 0,3 --quit-after 900`: "host at the encounter screen: an infinite fleet of Vux ships, hail or attack", "Vux: Welcome to the end of your life, courtesy of VUX technology. ...", "Why are you so hostile toward our species?", "Augh! You are even uglier than I had thought possible! ...", "Well, THIS has been useless. Goodbye.", "Human, based upon our commitment to the Ur-Quan ... we have decided to blow you to bits.", "The talk with the Vux ends: hostile", "host fights the Vux". The save has `VUX_HOME_VISITS`, `VUX_STACK_1` and `VUX_STACK_4` 1.
+- `--start-orbit 118:0 --meeting-replies 2,0 --quit-after 900`: no encounter screen, "Vux: Ah! Human visitors! What a treat!", "We require the Shofixti Maidens. ...", "Hee! Hee! Hee! Oh, Captain, that would be such an unfortunate mistake ...", "We will fight you regardless of your Precursor Artifact!", "Very well... to the Death!", "The talk with the Vux ends: hostile", "host fights the Vux". The save has `ZEX_STACK_3` 2.
+- `--start-devices VUX_BEAST_DEVICE --start-orbit 118:0 --meeting-replies 0,0,0,0,1 --quit-after 900` (the beast aboard): the menagerie, the creature he wants, "Admiral ZEX, we have captured the hideous monster from Delta Lyncis. Let us make an exchange.", "Okay, the beast is ALL yours! But be careful, it's a killer!", "Ah! My new child is on board. ...", "...WH- Wh- what- wh- AIEEEEE!!!!!...", "The talk with the Vux ends: peace", "host's meeting with the Vux is over", the host in orbit. The save has `ZEX_IS_DEAD` 1 and the beast gone.
+- `--start-orbit 21:0 --encounter-choice hail --meeting-replies 3 --quit-after 900`: "an infinite fleet of Yehat ships", "I, Zelnick, of The New Alliance of Free Stars commanding the Vindicator, demand that you uphold your duties as allies of the human species!", "Are ye DAFT human!? ...", "The talk with the Yehat ends: hostile", "host fights the Yehat" (and, flying into their endless fleet alone, the flagship lost: the game over).
+- `--start-state SHOFIXTI_VISITS=1 --start-fleet shofixti --start-at 4000:4000 --start-encounter yehat --encounter-choice hail --meeting-replies 3,0 --quit-after 900`: "This may come as a shock, but the Shofixti are reborn.", "If this is being a true thing, there will be many changes. ...", "All right, I'll send over the Shofixti... but don't mess with him, okay?", "...we shall TEAR THE QUEEN FROM HER THRONE!", "The talk with the Yehat ends: peace". The save has `YEHAT_CIVIL_WAR` 1, `YEHAT_REBEL_EVENT` among the events set aside, and the Shofixti still in the fleet.
+- `--start-state YEHAT_CIVIL_WAR=1 --start-at 4000:4000 --start-encounter YEHAT_REBEL_SHIP --meeting-replies 1,2 --quit-after 900`: no encounter screen, "Yehat: Welcome to ye, human friend and ally!", "Do you have any ships available to join our fleet?", "We are honored to help ye, Captain!", "Goodbye brave rebels. Viva la Revolution!", "The talk with the Yehat ends: peace". The save has four Yehat ships in the fleet and the next ships' date, `YEHAT_SHIP_MONTH` 3, `YEHAT_SHIP_DAY` 17.
+- Windowed with `--screenshot FILE.png`: the VUX homeworld's talk (`--start-orbit 98:0 --encounter-choice hail --quit-after 200`: the VUX in their window, their greeting in their font on the right), the rebels' (the Yehat's window and font), ZEX's (`--quit-after 260` and later, through his death's lines).
+
+### What's different from UQM
+
+`docs/differences.md` rows 27 (the VUX's and the Yehat's homeworlds and the Maidens' world start their talks), 68 (their groups fly; the rebels have no fleet until stage 3c) and 72 (the revolt can be started; the rebellion check, which sends the Yehat groups a player talked to out of the system once the civil war is on, is stage 3c's). The revolt's Shofixti is looked for in the host's fleet whoever answers (row 65).
+
+### Known limits of item 6
+
+- **The talks' colour changes aren't drawn.** ZEX's colours fading as the beast kills him (`XFormColorMap`) happen in the talk on the host but aren't sent to the client, so the communication screen doesn't show them (nor the Spathi at home's, item 2): the talk's view carries no colour map yet.
+- **The rebels and the revolt** need stage 3c: the revolt's event, which cuts the royalists' fleet to two thirds and gives the rebels as much, is set aside; the Shofixti ship it needs comes only with the Shofixti's return (3c) or `--start-fleet`; the endgame's cavalry (the rebels' last-battle branch) is recorded and tested only.
+- **The beast** is stage 3c's pickup (`--start-devices VUX_BEAST_DEVICE` until then).
 
 ## Item 5: the Shofixti and the Zoq-Fot-Pik
 
