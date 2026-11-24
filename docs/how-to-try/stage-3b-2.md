@@ -12,6 +12,8 @@ As for stage 3b-1 (`docs/how-to-try/stage-3b-1.md`): build the game, give a test
 CRATERIS_CONTENT=~/Downloads/uqm-0.8.0-content.uqm python3 tools/run_tests.py   # every topic
 ```
 
+Item 7's tests: `OrzPkunkTests` (topic `world`: a guest's alliance at the Orz homeworld, told to everyone; the break over the Androsynth taking every Orz ship out of the host's fleet, their colours turning in the talk's view, their hostility after; the Taalo moon's 14 guards at peace and in a fight, leave to land for allies and the moon orbited from then on; the Pkunk's Clear Spindle, their friendship with 4 ships to the host's fleet and no alliance, the yearly gift by date and room; a Pkunk group in space and the migration's event set aside), `WorldTalkTests` (the Orz worlds and the Pkunk's homeworld ported, `TAALO_UNPROTECTED` set as UQM's), and the two scripts' recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-orz.json`, `talks-pkunk.json`).
+
 Item 6's tests: `VuxYehatTests` (topic `world`: the VUX homeworld's fight, ZEX at peace and his fleet, the beast given and ZEX's death, a VUX group in space, the Yehat homeworld, the revolt offered with and without a Shofixti ship in the host's fleet by a guest, the royalists after, the rebels under the Yehat's lock giving ships to the host's fleet), `MeetingTests.StartEncounterTakesARaceByItsNameForTheRebels`, and the three scripts' recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-vux.json`, `talks-yehat.json`, `talks-rebel.json`).
 
 Item 5's tests: `ShofixtiZoqFotPikTests` (topic `world`: Tanaka's meetings, his two fights and his friendship, his damaged scout, his death marked as a player leaves, Katana with the Maidens, the recruited Shofixti flying off, the Zoq-Fot-Pik scout flying off, the homeworld's alliance, the speakers on the wire), the two scripts' recorded paths in `TalkTests` (topic `talk`: `tests/golden/talks-shofixt.json`, `talks-zoqfot.json`), the damaged scout's battles in `RaceShipBattleTests` (topic `combat`: `battle-races-3.json`'s `shofixti-old-keys` and `shofixti-old-ai`) and its sheets in `BattleContentTests`, and the two speakers on the communication screen in `CommScreenTests.TheZoqFotPiksLinesSwitchTheSpeakerAsEachPlays` (topic `drawing`).
@@ -62,6 +64,47 @@ Each is a row of `docs/differences.md`: Spathiwa's moon's talk with several play
 - **The password** comes from the Melnorme (item 4) or Fwiffo (stage 3c): until then only `--start-state` reaches the council.
 - **The Spathi never shield themselves** (their event is stage 3c's), so Spathiwa's moon keeps talking after the alliance.
 - **The alternate "Safe Ones" song** is chosen but nothing plays music yet.
+
+## Item 7: the Orz and the Pkunk
+
+### The Orz
+
+The Orz's groups fly in their sphere. Until they're allied they're met at the encounter screen; their talk is friendly unless they've been angered (a fight, or a hostile reply) or turned on the players for good.
+
+1. **Their homeworld** (star 150, planet 0) starts their talk against their endless fleet. The first meeting opens with the ship computer's report (the Orz's mouth still through it). "We are ..." (with the answerer's names), then "you seem like nice guys" and "yes" makes the alliance: their ships go on sale at the starbase and every other player is told. The ship is never put in orbit there.
+2. **The break.** Allied, ask them about the Androsynth three times: they turn on the players for good (`ORZ_MANNER` 2), their colours fading to their angry ones on every client; the alliance ends and every Orz ship leaves the host's fleet, whoever is talking (the plan's question 4), and every other player is told both. A fight follows, and every later talk opens in their angry colours and ends in one. Pressing them about the Androsynth while neutral ("I must know") turns them the same way, with no alliance to break.
+3. **The Taalo protector's moon** (star 154, planet 1, moon 2) is guarded by 14 Orz, made afresh at each orbit: their questions there, and allies may land ("may we land?": `TAALO_UNPROTECTED`, the ship put in orbit, and the moon orbited by anyone from then on). Angry, "let us land" is a fight against the 14; while any survive the ship stays out of orbit. Destroying all 14 opens the moon too. The protector itself is stage 3c's pickup.
+
+### The Pkunk
+
+The Pkunk's groups fly in their sphere. Neutral, they're met at the encounter screen; once friends, at peace. They're never allied (UQM's script never makes an alliance): their ships never go on sale.
+
+1. **Their homeworld** (star 42, planet 0) starts their talk against their endless fleet. On the first visit they give the Clear Spindle (the group's: `CLEAR_SPINDLE_ON_SHIP`). "We are ..." then "we're here to help" (or "we need help") wins their friendship and 4 Pkunk ships for the host's fleet, as many as it has room for, whoever is talking; every other player is told. Their migration's event is queued six months on and set aside until stage 3c.
+2. **The yearly gift.** A year from the last ships' date (its day at most the 28th), a later visit to their homeworld brings 4 more, or "no room" with the host's fleet full; before then, their greetings. Friendly Pkunk met in space say the ships are waiting.
+3. **Their anger.** A fight angers them; at their homeworld "I'll try to be nicer" makes friends again, with the spindle if they hadn't given it. "We must conquer" makes them hate the players for good.
+4. **Their migration** (`PKUNK_MISSION` odd, stage 3c's) is reached with `--start-state`: a good reason to go home queues their mission's event at once, set aside.
+
+Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
+
+- `--start-orbit 150:0 --encounter-choice hail --meeting-replies 1,0,3 --quit-after 1200`: "host at the encounter screen: an infinite fleet of Orz ships, hail or attack", "Orz: THIS IS A SYSTEM MESSAGE FROM SHIP'S COMPUTER TRANSLATION SUBSYSTEM: ...", "This is my *house.* Did you come to *play*?.", "Yes, of course. Difficulty. Problems are difficult.", "Yes. Yes. We are too friendly.", "Uh....I presume you are talking about an alliance. Yes, we are very interested.", "Jumping *peppers*!! This is smiley time! ...", "The talk with the Orz ends: peace". The save has `ORZ_MANNER` 3 and the Orz `good` among the alliances.
+- `--start-state MET_ORZ_BEFORE=1,ORZ_MANNER=3 --start-allied orz --start-fleet orz,spathi,orz --start-at 4000:4000 --start-encounter orz --meeting-replies 0,0,0 --quit-after 900`: no encounter screen, "Oh, the *alliance* *party* *campers* are in the *now space*. ...", the Androsynth asked three times, "Nnnnnggggaaaahhhhh!!!!!! It is *dancing*!!!!", "The talk with the Orz ends: hostile", "host fights the Orz". The save has the fleet down to the Spathi and the Orz `bad`.
+- `--start-state MET_ORZ_BEFORE=1 --start-orbit 154:1:2 --encounter-choice hail --meeting-replies 2,3 --quit-after 900`: "host at the encounter screen: 14 Orz ships, hail or attack", "Happy *pieces*! I am *squirting nice colors*!", why they're here, the goodbye, "The talk with the Orz ends: peace"; the ship out of orbit, `TAALO_VISITS` 1.
+- `--start-state MET_ORZ_BEFORE=1,ORZ_MANNER=3 --start-allied orz --start-orbit 154:1:2 --meeting-replies 0 --quit-after 900`: no encounter screen, "may we land?", "You are ask if Orz are upset? Orz are not upset.", peace, the host in orbit around the moon; the save has `TAALO_UNPROTECTED` 1.
+- `--start-state MET_ORZ_BEFORE=1,ORZ_MANNER=1 --start-orbit 154:1:2 --encounter-choice hail --meeting-replies 1 --quit-after 900`: "Who is it? It is the *not Campers*. ...", "NNNNgggggaaahhhhh!!!!!! You are *frumple*! ...", "host fights the Orz" (14 of them: alone, the flagship lost and the game over).
+- `--start-orbit 42:0 --encounter-choice hail --meeting-replies 1,0 --quit-after 1500`: "an infinite fleet of Pkunk ships", "WAIT!... a spirit voice rings within my soul ...", "Auspicious portents and serendipitous omens have foretold your arrival. ...", "Let us unite and form an alliance!! ...", "...we give you 4 of our meager ships, fully crewed.", "The talk with the Pkunk ends: peace". The save has four Pkunk ships in the fleet, the spindle aboard, `PKUNK_MANNER` 3, the next ships' date 2156-02-17 (`PKUNK_SHIP_MONTH` 2, `_DAY` 17, `_YEAR` 1) and `ADVANCE_PKUNK_MISSION` queued for 2155-08-17.
+- `--start-state PKUNK_MANNER=3,CLEAR_SPINDLE=1,PKUNK_HOME_VISITS=1,PKUNK_SHIP_MONTH=2,PKUNK_SHIP_DAY=17,PKUNK_SHIP_YEAR=0 --start-fleet spathi --start-orbit 42:0 --meeting-replies 2 --quit-after 900` (the next ships' date today): "Since you are our friends we want to give you a gift... several Pkunk Fury starships, fully crewed.", the fleet the Spathi and four Pkunk, the next date a year on. (`--start-allied` and `--start-fleet` now apply before `--start-orbit`, so a world's talk there sees them and what it gives stays.)
+- `--start-at 4000:4000 --start-encounter pkunk --encounter-choice hail --meeting-replies 0,3 --quit-after 900`: the encounter screen, "Welcome to our home stars. We are the Pkunk. ...", the alliance asked about, the goodbye, peace. With `--start-state PKUNK_MANNER=3 ... --meeting-replies 2,2`: at peace, "Whoopdy Dee and Trolly Bazoo! ...", their fortune told.
+- `--start-state PKUNK_MISSION=1 --start-at 4000:4000 --start-encounter pkunk --encounter-choice hail --meeting-replies 0 --quit-after 900`: "We have decided that our Yehat siblings are in need of our love and good counsel.", a good reason, "Hmm... this is an ominous portent."; the save has `ADVANCE_PKUNK_MISSION` among the events set aside, dated today.
+- Windowed with `--screenshot FILE.png`: the Orz homeworld once they're enemies for good (`--start-state MET_ORZ_BEFORE=1,ORZ_MANNER=2 --start-orbit 150:0 --encounter-choice hail --quit-after 150`: the Orz in their red angry colours, "You are *sick* for the last time!"), and the Pkunk's homeworld (`--quit-after 200`: the Pkunk in their window, the spindle's lines in their font).
+
+### What's different from UQM
+
+`docs/differences.md` rows 27 (the Orz's and the Pkunk's homeworlds and the Taalo moon start their talks), 66 (the Pkunk's mission event set aside), 68 (their groups fly) and 83 (the Orz's screen changes on every client). The break takes the Orz ships from the host's fleet whoever answers, and the gifts go to it (row 65).
+
+### Known limits of item 7
+
+- **The Pkunk's migration** (their mission event, the fleet on the move and its talks at home) is stage 3c's: recorded and tested, reached only with `--start-state`.
+- **The Taalo protector** on the moon is stage 3c's pickup; the moon can be landed on once it's open.
 
 ## The talks' screen changes (after item 6)
 
