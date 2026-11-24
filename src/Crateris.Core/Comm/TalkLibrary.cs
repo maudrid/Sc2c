@@ -50,6 +50,9 @@ public sealed class TalkLibrary
         // Stage 3b-2 item 7.
         ["orz"] = p => new OrzScript(p),
         ["pkunk"] = p => new PkunkScript(p),
+        // Stage 3b-2 item 8.
+        ["druuge"] = p => new DruugeScript(p),
+        ["mycon"] = p => new MyconScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

@@ -95,6 +95,14 @@ public enum NoticeEvent : byte
     /// <see cref="WorldNotice.Race"/> names the module.
     /// </summary>
     ModuleForSale,
+
+    /// <summary>
+    /// Another player's talk changed the crew's price at the starbase
+    /// (GLOBAL (CrewCost), shared: crew sold to the Druuge raise it, stage
+    /// 3b-2 item 8), to <see cref="WorldNotice.Count"/> resource units a
+    /// crew member; <see cref="WorldNotice.Race"/> names the race.
+    /// </summary>
+    CrewPrice,
 }
 
 /// <summary>
@@ -102,7 +110,8 @@ public enum NoticeEvent : byte
 /// item 9, decision 11): the event, the other player (<see cref="By"/>,
 /// their name) and the race it's about (<see cref="Race"/>, as
 /// <see cref="Meeting.RaceName"/> names it), and for ships given or taken
-/// how many (<see cref="Count"/>; 0 for the other events). The world gathers them
+/// how many (<see cref="Count"/>; for an anger its level, for the crew's
+/// price the new price; 0 for the other events). The world gathers them
 /// (<see cref="GameWorld.TakeNotices"/>), each once for each player it
 /// tells; the host's session sends each in words (<see cref="Text"/>) as
 /// the battle notices are sent (<c>BattleNoticeKind.Told</c>) to a player
@@ -138,6 +147,7 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
             : $"{By} angered the {Race}.",
         NoticeEvent.Calmed => $"{By} calmed the {Race}.",
         NoticeEvent.ModuleForSale => $"{By} bought the {Race} from the Melnorme: it's for sale at the starbase.",
+        NoticeEvent.CrewPrice => $"{By} sold crew to the {Race}: crew cost {Count} RU each at the starbase now.",
         _ => "",
     };
 }

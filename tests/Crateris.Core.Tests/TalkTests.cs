@@ -165,6 +165,8 @@ public class TalkTests
         ["rebel"] = ("talks-rebel", p => new YehatRebelScript(p)),
         ["orz"] = ("talks-orz", p => new OrzScript(p)),
         ["pkunk"] = ("talks-pkunk", p => new PkunkScript(p)),
+        ["druuge"] = ("talks-druuge", p => new DruugeScript(p)),
+        ["mycon"] = ("talks-mycon", p => new MyconScript(p)),
     };
 
     // A script's recorded starts.
@@ -201,6 +203,9 @@ public class TalkTests
         if (start.TryGetProperty("costs", out var costs))
             foreach (var m in ShipModules.Names.Take(Talk.PurchaseModules))
                 story.SetModuleCost(m, costs.TryGetProperty(m, out var c) ? c.GetInt32() : 0);
+        // The crew's price at the starbase (GLOBAL (CrewCost)) where not a new game's.
+        if (start.TryGetProperty("crew_cost", out var crewCost))
+            story.SetCrewCost(crewCost.GetInt32());
         if (start.TryGetProperty("fleets", out var fleets))
             foreach (var f in fleets.EnumerateObject())
                 story.SetFleet(f.Name, story.Fleet(f.Name) with { ActualStrength = f.Value[0].GetInt32(), KnownStrength = f.Value[1].GetInt32() });
@@ -259,6 +264,7 @@ public class TalkTests
         },
         SlotsChanged s => new() { ["slots"] = new JsonArray(s.Drives.Concat(s.Jets).Concat(s.Modules).Select(b => (JsonNode)(int)b).ToArray()) },
         CostsChanged c => new() { ["costs"] = new JsonArray(c.Costs.Select(v => (JsonNode)v).ToArray()) },
+        CrewCostChanged c => new() { ["crew_cost"] = c.Cost },
         ReplyChosen r => new() { ["reply"] = r.Index },
         RepliesOffered o => new()
         {
@@ -702,6 +708,73 @@ public class TalkTests
         // Each at the next engine call after it, as check_changes sees it.
         var kinds = talk.Events.Where(e => e is BioChanged or LineQueued).Select(e => e.GetType().Name).ToList();
         Assert.Equal(new[] { "BioChanged", "LineQueued", "BioChanged", "LineQueued" }, kinds);
+    }
+
+    [Fact]
+    public void TheCrewsPriceIsTheScriptsToRaiseAndItsChangesAreRecorded()
+    {
+        // GLOBAL (CrewCost), a BYTE: the Druuge's goodbye raises it (druugec.c:185-190), a rise past 255 wrapping.
+        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        var (talk, _) = Probe(s =>
+        {
+            Assert.Equal(3, s.Talk.CrewCost);
+            s.Talk.SetCrewCost(s.Talk.CrewCost + 22);
+            s.Talk.NPCPhrase("HELLO");
+            s.Talk.SetCrewCost(s.Talk.CrewCost);        // no change: nothing told
+            s.Talk.NPCPhrase("HELLO");
+            s.Talk.SetCrewCost(s.Talk.CrewCost + 240);  // 265: wraps to 9
+            s.Talk.SetCrewCost(s.Talk.CrewCost + 1);    // two changes before the next look: one event
+            s.Talk.NPCPhrase("BYE");
+            s.Talk.SetCrewCost(s.Talk.CrewCost + 7);
+            s.Talk.SetCrewCost(s.Talk.CrewCost - 7);    // back where it was by the next look: nothing told
+        }, story: story);
+        talk.Start();
+        Assert.Equal(new[] { new CrewCostChanged(25, 3), new CrewCostChanged(10, 25) }, talk.Events.OfType<CrewCostChanged>());
+        Assert.Equal(10, story.CrewCost);
+        Assert.Equal("{\"crew_cost\":25}", Json(talk.Events.OfType<CrewCostChanged>().First()).ToJsonString());
+        // Each at the next engine call after it, as check_changes sees it.
+        var kinds = talk.Events.Where(e => e is CrewCostChanged or LineQueued).Select(e => e.GetType().Name).ToList();
+        Assert.Equal(new[] { "CrewCostChanged", "LineQueued", "LineQueued", "CrewCostChanged", "LineQueued" }, kinds);
+    }
+
+    [Fact]
+    public void ACrewPriceChangedByAnotherMeanwhileIsntTheTalks()
+    {
+        // The shipyard's crew bought past the threshold by another player mid-talk changes the shared price:
+        // not this talk's change, so not among its events (as the modules' prices).
+        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        var (talk, script) = Probe(s => s.Talk.Response("ask", s.Said), story: story);
+        talk.Start();
+        story.SetCrewCost(5);
+        talk.Choose(0);
+        Assert.Empty(talk.Events.OfType<CrewCostChanged>());
+        Assert.Equal(5, script.Talk.CrewCost);
+    }
+
+    [Fact]
+    public void APhraseIsBlankedByItsNumberToo()
+    {
+        // DISABLE_PHRASE (R) with the reply's number as its function gets it (myconc.c:374): the same phrase
+        // as by its id, and the number wraps as every phrase's does (a COUNT index into the table).
+        var (talk, _) = Probe(s =>
+        {
+            s.Talk.Response("ask", r =>
+            {
+                Assert.True(s.Talk.PhraseEnabled("ask"));
+                s.Talk.DisablePhrase(r);
+                Assert.False(s.Talk.PhraseEnabled("ask"));
+                Assert.True(s.Talk.PhraseEnabled("name_1"));
+                s.Talk.DisablePhrase(s.Talk.Phrase("name_1") + 8);   // wraps at the table's 8 entries
+                Assert.False(s.Talk.PhraseEnabled("name_1"));
+                Assert.True(s.Talk.PhraseEnabled("name_2"));
+                s.Talk.Response("ask", s.Said);
+                s.Talk.Response("name_2", s.Said);
+            });
+        });
+        talk.Start();
+        talk.Choose(0);
+        var offer = Assert.IsType<RepliesOffered>(talk.Events[^1]);
+        Assert.Equal(new[] { "", "The Two" }, offer.Replies.Select(r => r.Text));
     }
 
     // The events in words, for the callbacks' tests: lines (with their callbacks), waits, runs, screens.

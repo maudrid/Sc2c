@@ -166,14 +166,128 @@ public class WorldTalkTests
         // Ported: the Ilwrath's (their homeworld and Procyon), the Spathi at home, the Slylandro at home,
         // the Zoq-Fot-Pik's homeworld (stage 3b-2 item 5), the VUX's homeworld, ZEX at the Maidens' world
         // and the Yehat's homeworld (item 6), the Orz's homeworld, the Taalo protector's moon and the Pkunk's
-        // homeworld (item 7).
-        Assert.Equal(new[] { "CHMMR_DEFINED", "ILWRATH_DEFINED", "MAIDENS_DEFINED", "ORZ_DEFINED", "PKUNK_DEFINED",
-                "SLYLANDRO_DEFINED", "SPATHI_DEFINED", "TAALO_PROTECTOR_DEFINED", "VUX_DEFINED", "YEHAT_DEFINED",
-                "ZOQFOT_DEFINED" },
+        // homeworld (item 7), the Druuge's trade world and their guard at the bomb's moon, the Mycon's
+        // homeworld and the Sun Device's world (item 8).
+        Assert.Equal(new[] { "BOMB_DEFINED", "CHMMR_DEFINED", "DRUUGE_DEFINED", "ILWRATH_DEFINED", "MAIDENS_DEFINED",
+                "MYCON_DEFINED", "ORZ_DEFINED", "PKUNK_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED",
+                "SUN_DEVICE_DEFINED", "TAALO_PROTECTOR_DEFINED", "VUX_DEFINED", "YEHAT_DEFINED", "ZOQFOT_DEFINED" },
             GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is not null).Select(w => w.Special).OrderBy(s => s));
-        // The Druuge at the bomb's moon once the Utwig have their Ultron: still waiting for theirs.
+        Assert.Equal("DRUUGE_SHIP", GameWorld.TalkWorlds.Single(w => w.Special == "BOMB_DEFINED" && world.WorldScript(w) is not null).Race);
+    }
+
+    [ContentFact]
+    public void TheDruugeGuardTheBombsMoonOnceTheUtwigHaveTheirUltron()
+    {
+        // genutw.c:110-144: the bomb's moon is the Utwig's while they haven't their Ultron (their script
+        // isn't ported until item 9: orbited as before, nothing tracked), then the Druuge's 5 ships' until
+        // none is left (BOMB_UNPROTECTED) or the bomb is taken (UTWIG_BOMB), the Druuge extinct aside.
+        var world = NewGame();
+        var story = world.Story!;
+        int star = Star(world, "BOMB_DEFINED");
+        var druuge = GameWorld.TalkWorlds.Single(w => w is { Special: "BOMB_DEFINED", Race: "DRUUGE_SHIP" });
+        var before = story.Bits.ToArray();
+        Assert.Null(world.WorldTalkAt(star, 5, 1));
+        Assert.Equal(before, story.Bits.ToArray());
+        Assert.Equal(0, story.Fleet("DRUUGE_SHIP").KnownStrength);
+
         story.Set("UTWIG_HAVE_ULTRON", 1);
-        Assert.Null(world.WorldTalkAt(Star(world, "BOMB_DEFINED"), 5, 1));
+        Assert.Same(druuge, world.WorldTalkAt(star, 5, 1));
+        Assert.NotEqual(0, story.Fleet("DRUUGE_SHIP").KnownStrength);   // StartSphereTracking (DRUUGE_SHIP), :144
+        Assert.Equal((5, 1 << 6, "druuge"), (druuge.Fleet(story), druuge.GlobalFlags, world.WorldScript(druuge)));
+        Assert.Null(world.WorldTalkAt(star, 5, 0));   // the other moons and the planet itself: orbits
+        Assert.Null(world.WorldTalkAt(star, 5, null));
+
+        story.Set("BOMB_UNPROTECTED", 1);
+        Assert.Null(world.WorldTalkAt(star, 5, 1));
+        story.Set("BOMB_UNPROTECTED", 0);
+        story.Set("UTWIG_BOMB", 1);
+        Assert.Null(world.WorldTalkAt(star, 5, 1));
+        story.Set("UTWIG_BOMB", 0);
+        Assert.Same(druuge, world.WorldTalkAt(star, 5, 1));
+        story.SetFleet("DRUUGE_SHIP", story.Fleet("DRUUGE_SHIP") with { ActualStrength = 0 });
+        story.SetAlliance("DRUUGE_SHIP", Allied.Dead);
+        Assert.Null(world.WorldTalkAt(star, 5, 1));
+        Assert.Equal(0, story.Get("BOMB_UNPROTECTED"));   // not set past the test (:178 is inside it)
+    }
+
+    [ContentFact]
+    public void AGuestsTradeAtTheDruugesTradeWorldGivesTheHostsFleetAShipAndRaisesTheCrewsPrice()
+    {
+        // gendru.c:87: the Druuge's trade world starts their talk at bit 7, at peace (init_druuge_comm: no
+        // encounter screen), against their infinite fleet. druugec.c: a Mauler for 100 of the answering
+        // ship's crew, to the host's fleet whoever answers; fuel for 10; the crew sold added to
+        // CREW_SOLD_TO_DRUUGE as the talk says goodbye, the crew's price up by 7 past 100 sold (shared).
+        var world = NewGame("g");
+        var story = world.Story!;
+        story.Set("KNOW_DRUUGE_SLAVERS", 3);
+        story.Set("CREW_SOLD_TO_DRUUGE0", 95);
+        var guest = world.Find("g")!.Ship;
+        // Crew pods for 120 crew (DeltaSISGauges keeps the crew within what the ship holds).
+        int[] free = guest.Modules.ModuleSlots.Select((mod, i) => (mod, i)).Where(x => x.mod == ShipModules.EmptyModule).Select(x => x.i).ToArray();
+        foreach (int slot in free.Take(3))
+            guest.Modules.SetModule(slot, ShipModules.CrewPod);
+        guest.Refit();
+        guest.Hold.SetCrew(120);
+        Assert.True(guest.Hold.CrewCapacity >= 120);
+        int hostCrew = world.Host.Ship.Hold.Crew, cost = story.CrewCost;
+        world.TakeNotices();
+        world.PutInOrbit("g", Star(world, "DRUUGE_DEFINED"), 0);
+        var m = Assert.IsType<Meeting>(world.MeetingOf("g"));
+        Assert.IsType<DruugeScript>(m.Talk!.Script);
+        Assert.Equal(1 << 7, m.Talk.Get("GLOBAL_FLAGS_AND_DATA"));
+        Assert.True(m.Infinite);
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        Assert.True(Said(m.Talk, "INITIAL_TRADE_WORLD_HELLO"));
+        Assert.True(world.ChooseReply("g", Reply(m.Talk, "want_to_buy")));
+        Assert.Empty(world.Fleet.Ships);
+        Assert.True(world.ChooseReply("g", Reply(m.Talk, "buy_druuge_ship")));
+        Assert.True(Said(m.Talk, "BOUGHT_SHIP"));
+        Assert.Equal("DRUUGE_SHIP", Assert.Single(world.Fleet.Ships).Race);
+        Assert.Equal((20, hostCrew), (guest.Hold.Crew, world.Host.Ship.Hold.Crew));   // the answering ship's crew
+        var told = world.TakeNotices();
+        Assert.Contains(told, n => n is { PlayerId: "h", Event: NoticeEvent.ShipsGiven, Count: 1, Race: "Druuge" });
+        Assert.True(world.ChooseReply("g", Reply(m.Talk, "buy_druuge_ship")));
+        Assert.True(Said(m.Talk, "NOT_ENOUGH_CREW"));
+        Assert.True(world.ChooseReply("g", Reply(m.Talk, "buy_fuel")));
+        Assert.Equal(10, guest.Hold.Crew);
+        // Nothing of the story's yet: the crew sold is counted as the talk says goodbye.
+        Assert.Equal((95, cost), (story.Get("CREW_SOLD_TO_DRUUGE0"), story.CrewCost));
+        Assert.True(world.ChooseReply("g", Reply(m.Talk, "done_buying")));
+        Assert.True(world.ChooseReply("g", Reply(m.Talk, "bye")));
+        Assert.Equal((205, 0, cost + 7), (story.Get("CREW_SOLD_TO_DRUUGE0"), story.Get("CREW_SOLD_TO_DRUUGE1"), story.CrewCost));
+        Assert.Contains(world.TakeNotices(), n => n is { PlayerId: "h", Event: NoticeEvent.CrewPrice, Race: "Druuge" } && n.Count == cost + 7);
+        Assert.Equal(Segue.Peace, m.Talk.Segue);
+    }
+
+    [ContentFact]
+    public void TheSunDevicesWorldIsGuardedByTheMyconUntilNoneIsLeft()
+    {
+        // genmyc.c:90-144: the Mycon's infinite fleet at the Sun Device's world, 5 ships once they fell for
+        // the ambush; unguarded (SUN_DEVICE_UNGUARDED), an orbit; their homeworld talks whatever that says.
+        var world = NewGame();
+        var story = world.Story!;
+        int sun = Star(world, "SUN_DEVICE_DEFINED"), home = Star(world, "MYCON_DEFINED");
+        var w = world.WorldTalkAt(sun, 0, null)!;
+        Assert.Equal(("MYCON_SHIP", 1 << 6, TalkWorld.InfiniteFleet, "mycon"), (w.Race, w.GlobalFlags, w.Fleet(story), world.WorldScript(w)));
+        story.Set("MYCON_FELL_FOR_AMBUSH", 1);
+        Assert.Equal(5, world.WorldTalkAt(sun, 0, null)!.Fleet(story));
+        var h = world.WorldTalkAt(home, 0, null)!;
+        Assert.Equal((1 << 7, TalkWorld.InfiniteFleet), (h.GlobalFlags, h.Fleet(story)));
+        story.Set("SUN_DEVICE_UNGUARDED", 1);
+        Assert.Null(world.WorldTalkAt(sun, 0, null));
+        Assert.Same(h, world.WorldTalkAt(home, 0, null));
+
+        // Orbited: the Mycon's talk at bit 6 (the Sun Device's world's greeting), hostile from the start
+        // (the encounter screen), against the 5 that fell for the ambush.
+        story.Set("SUN_DEVICE_UNGUARDED", 0);
+        world.PutInOrbit("h", sun, 0);
+        var m = Assert.IsType<Meeting>(world.MeetingOf("h"));
+        Assert.IsType<MyconScript>(m.Talk!.Script);
+        Assert.Equal((1 << 6, false, 5), (m.Talk.Get("GLOBAL_FLAGS_AND_DATA"), m.Infinite, m.Ships.Count));
+        Assert.Equal(MeetingStep.Encounter, m.Step);
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.True(Said(m.Talk, "HELLO_SUN_DEVICE_WORLD_1"));
+        Assert.Contains(m.Talk.Replies, r => r.Phrase == Scripts["mycon"].PhraseNumber("how_goes_implanting"));
     }
 
     [ContentFact]

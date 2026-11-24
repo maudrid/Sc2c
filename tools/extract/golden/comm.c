@@ -52,6 +52,8 @@
  *     log_y (the Slylandro probe says where it is from them);
  *   each purchasable module's price (GLOBAL (ModuleCost), PLANET_LANDER to
  *     ANTIMISSILE_DEFENSE), which the Melnorme read and set;
+ *   what a crew member costs at the starbase (GLOBAL (CrewCost)), which
+ *     the Druuge raise as crew are sold to them;
  *   the replies: their count, then each one's place in the replies offered.
  *
  * Selling minerals (starbas.c's SellMinerals) runs as if a button were
@@ -116,6 +118,9 @@
  *                                             prices (ModuleCost), when they
  *                                             change (the Melnorme's
  *                                             technology)
+ *   {"crew_cost": c}                          what a crew member costs
+ *                                             (CrewCost), when it changes
+ *                                             (crew sold to the Druuge)
  *   {"gauges": [crew, fuel, ru]}              DeltaSISGauges
  *   {"random": n}                             TFB_Random's number drawn
  *   {"talking": b}                            EnableTalkingAnim (b 1 or 0)
@@ -223,6 +228,8 @@ static BYTE last_slots[NUM_DRIVE_SLOTS + NUM_JET_SLOTS + NUM_MODULE_SLOTS];
 static int slots_known;
 static BYTE last_costs[NUM_PURCHASE_MODULES];
 static int costs_known;
+static BYTE last_crew_cost;
+static int crew_cost_known;
 
 static int
 map_index (COLORMAP map)
@@ -302,6 +309,10 @@ check_changes (void)
 		memcpy (last_costs, costs, sizeof costs);
 		costs_known = 1;
 	}
+	if (crew_cost_known && GLOBAL (CrewCost) != last_crew_cost)
+		printf ("{\"crew_cost\": %u}\n", (unsigned) GLOBAL (CrewCost));
+	last_crew_cost = GLOBAL (CrewCost);
+	crew_cost_known = 1;
 }
 
 /* ------------------------------------------------- the track player */
@@ -878,8 +889,8 @@ loads (const char *list, const char *res)
 /* The talk's whole state, for the walk: the story, the ship, the phrases
  * blanked, the random seed, the escort fleet (worth, room and ships), the
  * bio data, the races' standings and known spheres, the track player's
- * no_page_break, the script's own state, the screen and the replies
- * offered. */
+ * no_page_break, the crew's price, the script's own state, the screen and
+ * the replies offered. */
 static void
 print_key (void)
 {
@@ -914,6 +925,19 @@ print_key (void)
 	/* trackplayer.c's no_page_break, kept across replies: whether the
 	 * next track joins the last (its first page's callback untagged). */
 	printf ("|%d", no_page_break);
+	/* What a crew member costs, which the Druuge's talk raises. */
+	printf ("|%u", (unsigned) GLOBAL (CrewCost));
+#ifdef SCRIPT_druuge
+	/* The script's own state that the replies offered don't show: the
+	 * crew sold in this talk, the salvage tried, the goods offered while
+	 * the sphere is traded for. */
+	printf ("|%u,%u,%u", (unsigned) SlaveryCount, (unsigned) AttemptedSalvage,
+			(unsigned) LastResponse);
+#endif
+#ifdef SCRIPT_mycon
+	/* The script's own state that the replies offered don't show. */
+	printf ("|%u", (unsigned) MadeChoice);
+#endif
 #ifdef SCRIPT_spathi
 	/* The script's own state that the replies offered don't show. */
 	printf ("|%u", (unsigned) join_us_refusals);
@@ -1064,6 +1088,8 @@ main (void)
 		sscanf (p, "%u%n", &v, &i);
 		GLOBAL (ModuleCost[step]) = v;
 	}
+	read_line (line, sizeof line);
+	GLOBAL (CrewCost) = (BYTE) strtoul (line, NULL, 10);
 	read_line (line, sizeof line);
 	p = line;
 	sscanf (p, "%d%n", &replies, &i);

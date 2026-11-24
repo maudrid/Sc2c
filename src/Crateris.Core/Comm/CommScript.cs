@@ -73,6 +73,8 @@ public abstract class CommScript
 
     protected void DisablePhrase(string id) => T.DisablePhrase(id);
 
+    protected void DisablePhrase(int r) => T.DisablePhrase(r);
+
     protected int GetGameState(string field) => T.Get(field);
 
     protected void SetGameState(string field, int value) => T.Set(field, value);

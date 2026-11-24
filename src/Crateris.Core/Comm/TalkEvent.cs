@@ -188,6 +188,14 @@ public sealed record CostsChanged(int[] Costs) : TalkEvent
     public override int GetHashCode() => Costs.Length;
 }
 
+/// <summary>
+/// The crew's price at the starbase changed (GLOBAL (CrewCost), shared:
+/// the Druuge's talk raises it as crew are sold to them, stage 3b-2 item
+/// 8), as the recording's "crew_cost" gives it; <see cref="Was"/> the
+/// price before (not recorded).
+/// </summary>
+public sealed record CrewCostChanged(int Cost, int Was) : TalkEvent;
+
 /// <summary>The player chose the reply at <see cref="Index"/> of those offered.</summary>
 public sealed record ReplyChosen(int Index) : TalkEvent;
 

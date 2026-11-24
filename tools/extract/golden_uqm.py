@@ -4190,7 +4190,10 @@ MODULES = {"PLANET_LANDER": 0, "FUSION_THRUSTER": 1, "TURNING_JETS": 2,
 # a new game's prices (data/new-game.json; 0 for those not for sale).
 PURCHASE_MODULES = [m for m, n in sorted(MODULES.items(), key=lambda x: x[1]) if n < 14]
 with open(os.path.join(REPO, "data", "new-game.json")) as _f:
-    NEW_GAME_COSTS = json.load(_f)["prices"]["module_cost"]
+    _prices = json.load(_f)["prices"]
+    NEW_GAME_COSTS = _prices["module_cost"]
+    # A new game's price of a crew member (GLOBAL (CrewCost)).
+    NEW_GAME_CREW_COST = _prices["crew"]
 # Empty drive and jet slots (EMPTY_SLOT + 0 and + 1).
 EMPTY_DRIVE, EMPTY_JET = 20, 21
 # A new game's slots (InitGameStructures, data/new-game.json).
@@ -5619,12 +5622,319 @@ def pkunk_starts():
     return starts
 
 
+def druuge_starts():
+    """The Druuge (druugec.c), from states chosen to reach every condition
+    it reads: the endgame's won battle; hostile for good (DRUUGE_MANNER) in
+    space, at their trade world (GLOBAL_FLAGS_AND_DATA bit 7) and at the
+    bomb's moon (bit 6), by each visit; attacked (ATTACKED_DRUUGE) in
+    space; the neutral talk in space by its visits and news; the salvage
+    fight by the escort fleet (empty or not), the flagship's weapons (none,
+    each kind, the first and the last slot) and DRUUGE_SALVAGE; the bomb's
+    moon by BOMB_VISITS, walked whole; the trade world's greetings by its
+    visits, the disclaimer and each of the goods scanned aboard; the trade
+    world walked whole with too few crew to buy anything, by what the
+    players know of the slave trade (KNOW_DRUUGE_SLAVERS) and the news
+    (DRUUGE_HOME_INFO, KNOW_ABOUT_SHATTERED); the buying walked whole by
+    the crew aboard around each price (10 for fuel, 100 for a ship or an
+    artifact), the escort fleet's room and the tanks' room; the goodbye
+    after each amount of crew sold, by the crew sold before
+    (CREW_SOLD_TO_DRUUGE0 and 1 around 100 and 250, and wrapping at 16
+    bits) and the crew's price (wrapping at a byte); the selling of each of
+    the goods by the escort fleet's room and the fuel the tanks lack
+    (around each of the deal's lines, and around DeltaSISGauges' 0x3FFF
+    step), for the Rosy Sphere while the players haven't it, and of
+    several goods walked whole."""
+    bomb = lambda name, state, **kw: home_start(name, state, flags=1 << 6, **kw)
+    places = (("space", space_start), ("home", home_start), ("bomb", bomb))
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE"),
+              home_start("home-won-last-battle", {}, activity="WON_LAST_BATTLE"),
+              space_start("hostile-won-last-battle", {"DRUUGE_MANNER": 1}, "WON_LAST_BATTLE")]
+    # Hostile for good, and attacked, by each visit.
+    for where, make in places:
+        for visits in range(8):
+            field = "DRUUGE_HOME_VISITS" if where == "home" else "DRUUGE_VISITS"
+            starts.append(make(f"hostile-{where}-visit-{visits}", {"DRUUGE_MANNER": 1, field: visits}))
+    for visits in range(8):
+        starts.append(space_start(f"attacked-space-visit-{visits}", {"ATTACKED_DRUUGE": 1, "DRUUGE_VISITS": visits}))
+    # The neutral talk in space, walked whole, by its visits and its news.
+    for visits in range(8):
+        starts.append(space_start(f"space-visit-{visits}", {"DRUUGE_VISITS": visits}))
+    for info in range(1, 4):
+        starts.append(space_start(f"space-info-{info}", {"DRUUGE_VISITS": 1, "DRUUGE_SPACE_INFO": info}))
+
+    # A flagship with crew pods for 350 (DeltaSISGauges keeps the crew within what the pods hold).
+    pods = ["CREW_POD"] * 7 + ["FUEL_TANK"] + ["EMPTY"] * 7 + ["GUN_WEAPON"]
+
+    def with_ship(start, **kw):
+        if kw.get("crew", 0) > 50 and "modules" not in kw:
+            kw["modules"] = pods
+        start["ship"] = talk_ship(**kw)
+        return start
+
+    # The salvage fight: no escorts and no weapon aboard.
+    empty = ["EMPTY"] * 16
+    unarmed = ["EMPTY", "FUEL_TANK", "CREW_POD"] + ["EMPTY"] * 5 + ["STORAGE_BAY"] + ["EMPTY"] * 7
+    kits = (("unarmed", unarmed), ("empty", empty),
+            ("others", ["DYNAMO_UNIT", "SHIVA_FURNACE", "TRACKING_SYSTEM", "ANTIMISSILE_DEFENSE", "BOMB_MODULE_0",
+                        "HIGHEFF_FUELSYS"] + ["EMPTY"] * 10),
+            ("gun-first", ["GUN_WEAPON"] + ["EMPTY"] * 15), ("gun-last", ["EMPTY"] * 15 + ["GUN_WEAPON"]),
+            ("blaster", ["EMPTY"] * 7 + ["BLASTER_WEAPON"] + ["EMPTY"] * 8),
+            ("cannon", ["EMPTY"] * 3 + ["CANNON_WEAPON"] + ["EMPTY"] * 12))
+    for kname, modules in kits:
+        for salvage in (0, 1):
+            starts.append(with_ship(space_start(f"salvage-{kname}-{salvage}", {"DRUUGE_SALVAGE": salvage}),
+                                    modules=modules))
+    for salvage in (0, 1):
+        starts.append(with_ship(space_start(f"salvage-unarmed-escorted-{salvage}", {"DRUUGE_SALVAGE": salvage},
+                                            escort_fleet=["SPATHI_SHIP"], escorts=[0, 11]), modules=unarmed))
+    # No salvage where they're attacked, hostile, at their trade world or at the bomb's moon.
+    starts.append(with_ship(space_start("unarmed-attacked", {"ATTACKED_DRUUGE": 1}), modules=unarmed))
+    starts.append(with_ship(space_start("unarmed-hostile", {"DRUUGE_MANNER": 1}), modules=unarmed))
+    starts.append(with_ship(home_start("unarmed-home", {}, follow=[]), modules=unarmed))
+    starts.append(with_ship(bomb("unarmed-bomb", {}, follow=[]), modules=unarmed))
+    # The bomb's moon, walked whole.
+    for visits in range(8):
+        starts.append(bomb(f"bomb-visit-{visits}", {"BOMB_VISITS": visits, "DRUUGE_VISITS": 3}))
+    starts.append(bomb("bomb-attacked", {"BOMB_VISITS": 3, "ATTACKED_DRUUGE": 1, "DRUUGE_VISITS": 3}))
+    # The trade world's greetings: by its visits, the disclaimer, the goods scanned.
+    for visits in range(8):
+        starts.append(home_start(f"home-visit-{visits}", {"DRUUGE_HOME_VISITS": visits}, follow=[]))
+    for attacked in (0, 1):
+        for disclaimer in (0, 1):
+            starts.append(home_start(f"home-attacked-{attacked}-disclaimer-{disclaimer}",
+                                     {"ATTACKED_DRUUGE": attacked, "DRUUGE_DISCLAIMER": disclaimer}, follow=[]))
+    goods = (("maidens", {"MAIDENS_ON_SHIP": 1}, "SCANNED_MAIDENS"),
+             ("egg-case-0", {"EGG_CASE0_ON_SHIP": 1}, "SCANNED_FRAGMENTS"),
+             ("egg-case-1", {"EGG_CASE1_ON_SHIP": 1}, "SCANNED_FRAGMENTS"),
+             ("egg-case-2", {"EGG_CASE2_ON_SHIP": 1}, "SCANNED_FRAGMENTS"),
+             ("caster", {"BURV_BROADCASTERS_ON_SHIP": 1}, "SCANNED_CASTER"),
+             ("spawner", {"PORTAL_SPAWNER_ON_SHIP": 1}, "SCANNED_SPAWNER"))
+    for gname, aboard, scanned in goods:
+        for seen in (0, 1):
+            starts.append(home_start(f"home-scan-{gname}-scanned-{seen}", {**aboard, scanned: seen}, follow=[]))
+    for bought in range(4):
+        starts.append(home_start(f"home-scan-fragments-bought-{bought}",
+                                 {"EGG_CASE1_ON_SHIP": 1, "FRAGMENTS_BOUGHT": bought}, follow=[]))
+    everything = {}
+    for _, aboard, _ in goods:
+        everything.update(aboard)
+    starts.append(home_start("home-scan-everything", everything, follow=[]))
+    # The trade world walked whole with too few crew to buy anything.
+    poor = dict(crew=5)
+    for know in range(4):
+        starts.append(with_ship(home_start(f"home-walk-know-{know}", {"KNOW_DRUUGE_SLAVERS": know}), **poor))
+    for info in range(1, 4):
+        starts.append(with_ship(home_start(f"home-info-{info}", {"DRUUGE_HOME_VISITS": 1, "DRUUGE_HOME_INFO": info,
+                                                               "KNOW_DRUUGE_SLAVERS": 3},
+                                           follow=["TradeWorld", "ExitConversation"]), **poor))
+    for shattered in range(4):
+        starts.append(with_ship(home_start(f"home-info-2-shattered-{shattered}",
+                                           {"DRUUGE_HOME_VISITS": 3, "DRUUGE_HOME_INFO": 2, "KNOW_DRUUGE_SLAVERS": 3,
+                                            "KNOW_ABOUT_SHATTERED": shattered},
+                                           follow=["TradeWorld", "ExitConversation"]), **poor))
+    # The buying, walked whole from the trade world's menu's "want to buy" (its third reply).
+    know = {"DRUUGE_HOME_VISITS": 1, "KNOW_DRUUGE_SLAVERS": 3}
+    owned = {"ROSY_SPHERE": 1, "ROSY_SPHERE_ON_SHIP": 1, "ARTIFACT_2_ON_SHIP": 1, "ARTIFACT_3_ON_SHIP": 1}
+    for crew in (9, 10, 11, 99, 100, 110):
+        starts.append(with_ship(home_start(f"buy-crew-{crew}", know, prefix=[2], follow=["Buy"],
+                                           escorts=[0, 1]), crew=crew))
+    starts.append(with_ship(home_start("buy-crew-100-no-room", know, prefix=[2], follow=["Buy"]), crew=100))
+    starts.append(with_ship(home_start("buy-ships-room-1", {**know, **owned}, prefix=[2], follow=["Buy"],
+                                       escorts=[0, 1], escort_fleet=["SPATHI_SHIP"] * 11), crew=205, fuel=6000))
+    starts.append(with_ship(home_start("buy-ships-room-12", {**know, **owned}, prefix=[2], follow=["Buy"],
+                                       escorts=[0, 12]), crew=300, fuel=6000))
+    for fuel in (0, 4500, 5500, 6000):
+        starts.append(with_ship(home_start(f"buy-fuel-{fuel}", {**know, **owned}, prefix=[2], follow=["Buy"]),
+                                crew=25, fuel=fuel))
+    for have in range(8):
+        state = {**know, "ROSY_SPHERE": have & 1, "ARTIFACT_2_ON_SHIP": have >> 1 & 1,
+                 "ARTIFACT_3_ON_SHIP": have >> 2 & 1}
+        starts.append(with_ship(home_start(f"buy-artifacts-{have}", state, prefix=[2], follow=["Buy"]), crew=100))
+    # The goodbye after crew sold: the crew sold before, the crew sold in this talk (ships and fuel bought
+    # with every artifact owned: the menu is a ship, fuel, done), and the crew's price.
+    sold = ((0, 10), (90, 10), (91, 10), (0, 110), (100, 10), (100, 150), (0, 250), (0, 260), (100, 160),
+            (101, 10), (101, 150), (240, 10), (241, 10), (250, 10), (251, 10), (300, 100), (255, 10), (256, 10),
+            (65500, 100), (65530, 10))
+    for before, now in sold:
+        for visits in (0, 1):
+            if visits and (before, now) not in ((0, 110), (0, 260), (101, 150)):
+                continue
+            starts.append(with_ship(home_start(
+                f"bye-sold-{before}-and-{now}-visit-{visits}",
+                {"KNOW_DRUUGE_SLAVERS": 3, **owned, "DRUUGE_HOME_VISITS": visits,
+                 "CREW_SOLD_TO_DRUUGE0": before & 0xFF, "CREW_SOLD_TO_DRUUGE1": before >> 8},
+                prefix=[2] + [0] * (now // 100) + [1] * (now % 100 // 10) + [2, 3], follow=[], escorts=[0, 12]),
+                crew=now + 5))
+    for cost, before, now in ((250, 0, 260), (249, 0, 110), (254, 101, 150), (0, 0, 110)):
+        starts.append({**with_ship(home_start(
+            f"bye-crew-cost-{cost}-sold-{before}-and-{now}",
+            {"KNOW_DRUUGE_SLAVERS": 3, **owned, "CREW_SOLD_TO_DRUUGE0": before & 0xFF,
+             "CREW_SOLD_TO_DRUUGE1": before >> 8},
+            prefix=[2] + [0] * (now // 100) + [1] * (now % 100 // 10) + [2, 3], follow=[], escorts=[0, 12]),
+            crew=now + 5), "crew_cost": cost})
+    # The selling, walked whole from the trade world's menu's "want to sell" (its second reply): each of the
+    # goods alone at the regular deal (the players have the Rosy Sphere), by the escort fleet's room.
+    sphere = {"DRUUGE_HOME_VISITS": 1, "ROSY_SPHERE": 1, "ROSY_SPHERE_ON_SHIP": 1}
+    sell = dict(prefix=[1], follow=["Sell", "Trade"])
+    for room in (0, 3, 6, 12):
+        starts.append(home_start(f"sell-maidens-room-{room}", {**sphere, "MAIDENS_ON_SHIP": 1},
+                                 escorts=[0, room], **sell))
+    cases = (("0", {"EGG_CASE0_ON_SHIP": 1}), ("1", {"EGG_CASE1_ON_SHIP": 1}), ("2", {"EGG_CASE2_ON_SHIP": 1}),
+             ("all", {"EGG_CASE0_ON_SHIP": 1, "EGG_CASE1_ON_SHIP": 1, "EGG_CASE2_ON_SHIP": 1}),
+             ("1-and-2", {"EGG_CASE1_ON_SHIP": 1, "EGG_CASE2_ON_SHIP": 1}))
+    for cname, aboard in cases:
+        for bought in range(4):
+            for room in (0, 12):
+                if room == 0 and (cname, bought) != ("all", 0):
+                    continue
+                starts.append(home_start(f"sell-egg-case-{cname}-bought-{bought}-room-{room}",
+                                         {**sphere, **aboard, "FRAGMENTS_BOUGHT": bought},
+                                         escorts=[0, room], **sell))
+    # Fuel to the brim: the tanks (two high-efficiency ones and a plain one: 26,000 with the reserve; four
+    # high-efficiency ones: 41,000; none: the reserve) and what they lack, around each of the deal's lines
+    # and around DeltaSISGauges' 0x3FFF step.
+    tanks = ["HIGHEFF_FUELSYS", "CREW_POD", "HIGHEFF_FUELSYS", "FUEL_TANK"] + ["EMPTY"] * 11 + ["GUN_WEAPON"]
+    for lack in (0, 49, 50, 949, 950, 951, 4949, 4950, 9949, 9950, 16383, 16384, 16385, 24949, 24950, 26000):
+        starts.append(with_ship(home_start(f"sell-caster-lacking-{lack}", {**sphere, "BURV_BROADCASTERS_ON_SHIP": 1},
+                                           **sell), fuel=26000 - lack, modules=tanks))
+    starts.append(with_ship(home_start("sell-caster-lacking-41000", {**sphere, "BURV_BROADCASTERS_ON_SHIP": 1},
+                                       **sell), fuel=0, modules=["HIGHEFF_FUELSYS"] * 4 + ["EMPTY"] * 12))
+    starts.append(with_ship(home_start("sell-caster-lacking-32767", {**sphere, "BURV_BROADCASTERS_ON_SHIP": 1},
+                                       **sell), fuel=41000 - 32767, modules=["HIGHEFF_FUELSYS"] * 4 + ["EMPTY"] * 12))
+    starts.append(with_ship(home_start("sell-caster-no-tanks", {**sphere, "BURV_BROADCASTERS_ON_SHIP": 1},
+                                       **sell), fuel=0, modules=empty))
+    for room in (0, 2, 3, 12):
+        for fuel in (1000, 6000):
+            starts.append(with_ship(home_start(f"sell-spawner-room-{room}-fuel-{fuel}",
+                                               {**sphere, "PORTAL_SPAWNER_ON_SHIP": 1}, escorts=[0, room], **sell),
+                                    fuel=fuel))
+    # Each of the goods offered for the Rosy Sphere (the players haven't it), walked whole.
+    no_sphere = {"DRUUGE_HOME_VISITS": 1}
+    for gname, aboard, _ in goods:
+        starts.append(home_start(f"trade-{gname}-for-sphere", {**no_sphere, **aboard}, escorts=[0, 12], **sell))
+    starts.append(home_start("trade-maidens-and-caster-for-sphere",
+                             {**no_sphere, "MAIDENS_ON_SHIP": 1, "BURV_BROADCASTERS_ON_SHIP": 1},
+                             escorts=[0, 12], **sell))
+    # The sphere aboard though never had (no play reaches it): the regular deal refused gives it too.
+    starts.append(home_start("trade-maidens-sphere-aboard", {**no_sphere, "MAIDENS_ON_SHIP": 1,
+                                                             "ROSY_SPHERE_ON_SHIP": 1}, escorts=[0, 12], **sell))
+    # Several goods, walked whole: every one with room for all the ships, and three with room for 7 of 10.
+    starts.append(home_start("sell-everything", {**sphere, **everything, "EGG_CASE2_ON_SHIP": 0},
+                             escorts=[0, 12], **sell))
+    starts.append(home_start("sell-for-ships-room-7", {**sphere, "MAIDENS_ON_SHIP": 1, "EGG_CASE0_ON_SHIP": 1,
+                                                       "PORTAL_SPAWNER_ON_SHIP": 1}, escorts=[0, 7], **sell))
+    # The whole trade world with a little to buy and to sell, walked whole.
+    starts.append(with_ship(home_start("home-walk-trading", {**know, **owned, "BURV_BROADCASTERS_ON_SHIP": 1},
+                                       escorts=[0, 12]), crew=25))
+    return starts
+
+
+def mycon_first_draw(seed):
+    """Whether a Mycon talk's first draw (NormalMycon's (BYTE) TFB_Random ()
+    < 256 * 30 / 100) makes its replies fight."""
+    return (tfb_random(seed) & 0xFF) < 256 * 30 // 100
+
+
+def mycon_seeds(fight, count, start=1):
+    """The first seeds from start whose first draw makes the replies fight, or not."""
+    seeds, seed = [], start
+    while len(seeds) < count:
+        if mycon_first_draw(seed) == fight:
+            seeds.append(seed)
+        seed += 1
+    return seeds
+
+
+def mycon_starts():
+    """The Mycon (myconc.c), from states chosen to reach every condition it
+    reads: the endgame's won battle; the Sun Device taken (SUN_DEVICE, by
+    MYCON_VISITS) and the ambush known (MYCON_KNOW_AMBUSH), in space, at
+    their homeworld (GLOBAL_FLAGS_AND_DATA bit 7) and at the Sun Device's
+    world (bit 6); the Sun Device's world by its visits, and walked whole
+    by the ambush's states (MYCON_AMBUSH, MYCON_FELL_FOR_AMBUSH,
+    NO_TRICK_AT_SUN); each greeting in space and at home; the talk in space
+    and at home walked whole from seeds whose first draw (TFB_Random) makes
+    the replies fight and from seeds whose doesn't (the later draws fall
+    both ways); each ramble (MYCON_RAMBLE) as a first reply's answer, each
+    insult (MYCON_INSULTS) and each question (MYCON_INFO) offered and
+    made, answered with a fight and without; the shattered worlds asked
+    about (KNOW_ABOUT_SHATTERED); and
+    the trick (MYCON_AMBUSH) walked whole through its clues in every
+    order."""
+    sun = lambda name, state, **kw: home_start(name, state, flags=1 << 6, **kw)
+    places = (("space", space_start), ("home", home_start), ("sun", sun))
+    fight, talk = mycon_seeds(True, 40), mycon_seeds(False, 40)
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE", seed=talk[0]),
+              home_start("home-won-last-battle", {}, activity="WON_LAST_BATTLE", seed=fight[0], follow=[]),
+              sun("sun-won-last-battle", {}, activity="WON_LAST_BATTLE")]
+    # The Sun Device taken, the ambush known.
+    for visits in range(8):
+        starts.append(space_start(f"thief-visit-{visits}", {"SUN_DEVICE": 1, "MYCON_VISITS": visits}))
+    for where, make in places:
+        starts.append(make(f"thief-{where}", {"SUN_DEVICE": 1, "MYCON_KNOW_AMBUSH": 1, "MYCON_HOME_VISITS": 2,
+                                              "MYCON_SUN_VISITS": 1}))
+        starts.append(make(f"liar-{where}", {"MYCON_KNOW_AMBUSH": 1, "MYCON_FELL_FOR_AMBUSH": 1, "MYCON_AMBUSH": 1}))
+    # The Sun Device's world.
+    for visits in range(8):
+        starts.append(sun(f"sun-visit-{visits}", {"MYCON_SUN_VISITS": visits}, follow=[]))
+    for ambush in (0, 1):
+        for fell in (0, 1):
+            for refused in (0, 1):
+                starts.append(sun(f"sun-ambush-{ambush}-fell-{fell}-refused-{refused}",
+                                  {"MYCON_SUN_VISITS": 1, "MYCON_AMBUSH": ambush, "MYCON_FELL_FOR_AMBUSH": fell,
+                                   "NO_TRICK_AT_SUN": refused}))
+    # Each greeting in space and at home.
+    for visits in range(8):
+        starts.append(space_start(f"space-visit-{visits}", {"MYCON_VISITS": visits}, follow=[], seed=talk[visits]))
+        starts.append(home_start(f"home-visit-{visits}", {"MYCON_HOME_VISITS": visits}, follow=[],
+                                 seed=fight[visits]))
+    # The talk in space, walked whole: by the insult that's next, the first draw a fight or not.
+    for insults in range(8):
+        for dname, seeds in (("fight", fight), ("talk", talk)):
+            starts.append(space_start(f"space-insult-{insults}-first-{dname}",
+                                      {"MYCON_VISITS": 1, "MYCON_INSULTS": insults, "MYCON_RAMBLE": 4 * insults},
+                                      seed=seeds[8 + insults]))
+    # Each ramble as the first reply's answer ("we come in peace", the first reply), a fight or not.
+    for ramble in range(32):
+        for dname, seeds in (("fight", fight), ("talk", talk)):
+            starts.append(space_start(f"space-ramble-{ramble}-{dname}",
+                                      {"MYCON_VISITS": 2, "MYCON_RAMBLE": ramble, "KNOW_ABOUT_SHATTERED": ramble % 4},
+                                      prefix=[0], follow=[], seed=seeds[ramble]))
+    # Each question at home (the menu's first reply): where the first draw is a fight, every first reply;
+    # where it isn't, the replies offered and the question asked.
+    for info in range(16):
+        state = {"MYCON_HOME_VISITS": 3, "MYCON_INFO": info, "MYCON_RAMBLE": 31 - info}
+        starts.append(home_start(f"home-question-{info}-fight", state, follow=["CombatIsInevitable"],
+                                 seed=fight[16 + info]))
+        starts.append(home_start(f"home-question-{info}-talk", state, follow=[], seed=talk[16 + info]))
+        starts.append(home_start(f"home-question-{info}-talk-asked", state, prefix=[0], follow=[],
+                                 seed=talk[16 + info]))
+    # The talk at home, walked whole, the shattered worlds asked about or not.
+    for shattered in range(4):
+        for dname, seeds in (("fight", fight), ("talk", talk)):
+            starts.append(home_start(f"home-walk-shattered-{shattered}-first-{dname}",
+                                     {"MYCON_HOME_VISITS": 1, "KNOW_ABOUT_SHATTERED": shattered,
+                                      "MYCON_INFO": 5 + shattered, "MYCON_RAMBLE": 22 + shattered},
+                                     seed=seeds[32 + shattered]))
+    # Once they fell for the ambush: neither the shattered worlds nor the trick.
+    starts.append(home_start("home-fell-for-ambush", {"MYCON_HOME_VISITS": 1, "KNOW_ABOUT_SHATTERED": 1,
+                                                      "MYCON_AMBUSH": 1, "MYCON_FELL_FOR_AMBUSH": 1},
+                             follow=[], seed=talk[36]))
+    # The trick, walked whole: offered whatever the draw, its clues in every order.
+    for dname, seeds in (("fight", fight), ("talk", talk)):
+        starts.append(home_start(f"home-trick-first-{dname}", {"MYCON_HOME_VISITS": 1, "MYCON_AMBUSH": 1,
+                                                               "KNOW_ABOUT_SHATTERED": 1},
+                                 follow=["TrickMycon"], seed=seeds[37]))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
                 "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts,
                 "melnorm": melnorm_starts, "shofixt": shofixt_starts, "zoqfot": zoqfot_starts,
                 "vux": vux_starts, "yehat": yehat_starts, "rebel": rebel_starts,
-                "orz": orz_starts, "pkunk": pkunk_starts}
+                "orz": orz_starts, "pkunk": pkunk_starts,
+                "druuge": druuge_starts, "mycon": mycon_starts}
 # Files and notes a script's recording has besides every script's.
 COMM_EXTRA_FILES = {"melnorm": ["src/libs/math/random2.c", "src/libs/math/sqrt.c"]}
 COMM_EXTRA_NOTES = {"melnorm": [
@@ -5635,10 +5945,17 @@ COMM_EXTRA_NOTES = {"melnorm": [
     "module slots, sis.h's numbers) and the prices as the catalog changes "
     "them (costs: PLANET_LANDER to ANTIMISSILE_DEFENSE). Selling bio data "
     "runs as if a button were pressed at once, as selling minerals does: "
-    "it's sold in one go. MELNORME_CREDIT0 and 1 are the credits."]}
+    "it's sold in one go. MELNORME_CREDIT0 and 1 are the credits."],
+    "druuge": [
+    "The Druuge's starts also give what a crew member costs at the "
+    "starbase where not a new game's 3 (crew_cost: GLOBAL (CrewCost), a "
+    "BYTE), and their steps have one more event: that price as the talk "
+    "changes it (crew_cost: crew sold to the Druuge raise it as the talk "
+    "says goodbye)."]}
 # A script's file where it isn't named after its folder.
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c",
-              "zoqfot": "zoqfotc.c", "vux": "vuxc.c", "yehat": "yehatc.c", "orz": "orzc.c", "pkunk": "pkunkc.c"}
+              "zoqfot": "zoqfotc.c", "vux": "vuxc.c", "yehat": "yehatc.c", "orz": "orzc.c", "pkunk": "pkunkc.c",
+              "druuge": "druugec.c", "mycon": "myconc.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.
@@ -5705,7 +6022,8 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
         " ".join(music),
         f"{ACTIVITIES[start.get('activity', 'SUPER_MELEE')]} {battle_group_ref(start)}",
         " ".join(map(str, start.get("log", SOL_LOG))),
-        " ".join(str(start.get("costs", NEW_GAME_COSTS).get(m, 0)) for m in PURCHASE_MODULES)])
+        " ".join(str(start.get("costs", NEW_GAME_COSTS).get(m, 0)) for m in PURCHASE_MODULES),
+        str(start.get("crew_cost", NEW_GAME_CREW_COST))])
     by_bit = {f["start_bit"]: name for name, f in fields.items()}
 
     def run(replies):

@@ -78,10 +78,11 @@ public sealed partial class GameWorld
     /// decision 11), told to every player but its talker as it runs, once
     /// each: an alliance made or ended (SetRaceAllied, where the standing
     /// changed), ships given to the host's fleet (AddEscortShips) or taken
-    /// from it (RemoveEscortShips). Called after each step of a meeting's
-    /// talk and a visit's ordinary talks; a story talk (the opening's, the
-    /// allied commander's on arrival) is shown to everyone already, so
-    /// nobody is told it again.
+    /// from it (RemoveEscortShips), the Melnorme's anger and a module they
+    /// sold, the crew's price raised (crew sold to the Druuge). Called after
+    /// each step of a meeting's talk and a visit's ordinary talks; a story
+    /// talk (the opening's, the allied commander's on arrival) is shown to
+    /// everyone already, so nobody is told it again.
     /// </summary>
     internal void TellTalkEffects(Player talker, Comm.Talk talk)
     {
@@ -99,6 +100,8 @@ public sealed partial class GameWorld
                 continue;
             }
             int melnorme = Story?.Rules.RaceIndex("MELNORME_SHIP") ?? -1;
+            // Only the Druuge's talk changes the crew's price (druugec.c:185-190).
+            int druuge = Story?.Rules.RaceIndex("DRUUGE_SHIP") ?? -1;
             (NoticeEvent Event, int Race, int Count)? notice = events[told.Value] switch
             {
                 Comm.RaceAllied { Changed: true } a => (a.Flag ? NoticeEvent.AllianceMade : NoticeEvent.AllianceBroken, a.Race, 0),
@@ -107,6 +110,8 @@ public sealed partial class GameWorld
                 // The Melnorme's anger, shared (question 6): everyone is told.
                 Comm.StateSet { Field: "MELNORME_ANGER", Value: > 0 } a => (NoticeEvent.Angered, melnorme, a.Value),
                 Comm.StateSet { Field: "MELNORME_ANGER", Value: 0 } => (NoticeEvent.Calmed, melnorme, 0),
+                // The crew's price, shared: crew sold to the Druuge raise it for everyone (stage 3b-2 item 8).
+                Comm.CrewCostChanged c => (NoticeEvent.CrewPrice, druuge, c.Cost),
                 _ => null,
             };
             if (notice is not { } n)

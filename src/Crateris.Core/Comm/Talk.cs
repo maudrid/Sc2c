@@ -8,7 +8,8 @@
 //
 // Ported from The Ur-Quan Masters 0.8.0 (src/uqm/commglue.c, comm.c's
 // DoResponsePhrase, SelectResponse, HailAlien, AlienTalkSegue and
-// DoCommunication, sis.c's DeltaSISGauges, build.c's SetRaceAllied,
+// DoCommunication, commglue.h's DISABLE_PHRASE, sis.c's DeltaSISGauges,
+// build.c's SetRaceAllied,
 // StartSphereTracking, CountEscortShips, HaveEscortShip and
 // RemoveSomeEscortShips, libs/sound/trackplayer.c's SpliceTrack,
 // SpliceMultiTrack and SplitSubPages as far as NPCPhrase_cb's callbacks
@@ -534,7 +535,14 @@ public sealed class Talk
     public bool PhraseEnabled(string id) => Entry(Phrase(id)).Length > 0;
 
     /// <summary>DISABLE_PHRASE: blanks the phrase's text for the rest of the talk.</summary>
-    public void DisablePhrase(string id) => _phrases[EntryNumber(Phrase(id)) - 1] = Array.Empty<byte>();
+    public void DisablePhrase(string id) => DisablePhrase(Phrase(id));
+
+    /// <summary>
+    /// DISABLE_PHRASE by the phrase's number, as a reply's function is given
+    /// it (the Mycon's NormalMycon blanks whichever reply was chosen,
+    /// myconc.c:374): the number wraps as every phrase's does.
+    /// </summary>
+    public void DisablePhrase(int r) => _phrases[EntryNumber(r) - 1] = Array.Empty<byte>();
 
     /// <summary>PLAYER_SAID.</summary>
     public bool PlayerSaid(int r, string id) => r == Phrase(id);
@@ -1007,7 +1015,8 @@ public sealed class Talk
 
     // What the recording program's check_changes does at each engine call
     // and after each script function: the screen, the ship and its bio
-    // data, when they changed since the last look.
+    // data, its slots, the modules' prices and the crew's, when they
+    // changed since the last look.
     private void Check()
     {
         if (_screenLoaded && (ColorMap != _lastMap || !Ambient.SequenceEqual(_lastAmbient)))
@@ -1046,6 +1055,13 @@ public sealed class Talk
                 _events.Add(costs);
             _costsWere = null;
         }
+        // The crew's price, likewise only as this talk changed it (SetCrewCost).
+        if (_crewCostWas is int crewCostWas)
+        {
+            if (_story.CrewCost != crewCostWas)
+                _events.Add(new CrewCostChanged(_story.CrewCost, crewCostWas));
+            _crewCostWas = null;
+        }
     }
 
     private int? _lastBio;
@@ -1078,6 +1094,23 @@ public sealed class Talk
         _costsWere ??= PurchaseModuleCosts();
         _story.SetModuleCost(World.ShipModules.Names[module], cost);
     }
+
+    /// <summary>GLOBAL (CrewCost): what a crew member costs at the starbase, the group's (shared).</summary>
+    public int CrewCost => _story.CrewCost;
+
+    /// <summary>
+    /// GLOBAL (CrewCost) = cost: the shared crew price, a BYTE in UQM (a
+    /// rise past 255 wraps), which the Druuge's talk raises as crew are
+    /// sold to them (druugec.c:185-190).
+    /// </summary>
+    public void SetCrewCost(int cost)
+    {
+        // Told at the next look (Check), as the recorder prints the price it sees changed.
+        _crewCostWas ??= _story.CrewCost;
+        _story.SetCrewCost((byte)cost);
+    }
+
+    private int? _crewCostWas;
 
     // ------------------------------------------------------------ the status area
 

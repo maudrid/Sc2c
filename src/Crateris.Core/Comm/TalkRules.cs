@@ -70,6 +70,11 @@ public static class TalkRules
         // under its race's lock.
         ["orz"] = _ => false,
         ["pkunk"] = _ => false,
+        // Stage 3b-2 item 8: the Druuge (in space, at their trade world, at
+        // the bomb's moon) and the Mycon (in space, at home, at the Sun
+        // Device's world), ordinary, each under its race's lock.
+        ["druuge"] = _ => false,
+        ["mycon"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>
