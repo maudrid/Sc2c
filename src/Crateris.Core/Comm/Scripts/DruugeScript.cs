@@ -33,7 +33,9 @@ namespace Crateris.Core.Comm.Scripts;
 /// (KNOW_DRUUGE_SLAVERS); the crew sold in a talk (SlaveryCount) is added
 /// to CREW_SOLD_TO_DRUUGE0 and 1 as the talk says goodbye, and past 100
 /// and past 250 crew sold the crew's price at the starbase rises
-/// (GLOBAL (CrewCost), by 7 and by 15 more: shared, as every price is).
+/// (GLOBAL (CrewCost), by 7 and by 15 more: shared, as every price is); a
+/// talk left or saved before its goodbye, which UQM's can't be, counts
+/// them all the same (<see cref="DroppedUnfinished"/>).
 /// They buy the goods for ships (the Maidens 6, an egg case 1, the spawner
 /// 3) and fuel to the brim of the answering ship's own tanks (the
 /// broadcaster and the spawner), or, while the players haven't the Rosy
@@ -79,23 +81,7 @@ public sealed class DruugeScript : CommScript
             if (AtTradeWorld)
             {
                 if (_slaveryCount != 0)
-                {
-                    ushort previousSlaves = (ushort)(GetGameState("CREW_SOLD_TO_DRUUGE0")
-                                                     | (GetGameState("CREW_SOLD_TO_DRUUGE1") << 8));
-                    _slaveryCount += previousSlaves;
-                    if (_slaveryCount > 250 && previousSlaves <= 250)
-                    {
-                        if (previousSlaves > 100)
-                            T.SetCrewCost(T.CrewCost + (22 - 7));
-                        else
-                            T.SetCrewCost(T.CrewCost + 22);
-                    }
-                    else if (_slaveryCount > 100 && previousSlaves <= 100)
-                        T.SetCrewCost(T.CrewCost + 7);
-
-                    SetGameState("CREW_SOLD_TO_DRUUGE0", _slaveryCount & 0xFF);
-                    SetGameState("CREW_SOLD_TO_DRUUGE1", _slaveryCount >> 8);
-                }
+                    CountCrewSold(T);
 
                 switch (GetGameState("DRUUGE_HOME_VISITS"))
                 {
@@ -118,6 +104,42 @@ public sealed class DruugeScript : CommScript
 
             NPCPhrase("FIGHT_FOR_BOMB");
         }
+    }
+
+    // ExitConversation's count (druugec.c:171-194): the crew sold in this
+    // talk added to what was sold before (CREW_SOLD_TO_DRUUGE0 and 1, a
+    // 16-bit count that wraps as UQM's), and the crew's price raised as the
+    // total passes 100 and 250. On the talk at its goodbye; on the story
+    // given when the talk is dropped unfinished. The script's own count is
+    // left as it is.
+    private void CountCrewSold(ITalkStory story)
+    {
+        ushort previousSlaves = (ushort)(story.Get("CREW_SOLD_TO_DRUUGE0") | (story.Get("CREW_SOLD_TO_DRUUGE1") << 8));
+        ushort slaveryCount = (ushort)(_slaveryCount + previousSlaves);
+        if (slaveryCount > 250 && previousSlaves <= 250)
+        {
+            if (previousSlaves > 100)
+                story.SetCrewCost(story.CrewCost + (22 - 7));
+            else
+                story.SetCrewCost(story.CrewCost + 22);
+        }
+        else if (slaveryCount > 100 && previousSlaves <= 100)
+            story.SetCrewCost(story.CrewCost + 7);
+
+        story.Set("CREW_SOLD_TO_DRUUGE0", slaveryCount & 0xFF);
+        story.Set("CREW_SOLD_TO_DRUUGE1", slaveryCount >> 8);
+    }
+
+    // Crew sold and not yet counted: a talk left or saved before its
+    // goodbye (which UQM's can't be) counts it all the same, as the ships,
+    // fuel and artifacts bought with it are the players' already (stage
+    // 3b-2 item 8, review round 1).
+    protected internal override bool SettlesWhenDropped => _slaveryCount != 0 && AtTradeWorld;
+
+    protected internal override void DroppedUnfinished(ITalkStory story)
+    {
+        if (SettlesWhenDropped)
+            CountCrewSold(story);
     }
 
     // GLOBAL_SIS (CrewEnlisted) < cost: the answering ship's crew.

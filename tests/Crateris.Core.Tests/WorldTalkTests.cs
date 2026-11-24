@@ -245,17 +245,26 @@ public class WorldTalkTests
         Assert.Equal("DRUUGE_SHIP", Assert.Single(world.Fleet.Ships).Race);
         Assert.Equal((20, hostCrew), (guest.Hold.Crew, world.Host.Ship.Hold.Crew));   // the answering ship's crew
         var told = world.TakeNotices();
-        Assert.Contains(told, n => n is { PlayerId: "h", Event: NoticeEvent.ShipsGiven, Count: 1, Race: "Druuge" });
+        Assert.Contains(told, n => n is { PlayerId: "h", Event: NoticeEvent.ShipsGiven, Count: 1, Race: "Druuge", By: "g" }
+                                   && n.Text == "1 Druuge ship joined the fleet (g's talk).");
+        Assert.DoesNotContain(told, n => n.PlayerId == "g");   // the talker isn't told what they did
         Assert.True(world.ChooseReply("g", Reply(m.Talk, "buy_druuge_ship")));
         Assert.True(Said(m.Talk, "NOT_ENOUGH_CREW"));
+        // Fuel: 10 units into the answering ship's own tanks, within what they hold; the host's untouched.
+        uint guestFuel = guest.Flight.Fuel, hostFuel = world.Host.Ship.Flight.Fuel;
+        Assert.True(guestFuel + 1000 <= guest.Flight.FuelCapacity);
         Assert.True(world.ChooseReply("g", Reply(m.Talk, "buy_fuel")));
         Assert.Equal(10, guest.Hold.Crew);
+        Assert.Equal((guestFuel + 1000, hostFuel), (guest.Flight.Fuel, world.Host.Ship.Flight.Fuel));
         // Nothing of the story's yet: the crew sold is counted as the talk says goodbye.
         Assert.Equal((95, cost), (story.Get("CREW_SOLD_TO_DRUUGE0"), story.CrewCost));
         Assert.True(world.ChooseReply("g", Reply(m.Talk, "done_buying")));
         Assert.True(world.ChooseReply("g", Reply(m.Talk, "bye")));
         Assert.Equal((205, 0, cost + 7), (story.Get("CREW_SOLD_TO_DRUUGE0"), story.Get("CREW_SOLD_TO_DRUUGE1"), story.CrewCost));
-        Assert.Contains(world.TakeNotices(), n => n is { PlayerId: "h", Event: NoticeEvent.CrewPrice, Race: "Druuge" } && n.Count == cost + 7);
+        told = world.TakeNotices();
+        Assert.Contains(told, n => n is { PlayerId: "h", Event: NoticeEvent.CrewPrice, Race: "Druuge", By: "g" } && n.Count == cost + 7
+                                   && n.Text == $"g sold crew to the Druuge: crew cost {cost + 7} RU each at the starbase now.");
+        Assert.DoesNotContain(told, n => n.PlayerId == "g");
         Assert.Equal(Segue.Peace, m.Talk.Segue);
     }
 

@@ -546,6 +546,15 @@ public sealed partial class GameWorld
     public bool FlagshipSurrendering => _players.Any(p => p.Ship.Kind == ShipKind.Flagship
         && p.Ship.Meeting is { Step: MeetingStep.Closing } m && (m.Talk?.Segue ?? m.EndedAs) == Segue.Defeat);
 
+    /// <summary>
+    /// The meetings' talks going on that would leave something unsettled
+    /// if dropped now (<see cref="Comm.Talk.SettlesWhenDropped"/>): a save
+    /// has no meeting, so its copy's story is settled as if each were
+    /// (<see cref="Comm.Talk.SettleDroppedIn"/>, HostSave.ToJson).
+    /// </summary>
+    internal List<Comm.Talk> UnfinishedTalksForSave() =>
+        _players.Select(p => p.Ship.Meeting?.Talk).Where(t => t is { SettlesWhenDropped: true }).Select(t => t!).ToList();
+
     /// <summary>The meetings waiting at their closing lines, as a save is to carry their ends (question 13).</summary>
     internal List<ClosingEnd> ClosingEndsForSave()
     {
@@ -870,6 +879,14 @@ public sealed partial class GameWorld
             return;
         if (m.Step == MeetingStep.Closing && AfterTalk(m, mayFight: false))
             return;
+        // A talk left before its end settles what it has done already
+        // (CommScript.DroppedUnfinished: the crew sold to the Druuge
+        // counted, the others told if the crew's price rises).
+        if (m.Talk is { SettlesWhenDropped: true } unfinished)
+        {
+            unfinished.DropUnfinished();
+            TellTalkEffects(player, unfinished);
+        }
         ReleaseMeetingLock(m);
         if (m.Step == MeetingStep.Spin && player.Ship.Spin is { } spin)
         {

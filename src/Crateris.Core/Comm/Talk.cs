@@ -42,8 +42,14 @@ namespace Crateris.Core.Comm;
 /// seeded per talk (decision 12). Lines are as UQM gives them without
 /// voices (usingSpeech false).
 /// </para>
+/// <para>
+/// Not UQM's: a talk can be dropped before its end, its player leaving
+/// the game or a save made mid-talk (a meeting isn't saved); its script
+/// then settles what it has done already (<see cref="DropUnfinished"/>,
+/// <see cref="SettleDroppedIn"/>: the Druuge's crew sold).
+/// </para>
 /// </summary>
-public sealed class Talk
+public sealed class Talk : ITalkStory
 {
     /// <summary>MAX_RESPONSES (comm.c): more replies would overrun UQM's list.</summary>
     public const int MaxReplies = 8;
@@ -447,7 +453,7 @@ public sealed class Talk
     /// <summary>The player chooses a reply (SelectResponse): its function runs.</summary>
     public void Choose(int index)
     {
-        if (!Started || Ended)
+        if (!Started || Ended || _dropped)
             throw new InvalidOperationException("no replies are offered");
         if (index < 0 || index >= _offered.Count)
             throw new ArgumentOutOfRangeException(nameof(index), $"reply {index} of {_offered.Count}");
@@ -459,6 +465,62 @@ public sealed class Talk
         PlayTo(WaitAll);
         Check();
         EndIfSilent();
+    }
+
+    private bool _dropped;
+
+    /// <summary>
+    /// Whether the talk, dropped now before its end, would leave something
+    /// of what it has done unsettled (<see cref="CommScript.SettlesWhenDropped"/>):
+    /// started, not ended, not dropped already.
+    /// </summary>
+    public bool SettlesWhenDropped => Started && !Ended && !_dropped && _script.SettlesWhenDropped;
+
+    /// <summary>
+    /// The talk is dropped before its end, its player leaving it
+    /// (<see cref="CommScript.DroppedUnfinished"/>): what its script would
+    /// have settled at its end is settled now, on the story, as the talk's
+    /// events; once. No reply can be chosen after.
+    /// </summary>
+    public void DropUnfinished()
+    {
+        if (!Started || Ended || _dropped)
+            return;
+        bool settles = _script.SettlesWhenDropped;
+        _dropped = true;
+        if (!settles)
+            return;
+        Check();
+        _script.DroppedUnfinished(this);
+        Check();
+    }
+
+    /// <summary>
+    /// A save made while the talk goes on: what dropping it now would
+    /// settle (<see cref="DropUnfinished"/>) is settled in the saved copy's
+    /// <paramref name="story"/>, the talk itself and the live story left as
+    /// they are (the talk goes on to its own end).
+    /// </summary>
+    public void SettleDroppedIn(StoryState story)
+    {
+        if (SettlesWhenDropped)
+            _script.DroppedUnfinished(new StoryOnly(story));
+    }
+
+    // A story alone as a dropped talk's script settles on it.
+    private sealed class StoryOnly : ITalkStory
+    {
+        private readonly StoryState _story;
+
+        public StoryOnly(StoryState story) => _story = story;
+
+        public int Get(string field) => _story.Get(field);
+
+        public void Set(string field, int value) => _story.Set(field, value);
+
+        public int CrewCost => _story.CrewCost;
+
+        public void SetCrewCost(int cost) => _story.SetCrewCost((byte)cost);
     }
 
     private void EndIfSilent()

@@ -221,8 +221,11 @@ public static class HostSave
     /// (<see cref="GameWorld.FlagshipSurrendering"/>): the host's save is
     /// kept as it was (decision 12). A meeting waiting at its closing lines
     /// has its talk's end made in the save, not in the world (the owner,
-    /// 2026-11-21, question 13); <paramref name="log"/> is told when that
-    /// can't be done (the copy not loading, a group not found in it).
+    /// 2026-11-21, question 13), and a meeting's talk still going on has
+    /// what it would settle if dropped now settled in the save, not in the
+    /// world (the Druuge's crew sold counted: stage 3b-2 item 8);
+    /// <paramref name="log"/> is told when that can't be done (the copy not
+    /// loading, a group not found in it).
     /// </summary>
     public static string ToJson(GameWorld world, Action<string>? log = null)
     {
@@ -237,11 +240,16 @@ public static class HostSave
         // meeting waiting on. A flagship surrendering so isn't saved (the
         // game is over once its lines are heard).
         var ends = world.ClosingEndsForSave();
-        if (ends.Count == 0)
+        // A talk going on that has done things its end would settle (the
+        // Druuge's crew sold, counted at their goodbye) is settled in the
+        // save the same way: the save has no meeting, so its talk never
+        // ends there (stage 3b-2 item 8, review round 1).
+        var unfinished = world.UnfinishedTalksForSave();
+        if (ends.Count == 0 && unfinished.Count == 0)
             return json;
         if (world.Systems is null || world.Shapes is null)
         {
-            log?.Invoke("The save: no systems to load its copy with; the meetings at their closing lines are saved without their ends");
+            log?.Invoke("The save: no systems to load its copy with; the meetings at their closing lines are saved without their ends, the talks going on without what they'd settle");
             return json;
         }
         GameWorld copy;
@@ -251,10 +259,13 @@ public static class HostSave
         }
         catch (InvalidDataException e)
         {
-            log?.Invoke($"The save: its copy couldn't be loaded ({e.Message}); the meetings at their closing lines are saved without their ends");
+            log?.Invoke($"The save: its copy couldn't be loaded ({e.Message}); the meetings at their closing lines are saved without their ends, the talks going on without what they'd settle");
             return json;
         }
         copy.MakeClosingEnds(ends, log);
+        if (copy.Story is { } story)
+            foreach (var talk in unfinished)
+                talk.SettleDroppedIn(story);
         return Write(copy);
     }
 

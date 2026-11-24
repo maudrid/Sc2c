@@ -60,6 +60,29 @@ public abstract class CommScript
     {
     }
 
+    /// <summary>
+    /// Whether the talk, dropped now before its end, would leave something
+    /// unsettled (<see cref="DroppedUnfinished"/>): the Druuge's crew sold
+    /// and not yet counted.
+    /// </summary>
+    protected internal virtual bool SettlesWhenDropped => false;
+
+    /// <summary>
+    /// The talk is dropped before its end: its player leaves mid-talk, or a
+    /// save is made mid-talk (a meeting isn't saved, so in the save the
+    /// talk never ends). UQM has neither: a talk is left only by its end
+    /// (an abort loses everything since the last save). What the script
+    /// would have settled at its end for things it has done already is
+    /// settled here on <paramref name="story"/>: the talk itself as its
+    /// player leaves (its writes its events, told to the others), the
+    /// saved copy's story for a save, while the live talk goes on to its
+    /// own end. So it must not change the script's own state, and is run
+    /// once at most on the live talk (<see cref="Talk.DropUnfinished"/>).
+    /// </summary>
+    protected internal virtual void DroppedUnfinished(ITalkStory story)
+    {
+    }
+
     // UQM's script calls, as the scripts write them.
     protected void NPCPhrase(string id) => T.NPCPhrase(id);
 
@@ -86,6 +109,26 @@ public abstract class CommScript
 /// A race's number speech (comm.h's NUMBER_SPEECH_DESC): how a number is
 /// spoken, its digits from the largest.
 /// </summary>
+/// <summary>
+/// The shared story as a script settles a talk dropped unfinished on it
+/// (<see cref="CommScript.DroppedUnfinished"/>): the talk itself, or a
+/// saved copy's story.
+/// </summary>
+public interface ITalkStory
+{
+    /// <summary>GET_GAME_STATE, a shared field's.</summary>
+    int Get(string field);
+
+    /// <summary>SET_GAME_STATE, a shared field's.</summary>
+    void Set(string field, int value);
+
+    /// <summary>GLOBAL (CrewCost).</summary>
+    int CrewCost { get; }
+
+    /// <summary>GLOBAL (CrewCost) = cost (a BYTE: it wraps).</summary>
+    void SetCrewCost(int cost);
+}
+
 public sealed record NumberSpeech(IReadOnlyList<SpeechDigit> Digits);
 
 /// <summary>

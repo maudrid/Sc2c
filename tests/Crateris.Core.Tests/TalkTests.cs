@@ -343,6 +343,15 @@ public class TalkTests
 
         public void Said(int r) => T.NPCPhrase("BYE");
 
+        // What the talk would settle if dropped unfinished (CommScript.DroppedUnfinished): a count
+        // added to a story field, as the Druuge's crew sold; 0 for nothing.
+        public int Unsettled;
+
+        protected internal override bool SettlesWhenDropped => Unsettled != 0;
+
+        protected internal override void DroppedUnfinished(ITalkStory story) =>
+            story.Set("CREW_SOLD_TO_DRUUGE0", story.Get("CREW_SOLD_TO_DRUUGE0") + Unsettled);
+
         public readonly List<string> Ran = new();
 
         // Two callbacks (NPCPhrase_cb's), as the Zoq-Fot-Pik's speakers: each
@@ -749,6 +758,49 @@ public class TalkTests
         talk.Choose(0);
         Assert.Empty(talk.Events.OfType<CrewCostChanged>());
         Assert.Equal(5, script.Talk.CrewCost);
+    }
+
+    [Fact]
+    public void ATalkDroppedUnfinishedSettlesWhatItsScriptHasDoneOnce()
+    {
+        // Not UQM's (a talk there is left only by its end): a player leaving mid-talk
+        // (DropUnfinished: on the story, as the talk's events, once) and a save made mid-talk
+        // (SettleDroppedIn: on the saved copy's story, the talk and the live story untouched).
+        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        var (talk, script) = Probe(s => s.Talk.Response("ask", s.Said), story: story);
+        Assert.False(talk.SettlesWhenDropped);   // not started
+        talk.DropUnfinished();
+        talk.Start();
+        Assert.False(talk.SettlesWhenDropped);   // nothing to settle
+        script.Unsettled = 30;
+        Assert.True(talk.SettlesWhenDropped);
+        // A save: the copy's story settled, each time it's saved; nothing of the talk's or the live story's.
+        var copy = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        copy.Set("CREW_SOLD_TO_DRUUGE0", 5);
+        int events = talk.Events.Count;
+        talk.SettleDroppedIn(copy);
+        Assert.Equal((35, 0, events), (copy.Get("CREW_SOLD_TO_DRUUGE0"), story.Get("CREW_SOLD_TO_DRUUGE0"), talk.Events.Count));
+        Assert.True(talk.SettlesWhenDropped);
+        // Left: settled on the story, as an event; once, and no reply can be chosen after.
+        talk.DropUnfinished();
+        Assert.Equal(30, story.Get("CREW_SOLD_TO_DRUUGE0"));
+        Assert.Equal(new StateSet("CREW_SOLD_TO_DRUUGE0", 30), talk.Events[^1]);
+        Assert.False(talk.SettlesWhenDropped);
+        talk.DropUnfinished();
+        talk.SettleDroppedIn(copy);
+        Assert.Equal((30, 35), (story.Get("CREW_SOLD_TO_DRUUGE0"), copy.Get("CREW_SOLD_TO_DRUUGE0")));
+        Assert.Throws<InvalidOperationException>(() => talk.Choose(0));
+
+        // A talk that has ended settles nothing more: its end did.
+        var (ended, endedScript) = Probe(s => s.Talk.Response("ask", s.Said), story: story);
+        ended.Start();
+        endedScript.Unsettled = 7;
+        ended.Choose(0);
+        Assert.True(ended.Ended);
+        Assert.False(ended.SettlesWhenDropped);
+        ended.DropUnfinished();
+        ended.SettleDroppedIn(copy);
+        Assert.Equal((30, 35), (story.Get("CREW_SOLD_TO_DRUUGE0"), copy.Get("CREW_SOLD_TO_DRUUGE0")));
     }
 
     [Fact]

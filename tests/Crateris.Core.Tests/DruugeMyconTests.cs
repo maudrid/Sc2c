@@ -32,7 +32,9 @@ namespace Crateris.Core.Tests;
 /// whose replies fight or go on as the talk's own draw says; their
 /// homeworld's endless fleet; the Sun Device's world, guarded without end
 /// and then by the 5 that fell for the ambush; the trick at their
-/// homeworld and its event set aside until 3c; the thief's greeting. Each
+/// homeworld and its event set aside until 3c; the thief's greeting; the
+/// shattered worlds seen from orbit and asked about. A Druuge talk left or
+/// saved before its goodbye counting the crew sold all the same. Each
 /// expectation is UQM's (druugec.c, myconc.c, gendru.c, genmyc.c,
 /// genutw.c); the scripts' every path is TalkTests' recordings.
 /// </summary>
@@ -560,6 +562,119 @@ public class DruugeMyconTests
     }
 
     [ContentFact]
+    public void AGuestsShipAsItStartsCanOnlyBuyFuelOnce()
+    {
+        // A guest's ship as it joins holds 10 crew (the escort's kit): a Mauler and the artifacts are
+        // out of its reach (NOT_ENOUGH_CREW), fuel takes all 10 (FUEL_CREW_COST) and leaves it with its
+        // captain alone; the 10 are counted at the goodbye.
+        var world = NewGame("g");
+        var story = world.Story!;
+        story.Set("KNOW_DRUUGE_SLAVERS", 3);
+        var guest = world.Find("g")!.Ship;
+        Assert.Equal((10, 10), (guest.Hold.Crew, guest.Hold.CrewCapacity));
+        uint fuel = guest.Flight.Fuel, hostFuel = world.Host.Ship.Flight.Fuel;
+        Assert.True(fuel + 1000 <= guest.Flight.FuelCapacity);
+        var m = Orbit(world, "g", Star(world, "DRUUGE_DEFINED"), 0);
+        Choose(world, "g", "want_to_buy", "buy_druuge_ship", "buy_rosy_sphere", "buy_art_1", "buy_art_2");
+        Assert.Equal(4, Count(m.Talk!, "NOT_ENOUGH_CREW"));
+        Assert.Equal((10, 0, 0), (guest.Hold.Crew, world.Fleet.Count, story.Get("ROSY_SPHERE")));
+        Choose(world, "g", "buy_fuel");
+        Assert.True(Said(m.Talk!, "BOUGHT_FUEL"));
+        Assert.Equal((0, fuel + 1000, hostFuel), (guest.Hold.Crew, guest.Flight.Fuel, world.Host.Ship.Flight.Fuel));
+        Choose(world, "g", "buy_fuel");
+        Assert.Equal(5, Count(m.Talk!, "NOT_ENOUGH_CREW"));
+        Assert.Equal(fuel + 1000, guest.Flight.Fuel);
+        Choose(world, "g", "done_buying", "bye");
+        MeetingTests.HearClosing(world, "g");
+        Assert.Equal((10, 3), (CrewSold(story), story.CrewCost));
+        Assert.False(guest.Destroyed);
+        Assert.Contains(guest.Activity, new[] { Activity.OuterSystem, Activity.InnerSystem });
+    }
+
+    [ContentFact]
+    public void CrewSoldInATalkLeftBeforeItsGoodbyeIsCountedAsItsPlayerLeaves()
+    {
+        // UQM's talk is left only by its goodbye, which counts the crew sold (druugec.c:171-194); here a
+        // player can leave the game mid-talk, the Maulers bought already the host's: the count and the
+        // price are settled then (CommScript.DroppedUnfinished; review round 1), the others told.
+        var world = NewGame("g", "k");
+        var story = world.Story!;
+        story.Set("KNOW_DRUUGE_SLAVERS", 3);
+        int star = Star(world, "DRUUGE_DEFINED");
+        var guest = world.Find("g")!.Ship;
+        Crew(guest, 300, pods: 6);
+        var m = Orbit(world, "g", star, 0);
+        Choose(world, "g", "want_to_buy", "buy_druuge_ship", "buy_druuge_ship", "buy_druuge_ship");
+        Assert.Equal((0, 3, 0, 3), (guest.Hold.Crew, world.Fleet.CountOf("DRUUGE_SHIP"), CrewSold(story), story.CrewCost));
+        world.TakeNotices();
+        world.Leave("g");
+        Assert.Equal((300, 25), (CrewSold(story), story.CrewCost));
+        var told = world.TakeNotices().Where(n => n.Event == NoticeEvent.CrewPrice).ToList();
+        Assert.Equal(new[] { ("h", "g", 25), ("k", "g", 25) }, told.Select(n => (n.PlayerId, n.By, n.Count)).OrderBy(n => n.PlayerId));
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Null(world.DialogueLocks!.Holder("DRUUGE_CONVERSATION"));
+        Assert.Equal(3, world.Fleet.CountOf("DRUUGE_SHIP"));
+
+        // Nothing sold, nothing counted: "k" asks the price and leaves.
+        m = Orbit(world, "k", star, 0);
+        Choose(world, "k", "want_to_buy");
+        world.Leave("k");
+        Assert.Equal((300, 25), (CrewSold(story), story.CrewCost));
+        Assert.DoesNotContain(world.TakeNotices(), n => n.Event == NoticeEvent.CrewPrice);
+
+        // Left at the goodbye's closing lines: counted by the goodbye, once.
+        var host = world.Host.Ship;
+        m = Orbit(world, "h", star, 0);
+        Choose(world, "h", "want_to_buy", "buy_fuel", "done_buying", "bye");
+        Assert.Equal((MeetingStep.Closing, 310), (m.Step, CrewSold(story)));
+        MeetingTests.HearClosing(world, "h");
+        Assert.Equal((310, 25, 40), (CrewSold(story), story.CrewCost, host.Hold.Crew));
+    }
+
+    [ContentFact]
+    public void ASaveMadeMidTalkCarriesTheCrewSoldAndTheLiveTalkStillCountsItOnce()
+    {
+        // A meeting isn't saved: its ship is saved as it is (the crew gone, the fuel aboard), so the save
+        // counts the crew sold so far as leaving would (Talk.SettleDroppedIn on the saved copy), while
+        // the live talk goes on and counts it at its goodbye, once.
+        var world = NewGame("g");
+        var story = world.Story!;
+        story.Set("KNOW_DRUUGE_SLAVERS", 3);
+        story.Set("CREW_SOLD_TO_DRUUGE0", 95);
+        int star = Star(world, "DRUUGE_DEFINED");
+        var host = world.Host.Ship;
+        var m = Orbit(world, "h", star, 0);
+        string before = HostSave.ToJson(world);
+        Choose(world, "h", "want_to_buy", "buy_fuel");
+        Assert.Equal((40, 95, 3), (host.Hold.Crew, CrewSold(story), story.CrewCost));
+        string json = HostSave.ToJson(world);
+        // The live game: untouched by the save.
+        Assert.Equal((95, 3, MeetingStep.Talk), (CrewSold(story), story.CrewCost, m.Step));
+        Assert.DoesNotContain(m.Talk!.Events, e => e is CrewCostChanged);
+        // The save: the 10 counted (105: past 100, the price up by 7), the crew as sold; before any sale, as it was.
+        var loaded = HostSave.FromJson(json, world.Systems!, TestContent.Shapes);
+        Assert.Equal((105, 10, 40), (CrewSold(loaded.Story!), loaded.Story!.CrewCost, loaded.Host.Ship.Hold.Crew));
+        Assert.Null(loaded.MeetingOf("h"));
+        var early = HostSave.FromJson(before, world.Systems!, TestContent.Shapes);
+        Assert.Equal((95, 3, 50), (CrewSold(early.Story!), early.Story!.CrewCost, early.Host.Ship.Hold.Crew));
+        // Saved again from the loaded game: counted once.
+        Assert.Equal(105, CrewSold(HostSave.FromJson(HostSave.ToJson(loaded), world.Systems!, TestContent.Shapes).Story!));
+
+        // The live talk goes on: more fuel, another save (20 by now), then its goodbye counts the 20 once.
+        Choose(world, "h", "buy_fuel");
+        Assert.Equal(115, CrewSold(HostSave.FromJson(HostSave.ToJson(world), world.Systems!, TestContent.Shapes).Story!));
+        Assert.Equal((95, 3), (CrewSold(story), story.CrewCost));
+        Choose(world, "h", "done_buying", "bye");
+        Assert.Equal((115, 10, 30), (CrewSold(story), story.CrewCost, host.Hold.Crew));
+        Assert.Equal(new CrewCostChanged(10, 3), m.Talk.Events.OfType<CrewCostChanged>().Single());
+        // At its closing lines and after: the saves have the goodbye's count, no more.
+        Assert.Equal(115, CrewSold(HostSave.FromJson(HostSave.ToJson(world), world.Systems!, TestContent.Shapes).Story!));
+        MeetingTests.HearClosing(world, "h");
+        var after = HostSave.FromJson(HostSave.ToJson(world), world.Systems!, TestContent.Shapes);
+        Assert.Equal((115, 10), (CrewSold(after.Story!), after.Story!.CrewCost));
+    }
+
+    [ContentFact]
     public void OnePlayerTradesAtATimeAndTheOtherIsToldWhoIsTalking()
     {
         // The Druuge's lock (decision 5): while the guest trades, the host orbiting the trade world
@@ -978,6 +1093,65 @@ public class DruugeMyconTests
         Retreat(world, "h");
         m = Orbit(world, "h", Star(world, "SUN_DEVICE_DEFINED"), 0);
         Assert.Equal((false, 5), (m.Infinite, m.Ships.Count));
+    }
+
+    [ContentFact]
+    public void OrbitingAShatteredWorldLetsThePlayersAskTheMyconAboutThem()
+    {
+        // genmyc.c:164-168: orbiting the first planet of an egg case's system (a shattered world) sets
+        // KNOW_ABOUT_SHATTERED 1 while it's 0; myconc.c's NormalMycon offers "what about the shattered
+        // worlds?" at their homeworld only at exactly 1, and its answer makes it 2. The group's: a
+        // guest sees the world, the host asks.
+        var world = NewGame("g");
+        var story = world.Story!;
+        foreach (var special in new[] { "EGG_CASE0_DEFINED", "EGG_CASE1_DEFINED", "EGG_CASE2_DEFINED" })
+        {
+            int egg = Star(world, special);
+            story.Set("KNOW_ABOUT_SHATTERED", 0);
+            if (world.Systems!.HasWorld(egg, 1, null))
+            {
+                world.PutInOrbit("g", egg, 1);   // another planet of the system: nothing
+                Assert.Equal(0, story.Get("KNOW_ABOUT_SHATTERED"));
+                world.Find("g")!.Ship.Ip!.ReturnFromOrbit();
+            }
+            world.PutInOrbit("g", egg, 0);
+            Assert.Equal(Activity.Orbit, world.Find("g")!.Ship.Activity);
+            Assert.Equal(1, story.Get("KNOW_ABOUT_SHATTERED"));
+            world.Find("g")!.Ship.Ip!.ReturnFromOrbit();
+            // Knowing more already (2 once told, by the Mycon, the Druuge's news or a ramble): left as it is.
+            foreach (int known in new[] { 2, 3 })
+            {
+                story.Set("KNOW_ABOUT_SHATTERED", known);
+                world.PutInOrbit("g", egg, 0);
+                Assert.Equal(known, story.Get("KNOW_ABOUT_SHATTERED"));
+                world.Find("g")!.Ship.Ip!.ReturnFromOrbit();
+            }
+        }
+        // Not at the Mycon's own worlds (their talks start there), nor any other star's first planet.
+        story.Set("KNOW_ABOUT_SHATTERED", 0);
+        world.PutInOrbit("g", Sol, 0);
+        Assert.Equal(0, story.Get("KNOW_ABOUT_SHATTERED"));
+        Away(world, "g");
+
+        // Not seen: not offered. Seen: offered, whatever the draw, answered, and not offered again.
+        int home = Star(world, "MYCON_DEFINED");
+        var m = Orbit(world, "h", home, 0);
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.False(Offered(m.Talk!, "what_about_shattered"));
+        Choose(world, "h", "bye_homeworld");
+        MeetingTests.HearClosing(world, "h");
+        Retreat(world, "h");
+        world.PutInOrbit("g", Star(world, "EGG_CASE1_DEFINED"), 0);
+        Assert.Equal(1, story.Get("KNOW_ABOUT_SHATTERED"));
+        Away(world, "g");
+        m = Orbit(world, "h", home, 0);
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.Equal("NormalMycon", m.Talk!.Replies[Reply(m.Talk, "what_about_shattered")].Function);
+        int ramble = story.Get("MYCON_RAMBLE");
+        Choose(world, "h", "what_about_shattered");
+        Assert.True(Said(m.Talk, "ABOUT_SHATTERED"));
+        Assert.Equal((2, ramble), (story.Get("KNOW_ABOUT_SHATTERED"), story.Get("MYCON_RAMBLE")));   // no ramble for it
+        Assert.False(Offered(m.Talk, "what_about_shattered"));
     }
 
     [ContentFact]

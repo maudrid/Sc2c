@@ -9,7 +9,8 @@
 // Follows The Ur-Quan Masters 0.8.0 (src/uqm/planets/generate/gensol.c's
 // GenerateSol_generateEnergy and GenerateSol_pickupEnergy, genspa.c's
 // GenerateSpathi_pickupLife, genrain.c's
-// GenerateRainbowWorld_generateOrbital), Copyright Paul Reiche, Fred Ford and Toys for
+// GenerateRainbowWorld_generateOrbital, genmyc.c's
+// GenerateMycon_generateOrbital for the shattered worlds), Copyright Paul Reiche, Fred Ford and Toys for
 // Bob, Inc. 1992-2002, and the UQM contributors, under the GNU GPL 2 or
 // later.
 
@@ -110,11 +111,25 @@ public static class StoryWorlds
     /// orbit too): around a rainbow world (planet 0 of a RAINBOW_DEFINED
     /// star) its bit is set in RAINBOW_WORLD0/1 (genrain.c), the group's
     /// one story field, so whoever orbits it, the group has found it, and
-    /// the Melnorme pay for it once (the plan's question 6).
+    /// the Melnorme pay for it once (the plan's question 6); around a
+    /// shattered world (planet 0 of an egg case's system, genmyc.c) the
+    /// players have seen one (KNOW_ABOUT_SHATTERED 1 from 0), which the
+    /// Mycon can then be asked about.
     /// </summary>
     public static void Orbited(StarMap map, WorldId world, StoryState story)
     {
-        if (world.Planet != 0 || world.Moon is not null || RainbowIndex(map, world.Star) is not int which)
+        if (world.Planet != 0 || world.Moon is not null)
+            return;
+        // genmyc.c:164-168 (GenerateMycon_generateOrbital): the first
+        // planet of an egg case's system is a shattered world; seeing one
+        // lets the players ask the Mycon about them (KNOW_ABOUT_SHATTERED
+        // 1, unless they know more already: 2 once told), the group's, as
+        // every story field (the stage 3b-2 plan's question 2's kind of
+        // pickup: no device, read by a talk).
+        if (map.Stars[world.Star].Special is "EGG_CASE0_DEFINED" or "EGG_CASE1_DEFINED" or "EGG_CASE2_DEFINED"
+            && story.Get("KNOW_ABOUT_SHATTERED") == 0)
+            story.Set("KNOW_ABOUT_SHATTERED", 1);
+        if (RainbowIndex(map, world.Star) is not int which)
             return;
         int mask = story.Get("RAINBOW_WORLD0") | (story.Get("RAINBOW_WORLD1") << 8);
         mask |= 1 << which;
