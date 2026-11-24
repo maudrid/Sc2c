@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-24, stage 3b-2 item 8 (the Druuge and the Mycon) built in three parts (the owner's go-ahead 2026-11-24, for this item alone), reviewed in three rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`); its readings are put to the owner with the report (Decisions waiting on the owner, below). Items 1 to 7 and the screen-change fix were reviewed and reported too; the owner accepted items 5's and 6's readings as built.
+**Last updated:** 2026-11-24, stage 3b-2 item 9 (the Utwig and the Supox) started on the owner's go-ahead of 2026-11-24, for this item alone: being built (a builder subagent, in parts A to C as item 8's were), not yet reviewed. Items 1 to 8 and the screen-change fix are built, reviewed and reported; the owner accepted items 5's and 6's readings as built; item 8's readings were put to the owner with its report (below) and stand as built, the owner having started item 9 without changing any.
 
 ## Where things are
 
@@ -68,18 +68,18 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for item 9 (one item per go-ahead), and for their word on item 8's readings (below). Item 8 (the Druuge and the Mycon) was reviewed in three rounds: round 1 (part A, `5d6bced`) found three things (crew sold in a Druuge talk left or saved before its goodbye never counted; goods sold told to nobody, kept as a reading; `KNOW_ABOUT_SHATTERED` 1 never set), fixed in `4c90466`; round 2 (`61aba36`, `1dbd5d9`, `4c90466`) found no correctness bug and four low findings (two test gaps, a misplaced doc comment, a loose sentence on the Mycon's rambles), fixed in `a40c48a`; round 3 (`a40c48a`) found nothing that holds up (two summaries brought up to date with the report, comments only, not reviewed again).
+Build item 9 (the Utwig and the Supox; `docs/plans/stage-3b-2.md`, item 9), in parts as item 8's were (A: the two scripts ported, recorded and wired; B: the world's tests; C: docs and the try-out), then review it by the rule in `CLAUDE.md` and report; item 10 waits for a go-ahead of its own. If this session stopped mid-build: check `git status` and `git log` for the parts committed, and the plan's Progress row for item 9.
 
 ## Decisions waiting on the owner
 
-**Item 8's readings, put to the owner with its report (2026-11-24); kept as built unless they say otherwise** (the Progress row's Readings, `differences.md` row 84):
+**Item 8's readings, put to the owner with its report (2026-11-24); kept as built unless they say otherwise (no word on them as item 9 was started)** (the Progress row's Readings, `differences.md` row 84):
 - **What the others are told of the Druuge's trade:** ships joining the fleet and the crew price rising; not each sale of crew, nor the group's devices sold (the Maidens, an egg case, the broadcaster, the Portal Spawner), nor the Rosy Sphere bought (as items 6 and 7 told nobody of the VUX beast given or the Clear Spindle got). A notice for the group's devices gained or lost in a talk would be a small item of its own, for every script.
 - **A Druuge talk left or saved before its goodbye counts its crew sold** (UQM counts at the goodbye, its only way out), so the shared crew price can't be dodged by leaving.
 - **The shattered worlds seen from orbit** (`KNOW_ABOUT_SHATTERED` 1, genmyc.c) brought into 3b-2: a third small pickup of question 2's kind, so the Mycon's question about them can be reached in play.
 - **A ship whose every crew member is sold flies on with its captain alone,** a guest's too (as UQM's flagship: it can't land and dies to one hit in battle).
 - The rest follow rules already decided: the crew sold and the fuel bought are the answering ship's own, Maulers go to the host's fleet by its room, the goods and artifacts are the group's (anyone can sell them), the crew sold and the crew price are shared, the salvage test reads the host's fleet for escorts and the answering ship's slots for weapons.
 
-The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 8 had their go-aheads, the others wait for one each.
+The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 9 had their go-aheads, the others wait for one each.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
