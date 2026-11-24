@@ -193,7 +193,9 @@ public sealed partial class GameWorld
             Guarded = (s, lives) => lives() && Flag(s, "ZOQFOT_DISTRESS") == 0,
             StandDown = false,
         },
-        // genpet.c:81, the Umgah's half: their world while they aren't the Talking Pet's zombies.
+        // genpet.c:81, the Umgah's half: their world while they aren't the Talking Pet's zombies. In the states
+        // the Pet's half handles (the zombies, the Umgah extinct: 3c's) the world starts no talk and, never
+        // entered (Surface.EnterOrbit), isn't orbited either: the ship is held by it.
         new("TALKING_PET_DEFINED", 0, null, "UMGAH_SHIP", 1 << 7, "GenerateTalkingPet_generateOrbital")
         {
             Guarded = (s, lives) => Flag(s, "UMGAH_ZOMBIE_BLOBBIES") == 0 && lives(),
