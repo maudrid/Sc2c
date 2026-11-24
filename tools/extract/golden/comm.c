@@ -54,6 +54,10 @@
  *     ANTIMISSILE_DEFENSE), which the Melnorme read and set;
  *   what a crew member costs at the starbase (GLOBAL (CrewCost)), which
  *     the Druuge raise as crew are sold to them;
+ *   the enemy's ships and UQM's Cyborg option, as two numbers: how many
+ *     ships the enemy has here (GetHeadLink (&GLOBAL (npc_built_ship_q))
+ *     sees them as none or some), and 1 for GLOBAL (glob_flags)'s
+ *     CYBORG_ENABLED, else 0; the Talking Pet's script reads both;
  *   the replies: their count, then each one's place in the replies offered.
  *
  * Selling minerals (starbas.c's SellMinerals) runs as if a button were
@@ -1090,6 +1094,15 @@ main (void)
 	}
 	read_line (line, sizeof line);
 	GLOBAL (CrewCost) = (BYTE) strtoul (line, NULL, 10);
+	read_line (line, sizeof line);
+	{
+		unsigned ships = 0, cyborg = 0;
+		sscanf (line, "%u %u", &ships, &cyborg);
+		GLOBAL (npc_built_ship_q).head = ships ? (HLINK) 1 : 0;
+		GLOBAL (npc_built_ship_q).tail = GLOBAL (npc_built_ship_q).head;
+		if (cyborg)
+			GLOBAL (glob_flags) |= CYBORG_ENABLED;
+	}
 	read_line (line, sizeof line);
 	p = line;
 	sscanf (p, "%d%n", &replies, &i);

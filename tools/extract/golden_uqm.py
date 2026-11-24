@@ -6210,6 +6210,365 @@ def supox_starts():
     return starts
 
 
+def thradd_starts():
+    """The Thraddash (thraddc.c), from states chosen to reach every
+    condition it reads: the endgame's won battle (and the fight before it,
+    IN_LAST_BATTLE: the ordinary talk) in space, at their homeworld
+    (GLOBAL_FLAGS_AND_DATA bit 7) and at the Aqua Helix's world (bit 6);
+    the Helix taken (AQUA_HELIX) by each visit (HELIX_VISITS), whatever
+    else; the Ilwrath's war (ILWRATH_FIGHT_THRADDASH) by THRADD_MANNER and
+    each visit; the hostile greetings at home by each visit
+    (THRADD_HOME_VISITS) and in space by each state of their mission
+    (THRADD_MISSION, THRADD_MISSION_VISITS) and each visit (THRADD_VISITS),
+    with the praise as the body count passes 8 and 16
+    (THRADDASH_BODY_COUNT around each, THRADD_BODY_LEVEL); the hostile
+    talk walked whole in space, and from every state of its stacks
+    (THRADD_INFO, THRADD_STACK_1 with KOHR_AH_FRENZY, THRADD_HOSTILE_STACK_2
+    to 5) and of the mission's return (THRADD_MISSION 4); the Helix's
+    world's hostile talk by each visit, walked whole, and from every state
+    of the fields it keeps its questions in (THRADD_CULTURE, THRADD_INTRO,
+    THRADD_DEMEANOR), the body count ignored there; the worship with 25
+    destroyed (the count around 25 with each THRADD_MANNER and place),
+    walked whole (every choice of greeting, name and manner), with each
+    captain's name spliced into "the slave empire of"; the allies greeted
+    by each manner, visit and place, the culture's name spliced in by
+    place, their talk walked whole at each place and from every state of
+    THRADD_INFO, THRADD_DEMEANOR and THRADD_STACK_1 (their goodbyes); and
+    the standing itself, which the script never reads, apart from
+    THRADD_MANNER. States UQM can't reach, recorded to pin which field is
+    read: THRADD_MANNER set with a body count below 25, the alliance
+    without THRADD_MANNER. Not recorded: THRADD_MANNER with no culture
+    named (THRADD_CULTURE 0), which UQM's script asserts against."""
+    allied = {"alliances": {"THRADDASH_SHIP": "good"}}
+    worshipped = {"THRADD_MANNER": 1, "THRADD_CULTURE": 1, "THRADDASH_BODY_COUNT": 25}
+    helix = lambda name, state, **kw: home_start(name, state, flags=1 << 6, **kw)
+    places = (("space", space_start), ("home", home_start), ("helix", helix))
+    starts = []
+    for where, make in places:
+        starts.append(make(f"{where}-won-last-battle", {}, activity="WON_LAST_BATTLE"))
+        starts.append(make(f"{where}-in-last-battle", {}, activity="IN_LAST_BATTLE", follow=[]))
+    starts.append(space_start("allied-won-last-battle", worshipped, "WON_LAST_BATTLE", **allied))
+    starts.append(space_start("thief-won-last-battle", {"AQUA_HELIX": 1}, "WON_LAST_BATTLE"))
+    # The Helix taken: a fight wherever they're met, whatever else.
+    for where, make in places:
+        for visits in range(8):
+            for manner in (0, 1):
+                starts.append(make(f"thief-{where}-visit-{visits}-manner-{manner}",
+                                   {"AQUA_HELIX": 1, "HELIX_VISITS": visits, "HELIX_UNPROTECTED": 1,
+                                    **(worshipped if manner else {})},
+                                   **(allied if manner else {})))
+    starts.append(space_start("thief-ilwrath-war", {"AQUA_HELIX": 1, "ILWRATH_FIGHT_THRADDASH": 1}))
+    # The Ilwrath's war: a greeting alone, by the manner and each visit.
+    for where, make in places:
+        for visits in range(8):
+            for manner in (0, 1):
+                starts.append(make(f"ilwrath-war-{where}-visit-{visits}-manner-{manner}",
+                                   {"ILWRATH_FIGHT_THRADDASH": 1, "THRADD_VISITS": visits,
+                                    **({"THRADD_MANNER": 1, "THRADD_CULTURE": 1} if manner else {})}))
+    starts.append(space_start("ilwrath-war-body-count", {"ILWRATH_FIGHT_THRADDASH": 1, "THRADDASH_BODY_COUNT": 25}))
+    # The hostile greetings: at home by each visit (the mission not read there), in space by the mission.
+    for visits in range(8):
+        starts.append(home_start(f"hostile-home-visit-{visits}", {"THRADD_HOME_VISITS": visits}, follow=[]))
+    for mission in range(1, 8):
+        starts.append(home_start(f"hostile-home-mission-{mission}", {"THRADD_MISSION": mission}, follow=[]))
+    for mission in range(8):
+        for visits in range(8):
+            for told in (0, 1):
+                starts.append(space_start(f"hostile-space-mission-{mission}-visit-{visits}-told-{told}",
+                                          {"THRADD_MISSION": mission, "THRADD_VISITS": visits,
+                                           "THRADD_MISSION_VISITS": told},
+                                          **({} if (mission, visits, told) == (0, 0, 0) else {"follow": []})))
+    # The praise as the body count grows, below the worship's 25.
+    for where, make in places[:2]:
+        for count in (0, 7, 8, 15, 16, 24):
+            for level in range(4):
+                starts.append(make(f"hostile-{where}-count-{count}-level-{level}",
+                                   {"THRADDASH_BODY_COUNT": count, "THRADD_BODY_LEVEL": level}, follow=[]))
+    # The hostile talk from every state of its stacks.
+    quiet = {"THRADD_VISITS": 1, "THRADD_STACK_1": 5, "THRADD_HOSTILE_STACK_3": 1}
+    for info in range(4):
+        starts.append(space_start(f"hostile-info-{info}", {**quiet, "THRADD_INFO": info}, follow=["ThraddHostile"]))
+    for stack in range(8):
+        for frenzy in (0, 1):
+            starts.append(space_start(f"hostile-stack-{stack}-frenzy-{frenzy}",
+                                      {"THRADD_VISITS": 1, "THRADD_STACK_1": stack, "KOHR_AH_FRENZY": frenzy},
+                                      follow=["ExitConversation"] if stack == 4 else []))
+    for bits in range(16):
+        s2, s3, s4, s5 = (bits >> i & 1 for i in range(4))
+        starts.append(space_start(f"hostile-stacks-{s2}{s3}{s4}{s5}",
+                                  {**quiet, "THRADD_MISSION": 4, "THRADD_HOSTILE_STACK_2": s2,
+                                   "THRADD_HOSTILE_STACK_3": s3, "THRADD_HOSTILE_STACK_4": s4,
+                                   "THRADD_HOSTILE_STACK_5": s5}, follow=["ExitConversation"]))
+    starts.append(space_start("hostile-mission-back", {**quiet, "THRADD_MISSION": 4}, follow=["ThraddHostile"]))
+    starts.append(home_start("hostile-home-exits", {"THRADD_HOME_VISITS": 1}, follow=["ExitConversation"]))
+    # The Helix's world, hostile: by each visit, walked whole, and from every state of its fields.
+    for visits in range(8):
+        starts.append(helix(f"helix-visit-{visits}", {"HELIX_VISITS": visits}, **({} if visits == 0 else {"follow": []})))
+    for culture in range(4):
+        for intro in range(4):
+            for demeanor in (0, 1, 4):
+                starts.append(helix(f"helix-culture-{culture}-intro-{intro}-demeanor-{demeanor}",
+                                    {"HELIX_VISITS": 1, "THRADD_CULTURE": culture, "THRADD_INTRO": intro,
+                                     "THRADD_DEMEANOR": demeanor}, follow=[]))
+    for count in (8, 16, 25, 31):
+        starts.append(helix(f"helix-count-{count}", {"HELIX_VISITS": 1, "THRADDASH_BODY_COUNT": count}, follow=[]))
+    # The worship: the body count around 25 with each THRADD_MANNER, in space and at home.
+    for where, make in places[:2]:
+        for count in (24, 25, 26, 31):
+            for manner in (0, 1):
+                state = {"THRADDASH_BODY_COUNT": count, "THRADD_VISITS": 3, "THRADD_STACK_1": 5,
+                         **({"THRADD_MANNER": 1, "THRADD_CULTURE": 2} if manner else {})}
+                starts.append(make(f"worship-{where}-count-{count}-manner-{manner}", state, follow=[]))
+    for level in range(4):
+        starts.append(space_start(f"worship-level-{level}", {"THRADDASH_BODY_COUNT": 25, "THRADD_BODY_LEVEL": level},
+                                  follow=[]))
+    starts.append(space_start("worship-walk", {"THRADDASH_BODY_COUNT": 25, "THRADD_VISITS": 3, "THRADD_STACK_1": 5,
+                                               "THRADD_CULTURE": 1, "THRADD_INTRO": 2, "THRADD_DEMEANOR": 1}))
+    starts.append(home_start("worship-home-allied-already", {"THRADDASH_BODY_COUNT": 25}, follow=["ThraddCulture"],
+                             **allied))
+    for cname, captain, ship in NAMES:
+        start = space_start(f"worship-{cname}", {"THRADDASH_BODY_COUNT": 25}, follow=["ThraddCulture"])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    # The allies: greeted by each manner, visit and place; the culture's name by place.
+    for where, make in places:
+        for intro in range(4):
+            for visits in range(8):
+                starts.append(make(f"allied-{where}-intro-{intro}-visit-{visits}",
+                                   {**worshipped, "THRADD_INTRO": intro, "THRADD_VISITS": visits}, follow=[], **allied))
+        for culture in (2, 3):
+            starts.append(make(f"allied-{where}-culture-{culture}", {**worshipped, "THRADD_CULTURE": culture},
+                               follow=[], **allied))
+        starts.append(make(f"allied-{where}-walk", {**worshipped, "THRADD_VISITS": 1}, **allied))
+    for info in range(4):
+        starts.append(space_start(f"allied-info-{info}", {**worshipped, "THRADD_INFO": info},
+                                  follow=["ThraddAllies"], **allied))
+    for demeanor in range(8):
+        starts.append(space_start(f"allied-demeanor-{demeanor}", {**worshipped, "THRADD_DEMEANOR": demeanor},
+                                  follow=["ThraddAllies"], **allied))
+    for stack in range(8):
+        starts.append(helix(f"allied-goodbye-{stack}", {**worshipped, "THRADD_STACK_1": stack},
+                            follow=["ExitConversation"], **allied))
+    # The standing apart from THRADD_MANNER (the script reads the manner alone): the manner with the
+    # alliance ended (the Ilwrath's war ends it) or the Thraddash dead, and below 25; the alliance without it.
+    for sname in ("bad", "dead"):
+        starts.append(space_start(f"manner-alliance-{sname}", worshipped, follow=[],
+                                  alliances={"THRADDASH_SHIP": sname}))
+    for count in (0, 24):
+        starts.append(space_start(f"manner-count-{count}", {**worshipped, "THRADDASH_BODY_COUNT": count}, follow=[],
+                                  **allied))
+    for where, make in places:
+        starts.append(make(f"allied-without-manner-{where}", {"THRADD_VISITS": 1}, follow=[], **allied))
+    return starts
+
+
+def umgah_starts():
+    """The Umgah (umgahc.c), from states chosen to reach every condition
+    it reads: the endgame's won battle (no line of its own: the ordinary
+    talk, at peace from init) and the fight before it; hostile for good
+    (UMGAH_HOSTILE) by each visit and place, whatever else; the Talking
+    Pet's zombies (UMGAH_ZOMBIE_BLOBBIES) by each visit and place: the
+    Pet met (TALKING_PET_VISITS), the secret known (KNOW_UMGAH_ZOMBIES),
+    or neither, and then their questions walked whole, the Umgah met
+    before they were zombies or not (MET_NORMAL_UMGAH), each captain's
+    and ship's name spliced into "we are"; before the Pet in space and at
+    their homeworld (GLOBAL_FLAGS_AND_DATA bit 7) by each visit
+    (UMGAH_VISITS, UMGAH_HOME_VISITS), walked whole, and from every state
+    of UMGAH_EVIL_BLOBBIES and UMGAH_MENTIONED_TRICKS; with the Pet taken
+    (TALKING_PET): in space by each visit, at their homeworld the reward
+    walked whole (met before or not), by UMGAH_MENTIONED_TRICKS, by the
+    bio data aboard (none, some, and 65,035: the 500 given reach the top
+    of UQM's 16-bit count; past it UQM's wraps and the port's doesn't,
+    docs/differences.md row 22, so that isn't recorded) and by the escort
+    fleet's room for the 4 ships (none, 2, 4, 12). States UQM can't reach,
+    recorded to pin the order the fields are read in: the zombies with
+    the Pet taken (taking it frees them), the zombies with
+    TALKING_PET_VISITS (counted only with the Pet aboard, which frees
+    them: umgahc.c's DESTROY_INTERFERER lines are dead in UQM)."""
+    places = (("space", space_start), ("home", home_start))
+    starts = []
+    for where, make in places:
+        starts.append(make(f"{where}-won-last-battle", {}, activity="WON_LAST_BATTLE", follow=[]))
+        starts.append(make(f"{where}-in-last-battle", {}, activity="IN_LAST_BATTLE", follow=[]))
+        starts.append(make(f"{where}-pet-won-last-battle", {"TALKING_PET": 1}, activity="WON_LAST_BATTLE", follow=[]))
+        starts.append(make(f"{where}-hostile-won-last-battle", {"UMGAH_HOSTILE": 1}, activity="WON_LAST_BATTLE"))
+    # Hostile for good: by each visit and place, whatever else.
+    for where, make in places:
+        for visits in range(8):
+            starts.append(make(f"hostile-{where}-visit-{visits}", {"UMGAH_HOSTILE": 1, "TALKING_PET": 1,
+                                                                 "UMGAH_VISITS": visits}))
+        starts.append(make(f"hostile-{where}-home-visits", {"UMGAH_HOSTILE": 1, "TALKING_PET": 1,
+                                                             "UMGAH_HOME_VISITS": 2}))
+        starts.append(make(f"hostile-{where}-no-pet", {"UMGAH_HOSTILE": 1}))
+        starts.append(make(f"hostile-{where}-zombies", {"UMGAH_HOSTILE": 1, "UMGAH_ZOMBIE_BLOBBIES": 1,
+                                                         "KNOW_UMGAH_ZOMBIES": 1}))
+    # The zombies: the Pet met, the secret known, or neither, by each visit and place.
+    for where, make in places:
+        for met_pet in (0, 1):
+            for know in (0, 1):
+                for visits in range(8):
+                    starts.append(make(f"zombies-{where}-pet-{met_pet}-know-{know}-visit-{visits}",
+                                       {"UMGAH_ZOMBIE_BLOBBIES": 1, "TALKING_PET_VISITS": met_pet,
+                                        "KNOW_UMGAH_ZOMBIES": know, "UMGAH_VISITS": visits}, follow=[]))
+        starts.append(make(f"zombies-{where}-home-visits", {"UMGAH_ZOMBIE_BLOBBIES": 1, "UMGAH_HOME_VISITS": 2},
+                           follow=[]))
+        starts.append(make(f"zombies-{where}-pet-taken", {"UMGAH_ZOMBIE_BLOBBIES": 1, "TALKING_PET": 1}, follow=[]))
+    for met in (0, 1):
+        starts.append(space_start(f"zombies-walk-met-{met}", {"UMGAH_ZOMBIE_BLOBBIES": 1, "MET_NORMAL_UMGAH": met,
+                                                              "UMGAH_VISITS": 2}))
+        starts.append(home_start(f"zombies-home-met-{met}", {"UMGAH_ZOMBIE_BLOBBIES": 1, "MET_NORMAL_UMGAH": met},
+                                 follow=["CombatIsInevitable"]))
+    for cname, captain, ship in NAMES:
+        start = space_start(f"zombies-{cname}", {"UMGAH_ZOMBIE_BLOBBIES": 1}, follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    # Before the Pet: by each visit and place, walked whole, and by its two flags.
+    for where, make in places:
+        field = "UMGAH_VISITS" if where == "space" else "UMGAH_HOME_VISITS"
+        other = "UMGAH_HOME_VISITS" if where == "space" else "UMGAH_VISITS"
+        for visits in range(8):
+            starts.append(make(f"normal-{where}-visit-{visits}", {field: visits},
+                               **({} if visits == 0 else {"follow": []})))
+        starts.append(make(f"normal-{where}-other-visits", {other: 2}, follow=[]))
+        starts.append(make(f"normal-{where}-met", {field: 1, "MET_NORMAL_UMGAH": 1, "KNOW_UMGAH_ZOMBIES": 1},
+                           follow=["CombatIsInevitable"]))
+    for evil in (0, 1):
+        for tricks in range(4):
+            starts.append(space_start(f"normal-evil-{evil}-tricks-{tricks}",
+                                      {"UMGAH_VISITS": 1, "UMGAH_EVIL_BLOBBIES": evil,
+                                       "UMGAH_MENTIONED_TRICKS": tricks}, follow=["CombatIsInevitable"]))
+    # With the Pet taken: in space by each visit; at their homeworld the reward.
+    for visits in range(8):
+        starts.append(space_start(f"pet-space-visit-{visits}", {"TALKING_PET": 1, "UMGAH_VISITS": visits}))
+    starts.append(space_start("pet-space-home-visits", {"TALKING_PET": 1, "UMGAH_HOME_VISITS": 2}))
+    for met in (0, 1):
+        starts.append(home_start(f"reward-walk-met-{met}", {"TALKING_PET": 1, "MET_NORMAL_UMGAH": met},
+                                 escorts=[0, 12]))
+    for tricks in range(4):
+        starts.append(home_start(f"reward-tricks-{tricks}", {"TALKING_PET": 1, "MET_NORMAL_UMGAH": 1,
+                                                             "UMGAH_MENTIONED_TRICKS": tricks},
+                                 escorts=[0, 12], follow=["UmgahReward"]))
+    for visits in (1, 7):
+        starts.append(home_start(f"reward-home-visits-{visits}", {"TALKING_PET": 1, "UMGAH_HOME_VISITS": visits,
+                                                                  "UMGAH_VISITS": visits}, follow=[]))
+    for bio in (7, 65035):
+        starts.append(home_start(f"reward-bio-{bio}", {"TALKING_PET": 1, "MET_NORMAL_UMGAH": 1,
+                                                       "UMGAH_MENTIONED_TRICKS": 2}, bio=bio, escorts=[0, 12]))
+    for room in (0, 2, 4, 12):
+        starts.append(home_start(f"reward-ships-room-{room}", {"TALKING_PET": 1, "MET_NORMAL_UMGAH": 1},
+                                 escorts=[0, room], follow=["CombatIsInevitable"]))
+    return starts
+
+
+def talkpet_starts():
+    """The Talking Pet (talkpet.c), from states chosen to reach every
+    condition it reads: the endgame's won battle; the pep talk before the
+    last battle by UQM's Cyborg option (cyborg: GLOBAL (glob_flags)'s
+    CYBORG_ENABLED); before the Sa-Matra (READY_TO_CONFUSE_URQUAN) by the
+    bomb's state (CHMMR_BOMB_STATE, UTWIG_BOMB_ON_SHIP) and the Ur-Quan
+    compelled or not (URQUAN_MESSED_UP), its questions there walked
+    whole; aboard (TALKING_PET_ON_SHIP) by each visit (TALKING_PET_VISITS)
+    with and without the Taalo protector (TAALO_PROTECTOR_ON_SHIP), its
+    talk walked whole (the mind-control strobe turned on twice: the
+    ambient animations' flags change the first time only), from every
+    state of its news and suggestions (TALKING_PET_INFO,
+    TALKING_PET_SUGGESTIONS), with a ship to compel (SHIP_TO_COMPEL) and
+    its lie known (DNYARRI_LIED, LEARNED_TALKING_PET); at the Umgah's
+    world with the enemy's ships there (enemy_ships: GetHeadLink (&GLOBAL
+    (npc_built_ship_q))) by each visit (TALKING_PET_HOME_VISITS) and the
+    protector, the first visit's questions walked whole with the zombies
+    known or not (KNOW_UMGAH_ZOMBIES) and each ship's name spliced into
+    "we are"; with no enemy ships its deal, the Umgah alive (their sphere
+    unknown, known already or none) or extinct (how_trust kept only for
+    one who met it before with the protector), walked whole with
+    LEARNED_TALKING_PET or not, and the counters its coming aboard
+    clears. States UQM can't reach, recorded to pin the order the fields
+    are read in or a branch nothing sets the flag for:
+    READY_TO_CONFUSE_URQUAN without the Pet aboard; LEARNED_TALKING_PET
+    (no UQM code sets it, so "bullshit" and "you lied" are dead in UQM)."""
+    at_umgah = lambda name, state, ships=10, **kw: home_start(name, state, enemy_ships=ships, **kw)
+    aboard = lambda name, state, **kw: space_start(name, {"TALKING_PET": 1, "TALKING_PET_ON_SHIP": 1, **state}, **kw)
+    deal = lambda name, state, **kw: home_start(name, state, **kw)
+    gone = {"alliances": {"UMGAH_SHIP": "dead"}, "fleets": {"UMGAH_SHIP": [0, 0]}}
+    starts = []
+    starts.append(space_start("won-last-battle", {}, "WON_LAST_BATTLE"))
+    starts.append(aboard("aboard-won-last-battle", {"READY_TO_CONFUSE_URQUAN": 1}, activity="WON_LAST_BATTLE"))
+    for cyborg in (0, 1):
+        for compel in (0, 1):
+            starts.append(aboard(f"last-battle-cyborg-{cyborg}-compel-{compel}", {"SHIP_TO_COMPEL": compel},
+                                 activity="IN_LAST_BATTLE", cyborg=cyborg, enemy_ships=1))
+    starts.append(space_start("last-battle-not-aboard", {"READY_TO_CONFUSE_URQUAN": 1}, "IN_LAST_BATTLE", enemy_ships=1))
+    # Before the Sa-Matra: by the bomb's state, the bomb aboard, the Ur-Quan compelled.
+    for bomb in range(4):
+        for aboard_bomb in (0, 1):
+            for messed in (0, 1):
+                starts.append(aboard(f"samatra-bomb-{bomb}-aboard-{aboard_bomb}-compelled-{messed}",
+                                     {"READY_TO_CONFUSE_URQUAN": 1, "CHMMR_BOMB_STATE": bomb,
+                                      "UTWIG_BOMB_ON_SHIP": aboard_bomb, "URQUAN_MESSED_UP": messed,
+                                      "SHIP_TO_COMPEL": 1}, enemy_ships=1))
+    starts.append(space_start("samatra-not-aboard", {"READY_TO_CONFUSE_URQUAN": 1, "CHMMR_BOMB_STATE": 3},
+                              enemy_ships=1, follow=[]))
+    # Aboard: by each visit and the protector; its talk walked whole; its counted lines; a ship to compel; its lie.
+    for visits in range(8):
+        for taalo in (0, 1):
+            starts.append(aboard(f"aboard-visit-{visits}-taalo-{taalo}",
+                                 {"TALKING_PET_VISITS": visits, "TAALO_PROTECTOR_ON_SHIP": taalo},
+                                 **({} if (visits, taalo) == (0, 1) else {"follow": []})))
+    starts.append(aboard("aboard-enemy-ships", {"TALKING_PET_HOME_VISITS": 1}, enemy_ships=3, follow=[]))
+    for n in range(8):
+        starts.append(aboard(f"aboard-info-{n}", {"TALKING_PET_VISITS": 1, "TALKING_PET_INFO": n},
+                             follow=["PetDevice"]))
+        starts.append(aboard(f"aboard-suggestions-{n}", {"TALKING_PET_VISITS": 1, "TALKING_PET_SUGGESTIONS": n},
+                             follow=["PetDevice"]))
+    for compel in (0, 1):
+        for lied in (0, 1):
+            for learned in (0, 1):
+                starts.append(aboard(f"aboard-compel-{compel}-lied-{lied}-learned-{learned}",
+                                     {"TALKING_PET_VISITS": 1, "TALKING_PET_INFO": 7, "TALKING_PET_SUGGESTIONS": 7,
+                                      "SHIP_TO_COMPEL": compel, "DNYARRI_LIED": lied,
+                                      "LEARNED_TALKING_PET": learned}, follow=["PetDevice", "ExitConversation"]))
+    # At the Umgah's world with its zombies' ships: by each visit and the protector.
+    for visits in range(8):
+        for taalo in (0, 1):
+            starts.append(at_umgah(f"zombies-visit-{visits}-taalo-{taalo}",
+                                   {"UMGAH_ZOMBIE_BLOBBIES": 1, "TALKING_PET_HOME_VISITS": visits,
+                                    "TAALO_PROTECTOR_ON_SHIP": taalo, "UMGAH_VISITS": 3},
+                                   **({} if visits != 0 else {"follow": []})))
+    for know in (0, 1):
+        for taalo in (0, 1):
+            starts.append(at_umgah(f"zombies-walk-know-{know}-taalo-{taalo}",
+                                   {"UMGAH_ZOMBIE_BLOBBIES": 1, "KNOW_UMGAH_ZOMBIES": know,
+                                    "TAALO_PROTECTOR_ON_SHIP": taalo}))
+    starts.append(at_umgah("zombies-one-ship", {"UMGAH_ZOMBIE_BLOBBIES": 1}, ships=1, follow=[]))
+    for cname, captain, ship in NAMES:
+        start = at_umgah(f"zombies-{cname}", {"UMGAH_ZOMBIE_BLOBBIES": 1}, follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    # No enemy ships: its deal. The Umgah alive (their sphere unknown, known, none) or extinct.
+    starts.append(deal("deal-walk", {"UMGAH_ZOMBIE_BLOBBIES": 1, "TALKING_PET_HOME_VISITS": 1}))
+    starts.append(deal("deal-walk-learned", {"UMGAH_ZOMBIE_BLOBBIES": 1, "TALKING_PET_HOME_VISITS": 1,
+                                             "LEARNED_TALKING_PET": 1}))
+    starts.append(deal("deal-sphere-known", {"UMGAH_ZOMBIE_BLOBBIES": 1}, fleets={"UMGAH_SHIP": [333, 333]},
+                       follow=[]))
+    starts.append(deal("deal-sphere-none", {"UMGAH_ZOMBIE_BLOBBIES": 1}, fleets={"UMGAH_SHIP": [0, 0]}, follow=[]))
+    for visits in (0, 1):
+        for taalo in (0, 1):
+            starts.append(deal(f"deal-umgah-gone-visits-{visits}-taalo-{taalo}",
+                               {"TALKING_PET_HOME_VISITS": visits, "TAALO_PROTECTOR_ON_SHIP": taalo},
+                               prefix=[0], follow=[], **gone))
+            starts.append(deal(f"deal-umgah-alive-visits-{visits}-taalo-{taalo}",
+                               {"UMGAH_ZOMBIE_BLOBBIES": 1, "TALKING_PET_HOME_VISITS": visits,
+                                "TAALO_PROTECTOR_ON_SHIP": taalo}, prefix=[0], follow=[]))
+    starts.append(deal("deal-umgah-gone-walk", {"TALKING_PET_HOME_VISITS": 2, "TAALO_PROTECTOR_ON_SHIP": 1},
+                       follow=["PetDeal"], **gone))
+    starts.append(deal("deal-umgah-gone-greeting", {}, follow=[], **gone))
+    # Its coming aboard: the Umgah freed, every counter it clears set.
+    starts.append(deal("deal-counters", {"UMGAH_ZOMBIE_BLOBBIES": 1, "UMGAH_VISITS": 5, "UMGAH_HOME_VISITS": 3,
+                                         "ARILOU_STACK_2": 1, "SHIP_TO_COMPEL": 1, "KNOW_UMGAH_ZOMBIES": 1},
+                       prefix=[0], follow=["ExitConversation"]))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
                 "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts,
@@ -6217,7 +6576,8 @@ COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas
                 "vux": vux_starts, "yehat": yehat_starts, "rebel": rebel_starts,
                 "orz": orz_starts, "pkunk": pkunk_starts,
                 "druuge": druuge_starts, "mycon": mycon_starts,
-                "utwig": utwig_starts, "supox": supox_starts}
+                "utwig": utwig_starts, "supox": supox_starts,
+                "thradd": thradd_starts, "umgah": umgah_starts, "talkpet": talkpet_starts}
 # Files and notes a script's recording has besides every script's.
 COMM_EXTRA_FILES = {"melnorm": ["src/libs/math/random2.c", "src/libs/math/sqrt.c"]}
 COMM_EXTRA_NOTES = {"melnorm": [
@@ -6234,11 +6594,21 @@ COMM_EXTRA_NOTES = {"melnorm": [
     "starbase where not a new game's 3 (crew_cost: GLOBAL (CrewCost), a "
     "BYTE), and their steps have one more event: that price as the talk "
     "changes it (crew_cost: crew sold to the Druuge raise it as the talk "
-    "says goodbye)."]}
+    "says goodbye)."],
+    "talkpet": [
+    "The Talking Pet's starts also give whether the enemy has ships there "
+    "(enemy_ships: how many npc_built_ship_q has, which the script's "
+    "GetHeadLink sees as none or some; none where not given) and UQM's "
+    "Cyborg option (cyborg: 1 for GLOBAL (glob_flags)'s CYBORG_ENABLED; "
+    "off where not given). Its mind-control strobe (MindControlStrobe) "
+    "clears the one-shot ambient animation's ANIM_DISABLED each time: no "
+    "animation runs here to set it again, so only the first shows as a "
+    "change of the ambient flags."]}
 # A script's file where it isn't named after its folder.
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c",
               "zoqfot": "zoqfotc.c", "vux": "vuxc.c", "yehat": "yehatc.c", "orz": "orzc.c", "pkunk": "pkunkc.c",
-              "druuge": "druugec.c", "mycon": "myconc.c", "utwig": "utwigc.c", "supox": "supoxc.c"}
+              "druuge": "druugec.c", "mycon": "myconc.c", "utwig": "utwigc.c", "supox": "supoxc.c",
+              "thradd": "thraddc.c", "umgah": "umgahc.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.
@@ -6306,7 +6676,8 @@ def walk_talk(exe, files, music, start, fields, state_bytes, functions, element_
         f"{ACTIVITIES[start.get('activity', 'SUPER_MELEE')]} {battle_group_ref(start)}",
         " ".join(map(str, start.get("log", SOL_LOG))),
         " ".join(str(start.get("costs", NEW_GAME_COSTS).get(m, 0)) for m in PURCHASE_MODULES),
-        str(start.get("crew_cost", NEW_GAME_CREW_COST))])
+        str(start.get("crew_cost", NEW_GAME_CREW_COST)),
+        f"{start.get('enemy_ships', 0)} {start.get('cyborg', 0)}"])
     by_bit = {f["start_bit"]: name for name, f in fields.items()}
 
     def run(replies):

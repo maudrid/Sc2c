@@ -37,8 +37,8 @@ public sealed partial class GameWorld
     /// Ilwrath and the Spathi; item 8 the Slylandro probes; stage 3b-2 item 4
     /// the Melnorme, item 5 the Shofixti and the Zoq-Fot-Pik, item 6 the VUX
     /// and the Yehat, the rebels too, item 7 the Orz and the Pkunk, item 8
-    /// the Druuge and the Mycon, item 9 the Utwig and the Supox), whose
-    /// groups fly.
+    /// the Druuge and the Mycon, item 9 the Utwig and the Supox, item 10
+    /// the Thraddash and the Umgah), whose groups fly.
     /// </summary>
     internal static readonly IReadOnlySet<string> TalkingRaces = new HashSet<string>
     {
@@ -57,6 +57,9 @@ public sealed partial class GameWorld
         "DRUUGE_SHIP", "MYCON_SHIP",
         // Stage 3b-2 item 9: the Utwig and the Supox, by their spheres.
         "UTWIG_SHIP", "SUPOX_SHIP",
+        // Stage 3b-2 item 10: the Thraddash and the Umgah, by their spheres (the Talking Pet has no ships of its
+        // own: its talk, under the Umgah's lock, is started by its world, stage 3c's).
+        "THRADDASH_SHIP", "UMGAH_SHIP",
     };
 
     /// <summary>

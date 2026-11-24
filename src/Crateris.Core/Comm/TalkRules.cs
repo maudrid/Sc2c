@@ -80,6 +80,14 @@ public static class TalkRules
         // own race's lock.
         ["utwig"] = _ => false,
         ["supox"] = _ => false,
+        // Stage 3b-2 item 10: the Thraddash (in space, at home, at the Aqua
+        // Helix's world) and the Umgah (in space, at home), ordinary, each
+        // under its race's lock; the Talking Pet's under the Umgah's
+        // (RACE_SHIP_FOR_COMM), though nothing in play starts it before
+        // stage 3c.
+        ["thradd"] = _ => false,
+        ["umgah"] = _ => false,
+        ["talkpet"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

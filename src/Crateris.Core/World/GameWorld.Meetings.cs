@@ -391,6 +391,8 @@ public sealed partial class GameWorld
             talk.Activity = m.Star is null ? TalkActivity.InHyperspace : TalkActivity.InInterplanetary;
             talk.BattleGroup = m.Star is int star && SystemGroups is { } sg && sg.Systems.TryGetValue(star, out var d)
                 ? Crateris.Core.Systems.SystemGroups.OffsetField(d.Defined) : null;
+            // GetHeadLink (&GLOBAL (npc_built_ship_q)): the ships met (the Talking Pet's script reads it).
+            talk.EnemyShips = m.Ships.Count > 0;
             talk.Load();
             TellTalkEffects(m.Player, talk);
         }

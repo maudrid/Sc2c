@@ -169,6 +169,9 @@ public class TalkTests
         ["mycon"] = ("talks-mycon", p => new MyconScript(p)),
         ["utwig"] = ("talks-utwig", p => new UtwigScript(p)),
         ["supox"] = ("talks-supox", p => new SupoxScript(p)),
+        ["thradd"] = ("talks-thradd", p => new ThraddashScript(p)),
+        ["umgah"] = ("talks-umgah", p => new UmgahScript(p)),
+        ["talkpet"] = ("talks-talkpet", p => new TalkingPetScript(p)),
     };
 
     // A script's recorded starts.
@@ -227,6 +230,11 @@ public class TalkTests
             };
         if (start.TryGetProperty("battle_group", out var group))
             talk.BattleGroup = group.GetString();
+        // The Talking Pet's: the enemy's ships there or not (npc_built_ship_q), and UQM's Cyborg option.
+        if (start.TryGetProperty("enemy_ships", out var enemy))
+            talk.EnemyShips = enemy.GetInt32() != 0;
+        if (start.TryGetProperty("cyborg", out var cyborg))
+            talk.CyborgEnabled = cyborg.GetInt32() != 0;
         talk.Start();
         return talk;
     }
@@ -599,6 +607,58 @@ public class TalkTests
     // ------------------------------------------------------------ what talks can do (stage 3b-2 item 1)
 
     private static int RaceOf(string race) => Rules.RaceIndex(race);
+
+    [Fact]
+    public void AOneShotAmbientAnimationStartedIsKeptEachTimeThoughItsFlagChangesOnce()
+    {
+        // talkpet.c's MindControlStrobe clears the one-shot strobe's ANIM_DISABLED each time; UQM's
+        // animation sets it again as it ends (commanim.c's ProcessCommAnimations), the talk's never
+        // does (nor does the recorder's): the flags change the first time only, and each call is kept.
+        var (talk, _) = Probe(s =>
+        {
+            var t = s.Talk;
+            t.Ambient[0] |= CommAnimationFlags.Disabled;
+            t.NPCPhrase("HELLO");
+            t.StartAmbient(0);
+            t.NPCPhrase("BYE");
+            t.StartAmbient(0);
+            t.Response("ask", s.Said);
+        });
+        talk.Start();
+        var screens = talk.Events.Select((e, i) => (e, i)).Where(x => x.e is ScreenChanged).ToList();
+        // The screen as it loads, turned off by the intro (seen at the first line), then turned on (at the second).
+        Assert.Equal(3, screens.Count);
+        Assert.NotEqual(0, (int)(((ScreenChanged)screens[1].e).Ambient[0] & CommAnimationFlags.Disabled));
+        Assert.Equal(0, (int)(((ScreenChanged)screens[2].e).Ambient[0] & CommAnimationFlags.Disabled));
+        Assert.Equal(0, (int)(talk.Ambient[0] & CommAnimationFlags.Disabled));
+        // Each start, before the event that follows it: the first before the change of the flags it made
+        // (noticed at the next engine call), the second, changing no flag, before the replies' offer.
+        Assert.Equal(new[] { (screens[2].i, 0), (talk.Events.Count - 1, 0) }, talk.AmbientStarts);
+        Assert.IsType<LineQueued>(talk.Events[screens[2].i - 1]);
+        Assert.IsType<RepliesOffered>(talk.Events[^1]);
+        Assert.Throws<ArgumentOutOfRangeException>(() => talk.StartAmbient(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => talk.StartAmbient(-1));
+    }
+
+    [Fact]
+    public void TheEnemysShipsAndTheCyborgOptionAreGivenBeforeTheTalkLoads()
+    {
+        // GetHeadLink (&GLOBAL (npc_built_ship_q)) and GLOBAL (glob_flags) & CYBORG_ENABLED, which the
+        // Talking Pet's script reads (talkpet.c's Intro): none and off unless set, before the talk loads.
+        var seen = new List<(bool, bool)>();
+        var (talk, _) = Probe(s => seen.Add((s.Talk.EnemyShips, s.Talk.CyborgEnabled)));
+        Assert.Equal((false, false), (talk.EnemyShips, talk.CyborgEnabled));
+        talk.Start();
+        (talk, _) = Probe(s => seen.Add((s.Talk.EnemyShips, s.Talk.CyborgEnabled)));
+        talk.EnemyShips = true;
+        talk.Start();
+        (talk, _) = Probe(s => seen.Add((s.Talk.EnemyShips, s.Talk.CyborgEnabled)));
+        talk.CyborgEnabled = true;
+        talk.Start();
+        Assert.Equal(new[] { (false, false), (true, false), (false, true) }, seen);
+        Assert.Throws<InvalidOperationException>(() => talk.EnemyShips = true);
+        Assert.Throws<InvalidOperationException>(() => talk.CyborgEnabled = false);
+    }
 
     [Fact]
     public void SetRaceAlliedMakesAndEndsAnAllianceButADeadRaceStaysDead()

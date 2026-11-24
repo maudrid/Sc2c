@@ -168,16 +168,18 @@ public class WorldTalkTests
         // and the Yehat's homeworld (item 6), the Orz's homeworld, the Taalo protector's moon and the Pkunk's
         // homeworld (item 7), the Druuge's trade world and their guard at the bomb's moon, the Mycon's
         // homeworld and the Sun Device's world (item 8), the Utwig's homeworld and their guard at the
-        // bomb's moon (its two entries both live now) and the Supox's homeworld (item 9).
-        Assert.Equal(new[] { "BOMB_DEFINED", "BOMB_DEFINED", "CHMMR_DEFINED", "DRUUGE_DEFINED", "ILWRATH_DEFINED",
-                "MAIDENS_DEFINED", "MYCON_DEFINED", "ORZ_DEFINED", "PKUNK_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED",
-                "SUN_DEVICE_DEFINED", "SUPOX_DEFINED", "TAALO_PROTECTOR_DEFINED", "UTWIG_DEFINED", "VUX_DEFINED",
-                "YEHAT_DEFINED", "ZOQFOT_DEFINED" },
+        // bomb's moon (its two entries both live now) and the Supox's homeworld (item 9), the Thraddash's
+        // homeworld, their guard at the Aqua Helix's world and the Umgah's world (TALKING_PET_DEFINED: the
+        // Umgah's half of genpet.c; item 10).
+        Assert.Equal(new[] { "AQUA_HELIX_DEFINED", "BOMB_DEFINED", "BOMB_DEFINED", "CHMMR_DEFINED", "DRUUGE_DEFINED",
+                "ILWRATH_DEFINED", "MAIDENS_DEFINED", "MYCON_DEFINED", "ORZ_DEFINED", "PKUNK_DEFINED", "SLYLANDRO_DEFINED",
+                "SPATHI_DEFINED", "SUN_DEVICE_DEFINED", "SUPOX_DEFINED", "TAALO_PROTECTOR_DEFINED", "TALKING_PET_DEFINED",
+                "THRADD_DEFINED", "UTWIG_DEFINED", "VUX_DEFINED", "YEHAT_DEFINED", "ZOQFOT_DEFINED" },
             GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is not null).Select(w => w.Special).OrderBy(s => s));
         Assert.Equal(new[] { "UTWIG_SHIP", "DRUUGE_SHIP" },
             GameWorld.TalkWorlds.Where(w => w.Special == "BOMB_DEFINED" && world.WorldScript(w) is not null).Select(w => w.Race));
-        // Still waiting for their scripts (items 10 and 11): the Thraddash's two worlds, the Umgah's and the Syreen's starbase.
-        Assert.Equal(new[] { "AQUA_HELIX_DEFINED", "SYREEN_DEFINED", "TALKING_PET_DEFINED", "THRADD_DEFINED" },
+        // Still waiting for its script (item 11): the Syreen's starbase.
+        Assert.Equal(new[] { "SYREEN_DEFINED" },
             GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is null).Select(w => w.Special).OrderBy(s => s));
     }
 
@@ -809,12 +811,14 @@ public class WorldTalkTests
         story.Set("BOMB_UNPROTECTED", 1);   // the first not guarded: the next
         Assert.Same(ilwrath, world.WorldTalkAt(star, 0, null));
         // A guarded first entry whose script isn't ported: orbited as before, the next not tried.
-        var thraddash = new TalkWorld("ILWRATH_DEFINED", 0, null, "THRADDASH_SHIP", 1 << 7, "test");
-        world.WorldTalkTable = new[] { thraddash, ilwrath };
+        // (The Chmmr's, item 11's; the Thraddash's stood here until item 10 ported theirs.)
+        var chmmr = new TalkWorld("ILWRATH_DEFINED", 0, null, "CHMMR_SHIP", 1 << 7, "test");
+        Assert.Null(world.WorldScript(chmmr));
+        world.WorldTalkTable = new[] { chmmr, ilwrath };
         Assert.Null(world.WorldTalkAt(star, 0, null));
-        Assert.Equal(0, story.Fleet("THRADDASH_SHIP").KnownStrength);   // nothing tracked
+        Assert.Equal(0, story.Fleet("CHMMR_SHIP").KnownStrength);   // nothing tracked
         // An entry the world isn't now (Matches): skipped.
-        world.WorldTalkTable = new[] { thraddash with { Matches = _ => false }, ilwrath };
+        world.WorldTalkTable = new[] { chmmr with { Matches = _ => false }, ilwrath };
         Assert.Same(ilwrath, world.WorldTalkAt(star, 0, null));
     }
 
@@ -905,7 +909,7 @@ public class WorldTalkTests
         Assert.Equal(sc.GetProperty("body_count_after").GetInt32(), story.Get("THRADDASH_BODY_COUNT"));
     }
 
-    // A Thraddash group of so many ships by the host in hyperspace, met (their talk not ported: the screen).
+    // A Thraddash group of so many ships by the host in hyperspace, met (their talk hostile from init: the screen).
     private static Meeting MeetThraddash(GameWorld world, int ships)
     {
         world.PutInHyperspace("h");

@@ -215,6 +215,39 @@ public sealed class Talk : ITalkStory
     }
 
     /// <summary>
+    /// A script starts a one-shot ambient animation
+    /// (CommData.AlienAmbientArray[i].AnimFlags &amp;= ~ANIM_DISABLED on an
+    /// ONE_SHOT_ANIM: the Talking Pet's mind-control strobe,
+    /// talkpet.c's MindControlStrobe). UQM's animation plays once and turns
+    /// itself off again (commanim.c's ProcessCommAnimations sets
+    /// ANIM_DISABLED as a one-shot ends), so the script's next call plays
+    /// it again. The talk runs no animations: its flag is cleared and
+    /// stays so, as in the recordings (a change of the flags, noticed at
+    /// the next engine call, the first time only), and each call is kept
+    /// as a start of its own (<see cref="AmbientStarts"/>), which the
+    /// talk's screen sends to every client (<see cref="TalkScreen"/>'s
+    /// <see cref="ScreenChangeKind.AmbientStart"/>).
+    /// </summary>
+    public void StartAmbient(int index)
+    {
+        if (index < 0 || index >= Ambient.Length)
+            throw new ArgumentOutOfRangeException(nameof(index), $"ambient animation {index} of {Ambient.Length}");
+        Ambient[index] &= ~CommAnimationFlags.Disabled;
+        _ambientStarts.Add((_events.Count, index));
+    }
+
+    /// <summary>
+    /// The one-shot ambient animations the script started
+    /// (<see cref="StartAmbient"/>), in order: each with how many
+    /// <see cref="Events"/> there were then (it was started before the
+    /// event at that place, after those before it). Not UQM's events, nor
+    /// recorded: a second start changes no flag.
+    /// </summary>
+    public IReadOnlyList<(int At, int Index)> AmbientStarts => _ambientStarts;
+
+    private readonly List<(int At, int Index)> _ambientStarts = new();
+
+    /// <summary>
     /// AlienTalkSegue: the lines play up to this track before the script
     /// goes on, the callbacks of their chunks running as they play
     /// (<see cref="PlayTo"/>).
@@ -357,8 +390,34 @@ public sealed class Talk : ITalkStory
         set => _battleGroup = !Started ? value : throw new InvalidOperationException("the talk has started");
     }
 
+    /// <summary>
+    /// Whether the enemy has ships here (GetHeadLink (&amp;GLOBAL
+    /// (npc_built_ship_q)) != 0: the group met, or the ships a world's
+    /// generator cloned), which the Talking Pet's script reads to tell its
+    /// zombies about it from the Umgah beaten or gone (talkpet.c's Intro).
+    /// Set before the talk loads; none where nobody sets it.
+    /// </summary>
+    public bool EnemyShips
+    {
+        get => _enemyShips;
+        set => _enemyShips = !Started ? value : throw new InvalidOperationException("the talk has started");
+    }
+
+    /// <summary>
+    /// GLOBAL (glob_flags) &amp; CYBORG_ENABLED: UQM's option that has the
+    /// computer fight the player's battles, which the Talking Pet's pep
+    /// talk before the last battle reads (talkpet.c's Intro). The port has
+    /// no such option, so it's off unless set, before the talk loads.
+    /// </summary>
+    public bool CyborgEnabled
+    {
+        get => _cyborgEnabled;
+        set => _cyborgEnabled = !Started ? value : throw new InvalidOperationException("the talk has started");
+    }
+
     private TalkActivity _activity;
     private string? _battleGroup;
+    private bool _enemyShips, _cyborgEnabled;
 
     /// <summary>GLOBAL (BattleGroupRef) &amp;&amp; GLOBAL (BattleGroupRef) == GET_GAME_STATE_32 (field): the system's own group met is this one.</summary>
     public bool BattleGroupIs(string offsetField) => _battleGroup is not null && _battleGroup == offsetField;
