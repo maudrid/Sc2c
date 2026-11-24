@@ -28,7 +28,8 @@ namespace Crateris.Core.Story;
 /// story worlds' life: the Evil Ones on Spathiwa (the stage 3b-2 plan's
 /// question 2), which the Spathi at home ask about. And the orbits that
 /// mark a world: the rainbow worlds (the plan's question 2), which the
-/// Melnorme buy.
+/// Melnorme buy, and the shattered worlds (genmyc.c), which the Mycon
+/// can be asked about once one is seen.
 /// </summary>
 public static class StoryWorlds
 {

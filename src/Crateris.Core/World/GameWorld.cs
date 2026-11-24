@@ -1308,8 +1308,8 @@ public sealed partial class GameWorld
     /// <summary>
     /// A ship has gone into orbit (or a game is loaded with it there): what
     /// the world's generator does as the orbit begins (generateOrbital's
-    /// story, past its talks): a rainbow world marked found
-    /// (<see cref="StoryWorlds.Orbited"/>).
+    /// story, past its talks): a rainbow world marked found, a shattered
+    /// world seen (<see cref="StoryWorlds.Orbited"/>).
     /// </summary>
     internal void InOrbit(PlayerShip ship)
     {
