@@ -824,7 +824,7 @@ public class UtwigSupoxTests
     [ContentFact]
     public void TheBrokenUltronShownIsASickTrickAndFromAHostileGreetingAFight()
     {
-        // utwigc.c:236-262: the Ultron not mended whole (ULTRON_CONDITION below 4) shown in the neutral
+        // utwigc.c:232-262: the Ultron not mended whole (ULTRON_CONDITION below 4) shown in the neutral
         // talk is DONT_WANT_TO_LOOK and a sick trick, the second line the second time (UTWIG_INFO), at
         // peace; from the hostile greeting ("hey wait, we have the Ultron", the only reply, :800-808)
         // TAUNT_US_BUT_WE_LOOK, TRICKED_US and a fight.
@@ -1165,14 +1165,17 @@ public class UtwigSupoxTests
     public void GivenWithTheSupoxExtinctTheUltronAlliesTheUtwigAlone()
     {
         // utwigc.c:291-292: SetRaceAllied for both races; a dead race stays dead (build.c:210), so with
-        // the Supox extinct (the Kohr-Ah's doing, 3c's: set up here as no sphere and dead) only the
-        // Utwig's alliance is made and told. From then on the Utwig's talks go by their own alliance
+        // the Supox extinct only the Utwig's alliance is made and told. Extinct is the Kohr-Ah's doing
+        // (3c's: set up here as no sphere and dead), whose frenzy has begun by then (KOHR_AH_FRENZY,
+        // gameev.c:390, set before any race is cleansed), so the Ultron comes TOO_LATE
+        // (utwigc.c:266-267); the alliances are made all the same. From then on the Utwig's talks go by their own alliance
         // (utwigc.c:810, CheckAlliance (UTWIG_SHIP)), the shipyard builds their ships alone, and the
         // Supox's homeworld, nobody's now, is an ordinary orbit (gensup.c:82).
         var world = NewGame("g");
         var story = world.Story!;
         story.SetFleet("SUPOX_SHIP", story.Fleet("SUPOX_SHIP") with { ActualStrength = 0 });
         story.SetAlliance("SUPOX_SHIP", Allied.Dead);
+        story.Set("KOHR_AH_FRENZY", 1);
         var host = world.Host.Ship;
         world.CommanderMet = true;
         world.PutInOrbit("h", Sol, Earth, Luna);
@@ -1183,7 +1186,7 @@ public class UtwigSupoxTests
         world.TakeNotices();
 
         var m = GiveUltron(world, "g");
-        Assert.Equal(new[] { "NEUTRAL_HOMEWORLD_HELLO_1", "DONT_WANT_TO_LOOK", "HAPPY_DAYS", "OK_ATTACK_KOHRAH" }, Lines(m.Talk!));
+        Assert.Equal(new[] { "NEUTRAL_HOMEWORLD_HELLO_1", "DONT_WANT_TO_LOOK", "HAPPY_DAYS", "TOO_LATE" }, Lines(m.Talk!));
         Assert.Equal((Allied.Good, Allied.Dead), (story.Alliance("UTWIG_SHIP"), story.Alliance("SUPOX_SHIP")));
         int utwig = Race(world, "UTWIG_SHIP"), supox = Race(world, "SUPOX_SHIP");
         // Both calls made, as UQM's; only the Utwig's changed anything.
