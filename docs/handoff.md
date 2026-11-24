@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-23, the talks' screen changes built (`differences.md` row 83, the owner's place for it: before item 7), reviewed in five rounds and reported. Stage 3b-2 items 1 to 6 were reviewed and reported.
+**Last updated:** 2026-11-24, the owner accepted items 5's and 6's readings as built (none wait now). Before that (2026-11-23), the talks' screen changes built (`differences.md` row 83, the owner's place for it: before item 7), reviewed in five rounds and reported. Stage 3b-2 items 1 to 6 were reviewed and reported.
 
 ## Where things are
 
@@ -71,7 +71,7 @@ Wait for the owner's go-ahead for item 7 (the Orz and the Pkunk; one go-ahead pe
 
 ## Decisions waiting on the owner
 
-- **Readings put to the owner in the reports (not blocking):** item 5's Tanaka marked by the first player to leave after his death (row 82); item 6's rebels brought by `--start-encounter YEHAT_REBEL_SHIP` with `--start-state` for their story, and the Yehat revolt told to nobody else.
+None. The readings put to the owner in items 5's and 6's reports were accepted as built (the owner, 2026-11-24): Tanaka marked by the first player to leave after his death (row 82); the rebels brought by `--start-encounter YEHAT_REBEL_SHIP` with `--start-state` for their story, and the Yehat revolt told to nobody else.
 
 The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 6 had their go-aheads, the others wait for one each.
 
