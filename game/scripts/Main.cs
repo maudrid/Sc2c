@@ -517,15 +517,17 @@ public partial class Main : Node2D
                 Log(host.StartWithState(state));
             if (_options.StartDevices is { } devices)
                 Log(host.StartWithDevices(devices));
+            // The alliances and the fleet before the place too, so a world's talk at --start-orbit sees them and
+            // what it gives stays (the Orz at the Taalo moon, the Pkunk's ships: stage 3b-2 item 7).
+            if (_options.StartAllied is { } allied)
+                Log(host.StartAllied(allied));
+            if (_options.StartFleet is { } fleet)
+                Log(host.StartWithFleet(fleet));
             if (_options.StartAt is { } at)
                 Log(host.StartAt(at.X, at.Y));
             if (_options.StartOrbit is { } o)
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
             // What the host starts with before the visit, which keeps the hold, story and fleet as they began for its saves and Undo.
-            if (_options.StartAllied is { } allied)
-                Log(host.StartAllied(allied));
-            if (_options.StartFleet is { } fleet)
-                Log(host.StartWithFleet(fleet));
             if (_options.StartMinerals is { } minerals)
                 Log(host.StartWithMinerals(minerals));
             if (_options.StartUnits is { } units)
