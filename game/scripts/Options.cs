@@ -48,7 +48,7 @@ namespace Crateris.Game;
 /// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, chosen
 /// on it or by --encounter-choice; the Ur-Quan's (urquan), the Kohr-Ah's (blackurq), the Ilwrath's (ilwrath),
 /// the Spathi's (spathi), the Slylandro probe's (slylandr) and stage 3b-2's as its items port them (the Melnorme's,
-/// Tanaka's, the Zoq-Fot-Pik's, the VUX's, the Yehat's and the rebels' so far) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
+/// Tanaka's, the Zoq-Fot-Pik's, the VUX's, the Yehat's, the rebels', the Orz's, the Pkunk's, the Druuge's and the Mycon's so far) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
 /// reads it: --start-at meets them in hyperspace), any other race's hail ends at once in peace, the group gone in
 /// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
 /// hail|attack (host: the choice at a meeting's encounter screen, made as it comes up), --meeting-replies I[,I...] (host:
