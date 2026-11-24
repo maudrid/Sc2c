@@ -82,11 +82,16 @@ public readonly record struct ScreenChange(int Line, ScreenChangeKind Kind, int 
 /// mind-control strobe, the only one) is off in every view's starting
 /// flags, whatever the talk's own flags say: UQM's turns itself off as it
 /// ends, where nothing on the host does (the talk runs no animations), so
-/// a screen opened afresh after it has played doesn't play it again. The
-/// script's starting it is a change of its own
+/// a screen opened afresh in a later view doesn't play it again (one
+/// opened in the view that started it plays it with that view's lines,
+/// as it does that view's fades). The script's starting it is a change
+/// of its own
 /// (<see cref="ScreenChangeKind.AmbientStart"/>, from
 /// <see cref="Talk.AmbientStarts"/>), sent each time, though the talk's
-/// flag changes only the first; the flag's own change isn't one.
+/// flag changes only the first; the flag's own change isn't one. A start
+/// is a moment, not a state: a client that never showed the view it's in
+/// (two coming in one frame) doesn't flash it later, where it misses no
+/// other change.
 /// </para>
 /// </summary>
 public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> Ambient, bool Talking, IReadOnlyList<ScreenChange> Changes)

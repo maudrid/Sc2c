@@ -226,12 +226,18 @@ public sealed class Talk : ITalkStory
     /// the next engine call, the first time only), and each call is kept
     /// as a start of its own (<see cref="AmbientStarts"/>), which the
     /// talk's screen sends to every client (<see cref="TalkScreen"/>'s
-    /// <see cref="ScreenChangeKind.AmbientStart"/>).
+    /// <see cref="ScreenChangeKind.AmbientStart"/>). Only a one-shot
+    /// animation is started (its description's ONE_SHOT_ANIM): any other
+    /// is turned on and off by its flag, and a start of one is refused
+    /// here, as the wire refuses it (<see cref="TalkScreen"/>'s decoding),
+    /// so a script can't send guests a view they'd drop.
     /// </summary>
     public void StartAmbient(int index)
     {
         if (index < 0 || index >= Ambient.Length)
             throw new ArgumentOutOfRangeException(nameof(index), $"ambient animation {index} of {Ambient.Length}");
+        if ((Description.Ambient[index].Flags & TalkScreen.OneShot) == 0)
+            throw new ArgumentException($"ambient animation {index} isn't one-shot: it's turned on by its flag, not started", nameof(index));
         Ambient[index] &= ~CommAnimationFlags.Disabled;
         _ambientStarts.Add((_events.Count, index));
     }

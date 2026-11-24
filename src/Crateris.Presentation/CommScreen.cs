@@ -58,12 +58,16 @@ public enum CommKeyResult
 /// none again (UQM's script has run); and new lines start from the screen
 /// as their view has it (its colour map, ambient animations turned off,
 /// talking), where the views shown here left it otherwise, so a view
-/// never shown (two coming in one frame) loses none of its changes. A
-/// one-shot animation started (the Talking Pet's mind-control strobe)
-/// plays once and turns itself off, here as in UQM, and each start plays
-/// it again; the views have it off throughout, so new lines leave one
-/// that's playing alone, and a screen opened afresh doesn't play one that
-/// has played.
+/// never shown (two coming in one frame) loses none of its changes, but
+/// a one-shot animation's start: that is a moment, not a state, and a
+/// view never shown doesn't flash it later (it can't arise for the
+/// Talking Pet's talk, which only its player sees). A one-shot animation
+/// started (the Talking Pet's mind-control strobe) plays once and turns
+/// itself off, here as in UQM, and each start plays it again; the views
+/// have it off throughout, so new lines leave one that's playing alone,
+/// and a screen opened afresh in a later view doesn't play one that has
+/// played. A screen opened in the view that started it plays it with
+/// that view's lines, as it does that view's fades.
 /// </summary>
 public sealed class CommScreen
 {
@@ -150,7 +154,8 @@ public sealed class CommScreen
     /// they were all made at once; and new lines start from the screen as
     /// the view has it (a view this screen never showed, two coming in one
     /// frame, missed none of its changes: its colour map faded to at once,
-    /// its ambient animations turned on or off, its talking).
+    /// its ambient animations turned on or off, its talking; only a
+    /// one-shot animation it started isn't flashed after the fact).
     /// </summary>
     public void Show(IReadOnlyList<string> lines, string said, IReadOnlyList<string> replies, int round, long now,
         IReadOnlyList<string>? speakers = null, TalkScreen? screen = null)

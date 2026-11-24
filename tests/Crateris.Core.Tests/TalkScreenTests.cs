@@ -155,7 +155,8 @@ public class TalkScreenTests
         // animation turns itself off again as it ends (commanim.c's ProcessCommAnimations), nothing on the
         // host does: the talk's flag changes the first time only (as the recording has it). The view carries
         // each as a start of its own, made once the line before it has played (AlienTalkSegue before it),
-        // and starts with the strobe off, so a screen opened afresh after one doesn't play it again.
+        // and starts with the strobe off, so a screen opened afresh in a later view doesn't play it again (one
+        // opened in the view that started it plays it with that view's lines, as it does that view's fades).
         TestContent.With(package =>
         {
             int strobe = TalkingPetScript.StrobeAnimation;

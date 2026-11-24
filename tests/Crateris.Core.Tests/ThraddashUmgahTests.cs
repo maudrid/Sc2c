@@ -31,8 +31,9 @@ namespace Crateris.Core.Tests;
 /// guard and what opens it (genthrad.c's conditions each way, leave to
 /// land for allies); a worship dropped before its choices are made; the
 /// Umgah before the Pet, every way out a fight; what the Umgah's world
-/// does in the states the Pet's half of genpet.c handles (3c's: orbited
-/// here), and nothing in play starting the Pet's talk; the Umgah's reward
+/// does in the states the Pet's half of genpet.c handles (3c's: no talk
+/// and no orbit here, the ship held by it), and nothing in play starting
+/// the Pet's talk; the Umgah's reward
 /// by set-up (the answering guest's bio data, the 4 ships to the host's
 /// fleet by its room, the fight at their endless fleet, their hostility
 /// after), and a reward talk dropped after the bio data; the Talking
@@ -308,7 +309,7 @@ public class ThraddashUmgahTests
         FightTheEndlessFleet(world, "h", m, "thradd");
         Assert.Equal((1, 3, 1, 1, 0), (story.Get("THRADD_INFO"), story.Get("THRADD_STACK_1"), story.Get("THRADD_HOSTILE_STACK_3"),
             story.Get("THRADD_HOSTILE_STACK_5"), story.Get("THRADD_HOSTILE_STACK_2")));
-        Assert.Equal(0, story.Get("THRADDASH_BODY_COUNT"));   // an endless fleet's ship is never counted
+        Assert.Equal(0, story.Get("THRADDASH_BODY_COUNT"));   // retreated from: nothing destroyed, nothing counted
 
         // The next visits, by the guest: the greetings to the fourth, which stays; "we submit" once, then
         // its other line; each a fight.
@@ -807,6 +808,30 @@ public class ThraddashUmgahTests
         Assert.False(m.Talk!.SettlesWhenDropped);
         world.Leave("k");
         Assert.Equal((2, 2, 3), (story.Get("THRADD_INTRO"), story.Get("THRADD_CULTURE"), story.Get("THRADD_DEMEANOR")));
+    }
+
+    [ContentFact]
+    public void WorshippersWithNoCultureNamedWelcomeThePlayersWithoutAName()
+    {
+        // A reading where UQM asserts: thraddc.c's GetCultureName has no case for THRADD_CULTURE 0 (assert
+        // (0 && "Unknown culture")), a state its own talks can't leave behind (the worship names the culture
+        // before it ends) and the port's settle when a worship is left early; only --start-state
+        // THRADD_MANNER=1 alone gets there. With asserts compiled out UQM's NPCPhrase (0) says nothing, and
+        // so does the port: the greeting in the manner (polite, THRADD_INTRO 0), the welcome's two halves
+        // with no name between them, and the allies' talk as ever.
+        var world = NewGame();
+        var story = world.Story!;
+        story.Set("THRADD_MANNER", 1);
+        Assert.Equal(0, story.Get("THRADD_CULTURE"));
+        var m = MeetInSystem(world, "h", "THRADDASH_SHIP");
+        Assert.Equal(MeetingStep.Talk, m.Step);   // the manner alone makes them talk as allies (init_thradd_comm)
+        Assert.Equal(new[] { "HELLO_POLITE_1", "WELCOME_SPACE0", "WELCOME_SPACE1" }, Lines(m.Talk!));
+        Assert.Equal(new[] { "whats_up_ally", "how_goes_culture", "bye_ally" }, Offers(m.Talk!));
+        Choose(world, "h", "bye_ally");
+        Assert.Equal(Segue.Peace, m.Talk!.Segue);
+        MeetingTests.HearClosing(world, "h");
+        Assert.Null(m.Battle);
+        Assert.Equal((0, Allied.Bad), (story.Get("THRADD_CULTURE"), story.Alliance("THRADDASH_SHIP")));   // the standing isn't the manner's
     }
 
     // ------------------------------------------------------------ the Umgah

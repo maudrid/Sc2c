@@ -345,6 +345,27 @@ public class CommScreenTests
             screen.Update(t += 21);
         Assert.False(On(screen));
 
+        // Started again while it still plays (UQM's `&= ~ANIM_DISABLED` on a one-shot that's running): nothing
+        // changes, it plays on to its one end, as long in all as a single strobe; and once it's over the colours
+        // are the first map's again.
+        screen.Show(new[] { "Don't kill me." }, "I must.", new[] { "One." }, 6, t, null, View(start));
+        while (screen.Talking)
+            screen.Update(t += 21);
+        Assert.True(On(screen));
+        int doubled = Plays(screen, k =>
+        {
+            if (k == 30)
+                screen.Show(new[] { "Really, don't." }, "I must.", new[] { "One." }, 7, t, null,
+                    View(new ScreenChange(0, ScreenChangeKind.AmbientStart, strobe)));
+        });
+        Assert.InRange(doubled, first - 1, first + 1);
+        while (screen.Talking)
+            screen.Update(t += 21);
+        for (int k = 0; k < 100; ++k)
+            screen.Update(t += 21);
+        Assert.False(On(screen));
+        Assert.True(ColorsAre(screen, colors, 0));
+
         // Skipped (Cancel while the line plays): the start is made at once.
         screen.Show(new[] { "Don't kill me." }, "I must.", new[] { "One." }, 5, t, null, View(start));
         screen.Update(t += 21);

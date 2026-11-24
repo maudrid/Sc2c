@@ -353,6 +353,11 @@ public class TalkTests
 
         public void Said(int r) => T.NPCPhrase("BYE");
 
+        // A reply's function of the test's own (null: nothing).
+        public Action<ProbeScript>? ReplyAction;
+
+        public void Replied(int r) => ReplyAction?.Invoke(this);
+
         // What the talk would settle if dropped unfinished (CommScript.DroppedUnfinished): a count
         // added to a story field, as the Druuge's crew sold; 0 for nothing.
         public int Unsettled;
@@ -377,8 +382,19 @@ public class TalkTests
 
     private static readonly CommDescription Plain = Scripts["comandr"].Description with { Ambient = Array.Empty<CommAnimation>() };
 
+    // A one-shot ambient animation, off, as the Talking Pet's strobe is (a colour animation), and a plain one beside it.
+    private static readonly CommAnimation[] OneShotAndPlain =
+    {
+        Scripts["comandr"].Description.Ambient[0] with
+        {
+            Flags = CommAnimationFlags.Circular | CommAnimationFlags.PauseTalking | TalkScreen.OneShot | CommAnimationFlags.Disabled,
+        },
+        Scripts["comandr"].Description.Ambient[0],
+    };
+
     private static (Talk Talk, ProbeScript Script) Probe(Action<ProbeScript> intro, TestShip? ship = null,
-        Dictionary<string, int>? own = null, uint seed = 1, StoryState? story = null, bool paged = false)
+        Dictionary<string, int>? own = null, uint seed = 1, StoryState? story = null, bool paged = false,
+        IReadOnlyList<CommAnimation>? ambient = null)
     {
         var ids = new List<string> { "HELLO", "BYE", "ask", "name_1", "name_2", "name_3", "name_4", "name_end" };
         string text = "#(HELLO) h.ogg\nHello\n#(BYE) b.ogg\nBye\n#(ask)\nWhat?\n#(name_1)\nThe One\n#(name_2)\nThe Two\n#(name_3)\nThe Three\n#(name_4)\nThe Empire of \n#(name_end)\n!\n";
@@ -388,8 +404,8 @@ public class TalkTests
             ids.AddRange(new[] { "PAGED", "paged_append" });
             text += "#(PAGED) p.ogg\nOne\nTwo\r\n\nThree\n#(paged_append)\nFour\nFive\n";
         }
-        var phrases = new ConversationScript("probe", "init_probe_comm", Plain with { Ambient = Scripts["comandr"].Description.Ambient.Take(1).ToArray() },
-            ids.ToArray());
+        var phrases = new ConversationScript("probe", "init_probe_comm",
+            Plain with { Ambient = ambient ?? Scripts["comandr"].Description.Ambient.Take(1).ToArray() }, ids.ToArray());
         var lines = Conversation.Parse(System.Text.Encoding.UTF8.GetBytes(text));
         var script = new ProbeScript(phrases, intro);
         var talk = new Talk(script, phrases.Description, lines, 2, story ?? StoryState.NewGame(Rules, new GameClock(2155, 2, 17)),
@@ -614,30 +630,85 @@ public class TalkTests
         // talkpet.c's MindControlStrobe clears the one-shot strobe's ANIM_DISABLED each time; UQM's
         // animation sets it again as it ends (commanim.c's ProcessCommAnimations), the talk's never
         // does (nor does the recorder's): the flags change the first time only, and each call is kept.
+        // (The probe's first ambient animation is one-shot and off, as the strobe; its second isn't one-shot.)
         var (talk, _) = Probe(s =>
         {
             var t = s.Talk;
-            t.Ambient[0] |= CommAnimationFlags.Disabled;
             t.NPCPhrase("HELLO");
             t.StartAmbient(0);
             t.NPCPhrase("BYE");
             t.StartAmbient(0);
             t.Response("ask", s.Said);
-        });
+        }, ambient: OneShotAndPlain);
         talk.Start();
         var screens = talk.Events.Select((e, i) => (e, i)).Where(x => x.e is ScreenChanged).ToList();
-        // The screen as it loads, turned off by the intro (seen at the first line), then turned on (at the second).
-        Assert.Equal(3, screens.Count);
-        Assert.NotEqual(0, (int)(((ScreenChanged)screens[1].e).Ambient[0] & CommAnimationFlags.Disabled));
-        Assert.Equal(0, (int)(((ScreenChanged)screens[2].e).Ambient[0] & CommAnimationFlags.Disabled));
+        // The screen as it loads (the one-shot off, as its description has it), then turned on (seen at the second line).
+        Assert.Equal(2, screens.Count);
+        Assert.NotEqual(0, (int)(((ScreenChanged)screens[0].e).Ambient[0] & CommAnimationFlags.Disabled));
+        Assert.Equal(0, (int)(((ScreenChanged)screens[1].e).Ambient[0] & CommAnimationFlags.Disabled));
         Assert.Equal(0, (int)(talk.Ambient[0] & CommAnimationFlags.Disabled));
         // Each start, before the event that follows it: the first before the change of the flags it made
         // (noticed at the next engine call), the second, changing no flag, before the replies' offer.
-        Assert.Equal(new[] { (screens[2].i, 0), (talk.Events.Count - 1, 0) }, talk.AmbientStarts);
-        Assert.IsType<LineQueued>(talk.Events[screens[2].i - 1]);
+        Assert.Equal(new[] { (screens[1].i, 0), (talk.Events.Count - 1, 0) }, talk.AmbientStarts);
+        Assert.IsType<LineQueued>(talk.Events[screens[1].i - 1]);
         Assert.IsType<RepliesOffered>(talk.Events[^1]);
-        Assert.Throws<ArgumentOutOfRangeException>(() => talk.StartAmbient(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => talk.StartAmbient(2));
         Assert.Throws<ArgumentOutOfRangeException>(() => talk.StartAmbient(-1));
+        // Only a one-shot animation is started: another is turned on by its flag, and a start of it would be a
+        // view the wire refuses (TalkScreen's decoding), so the engine refuses it first, changing nothing.
+        var flags = talk.Ambient.ToArray();
+        Assert.Throws<ArgumentException>(() => talk.StartAmbient(1));
+        Assert.Equal(flags, talk.Ambient);
+        Assert.Equal(2, talk.AmbientStarts.Count);
+    }
+
+    [Fact]
+    public void AOneShotsStartsArePlacedInTheViewWhoseScriptMadeThemAtTheLineItHadReached()
+    {
+        // TalkScreen.Of's placing of a talk's starts (Talk.AmbientStarts: each made before the event at its
+        // place): one made before the first line and one made after a line is queued but before the script's
+        // segue are both made as the lines start (line 0: the segue hasn't played anything yet); one made
+        // after the segue is made as the next line starts; and one made as a reply's first act, before any
+        // event of its own, is the new view's, not the last's.
+        var (talk, script) = Probe(s =>
+        {
+            var t = s.Talk;
+            t.StartAmbient(0);            // before the first line: the flag cleared (noticed at the line's queuing)
+            t.NPCPhrase("HELLO");
+            t.StartAmbient(0);            // just before the segue: no flag changes, so the next event is the wait
+            t.AlienTalkSegue(1);
+            t.StartAmbient(0);            // after the segue played the first line
+            t.NPCPhrase("BYE");
+            t.Response("ask", s.Replied);
+        }, ambient: OneShotAndPlain);
+        script.ReplyAction = s =>
+        {
+            s.Talk.StartAmbient(0);       // the reply's first act
+            s.Talk.NPCPhrase("BYE");
+            s.Talk.Response("ask", s.Said);
+        };
+        talk.Start();
+        var starts = talk.AmbientStarts;
+        Assert.Equal(3, starts.Count);
+        Assert.IsType<ScreenChanged>(talk.Events[starts[0].At]);
+        Assert.IsType<TalkWait>(talk.Events[starts[1].At]);   // the start sits exactly at the wait's place
+        Assert.IsType<LineQueued>(talk.Events[starts[2].At]);
+        var first = TalkScreen.Of(talk, 0)!;
+        Assert.Equal(new[]
+        {
+            new ScreenChange(0, ScreenChangeKind.AmbientStart, 0),
+            new ScreenChange(0, ScreenChangeKind.AmbientStart, 0),
+            new ScreenChange(1, ScreenChangeKind.AmbientStart, 0),
+        }, first.Changes);
+        Assert.NotEqual(0, (int)(first.Ambient[0] & CommAnimationFlags.Disabled));
+
+        int from = talk.Events.Count + 1;   // after the reply chosen
+        talk.Choose(0);
+        Assert.Equal(from, talk.AmbientStarts[3].At);   // exactly at the view's first event
+        Assert.Equal(new[] { new ScreenChange(0, ScreenChangeKind.AmbientStart, 0) }, TalkScreen.Of(talk, from)!.Changes);
+        // The whole talk as one view has all four; a view of nothing yet, none.
+        Assert.Equal(4, TalkScreen.Of(talk, 0)!.Changes.Count);
+        Assert.Empty(TalkScreen.Of(talk, talk.Events.Count)!.Changes);
     }
 
     [Fact]

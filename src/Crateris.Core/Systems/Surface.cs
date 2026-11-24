@@ -80,7 +80,11 @@ public static class Surface
 
         // Worlds whose generateOrbital always starts a conversation.
         if (special == "TALKING_PET_DEFINED" && IsPlanet(0))
-            return OrbitData.NotEntered;   // new game: TALKING_PET not yet set
+            // New game: TALKING_PET not yet set. Never entered in any state until stage 3c ports genpet.c's
+            // Pet half: where the Umgah's talk doesn't start (GameWorld.TalkWorlds: they're the Pet's zombies,
+            // or extinct), the ship is held by the world, also where UQM would orbit it (the Umgah extinct and
+            // the Pet taken: the ruins).
+            return OrbitData.NotEntered;
         if (special == "SLYLANDRO_DEFINED" && IsPlanet(3))
             return OrbitData.NotEntered;
         // Once the Chmmr are free, orbiting their world starts a conversation.

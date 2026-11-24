@@ -6380,11 +6380,15 @@ def umgah_starts():
     bio data aboard (none, some, and 65,035: the 500 given reach the top
     of UQM's 16-bit count; past it UQM's wraps and the port's doesn't,
     docs/differences.md row 22, so that isn't recorded) and by the escort
-    fleet's room for the 4 ships (none, 2, 4, 12). States UQM can't reach,
-    recorded to pin the order the fields are read in: the zombies with
-    the Pet taken (taking it frees them), the zombies with
-    TALKING_PET_VISITS (counted only with the Pet aboard, which frees
-    them: umgahc.c's DESTROY_INTERFERER lines are dead in UQM)."""
+    fleet's room for the 4 ships (none, 2, 4, 12). Zombies with the Pet
+    taken, and with TALKING_PET_VISITS (counted only with the Pet
+    aboard), are states UQM reaches, if seldom: taking the Pet frees the
+    zombies, but arilouc.c's post_arilou_enc makes them zombies again
+    after a talk at the Arilou's homeworld while ARILOU_HOME_VISITS is
+    at most 1 (it stays 1 through the visits that ask for the wreck's
+    part), so with the Pet taken and used once the Umgah say their
+    DESTROY_INTERFERER greetings. They're recorded by set-up, as every
+    zombie state is."""
     places = (("space", space_start), ("home", home_start))
     starts = []
     for where, make in places:
@@ -6478,13 +6482,17 @@ def talkpet_starts():
     (npc_built_ship_q))) by each visit (TALKING_PET_HOME_VISITS) and the
     protector, the first visit's questions walked whole with the zombies
     known or not (KNOW_UMGAH_ZOMBIES) and each ship's name spliced into
-    "we are"; with no enemy ships its deal, the Umgah alive (their sphere
+    "we are"; TALKING_PET_ON_SHIP apart from TALKING_PET (the first alone
+    is read; each set without the other, with enemy ships and none, and
+    before the Sa-Matra); with no enemy ships its deal, the Umgah alive (their sphere
     unknown, known already or none) or extinct (how_trust kept only for
     one who met it before with the protector), walked whole with
     LEARNED_TALKING_PET or not, and the counters its coming aboard
     clears. States UQM can't reach, recorded to pin the order the fields
     are read in or a branch nothing sets the flag for:
-    READY_TO_CONFUSE_URQUAN without the Pet aboard; LEARNED_TALKING_PET
+    READY_TO_CONFUSE_URQUAN without the Pet aboard; TALKING_PET_ON_SHIP
+    without TALKING_PET, or the other way (talkpet.c sets the two
+    together and nothing in UQM's play clears either); LEARNED_TALKING_PET
     (no UQM code sets it, so "bullshit" and "you lied" are dead in UQM)."""
     at_umgah = lambda name, state, ships=10, **kw: home_start(name, state, enemy_ships=ships, **kw)
     aboard = lambda name, state, **kw: space_start(name, {"TALKING_PET": 1, "TALKING_PET_ON_SHIP": 1, **state}, **kw)
@@ -6515,6 +6523,17 @@ def talkpet_starts():
                                  {"TALKING_PET_VISITS": visits, "TAALO_PROTECTOR_ON_SHIP": taalo},
                                  **({} if (visits, taalo) == (0, 1) else {"follow": []})))
     starts.append(aboard("aboard-enemy-ships", {"TALKING_PET_HOME_VISITS": 1}, enemy_ships=3, follow=[]))
+    # TALKING_PET_ON_SHIP apart from TALKING_PET (the script reads the first alone; the port's start options
+    # set each without the other: --start-devices TALKING_PET_DEVICE, --start-state TALKING_PET=1): aboard
+    # by the first alone, with enemy ships or none; with the second alone its world's talks, by the enemy's ships.
+    for ships in (0, 10):
+        starts.append(space_start(f"on-ship-alone-ships-{ships}", {"TALKING_PET_ON_SHIP": 1, "TALKING_PET_VISITS": 1},
+                                  enemy_ships=ships, follow=[]))
+        starts.append(home_start(f"taken-alone-ships-{ships}", {"TALKING_PET": 1}, enemy_ships=ships, follow=[]))
+    starts.append(space_start("on-ship-alone-ready", {"TALKING_PET_ON_SHIP": 1, "READY_TO_CONFUSE_URQUAN": 1,
+                                                      "CHMMR_BOMB_STATE": 3}, enemy_ships=1, follow=[]))
+    starts.append(space_start("taken-alone-ready", {"TALKING_PET": 1, "READY_TO_CONFUSE_URQUAN": 1,
+                                                    "CHMMR_BOMB_STATE": 3}, enemy_ships=1, follow=[]))
     for n in range(8):
         starts.append(aboard(f"aboard-info-{n}", {"TALKING_PET_VISITS": 1, "TALKING_PET_INFO": n},
                              follow=["PetDevice"]))
