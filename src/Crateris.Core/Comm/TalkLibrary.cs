@@ -47,6 +47,9 @@ public sealed class TalkLibrary
         ["vux"] = p => new VuxScript(p),
         ["yehat"] = p => new YehatScript(p),
         ["rebel"] = p => new YehatRebelScript(p),
+        // Stage 3b-2 item 7.
+        ["orz"] = p => new OrzScript(p),
+        ["pkunk"] = p => new PkunkScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

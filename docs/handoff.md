@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-24, the owner accepted items 5's and 6's readings as built (none wait now). Before that (2026-11-23), the talks' screen changes built (`differences.md` row 83, the owner's place for it: before item 7), reviewed in five rounds and reported. Stage 3b-2 items 1 to 6 were reviewed and reported.
+**Last updated:** 2026-11-24, stage 3b-2 item 7 (the Orz and the Pkunk) being built (the owner's go-ahead 2026-11-24): part A (the two scripts ported, recorded and wired) committed; parts B (the world's tests) and C (docs, the try-out) next. Items 1 to 6 and the screen-change fix were reviewed and reported; the owner accepted items 5's and 6's readings as built.
 
 ## Where things are
 
@@ -12,7 +12,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (the screen-change fix, review round 3's fixes, 2026-11-23, rerun by review round 4): all topics 2,535 passed, 0 failed, 0 skipped with the content set (round 3 changed a test and docs only; round 4 docs only). Round 2's: all topics 2,535 passed, 0 failed, 0 skipped with the content set; the game build (the two long-standing warnings); the new tests mutation-checked (a reconcile always applying the view's screen, one comparing the animation's live flags, one leaving the talking alone: each caught). From the build (`640fb1e`): `tools/test_network.py` passed (protocol 31; rounds 1 and 2 changed no wire format, so not run again); the topic map remade (no new files since); windowed with `--screenshot`: ZEX's death (his colours at frame 1500, his window black as `FOOL_AIEE1` plays at 2000 and 2150), the commander after the radioactives (`--start-visit base-report`: full power, frames 150 and 200 the same) and before (`--start-visit`: dark, flickering, the two frames differ). Not run: the data checks (no data extraction changed); no recording changed.
+- **Last checks** (3b-2 item 7 part A, 2026-11-24): `run_tests.py --changed` (16 topics) 2,545 passed, 0 failed, 0 skipped with the content set, and the `talk` topic again after the Pkunk's recording was trimmed; the game build (the two long-standing warnings); every talks recording re-recorded byte for byte with the two new ones. Not run yet: all topics, the topic map, `tools/test_network.py` (no wire change), the data checks (no data extraction changed).
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
@@ -68,7 +68,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build item 7 (the Orz and the Pkunk; the owner's go-ahead 2026-11-24, for this item alone), then review it round by round and report; then wait for the go-ahead for item 8. Item 6 and the screen-change fix (`differences.md` row 83) are built, reviewed in five rounds and reported.
+Finish item 7 (the Orz and the Pkunk; the owner's go-ahead 2026-11-24, for this item alone): part B, the world's tests (`OrzPkunkTests`: the Orz homeworld's alliance, its break taking the Orz ships from the host's fleet, the Taalo moon's 14 guards, the Pkunk's spindle, friendship, ships and yearly gift), then part C (`differences.md`, the try-out run headless), the topic map remade; then review it round by round and report; then wait for the go-ahead for item 8.
 
 ## Decisions waiting on the owner
 

@@ -165,9 +165,11 @@ public class WorldTalkTests
         }
         // Ported: the Ilwrath's (their homeworld and Procyon), the Spathi at home, the Slylandro at home,
         // the Zoq-Fot-Pik's homeworld (stage 3b-2 item 5), the VUX's homeworld, ZEX at the Maidens' world
-        // and the Yehat's homeworld (item 6).
-        Assert.Equal(new[] { "CHMMR_DEFINED", "ILWRATH_DEFINED", "MAIDENS_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED",
-                "VUX_DEFINED", "YEHAT_DEFINED", "ZOQFOT_DEFINED" },
+        // and the Yehat's homeworld (item 6), the Orz's homeworld, the Taalo protector's moon and the Pkunk's
+        // homeworld (item 7).
+        Assert.Equal(new[] { "CHMMR_DEFINED", "ILWRATH_DEFINED", "MAIDENS_DEFINED", "ORZ_DEFINED", "PKUNK_DEFINED",
+                "SLYLANDRO_DEFINED", "SPATHI_DEFINED", "TAALO_PROTECTOR_DEFINED", "VUX_DEFINED", "YEHAT_DEFINED",
+                "ZOQFOT_DEFINED" },
             GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is not null).Select(w => w.Special).OrderBy(s => s));
         // The Druuge at the bomb's moon once the Utwig have their Ultron: still waiting for theirs.
         story.Set("UTWIG_HAVE_ULTRON", 1);
@@ -669,8 +671,8 @@ public class WorldTalkTests
     public void TheOrzWorldsSetTaaloUnprotectedWhenOrbitedWithNoTalk()
     {
         // genorz.c:142: past its test, TAALO_UNPROTECTED is set, the Orz
-        // extinct too. Here at the Ilwrath homeworld with the Ilwrath's script;
-        // the real Orz entries wait for theirs.
+        // extinct too. Here at the Ilwrath homeworld with the Ilwrath's script,
+        // then at the real Orz worlds (orzc.c ported since stage 3b-2 item 7).
         var world = NewGame();
         var story = world.Story!;
         int star = Star(world, "ILWRATH_DEFINED");
@@ -690,7 +692,15 @@ public class WorldTalkTests
         orz.Story!.SetFleet("ORZ_SHIP", orz.Story.Fleet("ORZ_SHIP") with { ActualStrength = 0 });
         orz.Story.SetAlliance("ORZ_SHIP", Allied.Dead);
         Assert.Null(orz.WorldTalkAt(Star(orz, "ORZ_DEFINED"), 0, null));
-        Assert.Equal(0, orz.Story.Get("TAALO_UNPROTECTED"));   // orzc.c not ported: as before
+        Assert.Equal(1, orz.Story.Get("TAALO_UNPROTECTED"));   // the homeworld orbited, the Orz extinct
+        // The Taalo moon the same, the Orz extinct; and once unprotected, orbited with no talk.
+        orz.Story.Set("TAALO_UNPROTECTED", 0);
+        Assert.Null(orz.WorldTalkAt(Star(orz, "TAALO_PROTECTOR_DEFINED"), 1, 2));
+        Assert.Equal(1, orz.Story.Get("TAALO_UNPROTECTED"));
+        var living = NewGame();
+        living.Story!.Set("TAALO_UNPROTECTED", 1);
+        Assert.Null(living.WorldTalkAt(Star(living, "TAALO_PROTECTOR_DEFINED"), 1, 2));
+        Assert.NotNull(living.WorldTalkAt(Star(living, "ORZ_DEFINED"), 0, null));   // the homeworld still talks
     }
 
     // ---- the Thraddash's body count (encount.c:760, UninitEncounter)

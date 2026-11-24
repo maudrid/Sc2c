@@ -36,7 +36,8 @@ public sealed partial class GameWorld
     /// their drone, whose talk is theirs, and the Kohr-Ah; item 7 the
     /// Ilwrath and the Spathi; item 8 the Slylandro probes; stage 3b-2 item 4
     /// the Melnorme, item 5 the Shofixti and the Zoq-Fot-Pik, item 6 the VUX
-    /// and the Yehat, the rebels too), whose groups fly.
+    /// and the Yehat, the rebels too, item 7 the Orz and the Pkunk), whose
+    /// groups fly.
     /// </summary>
     internal static readonly IReadOnlySet<string> TalkingRaces = new HashSet<string>
     {
@@ -49,6 +50,8 @@ public sealed partial class GameWorld
         // Stage 3b-2 item 6: the VUX and the Yehat, by their spheres; the Yehat rebels, whose fleet is none (their
         // strength 0, as UQM's new game makes it) until 3c's revolt gives them one, so only --start-encounter brings them.
         "VUX_SHIP", "YEHAT_SHIP", "YEHAT_REBEL_SHIP",
+        // Stage 3b-2 item 7: the Orz and the Pkunk, by their spheres.
+        "ORZ_SHIP", "PKUNK_SHIP",
     };
 
     /// <summary>

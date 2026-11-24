@@ -163,6 +163,8 @@ public class TalkTests
         ["vux"] = ("talks-vux", p => new VuxScript(p)),
         ["yehat"] = ("talks-yehat", p => new YehatScript(p)),
         ["rebel"] = ("talks-rebel", p => new YehatRebelScript(p)),
+        ["orz"] = ("talks-orz", p => new OrzScript(p)),
+        ["pkunk"] = ("talks-pkunk", p => new PkunkScript(p)),
     };
 
     // A script's recorded starts.

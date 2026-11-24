@@ -511,10 +511,13 @@ public class UrquanMeetingTests
         // Item 7's: the Ilwrath's whole script, the Spathi's away from Spathiwa.
         Assert.IsType<IlwrathScript>(world.RaceTalk(world.Host, Race(world, "ILWRATH_SHIP"), 1)!.Script);
         Assert.IsType<SpathiScript>(world.RaceTalk(world.Host, Race(world, "SPATHI_SHIP"), 1)!.Script);
-        // Item 8's: the Slylandro probe's; 3b-2 item 4's the Melnorme's; the other races of 3b-2 not yet.
+        // Item 8's: the Slylandro probe's; 3b-2 item 4's the Melnorme's.
         Assert.IsType<SlylandroScript>(world.RaceTalk(world.Host, Race(world, "SLYLANDRO_SHIP"), 1)!.Script);
         Assert.IsType<MelnormeScript>(world.RaceTalk(world.Host, Race(world, "MELNORME_SHIP"), 1)!.Script);
-        Assert.Null(world.RaceTalk(world.Host, Race(world, "ORZ_SHIP"), 1));
+        // 3b-2 item 7's: the Orz and the Pkunk.
+        Assert.IsType<OrzScript>(world.RaceTalk(world.Host, Race(world, "ORZ_SHIP"), 1)!.Script);
+        Assert.IsType<PkunkScript>(world.RaceTalk(world.Host, Race(world, "PKUNK_SHIP"), 1)!.Script);
+        Assert.Null(world.RaceTalk(world.Host, Race(world, "DRUUGE_SHIP"), 1));
         // Without the content, none.
         world.TalkLibrary = null;
         Assert.Null(world.RaceTalk(world.Host, Race(world, "URQUAN_SHIP"), 1));

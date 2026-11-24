@@ -5398,11 +5398,233 @@ def rebel_starts():
     return starts
 
 
+def orz_starts():
+    """The Orz (orzc.c), from states chosen to reach every condition it
+    reads: the endgame's won battle; the first meeting (MET_ORZ_BEFORE: the
+    hello and the computer's report after it) in space, at their homeworld
+    (GLOBAL_FLAGS_AND_DATA bit 7) and at the Taalo protector's moon (bit
+    6), walked whole, by each standing (ORZ_MANNER, the alliance or not);
+    each visit's greeting by standing and place (ORZ_VISITS,
+    ORZ_HOME_VISITS, TAALO_VISITS, the visits past those the switch names);
+    the neutral talk walked whole from each of its stacks (ORZ_ANDRO_STATE,
+    ORZ_STACK0 and 1, REFUSED_ORZ_ALLIANCE), with the names spliced into
+    "we are"; the allies' questions (ORZ_GENERAL_INFO, ORZ_PERSONAL_INFO,
+    ORZ_ANDRO_STATE) walked whole to the break over the Androsynth, with
+    Orz ships in the escort fleet (among others, alone, none) taken out;
+    ORZ_MANNER 3 with the alliance not made (CheckAlliance); the angry
+    talk's news and each insult (ORZ_PERSONAL_INFO, the eighth's count
+    kept); and the Taalo moon's questions by standing, leave to land for
+    allies."""
+    allied = {"alliances": {"ORZ_SHIP": "good"}}
+    taalo = lambda name, state, **kw: home_start(name, state, flags=1 << 6, **kw)
+    places = (("space", space_start), ("home", home_start), ("taalo", taalo))
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE"),
+              taalo("taalo-won-last-battle", {}, activity="WON_LAST_BATTLE")]
+    manners = (("neutral", 0, {}), ("angry", 1, {}), ("hostile", 2, {}), ("allied", 3, allied),
+               ("unallied-3", 3, {}))
+    for where, make in places:
+        for mname, manner, kw in manners:
+            starts.append(make(f"first-{where}-{mname}", {"ORZ_MANNER": manner}, escort_fleet=["ORZ_SHIP"],
+                               escorts=[0, 12], **kw))
+    visit_fields = {"space": "ORZ_VISITS", "home": "ORZ_HOME_VISITS", "taalo": "TAALO_VISITS"}
+    for where, make in places:
+        for mname, manner, kw in manners:
+            for visits in range(8):
+                field = "ORZ_VISITS" if manner == 2 else visit_fields[where]
+                starts.append(make(f"{where}-{mname}-visit-{visits}",
+                                   {"MET_ORZ_BEFORE": 1, "ORZ_MANNER": manner, field: visits}, follow=[], **kw))
+    met = {"MET_ORZ_BEFORE": 1, "ORZ_VISITS": 1}
+    # The neutral talk, walked whole from each state of its stacks.
+    for andro in range(4):
+        for s0 in (0, 1):
+            for s1 in (0, 1):
+                for refused in (0, 1):
+                    starts.append(space_start(f"neutral-andro-{andro}-stack0-{s0}-stack1-{s1}-refused-{refused}",
+                                              {**met, "ORZ_ANDRO_STATE": andro, "ORZ_STACK0": s0,
+                                               "ORZ_STACK1": s1, "REFUSED_ORZ_ALLIANCE": refused}))
+    for cname, captain, ship in NAMES:
+        start = space_start(f"neutral-{cname}", met, follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    # The allies' questions, walked whole to the break, with Orz ships in the escorts or none.
+    fleets = (("orz-among-others", ["SPATHI_SHIP", "ORZ_SHIP", "SHOFIXTI_SHIP", "ORZ_SHIP"]),
+              ("orz-alone", ["ORZ_SHIP"]), ("none", []), ("others", ["SPATHI_SHIP"]))
+    for fname, fleet in fleets:
+        starts.append(space_start(f"allied-fleet-{fname}", {**met, "ORZ_MANNER": 3}, escort_fleet=fleet,
+                                  escorts=[0, 8], **allied))
+    for andro in range(4):
+        for general in range(4):
+            for personal in range(8):
+                starts.append(home_start(f"allied-andro-{andro}-general-{general}-personal-{personal}",
+                                         {"MET_ORZ_BEFORE": 1, "ORZ_HOME_VISITS": 1, "ORZ_MANNER": 3,
+                                          "ORZ_ANDRO_STATE": andro, "ORZ_GENERAL_INFO": general,
+                                          "ORZ_PERSONAL_INFO": personal},
+                                         escort_fleet=["ORZ_SHIP"], escorts=[0, 11], **allied))
+    # The angry talk: its news and each insult (the apology makes the alliance again).
+    for general in range(4):
+        for personal in range(8):
+            starts.append(space_start(f"angry-general-{general}-personal-{personal}",
+                                      {**met, "ORZ_MANNER": 1, "ORZ_GENERAL_INFO": general,
+                                       "ORZ_PERSONAL_INFO": personal}))
+    # The Taalo moon's questions by standing.
+    for mname, manner, kw in manners:
+        if manner != 2:
+            starts.append(taalo(f"taalo-walk-{mname}", {"MET_ORZ_BEFORE": 1, "TAALO_VISITS": 1, "ORZ_MANNER": manner},
+                                **kw))
+    return starts
+
+
+def pkunk_starts():
+    """The Pkunk (pkunkc.c), from states chosen to reach every condition it
+    reads: the endgame's won battle; in space and at their homeworld
+    (GLOBAL_FLAGS_AND_DATA bit 7), by each standing (PKUNK_MANNER: neutral,
+    angry, hating, friends), each visit's greeting (PKUNK_VISITS,
+    PKUNK_HOME_VISITS, the visits past those the switch names), the first
+    of each walked whole; the Clear Spindle given or not (CLEAR_SPINDLE),
+    the Kohr-Ah's victory sensed (the year, PKUNK_SENSE_VICTOR,
+    KOHR_AH_FRENZY); their friendship offered at home (we_are_vindicator,
+    with each captain's and ship's names) and its 4 ships by the escort
+    fleet's room (none, some, all) and the date (the next ships' date's
+    day at most the 28th; its year in 5 bits); the yearly gift by the next
+    ships' date (none given yet; a year, a month or a day before it; on it;
+    after it) and the room; their anger mended at home (the spindle given
+    then or already); the fleet on the move (PKUNK_ON_THE_MOVE,
+    PKUNK_SWITCH, PKUNK_FLEET, PKUNK_MISSION, PKUNK_RETURN, PKUNK_MIGRATE,
+    PKUNK_WORRY, asked after the fleet's whereabouts); the two question
+    menus (about the Pkunk, about the Ilwrath), each walked on its own
+    with the homeworld it returns to, so the homeworld's other walks leave
+    them out (walked together they make tens of thousands of paths); the
+    Ilwrath (ILWRATH_DECEIVED); the friendly talk in
+    space (PKUNK_INFO, PKUNK_WAR, PKUNK_DONE_WAR, PKUNK_FORTUNE, the ships
+    at home); the neutral one (PKUNK_INFO); and their migration's talk
+    (PKUNK_MISSION odd, PKUNK_MIGRATE_VISITS, each PKUNK_REASONS)."""
+    friends = {"PKUNK_MANNER": 3}
+    # The homeworld's talk walked whole would walk every mix of its two
+    # question menus (about the Pkunk, about the Ilwrath) with everything
+    # else: each menu is walked on its own below (with the homeworld it
+    # returns to), and the other walks leave both out.
+    home_walk = ["PkunkHome", "DiscussConquer", "OfferAlliance", "PkunkAngry", "ExitConversation"]
+    starts = [space_start("won-last-battle", {}, "WON_LAST_BATTLE"),
+              home_start("home-won-last-battle", {}, activity="WON_LAST_BATTLE")]
+    for manner in range(4):
+        for visits in range(8):
+            first = visits == 0 and manner != 2
+            more = {"escorts": [0, 12]} if first else {"follow": []}
+            starts.append(space_start(f"space-manner-{manner}-visit-{visits}",
+                                      {"PKUNK_MANNER": manner, "PKUNK_VISITS": visits}, **more))
+            field = "PKUNK_VISITS" if manner in (1, 2) else "PKUNK_HOME_VISITS"
+            # Friends' later visits before the next ships' date (else the gift instead of the greeting).
+            later = {"PKUNK_SHIP_MONTH": 1, "PKUNK_SHIP_YEAR": 31} if manner == 3 and visits else {}
+            for spindle in (0, 1):
+                starts.append(home_start(f"home-manner-{manner}-visit-{visits}-spindle-{spindle}",
+                                         {"PKUNK_MANNER": manner, field: visits, "CLEAR_SPINDLE": spindle, **later},
+                                         **(dict(more, follow=home_walk) if first else more)))
+    # The Kohr-Ah's victory sensed at home, the spindle given already.
+    for year in (2155, 2156):
+        for sensed in (0, 1):
+            for frenzy in (0, 1):
+                starts.append(home_start(f"sense-{year}-sensed-{sensed}-frenzy-{frenzy}",
+                                         {"CLEAR_SPINDLE": 1, "PKUNK_SENSE_VICTOR": sensed, "KOHR_AH_FRENZY": frenzy},
+                                         date=[year, 2, 17], follow=[]))
+    # Their friendship offered at home and its ships, by the room and the date.
+    for room in (0, 2, 4, 12):
+        for date in ((2155, 2, 17), (2156, 12, 31), (2185, 6, 30), (2187, 1, 29)):
+            starts.append(home_start(f"offer-room-{room}-{date[0]}-{date[1]}-{date[2]}",
+                                     {"CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": 1}, escorts=[0, room],
+                                     date=list(date), follow=["OfferAlliance", "ExitConversation"]))
+    for cname, captain, ship in NAMES:
+        start = home_start(f"offer-{cname}", {"CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": 1}, follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    # The yearly gift at home, by the next ships' date (2156-03-10) and the room.
+    ship_date = {"PKUNK_SHIP_MONTH": 3, "PKUNK_SHIP_DAY": 10, "PKUNK_SHIP_YEAR": 1}
+    dates = [("year-before", (2155, 6, 1)), ("month-before", (2156, 2, 28)), ("day-before", (2156, 3, 9)),
+             ("on-the-day", (2156, 3, 10)), ("month-after", (2156, 4, 1)), ("year-after", (2157, 1, 1)),
+             ("late-day", (2156, 3, 31))]
+    for room in (0, 2, 4, 12):
+        for visits in (0, 1, 7):
+            starts.append(home_start(f"gift-never-room-{room}-visit-{visits}",
+                                     {**friends, "CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": visits},
+                                     escorts=[0, room], follow=[]))
+            for when, date in dates:
+                starts.append(home_start(f"gift-{when}-room-{room}-visit-{visits}",
+                                         {**friends, **ship_date, "CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": visits},
+                                         escorts=[0, room], date=list(date), follow=[]))
+    # The two question menus at home, each walked whole with the homeworld it returns to.
+    for menu in ("AboutPkunk", "AboutIlwrath"):
+        for manner in (0, 3):
+            starts.append(home_start(f"menu-{menu}-manner-{manner}",
+                                     {"PKUNK_MANNER": manner, "CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": 1},
+                                     follow=[menu, "PkunkHome"]))
+    # Their anger mended at home, the spindle given then or already.
+    for spindle in (0, 1):
+        starts.append(home_start(f"angry-home-spindle-{spindle}", {"PKUNK_MANNER": 1, "PKUNK_VISITS": 1,
+                                                                   "CLEAR_SPINDLE": spindle}, follow=home_walk))
+    # The fleet on the move, asked at home.
+    for mission in (0, 1, 2, 3):
+        for switch in (0, 1):
+            for fleet in range(4):
+                starts.append(home_start(f"move-mission-{mission}-switch-{switch}-fleet-{fleet}",
+                                         {**friends, "CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": 1,
+                                          "PKUNK_ON_THE_MOVE": 1, "PKUNK_MISSION": mission,
+                                          "PKUNK_SWITCH": switch, "PKUNK_FLEET": fleet},
+                                         follow=["PkunkHome"]))
+    for ret in (0, 1):
+        for migrate in range(4):
+            for mission in (0, 1):
+                starts.append(home_start(f"move-return-{ret}-migrate-{migrate}-mission-{mission}",
+                                         {**friends, "CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": 1,
+                                          "PKUNK_ON_THE_MOVE": 1, "PKUNK_MISSION": mission,
+                                          "PKUNK_RETURN": ret, "PKUNK_MIGRATE": migrate},
+                                         prefix=[0], follow=[]))
+    # The worries, offered once the fleet's whereabouts are asked (where_fleet_1 disabled) while migrating.
+    for worry in range(4):
+        starts.append(home_start(f"move-worry-{worry}", {**friends, "CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": 1,
+                                                         "PKUNK_ON_THE_MOVE": 1, "PKUNK_MISSION": 1,
+                                                         "PKUNK_WORRY": worry},
+                                     follow=["PkunkHome"]))
+    for deceived in (0, 1):
+        for manner in (0, 3):
+            starts.append(home_start(f"ilwrath-deceived-{deceived}-manner-{manner}",
+                                     {"PKUNK_MANNER": manner, "CLEAR_SPINDLE": 1, "PKUNK_HOME_VISITS": 1,
+                                      "ILWRATH_DECEIVED": deceived}, follow=["PkunkHome", "AboutIlwrath"]))
+    # The friendly talk in space.
+    for info in range(8):
+        starts.append(space_start(f"friendly-info-{info}", {**friends, "PKUNK_VISITS": 1, "PKUNK_INFO": info,
+                                                            "PKUNK_SHIP_MONTH": 1, "PKUNK_SHIP_YEAR": 31},
+                                  prefix=[0], follow=[]))
+    for war in range(4):
+        for done in (0, 1):
+            starts.append(space_start(f"friendly-war-{war}-done-{done}",
+                                      {**friends, "PKUNK_VISITS": 1, "PKUNK_WAR": war, "PKUNK_DONE_WAR": done}))
+    for fortune in range(8):
+        starts.append(space_start(f"friendly-fortune-{fortune}", {**friends, "PKUNK_VISITS": 1,
+                                                                  "PKUNK_FORTUNE": fortune, "PKUNK_DONE_WAR": 1},
+                                  prefix=[1], follow=[]))
+    for when, date in dates:
+        starts.append(space_start(f"friendly-ships-{when}", {**friends, **ship_date, "PKUNK_VISITS": 1},
+                                  date=list(date), prefix=[0], follow=[]))
+    # The neutral talk in space.
+    for info in range(8):
+        starts.append(space_start(f"neutral-info-{info}", {"PKUNK_VISITS": 1, "PKUNK_INFO": info}))
+    # Their migration's talk.
+    for mission in (1, 3, 5, 7):
+        for visits in range(8):
+            starts.append(space_start(f"migrate-mission-{mission}-visit-{visits}",
+                                      {"PKUNK_MISSION": mission, "PKUNK_MIGRATE_VISITS": visits},
+                                      **({} if visits == 0 and mission == 1 else {"follow": []})))
+    for reasons in range(16):
+        starts.append(space_start(f"migrate-reasons-{reasons}", {"PKUNK_MISSION": 1, "PKUNK_MIGRATE_VISITS": 1,
+                                                                 "PKUNK_REASONS": reasons}))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
                 "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts,
                 "melnorm": melnorm_starts, "shofixt": shofixt_starts, "zoqfot": zoqfot_starts,
-                "vux": vux_starts, "yehat": yehat_starts, "rebel": rebel_starts}
+                "vux": vux_starts, "yehat": yehat_starts, "rebel": rebel_starts,
+                "orz": orz_starts, "pkunk": pkunk_starts}
 # Files and notes a script's recording has besides every script's.
 COMM_EXTRA_FILES = {"melnorm": ["src/libs/math/random2.c", "src/libs/math/sqrt.c"]}
 COMM_EXTRA_NOTES = {"melnorm": [
@@ -5416,7 +5638,7 @@ COMM_EXTRA_NOTES = {"melnorm": [
     "it's sold in one go. MELNORME_CREDIT0 and 1 are the credits."]}
 # A script's file where it isn't named after its folder.
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c",
-              "zoqfot": "zoqfotc.c", "vux": "vuxc.c", "yehat": "yehatc.c"}
+              "zoqfot": "zoqfotc.c", "vux": "vuxc.c", "yehat": "yehatc.c", "orz": "orzc.c", "pkunk": "pkunkc.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.

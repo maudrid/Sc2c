@@ -65,6 +65,11 @@ public static class TalkRules
         ["vux"] = _ => false,
         ["yehat"] = _ => false,
         ["rebel"] = _ => false,
+        // Stage 3b-2 item 7: the Orz (in space, at home, at the Taalo
+        // protector's moon) and the Pkunk (in space, at home), ordinary, each
+        // under its race's lock.
+        ["orz"] = _ => false,
+        ["pkunk"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>
