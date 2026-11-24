@@ -6386,8 +6386,9 @@ def umgah_starts():
     zombies, but arilouc.c's post_arilou_enc makes them zombies again
     after a talk at the Arilou's homeworld while ARILOU_HOME_VISITS is
     at most 1 (it stays 1 through the visits that ask for the wreck's
-    part), so with the Pet taken and used once the Umgah say their
-    DESTROY_INTERFERER greetings. They're recorded by set-up, as every
+    part), so with the Pet taken and used once, and their reward not
+    collected (UMGAH_HOSTILE, which its goodbye sets, is read first), the
+    Umgah say their DESTROY_INTERFERER greetings. They're recorded by set-up, as every
     zombie state is."""
     places = (("space", space_start), ("home", home_start))
     starts = []

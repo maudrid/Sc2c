@@ -389,7 +389,11 @@ public class TalkTests
         {
             Flags = CommAnimationFlags.Circular | CommAnimationFlags.PauseTalking | TalkScreen.OneShot | CommAnimationFlags.Disabled,
         },
-        Scripts["comandr"].Description.Ambient[0],
+        // Off too, so a refused start that turned it on would show.
+        Scripts["comandr"].Description.Ambient[0] with
+        {
+            Flags = Scripts["comandr"].Description.Ambient[0].Flags | CommAnimationFlags.Disabled,
+        },
     };
 
     private static (Talk Talk, ProbeScript Script) Probe(Action<ProbeScript> intro, TestShip? ship = null,

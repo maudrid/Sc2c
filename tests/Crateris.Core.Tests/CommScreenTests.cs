@@ -265,13 +265,14 @@ public class CommScreenTests
     }
 
     [ContentFact]
-    public void TheTalkingPetsStrobePlaysOnceEachTimeItIsStartedAndAScreenOpenedAfterItDoesntPlayItAgain()
+    public void TheTalkingPetsStrobePlaysOnceEachTimeItIsStartedAndAScreenOpenedInALaterViewDoesntPlayIt()
     {
         // Differences.md row 83, protocol 32. The Pet's mind-control strobe is a one-shot ambient animation (a
         // colour animation, off in the description): started by the script as its line ends, it plays once and
         // turns itself off (commanim.c's ProcessCommAnimations), and a second start plays it again. Every view's
         // screen has it off, so new lines neither stop one that's playing nor start it, and a screen opened
-        // afresh after one doesn't play it.
+        // afresh in a later view doesn't play it (one opened in the view that started it plays it with that
+        // view's lines, as it does that view's fades).
         int strobe = Core.Comm.Scripts.TalkingPetScript.StrobeAnimation;
         var flags = Scripts["talkpet"].Description.Ambient.Select(a => a.Flags).ToList();
         Assert.NotEqual(0, (int)(flags[strobe] & CommAnimationFlags.Disabled));
