@@ -167,34 +167,55 @@ public class WorldTalkTests
         // the Zoq-Fot-Pik's homeworld (stage 3b-2 item 5), the VUX's homeworld, ZEX at the Maidens' world
         // and the Yehat's homeworld (item 6), the Orz's homeworld, the Taalo protector's moon and the Pkunk's
         // homeworld (item 7), the Druuge's trade world and their guard at the bomb's moon, the Mycon's
-        // homeworld and the Sun Device's world (item 8).
-        Assert.Equal(new[] { "BOMB_DEFINED", "CHMMR_DEFINED", "DRUUGE_DEFINED", "ILWRATH_DEFINED", "MAIDENS_DEFINED",
-                "MYCON_DEFINED", "ORZ_DEFINED", "PKUNK_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED",
-                "SUN_DEVICE_DEFINED", "TAALO_PROTECTOR_DEFINED", "VUX_DEFINED", "YEHAT_DEFINED", "ZOQFOT_DEFINED" },
+        // homeworld and the Sun Device's world (item 8), the Utwig's homeworld and their guard at the
+        // bomb's moon (its two entries both live now) and the Supox's homeworld (item 9).
+        Assert.Equal(new[] { "BOMB_DEFINED", "BOMB_DEFINED", "CHMMR_DEFINED", "DRUUGE_DEFINED", "ILWRATH_DEFINED",
+                "MAIDENS_DEFINED", "MYCON_DEFINED", "ORZ_DEFINED", "PKUNK_DEFINED", "SLYLANDRO_DEFINED", "SPATHI_DEFINED",
+                "SUN_DEVICE_DEFINED", "SUPOX_DEFINED", "TAALO_PROTECTOR_DEFINED", "UTWIG_DEFINED", "VUX_DEFINED",
+                "YEHAT_DEFINED", "ZOQFOT_DEFINED" },
             GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is not null).Select(w => w.Special).OrderBy(s => s));
-        Assert.Equal("DRUUGE_SHIP", GameWorld.TalkWorlds.Single(w => w.Special == "BOMB_DEFINED" && world.WorldScript(w) is not null).Race);
+        Assert.Equal(new[] { "UTWIG_SHIP", "DRUUGE_SHIP" },
+            GameWorld.TalkWorlds.Where(w => w.Special == "BOMB_DEFINED" && world.WorldScript(w) is not null).Select(w => w.Race));
+        // Still waiting for their scripts (items 10 and 11): the Thraddash's two worlds, the Umgah's and the Syreen's starbase.
+        Assert.Equal(new[] { "AQUA_HELIX_DEFINED", "SYREEN_DEFINED", "TALKING_PET_DEFINED", "THRADD_DEFINED" },
+            GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is null).Select(w => w.Special).OrderBy(s => s));
     }
 
     [ContentFact]
-    public void TheDruugeGuardTheBombsMoonOnceTheUtwigHaveTheirUltron()
+    public void TheBombsMoonIsGuardedByTheUtwigThenByTheDruugeOnceTheUtwigHaveTheirUltron()
     {
-        // genutw.c:110-144: the bomb's moon is the Utwig's while they haven't their Ultron (their script
-        // isn't ported until item 9: orbited as before, nothing tracked), then the Druuge's 5 ships' until
-        // none is left (BOMB_UNPROTECTED) or the bomb is taken (UTWIG_BOMB), the Druuge extinct aside.
+        // genutw.c:104-144: the bomb's moon (the sixth planet's second moon) while the bomb isn't taken
+        // (UTWIG_BOMB) is the Utwig's while they haven't their Ultron (:110-112: !UTWIG_HAVE_ULTRON, then
+        // StartSphereTracking (UTWIG_SHIP): an infinite fleet, bit 6), then the Druuge's 5 ships' until none
+        // is left (BOMB_UNPROTECTED), each race extinct aside.
         var world = NewGame();
         var story = world.Story!;
         int star = Star(world, "BOMB_DEFINED");
+        var utwig = GameWorld.TalkWorlds.Single(w => w is { Special: "BOMB_DEFINED", Race: "UTWIG_SHIP" });
         var druuge = GameWorld.TalkWorlds.Single(w => w is { Special: "BOMB_DEFINED", Race: "DRUUGE_SHIP" });
+        Assert.Equal((0, 0), (story.Fleet("UTWIG_SHIP").KnownStrength, story.Fleet("DRUUGE_SHIP").KnownStrength));
+        // The other moons and the planet itself: orbits, nothing tracked.
         var before = story.Bits.ToArray();
-        Assert.Null(world.WorldTalkAt(star, 5, 1));
+        Assert.Null(world.WorldTalkAt(star, 5, 0));
+        Assert.Null(world.WorldTalkAt(star, 5, null));
         Assert.Equal(before, story.Bits.ToArray());
+        Assert.Equal(0, story.Fleet("UTWIG_SHIP").KnownStrength);
+
+        Assert.Same(utwig, world.WorldTalkAt(star, 5, 1));
+        Assert.Equal((TalkWorld.InfiniteFleet, 1 << 6, "utwig"), (utwig.Fleet(story), utwig.GlobalFlags, world.WorldScript(utwig)));
+        // StartSphereTracking (UTWIG_SHIP), :112; the Druuge's test isn't reached (:139 returns).
+        Assert.NotEqual(0, story.Fleet("UTWIG_SHIP").KnownStrength);
         Assert.Equal(0, story.Fleet("DRUUGE_SHIP").KnownStrength);
+        // BOMB_UNPROTECTED is the Druuge's test's alone: the Utwig guard whatever it says.
+        story.Set("BOMB_UNPROTECTED", 1);
+        Assert.Same(utwig, world.WorldTalkAt(star, 5, 1));
+        story.Set("BOMB_UNPROTECTED", 0);
 
         story.Set("UTWIG_HAVE_ULTRON", 1);
         Assert.Same(druuge, world.WorldTalkAt(star, 5, 1));
         Assert.NotEqual(0, story.Fleet("DRUUGE_SHIP").KnownStrength);   // StartSphereTracking (DRUUGE_SHIP), :144
         Assert.Equal((5, 1 << 6, "druuge"), (druuge.Fleet(story), druuge.GlobalFlags, world.WorldScript(druuge)));
-        Assert.Null(world.WorldTalkAt(star, 5, 0));   // the other moons and the planet itself: orbits
+        Assert.Null(world.WorldTalkAt(star, 5, 0));
         Assert.Null(world.WorldTalkAt(star, 5, null));
 
         story.Set("BOMB_UNPROTECTED", 1);
@@ -202,7 +223,14 @@ public class WorldTalkTests
         story.Set("BOMB_UNPROTECTED", 0);
         story.Set("UTWIG_BOMB", 1);
         Assert.Null(world.WorldTalkAt(star, 5, 1));
+        story.Set("UTWIG_HAVE_ULTRON", 0);
+        Assert.Null(world.WorldTalkAt(star, 5, 1));   // the bomb taken: nobody's (:108), the Utwig's neither
         story.Set("UTWIG_BOMB", 0);
+        Assert.Same(utwig, world.WorldTalkAt(star, 5, 1));
+        // The Utwig extinct (no sphere and dead: StartSphereTracking 0) without their Ultron: the test falls
+        // through to the Druuge's (:142).
+        story.SetFleet("UTWIG_SHIP", story.Fleet("UTWIG_SHIP") with { ActualStrength = 0 });
+        story.SetAlliance("UTWIG_SHIP", Allied.Dead);
         Assert.Same(druuge, world.WorldTalkAt(star, 5, 1));
         story.SetFleet("DRUUGE_SHIP", story.Fleet("DRUUGE_SHIP") with { ActualStrength = 0 });
         story.SetAlliance("DRUUGE_SHIP", Allied.Dead);

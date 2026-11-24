@@ -167,6 +167,8 @@ public class TalkTests
         ["pkunk"] = ("talks-pkunk", p => new PkunkScript(p)),
         ["druuge"] = ("talks-druuge", p => new DruugeScript(p)),
         ["mycon"] = ("talks-mycon", p => new MyconScript(p)),
+        ["utwig"] = ("talks-utwig", p => new UtwigScript(p)),
+        ["supox"] = ("talks-supox", p => new SupoxScript(p)),
     };
 
     // A script's recorded starts.

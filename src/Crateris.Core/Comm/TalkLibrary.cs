@@ -53,6 +53,9 @@ public sealed class TalkLibrary
         // Stage 3b-2 item 8.
         ["druuge"] = p => new DruugeScript(p),
         ["mycon"] = p => new MyconScript(p),
+        // Stage 3b-2 item 9.
+        ["utwig"] = p => new UtwigScript(p),
+        ["supox"] = p => new SupoxScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;

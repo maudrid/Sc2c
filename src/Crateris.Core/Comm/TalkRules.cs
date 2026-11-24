@@ -75,6 +75,11 @@ public static class TalkRules
         // Device's world), ordinary, each under its race's lock.
         ["druuge"] = _ => false,
         ["mycon"] = _ => false,
+        // Stage 3b-2 item 9: the Utwig (in space, at home, at the bomb's
+        // moon) and the Supox (in space, at home), ordinary, each under its
+        // own race's lock.
+        ["utwig"] = _ => false,
+        ["supox"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

@@ -5928,13 +5928,265 @@ def mycon_starts():
     return starts
 
 
+def utwig_starts():
+    """The Utwig (utwigc.c), from states chosen to reach every condition it
+    reads: the endgame's won battle (and the fight before it, IN_LAST_BATTLE:
+    the ordinary talk); hostile (UTWIG_HOSTILE) in space, at their
+    homeworld (GLOBAL_FLAGS_AND_DATA bit 7) and at the bomb's moon (bit 6),
+    by each visit (UTWIG_VISITS, UTWIG_HOME_VISITS, BOMB_VISITS) and the
+    Ultron aboard or not, and "wait, we have the Ultron" by each of its
+    states (ULTRON_CONDITION; UTWIG_INFO for the trick's two lines,
+    KOHR_AH_FRENZY for the mission); the neutral talk in space and at home
+    by each visit, walked whole, and from every state of its stacks
+    (UTWIG_STACK1 and 2, UTWIG_WAR_NEWS), with each captain's and
+    alliance's name spliced into "we are"; the Supox's sphere shown
+    (StartSphereTracking: unknown, known already, none, extinct); the
+    Ultron shown by each of its states, and given with every counter it
+    clears set, the Supox dead or both allied already; the Ultron back
+    without the alliance (the other song, the talk at peace from the
+    start); the bomb's moon by each visit, walked whole with and without
+    the Ultron, from every state of its stacks (BOMB_STACK1 and 2,
+    BOMB_INFO), and the Ultron shown there by each of its states
+    (REFUSED_ULTRON_AT_BOMB); the allies at home by each visit, their news
+    walked whole by the mission's state (UTWIG_SUPOX_MISSION) and the
+    news told (UTWIG_WAR_NEWS), the 4 ships by the escort fleet's room
+    (none, 2, 4, 12); in space by the mission's state and each visit,
+    before and after the Kohr-Ah walked whole (UTWIG_INFO); and the
+    alliance without the Ultron back, and at the bomb's moon."""
+    allied = {"alliances": {"UTWIG_SHIP": "good", "SUPOX_SHIP": "good"}}
+    back = {"UTWIG_HAVE_ULTRON": 1, "ULTRON_CONDITION": 5}
+    bomb = lambda name, state, **kw: home_start(name, state, flags=1 << 6, **kw)
+    places = (("space", space_start), ("home", home_start), ("bomb", bomb))
+    visit_fields = {"space": "UTWIG_VISITS", "home": "UTWIG_HOME_VISITS", "bomb": "BOMB_VISITS"}
+    starts = []
+    for where, make in places:
+        starts.append(make(f"{where}-won-last-battle", {}, activity="WON_LAST_BATTLE"))
+        starts.append(make(f"{where}-in-last-battle", {}, activity="IN_LAST_BATTLE", follow=[]))
+    starts.append(space_start("hostile-won-last-battle", {"UTWIG_HOSTILE": 1}, "WON_LAST_BATTLE"))
+    starts.append(home_start("ultron-won-last-battle", back, activity="WON_LAST_BATTLE", **allied))
+    # Hostile, by each visit, the Ultron aboard or not.
+    for where, make in places:
+        for visits in range(8):
+            for ultron in (0, 1):
+                starts.append(make(f"hostile-{where}-visit-{visits}-ultron-{ultron}",
+                                   {"UTWIG_HOSTILE": 1, visit_fields[where]: visits, "ULTRON_CONDITION": ultron}))
+    starts.append(space_start("hostile-allied", {"UTWIG_HOSTILE": 1, "ULTRON_CONDITION": 4}, **allied))
+    starts.append(space_start("hostile-ultron-back", {"UTWIG_HOSTILE": 1, **back}))
+    # The Ultron shown, from a hostile greeting and in the neutral talk (its other replies left out).
+    for manner, state in (("hostile", {"UTWIG_HOSTILE": 1}), ("neutral", {"UTWIG_STACK1": 4, "UTWIG_STACK2": 2,
+                                                                         "UTWIG_WAR_NEWS": 3})):
+        for where, make in places[:2]:
+            for ultron in range(1, 8):
+                for info in (0, 1):
+                    for frenzy in (0, 1):
+                        starts.append(make(f"{manner}-{where}-ultron-{ultron}-info-{info}-frenzy-{frenzy}",
+                                           {**state, visit_fields[where]: 1, "ULTRON_CONDITION": ultron,
+                                            "UTWIG_INFO": info, "KOHR_AH_FRENZY": frenzy},
+                                           follow=["ExitConversation"]))
+    # The Ultron given: every counter it clears set; the Supox dead; both allied already; a race's sphere known.
+    counters = {"UTWIG_VISITS": 5, "SUPOX_VISITS": 6, "UTWIG_HOME_VISITS": 7, "SUPOX_HOME_VISITS": 3, "BOMB_VISITS": 2,
+                "SUPOX_INFO": 1, "UTWIG_INFO": 1, "SUPOX_WAR_NEWS": 3, "UTWIG_WAR_NEWS": 3, "SUPOX_HOSTILE": 1,
+                "UTWIG_STACK1": 4, "UTWIG_STACK2": 2, "ULTRON_CONDITION": 4}
+    starts.append(home_start("give-counters", counters, follow=["ExitConversation"]))
+    starts.append(home_start("give-hostile-counters", {**counters, "UTWIG_HOSTILE": 1}))
+    starts.append(home_start("give-supox-dead", counters, follow=["ExitConversation"],
+                             alliances={"SUPOX_SHIP": "dead"}))
+    starts.append(home_start("give-allied-already", counters, follow=["ExitConversation"], **allied))
+    # The neutral talk, by each visit; walked whole in space, and at home with the broken Ultron aboard.
+    for where, make in places[:2]:
+        for visits in range(8):
+            starts.append(make(f"neutral-{where}-visit-{visits}", {visit_fields[where]: visits},
+                               **({} if visits == 0 and where == "space" else {"follow": []})))
+    starts.append(home_start("neutral-home-walk-ultron", {"UTWIG_HOME_VISITS": 1, "ULTRON_CONDITION": 1}))
+    for s1 in range(8):
+        for news in range(4):
+            for s2 in range(4):
+                starts.append(space_start(f"neutral-stack1-{s1}-news-{news}-stack2-{s2}",
+                                          {"UTWIG_VISITS": 1, "UTWIG_STACK1": s1, "UTWIG_WAR_NEWS": news,
+                                           "UTWIG_STACK2": s2}, follow=[]))
+    for alliance in range(4):
+        starts.append(space_start(f"neutral-alliance-name-{alliance}", {"UTWIG_VISITS": 1,
+                                                                        "NEW_ALLIANCE_NAME": alliance}, follow=[]))
+        for cname, captain, ship in NAMES:
+            start = space_start(f"neutral-{cname}-alliance-name-{alliance}",
+                                {"UTWIG_VISITS": 1, "NEW_ALLIANCE_NAME": alliance}, follow=[])
+            start["ship"] = talk_ship(captain=captain, ship=ship)
+            starts.append(start)
+    # The Supox's sphere shown (what_about_you_2): unknown, known already, none, extinct.
+    about_us = {"UTWIG_VISITS": 1, "UTWIG_STACK1": 4, "UTWIG_STACK2": 2, "UTWIG_WAR_NEWS": 1}
+    starts.append(space_start("sphere-unknown", about_us))
+    starts.append(space_start("sphere-known", about_us, fleets={"SUPOX_SHIP": [333, 333]}))
+    starts.append(space_start("sphere-none", about_us, fleets={"SUPOX_SHIP": [0, 0]}))
+    starts.append(space_start("sphere-extinct", about_us, fleets={"SUPOX_SHIP": [0, 0]},
+                              alliances={"SUPOX_SHIP": "dead"}))
+    # The Ultron back without the alliance: the talk at peace from the start, the other song.
+    starts.append(space_start("ultron-back-unallied", {**back, "UTWIG_VISITS": 1, "UTWIG_STACK1": 2, "UTWIG_STACK2": 2,
+                                                       "UTWIG_WAR_NEWS": 3}))
+    starts.append(bomb("ultron-back-unallied-bomb", {**back, "BOMB_VISITS": 1}, follow=[]))
+    # The bomb's moon: by each visit, walked whole with and without the Ultron, by each state of its stacks.
+    for visits in range(8):
+        starts.append(bomb(f"bomb-visit-{visits}", {"BOMB_VISITS": visits}, **({} if visits == 0 else {"follow": []})))
+    starts.append(bomb("bomb-walk-ultron", {"BOMB_VISITS": 1, "ULTRON_CONDITION": 2}))
+    starts.append(bomb("bomb-walk-told", {"BOMB_VISITS": 1, "BOMB_INFO": 1}))
+    for s1 in range(4):
+        for s2 in range(4):
+            for info in (0, 1):
+                starts.append(bomb(f"bomb-stack1-{s1}-stack2-{s2}-info-{info}",
+                                   {"BOMB_VISITS": 1, "BOMB_STACK1": s1, "BOMB_STACK2": s2, "BOMB_INFO": info},
+                                   follow=[]))
+    for ultron in range(8):
+        for refused in (0, 1):
+            starts.append(bomb(f"bomb-ultron-{ultron}-refused-{refused}",
+                               {"BOMB_VISITS": 1, "BOMB_STACK1": 3, "BOMB_STACK2": 2, "ULTRON_CONDITION": ultron,
+                                "REFUSED_ULTRON_AT_BOMB": refused}, follow=["ExitConversation"]))
+    # The allies at home: by each visit; their news walked whole by the mission and the news told; the ships.
+    for visits in range(8):
+        starts.append(home_start(f"allied-home-visit-{visits}", {**back, "UTWIG_HOME_VISITS": visits}, follow=[],
+                                 escorts=[0, 12], **allied))
+    for mission in range(8):
+        for news in range(4):
+            starts.append(home_start(f"allied-home-mission-{mission}-news-{news}",
+                                     {**back, "UTWIG_HOME_VISITS": 1, "UTWIG_SUPOX_MISSION": mission,
+                                      "UTWIG_WAR_NEWS": news}, escorts=[0, 12],
+                                     **({} if news == 0 else {"follow": ["AlliedHome"]}), **allied))
+    for room in (0, 2, 4, 12):
+        starts.append(home_start(f"allied-home-ships-room-{room}", {**back, "UTWIG_HOME_VISITS": 1},
+                                 escorts=[0, room], follow=["ExitConversation"], **allied))
+    # The allies in space: by the mission's state and each visit; before and after the Kohr-Ah walked whole.
+    for mission in range(8):
+        for visits in range(8):
+            starts.append(space_start(f"allied-space-mission-{mission}-visit-{visits}",
+                                      {**back, "UTWIG_SUPOX_MISSION": mission, "UTWIG_VISITS": visits},
+                                      follow=[], **allied))
+    for mission in (1, 5):
+        for info in (0, 1):
+            starts.append(space_start(f"allied-space-mission-{mission}-info-{info}",
+                                      {**back, "UTWIG_SUPOX_MISSION": mission, "UTWIG_VISITS": 1, "UTWIG_INFO": info},
+                                      **allied))
+    # The alliance without the Ultron back (the first song, the talk hostile until hailed), and at the bomb's moon.
+    starts.append(home_start("allied-no-ultron", {"UTWIG_HOME_VISITS": 1}, follow=[], escorts=[0, 12], **allied))
+    for mission in (0, 1, 2, 5):
+        starts.append(bomb(f"allied-bomb-mission-{mission}", {**back, "UTWIG_SUPOX_MISSION": mission}, follow=[],
+                           **allied))
+    return starts
+
+
+def supox_starts():
+    """The Supox (supoxc.c), from states chosen to reach every condition it
+    reads: the endgame's won battle (and the fight before it,
+    IN_LAST_BATTLE: the ordinary talk); hostile (SUPOX_HOSTILE) in space
+    and at their homeworld (GLOBAL_FLAGS_AND_DATA bit 7) by each visit
+    (SUPOX_VISITS for both); the neutral talk in space and at home by each
+    visit (SUPOX_VISITS, SUPOX_HOME_VISITS), walked whole down to the
+    Ultron handed over and its two farewells, and from every state of its
+    stacks (SUPOX_STACK1 and 2, SUPOX_WAR_NEWS), with each captain's,
+    ship's and alliance's name spliced into the replies; the Utwig met
+    before or not (UTWIG_VISITS, UTWIG_HOME_VISITS, BOMB_VISITS), and their
+    sphere shown (StartSphereTracking: unknown, known already, none,
+    extinct); the repairs asked about by each of the Ultron's states
+    (ULTRON_CONDITION, SUPOX_ULTRON_HELP); the allies at home by each
+    visit, their news walked whole by the mission's state
+    (UTWIG_SUPOX_MISSION) and the news told (SUPOX_WAR_NEWS), the 4 ships
+    by the escort fleet's room (none, 2, 4, 12); in space by the mission's
+    state and each visit, before and after the Kohr-Ah walked whole
+    (SUPOX_INFO)."""
+    allied = {"alliances": {"UTWIG_SHIP": "good", "SUPOX_SHIP": "good"}}
+    back = {"UTWIG_HAVE_ULTRON": 1, "ULTRON_CONDITION": 5}
+    places = (("space", space_start), ("home", home_start))
+    visit_fields = {"space": "SUPOX_VISITS", "home": "SUPOX_HOME_VISITS"}
+    starts = []
+    for where, make in places:
+        starts.append(make(f"{where}-won-last-battle", {}, activity="WON_LAST_BATTLE"))
+        starts.append(make(f"{where}-in-last-battle", {}, activity="IN_LAST_BATTLE", follow=[]))
+    starts.append(space_start("hostile-won-last-battle", {"SUPOX_HOSTILE": 1}, "WON_LAST_BATTLE"))
+    # Hostile, by each visit: the greeting is the whole talk.
+    for where, make in places:
+        for visits in range(8):
+            starts.append(make(f"hostile-{where}-visit-{visits}", {"SUPOX_HOSTILE": 1, "SUPOX_VISITS": visits}))
+    starts.append(home_start("hostile-home-home-visits", {"SUPOX_HOSTILE": 1, "SUPOX_HOME_VISITS": 1}))
+    starts.append(space_start("hostile-allied", {"SUPOX_HOSTILE": 1, **back}, **allied))
+    starts.append(space_start("hostile-ultron", {"SUPOX_HOSTILE": 1, "ULTRON_CONDITION": 4}))
+    # The neutral talk, by each visit; walked whole in space.
+    for where, make in places:
+        for visits in range(8):
+            starts.append(make(f"neutral-{where}-visit-{visits}", {visit_fields[where]: visits},
+                               **({} if visits == 0 and where == "space" else {"follow": []})))
+    for s1 in range(8):
+        for s2 in range(4):
+            for news in range(4):
+                starts.append(space_start(f"neutral-stack1-{s1}-stack2-{s2}-news-{news}",
+                                          {"SUPOX_VISITS": 1, "SUPOX_STACK1": s1, "SUPOX_STACK2": s2,
+                                           "SUPOX_WAR_NEWS": news}, follow=[]))
+    for s1 in range(3):
+        for cname, captain, ship in NAMES:
+            start = space_start(f"neutral-{cname}-stack1-{s1}", {"SUPOX_VISITS": 1, "SUPOX_STACK1": s1}, follow=[])
+            start["ship"] = talk_ship(captain=captain, ship=ship)
+            starts.append(start)
+    for alliance in range(4):
+        starts.append(space_start(f"neutral-alliance-name-{alliance}",
+                                  {"SUPOX_VISITS": 1, "SUPOX_STACK1": 2, "NEW_ALLIANCE_NAME": alliance}, follow=[]))
+    start = space_start("neutral-accented-names-alliance-name-3", {"SUPOX_VISITS": 1, "SUPOX_STACK1": 2,
+                                                                   "NEW_ALLIANCE_NAME": 3}, follow=[])
+    start["ship"] = talk_ship(captain=NAMES[1][1], ship=NAMES[1][2])
+    starts.append(start)
+    # The Utwig asked about: met before (in space, at home, at the bomb's moon) or not; the Ultron handed over.
+    asked = {"SUPOX_VISITS": 1, "SUPOX_STACK1": 5, "SUPOX_STACK2": 2}
+    for field in ("UTWIG_VISITS", "UTWIG_HOME_VISITS", "BOMB_VISITS"):
+        starts.append(space_start(f"met-utwig-{field}", {**asked, field: 1}))
+    for where, make in places:
+        starts.append(make(f"{where}-ultron-handed-over", {**asked, visit_fields[where]: 5, "SUPOX_VISITS": 5,
+                                                           "SUPOX_WAR_NEWS": 2}))
+    # The Utwig's sphere shown (anyone_around_here): unknown, known already, none, extinct.
+    starts.append(space_start("sphere-unknown", asked, follow=["NeutralSupox"]))
+    starts.append(space_start("sphere-known", asked, fleets={"UTWIG_SHIP": [666, 666]}, follow=["NeutralSupox"]))
+    starts.append(space_start("sphere-none", asked, fleets={"UTWIG_SHIP": [0, 0]}, follow=["NeutralSupox"]))
+    starts.append(space_start("sphere-extinct", asked, fleets={"UTWIG_SHIP": [0, 0]},
+                              alliances={"UTWIG_SHIP": "dead"}, follow=["NeutralSupox"]))
+    # The repairs asked about, by each of the Ultron's states.
+    for ultron in range(8):
+        for helped in (0, 1):
+            for news in (0, 2):
+                starts.append(space_start(f"ultron-{ultron}-helped-{helped}-news-{news}",
+                                          {**asked, "ULTRON_CONDITION": ultron, "SUPOX_ULTRON_HELP": helped,
+                                           "SUPOX_WAR_NEWS": news}, follow=["NeutralSupox"]))
+    # The allies at home: by each visit; their news walked whole by the mission and the news told; the ships.
+    for visits in range(8):
+        starts.append(home_start(f"allied-home-visit-{visits}", {**back, "SUPOX_HOME_VISITS": visits}, follow=[],
+                                 escorts=[0, 12], **allied))
+    for mission in range(8):
+        for news in range(4):
+            starts.append(home_start(f"allied-home-mission-{mission}-news-{news}",
+                                     {**back, "SUPOX_HOME_VISITS": 1, "UTWIG_SUPOX_MISSION": mission,
+                                      "SUPOX_WAR_NEWS": news}, escorts=[0, 12],
+                                     **({} if news == 0 else {"follow": ["AlliedHome"]}), **allied))
+    for room in (0, 2, 4, 12):
+        starts.append(home_start(f"allied-home-ships-room-{room}", {**back, "SUPOX_HOME_VISITS": 1},
+                                 escorts=[0, room], follow=["ExitConversation"], **allied))
+    # The allies in space: by the mission's state and each visit; before and after the Kohr-Ah walked whole.
+    for mission in range(8):
+        for visits in range(8):
+            starts.append(space_start(f"allied-space-mission-{mission}-visit-{visits}",
+                                      {**back, "UTWIG_SUPOX_MISSION": mission, "SUPOX_VISITS": visits},
+                                      follow=[], **allied))
+    for mission in (1, 5):
+        for info in (0, 1):
+            starts.append(space_start(f"allied-space-mission-{mission}-info-{info}",
+                                      {**back, "UTWIG_SUPOX_MISSION": mission, "SUPOX_VISITS": 1, "SUPOX_INFO": info},
+                                      **allied))
+    # The Supox allied alone (the alliance is read, not the Ultron's flags).
+    starts.append(home_start("allied-alone", {"SUPOX_HOME_VISITS": 1}, follow=[],
+                             alliances={"SUPOX_SHIP": "good"}))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
                 "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts,
                 "melnorm": melnorm_starts, "shofixt": shofixt_starts, "zoqfot": zoqfot_starts,
                 "vux": vux_starts, "yehat": yehat_starts, "rebel": rebel_starts,
                 "orz": orz_starts, "pkunk": pkunk_starts,
-                "druuge": druuge_starts, "mycon": mycon_starts}
+                "druuge": druuge_starts, "mycon": mycon_starts,
+                "utwig": utwig_starts, "supox": supox_starts}
 # Files and notes a script's recording has besides every script's.
 COMM_EXTRA_FILES = {"melnorm": ["src/libs/math/random2.c", "src/libs/math/sqrt.c"]}
 COMM_EXTRA_NOTES = {"melnorm": [
@@ -5955,7 +6207,7 @@ COMM_EXTRA_NOTES = {"melnorm": [
 # A script's file where it isn't named after its folder.
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c",
               "zoqfot": "zoqfotc.c", "vux": "vuxc.c", "yehat": "yehatc.c", "orz": "orzc.c", "pkunk": "pkunkc.c",
-              "druuge": "druugec.c", "mycon": "myconc.c"}
+              "druuge": "druugec.c", "mycon": "myconc.c", "utwig": "utwigc.c", "supox": "supoxc.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.

@@ -517,10 +517,14 @@ public class UrquanMeetingTests
         // 3b-2 item 7's: the Orz and the Pkunk.
         Assert.IsType<OrzScript>(world.RaceTalk(world.Host, Race(world, "ORZ_SHIP"), 1)!.Script);
         Assert.IsType<PkunkScript>(world.RaceTalk(world.Host, Race(world, "PKUNK_SHIP"), 1)!.Script);
-        // 3b-2 item 8's: the Druuge and the Mycon; the other races of 3b-2 not yet.
+        // 3b-2 item 8's: the Druuge and the Mycon; item 9's: the Utwig and the Supox.
         Assert.IsType<DruugeScript>(world.RaceTalk(world.Host, Race(world, "DRUUGE_SHIP"), 1)!.Script);
         Assert.IsType<MyconScript>(world.RaceTalk(world.Host, Race(world, "MYCON_SHIP"), 1)!.Script);
-        Assert.Null(world.RaceTalk(world.Host, Race(world, "UTWIG_SHIP"), 1));
+        Assert.IsType<UtwigScript>(world.RaceTalk(world.Host, Race(world, "UTWIG_SHIP"), 1)!.Script);
+        Assert.IsType<SupoxScript>(world.RaceTalk(world.Host, Race(world, "SUPOX_SHIP"), 1)!.Script);
+        // The other races of 3b-2 not yet (items 10 and 11).
+        foreach (string race in new[] { "THRADDASH_SHIP", "UMGAH_SHIP", "ARILOU_SHIP", "SYREEN_SHIP", "CHMMR_SHIP" })
+            Assert.Null(world.RaceTalk(world.Host, Race(world, race), 1));
         // Without the content, none.
         world.TalkLibrary = null;
         Assert.Null(world.RaceTalk(world.Host, Race(world, "URQUAN_SHIP"), 1));
