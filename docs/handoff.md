@@ -68,13 +68,13 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for item 7 (the Orz and the Pkunk; one go-ahead per item). Item 6 and the screen-change fix (`differences.md` row 83) are built, reviewed in five rounds and reported.
+Build item 7 (the Orz and the Pkunk; the owner's go-ahead 2026-11-24, for this item alone), then review it round by round and report; then wait for the go-ahead for item 8. Item 6 and the screen-change fix (`differences.md` row 83) are built, reviewed in five rounds and reported.
 
 ## Decisions waiting on the owner
 
 None.
 
-The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 6 had their go-aheads, the others wait for one each.
+The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 7 had their go-aheads, the others wait for one each.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
