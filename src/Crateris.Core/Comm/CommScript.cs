@@ -106,10 +106,6 @@ public abstract class CommScript
 }
 
 /// <summary>
-/// A race's number speech (comm.h's NUMBER_SPEECH_DESC): how a number is
-/// spoken, its digits from the largest.
-/// </summary>
-/// <summary>
 /// The shared story as a script settles a talk dropped unfinished on it
 /// (<see cref="CommScript.DroppedUnfinished"/>): the talk itself, or a
 /// saved copy's story.
@@ -129,6 +125,10 @@ public interface ITalkStory
     void SetCrewCost(int cost);
 }
 
+/// <summary>
+/// A race's number speech (comm.h's NUMBER_SPEECH_DESC): how a number is
+/// spoken, its digits from the largest.
+/// </summary>
 public sealed record NumberSpeech(IReadOnlyList<SpeechDigit> Digits);
 
 /// <summary>

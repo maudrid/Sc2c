@@ -81,7 +81,7 @@ The Druuge's groups fly in their sphere. In space they're met at the encounter s
 
 ### The Mycon
 
-The Mycon's groups fly in their sphere. They're always met at the encounter screen. Each reply but the farewells gets the next of their 32 rambles, and whether a reply goes on with the talk or ends it in a fight is drawn each time the replies are offered (30 in 100 a fight). One insult a talk in space, one question a talk at home.
+The Mycon's groups fly in their sphere. They're always met at the encounter screen. In space and at home, each ordinary reply (not the farewells, the shattered worlds' question or the trick's) gets the next of their 32 rambles, and whether a reply goes on with the talk or ends it in a fight is drawn each time the replies are offered (30 in 100 a fight). One insult a talk in space, one question a talk at home.
 
 1. **Their homeworld** (star 129, planet 0) starts their talk against their endless fleet; every farewell is a fight, and the ship is never put in orbit there.
 2. **The Sun Device's world** (star 136, planet 0) is guarded by an endless fleet: their news, and the one farewell that isn't a fight; the ship stays out of orbit. Once they've fallen for the ambush, 5 ships guard it, made afresh at each orbit: "we'd like to land" is a fight, and with all 5 destroyed the world is open (`SUN_DEVICE_UNGUARDED`). The Sun Device itself is stage 3c's pickup; once it's taken (`SUN_DEVICE`) every Mycon talk is a threat and a fight.

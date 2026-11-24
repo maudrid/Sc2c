@@ -16,8 +16,10 @@ namespace Crateris.Core.Comm.Scripts;
 /// The Mycon (myconc.c), whole: in space (MYCON_VISITS), at their
 /// homeworld (GLOBAL_FLAGS_AND_DATA bit 7, MYCON_HOME_VISITS) and at the
 /// Sun Device's world (bit 6, MYCON_SUN_VISITS; genmyc.c's guard), hostile
-/// from the start unless the endgame's battle is won. Each reply but the
-/// farewells is answered with the next of their 32 rambles (MYCON_RAMBLE),
+/// from the start unless the endgame's battle is won. In space and at
+/// home each ordinary reply (not the farewells, the shattered worlds'
+/// question or the trick's) is answered with the next of their 32
+/// rambles (MYCON_RAMBLE),
 /// and whether a reply goes on with the talk or ends it in a fight is
 /// drawn afresh each time the replies are offered (TFB_Random: the talk's
 /// own generator, 30 in 100 a fight); one insult (in space,

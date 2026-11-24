@@ -597,7 +597,7 @@ public class DruugeMyconTests
         // UQM's talk is left only by its goodbye, which counts the crew sold (druugec.c:171-194); here a
         // player can leave the game mid-talk, the Maulers bought already the host's: the count and the
         // price are settled then (CommScript.DroppedUnfinished; review round 1), the others told.
-        var world = NewGame("g", "k");
+        var world = NewGame("g", "k", "j");
         var story = world.Story!;
         story.Set("KNOW_DRUUGE_SLAVERS", 3);
         int star = Star(world, "DRUUGE_DEFINED");
@@ -610,7 +610,7 @@ public class DruugeMyconTests
         world.Leave("g");
         Assert.Equal((300, 25), (CrewSold(story), story.CrewCost));
         var told = world.TakeNotices().Where(n => n.Event == NoticeEvent.CrewPrice).ToList();
-        Assert.Equal(new[] { ("h", "g", 25), ("k", "g", 25) }, told.Select(n => (n.PlayerId, n.By, n.Count)).OrderBy(n => n.PlayerId));
+        Assert.Equal(new[] { ("h", "g", 25), ("j", "g", 25), ("k", "g", 25) }, told.Select(n => (n.PlayerId, n.By, n.Count)).OrderBy(n => n.PlayerId));
         Assert.Null(world.MeetingOf("g"));
         Assert.Null(world.DialogueLocks!.Holder("DRUUGE_CONVERSATION"));
         Assert.Equal(3, world.Fleet.CountOf("DRUUGE_SHIP"));
@@ -622,13 +622,23 @@ public class DruugeMyconTests
         Assert.Equal((300, 25), (CrewSold(story), story.CrewCost));
         Assert.DoesNotContain(world.TakeNotices(), n => n.Event == NoticeEvent.CrewPrice);
 
-        // Left at the goodbye's closing lines: counted by the goodbye, once.
+        // Left at the goodbye's closing lines: counted by the goodbye, and not again by leaving.
+        m = Orbit(world, "j", star, 0);
+        Choose(world, "j", "want_to_buy", "buy_fuel", "done_buying", "bye");
+        Assert.Equal((MeetingStep.Closing, 310), (m.Step, CrewSold(story)));
+        world.Leave("j");
+        Assert.Equal((310, 25), (CrewSold(story), story.CrewCost));
+        Assert.Null(world.MeetingOf("j"));
+        Assert.Null(world.DialogueLocks!.Holder("DRUUGE_CONVERSATION"));
+        Assert.DoesNotContain(world.TakeNotices(), n => n.Event == NoticeEvent.CrewPrice);
+
+        // Heard to their end: counted by the goodbye, once.
         var host = world.Host.Ship;
         m = Orbit(world, "h", star, 0);
         Choose(world, "h", "want_to_buy", "buy_fuel", "done_buying", "bye");
-        Assert.Equal((MeetingStep.Closing, 310), (m.Step, CrewSold(story)));
+        Assert.Equal((MeetingStep.Closing, 320), (m.Step, CrewSold(story)));
         MeetingTests.HearClosing(world, "h");
-        Assert.Equal((310, 25, 40), (CrewSold(story), story.CrewCost, host.Hold.Crew));
+        Assert.Equal((320, 25, 40), (CrewSold(story), story.CrewCost, host.Hold.Crew));
     }
 
     [ContentFact]
@@ -1104,6 +1114,7 @@ public class DruugeMyconTests
         // guest sees the world, the host asks.
         var world = NewGame("g");
         var story = world.Story!;
+        int moons = 0;
         foreach (var special in new[] { "EGG_CASE0_DEFINED", "EGG_CASE1_DEFINED", "EGG_CASE2_DEFINED" })
         {
             int egg = Star(world, special);
@@ -1111,6 +1122,14 @@ public class DruugeMyconTests
             if (world.Systems!.HasWorld(egg, 1, null))
             {
                 world.PutInOrbit("g", egg, 1);   // another planet of the system: nothing
+                Assert.Equal(0, story.Get("KNOW_ABOUT_SHATTERED"));
+                world.Find("g")!.Ship.Ip!.ReturnFromOrbit();
+            }
+            if (world.Systems!.HasWorld(egg, 0, 0))
+            {
+                moons++;
+                world.PutInOrbit("g", egg, 0, 0);   // a moon of the shattered world (MATCH_PLANET): nothing
+                Assert.Equal(Activity.Orbit, world.Find("g")!.Ship.Activity);
                 Assert.Equal(0, story.Get("KNOW_ABOUT_SHATTERED"));
                 world.Find("g")!.Ship.Ip!.ReturnFromOrbit();
             }
@@ -1127,8 +1146,17 @@ public class DruugeMyconTests
                 world.Find("g")!.Ship.Ip!.ReturnFromOrbit();
             }
         }
-        // Not at the Mycon's own worlds (their talks start there), nor any other star's first planet.
+        Assert.True(moons > 0);   // a shattered world with a moon was tried
+        // Not the generator's other worlds (genmyc.c:150-162's switch: the Sun Device's world, orbited
+        // once its guard is gone, isn't a shattered one), nor any other star's first planet.
         story.Set("KNOW_ABOUT_SHATTERED", 0);
+        story.Set("SUN_DEVICE_UNGUARDED", 1);
+        world.PutInOrbit("g", Star(world, "SUN_DEVICE_DEFINED"), 0);
+        Assert.Equal(Activity.Orbit, world.Find("g")!.Ship.Activity);
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Equal(0, story.Get("KNOW_ABOUT_SHATTERED"));
+        world.Find("g")!.Ship.Ip!.ReturnFromOrbit();
+        story.Set("SUN_DEVICE_UNGUARDED", 0);
         world.PutInOrbit("g", Sol, 0);
         Assert.Equal(0, story.Get("KNOW_ABOUT_SHATTERED"));
         Away(world, "g");
