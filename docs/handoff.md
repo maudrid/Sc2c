@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-24, stage 3b-2 item 7 (the Orz and the Pkunk) built in three parts (the owner's go-ahead 2026-11-24, for this item alone), reviewed in two rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Items 1 to 6 and the screen-change fix were reviewed and reported too; the owner accepted items 5's and 6's readings as built.
+**Last updated:** 2026-11-24, stage 3b-2 item 8 (the Druuge and the Mycon) started on the owner's go-ahead of 2026-11-24, for this item alone: being built (a builder subagent, in parts A to C as item 7's were), not yet reviewed. Items 1 to 7 and the screen-change fix are built, reviewed and reported; the owner accepted items 5's and 6's readings as built.
 
 ## Where things are
 
@@ -68,13 +68,13 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for item 8 (one item per go-ahead). Item 7 (the Orz and the Pkunk) was reviewed in two rounds: round 1 (`ecf1e61`, `886d7b1`, `7d99a97`) found no correctness bug and three low findings, fixed in `83f0e14`; round 2 (`83f0e14`) found nothing that holds up (one optional wording nit left: the rebels' row in `porting-inventory.md` could say "up to 4" Yehat ships).
+Build item 8 (the Druuge and the Mycon; `docs/plans/stage-3b-2.md`, item 8), in parts as item 7's were (A: the two scripts ported, recorded and wired; B: the world's tests; C: docs and the try-out), then review it by the rule in `CLAUDE.md` and report; item 9 waits for a go-ahead of its own. If this session stopped mid-build: check `git status` and `git log` for the parts committed, and the plan's Progress row for item 8.
 
 ## Decisions waiting on the owner
 
 None.
 
-The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 7 had their go-aheads, the others wait for one each.
+The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 8 had their go-aheads, the others wait for one each.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
@@ -91,7 +91,7 @@ The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 7 had their 
 ## Setting up on another computer
 
 - **Commit identity:** this repo's commits are `Claude <noreply@anthropic.com>`, set in the repo's local git config. In a fresh clone run `git config user.name Claude` and `git config user.email noreply@anthropic.com` before committing. Don't change the global identity.
-- **Commit trailer:** end commit messages with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- **Commit trailer:** end commit messages with the `Co-Authored-By` line the session gives for its model (2026-11-24: `Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>`).
 - **Toolchain:** .NET 8 SDK and Godot 4 mono. Set `GODOT` to the mono build for `tools/test_network.py`.
 - **UQM content:** never committed. The game downloads it on first start into Godot's user folder (on Linux `~/.local/share/godot/app_userdata/Attack on Crateris/content/uqm-0.8.0-content.uqm`). Point `CRATERIS_CONTENT` at it for tests and headless runs (`docs/how-to-try/content-stage.md`).
 - **UQM 0.8.0 source:** expected beside the repo at `../uqm-0.8.0/sc2`, for the golden recorders and data checks (`golden_uqm.py --uqm PATH --content PACKAGE --only NAME,...`; `--only battle-races` takes about two minutes).
