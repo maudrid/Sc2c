@@ -21,10 +21,12 @@ namespace Crateris.Core.Tests;
 /// Orz homeworld's talk and the alliance a guest makes there (on sale for
 /// everyone, told to everyone); the break over the Androsynth, which takes
 /// every Orz ship out of the host's fleet whoever answers; the Taalo
-/// protector's moon with its 14 guards: at peace, their fight, and leave
-/// to land for allies (the moon orbited from then on); the Pkunk
-/// homeworld's Clear Spindle given, their friendship (no alliance) with 4
-/// ships to the host's fleet, and the yearly gift by date and room; their
+/// protector's moon with its 14 guards: at peace, their fight, leave to
+/// land for allies and all 14 destroyed (the moon orbited from then on);
+/// the Pkunk homeworld's Clear Spindle given (on the first visit, or when
+/// their anger is mended there), their friendship (no alliance) with 4
+/// ships to the host's fleet, no room for them then, and the yearly gift
+/// by date and room; their
 /// groups in space; the migration's event set aside until 3c. The
 /// scripts' every path is TalkTests' recordings.
 /// </summary>
@@ -291,6 +293,126 @@ public class OrzPkunkTests
         world.PutInOrbit("h", star, 1, 2);
         Assert.Null(world.MeetingOf("h"));
         Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+    }
+
+    [ContentFact]
+    public void DestroyingAllFourteenTaaloGuardsOpensTheMoon()
+    {
+        // genorz.c: with no Orz left after the talk's battle (OrzSurvivors
+        // false), TAALO_UNPROTECTED is set and the orbit entered.
+        var world = NewGame();
+        var story = world.Story!;
+        story.Set("MET_ORZ_BEFORE", 1);
+        int star = Star(world, "TAALO_PROTECTOR_DEFINED");
+        world.PutInOrbit("h", star, 1, 2);
+        var m = world.MeetingOf("h")!;
+        Assert.Equal(MeetingStep.Encounter, m.Step);
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        Assert.Equal(14, m.Battle!.EnemyFleet.Ships.Count);
+        Assert.False(m.Battle.EnemyFleet.Infinite);
+        WorldTalkTests.WinTheBattle(world, m);
+        Frames(world, 1);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Empty(m.Left!);
+        Assert.Equal(1, story.Get("TAALO_UNPROTECTED"));
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Assert.Equal(((int, int?)?)(1, 2), world.Host.Ship.Ip!.Orbit);
+        // Orbited again: no guard, no talk.
+        world.Host.Ship.Ip.ReturnFromOrbit();
+        world.PutInOrbit("h", star, 1, 2);
+        Assert.Null(world.MeetingOf("h"));
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+    }
+
+    [ContentFact]
+    public void ThePkunksAngerMendedAtTheirHomeworldGivesTheSpindleThen()
+    {
+        // Angry after a fight (post_pkunk_enc: PKUNK_MANNER 1) before any
+        // visit home: Intro's angry branch gives no spindle; PkunkAngry's
+        // try_to_be_nicer at the homeworld (GLOBAL_FLAGS_AND_DATA 1 << 7)
+        // goes to PkunkHome, which gives it then and makes them friends.
+        var world = NewGame();
+        var story = world.Story!;
+        story.Set("PKUNK_MANNER", 1);
+        int star = Star(world, "PKUNK_DEFINED");
+        world.PutInOrbit("h", star, 0);
+        var m = world.MeetingOf("h")!;
+        Assert.IsType<PkunkScript>(m.Talk!.Script);
+        Assert.Equal(MeetingStep.Encounter, m.Step);   // not their friends: the encounter screen
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.True(Said(m.Talk, "SPIRITUAL_PROBLEMS_1"));
+        Assert.False(Said(m.Talk, "GIVE_SPINDLE"));
+        Assert.Equal(0, story.Get("CLEAR_SPINDLE"));
+        Assert.False(Offered(m.Talk, "try_to_be_nicer"));   // should_be_friends first
+        Choose(world, "h", "should_be_friends");
+        Assert.True(Said(m.Talk, "YES_FRIENDS"));
+        Choose(world, "h", "try_to_be_nicer");
+        Assert.True(Said(m.Talk, "CANT_ASK_FOR_MORE"));
+        Assert.True(Said(m.Talk, "GIVE_SPINDLE"));
+        Assert.True(Said(m.Talk, "CAN_BE_FRIENDS"));
+        Assert.False(Said(m.Talk, "VISIT_OUR_HOMEWORLD"));   // ExitConversation's, in space
+        Assert.Equal((1, 1), (story.Get("CLEAR_SPINDLE"), story.Get("CLEAR_SPINDLE_ON_SHIP")));
+        Assert.Equal((3, 0, 0), (story.Get("PKUNK_MANNER"), story.Get("PKUNK_VISITS"), story.Get("PKUNK_HOME_VISITS")));
+        // Friends, the talk goes on at home: their friendship still to offer (no ships yet).
+        Assert.True(Offered(m.Talk, "we_are_vindicator0"));
+        Assert.Equal(0, world.Fleet.CountOf("PKUNK_SHIP"));
+        Choose(world, "h", "bye_friendly");
+        Assert.Equal(Segue.Peace, m.Talk.Segue);
+        MeetingTests.HearClosing(world, "h");
+        Assert.Null(m.Battle);
+        Assert.Equal(3, story.Get("PKUNK_MANNER"));
+        // Next visit: at peace, the friends' first greeting, no second spindle.
+        world.PutInOrbit("h", star, 0);
+        m = world.MeetingOf("h")!;
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        Assert.True(Said(m.Talk!, "FRIENDLY_HOMEWORLD_HELLO_1"));
+        Assert.False(Said(m.Talk!, "GIVE_SPINDLE"));
+    }
+
+    [ContentFact]
+    public void NoRoomAtThePkunksFriendshipLeavesTheGiftForALaterVisitHome()
+    {
+        // ExitConversation: EscortFeasibilityStudy 0 says INIT_NO_ROOM and
+        // skips PrepareShip, so PKUNK_SHIP_MONTH stays 0 (the friendship's
+        // reply offered again). Intro's gift waits for a visit with
+        // PKUNK_HOME_VISITS counted (reset to 0 by the friendship): the next
+        // visit greets, the one after gives (ShipsReady: no date yet).
+        var world = NewGame();
+        var story = world.Story!;
+        world.AddFleetShips("SPATHI_SHIP", HostFleet.MaxShips - world.Fleet.Ships.Count);
+        int star = Star(world, "PKUNK_DEFINED");
+        world.PutInOrbit("h", star, 0);
+        var m = world.MeetingOf("h")!;
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Choose(world, "h", "we_are_vindicator0");
+        Choose(world, "h", "we_here_to_help");
+        Assert.True(Said(m.Talk!, "ALMOST_ALLIANCE"));
+        Assert.True(Said(m.Talk!, "INIT_NO_ROOM"));
+        Assert.False(Said(m.Talk!, "INIT_SHIP_GIFT"));
+        Assert.Equal(3, story.Get("PKUNK_MANNER"));
+        Assert.Equal((0, 0, 0), (story.Get("PKUNK_SHIP_MONTH"), story.Get("PKUNK_SHIP_DAY"), story.Get("PKUNK_SHIP_YEAR")));
+        Assert.Equal(0, world.Fleet.CountOf("PKUNK_SHIP"));
+        MeetingTests.HearClosing(world, "h");
+
+        // Room made. The next visit: the friends' first greeting, no gift, and the friendship's reply again.
+        world.Fleet.Remove("SPATHI_SHIP");
+        world.PutInOrbit("h", star, 0);
+        m = world.MeetingOf("h")!;
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        Assert.True(Said(m.Talk!, "FRIENDLY_HOMEWORLD_HELLO_1"));
+        Assert.False(Said(m.Talk!, "SHIP_GIFT"));
+        Assert.True(Offered(m.Talk!, "we_are_vindicator0"));
+        Assert.Equal(0, world.Fleet.CountOf("PKUNK_SHIP"));
+        Choose(world, "h", "bye_friendly");
+        MeetingTests.HearClosing(world, "h");
+        // The visit after: ShipsReady (no date set), the gift and its date a year on.
+        world.PutInOrbit("h", star, 0);
+        m = world.MeetingOf("h")!;
+        Assert.True(Said(m.Talk!, "SHIP_GIFT"));
+        Assert.False(Said(m.Talk!, "NO_ROOM"));
+        Assert.Equal(4, world.Fleet.CountOf("PKUNK_SHIP"));
+        Assert.Equal((2, 17, 1), (story.Get("PKUNK_SHIP_MONTH"), story.Get("PKUNK_SHIP_DAY"), story.Get("PKUNK_SHIP_YEAR")));
+        Assert.False(Offered(m.Talk!, "we_are_vindicator0"));
     }
 
     [ContentFact]

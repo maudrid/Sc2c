@@ -64,13 +64,15 @@ namespace Crateris.Game;
 /// waits on stage 3c's devices and events; repeatable; a field that isn't one, a value past what its bits hold, or a
 /// field each talk, ship or player keeps of its own (StoryState.NotShared: GLOBAL_FLAGS_AND_DATA, the Melnorme's
 /// credits, ...) is refused; set before the other --start options, so --start-orbit's world sees them),
-/// (a --start option refused, with a notice, stops the ones after it: --start-state, then --start-devices, then the
-/// others in the order Main.ApplyStartOptions applies them; --encounter-choice, --meeting-replies, --guests-in-orbit
+/// (a --start option refused, with a notice, stops the ones after it: --start-state, then --start-devices, then
+/// --start-allied, then --start-fleet, then the others in the order Main.ApplyStartOptions applies them; --encounter-choice, --meeting-replies, --guests-in-orbit
 /// and --guests-in-battle are set before them all, so a refused one doesn't drop those),
 /// --start-fleet SHIP[:CREW][,SHIP[:CREW]] (host: the host's fleet is these ships, up to 12, by data/ships.json's id,
-/// each with that crew or its race's starting crew; not androsyn, chenjesu or mmrnmhrm, races with no fleet),
+/// each with that crew or its race's starting crew; not androsyn, chenjesu or mmrnmhrm, races with no fleet; set
+/// before --start-at and --start-orbit, so --start-orbit's world sees it and what its talk gives stays),
 /// --start-allied SHIP[,SHIP] (host: these ships' races are allied, so the shipyard builds their ships, by
-/// data/ships.json's id, as --start-fleet's),
+/// data/ships.json's id, as --start-fleet's; set before --start-fleet, --start-at and --start-orbit, so
+/// --start-orbit's world sees them),
 /// --guests-in-orbit (host: guests joining for the first time start in
 /// orbit where the host is), --guests-in-battle (host: guests joining for the first time join the battle by the host,
 /// as if they'd flown into its marker), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png

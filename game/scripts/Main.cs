@@ -527,7 +527,8 @@ public partial class Main : Node2D
                 Log(host.StartAt(at.X, at.Y));
             if (_options.StartOrbit is { } o)
                 Log(host.StartInOrbit(o.Star, o.Planet, o.Moon));
-            // What the host starts with before the visit, which keeps the hold, story and fleet as they began for its saves and Undo.
+            // What the host's ship carries, set before the visit, which keeps the hold as it began for its saves and Undo
+            // (the story, devices, alliances and fleet are set above, before the place).
             if (_options.StartMinerals is { } minerals)
                 Log(host.StartWithMinerals(minerals));
             if (_options.StartUnits is { } units)

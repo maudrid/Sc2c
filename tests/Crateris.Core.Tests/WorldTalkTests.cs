@@ -78,7 +78,7 @@ public class WorldTalkTests
 
     // The meeting's battle won: each enemy ship destroyed once it's in and
     // fighting, the players' ships kept whole meanwhile.
-    private static void WinTheBattle(GameWorld world, Meeting m)
+    internal static void WinTheBattle(GameWorld world, Meeting m)
     {
         var wb = m.Battle!;
         Starship? seen = null;
