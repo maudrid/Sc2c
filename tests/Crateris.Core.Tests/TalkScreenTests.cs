@@ -8,6 +8,7 @@
 
 using System.Text.Json;
 using Crateris.Core.Comm;
+using Crateris.Core.Comm.Scripts;
 using Crateris.Core.Content;
 using Crateris.Core.Data;
 using Crateris.Core.Systems;
@@ -63,7 +64,9 @@ public class TalkScreenTests
     {
         // On every recorded path (each one not a part of a longer), the view after each reply: its changes at its
         // lines in order, one for each fade and talking switch the script made, and the screen they leave the one
-        // the next view starts with.
+        // the next view starts with. A one-shot ambient animation (the Talking Pet's strobe) is off in every
+        // view's screen and a start for each time the script started it; its flag's change in the recording
+        // (the first start's) is never without one.
         TestContent.With(package =>
         {
             foreach (var start in TalkTests.Recorded(script).Sample())
@@ -74,11 +77,17 @@ public class TalkScreenTests
                     var talk = TalkTests.Start(package, script, start);
                     string where = $"{script} {start.GetProperty("name").GetString()} [{string.Join(", ", path)}]";
                     var views = new List<(TalkScreen Screen, int Lines, int From, int To)>();
+                    var oneShot = talk.Description.Ambient.Select(a => (a.Flags & TalkScreen.OneShot) != 0).ToArray();
                     void Add(int from)
                     {
                         var screen = TalkScreen.Of(talk, from);
                         Assert.True(screen is not null, where);
                         views.Add((screen!, Lines(talk, from).Count, from, talk.Events.Count));
+                        // The one-shot animations: off as the view starts, and a start for each the script made in it.
+                        Assert.All(screen!.Ambient.Where((_, k) => oneShot[k]), a => Assert.NotEqual(0, (int)(a & CommAnimationFlags.Disabled)));
+                        Assert.Equal(talk.AmbientStarts.Where(s => s.At >= from).Select(s => s.Index),
+                            screen.Changes.Where(c => c.Kind == ScreenChangeKind.AmbientStart).Select(c => c.Value));
+                        Assert.All(talk.AmbientStarts, s => Assert.True(oneShot[s.Index], where));
                     }
                     Add(0);
                     foreach (int r in path)
@@ -100,13 +109,18 @@ public class TalkScreenTests
                                 screen.Changes.Count(c => c.Kind is ScreenChangeKind.TalkingOn or ScreenChangeKind.TalkingOff));
                             // Each ambient animation turned on or off between the screen's recorded changes.
                             var last = talk.Events.Take(from).OfType<ScreenChanged>().Last().Ambient;
-                            int flips = 0;
+                            int flips = 0, started = 0;
                             foreach (var s in range.OfType<ScreenChanged>())
                             {
-                                flips += s.Ambient.Zip(last).Count(a => ((a.First ^ a.Second) & CommAnimationFlags.Disabled) != 0);
+                                var flipped = s.Ambient.Zip(last).Select((a, k) => (On: (a.First & CommAnimationFlags.Disabled) == 0, k,
+                                    Flip: ((a.First ^ a.Second) & CommAnimationFlags.Disabled) != 0)).Where(a => a.Flip).ToList();
+                                // A one-shot's flag cleared is its start's, not a change of its own.
+                                started += flipped.Count(a => oneShot[a.k] && a.On);
+                                flips += flipped.Count(a => !(oneShot[a.k] && a.On));
                                 last = s.Ambient;
                             }
                             Assert.Equal(flips, screen.Changes.Count(c => c.Kind is ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff));
+                            Assert.True(started <= screen.Changes.Count(c => c.Kind == ScreenChangeKind.AmbientStart), where);
                         }
                         if (j + 1 == views.Count)
                             continue;
@@ -130,6 +144,59 @@ public class TalkScreenTests
                     }
                 }
             }
+            return 0;
+        });
+    }
+
+    [ContentFact]
+    public void TheTalkingPetsStrobeIsAStartEachTimeAndOffInEveryViewsScreen()
+    {
+        // talkpet.c's MindControlStrobe turns the one-shot strobe on (its ANIM_DISABLED cleared); UQM's
+        // animation turns itself off again as it ends (commanim.c's ProcessCommAnimations), nothing on the
+        // host does: the talk's flag changes the first time only (as the recording has it). The view carries
+        // each as a start of its own, made once the line before it has played (AlienTalkSegue before it),
+        // and starts with the strobe off, so a screen opened afresh after one doesn't play it again.
+        TestContent.With(package =>
+        {
+            int strobe = TalkingPetScript.StrobeAnimation;
+            Assert.Equal(CommAnimationFlags.Circular | CommAnimationFlags.PauseTalking | TalkScreen.OneShot | CommAnimationFlags.Disabled,
+                Scripts["talkpet"].Description.Ambient[strobe].Flags);
+            // Aboard: its race asked about (reply 2), its physiology (0), then its powers (0): the first strobe.
+            var (talk, from) = Replay(package, "talkpet", "aboard-visit-0-taalo-1", 2, 0);
+            var before = TalkScreen.Of(talk, from)!;
+            Assert.True(Off(before, strobe));
+            Assert.Empty(before.Changes);
+            (talk, from) = Replay(package, "talkpet", "aboard-visit-0-taalo-1", 2, 0, 0);
+            Assert.Equal(new[] { Phrase("talkpet", "NOT_POWERS_BUT_FLOWERS") }, Lines(talk, from).Select(l => l.Phrase));
+            var first = TalkScreen.Of(talk, from)!;
+            Assert.Equal(new[] { new ScreenChange(1, ScreenChangeKind.AmbientStart, strobe) }, first.Changes);
+            Assert.True(Off(first, strobe));
+            Assert.Single(talk.Events.Skip(from).OfType<ScreenChanged>());   // the flag cleared
+            Assert.True(Off(first.AfterChanges(), strobe));   // played: off again
+            // After the view's other talk's lines (a visit's), the same start at its own lines' end.
+            Assert.Equal(new[] { 4 }, TalkScreen.Of(talk, from, 3)!.Changes.Select(c => c.Line));
+            // "Yes, flowers": the second strobe, no flag changed, a start all the same.
+            (talk, from) = Replay(package, "talkpet", "aboard-visit-0-taalo-1", 2, 0, 0, 0);
+            Assert.Equal(new[] { Phrase("talkpet", "GOOD_HUMAN") }, Lines(talk, from).Select(l => l.Phrase));
+            Assert.Empty(talk.Events.Skip(from).OfType<ScreenChanged>());
+            var second = TalkScreen.Of(talk, from)!;
+            Assert.Equal(new[] { new ScreenChange(1, ScreenChangeKind.AmbientStart, strobe) }, second.Changes);
+            Assert.True(Off(second, strobe));
+            Assert.Equal(2, talk.AmbientStarts.Count);
+            // The view after: no start, the strobe off in its screen though the talk's flag stays on.
+            (talk, from) = Replay(package, "talkpet", "aboard-visit-0-taalo-1", 2, 0, 0, 0, 0);
+            Assert.True(talk.Ended);
+            var after = TalkScreen.Of(talk, from)!;
+            Assert.Empty(after.Changes);
+            Assert.True(Off(after, strobe));
+            Assert.Equal(0, (int)(talk.Ambient[strobe] & CommAnimationFlags.Disabled));
+            // The whole talk as one view (a screen that showed nothing of it yet): both starts, in order.
+            Assert.Equal(new[] { ScreenChangeKind.AmbientStart, ScreenChangeKind.AmbientStart }, TalkScreen.Of(talk, 0)!.Changes.Select(c => c.Kind));
+
+            // Its plea for its life (the deal: "kill you", reply 2, then "I must", 2): the strobe once.
+            (talk, from) = Replay(package, "talkpet", "deal-walk", 2, 2);
+            Assert.Equal(new[] { Phrase("talkpet", "DONT_KILL") }, Lines(talk, from).Select(l => l.Phrase));
+            Assert.Equal(new[] { new ScreenChange(1, ScreenChangeKind.AmbientStart, strobe) }, TalkScreen.Of(talk, from)!.Changes);
             return 0;
         });
     }

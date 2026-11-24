@@ -167,7 +167,12 @@ public static class Protocol
     /// as the lines start, and the fades, the ambient animations turned on
     /// or off and the talking stopped or started at the lines they're made
     /// at).
-    public const int Version = 31;
+    /// 32: the Talking Pet's mind-control strobe (stage 3b-2 item 10; row
+    /// 83): a talk's screen carries a one-shot ambient animation's start as
+    /// a change of its own (ScreenChangeKind.AmbientStart), each time the
+    /// script starts it, and has one-shot animations off in the flags it
+    /// starts with.
+    public const int Version = 32;
     public const int DefaultPort = 24642;
 
     /// <summary>

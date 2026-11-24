@@ -265,6 +265,117 @@ public class CommScreenTests
     }
 
     [ContentFact]
+    public void TheTalkingPetsStrobePlaysOnceEachTimeItIsStartedAndAScreenOpenedAfterItDoesntPlayItAgain()
+    {
+        // Differences.md row 83, protocol 32. The Pet's mind-control strobe is a one-shot ambient animation (a
+        // colour animation, off in the description): started by the script as its line ends, it plays once and
+        // turns itself off (commanim.c's ProcessCommAnimations), and a second start plays it again. Every view's
+        // screen has it off, so new lines neither stop one that's playing nor start it, and a screen opened
+        // afresh after one doesn't play it.
+        int strobe = Core.Comm.Scripts.TalkingPetScript.StrobeAnimation;
+        var flags = Scripts["talkpet"].Description.Ambient.Select(a => a.Flags).ToList();
+        Assert.NotEqual(0, (int)(flags[strobe] & CommAnimationFlags.Disabled));
+        TalkScreen View(params ScreenChange[] changes) => new(0, flags, true, changes);
+        var start = new ScreenChange(1, ScreenChangeKind.AmbientStart, strobe);
+        bool On(CommScreen s) => (s.Window.Animation.AmbientFlags[strobe] & CommAnimationFlags.Disabled) == 0;
+        // The strobe's length as the description has it: 30 colour maps, 42 ticks each (ONE_SECOND * 3 / 2).
+        var d = Scripts["talkpet"].Description.Ambient[strobe];
+        Assert.Equal((30, 42, 0), (d.NumFrames, d.BaseFrameRate, d.RandomFrameRate));
+        // How long the strobe stays on from now, the screen stepped a frame at a time (0 if it isn't on).
+        long t = 0;
+        int Plays(CommScreen s, Action<int>? each = null)
+        {
+            int frames = 0;
+            for (int k = 0; k < 400 && On(s); ++k, ++frames)
+            {
+                s.Update(t += 21);
+                each?.Invoke(k);
+            }
+            Assert.False(On(s));
+            return frames;
+        }
+
+        var screen = Opened("talkpet", View(), out var colors);
+        Assert.False(On(screen));
+        screen.Show(new[] { "Don't kill me." }, "I must.", new[] { "One.", "Two.", "Three." }, 2, t, null, View(start));
+        screen.Update(t);
+        Assert.True(screen.Talking);
+        // While its line plays: not yet.
+        while (screen.Talking)
+        {
+            Assert.False(On(screen));
+            screen.Update(t += 21);
+        }
+        // The line over: the strobe on, the colours flashing; then off by itself, a little over two seconds on.
+        Assert.True(On(screen));
+        int flashed = 0;
+        int first = Plays(screen, _ => flashed += ColorsAre(screen, colors, 0) ? 0 : 1);
+        Assert.True(flashed > 10, $"{flashed} frames in other colours");
+        // 30 maps, each shown 42 ticks and the alarm's one more (commanim.c: Alarm = FrameRate + 1), so three of
+        // the screen's 21-tick frames a map, as UQM's at its 40 frames a second.
+        Assert.InRange(first, 85, 91);
+        for (int k = 0; k < 100; ++k)
+            screen.Update(t += 21);
+        Assert.False(On(screen));   // once
+        // Played again by the replier (Left): the script has run, the strobe isn't started again.
+        screen.Page(TalkPage.Replay);
+        while (screen.Talking)
+            screen.Update(t += 21);
+        for (int k = 0; k < 10; ++k)
+            screen.Update(t += 21);
+        Assert.False(On(screen));
+
+        // The next view's start (the second strobe, the host's flags unchanged): it plays again, as long.
+        screen.Show(new[] { "Good human." }, "Yes, flowers.", new[] { "I wish to go now." }, 3, t, null, View(start));
+        Assert.False(On(screen));
+        while (screen.Talking)
+            screen.Update(t += 21);
+        Assert.True(On(screen));
+        // New lines come while it plays (the reply chosen at once), their screen with it off as every view's: it
+        // plays on to its end, and isn't started again by them.
+        int second = Plays(screen, k =>
+        {
+            if (k == 10)
+                screen.Show(new[] { "An excellent idea." }, "I wish to go now.", Array.Empty<string>(), 4, t, null, View());
+        });
+        Assert.Equal(first, second);
+        while (screen.Talking)
+            screen.Update(t += 21);
+        for (int k = 0; k < 100; ++k)
+            screen.Update(t += 21);
+        Assert.False(On(screen));
+
+        // Skipped (Cancel while the line plays): the start is made at once.
+        screen.Show(new[] { "Don't kill me." }, "I must.", new[] { "One." }, 5, t, null, View(start));
+        screen.Update(t += 21);
+        Assert.False(On(screen));
+        screen.Page(TalkPage.Skip);
+        Assert.True(On(screen));
+        Assert.InRange(Plays(screen), first - 1, first + 1);   // (started within the skip's own frame)
+
+        // A screen opened afresh after a strobe (a player joining or coming back): the view it opens in has the
+        // strobe off and no start, and it never plays.
+        t = 0;
+        var fresh = Opened("talkpet", View(), out _);
+        fresh.Show(new[] { "An excellent idea." }, "I wish to go now.", Array.Empty<string>(), 4, t, null, View());
+        for (int k = 0; k < 300; ++k)
+        {
+            fresh.Update(t += 21);
+            Assert.False(On(fresh));
+        }
+        // One opened in the view that starts it plays it with the lines, as every screen showing them does.
+        t = 0;
+        fresh = Opened("talkpet", View(start), out _);
+        fresh.Show(new[] { "Good human." }, "Yes, flowers.", new[] { "I wish to go now." }, 3, t, null, View(start));
+        fresh.Update(t);
+        Assert.False(On(fresh));
+        while (fresh.Talking)
+            fresh.Update(t += 21);
+        Assert.True(On(fresh));
+        Assert.InRange(Plays(fresh), first - 1, first + 1);
+    }
+
+    [ContentFact]
     public void ANewViewsScreenChangesNothingTheShownViewsHaveMade()
     {
         // The new lines' screen is matched only where the views shown here left it otherwise: on the normal path,

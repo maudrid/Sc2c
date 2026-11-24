@@ -483,8 +483,11 @@ public class MeetingWireTests
     [Fact]
     public void ATalksScreenGoesOverTheWireAndBadOnesAreRefused()
     {
-        // Protocol 31 (differences.md row 83): the screen as the lines start and the script's changes at them.
-        var flags = new[] { CommAnimationFlags.YoYo, CommAnimationFlags.Circular, CommAnimationFlags.Random | CommAnimationFlags.PauseTalking };
+        // Protocols 31 and 32 (differences.md row 83): the screen as the lines start and the script's changes at
+        // them; since 32 a one-shot ambient animation's start among them (the Talking Pet's strobe, the fourth
+        // animation here: a colour animation, one-shot, off).
+        var oneShot = CommAnimationFlags.Circular | CommAnimationFlags.PauseTalking | TalkScreen.OneShot | CommAnimationFlags.Disabled;
+        var flags = new[] { CommAnimationFlags.YoYo, CommAnimationFlags.Circular, CommAnimationFlags.Random | CommAnimationFlags.PauseTalking, oneShot };
         var screen = new TalkScreen(1, flags, true, new[]
         {
             new ScreenChange(1, ScreenChangeKind.AmbientOff, 2),
@@ -492,6 +495,7 @@ public class MeetingWireTests
             new ScreenChange(2, ScreenChangeKind.TalkingOff),
             new ScreenChange(2, ScreenChangeKind.TalkingOn),
             new ScreenChange(2, ScreenChangeKind.AmbientOn, 0),
+            new ScreenChange(2, ScreenChangeKind.AmbientStart, 3),
         });
         var view = new TalkView(VisitStep.Meeting, "comandr", new[] { "One", "Two" }, new[] { "Bye" }, 3, "g1", "", Screen: screen);
         var sent = TalkView.Decode(view.Encode())!;
@@ -504,7 +508,8 @@ public class MeetingWireTests
         Assert.False(view.Same(view with { Screen = screen with { ColorMap = 0 } }));
         Assert.False(view.Same(view with { Screen = screen with { Talking = false } }));
         Assert.False(view.Same(view with { Screen = screen with { Ambient = flags.Take(2).ToArray() } }));
-        Assert.False(view.Same(view with { Screen = screen with { Changes = screen.Changes.Take(4).ToList() } }));
+        Assert.False(view.Same(view with { Screen = screen with { Changes = screen.Changes.Take(5).ToList() } }));
+        Assert.Equal(new ScreenChange(2, ScreenChangeKind.AmbientStart, 3), sent.Screen.Changes[^1]);
         // A safety net (TalkView.Of makes none): a change past the lines' end goes at their end, not refused.
         var cut = TalkView.Decode((view with { Lines = Array.Empty<string>() }).Encode())!;
         Assert.All(cut.Screen!.Changes, c => Assert.Equal(0, c.Line));
@@ -515,8 +520,9 @@ public class MeetingWireTests
         Assert.True(done.Same(doneSent));
         Assert.Empty(doneSent.Screen!.Changes);
         Assert.Equal((0, true), (doneSent.Screen.ColorMap, doneSent.Screen.Talking));
+        // (The one-shot animation started is off again: it has played.)
         Assert.Equal(new[] { CommAnimationFlags.YoYo, CommAnimationFlags.Circular,
-            CommAnimationFlags.Random | CommAnimationFlags.PauseTalking | CommAnimationFlags.Disabled }, doneSent.Screen.Ambient);
+            CommAnimationFlags.Random | CommAnimationFlags.PauseTalking | CommAnimationFlags.Disabled, oneShot }, doneSent.Screen.Ambient);
 
         // A hostile client's view: each of the screen's numbers past its bound is refused.
         byte[] Hostile(Action<Net.WireWriter> write, int lines = 2)
@@ -557,7 +563,11 @@ public class MeetingWireTests
         Assert.Equal(new ScreenChange(2, ScreenChangeKind.Fade, 255, TalkScreen.MostTime),
             TalkView.Decode(Hostile(w => Change(w, 2, 0, 255, TalkScreen.MostTime)))!.Screen!.Changes.Single());
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 3, 3))));   // after the lines' end
-        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 5))));   // no such change
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 6))));   // no such change
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 6, 0))));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 5, 0))));   // a start of one that isn't one-shot
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 5, 1))));   // a start of no animation
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 5))));   // its number cut off
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 0, 256, 1))));   // no such colour map
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 0, 1, TalkScreen.MostTime + 1))));
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => Change(w, 0, 2, 1))));   // the only ambient is 0
@@ -572,10 +582,11 @@ public class MeetingWireTests
     public void AnOldClientIsRefused()
     {
         // 27 a meeting's closing lines (stage 3b-1 item 11), 28 credits and fuel (3b-2 item 3), 29 the Melnorme's talk
-        // (item 4), 30 the Zoq-Fot-Pik's speakers (item 5), 31 the talks' screen changes (row 83).
-        Assert.Equal(31, Protocol.Version);
+        // (item 4), 30 the Zoq-Fot-Pik's speakers (item 5), 31 the talks' screen changes (row 83), 32 the Talking
+        // Pet's strobe: a one-shot ambient animation's start among them (item 10).
+        Assert.Equal(32, Protocol.Version);
         var game = NewGame(guests: 0);
-        var refused = game.Host.Hello(9, "old", "Old", 30);
+        var refused = game.Host.Hello(9, "old", "Old", 31);
         Assert.False(Protocol.Accepted(refused.Result));
         Assert.Contains("Version mismatch", refused.Message);
     }

@@ -46,8 +46,9 @@ namespace Crateris.Core.Comm;
 /// opened afresh is opened in and an open one's new lines start from
 /// (what a view it never showed changed), and what the script changes on it as they play (the
 /// commander's power coming back, the colours' fades, the allied
-/// commander's mouth still through the scientist's report); null before
-/// the talk's screen is loaded.
+/// commander's mouth still through the scientist's report, and since
+/// protocol 32 the Talking Pet's mind-control strobe, a one-shot
+/// animation started); null before the talk's screen is loaded.
 public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<string> Lines, IReadOnlyList<string> Replies,
     int Round = 0, string Replier = "", string Said = "", IReadOnlyList<TalkPage>? Paging = null, MineralSale? Sale = null,
     uint? Credits = null, BioSale? BioSale = null, IReadOnlyList<string>? Speakers = null, TalkScreen? Screen = null)

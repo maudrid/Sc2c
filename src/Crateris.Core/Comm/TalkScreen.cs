@@ -35,6 +35,15 @@ public enum ScreenChangeKind : byte
 
     /// <summary>The alien's mouth stays still (EnableTalkingAnim (FALSE)).</summary>
     TalkingOff,
+
+    /// <summary>
+    /// One-shot ambient animation <see cref="ScreenChange.Value"/> started
+    /// (an ONE_SHOT_ANIM's ANIM_DISABLED cleared by the script: the Talking
+    /// Pet's mind-control strobe, <see cref="Talk.StartAmbient"/>): it plays
+    /// once and turns itself off, as UQM's does (commanim.c's
+    /// ProcessCommAnimations), so each start plays it again.
+    /// </summary>
+    AmbientStart,
 }
 
 /// <summary>
@@ -68,6 +77,17 @@ public readonly record struct ScreenChange(int Line, ScreenChangeKind Kind, int 
 /// animation's other flags (the Zoq-Fot-Pik's smoke waiting for Pik is
 /// their speakers', <see cref="TalkView.Speakers"/>).
 /// </para>
+/// <para>
+/// A one-shot ambient animation (ONE_SHOT_ANIM: the Talking Pet's
+/// mind-control strobe, the only one) is off in every view's starting
+/// flags, whatever the talk's own flags say: UQM's turns itself off as it
+/// ends, where nothing on the host does (the talk runs no animations), so
+/// a screen opened afresh after it has played doesn't play it again. The
+/// script's starting it is a change of its own
+/// (<see cref="ScreenChangeKind.AmbientStart"/>, from
+/// <see cref="Talk.AmbientStarts"/>), sent each time, though the talk's
+/// flag changes only the first; the flag's own change isn't one.
+/// </para>
 /// </summary>
 public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> Ambient, bool Talking, IReadOnlyList<ScreenChange> Changes)
 {
@@ -82,6 +102,13 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
 
     /// <summary>The longest fade, in UQM's ticks (XFormColorMap's SIZE).</summary>
     public const int MostTime = short.MaxValue;
+
+    /// <summary>ONE_SHOT_ANIM (commanim.h: TALK_INTRO's bit, in an ambient animation's flags).</summary>
+    public const CommAnimationFlags OneShot = CommAnimationFlags.TalkIntro;
+
+    // A view's starting flags: the talk's, each one-shot animation off (see the class).
+    private static CommAnimationFlags[] StartFlags(CommAnimationFlags[] flags) =>
+        flags.Select(f => (f & OneShot) != 0 ? f | CommAnimationFlags.Disabled : f).ToArray();
 
     /// <summary>
     /// The screen of <paramref name="talk"/> for a view whose lines start
@@ -104,11 +131,21 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
         // the reply: the tracks AlienTalkSegue waits for).
         int line = firstLine;
         var tracks = new List<int>();
+        // The one-shot animations the script started, each before the event at its place.
+        var starts = talk.AmbientStarts;
+        int nextStart = 0;
+        void Started(int upTo)
+        {
+            for (; nextStart < starts.Count && starts[nextStart].At <= upTo; ++nextStart)
+                if (starts[nextStart].At >= from)
+                    changes.Add(new ScreenChange(line, ScreenChangeKind.AmbientStart, starts[nextStart].Index));
+        }
         for (int i = 0; i < events.Count; ++i)
         {
             bool shown = i >= from;
             if (i == from && drawn)
-                start = (palette, flags.ToArray(), talking);
+                start = (palette, StartFlags(flags), talking);
+            Started(i);
             var e = events[i];
             // The screen is drawn at the talk's first segue (AlienTalkSegue's
             // first call, or DoCommunication's as the intro returns), in the
@@ -118,7 +155,7 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
             {
                 drawn = true;
                 if (shown)
-                    start = (colorMap, flags.ToArray(), talking);
+                    start = (colorMap, StartFlags(flags), talking);
                 palette = fadedBefore ?? colorMap;
             }
             switch (e)
@@ -126,7 +163,9 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
                 case ScreenChanged s:
                     if (drawn && shown)
                         for (int k = 0; k < Math.Min(s.Ambient.Count, flags.Length); ++k)
-                            if (((s.Ambient[k] ^ flags[k]) & CommAnimationFlags.Disabled) != 0)
+                            // (A one-shot's flag cleared isn't a change: its start is, above.)
+                            if (((s.Ambient[k] ^ flags[k]) & CommAnimationFlags.Disabled) != 0
+                                && ((s.Ambient[k] & OneShot) == 0 || (s.Ambient[k] & CommAnimationFlags.Disabled) != 0))
                                 changes.Add(new ScreenChange(line,
                                     (s.Ambient[k] & CommAnimationFlags.Disabled) != 0 ? ScreenChangeKind.AmbientOff : ScreenChangeKind.AmbientOn, k));
                     loaded = true;
@@ -158,9 +197,10 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
                     break;
             }
         }
+        Started(int.MaxValue);
         if (!loaded)
             return null;
-        start ??= (drawn ? palette : colorMap, flags.ToArray(), talking);
+        start ??= (drawn ? palette : colorMap, StartFlags(flags), talking);
         // More than a view carries can't come from one reply's script; kept to the bound if it did.
         return new TalkScreen(start.Value.Map, start.Value.Flags, start.Value.Talking,
             changes.Count > MostChanges ? changes.Take(MostChanges).ToList() : changes);
@@ -170,7 +210,8 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
     /// The screen once all its changes are made, with none left: the
     /// colour map the last fade went to, the ambient animations turned on
     /// or off, the talking as the last switch left it (for a view with no
-    /// lines, the visit's end).
+    /// lines, the visit's end). A one-shot animation started is off again:
+    /// it has played.
     /// </summary>
     public TalkScreen AfterChanges()
     {
@@ -209,7 +250,7 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
                     w.UInt((ulong)c.Value);
                     w.UInt((ulong)c.Time);
                     break;
-                case ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff:
+                case ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff or ScreenChangeKind.AmbientStart:
                     w.UInt((ulong)c.Value);
                     break;
             }
@@ -235,7 +276,7 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
         for (int i = 0; i < n; ++i)
         {
             int line = Bounded(r.UInt(), lines, "screen change's line");
-            var kind = r.Byte() is var k && k <= (byte)ScreenChangeKind.TalkingOff ? (ScreenChangeKind)k
+            var kind = r.Byte() is var k && k <= (byte)ScreenChangeKind.AmbientStart ? (ScreenChangeKind)k
                 : throw new InvalidDataException($"Bad talk screen change {k}.");
             changes.Add(kind switch
             {
@@ -243,6 +284,10 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
                     Bounded(r.UInt(), MostTime, "fade's time")),
                 ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff =>
                     new ScreenChange(line, kind, Bounded(r.UInt(), count - 1, "ambient animation")),
+                // Only a one-shot animation is started (the others are turned on and off).
+                ScreenChangeKind.AmbientStart => Bounded(r.UInt(), count - 1, "ambient animation") is var a && (ambient[a] & OneShot) != 0
+                    ? new ScreenChange(line, kind, a)
+                    : throw new InvalidDataException($"A talk's screen starts ambient animation {a}, which isn't one-shot."),
                 _ => new ScreenChange(line, kind),
             });
         }

@@ -52,13 +52,18 @@ public enum CommKeyResult
 /// lacks. The
 /// alien's voice isn't played yet: the lines take their subtitles' time.
 /// The talk's script's changes to the screen (<see cref="TalkView.Screen"/>:
-/// its colour fades, ambient animations turned on or off, the talking
-/// stopped or started) are made as the line each is at starts playing,
-/// once each: a skip makes the rest at once, a replay none again (UQM's
-/// script has run); and new lines start from the screen as their view has
-/// it (its colour map, ambient animations turned off, talking), where the
-/// views shown here left it otherwise, so a view never shown (two coming
-/// in one frame) loses none of its changes.
+/// its colour fades, ambient animations turned on or off, a one-shot one
+/// started, the talking stopped or started) are made as the line each is
+/// at starts playing, once each: a skip makes the rest at once, a replay
+/// none again (UQM's script has run); and new lines start from the screen
+/// as their view has it (its colour map, ambient animations turned off,
+/// talking), where the views shown here left it otherwise, so a view
+/// never shown (two coming in one frame) loses none of its changes. A
+/// one-shot animation started (the Talking Pet's mind-control strobe)
+/// plays once and turns itself off, here as in UQM, and each start plays
+/// it again; the views have it off throughout, so new lines leave one
+/// that's playing alone, and a screen opened afresh doesn't play one that
+/// has played.
 /// </summary>
 public sealed class CommScreen
 {
@@ -274,6 +279,16 @@ public sealed class CommScreen
         _ambientOff[i] = off;
     }
 
+    // A one-shot ambient animation started by the script (the Talking Pet's mind-control strobe): its
+    // ANIM_DISABLED cleared, which the animation sets again itself as it ends (commanim.c), so the next
+    // start plays it again. What the views have of it doesn't change (off, throughout: _ambientOff), so
+    // the next lines' screen neither stops one that's playing nor starts it again.
+    private void StartAmbient(int i)
+    {
+        var animation = Window.Animation;
+        animation.SetAmbientFlags(i, animation.AmbientFlags[i] & ~CommAnimationFlags.Disabled);
+    }
+
     private void SetTalking(bool on)
     {
         var animation = Window.Animation;
@@ -306,6 +321,9 @@ public sealed class CommScreen
                     break;
                 case ScreenChangeKind.AmbientOn or ScreenChangeKind.AmbientOff when c.Value < _ambientOff.Length:
                     SetAmbient(c.Value, c.Kind == ScreenChangeKind.AmbientOff);
+                    break;
+                case ScreenChangeKind.AmbientStart when c.Value < _ambientOff.Length:
+                    StartAmbient(c.Value);
                     break;
                 case ScreenChangeKind.TalkingOff or ScreenChangeKind.TalkingOn:
                     SetTalking(c.Kind == ScreenChangeKind.TalkingOn);
