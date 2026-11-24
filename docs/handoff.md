@@ -6,7 +6,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 
 ## Where things are
 
-- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is pushed (as of the screen-change fix's report).
+- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is pushed (as of the owner's answers of 2026-11-24).
 - **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; reviewed in four rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 4 (the Melnorme) is built in two parts, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 5 (the Shofixti and the Zoq-Fot-Pik) is built in four parts, reviewed in five rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 6 (the VUX and the Yehat) is built in three parts; reviewed in five rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte; `GOLDEN_TALKS=melnorm` (comma-separated) records only those scripts.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
@@ -45,6 +45,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decided
 
+- **Items 5's and 6's readings put to the owner (the owner, 2026-11-24): kept as built.** Tanaka marked lost by the first player to leave after his death (`differences.md` row 82); the Yehat rebels brought by `--start-encounter YEHAT_REBEL_SHIP` with `--start-state` for their story, and the Yehat revolt told to nobody else.
 - **A save made at a meeting's closing lines (the owner, 2026-11-21, question 13): it carries the talk's end, as leaving then does.** After a peace the group written back re-forming and one-shot, the drone sent off; a surrender or an instant victory going through; no battle; after a hostile ending the group as it was. Only the saved copy gets the end: the live meeting waits on for its player. Built (`HostSave.ToJson`: a copy loaded from the save, `GameWorld.ClosingEndsForSave`, `MakeClosingEnds`; a host's flagship surrendering so isn't saved, the game over to come); reviewed.
 
 - **The battle-won screen (the owner, 2026-11-21, question 12): watched or skipped.** It plays as UQM's, the ship waiting meanwhile; Escape pressed afresh ends it at any time (UQM's only after its first wait). Built (`BattleWonScreen.Advance`, `differences.md` row 18).
@@ -71,7 +72,7 @@ Wait for the owner's go-ahead for item 7 (the Orz and the Pkunk; one go-ahead pe
 
 ## Decisions waiting on the owner
 
-None. The readings put to the owner in items 5's and 6's reports were accepted as built (the owner, 2026-11-24): Tanaka marked by the first player to leave after his death (row 82); the rebels brought by `--start-encounter YEHAT_REBEL_SHIP` with `--start-state` for their story, and the Yehat revolt told to nobody else.
+None.
 
 The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 6 had their go-aheads, the others wait for one each.
 
