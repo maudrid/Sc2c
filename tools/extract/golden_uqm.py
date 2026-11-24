@@ -5951,8 +5951,11 @@ def utwig_starts():
     walked whole by the mission's state (UTWIG_SUPOX_MISSION) and the
     news told (UTWIG_WAR_NEWS), the 4 ships by the escort fleet's room
     (none, 2, 4, 12); in space by the mission's state and each visit,
-    before and after the Kohr-Ah walked whole (UTWIG_INFO); and the
-    alliance without the Ultron back, and at the bomb's moon."""
+    before and after the Kohr-Ah walked whole (UTWIG_INFO); the
+    alliance without the Ultron back, and at the bomb's moon; and the two
+    races' standings apart (the Utwig allied with the Supox not or dead,
+    the Supox allied with the Utwig not or dead: CheckAlliance
+    (UTWIG_SHIP) alone is read)."""
     allied = {"alliances": {"UTWIG_SHIP": "good", "SUPOX_SHIP": "good"}}
     back = {"UTWIG_HAVE_ULTRON": 1, "ULTRON_CONDITION": 5}
     bomb = lambda name, state, **kw: home_start(name, state, flags=1 << 6, **kw)
@@ -6068,6 +6071,20 @@ def utwig_starts():
     for mission in (0, 1, 2, 5):
         starts.append(bomb(f"allied-bomb-mission-{mission}", {**back, "UTWIG_SUPOX_MISSION": mission}, follow=[],
                            **allied))
+    # The two races' standings apart (CheckAlliance (UTWIG_SHIP) alone is read): the Utwig allied with the
+    # Supox not, or dead (the Ultron given with the Supox extinct leaves it so); the Supox allied with the
+    # Utwig not, or dead: the neutral talk, and the bomb's moon's.
+    for sname in ("bad", "dead"):
+        alone = {"alliances": {"UTWIG_SHIP": "good", "SUPOX_SHIP": sname}}
+        starts.append(home_start(f"utwig-allied-supox-{sname}-home", {**back, "UTWIG_HOME_VISITS": 1}, escorts=[0, 12],
+                                 follow=["ExitConversation"], **alone))
+        starts.append(space_start(f"utwig-allied-supox-{sname}-space", {**back, "UTWIG_SUPOX_MISSION": 1,
+                                                                        "UTWIG_VISITS": 1}, follow=[], **alone))
+        other = {"alliances": {"UTWIG_SHIP": sname, "SUPOX_SHIP": "good"}}
+        for where, make in places:
+            starts.append(make(f"utwig-{sname}-supox-allied-{where}", {visit_fields[where]: 1}, follow=[], **other))
+        starts.append(home_start(f"utwig-{sname}-supox-allied-ultron-back", {**back, "UTWIG_HOME_VISITS": 1},
+                                 follow=[], **other))
     return starts
 
 
@@ -6089,7 +6106,9 @@ def supox_starts():
     (UTWIG_SUPOX_MISSION) and the news told (SUPOX_WAR_NEWS), the 4 ships
     by the escort fleet's room (none, 2, 4, 12); in space by the mission's
     state and each visit, before and after the Kohr-Ah walked whole
-    (SUPOX_INFO)."""
+    (SUPOX_INFO); and the two races' standings apart (the Supox allied
+    with the Utwig not or dead, the Utwig allied with the Supox not or
+    dead: CheckAlliance (SUPOX_SHIP) alone is read)."""
     allied = {"alliances": {"UTWIG_SHIP": "good", "SUPOX_SHIP": "good"}}
     back = {"UTWIG_HAVE_ULTRON": 1, "ULTRON_CONDITION": 5}
     places = (("space", space_start), ("home", home_start))
@@ -6176,6 +6195,18 @@ def supox_starts():
     # The Supox allied alone (the alliance is read, not the Ultron's flags).
     starts.append(home_start("allied-alone", {"SUPOX_HOME_VISITS": 1}, follow=[],
                              alliances={"SUPOX_SHIP": "good"}))
+    # The two races' standings apart (CheckAlliance (SUPOX_SHIP) alone is read): the Supox allied with the
+    # Utwig not, or dead; the Utwig allied with the Supox not, or dead: the neutral talk.
+    for sname in ("bad", "dead"):
+        alone = {"alliances": {"SUPOX_SHIP": "good", "UTWIG_SHIP": sname}}
+        starts.append(home_start(f"supox-allied-utwig-{sname}-home", {**back, "SUPOX_HOME_VISITS": 1}, escorts=[0, 12],
+                                 follow=["ExitConversation"], **alone))
+        starts.append(space_start(f"supox-allied-utwig-{sname}-space", {**back, "UTWIG_SUPOX_MISSION": 1,
+                                                                        "SUPOX_VISITS": 1}, follow=[], **alone))
+        other = {"alliances": {"SUPOX_SHIP": sname, "UTWIG_SHIP": "good"}}
+        for where, make in places:
+            starts.append(make(f"supox-{sname}-utwig-allied-{where}", {**back, visit_fields[where]: 1}, follow=[],
+                               **other))
     return starts
 
 

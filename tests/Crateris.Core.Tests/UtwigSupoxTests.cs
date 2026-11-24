@@ -33,8 +33,11 @@ namespace Crateris.Core.Tests;
 /// insulted); the Ultron shown broken (a sick trick, or a fight from a
 /// hostile greeting) and mended (given by a guest: both races allied,
 /// both alliances told to the others, the shipyard building their ships,
-/// the mission's event set aside until 3c); the allies' 4 ships to the
-/// host's fleet by its room, whoever answers; each race's sphere shown
+/// the mission's event set aside until 3c; with the Supox extinct the
+/// Utwig allied alone); the allies' 4 ships to the host's fleet by its
+/// room, whoever answers, and the Utwig's DONT_NEED, which UQM can't
+/// reach, said when the fleet fills between their offer and the answer;
+/// each race's sphere shown
 /// by the other's talk and by the orbits; and the two races' locks, each
 /// its own. Each expectation is UQM's (utwigc.c, supoxc.c, genutw.c,
 /// gensup.c, comm.c's InitCommunication); the scripts' every path is
@@ -260,7 +263,7 @@ public class UtwigSupoxTests
         Assert.False(m.Talk.UseAltSong);
         Assert.False(m.Talk.SettlesWhenDropped);
         // "This is Captain ..." with the answerer's name and the alliance's; the Ur-Quan's questions take
-        // the place of the Utwig's own until both are asked (utwigc.c:596-605 writes pStr[2] again).
+        // the place of the Utwig's own until both are asked (utwigc.c:592-600 writes pStr[2] again).
         Assert.Equal(new[] { "we_are_vindicator0", "what_about_urquan_1", "bye_neutral" }, Offers(m.Talk));
         var names = new PlayerTalkShip(world.Host, world.TalkLibrary!.Strings, world);
         string weAre = m.Talk.Replies[0].Text;
@@ -302,7 +305,7 @@ public class UtwigSupoxTests
     public void AttackedFromTheEncounterScreenTheUtwigFightAndHoldNoGrudge()
     {
         // comm.c:1393-1409: Attack sets the talk hostile and runs post_utwig_enc, which does nothing
-        // (utwigc.c:963-967): the endless fleet's fight at the homeworld, no orbit after, and the
+        // (utwigc.c:955-959): the endless fleet's fight at the homeworld, no orbit after, and the
         // neutral greetings go on, the visit not counted (Intro never ran).
         var world = NewGame();
         var story = world.Story!;
@@ -324,7 +327,7 @@ public class UtwigSupoxTests
     [ContentFact]
     public void MockedTheUtwigFightAndAreHostileFromThenOnWhileSympathyEndsInPeace()
     {
-        // utwigc.c:487-508: at UTWIG_STACK1 3 "don't be babies" is MOCK_OUR_PAIN, a fight and
+        // utwigc.c:496-515: at UTWIG_STACK1 3 "don't be babies" is MOCK_OUR_PAIN, a fight and
         // UTWIG_HOSTILE with their visits cleared; "real sorry about the Ultron" is APPRECIATE_SYMPATHY
         // with no segue set: the talk ends as it stood. In the world it was hailed from the encounter
         // screen, which set it at peace (comm.c:1388-1392, SET_GAME_STATE (BATTLE_SEGUE, 0)): no fight.
@@ -440,7 +443,7 @@ public class UtwigSupoxTests
         // planet's second moon starts their talk at bit 6 against an infinite fleet, their groups stood
         // down, and returns whatever happened: the moon is never orbited while they guard it.
         // utwigc.c's BombWorld: the questions by BOMB_STACK1 and 2, "we will now take the bomb" a fight
-        // and UTWIG_HOSTILE; hostile at the moon, a fight at once, Ultron or no (:728-732).
+        // and UTWIG_HOSTILE; hostile at the moon, a fight at once, Ultron or no (:800-804).
         var world = NewGame("g");
         var story = world.Story!;
         int star = Star(world, "BOMB_DEFINED");
@@ -539,7 +542,7 @@ public class UtwigSupoxTests
     [ContentFact]
     public void TheUltronIsRefusedAtTheBombsMoonAndGivenAtHomeTheMoonIsTheDruugesThenOpen()
     {
-        // utwigc.c:230-235, 697-699: at the bomb's moon "we have the Ultron" is NO_ULTRON_AT_BOMB and
+        // utwigc.c:224-229, 725-727: at the bomb's moon "we have the Ultron" is NO_ULTRON_AT_BOMB and
         // REFUSED_ULTRON_AT_BOMB, offered no more there. genutw.c:110-178: once the Utwig have it (given
         // at their homeworld), the moon is the Druuge's 5 ships', not stood down, and with none left
         // BOMB_UNPROTECTED and the orbit.
@@ -672,11 +675,11 @@ public class UtwigSupoxTests
     [ContentFact]
     public void TheSupoxHandOverTheBrokenUltronAndNoReplyOfTheirsIsAFightOnlyTheEncounterScreensAttack()
     {
-        // supoxc.c:383-410: "anyone around here?" shows the Utwig's sphere (StartSphereTracking
+        // supoxc.c:354-387: "anyone around here?" shows the Utwig's sphere (StartSphereTracking
         // (UTWIG_SHIP)); asked on, they hand over the broken Ultron (ULTRON_CONDITION 1, the group's).
-        // "Thanks, now we eat you" (:118-125) makes them hostile for good (SUPOX_HOSTILE) and still ends
+        // "Thanks, now we eat you" (:112-119) makes them hostile for good (SUPOX_HOSTILE) and still ends
         // in peace. Hostile, init_supox_comm leaves the talk hostile (the encounter screen), but the
-        // greeting is the whole talk and sets it at peace (:582-597): only Attack fights them.
+        // greeting is the whole talk and sets it at peace (:538-554): only Attack fights them.
         var world = NewGame("g");
         var story = world.Story!;
         // No path through supoxc.c ends hostile: every end UQM's own script reached in the recording is peace.
@@ -754,9 +757,9 @@ public class UtwigSupoxTests
     [ContentFact]
     public void TheSupoxAreAskedAboutTheUtwigByWhetherTheyHaveBeenMetAndAboutTheRepairsByTheUltronsState()
     {
-        // supoxc.c:487-503: with no Ultron aboard and nothing asked yet, "anyone around here?" is "what
+        // supoxc.c:466-486: with no Ultron aboard and nothing asked yet, "anyone around here?" is "what
         // relation to the Utwig?" once the Utwig have been met in space, at home or at the bomb's moon
-        // (their visits' counters), and that one shows no sphere. :527-544: with the Ultron aboard, one
+        // (their visits' counters), and that one shows no sphere. :504-521: with the Ultron aboard, one
         // question about its repairs by its state, until answered (SUPOX_ULTRON_HELP).
         var world = NewGame();
         var story = world.Story!;
@@ -821,9 +824,9 @@ public class UtwigSupoxTests
     [ContentFact]
     public void TheBrokenUltronShownIsASickTrickAndFromAHostileGreetingAFight()
     {
-        // utwigc.c:237-271: the Ultron not mended whole (ULTRON_CONDITION below 4) shown in the neutral
+        // utwigc.c:236-262: the Ultron not mended whole (ULTRON_CONDITION below 4) shown in the neutral
         // talk is DONT_WANT_TO_LOOK and a sick trick, the second line the second time (UTWIG_INFO), at
-        // peace; from the hostile greeting ("hey wait, we have the Ultron", the only reply, :732-739)
+        // peace; from the hostile greeting ("hey wait, we have the Ultron", the only reply, :800-808)
         // TAUNT_US_BUT_WE_LOOK, TRICKED_US and a fight.
         var world = NewGame("g");
         var story = world.Story!;
@@ -876,7 +879,7 @@ public class UtwigSupoxTests
     [ContentFact]
     public void AGuestGivesTheMendedUltronAndBothRacesAreAlliedEveryoneToldAndTheShipyardBuildsTheirShips()
     {
-        // utwigc.c:272-305: the Ultron mended whole (ULTRON_CONDITION 4) shown at their homeworld:
+        // utwigc.c:263-293: the Ultron mended whole (ULTRON_CONDITION 4) shown at their homeworld:
         // HAPPY_DAYS, OK_ATTACK_KOHRAH and the mission's event (AddEvent (RELATIVE_EVENT, 0, 0, 0,
         // ADVANCE_UTWIG_SUPOX_MISSION): due at once, set aside until 3c, question 3), UTWIG_HAVE_ULTRON,
         // ULTRON_CONDITION 5 (no device any more), every visit, news and grudge of both races cleared,
@@ -956,7 +959,7 @@ public class UtwigSupoxTests
     [ContentFact]
     public void GivenFromAHostileGreetingOrTooLateTheUltronAlliesThemAllTheSame()
     {
-        // utwigc.c:241-242, 274-282: from the hostile greeting's only reply TAUNT_US_BUT_WE_LOOK, then
+        // utwigc.c:232-235, 266-273: from the hostile greeting's only reply TAUNT_US_BUT_WE_LOOK, then
         // the same gift, their hostility cleared; with the Kohr-Ah's victory near (KOHR_AH_FRENZY)
         // TOO_LATE and no mission, the alliances made all the same.
         var world = NewGame("g");
@@ -995,7 +998,7 @@ public class UtwigSupoxTests
     [ContentFact]
     public void TheAlliesGiveFourShipsEachToTheHostsFleetByItsRoomWhoeverAnswers()
     {
-        // utwigc.c:307-320, 400-401; supoxc.c:132-145, 221-222: at home, while the mission hasn't started
+        // utwigc.c:296-308, 393-394; supoxc.c:126-138, 223-224: at home, while the mission hasn't started
         // (UTWIG_SUPOX_MISSION 0), "can you help?": HAVE_4_SHIPS and AddEscortShips (race, 4), which
         // adds as many as there's room for (the host's fleet, whoever answers: question 4). The Utwig
         // offer it only with room (EscortFeasibilityStudy in AlliedHome); the Supox always, and with no
@@ -1060,7 +1063,7 @@ public class UtwigSupoxTests
         // The mission's event is set aside (question 3), so UTWIG_SUPOX_MISSION stays 0 after the gift
         // where UQM's event, run at once (clock.c:234-238), makes it 1: until 3c the allies talk as UQM's
         // would had the Ultron come too late: at home their ships at each visit while there's room, no
-        // news of the war; in space the greeting alone (utwigc.c:785-799). With the state 3c's event
+        // news of the war; in space the greeting alone (utwigc.c:855-869). With the state 3c's event
         // would set (--start-state UTWIG_SUPOX_MISSION=1; the event also clears their visits and news):
         // no ships, the fleet on its way, and in space what's up before the Kohr-Ah.
         var world = NewGame("g");
@@ -1121,12 +1124,99 @@ public class UtwigSupoxTests
         }
     }
 
+    [ContentFact]
+    public void TheUtwigHaveNoShipsToGiveWhenTheHostsFleetFillsBetweenTheirOfferAndTheAnswer()
+    {
+        // utwigc.c:296-308, 393-394: "can you help?" is offered only while EscortFeasibilityStudy says
+        // there's room, and answered by the same test: with one player nothing changes between the two,
+        // so DONT_NEED is never said in UQM. With several the host's fleet can fill meanwhile (the
+        // shipyard, another player's talk): here the Supox's 4 ships, given to the host while the guest's
+        // talk with the Utwig waits at its replies (the two races' locks are separate). The Utwig then
+        // say DONT_NEED and give nothing.
+        var world = NewGame("g");
+        GiveUltron(world, "h");
+        int utwig = Star(world, "UTWIG_DEFINED"), supox = Star(world, "SUPOX_DEFINED");
+        world.AddFleetShips("SPATHI_SHIP", HostFleet.MaxShips - 4);
+        Assert.Equal(4, world.Fleet.Room);
+        var mg = Orbit(world, "g", utwig, 0);
+        Assert.Equal(new[] { "learn_new_info", "what_now_homeworld", "how_is_ultron", "can_you_help", "bye_allied_homeworld" }, Offers(mg.Talk!));
+        // Meanwhile the host takes the Supox's ships: the fleet is full.
+        var mh = Orbit(world, "h", supox, 0);
+        Choose(world, "h", "can_you_help");
+        Assert.True(Said(mh.Talk!, "HAVE_4_SHIPS"));
+        Assert.Equal((4, 0), (world.Fleet.CountOf("SUPOX_SHIP"), world.Fleet.Room));
+        MeetingTests.HearClosing(world, "h");
+        world.TakeNotices();
+        // The guest's reply is still on offer, and answered by the room there is now.
+        Assert.True(Offered(mg.Talk!, "can_you_help"));
+        Choose(world, "g", "can_you_help");
+        Assert.Equal(new[] { "ALLIED_HOMEWORLD_HELLO_1", "HOW_HELP", "DONT_NEED" }, Lines(mg.Talk!));
+        Assert.Empty(mg.Talk!.Replies);
+        Assert.Equal(Segue.Peace, mg.Talk.Segue);
+        Assert.Empty(mg.Talk.Events.OfType<EscortsAdded>());
+        Assert.Equal((0, 4, HostFleet.MaxShips), (world.Fleet.CountOf("UTWIG_SHIP"), world.Fleet.CountOf("SUPOX_SHIP"), world.Fleet.Ships.Count));
+        Assert.DoesNotContain(world.TakeNotices(), n => n.Event == NoticeEvent.ShipsGiven);
+        MeetingTests.HearClosing(world, "g");
+        Assert.Null(mg.Battle);
+        Assert.NotEqual(Activity.Orbit, world.Find("g")!.Ship.Activity);
+    }
+
+    [ContentFact]
+    public void GivenWithTheSupoxExtinctTheUltronAlliesTheUtwigAlone()
+    {
+        // utwigc.c:291-292: SetRaceAllied for both races; a dead race stays dead (build.c:210), so with
+        // the Supox extinct (the Kohr-Ah's doing, 3c's: set up here as no sphere and dead) only the
+        // Utwig's alliance is made and told. From then on the Utwig's talks go by their own alliance
+        // (utwigc.c:810, CheckAlliance (UTWIG_SHIP)), the shipyard builds their ships alone, and the
+        // Supox's homeworld, nobody's now, is an ordinary orbit (gensup.c:82).
+        var world = NewGame("g");
+        var story = world.Story!;
+        story.SetFleet("SUPOX_SHIP", story.Fleet("SUPOX_SHIP") with { ActualStrength = 0 });
+        story.SetAlliance("SUPOX_SHIP", Allied.Dead);
+        var host = world.Host.Ship;
+        world.CommanderMet = true;
+        world.PutInOrbit("h", Sol, Earth, Luna);
+        host.Ip!.ReturnFromOrbit();
+        host.Hold.ResourceUnits = 10000;
+        world.VisitStarbase(world.Host);
+        Assert.Equal(Activity.Starbase, host.Activity);
+        world.TakeNotices();
+
+        var m = GiveUltron(world, "g");
+        Assert.Equal(new[] { "NEUTRAL_HOMEWORLD_HELLO_1", "DONT_WANT_TO_LOOK", "HAPPY_DAYS", "OK_ATTACK_KOHRAH" }, Lines(m.Talk!));
+        Assert.Equal((Allied.Good, Allied.Dead), (story.Alliance("UTWIG_SHIP"), story.Alliance("SUPOX_SHIP")));
+        int utwig = Race(world, "UTWIG_SHIP"), supox = Race(world, "SUPOX_SHIP");
+        // Both calls made, as UQM's; only the Utwig's changed anything.
+        Assert.Equal(new[] { new RaceAllied(utwig, true, 1, true), new RaceAllied(supox, true, 1, false) }, m.Talk!.Events.OfType<RaceAllied>());
+        Assert.Equal(new[] { new WorldNotice("h", NoticeEvent.AllianceMade, "g", "Utwig") },
+            world.TakeNotices().Where(n => n.Event is NoticeEvent.AllianceMade or NoticeEvent.AllianceBroken));
+        Assert.Equal((1, 5), (story.Get("UTWIG_HAVE_ULTRON"), story.Get("ULTRON_CONDITION")));
+        // The shipyard: the Utwig's ships, not the Supox's.
+        Assert.False(world.Outfit("h", new BuildShip(0, "SUPOX_SHIP")));
+        Assert.True(world.Outfit("h", new BuildShip(0, "UTWIG_SHIP")));
+        Assert.Equal((1, 0), (world.Fleet.CountOf("UTWIG_SHIP"), world.Fleet.CountOf("SUPOX_SHIP")));
+        // The Utwig as allies, at peace, with their ships to give.
+        m = Orbit(world, "g", Star(world, "UTWIG_DEFINED"), 0);
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        Assert.Equal(new[] { "ALLIED_HOMEWORLD_HELLO_1" }, Lines(m.Talk!));
+        Choose(world, "g", "can_you_help");
+        Assert.True(Said(m.Talk!, "HAVE_4_SHIPS"));
+        Assert.Equal((5, 0), (world.Fleet.CountOf("UTWIG_SHIP"), world.Fleet.CountOf("SUPOX_SHIP")));
+        MeetingTests.HearClosing(world, "g");
+        // The Supox's homeworld: no talk, an orbit.
+        Leave(world, "g");
+        world.PutInOrbit("g", Star(world, "SUPOX_DEFINED"), 0);
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Equal(Activity.Orbit, world.Find("g")!.Ship.Activity);
+        Assert.Equal(0, story.Fleet("SUPOX_SHIP").KnownStrength);
+    }
+
     // ------------------------------------------------------------ the spheres and the locks
 
     [ContentFact]
     public void TheUtwigsTalkShowsTheSupoxsSphere()
     {
-        // utwigc.c:521-529: "what about you?" the second time is ABOUT_US_2 and StartSphereTracking
+        // utwigc.c:523-530: "what about you?" the second time is ABOUT_US_2 and StartSphereTracking
         // (SUPOX_SHIP); the first and the third show nothing. Meeting the Utwig shows their own
         // (InitCommunication's StartSphereTracking, comm.c:1363).
         var world = NewGame();

@@ -38,7 +38,10 @@ namespace Crateris.Core.Comm.Scripts;
 /// allies: at home their news by the mission's state
 /// (UTWIG_SUPOX_MISSION, UTWIG_WAR_NEWS) and 4 ships while the mission
 /// hasn't started (to the host's fleet, whoever answers, while it has
-/// room: EscortFeasibilityStudy, AddEscortShips); in space before and
+/// room: EscortFeasibilityStudy, AddEscortShips; offered only with room
+/// and answered by the same test, so UQM never says DONT_NEED, which
+/// here is said when the host's fleet fills between the two, by the
+/// shipyard or another player's talk); in space before and
 /// after the Kohr-Ah (UTWIG_INFO), and a greeting alone while they fight
 /// them. With the Ultron back their own song (UTWIG_ULTRON_MUSIC: noted
 /// for the audio stage, nothing plays). Every path is checked against
