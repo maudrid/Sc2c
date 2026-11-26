@@ -32,40 +32,25 @@ public sealed partial class GameWorld
     private readonly Dictionary<string, (short X, short Y)> _spinEndedAt = new();
 
     /// <summary>
-    /// The races whose talk is ported (stage 3b-1 item 6: the Ur-Quan,
-    /// their drone, whose talk is theirs, and the Kohr-Ah; item 7 the
-    /// Ilwrath and the Spathi; item 8 the Slylandro probes; stage 3b-2 item 4
-    /// the Melnorme, item 5 the Shofixti and the Zoq-Fot-Pik, item 6 the VUX
-    /// and the Yehat, the rebels too, item 7 the Orz and the Pkunk, item 8
-    /// the Druuge and the Mycon, item 9 the Utwig and the Supox, item 10
-    /// the Thraddash and the Umgah), whose groups fly.
+    /// The races whose groups fly: every race (races.h's, data/races.json),
+    /// as every race's talk is ported since stage 3b-2 item 11 (3b-1 items 6
+    /// to 8 and 3b-2 items 4 to 11 brought them in turn: stage 3b, decision
+    /// 2). The humans and the Syreen have no talk in space
+    /// (RACE_COMMUNICATION's INVALID_CONVERSATION) and no groups either: no
+    /// sphere or system draw makes them, and --start-encounter refuses them.
     /// </summary>
     internal static readonly IReadOnlySet<string> TalkingRaces = new HashSet<string>
     {
-        "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP",
-        // Stage 3b-2 item 4: the Melnorme, in hyperspace (for an empty tank or the broadcaster) and at the nine super giants.
-        "MELNORME_SHIP",
-        // Stage 3b-2 item 5: Tanaka (or Katana) at the Shofixti's system, and the Zoq-Fot-Pik scout (the
-        // Zoq-Fot-Pik have no other groups: 0% in hyperspace and systems, even at home).
-        "SHOFIXTI_SHIP", "ZOQFOTPIK_SHIP",
-        // Stage 3b-2 item 6: the VUX and the Yehat, by their spheres; the Yehat rebels, whose fleet is none (their
-        // strength 0, as UQM's new game makes it) until 3c's revolt gives them one, so only --start-encounter brings them.
-        "VUX_SHIP", "YEHAT_SHIP", "YEHAT_REBEL_SHIP",
-        // Stage 3b-2 item 7: the Orz and the Pkunk, by their spheres.
-        "ORZ_SHIP", "PKUNK_SHIP",
-        // Stage 3b-2 item 8: the Druuge and the Mycon, by their spheres.
-        "DRUUGE_SHIP", "MYCON_SHIP",
-        // Stage 3b-2 item 9: the Utwig and the Supox, by their spheres.
-        "UTWIG_SHIP", "SUPOX_SHIP",
-        // Stage 3b-2 item 10: the Thraddash and the Umgah, by their spheres (the Talking Pet has no ships of its
-        // own: its talk, under the Umgah's lock, is started by its world, stage 3c's).
-        "THRADDASH_SHIP", "UMGAH_SHIP",
+        "ARILOU_SHIP", "CHMMR_SHIP", "HUMAN_SHIP", "ORZ_SHIP", "PKUNK_SHIP", "SHOFIXTI_SHIP", "SPATHI_SHIP",
+        "SUPOX_SHIP", "THRADDASH_SHIP", "UTWIG_SHIP", "VUX_SHIP", "YEHAT_SHIP", "MELNORME_SHIP", "DRUUGE_SHIP",
+        "ILWRATH_SHIP", "MYCON_SHIP", "SLYLANDRO_SHIP", "UMGAH_SHIP", "URQUAN_SHIP", "ZOQFOTPIK_SHIP", "SYREEN_SHIP",
+        "BLACK_URQUAN_SHIP", "YEHAT_REBEL_SHIP", "URQUAN_DRONE_SHIP",
     };
 
     /// <summary>
     /// The races whose groups are kept once made (decision 2):
-    /// <see cref="TalkingRaces"/>. Every other race's groups are made as
-    /// UQM makes them, then dropped. Tests set their own.
+    /// <see cref="TalkingRaces"/>, every race. Tests set their own: every
+    /// other race's groups are then made as UQM makes them, and dropped.
     /// </summary>
     internal IReadOnlySet<string> EncounterRaces { get; set; } = TalkingRaces;
 

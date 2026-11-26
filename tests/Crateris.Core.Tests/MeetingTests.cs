@@ -101,6 +101,36 @@ public class MeetingTests
         return (talk, script);
     }
 
+    // A talk that says nothing: hostile from init (the encounter screen), ended at once by a hail in
+    // peace, by an attack in a fight. What the meeting tests met before every race talked (the stand-in
+    // meeting, gone with stage 3b-2 item 11), for the tests about meetings rather than talks.
+    private sealed class SilentScript : CommScript
+    {
+        public SilentScript(ConversationScript phrases) : base(phrases)
+        {
+        }
+
+        protected internal override void Init() => T.SetSegue(Segue.Hostile);
+
+        protected internal override void Intro()
+        {
+        }
+    }
+
+    /// <summary>
+    /// The races' own talks where they can be made (the content's, once set), else a silent one
+    /// (<see cref="SilentScript"/>), so the tests of meetings run without the content's talks.
+    /// </summary>
+    internal static Func<Player, int, uint, Talk?> SilentTalks(GameWorld world) => (player, race, seed) =>
+    {
+        if (world.RaceTalk(player, race, seed) is { } talk)
+            return talk;
+        var phrases = new ConversationScript("silent", "init_silent_comm", Plain, Array.Empty<string>());
+        return new Talk(new SilentScript(phrases), Plain, Conversation.Parse(""u8), 2, world.Story!, new Dictionary<string, int>(),
+            new TalkTests.TestShip { Crew = 10, CrewCapacity = 50, Fuel = 100, FuelCapacity = 6000, Landers = 1 },
+            world.Clock, seed, _ => true);
+    };
+
     // A game in hyperspace: the host at (5800, 6100) in the Ur-Quan's
     // sphere and guests far off, every race's groups kept, no day's roll,
     // the battles' content and the dialogue locks; each race's talk the
@@ -301,23 +331,20 @@ public class MeetingTests
     }
 
     [ContentFact]
-    public void WithoutTheRacesTalkAHailEndsInPeaceAndAnAttackFights()
+    public void WithoutATalkAGroupPassesThroughAndNoMeetingBegins()
     {
+        // The stand-in meeting (row 68: an encounter screen whose hail ended at once) is gone with stage 3b-2
+        // item 11, every race talking: a group whose talk can't be made (here: no content) isn't met.
         var game = NewGame();
         var world = game.World;
-        world.MeetingTalks = null;   // no race's talk ported yet (row 68)
+        world.MeetingTalks = null;   // the races' own talks, which need the content
         var group = GroupBy(world, "h", "URQUAN_SHIP");
-        var m = Meet(world, "h");
-        Assert.Equal(MeetingStep.Encounter, m.Step);
-        Assert.Null(m.Talk);
-        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
-        Assert.Equal(HyperEncounter.OneShot, group.Flags & HyperEncounter.OneShot);
-        Frames(world, 40);
-        GroupBy(world, "h", "BLACK_URQUAN_SHIP");
-        m = Meet(world, "h");
-        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
-        Assert.Equal(MeetingStep.Battle, m.Step);
-        Assert.Equal("blackurq", m.Battle!.EnemyShip.Id);
+        Frames(world, 60);
+        Assert.Null(world.MeetingOf("h"));
+        Assert.Null(group.MeetingPlayer);
+        Assert.Empty(world.HyperspaceMeetings);
+        Assert.Null(world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
+        Assert.False(world.HasTalk(Race(world, "URQUAN_SHIP")));
     }
 
     [ContentFact]
@@ -726,6 +753,7 @@ public class MeetingTests
     {
         var systems = Systems.Value;
         var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        host.World.MeetingTalks = SilentTalks(host.World);
         host.World.BattleKit = WorldBattleTests.Kit();
         host.World.DialogueLocks = DialogueLocks.Load(DataDir);
         return host;

@@ -45,6 +45,7 @@ public class HyperEncounterTests
         var settings = new GameSettings { SecondsPerGameDay = dayTicks / 24.0 };
         var data = NewGameData.Load(DataDir, systems.Map);
         var world = GameWorld.NewGame(settings, data, "h", "Host", systems, TestContent.Shapes);
+        world.MeetingTalks = MeetingTests.SilentTalks(world);
         var story = world.Story!;
         world.EncounterRaces = story.Rules.Races.ToHashSet();
         uint seed = startSeed = scenario.GetProperty("start_seed").GetUInt32();
@@ -413,7 +414,7 @@ public class HyperEncounterTests
     }
 
     [Fact]
-    public void AGroupOfARaceWhoseTalkIsntPortedIsMadeAsUqmsThenDropped()
+    public void AGroupOfARaceNotAmongTheEncounterRacesIsMadeAsUqmsThenDropped()
     {
         var world = Players(null, ("a", 5800, 6100));
         world.EncounterRaces = new HashSet<string> { "SPATHI_SHIP" };
@@ -426,13 +427,9 @@ public class HyperEncounterTests
         // Its makeup and place drawn (AddEncounterElement), then dropped.
         Assert.Empty(world.Encounters.List);
         Assert.Contains("AddEncounterElement", random.Places.Skip(before));
-        // The game's own: the races whose talk is ported (items 6 and 7; item 8 the Slylandro; 3b-2 item 4 the Melnorme,
-        // item 5 the Shofixti and the Zoq-Fot-Pik, item 6 the VUX, the Yehat and the rebels, item 7 the Orz and the Pkunk,
-        // item 8 the Druuge and the Mycon, item 9 the Utwig and the Supox, item 10 the Thraddash and the Umgah).
-        Assert.Equal(new HashSet<string> { "URQUAN_SHIP", "URQUAN_DRONE_SHIP", "BLACK_URQUAN_SHIP", "ILWRATH_SHIP", "SPATHI_SHIP", "SLYLANDRO_SHIP",
-                "MELNORME_SHIP", "SHOFIXTI_SHIP", "ZOQFOTPIK_SHIP", "VUX_SHIP", "YEHAT_SHIP", "YEHAT_REBEL_SHIP",
-                "ORZ_SHIP", "PKUNK_SHIP", "DRUUGE_SHIP", "MYCON_SHIP", "UTWIG_SHIP", "SUPOX_SHIP",
-                "THRADDASH_SHIP", "UMGAH_SHIP" },
+        // The game's own: every race, each one's talk ported since stage 3b-2 item 11 (decision 2's dropping is
+        // left to the tests' own sets).
+        Assert.Equal(StoryRules.Load(Path.Combine(AppContext.BaseDirectory, "data")).Races.ToHashSet(),
             new GameWorld(new GameSettings(), new GameClock(2155, 2, 17)).EncounterRaces);
     }
 
@@ -519,6 +516,7 @@ public class HyperEncounterTests
     {
         var systems = Systems.Value;
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        world.MeetingTalks = MeetingTests.SilentTalks(world);
         Assert.Equal(JoinResult.Joined, world.Join("g", "Guest"));
         world.UndockShown("g");
         world.EncounterRaces = world.Story!.Rules.Races.ToHashSet();
@@ -572,6 +570,7 @@ public class HyperEncounterTests
     {
         var systems = Systems.Value;
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        world.MeetingTalks = MeetingTests.SilentTalks(world);
         world.EncounterRaces = world.Story!.Rules.Races.ToHashSet();
         var host = world.Host.Ship.Flight;
         host.PlaceAtUniverse(5800, 6100);
@@ -696,6 +695,7 @@ public class HyperEncounterTests
     {
         var systems = Systems.Value;
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        world.MeetingTalks = MeetingTests.SilentTalks(world);
         Assert.Equal(JoinResult.Joined, world.Join("g", "Guest"));
         world.UndockShown("g");
         world.TraceHyperspaceRandom = true;
@@ -919,6 +919,7 @@ public class HyperEncounterTests
     {
         var systems = Systems.Value;
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        world.MeetingTalks = MeetingTests.SilentTalks(world);
         world.EncounterRaces = world.Story!.Rules.Races.ToHashSet();
         var star = systems.Map.Stars.First(s => s.Special is null);
         var f = world.Host.Ship.Flight;

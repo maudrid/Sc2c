@@ -386,15 +386,17 @@ public sealed class HostSession
     /// by Luna), in that system. Touching it, the host meets it: the
     /// encounter screen (chosen on it, or by <see cref="EncounterChoice"/>;
     /// drawn since item 11, its choices in the status lines), the race's
-    /// talk (the Ur-Quan's and the Kohr-Ah's since stage 3b-1 item 6,
-    /// logged, on the communication screen, its replies chosen there or by
-    /// <see cref="MeetingReplies"/>; a race whose talk
-    /// isn't ported: a hail ends at once in peace), the battle (an attack,
-    /// or a talk ending in one). In Earth's system a group joins Sol's own
+    /// talk (every race's since stage 3b-2 item 11, logged, on the
+    /// communication screen, its replies chosen there or by
+    /// <see cref="MeetingReplies"/>), the battle (an attack, or a talk
+    /// ending in one); a Chmmr group is emptied after its talk, with no
+    /// battle (comm.c). In Earth's system a group joins Sol's own
     /// groups (the drone's), so an Ur-Quan group there gives the drone's
     /// message, as UQM's talk reads it (BattleGroupRef); --start-at meets
-    /// them in hyperspace. A ship of no race, or ships not 1 to 7 (MAX_HYPER_SHIPS), is an
-    /// ArgumentException, before anything changes.
+    /// them in hyperspace. A ship of no race, a race with no talk in space
+    /// (the humans, the Syreen: RACE_COMMUNICATION's INVALID_CONVERSATION),
+    /// or ships not 1 to 7 (MAX_HYPER_SHIPS), is an ArgumentException,
+    /// before anything changes.
     /// </summary>
     public string StartEncounter(string spec)
     {
@@ -405,6 +407,9 @@ public sealed class HostSession
                        ?? (story.Rules.Races.Contains(parts[0]) ? story.Rules.RaceShip(parts[0]) : null);
         if (parts.Length > 2 || raceShip is null)
             throw new ArgumentException($"{spec}: SHIP[:SHIPS], SHIP a race's ship by data/ships.json's id or a race by races.h's name");
+        // RACE_COMMUNICATION's INVALID_CONVERSATION: UQM never meets the humans' or the Syreen's ships in space.
+        if (World.DialogueLocks is { } locks && locks.ConversationOf(raceShip.Race) is null)
+            throw new ArgumentException($"{spec}: the {Meeting.RaceName(raceShip.Race)} have no talk in space (UQM never meets their ships there)");
         int race = story.Rules.RaceIndex(raceShip.Race);
         int ships = Math.Max(1, story.Rules.Fleets[race].MakeupMin);
         if (parts.Length == 2 && (!int.TryParse(parts[1], out ships) || ships < 1 || ships > Hyperspace.HyperEncounter.MaxShips))

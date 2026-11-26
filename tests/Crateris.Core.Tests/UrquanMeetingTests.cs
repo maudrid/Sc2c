@@ -500,7 +500,7 @@ public class UrquanMeetingTests
         var game = NewGame();
         var world = game.World;
         var rules = world.Story!.Rules;
-        foreach (string race in GameWorld.TalkingRaces)
+        foreach (string race in GameWorld.TalkingRaces.Where(r => r is not ("SYREEN_SHIP" or "HUMAN_SHIP")))
         {
             var talk = world.RaceTalk(world.Host, Race(world, race), 1);
             Assert.NotNull(talk);
@@ -525,14 +525,15 @@ public class UrquanMeetingTests
         // 3b-2 item 10's: the Thraddash and the Umgah (the Talking Pet's talk is no race's in space: its world's, 3c's).
         Assert.IsType<ThraddashScript>(world.RaceTalk(world.Host, Race(world, "THRADDASH_SHIP"), 1)!.Script);
         Assert.IsType<UmgahScript>(world.RaceTalk(world.Host, Race(world, "UMGAH_SHIP"), 1)!.Script);
-        // The other races of 3b-2 not yet (item 11).
-        foreach (string race in new[] { "ARILOU_SHIP", "SYREEN_SHIP", "CHMMR_SHIP" })
+        // 3b-2 item 11's: the Arilou and the Chmmr; the Syreen (and the humans) have no talk in space.
+        Assert.IsType<ArilouScript>(world.RaceTalk(world.Host, Race(world, "ARILOU_SHIP"), 1)!.Script);
+        Assert.IsType<ChmmrScript>(world.RaceTalk(world.Host, Race(world, "CHMMR_SHIP"), 1)!.Script);
+        foreach (string race in new[] { "SYREEN_SHIP", "HUMAN_SHIP" })
             Assert.Null(world.RaceTalk(world.Host, Race(world, race), 1));
         // Without the content, none.
         world.TalkLibrary = null;
         Assert.Null(world.RaceTalk(world.Host, Race(world, "URQUAN_SHIP"), 1));
-        Assert.All(rules.Races.Where(r => !GameWorld.TalkingRaces.Contains(r)),
-            r => Assert.DoesNotContain(r, world.EncounterRaces));
+        Assert.Equal(rules.Races.ToHashSet(), GameWorld.TalkingRaces.ToHashSet());   // every race
     }
 
     [ContentFact]

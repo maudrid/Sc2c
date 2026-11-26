@@ -38,9 +38,15 @@ public class SystemGroupTests
     // UQM's ELEMENT state flags a group's element shows, and the stamp primitive.
     private const int NonsolidFlag = 1 << 6, DisappearingFlag = 1 << 4, StampPrim = 1;
 
-    internal static GameWorld NewWorld() =>
-        GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Value.Map), "h", "Host", Systems.Value,
-            TestContent.Shapes);
+    // The races' talks where the content's are set, else a silent one (MeetingTests.SilentTalks): a meeting
+    // has a talk since every race's is ported (stage 3b-2 item 11).
+    internal static GameWorld NewWorld()
+    {
+        var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Value.Map), "h", "Host",
+            Systems.Value, TestContent.Shapes);
+        world.MeetingTalks = MeetingTests.SilentTalks(world);
+        return world;
+    }
 
     private sealed class Replay
     {

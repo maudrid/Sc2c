@@ -52,7 +52,8 @@ public sealed partial class GameWorld
     /// from the <see cref="TalkLibrary"/>, with the answerer's ship
     /// (<see cref="PlayerTalkShip"/>: their names, crew, fuel and hold) and
     /// the talk's own fields; null without the content or the locks, or
-    /// for a race not yet among <see cref="TalkingRaces"/>. No such talk is
+    /// for a race with no conversation in space (the humans, the Syreen:
+    /// INVALID_CONVERSATION). No such talk is
     /// story (stage 3b, decision 6: <see cref="TalkRules"/>).
     /// </summary>
     internal Talk? RaceTalk(Player player, int race, uint seed) => RaceTalk(player, race, seed, 0);
@@ -87,15 +88,25 @@ public sealed partial class GameWorld
     }
 
     // The ported script a race's talk runs (init_race), or null: none
-    // without the content, the locks or the race among the talking ones.
+    // without the content or the locks, or for a race with no conversation.
     private string? RaceScript(int race, int globalFlags)
     {
-        if (TalkLibrary is not { } library || Story is not { } story || !TalkingRaces.Contains(story.Rules.Races[race])
-            || ConversationOf(race) is not { } conversation)
+        if (TalkLibrary is not { } library || Story is not { } story || ConversationOf(race) is not { } conversation)
             return null;
         string script = TalkLibrary.ScriptFor(library.Scripts, conversation, story, globalFlags);
         return TalkLibrary.Ported.Contains(script) ? script : null;
     }
+
+    /// <summary>
+    /// Whether a group of a race can be met: its talk can be made
+    /// (<see cref="MeetingTalks"/>: the race's, <see cref="RaceTalk(Player, int, uint)"/>,
+    /// or the tests' own). Every race with a conversation in space talks
+    /// since stage 3b-2 item 11, so the stand-in meeting (an encounter
+    /// screen whose hail ended at once) is gone: without the content, or
+    /// for a race UQM never meets in space, a group touching a player
+    /// passes through them, as one whose race's lock another holds does.
+    /// </summary>
+    internal bool HasTalk(int race) => _meetingTalks is not null || RaceScript(race, 0) is not null;
 
     // The meetings begun since the host's session last asked (its log).
     private readonly List<Meeting> _newMeetings = new();
@@ -227,7 +238,7 @@ public sealed partial class GameWorld
     /// </summary>
     private void MeetInHyperspace(Player player, HyperEncounter met)
     {
-        if (!TakeMeetingLock(player, met.Race, out var conversation, out bool rescueOnly))
+        if (!HasTalk(met.Race) || !TakeMeetingLock(player, met.Race, out var conversation, out bool rescueOnly))
             return;
         // encounter_collision: every group's element made non-solid (each
         // on a screen is solid again on the next frame, tested from where
@@ -306,7 +317,7 @@ public sealed partial class GameWorld
     {
         var g = f.Met!;
         var player = Find(f.Id)!;
-        if (!TakeMeetingLock(player, g.Race, out var conversation, out bool rescueOnly))
+        if (!HasTalk(g.Race) || !TakeMeetingLock(player, g.Race, out var conversation, out bool rescueOnly))
             return;
         SystemMeetings.Add((Frame, f.Id, d.Star, g.Race, g.GroupId));
         var ships = sg.StartMeeting(d, g, f.Id);
@@ -373,30 +384,29 @@ public sealed partial class GameWorld
         foreach (char ch in m.Player.Id)
             seed = unchecked(seed * 31 + ch);
         // The talk's own random seed (decision 12), as a visit's talks have.
-        var talk = m.WorldTalk is { } w ? WorldTalk(m.Player, w, seed) : MeetingTalks(m.Player, m.Race, seed);
+        // Every meeting has its talk: one begins only where it can be made (HasTalk, WorldScript).
+        var talk = (m.WorldTalk is { } w ? WorldTalk(m.Player, w, seed) : MeetingTalks(m.Player, m.Race, seed))
+                   ?? throw new InvalidOperationException($"a meeting with the {m.RaceId} has no talk");
         // BuildBattle's centrepiece, loaded as the encounter screen comes up (its gravity well drawn in its middle):
         // in a system BATTLE_PLANET's world, in hyperspace a random type; the battle's arena then has it.
         m.BattlePlanet = m.Player.Ship.Ip is not null ? BattlePlanetAt(m.Player.Ship, seed) : RandomPlanetType(seed);
         m.NamedPlanet = m.Player.Ship.Ip is not null && m.World is null ? NamedPlanet(m.Player.Ship) : null;
         m.Talk = talk;
         // The rescue-only talk starts at the rescue, without the greeting (question 7).
-        if (m.RescueOnly && talk?.Script is Comm.Scripts.MelnormeScript melnorme)
+        if (m.RescueOnly && talk.Script is Comm.Scripts.MelnormeScript melnorme)
             melnorme.RescueOnly = true;
-        if (talk is not null)
-        {
-            // Where the talk is, as its script reads it: LOBYTE (GLOBAL
-            // (CurrentActivity)), and in a system its own groups' offset
-            // (BattleGroupRef: Sol's drone, the colony's guard, ...).
-            talk.RoundSource = NewRound;   // before its first set of replies (Hail)
-            talk.Activity = m.Star is null ? TalkActivity.InHyperspace : TalkActivity.InInterplanetary;
-            talk.BattleGroup = m.Star is int star && SystemGroups is { } sg && sg.Systems.TryGetValue(star, out var d)
-                ? Crateris.Core.Systems.SystemGroups.OffsetField(d.Defined) : null;
-            // GetHeadLink (&GLOBAL (npc_built_ship_q)): the ships met (the Talking Pet's script reads it).
-            talk.EnemyShips = m.Ships.Count > 0;
-            talk.Load();
-            TellTalkEffects(m.Player, talk);
-        }
-        if (talk is null || talk.OffersAttack)
+        // Where the talk is, as its script reads it: LOBYTE (GLOBAL
+        // (CurrentActivity)), and in a system its own groups' offset
+        // (BattleGroupRef: Sol's drone, the colony's guard, ...).
+        talk.RoundSource = NewRound;   // before its first set of replies (Hail)
+        talk.Activity = m.Star is null ? TalkActivity.InHyperspace : TalkActivity.InInterplanetary;
+        talk.BattleGroup = m.Star is int star && SystemGroups is { } sg && sg.Systems.TryGetValue(star, out var d)
+            ? Crateris.Core.Systems.SystemGroups.OffsetField(d.Defined) : null;
+        // GetHeadLink (&GLOBAL (npc_built_ship_q)): the ships met (the Talking Pet's script reads it).
+        talk.EnemyShips = m.Ships.Count > 0;
+        talk.Load();
+        TellTalkEffects(m.Player, talk);
+        if (talk.OffersAttack)
         {
             m.Step = MeetingStep.Encounter;
             return;
@@ -435,19 +445,17 @@ public sealed partial class GameWorld
             _heldChoices.Add((id, action, m.Id));
             return true;
         }
+        var talk = m.Talk!;   // a meeting at the encounter screen has its talk (BeginTalk)
         if (action == EncounterAction.Hail)
         {
             m.Hailed = true;
             m.Step = MeetingStep.Talk;
-            if (m.Talk is { } talk)
-            {
-                talk.Hail();
-                TellTalkEffects(m.Player, talk);
-                if (!talk.Ended)
-                    return true;
-            }
+            talk.Hail();
+            TellTalkEffects(m.Player, talk);
+            if (!talk.Ended)
+                return true;
         }
-        else if (m.Talk is { } talk)
+        else
         {
             talk.Attack();
             TellTalkEffects(m.Player, talk);
@@ -780,13 +788,18 @@ public sealed partial class GameWorld
     }
 
     // RaceCommunication's end: the group written back with the ships left
-    // (a battle's: UninitEncounter's; a talk's: all of them), re-forming, and
+    // (a battle's: UninitEncounter's; a talk's: all of them, a Chmmr's none), re-forming, and
     // one-shot if no battle was fought (hyperspace); in a system as the game
     // comes back from it (reinitNpcs), a battle's race turning the race's
     // groups on the players (DoMissions).
     private void EndMeeting(Meeting m, bool fought, List<(int Crew, int Captain)>? instantLeft = null)
     {
         ReleaseMeetingLock(m);
+        // comm.c:1539: after a talk with a Chmmr group (not one aborted), ReinitQueue
+        // (&npc_built_ship_q): the group is written back with no ships, and goes, with no
+        // battle (their talk is at peace from init). Only a group --start-encounter brings
+        // meets it before stage 3c.
+        bool emptied = !fought && m.RaceId == "CHMMR_SHIP";
         List<(int Crew, int Captain)> left;
         if (instantLeft is not null)
             left = instantLeft;
@@ -799,6 +812,8 @@ public sealed partial class GameWorld
                 if (wb.Enemies[i].Starship.CrewLevel > 0)
                     left.Add((wb.Enemies[i].Starship.CrewLevel, wb.Enemies[i].Starship.CaptainsNameIndex));
         }
+        else if (emptied)
+            left = new();
         else
             left = m.Ships.Select(s => (s.Crew ?? 0, s.Captain ?? 0)).ToList();
         m.Left = left;
@@ -837,10 +852,10 @@ public sealed partial class GameWorld
             {
                 chased = g.Chased.ToList();
                 bool fleeing = IsFleeing(g);
-                sg.EndMeeting(d, g, fought ? left : null, fought ? m.Race : -1, Story);
+                sg.EndMeeting(d, g, fought || emptied ? left : null, fought ? m.Race : -1, Story);
                 // Gone: destroyed (none left), or sent off out of the system as the game comes back (the drone,
                 // check_probe; the Zoq-Fot-Pik scout after a talk or a battle it survives, the recruited Shofixti).
-                gone = fought && left.Count == 0 || !fleeing && IsFleeing(g);
+                gone = (fought || emptied) && left.Count == 0 || !fleeing && IsFleeing(g);
             }
             else if (m.WorldTalk is not { PutAside: false })
                 sg.EndWorldMeeting(d, fought ? m.Race : -1);   // the race's world's
@@ -913,10 +928,10 @@ public sealed partial class GameWorld
     /// appears by a player's ship and flies at them: in hyperspace a screen
     /// away to the east, coming in through its vortex, in a sphere of its own
     /// round the player (so it doesn't leave it); in a system in the
-    /// player's view, 600 units east, intercepting. It flies whether or not
-    /// the race's talk is ported (decision 2 drops only the groups the
-    /// game's draws make). Throws if the player isn't flying in hyperspace
-    /// or a system.
+    /// player's view, 600 units east, intercepting. It flies whatever
+    /// <see cref="EncounterRaces"/> holds (decision 2 drops only the groups
+    /// the game's draws make). Throws if the player isn't flying in
+    /// hyperspace or a system.
     /// </summary>
     internal string AddEncounterNear(string id, int race, int ships)
     {

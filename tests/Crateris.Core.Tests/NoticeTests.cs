@@ -415,6 +415,7 @@ public class NoticeTests
     {
         var systems = SystemGroupTests.Systems.Value;
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        world.MeetingTalks = MeetingTests.SilentTalks(world);
         foreach (var g in guests)
         {
             Assert.Equal(JoinResult.Joined, world.Join(g, g));
@@ -695,6 +696,7 @@ public class NoticeTests
     {
         var systems = SystemGroupTests.Systems.Value;
         var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        host.World.MeetingTalks = MeetingTests.SilentTalks(host.World);
         host.World.BattleKit = WorldBattleTests.Kit();
         host.StartAt(5800, 6100);
         host.Hello(1, "g", "Guest", Protocol.Version);
