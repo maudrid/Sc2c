@@ -164,10 +164,10 @@ public sealed class Meeting
     public string? Conversation { get; internal set; }
 
     /// <summary>
-    /// The race's talk, or null while the race's talk isn't ported (stage
-    /// 3b-1 items 6 to 8 port theirs, 3b-2 the rest; docs/differences.md row
-    /// 68): the encounter screen is shown all the same, a hail ends at once
-    /// as a talk ending in peace, an attack fights.
+    /// The race's talk: every meeting begun has one (a meeting begins only
+    /// where its talk can be made since every race's is ported, stage 3b-2
+    /// item 11: docs/differences.md row 68); null only for a saved copy's
+    /// meeting at its closing lines (<see cref="EndedAs"/>).
     /// </summary>
     public Talk? Talk { get; internal set; }
 

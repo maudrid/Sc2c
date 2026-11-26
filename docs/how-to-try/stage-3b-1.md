@@ -44,7 +44,7 @@ godot --path game -- --host --id host --name Host --start-at 5800:6100 --start-e
 godot --path game -- --join 127.0.0.1 --name Guest --id guest-1
 ```
 
-A group of that ship's race (`data/ships.json`'s id, as `--start-battle`'s: `urquan`, `blackurq`, `ilwrath`, `spathi`, `slylandr`; any other race's group flies all the same, but its talk isn't ported: a hail ends at once in peace, the group gone in hyperspace, standing down in a system; an attack fights it) of SHIPS ships (the race's fewest in a group without) appears by the host and flies at it: in hyperspace with `--start-at`, else in Sol's inner system after the opening, by Earth (an Ur-Quan group there is among Sol's own and gives the drone's message, as UQM's talk reads it).
+A group of that ship's race (`data/ships.json`'s id, as `--start-battle`'s: `urquan`, `blackurq`, `ilwrath`, `spathi`, `slylandr`; every other race's since stage 3b-2 item 11, whose talks its items port: `docs/how-to-try/stage-3b-2.md`; the Syreen and the humans, who have no talk in space, are refused) of SHIPS ships (the race's fewest in a group without) appears by the host and flies at it: in hyperspace with `--start-at`, else in Sol's inner system after the opening, by Earth (an Ur-Quan group there is among Sol's own and gives the drone's message, as UQM's talk reads it).
 
 ![A Spathi group's globe flying at the host in hyperspace](../screenshots/stage3b1-hyperspace.png)
 

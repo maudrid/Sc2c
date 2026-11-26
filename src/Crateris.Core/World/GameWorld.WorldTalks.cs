@@ -98,7 +98,9 @@ public sealed partial class GameWorld
     /// generator's generateOrbital, in the generator's order where two
     /// share a world (the bomb's moon: the Utwig, then the Druuge). An
     /// entry starts nothing while its talk's script isn't ported
-    /// (<see cref="WorldScript"/>): the world is orbited as before. Left
+    /// (<see cref="WorldScript"/>): the world is orbited as before; every
+    /// entry's is since stage 3b-2 item 11 (the Syreen's starbase the
+    /// last), so that's only without the content. Left
     /// out: the Chmmr's own talk at Procyon once they're unleashed and
     /// the bomb ship (genchmmr.c:96, 3c's: the plan's question 8); the
     /// Talking Pet's half of genpet.c (the zombies, the Pet's talks, the

@@ -71,6 +71,52 @@ Each is a row of `docs/differences.md`: Spathiwa's moon's talk with several play
 - **The Spathi never shield themselves** (their event is stage 3c's), so Spathiwa's moon keeps talking after the alliance.
 - **The alternate "Safe Ones" song** is chosen but nothing plays music yet.
 
+## Item 11: the Arilou, the Syreen and the Chmmr
+
+With this item every race talks: every race's groups fly by UQM's rolls and draws, and every group met has its race's talk (`differences.md` row 68 closed). The humans and the Syreen have no talk in space, and UQM never meets their ships there: `--start-encounter` refuses them.
+
+### The Arilou
+
+The Arilou's groups fly in hyperspace in their sphere (never in systems). Until they're your friends for good they're met at the encounter screen, but every way out of their talk is peace: the first meeting's hello and how it struck you, their news (four in turn), why they're here (three questions) and their hints (the second tells of the world with no surface, the third of the Ur-Quan's and the Kohr-Ah's story), and goodbye. Attacking from the encounter screen is a fight, and they're angry after it, with everyone: they ask you to apologise at their homeworld, and "let's fight" is only a goodbye.
+
+Their talk is the answering player's: whether that player is in QuasiSpace (`ARILOU_SPACE_SIDE`, each ship's own) picks the Arilou's homeworld talk or the one in hyperspace. QuasiSpace is stage 3c's, so the homeworld talk (the portal key, the Talking Pet, the Umgah's check, and the Umgah made the Pet's zombies again after it) is reached only by the tests and the recordings until then. Their check on the Umgah is an event set aside until 3c (row 66).
+
+### The Syreen
+
+The Syreen's starbase (star 228, planet 0, moon 0) starts their talk: at peace, with no ships and nothing to fight, under the Syreen's lock (another player orbiting it meanwhile is told who's talking); the ship is never put in orbit there. At the first visit the captain introduces themselves (four ways, the second "I am Captain Zelnick of the flagship Vindicator" with the answerer's names); from the second visit on, their questions at once: three menus about them, the war and their world, and with the shattered world known, the Mycon. The rest (the egg cases and the horrible truth, the shuttle, the vault, the ambush, their alliance after it and the reward) waits on stage 3c's pickups and devices; `--start-state` reaches it.
+
+### The Chmmr
+
+Every way to the Chmmr is stage 3c's (the broadcaster, the Sun Device that frees them, their world once unleashed). Until then `--start-encounter chmmr` brings a group of their ships: met at peace with no encounter screen, their talk as the story stands (shielded by default: "we are the chenjesu... we are the mmrnmhrm", in the shielded colours), and after it the group is gone, with no battle (UQM's `comm.c` empties a Chmmr group after its talk). A player leaving mid-talk leaves it as it was.
+
+By set-up (`--start-state CHMMR_UNLEASHED=1,TALKING_PET_ON_SHIP=1,UTWIG_BOMB_ON_SHIP=1`) "Very well. Proceed with the modifications." rebuilds the answering ship as UQM rebuilds the flagship: 1,000,000 RU, no landers, no crew, no minerals, only the reserve's fuel, thrusters and jets in every slot and the bomb's ten modules, and the landers' and the storage bays' prices 0 at the starbase for everyone. The Chmmr say they'll take you to Earth, but the ship stays where it is and no days pass: the move, the 14 days and whose ship carries the bomb are stage 3c's (the plan's question 8).
+
+### Procyon's Ilwrath
+
+With the Sun Device aboard (`--start-state SUN_DEVICE_ON_SHIP=1`, or `--start-devices SUN_EFFICIENCY_DEVICE`), the Ilwrath alive and not deceived and the Chmmr not freed, orbiting the Chmmr's world (star 133, planet 1) meets the Ilwrath's endless fleet and their talk (stage 3b-1's branch, item 1's wiring).
+
+Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
+
+- `--start-at 4000:4000 --start-encounter arilou --encounter-choice hail --meeting-replies 1,2,2 --quit-after 400`: "host at the encounter screen: 1 Arilou ship, hail or attack", their hello, "happy" ("... You seem healthy."), then "We still struggle against the Ur-Quan. Can you help us?" ("With ships and weapons... blood and bones... no. ... seek creatures who inhabit a world with no surface."), "Goodbye Arilou.", "Farewell child.", "The talk with the Arilou ends: peace", back in hyperspace. The save has `MET_ARILOU` 1 and `ARILOU_HINTS` 1, and no Arilou group left.
+- The same with `--encounter-choice attack --quit-after 250` and no replies: "The talk with the Arilou ends: hostile", "host fights the Arilou"; the save has `ARILOU_MANNER` 1.
+- `--start-orbit 228:0:0 --meeting-replies 3,0,0,3 --quit-after 400`: no encounter screen, "Attention unidentified space vessel! ... Who are you?", "We're... we're.. we're greatly impressed!" ("So am I, Captain. So am I. ..."), "We have come here to free you from slavery to the Ur-Quan!" ("Look friend, I appreciate your offer, but we don't want your help. ..."), what they're doing here, goodbye, "The talk with the Syreen ends: peace", the ship by the starbase in the inner system, not in orbit. The save has `SYREEN_HOME_VISITS` 1 and `SYREEN_STACK0` 1.
+- `--start-at 4000:4000 --start-encounter chmmr:3 --meeting-replies 0,3 --quit-after 400`: "host talks to the Chmmr" (no encounter screen), "we are the chenjesu... we are the mmrnmhrm ... explain this intrusion.", why they can't help (the process, the chrysalis), "goodbye once and future ally, human...", "The talk with the Chmmr ends: peace", back in hyperspace; the save has `CHMMR_HOME_VISITS` 1, `CHMMR_STACK` 1 and no encounters left.
+- `--start-encounter chmmr:2 --meeting-replies 3 --quit-after 2000` (after the opening, in Sol's inner system): "A group of 2 Chmmr ships appears by the host in the system", the talk, goodbye, the meeting over with no battle.
+- `--start-state CHMMR_UNLEASHED=1,TALKING_PET_ON_SHIP=1,UTWIG_BOMB_ON_SHIP=1 --start-at 4000:4000 --start-encounter chmmr --meeting-replies 2 --quit-after 400`: "YOU ARE READY...", "Very well. Proceed with the modifications.", "THE COMPLETION DATE FOR YOUR VESSEL'S MODIFICATION IS ROUGHLY TWO WEEKS HENCE. ... GOOD LUCK, CAPTAIN.", peace. The save has `CHMMR_BOMB_STATE` 2, the Chmmr allied, the hold's crew, landers, minerals 0 and 1,000,000 RU, and the bomb's modules in the slots; the ship still in hyperspace.
+- `--start-at 4000:4000 --start-encounter syreen --quit-after 60`: "Can't start there: syreen: the Syreen have no talk in space (UQM never meets their ships there)". `--start-encounter HUMAN_SHIP:2`: the same for the Earthlings.
+- `--start-state SUN_DEVICE_ON_SHIP=1 --start-orbit 133:1 --encounter-choice hail --meeting-replies 0 --quit-after 400`: "host at the encounter screen: an infinite fleet of Ilwrath ships, hail or attack", "Caught You, Didn't I? ...". With `--start-devices SUN_EFFICIENCY_DEVICE` instead: the same encounter screen, "an endless fleet of Ilwrath ships at Planet II, Procyon".
+- Windowed with `--screenshot FILE.png`: the Syreen's starbase (`--start-orbit 228:0:0 --quit-after 120`: Talana on her couch, "Be warned! This slave world and its inhabitants belong to the Ur-Quan." in their font at the top) and a Chmmr group (`--start-at 4000:4000 --start-encounter chmmr --quit-after 200`: the Chmmr in the shielded red colours, "...we do not understand how you have penetrated the slave shield or why..." at the top).
+
+### What's different from UQM
+
+`docs/differences.md` rows 27 (the Syreen's starbase starts their talk; every listed world's script ported), 66 (the Arilou's Umgah check set aside), 68 (closed: every race's groups fly and talk, the stand-in meeting gone) and 87 (the Arilou, the Syreen and the Chmmr with several players: the answering player's `ARILOU_SPACE_SIDE`, the Chmmr group emptied, the bomb branch rebuilding the answering ship without moving it).
+
+### Known limits of item 11
+
+- **The Arilou's homeworld** is in QuasiSpace, stage 3c's: its talk is recorded and tested, not reached in play. `--start-state` can't set `ARILOU_SPACE_SIDE` (each ship's own).
+- **The Chmmr** are met only as a group `--start-encounter` brings; their world's talk once they're freed, and the bomb ship's move and its 14 days, are stage 3c's.
+- **The Syreen's** later talks wait on stage 3c's pickups (the egg cases, the shuttle, the vault, the ambush); `--start-state` reaches them.
+
 ## Item 10: the Thraddash, the Umgah and the Talking Pet
 
 ### The Thraddash

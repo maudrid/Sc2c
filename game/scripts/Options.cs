@@ -46,11 +46,11 @@ namespace Crateris.Game;
 /// --start-encounter SHIP[:SHIPS] (host: a group of that ship's race, by data/ships.json's id as --start-battle's or a
 /// race by races.h's name, YEHAT_REBEL_SHIP for the Yehat rebels, of SHIPS ships or the race's fewest in a group, appears by the host and flies at it: in hyperspace with --start-at, else a
 /// new game after the opening, in flight by Earth, in Sol's inner system; touching it meets it: the encounter screen, chosen
-/// on it or by --encounter-choice; the Ur-Quan's (urquan), the Kohr-Ah's (blackurq), the Ilwrath's (ilwrath),
-/// the Spathi's (spathi), the Slylandro probe's (slylandr) and stage 3b-2's as its items port them (the Melnorme's,
-/// Tanaka's, the Zoq-Fot-Pik's, the VUX's, the Yehat's, the rebels', the Orz's, the Pkunk's, the Druuge's, the Mycon's, the Utwig's, the Supox's, the Thraddash's and the Umgah's so far; the Talking Pet has no ship or race to name: its talk is its world's, stage 3c's) talks are ported, logged as they go (in Earth's system an Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk
-/// reads it: --start-at meets them in hyperspace), any other race's hail ends at once in peace, the group gone in
-/// hyperspace, standing down in a system; an attack, or a talk ending hostile, fights its ships), --encounter-choice
+/// on it or by --encounter-choice; every race's talk (stage 3b-2 item 11), logged as it goes (in Earth's system an
+/// Ur-Quan group is among Sol's own groups and gives the drone's message, as UQM's talk reads it: --start-at meets them in
+/// hyperspace; a Chmmr group is emptied after its talk, with no battle; the Talking Pet has no ship or race to name: its
+/// talk is its world's, stage 3c's); an attack, or a talk ending hostile, fights its ships; the Syreen and the humans,
+/// who have no talk in space, are refused), --encounter-choice
 /// hail|attack (host: the choice at a meeting's encounter screen, made as it comes up), --meeting-replies I[,I...] (host:
 /// the replies chosen in the host's meetings' talks, each by its place among those offered from 0, one a set in turn
 /// as each set comes, none while the host has paused; past the
