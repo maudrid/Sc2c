@@ -464,8 +464,9 @@ public class IlwrathSpathiMeetingTests
     [ContentFact]
     public void TheGodsOrderingTheIlwrathAgainstTheThraddashSetsTheirMissionAside()
     {
-        // The broadcaster's branch (3b-2's), through the world's talk: the
-        // event AddEvent adds is the story's, set aside until 3c runs it.
+        // The broadcaster's branch (3c's, with the device), through the
+        // world's talk: the event AddEvent adds is the story's, set aside
+        // until 3c runs it.
         var world = NewGame();
         var talk = world.RaceTalk(world.Host, Race(world, "ILWRATH_SHIP"), 1, 1 << 4)!;
         talk.Activity = TalkActivity.InInterplanetary;

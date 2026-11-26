@@ -20,11 +20,13 @@ namespace Crateris.Core.Comm.Scripts;
 /// whose replies all end in battle), the Ilwrath met in space (by the
 /// visits and the news asked before, and once deceived into fighting the
 /// Thraddash), at their homeworld (GLOBAL_FLAGS_AND_DATA bit 7, set by
-/// genilw.c's orbit: the gods and the Ilwrath asked about), and the
-/// branches 3b-2's and 3c's story reach: the Chmmr's (bit 6), and a
-/// HyperWave Broadcaster's to a ship (bit 5) or to the homeworld (bit 4,
-/// the "gods" ordering the Ilwrath against the Thraddash:
-/// ADVANCE_ILWRATH_MISSION, set aside until 3c runs it). Every path is
+/// genilw.c's orbit: the gods and the Ilwrath asked about), the Chmmr's
+/// (bit 6: Procyon's, genchmmr.c's orbit with the Sun Device aboard, wired
+/// since stage 3b-2 item 1 and reached by --start-state until 3c), and
+/// stage 3c's, with the device: a HyperWave Broadcaster's to a ship
+/// (bit 5) or to the homeworld (bit 4, the "gods" ordering the Ilwrath
+/// against the Thraddash: ADVANCE_ILWRATH_MISSION, set aside until 3c runs
+/// it). Every path is
 /// checked against UQM's own script (tests/golden/talks-ilwrath.json).
 /// </summary>
 public sealed class IlwrathScript : CommScript
