@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-26, the owner kept items 8's, 9's and 10's questions and readings as built (Decided, below); before that 2026-11-24, stage 3b-2 item 10 (the Thraddash, the Umgah and the Talking Pet) built in four commits (the owner's go-ahead 2026-11-24, for this item alone), reviewed in three rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`); its readings and two consequences of question 3 are put to the owner with the report (Decisions waiting on the owner, below). Items 1 to 9 and the screen-change fix were reviewed and reported too; the owner accepted items 5's and 6's readings as built; items 8's and 9's readings and item 9's question stand as built, the owner having started the next item each time without changing any.
+**Last updated:** 2026-11-26, the owner kept items 8's, 9's and 10's questions and readings as built (Decided, below). Stage 3b-2 items 1 to 10 and the screen-change fix are built, reviewed and reported (each item's Progress row; the try-out in `docs/how-to-try/stage-3b-2.md`); item 11 waits for the owner's go-ahead.
 
 ## Where things are
 
