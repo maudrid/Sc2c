@@ -481,7 +481,7 @@ public class ArilouSyreenChmmrTests
     public void AChmmrGroupLeftMidTalkInASystemIsAsItWas()
     {
         // The same in a system: the aborted talk returns before the emptying, so the group stays in the
-        // system with its ships (written back as it was).
+        // system with its ships (left untouched: a mid-talk leave writes nothing back).
         var world = NewGame("g");
         var m = MeetInSystem(world, "g", "CHMMR_SHIP", 2);
         Assert.Equal(MeetingStep.Talk, m.Step);

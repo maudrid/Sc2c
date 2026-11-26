@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-26, stage 3b-2 item 11 (the Arilou, the Syreen and the Chmmr) built in three parts (the owner's go-ahead 2026-11-26, for this item alone); review round 1's findings fixed (its Progress row); review round 2 is next. Items 1 to 10 and the screen-change fix are built, reviewed and reported (each item's Progress row; the try-out in `docs/how-to-try/stage-3b-2.md`); the owner kept items 8's, 9's and 10's questions and readings as built (Decided, below).
+**Last updated:** 2026-11-26, stage 3b-2 item 11 (the Arilou, the Syreen and the Chmmr) built in three parts (the owner's go-ahead 2026-11-26, for this item alone); review rounds 1's and 2's findings fixed (its Progress row); review round 3 is next. Items 1 to 10 and the screen-change fix are built, reviewed and reported (each item's Progress row; the try-out in `docs/how-to-try/stage-3b-2.md`); the owner kept items 8's, 9's and 10's questions and readings as built (Decided, below).
 
 ## Where things are
 
@@ -68,7 +68,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review round 2 of stage 3b-2 item 11 (the Arilou, the Syreen and the Chmmr): the commit fixing round 1's findings (`differences.md` rows 27 and 87, three Chmmr tests, a vacuous assert dropped; round 1 reviewed `850f46c`..`a941d5e`), then fix, review round by round and report; then wait for the go-ahead for item 12.
+Review round 3 of stage 3b-2 item 11 (the Arilou, the Syreen and the Chmmr): the commit fixing round 2's findings (round 2 reviewed `198a7cd`: a `genchmmr.c` line cited as 98 for 99, and a test comment), then report if it finds nothing; then wait for the go-ahead for item 12.
 
 ## Decisions waiting on the owner
 
