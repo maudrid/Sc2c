@@ -2,11 +2,11 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-26, stage 3b-2 item 11 (the Arilou, the Syreen and the Chmmr) built in three parts (the owner's go-ahead 2026-11-26, for this item alone); reviewed in five rounds and reported (its Progress row; its readings put to the owner, Decisions waiting, below). Items 1 to 10 and the screen-change fix are built, reviewed and reported (each item's Progress row; the try-out in `docs/how-to-try/stage-3b-2.md`); the owner kept items 8's, 9's and 10's questions and readings as built (Decided, below).
+**Last updated:** 2026-11-26, stage 3b-2 item 12 (the docs) started (the owner's go-ahead 2026-11-26, for this item alone); the owner kept item 11's readings as built (Decided, below). Items 1 to 11 and the screen-change fix are built, reviewed and reported (each item's Progress row; the try-out in `docs/how-to-try/stage-3b-2.md`).
 
 ## Where things are
 
-- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is pushed (as of item 11's report).
+- **Branch:** `claude/ac2c-coop-engine-setup-wuj7hq` on `github.com/maudrid/Sc2c`. Everything is pushed (as of item 12's start).
 - **Current plan:** `docs/plans/stage-3b-2.md` (its ten questions answered by the owner on 2026-11-22). Item 1 (what talks can do) is built, reviewed and reported. Item 2 (the Spathi and the Slylandro at home) is built, reviewed in three rounds and reported (its Progress row: what was built and what it left open; the try-out in `docs/how-to-try/stage-3b-2.md`, new). Item 3 (Melnorme credits, fuel between players, the rainbow worlds) is built; reviewed in four rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 4 (the Melnorme) is built in two parts, reviewed in four rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 5 (the Shofixti and the Zoq-Fot-Pik) is built in four parts, reviewed in five rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 6 (the VUX and the Yehat) is built in three parts; reviewed in five rounds and reported (its Progress row: what was built, its readings, what's left open; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 7 (the Orz and the Pkunk) is built, reviewed in two rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 8 (the Druuge and the Mycon) is built in three parts, reviewed in three rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 9 (the Utwig and the Supox) is built in three parts, reviewed in three rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 10 (the Thraddash, the Umgah and the Talking Pet) is built in four commits, reviewed in three rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Item 11 (the Arilou, the Syreen and the Chmmr; every race talking, the stand-in meeting gone) is built in three parts, reviewed in five rounds and reported (its Progress row; its try-out in `docs/how-to-try/stage-3b-2.md`). Stage 3b-1 is built (`docs/plans/stage-3b.md`, its Progress section).
 - **The talks' recordings** are one file per script since item 1 (`tests/golden/talks-NAME.json`); `golden_uqm.py --only talks` writes them all (about 45 s) and they re-record byte for byte; `GOLDEN_TALKS=melnorm` (comma-separated) records only those scripts.
 - **Last plan built:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
@@ -44,6 +44,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decided
 
+- **Item 11's readings put to the owner (the owner, 2026-11-26): kept as built.** The Chmmr's bomb branch, reached only by set-up until 3c, rebuilds the answering ship (a guest's too) and zeroes the landers' and storage bays' prices for everyone, but doesn't move the ship or pass the 14 days (question 8 leaves the bomb ship to 3c); the rest as item 11's Progress row and `differences.md` row 87 have them.
 - **Items 8's, 9's and 10's questions and readings put to the owner (the owner, 2026-11-26): kept as built.** Item 10: the Aqua Helix's world stays guarded and the Umgah's world held until 3c (`differences.md` rows 66 and 27), and its readings (row 86). Item 9: the allied Utwig and Supox give 4 ships at every visit home until 3c's event (row 66), and its readings (row 85). Item 8's readings (row 84). Each item's Progress row in `docs/plans/stage-3b-2.md` holds them.
 - **Items 5's and 6's readings put to the owner (the owner, 2026-11-24): kept as built.** Tanaka marked lost by the first player to leave after his death (`differences.md` row 82); the Yehat rebels brought by `--start-encounter YEHAT_REBEL_SHIP` with `--start-state` for their story, and the Yehat revolt told to nobody else.
 - **A save made at a meeting's closing lines (the owner, 2026-11-21, question 13): it carries the talk's end, as leaving then does.** After a peace the group written back re-forming and one-shot, the drone sent off; a surrender or an instant victory going through; no battle; after a hostile ending the group as it was. Only the saved copy gets the end: the live meeting waits on for its player. Built (`HostSave.ToJson`: a copy loaded from the save, `GameWorld.ClosingEndsForSave`, `MakeClosingEnds`; a host's flagship surrendering so isn't saved, the game over to come); reviewed.
@@ -68,13 +69,13 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for item 12 (one item per go-ahead), and for their word on item 11's readings (below). Item 11 was reviewed in five rounds: round 1 (`850f46c`..`a941d5e`; two reviewers: the scripts, the world) found no correctness bug and four low findings (`differences.md` rows 27 and 87, three Chmmr tests missing, a vacuous assert), fixed in `198a7cd`; round 2 (`198a7cd`) two (a `genchmmr.c` line, a test comment), fixed in `dab6c5e`; rounds 3 and 4 stale state lines, fixed in `1ded387` and `f800264`; round 5 (`f800264`) found nothing.
+Build stage 3b-2 item 12 (the docs; the owner's go-ahead 2026-11-26, for this item alone), then review it round by round and report. It is the plan's last item.
 
 ## Decisions waiting on the owner
 
-Item 11's readings, put to the owner with its report (2026-11-26); kept as built unless the owner says otherwise (its Progress row, `differences.md` row 87); the one to look at: the Chmmr's bomb branch, reached only by set-up until 3c, rebuilds the answering ship (a guest's too) and zeroes the landers' and storage bays' prices for everyone, but doesn't move the ship or pass the 14 days (the plan's question 8 leaves the bomb ship to 3c).
+None.
 
-The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 11 had their go-aheads, item 12 waits for one.
+The 3b-2 plan's ten questions are answered (2026-11-22); items 1 to 12 had their go-aheads.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
