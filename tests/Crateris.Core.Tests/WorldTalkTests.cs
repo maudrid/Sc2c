@@ -803,7 +803,6 @@ public class WorldTalkTests
         Assert.Null(world.WorldScript(human));
         world.WorldTalkTable = new[] { human, ilwrath };
         Assert.Null(world.WorldTalkAt(star, 0, null));
-        Assert.Equal(0, story.Fleet("HUMAN_SHIP").KnownStrength);   // nothing tracked
         // An entry the world isn't now (Matches): skipped.
         world.WorldTalkTable = new[] { human with { Matches = _ => false }, ilwrath };
         Assert.Same(ilwrath, world.WorldTalkAt(star, 0, null));

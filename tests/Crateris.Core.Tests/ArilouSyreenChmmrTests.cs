@@ -478,6 +478,70 @@ public class ArilouSyreenChmmrTests
     }
 
     [ContentFact]
+    public void AChmmrGroupLeftMidTalkInASystemIsAsItWas()
+    {
+        // The same in a system: the aborted talk returns before the emptying, so the group stays in the
+        // system with its ships (written back as it was).
+        var world = NewGame("g");
+        var m = MeetInSystem(world, "g", "CHMMR_SHIP", 2);
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        var group = m.Group!;
+        var d = world.SystemGroups!.Systems[GroupStar];
+        world.Leave("g");
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Contains(group, d.Groups);
+        Assert.Equal(2, d.RandomGroups!.Single(g => g.Id == group.GroupId).Ships.Count);
+        Assert.Null(world.DialogueLocks!.Holder("CHMMR_CONVERSATION"));
+    }
+
+    [ContentFact]
+    public void AChmmrGroupIsEmptiedWhenItsPlayerLeavesAtTheClosingLines()
+    {
+        // Leaving at the closing lines after a peace makes the talk's end (the owner's question 2):
+        // for the Chmmr, comm.c:1539's emptying, the group gone; no battle.
+        var world = NewGame("g");
+        var (m, group) = MeetInHyperspace(world, "g", "CHMMR_SHIP", 2, x: 4000);
+        Choose(world, "g", "bye_shielded");
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        Assert.Equal(2, group.Ships.Count);
+        world.Leave("g");
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Null(m.Battle);
+        Assert.Empty(world.Battles);
+        Assert.Empty(group.Ships);
+        Frames(world, 2);
+        Assert.DoesNotContain(group, world.Encounters!.List);
+        Assert.Null(world.DialogueLocks!.Holder("CHMMR_CONVERSATION"));
+    }
+
+    [ContentFact]
+    public void ASaveAtAChmmrGroupsClosingLinesHasTheGroupEmptied()
+    {
+        // A save at the closing lines carries the talk's end (question 13): the saved copy's Chmmr group
+        // emptied (MakeClosingEnds), while the live meeting waits on with the group as it was.
+        var world = NewGame("g");
+        var (m, group) = MeetInHyperspace(world, "g", "CHMMR_SHIP", 2, x: 4000);
+        Choose(world, "g", "bye_shielded");
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        string json = HostSave.ToJson(world);
+        // The live game: untouched.
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        Assert.Equal(2, group.Ships.Count);
+        Assert.Contains(group, world.Encounters!.List);
+        // The save: the group emptied (written back with no ships, or gone).
+        var loaded = HostSave.FromJson(json, world.Systems!, TestContent.Shapes);
+        Assert.Null(loaded.MeetingOf("g"));
+        int chmmr = Race(world, "CHMMR_SHIP");
+        Assert.DoesNotContain(loaded.Encounters!.List, e => e.Race == chmmr && e.Ships.Count > 0);
+        // Saved before the closing lines (mid-talk), the group is saved as it was.
+        var world2 = NewGame("g");
+        var (m2, _) = MeetInHyperspace(world2, "g", "CHMMR_SHIP", 2, x: 4000);
+        Assert.Equal(MeetingStep.Talk, m2.Step);
+        var early = HostSave.FromJson(HostSave.ToJson(world2), world2.Systems!, TestContent.Shapes);
+        Assert.Equal(2, early.Encounters!.List.Single(e => e.Race == chmmr).Ships.Count);
+    }
+
+    [ContentFact]
     public void TheChmmrsBombBranchBySetUpRebuildsTheAnsweringShip()
     {
         // chmmrc.c's ExitConversation "proceed" (the Chmmr unleashed, the Pet and the bomb aboard: stage 3c's,
