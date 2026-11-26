@@ -68,7 +68,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Review round 1 of stage 3b-2 item 11 (the Arilou, the Syreen and the Chmmr: `850f46c`, the scripts and recordings; `9b6138a`, the world and its tests; the docs commit after them), then fix, review round by round and report; then wait for the go-ahead for item 12.
+Review round 1 of stage 3b-2 item 11 (the Arilou, the Syreen and the Chmmr: `850f46c`, the scripts and recordings; `9b6138a`, the world and its tests; `f205f7b`, the fix a mutation found; `d25f357`, the docs), then fix, review round by round and report; then wait for the go-ahead for item 12.
 
 ## Decisions waiting on the owner
 
