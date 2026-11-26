@@ -163,24 +163,10 @@ public class WorldTalkTests
             if (!ported)
                 Assert.Equal(before, story.Bits.ToArray());
         }
-        // Ported: the Ilwrath's (their homeworld and Procyon), the Spathi at home, the Slylandro at home,
-        // the Zoq-Fot-Pik's homeworld (stage 3b-2 item 5), the VUX's homeworld, ZEX at the Maidens' world
-        // and the Yehat's homeworld (item 6), the Orz's homeworld, the Taalo protector's moon and the Pkunk's
-        // homeworld (item 7), the Druuge's trade world and their guard at the bomb's moon, the Mycon's
-        // homeworld and the Sun Device's world (item 8), the Utwig's homeworld and their guard at the
-        // bomb's moon (its two entries both live now) and the Supox's homeworld (item 9), the Thraddash's
-        // homeworld, their guard at the Aqua Helix's world and the Umgah's world (TALKING_PET_DEFINED: the
-        // Umgah's half of genpet.c; item 10).
-        Assert.Equal(new[] { "AQUA_HELIX_DEFINED", "BOMB_DEFINED", "BOMB_DEFINED", "CHMMR_DEFINED", "DRUUGE_DEFINED",
-                "ILWRATH_DEFINED", "MAIDENS_DEFINED", "MYCON_DEFINED", "ORZ_DEFINED", "PKUNK_DEFINED", "SLYLANDRO_DEFINED",
-                "SPATHI_DEFINED", "SUN_DEVICE_DEFINED", "SUPOX_DEFINED", "TAALO_PROTECTOR_DEFINED", "TALKING_PET_DEFINED",
-                "THRADD_DEFINED", "UTWIG_DEFINED", "VUX_DEFINED", "YEHAT_DEFINED", "ZOQFOT_DEFINED" },
-            GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is not null).Select(w => w.Special).OrderBy(s => s));
+        // Every listed world's script is ported since stage 3b-2 item 11 (the Syreen's starbase the last).
+        Assert.All(GameWorld.TalkWorlds, w => Assert.NotNull(world.WorldScript(w)));
         Assert.Equal(new[] { "UTWIG_SHIP", "DRUUGE_SHIP" },
             GameWorld.TalkWorlds.Where(w => w.Special == "BOMB_DEFINED" && world.WorldScript(w) is not null).Select(w => w.Race));
-        // Still waiting for its script (item 11): the Syreen's starbase.
-        Assert.Equal(new[] { "SYREEN_DEFINED" },
-            GameWorld.TalkWorlds.Where(w => world.WorldScript(w) is null).Select(w => w.Special).OrderBy(s => s));
     }
 
     [ContentFact]
@@ -810,15 +796,16 @@ public class WorldTalkTests
         Assert.Same(spathi, world.WorldTalkAt(star, 0, null));
         story.Set("BOMB_UNPROTECTED", 1);   // the first not guarded: the next
         Assert.Same(ilwrath, world.WorldTalkAt(star, 0, null));
-        // A guarded first entry whose script isn't ported: orbited as before, the next not tried.
-        // (The Chmmr's, item 11's; the Thraddash's stood here until item 10 ported theirs.)
-        var chmmr = new TalkWorld("ILWRATH_DEFINED", 0, null, "CHMMR_SHIP", 1 << 7, "test");
-        Assert.Null(world.WorldScript(chmmr));
-        world.WorldTalkTable = new[] { chmmr, ilwrath };
+        // A guarded first entry with no script to run: orbited as before, the next not tried. Every
+        // race's script is ported since stage 3b-2 item 11, so a race with no conversation stands in
+        // (the humans: RACE_COMMUNICATION's INVALID_CONVERSATION), as would any entry without the content.
+        var human = new TalkWorld("ILWRATH_DEFINED", 0, null, "HUMAN_SHIP", 1 << 7, "test");
+        Assert.Null(world.WorldScript(human));
+        world.WorldTalkTable = new[] { human, ilwrath };
         Assert.Null(world.WorldTalkAt(star, 0, null));
-        Assert.Equal(0, story.Fleet("CHMMR_SHIP").KnownStrength);   // nothing tracked
+        Assert.Equal(0, story.Fleet("HUMAN_SHIP").KnownStrength);   // nothing tracked
         // An entry the world isn't now (Matches): skipped.
-        world.WorldTalkTable = new[] { chmmr with { Matches = _ => false }, ilwrath };
+        world.WorldTalkTable = new[] { human with { Matches = _ => false }, ilwrath };
         Assert.Same(ilwrath, world.WorldTalkAt(star, 0, null));
     }
 

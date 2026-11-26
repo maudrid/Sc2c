@@ -6589,6 +6589,306 @@ def talkpet_starts():
     return starts
 
 
+def arilou_starts():
+    """The Arilou (arilouc.c), from states chosen to reach every condition
+    it reads: the endgame's won battle, in hyperspace and in QuasiSpace
+    (ARILOU_SPACE_SIDE: 0 or 1 in hyperspace, 2 or more in QuasiSpace,
+    each ship's own); the first meeting (MET_ARILOU) at each side, walked
+    whole, whatever their manner; their enemies for good (ARILOU_MANNER 2)
+    by each visit on each side; angry (ARILOU_MANNER 1) in hyperspace by
+    each visit and walked whole, and at their homeworld walked whole (its
+    friendship's reply alone, by a prefix); friendly (0) and friends for
+    good (3, at peace from init) in hyperspace by each visit, their small
+    talk walked from every state of their news (ARILOU_INFO), their hints
+    (ARILOU_HINTS, the shattered world known or not) and why they're here
+    (ARILOU_STACK_5); at their homeworld the greetings by visit, the wreck
+    asked for and the portal spawner not given (NO_PORTAL_VISITS) or given,
+    every menu open with each asked from first (the last asked is offered
+    first), and each of its menus walked on its own, the others closed: the war
+    (ARILOU_STACK_1), Earth (ARILOU_STACK_3), the portal and the Talking
+    Pet (KNOW_ARILOU_WANT_WRECK, ARILOU_STACK_4, PORTAL_KEY_ON_SHIP,
+    PORTAL_SPAWNER, the second visit's "clever human"), the Pet met
+    (TALKING_PET_VISITS, ARILOU_STACK_2) or taken (TALKING_PET), the Umgah
+    (KNOW_UMGAH_ZOMBIES and each ARILOU_CHECKED_UMGAH: the check's event
+    queued), and the insult's reply by manner; then the goodbye by
+    ARILOU_HOME_VISITS and manner, for post_arilou_enc's zombies and
+    friendship. A hostile ending (the encounter screen's attack, which
+    the recording doesn't make) is the world's tests'."""
+    quasi = lambda name, state, **kw: space_start(name, {"ARILOU_SPACE_SIDE": 2, **state}, **kw)
+    sides = (("space", space_start), ("quasi", quasi))
+    starts = []
+    for where, make in sides:
+        starts.append(make(f"{where}-won-last-battle", {}, activity="WON_LAST_BATTLE"))
+        starts.append(make(f"{where}-in-last-battle", {"MET_ARILOU": 1, "ARILOU_MANNER": 2},
+                           activity="IN_LAST_BATTLE", follow=[]))
+    # The first meeting, walked whole at each side, whatever their manner.
+    starts.append(space_start("first-space", {}))
+    starts.append(quasi("first-quasi", {}, follow=["ArilouHome", "ExitConversation"]))
+    for side in (1, 3):
+        starts.append(space_start(f"first-side-{side}", {"ARILOU_SPACE_SIDE": side}, follow=[]))
+    for manner in (1, 2, 3):
+        for where, make in sides:
+            starts.append(make(f"first-{where}-manner-{manner}", {"ARILOU_MANNER": manner}, follow=[]))
+    met = {"MET_ARILOU": 1}
+    # Their enemies for good, by each visit at each side.
+    for where, make in sides:
+        for visits in range(8):
+            starts.append(make(f"hostile-{where}-visit-{visits}", {**met, "ARILOU_MANNER": 2,
+                                                                  "ARILOU_VISITS": visits}))
+    # Angry: in hyperspace by each visit and walked whole; at their homeworld walked whole.
+    for visits in range(8):
+        starts.append(space_start(f"angry-space-visit-{visits}", {**met, "ARILOU_MANNER": 1, "ARILOU_VISITS": visits},
+                                  **({} if visits == 1 else {"follow": []})))
+    for home in (0, 1, 2):
+        starts.append(quasi(f"angry-home-visits-{home}", {**met, "ARILOU_MANNER": 1, "ARILOU_HOME_VISITS": home,
+                                                          "ARILOU_STACK_1": 2, "ARILOU_STACK_3": 3,
+                                                          "KNOW_ARILOU_WANT_WRECK": 1, "ARILOU_STACK_4": 1},
+                            follow=["AngryHomeArilou", "ExitConversation"]))
+    starts.append(quasi("angry-home-friends", {**met, "ARILOU_MANNER": 1, "ARILOU_STACK_1": 2, "ARILOU_STACK_3": 3,
+                                                "KNOW_ARILOU_WANT_WRECK": 1, "ARILOU_STACK_4": 1},
+                        prefix=[2], follow=["ExitConversation"]))
+    # Friendly and friends for good, in hyperspace: by each visit, and the small talk walked.
+    for manner in (0, 3):
+        for visits in range(8):
+            starts.append(space_start(f"friendly-{manner}-space-visit-{visits}",
+                                      {**met, "ARILOU_MANNER": manner, "ARILOU_VISITS": visits}, follow=[]))
+    for info in range(4):
+        starts.append(space_start(f"friendly-info-{info}", {**met, "ARILOU_VISITS": 1, "ARILOU_INFO": info,
+                                                            "ARILOU_HINTS": 3, "ARILOU_STACK_5": 3}))
+    for hints in range(4):
+        for shattered in ((0, 1, 2, 3) if hints == 1 else (0,)):
+            starts.append(space_start(f"friendly-hints-{hints}-shattered-{shattered}",
+                                      {**met, "ARILOU_VISITS": 1, "ARILOU_INFO": 3, "ARILOU_HINTS": hints,
+                                       "KNOW_ABOUT_SHATTERED": shattered, "ARILOU_STACK_5": 3}))
+    for stack in range(4):
+        starts.append(space_start(f"friendly-stack5-{stack}", {**met, "ARILOU_VISITS": 1, "ARILOU_STACK_5": stack,
+                                                               "ARILOU_MANNER": 3 if stack == 2 else 0}))
+    # At their homeworld: the greetings by visit, the wreck asked for and the spawner not given, or given.
+    closed = {"ARILOU_STACK_1": 2, "ARILOU_STACK_3": 3, "KNOW_ARILOU_WANT_WRECK": 1, "ARILOU_STACK_4": 1,
+              "PORTAL_SPAWNER": 1}
+    for visits in range(8):
+        starts.append(quasi(f"home-visit-{visits}", {**met, "ARILOU_HOME_VISITS": visits, **closed}, follow=[]))
+    for visits in (0, 1):
+        for home in (0, 1, 2):
+            starts.append(quasi(f"home-no-portal-visit-{visits}-home-{home}",
+                                {**met, **closed, "PORTAL_SPAWNER": 0, "NO_PORTAL_VISITS": visits,
+                                 "ARILOU_HOME_VISITS": home}, follow=["ExitConversation"]))
+    starts.append(quasi("home-wreck-not-asked", {**met, "ARILOU_HOME_VISITS": 1, "ARILOU_STACK_1": 2,
+                                                  "ARILOU_STACK_3": 3}, follow=[]))
+    # Each menu on its own, the others closed.
+    home = {**met, "ARILOU_HOME_VISITS": 2}
+    starts.append(quasi("home-war", {**home, **closed, "ARILOU_STACK_1": 0}))
+    starts.append(quasi("home-earth", {**home, **closed, "ARILOU_STACK_3": 0}))
+    for spawner in (0, 1):
+        starts.append(quasi(f"home-portal-spawner-{spawner}",
+                            {**home, **closed, "KNOW_ARILOU_WANT_WRECK": 0, "ARILOU_STACK_4": 0,
+                             "PORTAL_SPAWNER": spawner}))
+    for visits in (1, 2):
+        for spawner in (0, 1):
+            starts.append(quasi(f"home-key-visits-{visits}-spawner-{spawner}",
+                                {**met, **closed, "ARILOU_HOME_VISITS": visits - 1, "PORTAL_SPAWNER": spawner,
+                                 "PORTAL_KEY_ON_SHIP": 1}))
+    for pet_visits in (1, 5):
+        starts.append(quasi(f"home-pet-met-{pet_visits}", {**home, **closed, "TALKING_PET_VISITS": pet_visits}))
+    starts.append(quasi("home-pet-met-stack-1", {**home, **closed, "TALKING_PET_VISITS": 1, "ARILOU_STACK_2": 1},
+                        follow=[]))
+    starts.append(quasi("home-pet-taken", {**home, **closed, "TALKING_PET": 1, "TALKING_PET_VISITS": 1,
+                                           "KNOW_UMGAH_ZOMBIES": 1}, follow=[]))
+    for checked in range(4):
+        starts.append(quasi(f"home-umgah-checked-{checked}",
+                            {**home, **closed, "KNOW_UMGAH_ZOMBIES": 1, "ARILOU_CHECKED_UMGAH": checked}))
+    starts.append(quasi("home-umgah-not-known", {**home, **closed, "ARILOU_CHECKED_UMGAH": 2}, follow=[]))
+    # Every menu open: the one last asked from offered first (LastStack), each in turn.
+    open_ = {**home, "PORTAL_SPAWNER": 1}
+    for first in range(4):
+        starts.append(quasi(f"home-order-pet-{first}", {**open_, "TALKING_PET_VISITS": 1}, prefix=[first], follow=[]))
+        starts.append(quasi(f"home-order-umgah-{first}", {**open_, "KNOW_UMGAH_ZOMBIES": 1, "ARILOU_CHECKED_UMGAH": 2},
+                            prefix=[first], follow=[]))
+    # The insult's reply by manner, and the goodbye by visit and manner (post_arilou_enc).
+    for manner in (0, 1, 2, 3):
+        for visits in (0, 1, 2):
+            starts.append(quasi(f"home-bye-manner-{manner}-visits-{visits}",
+                                {**met, **closed, "ARILOU_MANNER": manner, "ARILOU_HOME_VISITS": visits,
+                                 "UMGAH_VISITS": 3, "UMGAH_HOME_VISITS": 2},
+                                follow=["ExitConversation", "AngryHomeArilou"]))
+    return starts
+
+
+def syreen_starts():
+    """The Syreen at their starbase (syreenc.c; gensyr.c sets no
+    GLOBAL_FLAGS_AND_DATA), from states chosen to reach every condition
+    it reads: the endgame's won battle; before they know of the Mycon
+    (SYREEN_KNOW_ABOUT_MYCON) their greetings by each visit
+    (SYREEN_HOME_VISITS); the first two visits' introductions walked (the
+    four replies, the two "I need"s) with each captain's and ship's name
+    spliced into "we are" and the welcome, and the first two questions'
+    answers by a prefix; their talk's menus each walked on its own, the
+    others closed (SYREEN_STACK0 to 2), two of them together, and all of
+    them open with each asked from first, for the order the last asked
+    puts first; the shattered world
+    (KNOW_ABOUT_SHATTERED, KNOW_SYREEN_WORLD_SHATTERED, SYREEN_WANT_PROOF)
+    and each egg case aboard, to the horrible truth and the shuttle
+    (KNOW_SYREEN_VAULT or not); the vault looked for by each visit and
+    its hint; the vault found (SHIP_VAULT_UNLOCKED): the ambush planned
+    and the reward walked whole; the ambush ready by each visit; and
+    after it (MYCON_KNOW_AMBUSH) the greetings by each visit (the
+    alliance at the first, the Syreen living or extinct), their news
+    (SYREEN_INFO) and the reward had or not (PLAYER_HAD_SEX)."""
+    base = lambda name, state, **kw: home_start(name, state, flags=0, **kw)
+    starts = [base("won-last-battle", {}, activity="WON_LAST_BATTLE")]
+    for visits in range(8):
+        starts.append(base(f"before-visit-{visits}", {"SYREEN_HOME_VISITS": visits}, follow=[]))
+    starts.append(base("initial", {}, follow=["InitialSyreen"]))
+    starts.append(base("initial-second", {"SYREEN_HOME_VISITS": 1}, follow=[]))
+    for first in range(4):
+        for second in (0, 1):
+            starts.append(base(f"initial-{first}-normal-{second}", {}, prefix=[first, second], follow=[]))
+    for cname, captain, ship in NAMES:
+        start = base(f"initial-{cname}", {}, prefix=[2], follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    normal = {"SYREEN_HOME_VISITS": 2}
+    closed = {"SYREEN_STACK0": 3, "SYREEN_STACK1": 3, "SYREEN_STACK2": 3}
+    for stack in range(3):
+        for value in range(4):
+            starts.append(base(f"normal-stack{stack}-{value}", {**normal, **closed, f"SYREEN_STACK{stack}": value},
+                               **({} if value == 0 else {"follow": []})))
+    starts.append(base("normal-stacks-0-1", {**normal, **closed, "SYREEN_STACK0": 0, "SYREEN_STACK1": 0}))
+    # Every menu open: the one last asked from offered first (LastStack), each in turn.
+    for first in range(4):
+        starts.append(base(f"normal-order-{first}", {**normal, "KNOW_ABOUT_SHATTERED": 2,
+                                                     "KNOW_SYREEN_WORLD_SHATTERED": 1}, prefix=[first], follow=[]))
+    # The shattered world, and the egg cases: the proof, the truth and the shuttle.
+    for shattered in range(4):
+        for world in (0, 1):
+            for proof in (0, 1):
+                starts.append(base(f"shattered-{shattered}-world-{world}-proof-{proof}",
+                                   {**normal, **closed, "KNOW_ABOUT_SHATTERED": shattered,
+                                    "KNOW_SYREEN_WORLD_SHATTERED": world, "SYREEN_WANT_PROOF": proof},
+                                   **({} if (shattered, world, proof) == (2, 1, 0) else {"follow": []})))
+    for case in range(3):
+        starts.append(base(f"egg-case-{case}", {**normal, **closed, "KNOW_ABOUT_SHATTERED": 3,
+                                                f"EGG_CASE{case}_ON_SHIP": 1}, follow=["NormalSyreen"]))
+    for vault in (0, 1):
+        starts.append(base(f"egg-case-shuttle-vault-{vault}",
+                           {**normal, **closed, "KNOW_ABOUT_SHATTERED": 3, "EGG_CASE1_ON_SHIP": 1,
+                            "KNOW_SYREEN_VAULT": vault, "SYREEN_WANT_PROOF": 1}))
+    know = {"SYREEN_KNOW_ABOUT_MYCON": 1}
+    # The vault looked for, by each visit; found: the ambush planned and the reward.
+    for visits in range(8):
+        starts.append(base(f"vault-visit-{visits}", {**know, "SYREEN_HOME_VISITS": visits},
+                           **({} if visits == 0 else {"follow": []})))
+    for visits in (0, 5):
+        starts.append(base(f"vault-found-visit-{visits}", {**know, "SHIP_VAULT_UNLOCKED": 1,
+                                                           "SYREEN_HOME_VISITS": visits},
+                           **({} if visits == 0 else {"follow": []})))
+    # The ambush ready, by each visit; after it, by each visit, their news and the reward.
+    for visits in range(8):
+        starts.append(base(f"ambush-ready-visit-{visits}", {**know, "MYCON_AMBUSH": 1, "SHIP_VAULT_UNLOCKED": 1,
+                                                            "SYREEN_HOME_VISITS": visits},
+                           **({} if visits == 0 else {"follow": []})))
+    after = {**know, "MYCON_AMBUSH": 1, "MYCON_KNOW_AMBUSH": 1}
+    for visits in range(8):
+        starts.append(base(f"after-ambush-visit-{visits}", {**after, "SYREEN_HOME_VISITS": visits}, follow=[]))
+    starts.append(base("after-ambush-extinct", after, alliances={"SYREEN_SHIP": "dead"}, follow=[]))
+    starts.append(base("after-ambush-allied", after, alliances={"SYREEN_SHIP": "good"}, follow=[]))
+    for info in range(4):
+        for had in (0, 1):
+            starts.append(base(f"after-ambush-info-{info}-had-{had}",
+                               {**after, "SYREEN_HOME_VISITS": 2, "SYREEN_INFO": info, "PLAYER_HAD_SEX": had},
+                               follow=["AfterAmbush", "FriendlyExit"]))
+    starts.append(base("after-ambush-reward", {**after, "SYREEN_HOME_VISITS": 2}, prefix=[0, 0],
+                       follow=["Foreplay", "Sex", "FriendlyExit"]))
+    return starts
+
+
+# The ships the Chmmr's bomb rebuilds (chmmrc.c's proceed): a new game's,
+# one with no gaps, one with modules at the back only and one with none.
+CHMMR_SHIPS = (("new-game", {}),
+               ("full", {"modules": ["CREW_POD", "FUEL_TANK", "STORAGE_BAY", "GUN_WEAPON"] * 4, "crew": 120,
+                         "fuel": 3000, "landers": 3, "ru": 4321, "elements": [5, 0, 7, 0, 0, 2, 9, 1],
+                         "drives": [0, 3], "jets": []}),
+               ("back", {"modules": ["EMPTY"] * 12 + ["CREW_POD", "EMPTY", "FUEL_TANK", "STORAGE_BAY"]}),
+               ("empty", {"modules": ["EMPTY"] * 16, "drives": [], "jets": list(range(8))}))
+
+
+def chmmr_starts():
+    """The Chmmr (chmmrc.c), from states chosen to reach every condition
+    it reads: shielded (CHMMR_EMERGING not set) by each visit
+    (CHMMR_HOME_VISITS), their stack (CHMMR_STACK) walked, and their
+    advice walked with everything it asks about aboard and known
+    (TALKING_PET_ON_SHIP, UTWIG_BOMB_ON_SHIP, SUN_DEVICE_ON_SHIP,
+    AWARE_OF_SAMATRA), with none, and with each alone; emerging at the
+    first visit (the captain's introductions with each name spliced in)
+    and later, walked whole by the Pet and the bomb aboard and the
+    Sa-Matra known; unleashed (CHMMR_UNLEASHED) not ready, by what's
+    missing and the alliance made or not, and ready, walked to "proceed"
+    with and without the starbase (STARBASE_AVAILABLE: the modules
+    cleared past the bomb's, or moved to the back) on ships of each
+    layout (CHMMR_SHIPS); and after the bomb (CHMMR_BOMB_STATE 2 and 3)
+    by each visit, walked by CHMMR_STACK. Met in space as a group
+    --start-encounter brings, and at their world (GLOBAL_FLAGS_AND_DATA
+    bit 7 as genchmmr.c sets it), which the script doesn't read."""
+    starts = [space_start("won-last-battle", {}, activity="WON_LAST_BATTLE", follow=[]),
+              home_start("home-shielded", {}, follow=[])]
+    for visits in range(8):
+        starts.append(space_start(f"shielded-visit-{visits}", {"CHMMR_HOME_VISITS": visits}, follow=[]))
+    starts.append(space_start("shielded-stack", {"CHMMR_HOME_VISITS": 1},
+                              follow=["ChmmrShielded", "ExitConversation"]))
+    everything = {"TALKING_PET_ON_SHIP": 1, "UTWIG_BOMB_ON_SHIP": 1, "SUN_DEVICE_ON_SHIP": 1, "AWARE_OF_SAMATRA": 1}
+    starts.append(space_start("advice-everything", {"CHMMR_HOME_VISITS": 1, "CHMMR_STACK": 3, **everything},
+                              follow=["ChmmrAdvice", "ChmmrShielded"]))
+    starts.append(space_start("advice-nothing", {"CHMMR_HOME_VISITS": 1, "CHMMR_STACK": 3},
+                              follow=["ChmmrAdvice", "ChmmrShielded"]))
+    for flag in everything:
+        starts.append(space_start(f"advice-{flag.lower()}", {"CHMMR_HOME_VISITS": 1, "CHMMR_STACK": 3, flag: 1},
+                                  follow=["ChmmrAdvice"]))
+    # Emerging: the first visit and later, by what's aboard and known.
+    for pet in (0, 1):
+        for bomb in (0, 1):
+            for samatra in (0, 1):
+                starts.append(space_start(f"emerging-pet-{pet}-bomb-{bomb}-samatra-{samatra}",
+                                          {"CHMMR_EMERGING": 1, "TALKING_PET_ON_SHIP": pet, "UTWIG_BOMB_ON_SHIP": bomb,
+                                           "AWARE_OF_SAMATRA": samatra},
+                                          follow=["ChmmrFree", "NotReady", "ImproveBomb"]))
+    for visits in (1, 5):
+        starts.append(space_start(f"emerging-visit-{visits}", {"CHMMR_EMERGING": 1, "CHMMR_HOME_VISITS": visits},
+                                  follow=["ChmmrFree"]))
+    for cname, captain, ship in NAMES:
+        start = space_start(f"emerging-{cname}", {"CHMMR_EMERGING": 1}, follow=[])
+        start["ship"] = talk_ship(captain=captain, ship=ship)
+        starts.append(start)
+    # Unleashed: not ready, by what's missing and the alliance; ready, to "proceed".
+    unleashed = {"CHMMR_UNLEASHED": 1}
+    for pet, bomb in ((0, 0), (1, 0), (0, 1)):
+        for allied in ("bad", "good"):
+            starts.append(space_start(f"unleashed-pet-{pet}-bomb-{bomb}-{allied}",
+                                      {**unleashed, "TALKING_PET_ON_SHIP": pet, "UTWIG_BOMB_ON_SHIP": bomb},
+                                      alliances={"CHMMR_SHIP": allied}))
+    ready = {**unleashed, "TALKING_PET_ON_SHIP": 1, "UTWIG_BOMB_ON_SHIP": 1}
+    for allied in ("bad", "good"):
+        starts.append(space_start(f"ready-{allied}", {**ready, "STARBASE_AVAILABLE": 1},
+                                  alliances={"CHMMR_SHIP": allied}))
+    for sname, ship in CHMMR_SHIPS:
+        for starbase in (0, 1):
+            start = space_start(f"ready-proceed-{sname}-starbase-{starbase}",
+                                {**ready, "STARBASE_AVAILABLE": starbase, "CHMMR_HOME_VISITS": 3, "CHMMR_STACK": 2},
+                                prefix=[2], follow=[])
+            start["ship"] = talk_ship(**ship)
+            starts.append(start)
+    starts.append(space_start("ready-proceed-costs", {**ready, "STARBASE_AVAILABLE": 1}, prefix=[2], follow=[],
+                              costs={**NEW_GAME_COSTS, "PLANET_LANDER": 0}))
+    # After the bomb, by each visit and state, walked by the stack.
+    for state in (2, 3):
+        for visits in range(8):
+            starts.append(space_start(f"after-bomb-{state}-visit-{visits}",
+                                      {"CHMMR_BOMB_STATE": state, "CHMMR_HOME_VISITS": visits}, follow=[]))
+    for stack in (0, 1, 2):
+        starts.append(space_start(f"after-bomb-stack-{stack}", {"CHMMR_BOMB_STATE": 2, "CHMMR_HOME_VISITS": 1,
+                                                                "CHMMR_STACK": stack, "CHMMR_UNLEASHED": 1}))
+    return starts
+
+
 COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas": starbase_starts,
                 "urquan": urquan_starts, "blackur": blackur_starts, "spathi": spathi_starts,
                 "slyland": slyland_starts, "spahome": spahome_starts, "slyhome": slyhome_starts,
@@ -6597,7 +6897,8 @@ COMM_SCRIPTS = {"comandr": commander_starts, "ilwrath": ilwrath_starts, "starbas
                 "orz": orz_starts, "pkunk": pkunk_starts,
                 "druuge": druuge_starts, "mycon": mycon_starts,
                 "utwig": utwig_starts, "supox": supox_starts,
-                "thradd": thradd_starts, "umgah": umgah_starts, "talkpet": talkpet_starts}
+                "thradd": thradd_starts, "umgah": umgah_starts, "talkpet": talkpet_starts,
+                "arilou": arilou_starts, "syreen": syreen_starts, "chmmr": chmmr_starts}
 # Files and notes a script's recording has besides every script's.
 COMM_EXTRA_FILES = {"melnorm": ["src/libs/math/random2.c", "src/libs/math/sqrt.c"]}
 COMM_EXTRA_NOTES = {"melnorm": [
@@ -6628,7 +6929,8 @@ COMM_EXTRA_NOTES = {"melnorm": [
 COMM_FILES = {"ilwrath": "ilwrathc.c", "urquan": "urquanc.c", "blackur": "blackurc.c", "spathi": "spathic.c",
               "zoqfot": "zoqfotc.c", "vux": "vuxc.c", "yehat": "yehatc.c", "orz": "orzc.c", "pkunk": "pkunkc.c",
               "druuge": "druugec.c", "mycon": "myconc.c", "utwig": "utwigc.c", "supox": "supoxc.c",
-              "thradd": "thraddc.c", "umgah": "umgahc.c"}
+              "thradd": "thraddc.c", "umgah": "umgahc.c", "arilou": "arilouc.c", "syreen": "syreenc.c",
+              "chmmr": "chmmrc.c"}
 # The date where a start doesn't give one: a new game's.
 TALK_DATE = (2155, 2, 17)
 # The scripts' random seed where a start doesn't give one.

@@ -88,6 +88,15 @@ public static class TalkRules
         ["thradd"] = _ => false,
         ["umgah"] = _ => false,
         ["talkpet"] = _ => false,
+        // Stage 3b-2 item 11: the Arilou (in hyperspace; at home in
+        // QuasiSpace, stage 3c's), the Syreen (at their starbase) and the
+        // Chmmr (a group --start-encounter brings, until 3c's worlds and
+        // devices), ordinary, each under its race's lock. The Chmmr's bomb
+        // branch is ordinary too until stage 3c settles whose ship carries
+        // the bomb (the plan's question 8).
+        ["arilou"] = _ => false,
+        ["syreen"] = _ => false,
+        ["chmmr"] = _ => false,
     };
 
     /// <summary>Whether a talk with this script, in the story as it stands as it starts, is story.</summary>

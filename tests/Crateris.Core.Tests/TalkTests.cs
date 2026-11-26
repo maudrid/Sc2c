@@ -172,6 +172,9 @@ public class TalkTests
         ["thradd"] = ("talks-thradd", p => new ThraddashScript(p)),
         ["umgah"] = ("talks-umgah", p => new UmgahScript(p)),
         ["talkpet"] = ("talks-talkpet", p => new TalkingPetScript(p)),
+        ["arilou"] = ("talks-arilou", p => new ArilouScript(p)),
+        ["syreen"] = ("talks-syreen", p => new SyreenScript(p)),
+        ["chmmr"] = ("talks-chmmr", p => new ChmmrScript(p)),
     };
 
     // A script's recorded starts.

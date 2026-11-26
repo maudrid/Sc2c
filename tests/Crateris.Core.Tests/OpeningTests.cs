@@ -992,7 +992,8 @@ public class OpeningTests
         Assert.False(TalkRules.IsStory("starbas", story));   // from the starbase's menu
         story.Set("MOONBASE_ON_SHIP", 1);
         Assert.True(TalkRules.IsStory("starbas", story));
-        Assert.Throws<KeyNotFoundException>(() => TalkRules.IsStory("arilou", story));
+        // Every script is ported since stage 3b-2 item 11; a name that isn't a script has no rule.
+        Assert.Throws<KeyNotFoundException>(() => TalkRules.IsStory("no-such-script", story));
     }
 
     [ContentFact]

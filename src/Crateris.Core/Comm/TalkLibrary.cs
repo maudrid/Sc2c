@@ -60,6 +60,10 @@ public sealed class TalkLibrary
         ["thradd"] = p => new ThraddashScript(p),
         ["umgah"] = p => new UmgahScript(p),
         ["talkpet"] = p => new TalkingPetScript(p),
+        // Stage 3b-2 item 11: every script ported.
+        ["arilou"] = p => new ArilouScript(p),
+        ["syreen"] = p => new SyreenScript(p),
+        ["chmmr"] = p => new ChmmrScript(p),
     };
 
     private readonly Dictionary<string, (Conversation Lines, int ColorMaps)> _content;
