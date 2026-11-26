@@ -6822,7 +6822,8 @@ def chmmr_starts():
     first visit (the captain's introductions with each name spliced in)
     and later, walked whole by the Pet and the bomb aboard and the
     Sa-Matra known; unleashed (CHMMR_UNLEASHED) not ready, by what's
-    missing and the alliance made or not, and ready, walked to "proceed"
+    missing and their standing (allied, not, or extinct: CheckAlliance
+    asks for GOOD_GUY), and ready, walked to "proceed"
     with and without the starbase (STARBASE_AVAILABLE: the modules
     cleared past the bomb's, or moved to the back) on ships of each
     layout (CHMMR_SHIPS); and after the bomb (CHMMR_BOMB_STATE 2 and 3)
@@ -6861,12 +6862,12 @@ def chmmr_starts():
     # Unleashed: not ready, by what's missing and the alliance; ready, to "proceed".
     unleashed = {"CHMMR_UNLEASHED": 1}
     for pet, bomb in ((0, 0), (1, 0), (0, 1)):
-        for allied in ("bad", "good"):
+        for allied in ("bad", "good", "dead"):
             starts.append(space_start(f"unleashed-pet-{pet}-bomb-{bomb}-{allied}",
                                       {**unleashed, "TALKING_PET_ON_SHIP": pet, "UTWIG_BOMB_ON_SHIP": bomb},
                                       alliances={"CHMMR_SHIP": allied}))
     ready = {**unleashed, "TALKING_PET_ON_SHIP": 1, "UTWIG_BOMB_ON_SHIP": 1}
-    for allied in ("bad", "good"):
+    for allied in ("bad", "good", "dead"):
         starts.append(space_start(f"ready-{allied}", {**ready, "STARBASE_AVAILABLE": 1},
                                   alliances={"CHMMR_SHIP": allied}))
     for sname, ship in CHMMR_SHIPS:

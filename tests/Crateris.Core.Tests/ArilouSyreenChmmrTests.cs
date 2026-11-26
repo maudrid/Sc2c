@@ -600,6 +600,14 @@ public class ArilouSyreenChmmrTests
         Assert.Null(world.MeetingOf("h"));
         Assert.Empty(world.HyperspaceMeetings);
         Assert.Null(world.DialogueLocks!.Holder("URQUAN_CONVERSATION"));
+        // In a system the same: the group flies through the player, no meeting.
+        world.PutInSystem("h", GroupStar);
+        Frames(world, 1);
+        world.SystemGroups!.Systems[GroupStar].Groups.Clear();
+        world.AddEncounterNear("h", Race(world, "URQUAN_SHIP"), 1);
+        Frames(world, 600);
+        Assert.Null(world.MeetingOf("h"));
+        Assert.Empty(world.SystemMeetings);
     }
 
     [ContentFact]

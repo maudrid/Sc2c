@@ -150,9 +150,11 @@ public sealed partial class GameWorld
     /// <summary>
     /// Whether a player may meet a group of a race now, its lock held by
     /// another or not: <see cref="MayMeet"/>, or the Melnorme's rescue-only
-    /// talk (<see cref="RescueOnly"/>).
+    /// talk (<see cref="RescueOnly"/>); never where no talk can be made
+    /// (<see cref="HasTalk"/>): the group passes through them.
     /// </summary>
-    internal bool MayMeetOrRescue(Player player, int race) => MayMeet(player, race) || RescueOnly(player, race);
+    internal bool MayMeetOrRescue(Player player, int race) =>
+        HasTalk(race) && (MayMeet(player, race) || RescueOnly(player, race));
 
     /// <summary>
     /// The Melnorme's rescue-only talk (the owner's question 7): a group of
