@@ -10,9 +10,9 @@ namespace Crateris.Core.World;
 
 /// <summary>
 /// What a <see cref="WorldNotice"/> tells: an event another player set off
-/// (docs/plans/stage-3b.md, decision 11). Stage 3b-1 brings the first;
-/// later stages (3b-2's alliances and ships given, 3c's story events) add
-/// theirs here.
+/// (docs/plans/stage-3b.md, decision 11). Stage 3b-1 brought the first and
+/// 3b-2 its talks' (alliances, ships given, prices raised); 3c adds its
+/// story events' here.
 /// </summary>
 public enum NoticeEvent : byte
 {

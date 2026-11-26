@@ -61,7 +61,7 @@ The scripts left for 3b-2: the Arilou (855), the Chmmr (641), the Druuge (926), 
 | The Melnorme: trading, credits, the lander upgrades, information, and their coming to a ship out of fuel | Their script is the largest left, with screens of its own | 3b-2 |
 | The story events but the encounters and the Slylandro ramps: the ones that move fleets or change spheres (the Ilwrath's and the Mycon's missions, the Kohr-Ah's genocide, the Yehat's revolt, ...), the Arilou's entrance | The event calendar is 3c; until then they're kept as they fall due (decision 9) | 3c |
 | QuasiSpace and the Arilou's portal | Needs the Arilou's talk and the portal spawner (3b-2, 3c) | 3c |
-| The Kohr-Ah's groups at the Zoq-Fot-Pik's world, Procyon's Ilwrath (with the Sun Device aboard, `genchmmr.c`) and the Sa-Matra's | Story and the endgame | 3b-2, the endgame |
+| The Kohr-Ah's groups at the Zoq-Fot-Pik's world, Procyon's Ilwrath (with the Sun Device aboard, `genchmmr.c`) and the Sa-Matra's | Story and the endgame | Procyon's Ilwrath: 3b-2 (item 1: their talk and endless fleet at Procyon with `SUN_DEVICE_ON_SHIP` set, reached by `--start-state` or `--start-devices` until 3c's Sun Device). The Kohr-Ah's ship at the Zoq-Fot-Pik's world: 3c (it comes with the distress, `ZOQFOT_DISTRESS`, which 3b-2's alliance queues and 3c's calendar runs; with it set the world is orbited and its groups not made until then). The Sa-Matra's guards: the endgame |
 | The starmap and its spheres of influence | No starmap screen yet; the known spheres are kept in the state for when it comes | A later stage |
 | The encounter music (`REDALERT_MUSIC`) and the battles' sounds | Nothing plays sound yet | A later stage with audio |
 
