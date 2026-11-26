@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3b-2 is built (item 12 reviewed in seven rounds, the owner asking on 2026-11-26 for one more after the five). Stage 3c's plan (the owner's go-ahead of 2026-11-26) is drafted; review round 1's findings fixed, round 2 next.
+**Last updated:** 2026-11-27. Stage 3b-2 is built (item 12 reviewed in seven rounds, the owner asking on 2026-11-26 for one more after the five). Stage 3c's plan (the owner's go-ahead of 2026-11-26) is drafted; review rounds 1 and 2's findings fixed, round 3 next.
 
 ## Where things are
 
@@ -71,7 +71,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Stage 3c's plan, `docs/plans/stage-3c.md`, drafted 2026-11-27 from four research passes (the event calendar; devices and time skips; the story worlds' pickups; QuasiSpace, the Chmmr, cutscenes and the endgame's line): twelve items and eleven questions. Review round 1 (`fa7413a`) found twelve points (the Utwig bomb's effect on a game that goes on, the bomb ship's side effects on every ship, events changing a race mid-talk, shared fields read as one player's, the genocide's gate, the pause needed before the Kohr-Ah's item, rules without questions, counts, rows, pickups' counter resets, 3b-2's left-for-3c notes, a handoff line): all fixed in the commit after. Next: review round 2, then put the questions to the owner. Nothing of 3c is built before the owner answers and gives an item its go-ahead.
+Stage 3c's plan, `docs/plans/stage-3c.md`, drafted 2026-11-27 from four research passes (the event calendar; devices and time skips; the story worlds' pickups; QuasiSpace, the Chmmr, cutscenes and the endgame's line): twelve items and eleven questions. Review round 1 (`fa7413a`) found twelve points (the Utwig bomb's effect on a game that goes on, the bomb ship's side effects on every ship, events changing a race mid-talk, shared fields read as one player's, the genocide's gate, the pause needed before the Kohr-Ah's item, rules without questions, counts, rows, pickups' counter resets, 3b-2's left-for-3c notes, a handoff line): all fixed in `6b7c8a4`. Round 2 found eight (a race met held still rather than its events alone, so a mission's losses don't overrun; the talks' own events kept inside them; `PLAYER_HYPNOTIZED` made each player's own; Fwiffo's finding kept with the finder until his talk; the Chmmr's two readiness checks and the host given to the talk; rows 17 and 50; smaller wording), fixed in the commit after. Next: review round 3, then put the questions to the owner. Nothing of 3c is built before the owner answers and gives an item its go-ahead.
 
 ## Decisions waiting on the owner
 
