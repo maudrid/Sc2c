@@ -127,7 +127,7 @@ Tried headless, the host with `--host --no-upnp --id host --name Host --save FIL
 
 ## Item 4: the Melnorme
 
-The Melnorme trade from their ships: one waits at each of the nine super giants, and in hyperspace they come to a ship out of fuel (30% a day, 100% after the broadcaster, stage 3c's device; `--start-state USED_BROADCASTER=1` sets the host's use until then). They start at peace: no encounter screen, straight to the communication screen, the status area's message showing the answerer's credits ("1234 Cr").
+The Melnorme trade from their ships: one waits at each of the nine super giants, and in hyperspace they come to a ship out of fuel (30% a day) or, at 100%, at the day's roll after the broadcaster is used, fuel or not (stage 3c's device; `--start-state USED_BROADCASTER=1` sets the host's use until then), while `MELNORME_ANGER` is below 3, the player has no Melnorme group already and the hyperspace encounter list has room. They start at peace: no encounter screen, straight to the communication screen, the status area's message showing the answerer's credits ("1234 Cr").
 
 1. **The first meeting.** Small talk, and the bluster ("trade is for the weak!"), which can anger them; "Let's get down to business" starts the trading.
 2. **Trading**, with the answering player's own credits, read live: a friend's gift of credits mid-talk counts at once. Fuel up to the answering ship's own tanks, a credit a unit. The technology catalog, 150 credits an item: the first item the answering ship lacks; a module (the blaster, point defense, the high-efficiency fuel system, tracking, the cannon, the Shiva furnace) goes on sale at the starbase for everyone, and every other player is told ("Host bought the blaster from the Melnorme: it's for sale at the starbase."), a lander upgrade is the answering ship's own. Information, 75 credits a piece (one piece sells the Spathi's password).
@@ -150,7 +150,7 @@ The rescue-only talk beside another player's, the bio data's count-down and gift
 ### Known limits of item 4
 
 - **The bio count-down** plays before the reply's lines (UQM's comes after the first of them), as the minerals' at the starbase does; a unit a millisecond (UQM's loop has no wait of its own).
-- **The broadcaster** is stage 3c's device: only `--start-state USED_BROADCASTER=1` (the host's) brings the Melnorme at 100% until then.
+- **The broadcaster** is stage 3c's device: only `--start-state USED_BROADCASTER=1` (the host's) brings the Melnorme at 100% until then: one roll, fuel or not, while `MELNORME_ANGER` is below 3, the player has no Melnorme group already and the hyperspace encounter list has room; the roll spends it, as entering or leaving a system does.
 - **Saves:** item 4's rescue fields and broadcaster's use are version 14's optional part (`players[].melnorme`); item 3's code loading such a save drops them.
 
 ## Item 5: the Shofixti and the Zoq-Fot-Pik
