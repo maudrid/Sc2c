@@ -15,14 +15,16 @@ namespace Crateris.Core.Net;
 /// when the story state changed from the base's. The game-state bits go
 /// as the bytes that differ from the base's (from zeros without one), each
 /// as its distance from the last and its value; the prices and the races'
-/// standing go whole, and in a delta only if they changed.
+/// standing go whole, and in a delta only if they changed; the spheres
+/// the players know (stage 3c item 3) go whole if they changed (from none
+/// without a base), each as its race, strength and centre.
 /// </summary>
 public static partial class SnapshotCodec
 {
     private const byte PartStory = 8;
     // The story part's first byte: none, or which of its parts follow.
-    private const byte StoryNone = 0, StoryFromBase = 1, StoryPrices = 2, StoryAlliances = 4, StoryPresent = 0x10;
-    private const byte StoryKinds = StoryPresent | StoryFromBase | StoryPrices | StoryAlliances;
+    private const byte StoryNone = 0, StoryFromBase = 1, StoryPrices = 2, StoryAlliances = 4, StoryFleets = 8, StoryPresent = 0x10;
+    private const byte StoryKinds = StoryPresent | StoryFromBase | StoryPrices | StoryAlliances | StoryFleets;
     private const int MostStoryBytes = 1024, MostModules = 64, MostRaces = 64;
 
     private static bool StoryChanged(StorySnapshot? now, StorySnapshot? was) =>
@@ -41,7 +43,9 @@ public static partial class SnapshotCodec
         bool prices = !fromBase || story.CrewCost != baseStory!.CrewCost || story.FuelCost != baseStory.FuelCost
             || !story.ModuleCostSpan.SequenceEqual(baseStory.ModuleCostSpan);
         bool alliances = !fromBase || !story.AlliancesSpan.SequenceEqual(baseStory!.AlliancesSpan);
-        w.Byte((byte)(StoryPresent | (fromBase ? StoryFromBase : 0) | (prices ? StoryPrices : 0) | (alliances ? StoryAlliances : 0)));
+        bool fleets = fromBase ? !story.FleetsSpan.SequenceEqual(baseStory!.FleetsSpan) : story.FleetsSpan.Length > 0;
+        w.Byte((byte)(StoryPresent | (fromBase ? StoryFromBase : 0) | (prices ? StoryPrices : 0) | (alliances ? StoryAlliances : 0)
+            | (fleets ? StoryFleets : 0)));
         w.UInt((ulong)bits.Length);
         int changed = 0;
         for (int i = 0; i < bits.Length; ++i)
@@ -67,6 +71,18 @@ public static partial class SnapshotCodec
             w.UInt((ulong)costs.Length);
             foreach (int c in costs)
                 w.Int(c);
+        }
+        if (fleets)
+        {
+            var known = story.FleetsSpan;
+            w.UInt((ulong)known.Length);
+            foreach (var f in known)
+            {
+                w.Byte((byte)f.Race);
+                w.UInt((ulong)f.Strength);
+                w.Int(f.X);
+                w.Int(f.Y);
+            }
         }
         if (alliances)
         {
@@ -118,6 +134,23 @@ public static partial class SnapshotCodec
         }
         else
             (crew, fuel, modules) = (baseStory!.CrewCost, baseStory.FuelCost, baseStory.ModuleCost.ToArray());
+        KnownFleet[] fleets;
+        if ((mode & StoryFleets) != 0)
+        {
+            fleets = new KnownFleet[Count(r.UInt(), MostRaces)];
+            for (int i = 0; i < fleets.Length; ++i)
+            {
+                int race = r.Byte();
+                ulong strength = r.UInt();
+                long x = r.Int(), y = r.Int();
+                if (race >= MostRaces || (i > 0 && race <= fleets[i - 1].Race) || strength == 0 || strength > ushort.MaxValue
+                        || x < short.MinValue || x > short.MaxValue || y < short.MinValue || y > short.MaxValue)
+                    throw new InvalidDataException("Bad known fleet.");
+                fleets[i] = new KnownFleet(race, (int)strength, (int)x, (int)y);
+            }
+        }
+        else
+            fleets = fromBase ? baseStory!.Fleets.ToArray() : Array.Empty<KnownFleet>();
         Allied[] alliances;
         if ((mode & StoryAlliances) != 0)
         {
@@ -132,7 +165,7 @@ public static partial class SnapshotCodec
         }
         else
             alliances = baseStory!.Alliances.ToArray();
-        return new StorySnapshot(bits, crew, fuel, modules, alliances);
+        return new StorySnapshot(bits, crew, fuel, modules, alliances, fleets);
 
         static int Price(long v) => v is >= 0 and <= byte.MaxValue ? (int)v : throw new InvalidDataException("Bad price.");
     }

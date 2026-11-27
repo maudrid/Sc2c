@@ -732,6 +732,36 @@ public class OpeningTests
     }
 
     [ContentFact]
+    public void AMissionAnOpeningsTalkRanAtOnceIsTakenBackWithTheOpening()
+    {
+        // UQM's opening talks run no event, but anything they ran at once is
+        // taken back with the opening (stage 3c item 1), and since item 3 a
+        // mission's event is one that runs at once: here the Thraddash's,
+        // as the commander's talk would run it, with the Ilwrath's war
+        // waiting on their return home (THRADD_MISSION 3), so it runs the
+        // Ilwrath's mission at once from within it too.
+        var world = WithTalks();
+        var story = world.Story!;
+        story.Set("THRADD_MISSION", 3);
+        story.Set("ILWRATH_FIGHT_THRADDASH", 1);
+        story.SetRaceAllied("THRADDASH_SHIP", true);
+        string before = System.Text.Json.JsonSerializer.Serialize(story.Save());
+        world.VisitStarbase(world.Host);
+        var talk = world.Visit!.Talk!;
+        talk.AddEvent(true, 0, 0, 0, "ADVANCE_THRADD_MISSION");
+        Assert.Equal((4, 1), (story.Get("THRADD_MISSION"), story.Get("HELIX_UNPROTECTED")));
+        Assert.Equal((2517, 8214, Allied.Bad), (story.Fleet("ILWRATH_SHIP").DestLocX, story.Fleet("ILWRATH_SHIP").DestLocY,
+            story.Alliance("THRADDASH_SHIP")));
+        Assert.Single(talk.RanAtOnce);
+        // A save made now is of the game without them, and leaving takes them back whole.
+        var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(saved.Story!.Save()));
+        world.Leave("host");
+        Assert.Null(world.Visit);
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(story.Save()));
+    }
+
+    [ContentFact]
     public void LeavingAsTheStarbaseIsReadyTakesBackWhatTheTwoWeeksDidToTheFleets()
     {
         var world = WithTalks();

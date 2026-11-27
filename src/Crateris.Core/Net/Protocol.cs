@@ -177,7 +177,11 @@ public static class Protocol
     /// (VisitStep.Story, numbered last), and its screen carries how it
     /// comes in (TalkScreen.Intro: SetCommIntroMode's mode and time) in the
     /// view whose lines start as it's first drawn.
-    public const int Version = 33;
+    /// 34: the fleet missions (stage 3c item 3): the story part carries the
+    /// spheres the players know (StorySnapshot.Fleets: each tracked race's
+    /// strength and centre, for the status panel's fleet lines), sent when
+    /// they change.
+    public const int Version = 34;
     public const int DefaultPort = 24642;
 
     /// <summary>

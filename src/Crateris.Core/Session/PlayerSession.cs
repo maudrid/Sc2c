@@ -1432,6 +1432,22 @@ public sealed class PlayerSession
             ? rules.Devices.Inventory(f => story.Get(rules.Table, f))
             : Array.Empty<int>();
 
+    /// <summary>
+    /// The status panel's fleet line (stage 3c item 3; the plan's question
+    /// 8: no star map in 3c): the spheres the players know, as the star map
+    /// would show them (<see cref="Story.KnownFleet"/>), each race with its
+    /// strength and centre in hyperspace's coordinates, as the ships' places
+    /// are given ("Spheres: Thraddash 150 at 253.5 : 835.8; ..."); null with
+    /// none known, or no story yet.
+    /// </summary>
+    public string? FleetLine()
+    {
+        if (_systems.StoryRules is not { } rules || Snapshot?.Story is not { Fleets.Count: > 0 } story)
+            return null;
+        return "Spheres: " + string.Join("; ", story.Fleets.Where(f => f.Race < rules.Races.Count).Select(f =>
+            $"{World.Meeting.RaceName(rules.Races[f.Race])} {f.Strength} at {f.X / 10.0:0.0} : {f.Y / 10.0:0.0}"));
+    }
+
     /// <summary>The status panel's lines.</summary>
     public IReadOnlyList<string> StatusLines()
     {
@@ -1454,6 +1470,8 @@ public sealed class PlayerSession
             lines.Add($"Ships ({Snapshot.Ships.Count}):");
             foreach (var s in Snapshot.Ships)
                 lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}{(s.Wrecked ? " (wreck)" : "")}  {Where(s)}");
+            if (FleetLine() is { } fleets)
+                lines.Add(fleets);
         }
         if (Undocking)
         {
