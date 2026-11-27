@@ -1817,7 +1817,9 @@ public class MeetingWireTests
         Assert.Null(own.TakeStoryClosingDone());
         own.FollowClosing(busy: false, PlayerSession.LastReplaySeconds + 0.1);
         int round = Assert.IsType<int>(own.TakeStoryClosingDone());
-        Assert.Null(own.TakeStoryClosingDone());   // once
+        Assert.Null(own.TakeStoryClosingDone());
+        own.FollowClosing(busy: false, PlayerSession.LastReplaySeconds + 0.1);
+        Assert.Null(own.TakeStoryClosingDone());   // said once, however long they go on being shown
         Assert.True(host.StoryClosingDone("h", round));
         Frame(host, g1, g2);
         Assert.True(world.GameOver);

@@ -103,8 +103,8 @@ public sealed class StoryPause : TalkSequence
     /// <summary>Its replier has gone through its held closing lines (<see cref="HoldsClosing"/>); false if none are held.</summary>
     internal bool LinesHeard()
     {
-        if (Step != VisitStep.StoryClosing)
-            return false;
+        if (Step != VisitStep.StoryClosing || _linesHeard)
+            return false;   // said once: a repeat changes nothing
         _linesHeard = true;
         return true;
     }

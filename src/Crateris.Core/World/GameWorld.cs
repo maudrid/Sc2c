@@ -28,7 +28,7 @@ public enum JoinResult
     AlreadyPresent,
     /// <summary>The game already has the most players allowed.</summary>
     Full,
-    /// <summary>The game is over: the flagship was lost (stage 4 decision 12) or surrendered (GameWorld.Surrendered), and the world has stopped.</summary>
+    /// <summary>The game is over: the flagship was lost (stage 4 decision 12) or surrendered (GameWorld.Surrendered), or the Kohr-Ah have destroyed every race (stage 3c item 4, GameWorld.Loss), and the world has stopped.</summary>
     GameOver,
 }
 
@@ -962,7 +962,7 @@ public sealed partial class GameWorld
     /// <paramref name="round"/> (the view's): the pause ends at the next
     /// frame the host's pause doesn't hold, and the sequence that took it
     /// goes on (the game over). False, changing nothing, from anyone else,
-    /// for another round, or with no such lines shown.
+    /// for another round, with no such lines shown, or said already.
     /// </summary>
     public bool StoryClosingDone(string id, int round) =>
         !GameOver && Find(id) is { Present: true } && Pause is { Step: VisitStep.StoryClosing } pause && StoryShown == pause

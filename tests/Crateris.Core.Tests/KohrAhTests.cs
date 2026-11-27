@@ -273,6 +273,7 @@ public class KohrAhTests
         Assert.False(world.StoryClosingDone("g", end.Round));
         Assert.False(world.StoryClosingDone("h", end.Round + 1));
         Assert.True(world.StoryClosingDone("h", end.Round));
+        Assert.False(world.StoryClosingDone("h", end.Round));   // once: a repeat changes nothing
         Assert.False(world.GameOver);
         Run(world, 1);
         Assert.True(world.GameOver);
@@ -376,6 +377,24 @@ public class KohrAhTests
         loaded.TalkLibrary = UrquanMeetingTests.Library.Value;
         loaded.Step();
         Assert.Equal((VisitStep.StoryClosing, "blackur"), (loaded.TalkFor("h")!.Step, loaded.TalkFor("h")!.Script));
+    }
+
+    [ContentFact]
+    public void TheHostsLogTellsAPauseTheEndTookOverFrom()
+    {
+        var systems = SystemGroupTests.Systems.Value;
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
+        host.World.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var log = new List<string>();
+        host.Logged += log.Add;
+        OnTheEve(host.World.Story!, days: 2);
+        Assert.NotNull(host.World.StartStoryPause(host.World.Find("h")!, "a test's talk", 4, "comandr", new() { ["STARBASE_VISITED"] = 0 }));
+        for (int i = 0; i < TimeSkip.FadeFrames + 2; ++i)
+            host.Step(ShipInput.None);
+        int stopped = log.IndexOf("The story pause stops where it is: a test's talk");
+        Assert.True(stopped >= 0, string.Join("\n", log));
+        Assert.DoesNotContain(log, l => l == "The story pause is over: a test's talk");
+        Assert.Equal((VisitStep.StoryClosing, "blackur"), (host.World.TalkFor("h")!.Step, host.World.TalkFor("h")!.Script));
     }
 
     [ContentFact]

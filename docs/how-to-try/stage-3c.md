@@ -81,7 +81,7 @@ With several players:
 
 - **A time skip is a story pause for everyone, its fade on every screen** (the plan's co-op rules): everyone waits, input meant for then is dropped, and nothing moves; the clock jumps for all.
 - **No hyperspace encounters during a skip** (question 3): a player in hyperspace meets no new group from those days; the fleets still move and every event still runs.
-- **The game over during a skip's days** (the Kohr-Ah's genocide, item 4's) ends it there for everyone: no talk follows, as in UQM.
+- **The game over during a skip's days** (the Kohr-Ah's genocide, item 4's) stops it there for everyone: no talk of its own and nothing after it follow, as UQM's `VisitStarBase` returns; the Black Ur-Quan's last talk takes over on a pause of its own, then the game over (item 4's section).
 - **A story talk outside the starbase** is shown to everyone and answered by the player whose sequence started it, the replies passing to the next player (the host first) if they leave, as the opening's (row 2). Since item 4 the Black Ur-Quan's last talk is one (below); `StoryPauseTests` and `MeetingWireTests` also run one with the commander's talk.
 
 Tried headless, each with `--host --no-upnp --id host --name Host --save FILE` (a scratch file):
