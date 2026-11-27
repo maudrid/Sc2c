@@ -332,7 +332,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 ### Known limits of item 8
 
 - **A Mauler or an artifact needs 100 crew**, more than a new game's flagship holds: buy crew pods and crew at the starbase first. No testing flag sets the crew.
-- **The goods to sell, the bomb and the Sun Device** are picked up on their worlds since stage 3c item 5 (`--start-devices` and `--start-state` put them aboard too); the Druuge's ruins and the Rosy Sphere found there once they're gone are 3c's too.
+- **The goods to sell, the bomb and the Sun Device:** the bomb, the Sun Device and the goods found on the story worlds (the Maidens, the egg cases, the Burvixese broadcaster) are picked up there since stage 3c item 5, the portal spawner is the Arilou's gift, and `--start-devices` and `--start-state` put any of them aboard; the Druuge's ruins and the Rosy Sphere found there once they're gone are 3c's too.
 - **The bomb's moon's Druuge** need the Utwig's Ultron back, which needs it mended (3c's devices): `--start-devices ULTRON_3_DEVICE` and the gift at the Utwig's homeworld (item 9), or `--start-state UTWIG_HAVE_ULTRON=1`, until then.
 - **The Mycon never fly to the ambush** (their mission event is stage 3c's; run since its item 3, their fleet flying to Organon): their sphere stays where it is, and only the Sun Device's world's guard changes.
 

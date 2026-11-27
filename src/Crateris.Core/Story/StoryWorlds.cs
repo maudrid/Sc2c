@@ -249,7 +249,10 @@ public static class StoryWorlds
     /// SetLanderTakeoff), it's found (its story field), its device is the
     /// finder's (a held one, <see cref="Finder.Give"/>; the shared Lunar
     /// base, the group's), and the generator's other fields set. True if
-    /// the node is taken; false, changing nothing, for any other node.
+    /// the node is taken; false for a node that stays, whose report and
+    /// take-off <paramref name="finder"/> still carries (none of part 2's;
+    /// stage 3c item 6's ruins, wreck and vault), and for any other node,
+    /// changing nothing.
     /// </summary>
     public static bool PickupEnergy(string? special, WorldId world, StoryState story, Finder finder, int node) =>
         NodeOf(special, world, ScanType.Energy) is { } n && n.Node == node && !n.IsFound(story) && Take(n, story, finder);

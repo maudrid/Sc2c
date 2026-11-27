@@ -296,6 +296,10 @@ public sealed class Options
                 {
                     var parts = Next().Split(':');
                     o.StartSite = (int.Parse(parts[0]), int.Parse(parts[1]));
+                    if (o.StartSite.Value.X is < 0 or >= Crateris.Core.Systems.SurfaceMap.Width
+                            || o.StartSite.Value.Y is < 0 or >= Crateris.Core.Systems.SurfaceMap.Height)
+                        throw new ArgumentException($"--start-site is a scan map pixel, X from 0 to {Crateris.Core.Systems.SurfaceMap.Width - 1} "
+                            + $"and Y from 0 to {Crateris.Core.Systems.SurfaceMap.Height - 1}");
                     break;
                 }
                 case "--start-at":

@@ -1562,16 +1562,27 @@ public sealed partial class GameWorld
 
     // A lander touched an energy node: the world's story decides
     // (StoryWorlds.PickupEnergy), by its ship's place in the world's report.
+    // What it did is made so whether the node is taken or stays (review round
+    // 1): a node that stays can show a report, with a take-off or without
+    // (stage 3c item 6's ruins, wreck and vault).
     private bool PickupEnergy(string? special, WorldId world, PlanetsideSurface surface, Lander lander, int node)
     {
         if (Story is not { } story || !_landerPlayers.TryGetValue(lander, out var finder))
             return false;
         var found = new Finder(PlaceIn(finder.Ship, world));
-        if (!StoryWorlds.PickupEnergy(special, world, story, found, node))
-            return false;
+        bool taken = StoryEnergyPickup(special, world, story, found, node);
         Found(finder, world, surface, lander, found);
-        return true;
+        return taken;
     }
+
+    /// <summary>A story world's pickupEnergy, as <see cref="StoryWorlds.PickupEnergy"/> has it.</summary>
+    internal delegate bool EnergyPickup(string? special, WorldId world, StoryState story, Finder finder, int node);
+
+    /// <summary>
+    /// The story worlds' pickupEnergy (<see cref="StoryWorlds.PickupEnergy"/>);
+    /// tests give a stand-in node that stays, as stage 3c item 6's will.
+    /// </summary>
+    internal EnergyPickup StoryEnergyPickup { get; set; } = StoryWorlds.PickupEnergy;
 
     // A lander (or its bolt) took a creature: a story world's may be a pickup
     // (StoryWorlds.PickupCreature: Zex's Beauty).

@@ -319,6 +319,141 @@ public class StoryPickupsTests
         Assert.Equal(new LanderReport(StoryWorlds.UmgahCasterReport, 1 - shielded), world.Host.Ship.Lander!.Report);
     }
 
+    // A stand-in for stage 3c item 6's nodes that stay, on the Taalo protector's moon: the host landed at the node,
+    // the guest elsewhere on the moon, the host's place in a two-entry report.
+    private static (GameWorld World, WorldId At, Lander Host, Lander Guest, SurfaceElement Node) NodeThatStays(
+        GameWorld.EnergyPickup pickup)
+    {
+        var world = NewGame();
+        world.StoryEnergyPickup = pickup;
+        var at = new WorldId(Star(world, "TAALO_PROTECTOR_DEFINED"), 1, 2);
+        world.PutInOrbit("guest", at.Star, at.Planet, at.Moon);
+        world.PutInOrbit("host", at.Star, at.Planet, at.Moon);
+        world.Host.Ship.Discovery = new ReportPlace(at, StoryWorlds.UmgahCasterReport, 0);
+        var guest = Land(world, "guest", 10, 60);
+        var site = world.Host.Ship.Orbit!.Nodes!.Energy[0];
+        var host = Land(world, "host", site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
+        return (world, at, host, guest, Node(world, at));
+    }
+
+    // Keeps a node under a lander for some frames, as a lander parked on it would.
+    private static void StayOn(GameWorld world, Lander lander, SurfaceElement node, int frames)
+    {
+        for (int i = 0; i < frames && lander.Phase == LanderPhase.Ground; ++i)
+        {
+            node.X = lander.X;
+            node.Y = lander.Y;
+            Frames(world, 1);
+        }
+    }
+
+    [ContentFact]
+    public void ANodeThatStaysShowsItsReportsToTheFinderAloneWithoutATakeoff()
+    {
+        // GenerateDefault_landerReportCycle on a node that stays (the ruins, item 6): each touch the next entry, the
+        // lander staying down, nobody else told, the node still there; once the entries have gone round, nothing.
+        var (world, at, host, guest, node) = NodeThatStays((_, _, _, finder, _) =>
+        {
+            finder.LanderReportCycle();
+            return false;
+        });
+        world.TakeReports();
+        StayOn(world, host, node, 10);
+        Assert.Equal(new (string, LanderReport)[]
+        {
+            ("host", new LanderReport(StoryWorlds.UmgahCasterReport, 0)),
+            ("host", new LanderReport(StoryWorlds.UmgahCasterReport, 1)),
+        }, world.TakeReports());
+        Assert.False(host.InTransit);
+        Assert.Equal(LanderPhase.Ground, host.Phase);
+        Assert.Null(guest.Report);
+        Assert.Null(world.Host.Ship.Discovery);
+        Assert.False(world.Planets.IsRetrieved(at, ScanType.Energy, 0));
+        Assert.Contains(node, world.SurfaceOf(at)!.Elements);
+        Assert.False(node.Disappearing);
+    }
+
+    [ContentFact]
+    public void ANodeThatStaysCanSendTheLanderUpWithItsReport()
+    {
+        // The wreck's and the unlocked vault's way (item 6): a report and a take-off, the node staying; the other
+        // landers there are told, and stay.
+        var (world, at, host, guest, node) = NodeThatStays((_, _, _, finder, _) =>
+        {
+            finder.LanderReport();
+            finder.SetTakeoff();
+            return false;
+        });
+        StayOn(world, host, node, 3);
+        var report = new LanderReport(StoryWorlds.UmgahCasterReport, 0);
+        Assert.Equal(report, host.Report);
+        Assert.True(host.InTransit);
+        Assert.Equal(report with { FoundBy = "host" }, guest.Report);
+        Assert.False(world.Planets.IsRetrieved(at, ScanType.Energy, 0));
+        for (int i = 0; i < 400 && world.Host.Ship.Lander is not null; ++i)
+            Frames(world, 1);
+        Assert.Null(world.Host.Ship.Lander);
+        Assert.Contains(node, world.SurfaceOf(at)!.Elements);
+        Assert.Equal(LanderPhase.Ground, guest.Phase);
+    }
+
+    [ContentTheory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void AFullLanderLeavesZexsBeautyAndOneWithAnyRoomTakesIt(int room)
+    {
+        // pickupBioNode refuses only a full lander; with any room it takes what fits, and pickupLife comes after it.
+        var world = NewGame(guests: 0);
+        int star = Star(world, "VUX_BEAST_DEFINED");
+        var at = new WorldId(star, 0, null);
+        world.PutInOrbit("host", star, 0);
+        var lander = Land(world, "host", 120, 40);
+        Assert.True(lander.PickUpBioData(ShipHold.MaxScrounged - room));
+        var beast = world.SurfaceOf(at)!.Elements.Single(e => e.Kind == SurfaceElementKind.Creature && e.Node == 0);
+        beast.HitPoints = 0;
+        beast.MassPoints = 15;
+        beast.Sheet = SurfaceSheet.Canister;
+        beast.Frame = 0;
+        StayOn(world, lander, beast, 20);
+        Assert.Equal(ShipHold.MaxScrounged, lander.BioData);
+        Assert.Equal(room, world.Story!.Get("VUX_BEAST"));
+        Assert.Equal(room == 1, world.Planets.IsRetrieved(at, ScanType.Biological, 0));
+        Assert.Equal(room == 1, world.Host.Ship.Hold.Devices.Contains(DeviceOf("VUX_BEAST_ON_SHIP")));
+        Assert.Equal(room == 1 ? new LanderReport("text.vuxbeast") : null, lander.Report);
+        Assert.Equal(room == 1, lander.InTransit);
+    }
+
+    [ContentFact]
+    public void TheShipsPlaceIsMadeAfreshOnALoadInOrbitAndOnGoingIntoOrbitAgain()
+    {
+        // Reading (o): the place is the visit's, made from the story as the ship goes into orbit, as UQM's
+        // generateOrbital loads the text, and so on a load in orbit too.
+        var world = NewGame(guests: 0);
+        int star = Star(world, "SPATHI_DEFINED");
+        var moon = new WorldId(star, 0, 0);
+        world.PutInOrbit("host", star, 0, 0);
+        Assert.Equal(new ReportPlace(moon, StoryWorlds.UmgahCasterReport, 1), world.Host.Ship.Discovery);
+        // Its text used up by a report, a load in orbit gives it back.
+        world.Host.Ship.Discovery = null;
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        Assert.Equal(moon, loaded.Host.Ship.OrbitedWorld);
+        Assert.Equal(new ReportPlace(moon, StoryWorlds.UmgahCasterReport, 1), loaded.Host.Ship.Discovery);
+        // The broadcaster found (by someone else) during the visit: this visit's place stays; a load in orbit
+        // makes none.
+        world.PutInOrbit("host", star, 0, 0);
+        world.Story!.Set("UMGAH_BROADCASTERS", 1);
+        Assert.NotNull(world.Host.Ship.Discovery);
+        Assert.Null(HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Host.Ship.Discovery);
+        // The Spathi shield themselves while the ship orbits their moon: the place keeps the entry it was made with;
+        // going into orbit again makes it afresh, the first entry now.
+        world.Story.Set("UMGAH_BROADCASTERS", 0);
+        world.PutInOrbit("host", star, 0, 0);
+        world.Story.Set("SPATHI_SHIELDED_SELVES", 1);
+        Assert.Equal(1, world.Host.Ship.Discovery!.Entry);
+        world.PutInOrbit("host", star, 0, 0);
+        Assert.Equal(new ReportPlace(moon, StoryWorlds.UmgahCasterReport, 0), world.Host.Ship.Discovery);
+    }
+
     [ContentFact]
     public void ZexsBeautyTakenIsTheFindersAndSendsTheLanderUp()
     {
