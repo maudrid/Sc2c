@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3c item 1 being built (the owner's go-ahead of 2026-11-27, for this item alone).
+**Last updated:** 2026-11-27. Stage 3c items 1 to 3 have the owner's go-ahead (2026-11-27); item 1 being built.
 
 ## Where things are
 
@@ -71,11 +71,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Stage 3c item 1 (the calendar's engine and the simple events) is being built: the owner's go-ahead of 2026-11-27, for this item alone. A builder subagent builds it and hands back; then review rounds as the working agreement has them, then report and wait. The plan, `docs/plans/stage-3c.md`, has every question answered (2026-11-27).
+Stage 3c items 1 to 3, the owner's go-ahead of 2026-11-27 ("stop when item 3 is done"): item 1 (the calendar's engine and the simple events) is being built, then item 2 (story pauses generalised), then item 3 (the fleet missions), each built by a builder subagent, reviewed in rounds and reported; stop after item 3 and wait. The plan, `docs/plans/stage-3c.md`, has every question answered (2026-11-27).
 
 ## Decisions waiting on the owner
 
-**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Item 1 has its go-ahead (2026-11-27).
+**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Items 1 to 3 have their go-ahead (2026-11-27); stop after item 3.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
