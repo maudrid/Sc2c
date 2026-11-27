@@ -248,6 +248,15 @@ public class CalendarEventsTests
         Assert.Equal(0, loaded.Story!.Get("ZOQFOT_DISTRESS"));
         var again = Assert.Single(loaded.Story.Events, e => e.Event == "ZOQFOT_DISTRESS_EVENT");
         Assert.Equal((loaded.Clock.Month, loaded.Clock.Day + 7), (again.Month, again.Day));
+        // A saved wreck there doesn't hold it, as a wreck in the game doesn't.
+        world.Find("g")!.Ship.Destroyed = true;
+        node = JsonNode.Parse(HostSave.ToJson(world))!;
+        Assert.True(node["players"]!.AsArray().Single(p => p!["id"]!.GetValue<string>() == "g")!["wrecked"]!.GetValue<bool>());
+        node["clock"]!["day"] = world.Clock.Day + 3;
+        var fromWreck = HostSave.FromJson(node.ToJsonString(), world.Systems!, TestContent.Shapes);
+        Assert.True(fromWreck.Find("g")!.Ship.Destroyed);
+        Assert.Equal(1, fromWreck.Story!.Get("ZOQFOT_DISTRESS"));
+        world.Find("g")!.Ship.Destroyed = false;
         // The guest elsewhere: it runs as the save loads.
         world.PutInHyperspace("g");
         Frames(world, 1);
@@ -488,21 +497,71 @@ public class CalendarEventsTests
         Assert.Null(world.MeetingOf("h"));
         Assert.Null(world.MeetingOf("g"));
         Assert.Equal(1, story.Get("ZOQFOT_DISTRESS"));
-        Assert.Contains("ZOQFOT_KOHR_AH", world.GuardsGone);
+        Assert.Equal(new[] { "ZOQFOT_KOHR_AH" }, story.GuardsGone);
         // Saved with the game.
         var loaded = HostSave.FromJson(HostSave.ToJson(world), world.Systems!, TestContent.Shapes);
-        Assert.Equal(new[] { "ZOQFOT_KOHR_AH" }, loaded.GuardsGone);
-        // The guest's orbit: the Zoq-Fot-Pik at once, their thanks.
+        Assert.Equal(new[] { "ZOQFOT_KOHR_AH" }, loaded.Story!.GuardsGone);
+        // Their death's day comes, both players flown off: spared (their attacker gone), the distress on.
         world.PutInHyperspace("g");
+        world.PutInHyperspace("h");
         Frames(world, 1);
+        Assert.False(world.PlayerInSystem("ZOQFOT_DEFINED"));
+        Assert.Single(story.Events, e => e.Event == "ZOQFOT_DEATH_EVENT");
+        world.MoveClockDays(200);
+        Assert.DoesNotContain(story.Events, e => e.Event == "ZOQFOT_DEATH_EVENT");
+        Assert.Equal((Allied.Good, 1), (story.Alliance("ZOQFOTPIK_SHIP"), story.Get("ZOQFOT_DISTRESS")));
+        Assert.NotEqual(0, story.Fleet("ZOQFOTPIK_SHIP").ActualStrength);
+        Assert.Equal(new[] { "ZOQFOT_KOHR_AH" }, story.GuardsGone);
+        // The guest's orbit: the Zoq-Fot-Pik at once, their thanks; the record goes with the distress, at once.
         world.PutInOrbit("g", star, 0);
         var zfp = world.MeetingOf("g")!;
         Assert.Equal(story.Rules.RaceIndex("ZOQFOTPIK_SHIP"), zfp.Race);
         Assert.True(Said(zfp.Talk!, "THANKS_FOR_RESCUE1"));
         Assert.Equal(0, story.Get("ZOQFOT_DISTRESS"));
-        // The record goes with the distress.
-        Assert.NotNull(world.WorldTalkAt(star, 0, null));
-        Assert.Empty(world.GuardsGone);
+        Assert.Empty(story.GuardsGone);
+    }
+
+    [Fact]
+    public void TheKohrAhsRecordStandsOnlyWhileTheDistressIsOnAndASaveRefusesAnUnknownOne()
+    {
+        var world = BareWorld();
+        var story = world.Story!;
+        // Not recorded with no distress.
+        story.MarkGuardGone("ZOQFOT_KOHR_AH");
+        Assert.Empty(story.GuardsGone);
+        Assert.Throws<KeyNotFoundException>(() => story.MarkGuardGone("NO_SUCH_GUARD"));
+        story.Set("ZOQFOT_DISTRESS", 1);
+        story.MarkGuardGone("ZOQFOT_KOHR_AH");
+        Assert.Single(story.GuardsGone);
+        // The death event, its day come: spared, the record standing.
+        Assert.True(story.Events.Add(true, 0, 1, 0, "ZOQFOT_DEATH_EVENT", world.Clock));
+        var done = world.MoveClockDays(1);
+        Assert.Contains(done, e => e.Event.Event == "ZOQFOT_DEATH_EVENT" && !e.News && !e.Held);
+        Assert.Equal((1, Allied.Bad), (story.Get("ZOQFOT_DISTRESS"), story.Alliance("ZOQFOTPIK_SHIP")));
+        Assert.Single(story.GuardsGone);
+        // Gone as soon as the distress isn't 1, whatever sets it: dead (2) as a death event or --start-state sets it.
+        story.Set("ZOQFOT_DISTRESS", 2);
+        Assert.Empty(story.GuardsGone);
+        // Saved and restored with the story; a restored record whose distress is over goes; an unknown one is refused.
+        story.Set("ZOQFOT_DISTRESS", 1);
+        story.MarkGuardGone("ZOQFOT_KOHR_AH");
+        var saved = story.Save();
+        Assert.Equal(new[] { "ZOQFOT_KOHR_AH" }, saved.GuardsGone);
+        Assert.Equal(new[] { "ZOQFOT_KOHR_AH" }, StoryState.Restore(Rules, saved).GuardsGone);
+        var over = new Dictionary<string, int>(saved.Fields) { ["ZOQFOT_DISTRESS"] = 0 };
+        Assert.Empty(StoryState.Restore(Rules, saved with { Fields = over }).GuardsGone);
+        Assert.Throws<InvalidDataException>(() => StoryState.Restore(Rules, saved with { GuardsGone = new() { "NO_SUCH_GUARD" } }));
+    }
+
+    [ContentFact]
+    public void AHostSaveRefusesAnUnknownGuardGone()
+    {
+        var world = NewGame();
+        var node = JsonNode.Parse(HostSave.ToJson(world))!;
+        node["story"]!["guards_gone"] = new JsonArray("NO_SUCH_GUARD");
+        Assert.Throws<InvalidDataException>(() => HostSave.FromJson(node.ToJsonString(), world.Systems!, TestContent.Shapes));
+        node["story"]!["guards_gone"] = new JsonArray("ZOQFOT_KOHR_AH");   // known, but no distress: dropped
+        Assert.Empty(HostSave.FromJson(node.ToJsonString(), world.Systems!, TestContent.Shapes).Story!.GuardsGone);
     }
 
     [ContentFact]
@@ -522,7 +581,7 @@ public class CalendarEventsTests
         Assert.Null(world.MeetingOf("h"));
         Assert.Contains(world.TakeNotices(), n => n.PlayerId == "h" && n.Event == NoticeEvent.Talking);
         Assert.Equal(1, story.Get("ZOQFOT_DISTRESS"));
-        Assert.Contains("ZOQFOT_KOHR_AH", world.GuardsGone);
+        Assert.Contains("ZOQFOT_KOHR_AH", story.GuardsGone);
         // The lock let go: the host's next orbit is the rescue.
         world.DialogueLocks.Release("ZOQFOTPIK_CONVERSATION", "g");
         world.PutInOrbit("h", star, 0);

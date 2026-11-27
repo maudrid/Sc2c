@@ -145,7 +145,7 @@ public static class HostSave
         int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players,
         List<WorldState>? Worlds = null, StoryState.Saved? Story = null, bool CommanderMet = false,
         List<FleetShip>? Fleet = null, List<EncounterState>? Encounters = null,
-        SystemGroupsState? SystemGroups = null, List<string>? GuardsGone = null);
+        SystemGroupsState? SystemGroups = null);
 
     /// <summary>
     /// The groups kept with the systems (stage 3b-1 item 4): the special
@@ -339,10 +339,7 @@ public static class HostSave
                 e.Race, e.Flags, e.Ships.ToList(), e.OriginX, e.OriginY, e.Radius, e.LocX, e.LocY, e.LogX, e.LogY,
                 e.TransitionState, e.Roller, e.KeptFor.Select(k => new KeptState(k.Key, k.Value.X, k.Value.Y)).ToList()))
                 .ToList() : null,
-            SystemGroupsForSave(world),
-            // The world talks' guards gone with no story field of UQM's to say so (stage 3c item 1: the Kohr-Ah's
-            // ship at the Zoq-Fot-Pik's world); none, left out (an optional part, as the fleets are: no new version).
-            world.GuardsGone.Count == 0 ? null : world.GuardsGone.OrderBy(g => g, StringComparer.Ordinal).ToList());
+            SystemGroupsForSave(world));
         return JsonSerializer.Serialize(save, Options);
     }
 
@@ -652,12 +649,6 @@ public static class HostSave
         foreach (var p in world.Players)
             world.InOrbit(p.Ship);
         world.CommanderMet = save.CommanderMet;
-        foreach (string gone in save.GuardsGone ?? new())
-        {
-            if (!GameWorld.TalkWorlds.Any(w => w.GoneRecord == gone))
-                throw new InvalidDataException($"No world guard {gone} to be gone.");
-            world.GuardsGone.Add(gone);
-        }
         // The events whose day has passed run now, in date order (an older
         // save's: it ran none), and those an older save set aside that the
         // port now runs (stage 3c item 1), from where the clock is; the

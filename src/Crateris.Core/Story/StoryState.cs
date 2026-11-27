@@ -135,6 +135,46 @@ public sealed class StoryState
 
     // ---------------------------------------------------------------- the bits
 
+    // ---------------------------------------------------------------- guards gone
+
+    /// <summary>
+    /// The world talks' guards destroyed that UQM keeps no story field for,
+    /// each standing only while its field holds its value: the Kohr-Ah's
+    /// ship at the Zoq-Fot-Pik's world (<c>ZOQFOT_KOHR_AH</c>, while
+    /// ZOQFOT_DISTRESS is 1). UQM's one player always gets the Zoq-Fot-Pik's
+    /// rescue at once after destroying it (genzoq.c:117-123); here it may
+    /// not follow at once (the stage 3c plan's item 1, review rounds 1 and
+    /// 2), so the record says it's gone until the rescue: while it stands,
+    /// an orbit of their world starts their talk (GameWorld.WorldTalkAt),
+    /// and their death event spares them (<see cref="RunEvent"/>).
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, (string Field, int Value)> GuardRecords =
+        new Dictionary<string, (string, int)> { ["ZOQFOT_KOHR_AH"] = ("ZOQFOT_DISTRESS", 1) };
+
+    /// <summary>The guards recorded gone (<see cref="GuardRecords"/>), saved with the story.</summary>
+    public IReadOnlySet<string> GuardsGone => _guardsGone;
+
+    private readonly HashSet<string> _guardsGone = new();
+
+    /// <summary>
+    /// Records a guard gone (<see cref="GuardRecords"/>'s name), if its
+    /// field holds its value (the distress on); else nothing.
+    /// </summary>
+    public void MarkGuardGone(string record)
+    {
+        var (field, value) = GuardRecords.TryGetValue(record, out var r) ? r : throw new KeyNotFoundException($"no guard record {record}");
+        if (Get(field) == value && _guardsGone.Add(record))
+            ++Version;
+    }
+
+    // A record whose field no longer holds its value goes (the distress
+    // over: rescued, 0, or the Zoq-Fot-Pik dead, 2), whatever set it.
+    private void DropGuardsGone()
+    {
+        if (_guardsGone.RemoveWhere(g => Get(GuardRecords[g].Field) != GuardRecords[g].Value) > 0)
+            ++Version;
+    }
+
     /// <summary>GET_GAME_STATE.</summary>
     public int Get(string name)
     {
@@ -151,7 +191,11 @@ public sealed class StoryState
     {
         var f = Shared(name);
         if (SetBits(_bits, f.StartBit, f.EndBit, (byte)value))
+        {
             ++Version;
+            if (_guardsGone.Count > 0)
+                DropGuardsGone();
+        }
     }
 
     /// <summary>GET_GAME_STATE_32: the four 8-bit fields starting with <paramref name="first"/>, low byte first.</summary>
@@ -594,7 +638,9 @@ public sealed class StoryState
             {
                 if (Waits("ZOQFOT_DEFINED"))
                     return (false, true);
-                if (Get("ZOQFOT_DISTRESS") == 0)
+                // Rescued; or their Kohr-Ah ship destroyed with the rescue to come at the next orbit (GuardsGone):
+                // spared, the event spent, as UQM's rescue would have followed the ship's destruction at once.
+                if (Get("ZOQFOT_DISTRESS") == 0 || _guardsGone.Contains("ZOQFOT_KOHR_AH"))
                     return (false, false);
                 // Not rescued: the Zoq-Fot-Pik die, their fleet gone.
                 int i = Rules.RaceIndex("ZOQFOTPIK_SHIP");
@@ -788,12 +834,13 @@ public sealed class StoryState
     /// everything beside them: the clock's events queued, and those set
     /// aside until the port runs them (since save version 13; none before), and each
     /// race's fleet (since stage 3b item 2, in version 13; without them, a
-    /// new game's).
+    /// new game's), and the guards recorded gone (<see cref="GuardsGone"/>,
+    /// stage 3c item 1: an optional part, none without it).
     /// </summary>
     public sealed record Saved(
         Dictionary<string, int> Fields, int CrewCost, int FuelCost, Dictionary<string, int> ModuleCost,
         Dictionary<string, Allied> Alliances, List<StoryEvent> Events, List<StoryEvent>? SetAside = null,
-        Dictionary<string, RaceFleet>? Fleets = null);
+        Dictionary<string, RaceFleet>? Fleets = null, List<string>? GuardsGone = null);
 
     public Saved Save() => new(
         Table.Fields.Where(f => !NotShared.ContainsKey(f.Name) && Get(f.Name) != 0).ToDictionary(f => f.Name, f => Get(f.Name)),
@@ -801,7 +848,8 @@ public sealed class StoryState
         Rules.Modules.Where(m => _moduleCost.GetValueOrDefault(m) != 0).ToDictionary(m => m, m => _moduleCost[m]),
         Rules.Races.Select((r, i) => (r, i)).ToDictionary(x => x.r, x => _alliances[x.i]),
         Events.ToList(), Events.SetAside.ToList(),
-        Rules.Races.Select((r, i) => (r, i)).ToDictionary(x => x.r, x => _fleets[x.i]));
+        Rules.Races.Select((r, i) => (r, i)).ToDictionary(x => x.r, x => _fleets[x.i]),
+        _guardsGone.Count == 0 ? null : _guardsGone.OrderBy(g => g, StringComparer.Ordinal).ToList());
 
     /// <summary>A saved story state. A bad one is an <see cref="InvalidDataException"/>.</summary>
     public static StoryState Restore(StoryRules rules, Saved saved)
@@ -857,6 +905,12 @@ public sealed class StoryState
             }
         }
         story.Events.Restore(saved.Events ?? new(), saved.SetAside);
+        foreach (string gone in saved.GuardsGone ?? new())
+        {
+            if (!GuardRecords.ContainsKey(gone))
+                throw new InvalidDataException($"Story state: no guard {gone} to be gone.");
+            story.MarkGuardGone(gone);   // only while its field holds its value
+        }
         story.Version = 0;
         return story;
 
