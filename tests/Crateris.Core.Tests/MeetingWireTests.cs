@@ -640,10 +640,10 @@ public class MeetingWireTests
         // 27 a meeting's closing lines (stage 3b-1 item 11), 28 credits and fuel (3b-2 item 3), 29 the Melnorme's talk
         // (item 4), 30 the Zoq-Fot-Pik's speakers (item 5), 31 the talks' screen changes (row 83), 32 the Talking
         // Pet's strobe: a one-shot ambient animation's start among them (item 10), 33 the story pauses and the talks'
-        // intro fades (stage 3c item 2).
-        Assert.Equal(33, Protocol.Version);
+        // intro fades (stage 3c item 2), 34 the spheres the players know (item 3).
+        Assert.Equal(34, Protocol.Version);
         var game = NewGame(guests: 0);
-        var refused = game.Host.Hello(9, "old", "Old", 32);
+        var refused = game.Host.Hello(9, "old", "Old", 33);
         Assert.False(Protocol.Accepted(refused.Result));
         Assert.Contains("Version mismatch", refused.Message);
     }
