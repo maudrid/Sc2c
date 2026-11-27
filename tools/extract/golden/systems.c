@@ -213,7 +213,11 @@ struct bintab
 {
 	int size;
 	BintabEntry *entries;
+	const char *name;   /* story mode: the string table's resource */
 };
+
+/* "story" mode (story_main): the story worlds' tables are named stand-ins. */
+static int story_mode;
 
 static BintabEntry *
 as_entry (STRING s)
@@ -288,7 +292,27 @@ SetAbsStringTableIndex (STRING s, COUNT i)
 		return (STRING) &e->parent->entries[i % e->parent->size];
 	return (STRING) (intptr_t) (i + 1);
 }
-STRING SetRelStringTableIndex (STRING s, SIZE i) { (void) i; return s; }
+/* As strings.c: the index moves by i, wrapping at the table's size (in
+ * story mode; nothing else moves an index this way). */
+STRING
+SetRelStringTableIndex (STRING s, SIZE i)
+{
+	BintabEntry *e = as_entry (s);
+	if (story_mode && e)
+	{
+		int size = e->parent->size;
+		int k = (int) (e - e->parent->entries) + i;
+		return (STRING) &e->parent->entries[((k % size) + size) % size];
+	}
+	(void) i;
+	return s;
+}
+COUNT
+GetStringTableIndex (STRING s)
+{
+	BintabEntry *e = as_entry (s);
+	return e ? (COUNT) (e - e->parent->entries) : 0;
+}
 STRINGPTR
 GetStringAddress (STRING s)
 {
@@ -634,9 +658,32 @@ MAKE_HOT_SPOT (COORD x, COORD y)
 	return hs;
 }
 
+/* Story mode: a string table that is its resource's name, with
+ * STORY_TABLE_SIZE entries (more than any report table has, so an index
+ * never wraps), each saying which it is (GetStringTableIndex). */
+#define STORY_TABLE_SIZE 32
+static STRING_TABLE
+story_table (RESOURCE res)
+{
+	Bintab *t = calloc (1, sizeof *t);
+	int i;
+	t->size = STORY_TABLE_SIZE;
+	t->name = res;
+	t->entries = calloc (STORY_TABLE_SIZE, sizeof *t->entries);
+	for (i = 0; i < STORY_TABLE_SIZE; ++i)
+	{
+		t->entries[i].magic = BINTAB_MAGIC;
+		t->entries[i].parent = t;
+		t->entries[i].data = (unsigned char *) "";
+	}
+	return (STRING_TABLE) t;
+}
+
 STRING_TABLE
 LoadStringTableInstance (RESOURCE res)
 {
+	if (story_mode)
+		return story_table (res);
 	if (in_surface)
 	{
 		char path[4096];
@@ -664,7 +711,7 @@ LoadStringTableInstance (RESOURCE res)
 STRING
 CaptureStringTable (STRING_TABLE t)
 {
-	if (in_surface && t)
+	if ((in_surface || story_mode) && t)
 	{
 		Bintab *b = (Bintab *) t;
 		return b->size > 0 ? (STRING) &b->entries[0] : NULL;
@@ -2005,6 +2052,280 @@ names_main (const char *path)
 	return 0;
 }
 
+/* ---- Story mode: the story worlds' single-node pickups (stage 3c item
+ * 5). For each case, the world's star is loaded and its orbit entered as
+ * the orbits mode does, but with the case's story fields set (before the
+ * system is loaded and again as orbit is entered) and, for the egg cases,
+ * the energy nodes already taken: what generateOrbital loads (the
+ * graphics, whether PlanetSideFrame[1] is set, the discovery string's
+ * table and index), how many energy and life nodes generateEnergy and
+ * generateLife give, and the story fields after it; then, for a case with
+ * a pickup, the world's pickupEnergy or pickupLife on the node: whether
+ * the node is taken, how many times SetLanderTakeoff was called, each
+ * lander report DoDiscoveryReport showed (its table and index), the
+ * discovery string after it, and the story fields after it. */
+static const char *story_graphics[8];
+static int story_graphic_count, story_takeoffs;
+static char story_reports[1024];
+
+void *
+LoadGraphicInstance (RESOURCE res)
+{
+	if (story_mode && story_graphic_count < 8)
+		story_graphics[story_graphic_count++] = res;
+	return dummy_handle_systems;
+}
+
+void
+SetLanderTakeoff (void)
+{
+	++story_takeoffs;
+}
+
+static void
+story_string (char *out, size_t n, STRING s)
+{
+	BintabEntry *e = as_entry (s);
+	if (e && e->parent->name)
+		snprintf (out, n, "[\"%s\", %u]", e->parent->name,
+				GetStringTableIndex (s));
+	else
+		snprintf (out, n, "null");
+}
+
+void
+DoDiscoveryReport (SOUND ReadOutSounds)
+{
+	char one[128];
+	(void) ReadOutSounds;
+	if (story_mode)
+	{
+		story_string (one, sizeof one,
+				pSolarSysState->SysInfo.PlanetInfo.DiscoveryString);
+		if (story_reports[0])
+			strncat (story_reports, ", ", sizeof story_reports
+					- strlen (story_reports) - 1);
+		strncat (story_reports, one, sizeof story_reports
+				- strlen (story_reports) - 1);
+	}
+}
+
+/* The story fields the cases set and the pickups change. */
+#define STORY_FIELDS \
+	F (SHOFIXTI_MAIDENS) F (MAIDENS_ON_SHIP) F (VUX_BEAST) \
+	F (VUX_BEAST_ON_SHIP) F (UMGAH_BROADCASTERS) \
+	F (UMGAH_BROADCASTERS_ON_SHIP) F (SPATHI_SHIELDED_SELVES) \
+	F (BURVIXESE_BROADCASTERS) F (BURV_BROADCASTERS_ON_SHIP) \
+	F (UTWIG_BOMB) F (UTWIG_BOMB_ON_SHIP) F (DRUUGE_MANNER) \
+	F (DRUUGE_VISITS) F (DRUUGE_HOME_VISITS) F (BOMB_UNPROTECTED) \
+	F (TAALO_PROTECTOR) F (TAALO_PROTECTOR_ON_SHIP) F (TAALO_UNPROTECTED) \
+	F (AQUA_HELIX) F (AQUA_HELIX_ON_SHIP) F (HELIX_VISITS) \
+	F (HELIX_UNPROTECTED) F (THRADD_MISSION) F (SUN_DEVICE) \
+	F (SUN_DEVICE_ON_SHIP) F (SUN_DEVICE_UNGUARDED) F (MYCON_VISITS) \
+	F (EGG_CASE0_ON_SHIP) F (EGG_CASE1_ON_SHIP) F (EGG_CASE2_ON_SHIP) \
+	F (KNOW_ABOUT_SHATTERED) F (MOONBASE_DESTROYED) F (MOONBASE_ON_SHIP) \
+	F (FOUND_PLUTO_SPATHI)
+
+static void
+print_story_fields (void)
+{
+	int first = 1;
+	printf ("[");
+#define F(f) printf ("%s%d", sep (&first), GET_GAME_STATE (f));
+	STORY_FIELDS
+#undef F
+	printf ("]");
+}
+
+/* NAME=VALUE,... ; RETRIEVED=MASK takes energy nodes (when retrieved is
+ * given, else ignored). */
+static void
+set_story_fields (const char *state, DWORD *retrieved)
+{
+	char buf[512], *tok, *save = NULL;
+	snprintf (buf, sizeof buf, "%s", state);
+	for (tok = strtok_r (buf, ",", &save); tok;
+			tok = strtok_r (NULL, ",", &save))
+	{
+		char *eq = strchr (tok, '=');
+		int value;
+		if (!eq)
+			continue;
+		*eq = '\0';
+		value = atoi (eq + 1);
+		if (!strcmp (tok, "RETRIEVED"))
+		{
+			if (retrieved)
+				*retrieved = (DWORD) value;
+			continue;
+		}
+#define F(f) if (!strcmp (tok, #f)) { SET_GAME_STATE (f, value); continue; }
+		STORY_FIELDS
+#undef F
+		fprintf (stderr, "no story field %s\n", tok);
+		exit (1);
+	}
+}
+
+typedef struct
+{
+	const char *name;
+	int special;
+	int planet, moon;   /* moon -1: the planet */
+	const char *state;
+	int scan;           /* the pickup's scan, or -1 for none */
+	int node;
+} STORY_CASE;
+
+static const STORY_CASE story_cases[] =
+{
+	{ "luna", SOL_DEFINED, 2, 1, "", ENERGY_SCAN, 0 },
+	{ "luna-taken", SOL_DEFINED, 2, 1, "MOONBASE_DESTROYED=1", -1, 0 },
+	{ "pluto", SOL_DEFINED, 8, -1, "", -1, 0 },
+	{ "pluto-found", SOL_DEFINED, 8, -1, "FOUND_PLUTO_SPATHI=1", -1, 0 },
+	{ "maidens", MAIDENS_DEFINED, 0, -1, "", ENERGY_SCAN, 0 },
+	{ "maidens-taken", MAIDENS_DEFINED, 0, -1, "SHOFIXTI_MAIDENS=1", -1, 0 },
+	{ "beast", VUX_BEAST_DEFINED, 0, -1, "", BIOLOGICAL_SCAN, 0 },
+	{ "beast-bush", VUX_BEAST_DEFINED, 0, -1, "", BIOLOGICAL_SCAN, 1 },
+	{ "beast-taken", VUX_BEAST_DEFINED, 0, -1, "VUX_BEAST=1", -1, 0 },
+	{ "umgah-caster", SPATHI_DEFINED, 0, 0, "", ENERGY_SCAN, 0 },
+	{ "umgah-caster-shielded", SPATHI_DEFINED, 0, 0,
+			"SPATHI_SHIELDED_SELVES=1", ENERGY_SCAN, 0 },
+	{ "umgah-caster-taken", SPATHI_DEFINED, 0, 0, "UMGAH_BROADCASTERS=1",
+			-1, 0 },
+	{ "burvixese-caster", BURVIXESE_DEFINED, 0, 0, "", ENERGY_SCAN, 0 },
+	{ "burvixese-caster-taken", BURVIXESE_DEFINED, 0, 0,
+			"BURVIXESE_BROADCASTERS=1", -1, 0 },
+	{ "bomb", BOMB_DEFINED, 5, 1, "DRUUGE_MANNER=0,DRUUGE_VISITS=5,"
+			"DRUUGE_HOME_VISITS=3,BOMB_UNPROTECTED=1", ENERGY_SCAN, 0 },
+	{ "bomb-taken", BOMB_DEFINED, 5, 1, "UTWIG_BOMB=1,BOMB_UNPROTECTED=1",
+			-1, 0 },
+	{ "taalo", TAALO_PROTECTOR_DEFINED, 1, 2, "", ENERGY_SCAN, 0 },
+	{ "taalo-taken", TAALO_PROTECTOR_DEFINED, 1, 2, "TAALO_PROTECTOR=1",
+			-1, 0 },
+	{ "helix", AQUA_HELIX_DEFINED, 0, -1, "HELIX_VISITS=4",
+			ENERGY_SCAN, 0 },
+	{ "helix-taken", AQUA_HELIX_DEFINED, 0, -1, "AQUA_HELIX=1", -1, 0 },
+	{ "sun-device", SUN_DEVICE_DEFINED, 0, -1, "MYCON_VISITS=6",
+			ENERGY_SCAN, 0 },
+	{ "sun-device-taken", SUN_DEVICE_DEFINED, 0, -1, "SUN_DEVICE=1", -1, 0 },
+	{ "egg-case0", EGG_CASE0_DEFINED, 0, -1, "", ENERGY_SCAN, 0 },
+	{ "egg-case1", EGG_CASE1_DEFINED, 0, -1, "KNOW_ABOUT_SHATTERED=2",
+			ENERGY_SCAN, 0 },
+	{ "egg-case2", EGG_CASE2_DEFINED, 0, -1, "", ENERGY_SCAN, 0 },
+	{ "egg-case0-taken", EGG_CASE0_DEFINED, 0, -1, "RETRIEVED=1", -1, 0 },
+};
+
+static int
+story_main (void)
+{
+	size_t c;
+	int first_case = 1;
+
+	story_mode = 1;
+	printf ("{\"fields\": [");
+	{
+		int first = 1;
+#define F(f) printf ("%s\"%s\"", sep (&first), #f);
+		STORY_FIELDS
+#undef F
+	}
+	printf ("], \"cases\": [");
+	for (c = 0; c < sizeof story_cases / sizeof story_cases[0]; ++c)
+	{
+		const STORY_CASE *sc = &story_cases[c];
+		PLANET_DESC *planet, *world;
+		COUNT s, energy, life;
+		DWORD retrieved = 0;
+		int entered, g;
+		char discovery[128];
+
+		for (s = 0; s < NUM_SOLAR_SYSTEMS; ++s)
+			if (star_array[s].Index == sc->special)
+				break;
+		if (s == NUM_SOLAR_SYSTEMS)
+		{
+			fprintf (stderr, "%s: no such star\n", sc->name);
+			return 1;
+		}
+
+		/* The system and the planet's inner system, as walk_worlds. */
+		memset (&SolarSysState, 0, sizeof SolarSysState);
+		pSolarSysState = &SolarSysState;
+		CurStarDescPtr = &star_array[s];
+		SolarSysState.genFuncs = getGenerateFunctions (CurStarDescPtr->Index);
+		GLOBAL (ip_planet) = 0;
+		GLOBAL (in_orbit) = 0;
+		GLOBAL (ShipFacing) = 1;
+		memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+		set_story_fields (sc->state, NULL);
+		LoadSolarSys ();
+		planet = &SolarSysState.PlanetDesc[sc->planet];
+		GenerateMoons (&SolarSysState, planet);
+		SolarSysState.pBaseDesc = SolarSysState.MoonDesc;
+		world = sc->moon < 0 ? planet : &SolarSysState.MoonDesc[sc->moon];
+
+		/* Orbit, as enter_orbit, with the case's story. */
+		memset (GLOBAL (GameState), 0, sizeof (GLOBAL (GameState)));
+		set_story_fields (sc->state, &retrieved);
+		GLOBAL (CurrentActivity) = IN_INTERPLANETARY;
+		memset (&pSolarSysState->SysInfo, 0, sizeof pSolarSysState->SysInfo);
+		pSolarSysState->SysInfo.PlanetInfo.ScanRetrieveMask[ENERGY_SCAN] =
+				retrieved;
+		pSolarSysState->TopoFrame = 0;
+		pSolarSysState->pOrbitalDesc = world;
+		pSolarSysState->InOrbit = TRUE;
+		pSolarSysState->PlanetSideFrame[1] = 0;
+		story_graphic_count = 0;
+		(*pSolarSysState->genFuncs->generateOrbital) (pSolarSysState, world);
+		entered = pSolarSysState->TopoFrame != 0
+				&& !(GLOBAL (CurrentActivity) & (CHECK_ABORT | CHECK_LOAD
+				| START_ENCOUNTER));
+		energy = (*pSolarSysState->genFuncs->generateEnergy) (pSolarSysState,
+				world, GENERATE_ALL, NULL);
+		life = (*pSolarSysState->genFuncs->generateLife) (pSolarSysState,
+				world, GENERATE_ALL, NULL);
+		story_string (discovery, sizeof discovery,
+				pSolarSysState->SysInfo.PlanetInfo.DiscoveryString);
+
+		printf ("%s\n{\"name\": \"%s\", \"star\": %u, \"planet\": %d, "
+				"\"moon\": %d, \"state\": \"%s\", \"entered\": %d, "
+				"\"graphics\": [", first_case ? "" : ",", sc->name, s,
+				sc->planet, sc->moon, sc->state, entered);
+		first_case = 0;
+		for (g = 0; g < story_graphic_count; ++g)
+			printf ("%s\"%s\"", g ? ", " : "", story_graphics[g]);
+		printf ("], \"sheet\": %d, \"discovery\": %s, \"energy\": %u, "
+				"\"life\": %u, \"orbit_fields\": ",
+				pSolarSysState->PlanetSideFrame[1] != 0, discovery,
+				energy, life);
+		print_story_fields ();
+		if (sc->scan >= 0)
+		{
+			bool taken;
+			story_takeoffs = 0;
+			story_reports[0] = '\0';
+			taken = sc->scan == ENERGY_SCAN
+					? (*pSolarSysState->genFuncs->pickupEnergy) (
+						pSolarSysState, world, sc->node)
+					: (*pSolarSysState->genFuncs->pickupLife) (
+						pSolarSysState, world, sc->node);
+			story_string (discovery, sizeof discovery,
+					pSolarSysState->SysInfo.PlanetInfo.DiscoveryString);
+			printf (", \"pickup\": {\"scan\": %d, \"node\": %d, "
+					"\"taken\": %d, \"takeoffs\": %d, \"reports\": [%s], "
+					"\"discovery\": %s, \"fields\": ", sc->scan, sc->node,
+					taken, story_takeoffs, story_reports, discovery);
+			print_story_fields ();
+			printf ("}");
+		}
+		printf ("}");
+		pSolarSysState->InOrbit = FALSE;
+	}
+	printf ("]}\n");
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -2022,6 +2343,8 @@ main (int argc, char *argv[])
 		return planetside_main (argc - 2, argv + 2);
 	if (argc > 1 && strcmp (argv[1], "orbits") == 0)
 		return orbits_main ();
+	if (argc > 1 && strcmp (argv[1], "story") == 0)
+		return story_main ();
 	if (argc > 1 && strcmp (argv[1], "landing") == 0)
 		return landing_main ();
 	if (argc > 1 && strcmp (argv[1], "ip") == 0)

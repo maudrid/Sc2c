@@ -557,8 +557,9 @@ public sealed class PlayerSession
     /// </summary>
     public void ShowReport(LanderReport report)
     {
-        string text = ReportText(report.Resource);
-        Log($"Lander report {report.Resource}" + (report.FoundBy is { } f ? $" (found by {f})" : ""));
+        string text = ReportText(report.Resource, report.Entry);
+        Log($"Lander report {report.Resource}" + (report.Entry != 0 ? $" entry {report.Entry}" : "")
+            + (report.FoundBy is { } f ? $" (found by {f})" : ""));
         if (report.FoundBy is { } id)
         {
             string who = Snapshot?.Ships.FirstOrDefault(s => s.Id == id)?.Name ?? id;
@@ -568,9 +569,9 @@ public sealed class PlayerSession
             _ownReports.Enqueue(text);
     }
 
-    // The report's text: its table's first entry, which DiscoveryString is when the world loads it.
-    private string ReportText(string resource) =>
-        StringTables?.Invoke(resource) is { Count: > 0 } texts ? texts[0] : "";
+    // The report's text: its table's entry the finder's place in it gave (DiscoveryString's), "" for one it hasn't.
+    private string ReportText(string resource, int entry) =>
+        StringTables?.Invoke(resource) is { } texts && entry >= 0 && entry < texts.Count ? texts[entry] : "";
 
     private readonly Queue<string> _ownReports = new();
 

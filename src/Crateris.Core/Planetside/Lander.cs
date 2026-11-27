@@ -211,6 +211,12 @@ public sealed class Lander
     internal void Told(LanderReport report) => Report = report;
 
     /// <summary>
+    /// A story world's report with no take-off (the ruins', stage 3c item
+    /// 6): shown to this lander's player alone, and it stays.
+    /// </summary>
+    internal void Shown(LanderReport report) => Report = report;
+
+    /// <summary>
     /// What a story world's generator does when the lander picks up its
     /// energy node (GenerateDefault_landerReport, SetLanderTakeoff): it shows
     /// the report, and the lander goes up.
@@ -504,7 +510,10 @@ public readonly record struct MineralText(int Frames, int Amount, int Element, i
 
 /// <summary>
 /// A lander report (DoDiscoveryReport): the string table of the world's
-/// discovery (text.moonbase for the Lunar base), and who made it when it
-/// was another player's lander (null for this lander's own).
+/// discovery (text.moonbase for the Lunar base), the entry of it shown (the
+/// finder's ship's place in the world's text, stage 3c item 5: the Umgah
+/// broadcaster's second entry while the Spathi aren't shielded, a cycling
+/// report's next), and who made it when it was another player's lander
+/// (null for this lander's own).
 /// </summary>
-public sealed record LanderReport(string Resource, string? FoundBy = null);
+public sealed record LanderReport(string Resource, int Entry = 0, string? FoundBy = null);

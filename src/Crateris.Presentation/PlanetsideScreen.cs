@@ -37,6 +37,19 @@ public enum PlanetsideSheet
     Canister = 9,
     /// <summary>graphics.life.0; kind N is this plus N.</summary>
     Life = 10,
+    // The other story worlds' energy nodes (stage 3c item 5), after the creatures' 26.
+    Fwiffo = 36,
+    Ruins = 37,
+    Maidens = 38,
+    UmgahCaster = 39,
+    BurvixCaster = 40,
+    UtwigBomb = 41,
+    TaaloDevice = 42,
+    AquaHelix = 43,
+    SunDevice = 44,
+    EggCase = 45,
+    SyreenVault = 46,
+    UrquanWreck = 47,
 }
 
 /// <summary>What one drawing call does.</summary>
@@ -249,6 +262,25 @@ public static class PlanetsideScreen
         return (vx, y - mine.Y + (Height >> 1));
     }
 
+    /// <summary>A story world's energy node's sheet (stage 3c item 5), by the surface's.</summary>
+    public static PlanetsideSheet EnergySheet(SurfaceSheet sheet) => sheet switch
+    {
+        SurfaceSheet.Moonbase => PlanetsideSheet.Moonbase,
+        SurfaceSheet.Fwiffo => PlanetsideSheet.Fwiffo,
+        SurfaceSheet.Ruins => PlanetsideSheet.Ruins,
+        SurfaceSheet.Maidens => PlanetsideSheet.Maidens,
+        SurfaceSheet.UmgahCaster => PlanetsideSheet.UmgahCaster,
+        SurfaceSheet.BurvixCaster => PlanetsideSheet.BurvixCaster,
+        SurfaceSheet.UtwigBomb => PlanetsideSheet.UtwigBomb,
+        SurfaceSheet.TaaloDevice => PlanetsideSheet.TaaloDevice,
+        SurfaceSheet.AquaHelix => PlanetsideSheet.AquaHelix,
+        SurfaceSheet.SunDevice => PlanetsideSheet.SunDevice,
+        SurfaceSheet.EggCase => PlanetsideSheet.EggCase,
+        SurfaceSheet.SyreenVault => PlanetsideSheet.SyreenVault,
+        SurfaceSheet.UrquanWreck => PlanetsideSheet.UrquanWreck,
+        _ => throw new ArgumentOutOfRangeException(nameof(sheet), $"{sheet} isn't an energy node's sheet"),
+    };
+
     private static SurfaceDraw ElementDraw((SurfaceElementSnapshot? Element, SurfaceDeposit Deposit) q, LanderSnapshot mine)
     {
         if (q.Element is not { } e)
@@ -266,7 +298,8 @@ public static class PlanetsideScreen
             SurfaceSheet.Lightning => PlanetsideSheet.Lightning,
             SurfaceSheet.Lava => PlanetsideSheet.Lava,
             SurfaceSheet.Moonbase => PlanetsideSheet.Moonbase,
-            _ => PlanetsideSheet.Life + e.LifeKind,
+            SurfaceSheet.Life => PlanetsideSheet.Life + e.LifeKind,
+            _ => EnergySheet(e.Sheet),
         };
         // As DrawBatch drew it: filled (a flashing creature, a quake,
         // lightning) or plainly.

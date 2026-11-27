@@ -1475,12 +1475,18 @@ public sealed partial class GameWorld
     /// A ship has gone into orbit (or a game is loaded with it there): what
     /// the world's generator does as the orbit begins (generateOrbital's
     /// story, past its talks): a rainbow world marked found, a shattered
-    /// world seen (<see cref="StoryWorlds.Orbited"/>).
+    /// world seen (<see cref="StoryWorlds.Orbited"/>), and the ship's own
+    /// place in the world's lander report (<see cref="StoryWorlds.Discovery"/>;
+    /// stage 3c item 5, the plan's question 10).
     /// </summary>
     internal void InOrbit(PlayerShip ship)
     {
-        if (Story is { } story && Systems is not null && ship.OrbitedWorld is { } world)
-            StoryWorlds.Orbited(Systems.Map, world, story);
+        ship.Discovery = null;
+        if (Story is not { } story || Systems is null || ship.OrbitedWorld is not { } world)
+            return;
+        StoryWorlds.Orbited(Systems.Map, world, story);
+        ship.Discovery = StoryWorlds.Discovery(Systems.Map.Stars[world.Star].Special, world, story,
+            Planets.RetrieveMask(world, ScanType.Energy));
     }
 
     // Whether one of the worlds whose orbit starts a talk is this one (asked without its side effects).
@@ -1539,7 +1545,8 @@ public sealed partial class GameWorld
         var life = Planets.Remaining(world, ScanType.Biological, nodes.Life)
             .Select(n => new SurfaceCreature(n.Node, n.Info.X, n.Info.Y, n.Info.Type));
         string? special = Systems!.Map.Stars[world.Star].Special;
-        var energy = StoryWorlds.EnergySheet(special, world, Story) is { } sheet
+        var energy = StoryWorlds.EnergySheet(special, world, Story, Planets.RetrieveMask(world, ScanType.Energy)) is { } sheet
+                && !StoryWorlds.EnergyHidden(special, world, Story!)
             ? Planets.Remaining(world, ScanType.Energy, nodes.Energy).Select(n => new SurfaceEnergy(n.Node, n.Info.X, n.Info.Y, sheet))
             : null;
         uint seed = unchecked((uint)(Frame * 1_000_003 + world.Star * 7919 + world.Planet * 131 + (world.Moon ?? -1)));
@@ -1547,32 +1554,92 @@ public sealed partial class GameWorld
         surface = new PlanetsideSurface(new TfbRandom(seed), minerals, Systems!.Generator.Types.ElementCategory,
             Shapes, life, Systems.Lifeforms ?? throw new InvalidOperationException("the systems were loaded without their lifeforms"),
             HazardChances.For(orbit.Report!), energy,
-            (lander, node) => PickupEnergy(special, world, surface!, lander, node));
+            (lander, node) => PickupEnergy(special, world, surface!, lander, node),
+            (lander, node) => PickupCreature(special, world, surface!, lander, node));
         _surfaces.Add((world, surface));
         return surface;
     }
 
-    // A lander touched an energy node: the world's story decides. A
-    // discovery's report goes to its player, and word of it to the other
-    // landers there, which stay (decision 9).
+    // A lander touched an energy node: the world's story decides
+    // (StoryWorlds.PickupEnergy), by its ship's place in the world's report.
     private bool PickupEnergy(string? special, WorldId world, PlanetsideSurface surface, Lander lander, int node)
     {
-        if (Story is null || !StoryWorlds.PickupEnergy(special, world, Story, lander, node))
+        if (Story is not { } story || !_landerPlayers.TryGetValue(lander, out var finder))
             return false;
-        if (lander.Report is { } report && _landerPlayers.TryGetValue(lander, out var finder))
-        {
-            _reports.Add((finder.Id, report));
-            foreach (var other in surface.Landers.Where(l => l != lander))
-            {
-                other.Told(report with { FoundBy = finder.Id });
-                if (_landerPlayers.TryGetValue(other, out var told))
-                    _reports.Add((told.Id, other.Report!));
-            }
-        }
+        var found = new Finder(PlaceIn(finder.Ship, world));
+        if (!StoryWorlds.PickupEnergy(special, world, story, found, node))
+            return false;
+        Found(finder, world, surface, lander, found);
         return true;
     }
 
+    // A lander (or its bolt) took a creature: a story world's may be a pickup
+    // (StoryWorlds.PickupCreature: Zex's Beauty).
+    private void PickupCreature(string? special, WorldId world, PlanetsideSurface surface, Lander lander, int node)
+    {
+        if (Story is not { } story || !_landerPlayers.TryGetValue(lander, out var finder))
+            return;
+        var found = new Finder(PlaceIn(finder.Ship, world));
+        StoryWorlds.PickupCreature(special, world, story, found, node);
+        Found(finder, world, surface, lander, found);
+    }
+
+    // A ship's place in the report of a world it orbits (null if it orbits another, or the text is gone).
+    private static ReportPlace? PlaceIn(PlayerShip ship, WorldId world) =>
+        ship.Discovery is { } place && place.World == world && ship.OrbitedWorld == world ? place : null;
+
+    // What a story world's pickup did, made so (the stage 3c plan's question
+    // 10): the ship's place in the report moved on; the devices given to the
+    // finder's ship; a report with a take-off to its player and word of it to
+    // the other landers there, which stay (stage 3, decision 9); one without,
+    // to the finder alone.
+    private void Found(Player finder, WorldId world, PlanetsideSurface surface, Lander lander, Finder found)
+    {
+        if (finder.Ship.OrbitedWorld == world)
+            finder.Ship.Discovery = found.Place;
+        foreach (string field in found.Devices)
+            GiveFound(finder, field);
+        if (found.Takeoff)
+            lander.Takeoff(found.Report);
+        else if (found.Report is { } shown)
+            lander.Shown(shown);
+        if (found.Report is not { } report)
+            return;
+        _reports.Add((finder.Id, report));
+        if (!found.Takeoff)
+            return;
+        foreach (var other in surface.Landers.Where(l => l != lander))
+        {
+            other.Told(report with { FoundBy = finder.Id });
+            if (_landerPlayers.TryGetValue(other, out var told))
+                _reports.Add((told.Id, other.Report!));
+        }
+    }
+
+    /// <summary>
+    /// A device a story world's pickup gives (stage 3c item 5; the plan's
+    /// question 5): the finder's ship's. Unless a ship or a leaver's
+    /// container in the game holds one of its field already (only a
+    /// set-up can make that: --start-devices puts a device aboard without
+    /// its world's story field, so its node is still there): then nobody
+    /// is given a second, the device being one of a kind.
+    /// </summary>
+    private void GiveFound(Player finder, string field)
+    {
+        var devices = Story!.Rules.Devices;
+        if (_players.Any(p => devices.ValueOf(p.Ship.Hold.Devices, field) != 0)
+                || _containers.Any(c => devices.ValueOf(c.Devices, field) != 0))
+            return;
+        PlayerTalkShip.SetDeviceOf(this, finder, field, 1);
+    }
+
     private readonly List<(string PlayerId, LanderReport Report)> _reports = new();
+
+    // The energy nodes the story has taken from a world, sent as taken so
+    // the scan follows the story (StoryWorlds.EnergyHidden): all of them.
+    private uint StoryHidden(WorldId world) =>
+        Story is { } story && Systems is not null
+        && StoryWorlds.EnergyHidden(Systems.Map.Stars[world.Star].Special, world, story) ? uint.MaxValue : 0;
 
     /// <summary>
     /// A player gives another resource units and Melnorme credits,
@@ -1854,7 +1921,7 @@ public sealed partial class GameWorld
             .Select(p => new WorldId(p.Ship.SystemStar!.Value, p.Ship.Ip!.Orbit!.Value.Planet, p.Ship.Ip.Orbit.Value.Moon))
             .Distinct()
             .Select(w => new OrbitedWorldSnapshot(w.Star, w.Planet, w.Moon,
-                Planets.RetrieveMask(w, ScanType.Mineral), Planets.RetrieveMask(w, ScanType.Energy),
+                Planets.RetrieveMask(w, ScanType.Mineral), Planets.RetrieveMask(w, ScanType.Energy) | StoryHidden(w),
                 Planets.RetrieveMask(w, ScanType.Biological)))
             .ToList();
 

@@ -17,7 +17,9 @@
  * no conversation starts and every world can be orbited and scanned.
  * Nothing has been picked up: scan.c's retrieval masks are all zero.
  * Frame indexing and sprite intersection are in systems.c, which models
- * them for the flight traces; so are the string table, colour map and
+ * them for the flight traces; so are the graphic loader, the lander
+ * report and the take-off the story worlds' generators call (for "story"
+ * mode); so are the string table, colour map and
  * drawing calls the planet surface generator makes (for "surfaces" mode)
  * and the stamps DrawSystem draws (for "sprites" mode).
  */
@@ -40,7 +42,6 @@ long DestroyDrawable () { return 0; }
 long DestroyMusic () { return 0; }
 long DestroyStringTable () { return 0; }
 long DevicesMenu () { return 0; }
-long DoDiscoveryReport () { return 0; }
 long DoInput () { return 0; }
 long DoMenuChooser () { return 0; }
 long DrawAutoPilotMessage () { return 0; }
@@ -63,7 +64,6 @@ long GetGroupInfo () { return 0; }
 long GetPlanetInfo () { return 0; }
 long GetStarShipFromIndex () { return 0; }
 long GetStringTableCount () { return 0; }
-long GetStringTableIndex () { return 0; }
 long GetTimeCounter () { return 0; }
 long InitCommunication () { return 0; }
 long InitDisplayList () { return 0; }
@@ -73,7 +73,6 @@ long InitQueue () { return 0; }
 long InitSISContexts () { return 0; }
 long InsertQueue () { return 0; }
 long KillLanderCrewSeq () { return 0; }
-void *LoadGraphicInstance () { return dummy_handle; }
 long LoadLanderData () { return 0; }
 void *LoadMusicInstance () { return dummy_handle; }
 long LoadStdLanderFont () { return 0; }
@@ -95,7 +94,6 @@ long SetContext () { return 0; }
 long SetContextBackGroundColor () { return 0; }
 long SetContextForeGroundColor () { return 0; }
 long SetFlashRect () { return 0; }
-long SetLanderTakeoff () { return 0; }
 long SetMenuSounds () { return 0; }
 long SetRaceAllied () { return 0; }
 long SetTransitionSource () { return 0; }

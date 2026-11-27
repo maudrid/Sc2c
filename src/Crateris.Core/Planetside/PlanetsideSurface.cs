@@ -59,6 +59,7 @@ public sealed class PlanetsideSurface
     private readonly ContactShapes? _shapes;
     private readonly Lifeforms? _lifeforms;
     private readonly Func<Lander, int, bool>? _pickupEnergy;
+    private readonly Action<Lander, int>? _pickupLife;
 
     /// <summary>SPEED_SLOW, SPEED_MEDIUM and SPEED_FAST in velocity units (object_animation).</summary>
     public static readonly IReadOnlyList<int> CreatureSpeeds = new[]
@@ -84,15 +85,19 @@ public sealed class PlanetsideSurface
     /// pickupEnergy, called when a lander touches an energy node: true if
     /// the node is taken (the world's generator decides, and may send the
     /// lander up with <see cref="Lander.Takeoff"/>); without it energy
-    /// nodes stay.
+    /// nodes stay. <paramref name="pickupLife"/> is the world's pickupLife,
+    /// called as a lander (or its bolt) takes a creature, before it's gone
+    /// (a story world's may send the lander up: Zex's Beauty); every
+    /// creature taken is taken, as the generators have it.
     /// </summary>
     public PlanetsideSurface(TfbRandom random, IEnumerable<SurfaceMineral>? minerals = null,
         Func<int, int>? elementCategory = null, ContactShapes? shapes = null,
         IEnumerable<SurfaceCreature>? creatures = null, Lifeforms? lifeforms = null,
         HazardChances hazards = default, IEnumerable<SurfaceEnergy>? energy = null,
-        Func<Lander, int, bool>? pickupEnergy = null)
+        Func<Lander, int, bool>? pickupEnergy = null, Action<Lander, int>? pickupLife = null)
     {
         _pickupEnergy = pickupEnergy;
+        _pickupLife = pickupLife;
         Random = random;
         _shapes = shapes;
         _lifeforms = lifeforms;
@@ -516,8 +521,8 @@ public sealed class PlanetsideSurface
         SurfaceSheet.Quake => _shapes!.Quake.Count,
         SurfaceSheet.Lightning => _shapes!.Lightning.Count,
         SurfaceSheet.Lava => _shapes!.Lava.Count,
-        SurfaceSheet.Moonbase => _shapes!.Moonbase.Count,
-        _ => _shapes!.Life[e.LifeKind].Count,
+        SurfaceSheet.Life => _shapes!.Life[e.LifeKind].Count,
+        _ => _shapes!.EnergySheets[e.Sheet].Count,   // a story world's energy node
     };
 
     /// <summary>
@@ -696,8 +701,8 @@ public sealed class PlanetsideSurface
         SurfaceSheet.Quake => _shapes!.Quake[e.Frame],
         SurfaceSheet.Lightning => _shapes!.Lightning[e.Frame],
         SurfaceSheet.Lava => _shapes!.Lava[e.Frame],
-        SurfaceSheet.Moonbase => _shapes!.Moonbase[e.Frame],
-        _ => _shapes!.Life[e.LifeKind][e.Frame],
+        SurfaceSheet.Life => _shapes!.Life[e.LifeKind][e.Frame],
+        _ => _shapes!.EnergySheets[e.Sheet][e.Frame],   // a story world's energy node
     };
 
     /// <summary>
@@ -832,6 +837,10 @@ public sealed class PlanetsideSurface
                         : lander.PickUpMinerals(e, retrieved,
                             control.EndX - landerControl.EndX, control.EndY - landerControl.EndY)))
                     continue;               // the lander is full: it stays
+                // The world's pickupLife (callPickupForScanType), as UQM's
+                // takes the node: a story world's may send the lander up.
+                if (e.Kind == SurfaceElementKind.Creature)
+                    _pickupLife?.Invoke(lander, e.Node);
                 // The default generator's pickupMinerals and pickupLife keep nothing back.
                 _taken.Add((e.Scan, e.Node));
                 e.Disappearing = true;

@@ -192,7 +192,12 @@ public static class Protocol
     /// leaver's container (WorldSnapshot.Containers: its number, leaver's
     /// name, place and devices), and a gift a device (Gift.Device, after
     /// the fuel), refused as TradeRefusal.DeviceTooFar, HasOne or InTalk.
-    public const int Version = 36;
+    /// 37: the story worlds' reports and pickups (stage 3c item 5, part 2):
+    /// a lander report carries the entry of its table shown (the ShowReport
+    /// RPC's entry, between the table and who found it), and a surface
+    /// element the story worlds' energy node sheets (SurfaceSheet's values
+    /// after Moonbase).
+    public const int Version = 37;
     public const int DefaultPort = 24642;
 
     /// <summary>

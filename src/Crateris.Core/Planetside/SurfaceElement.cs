@@ -55,6 +55,31 @@ public enum SurfaceSheet
     Lava,
     /// <summary>graphics.moonbase (the Sol generator's PlanetSideFrame[1]): the Lunar base.</summary>
     Moonbase,
+    // The other story worlds' energy nodes (their generators' PlanetSideFrame[1]; stage 3c item 5).
+    /// <summary>graphics.fwiffo (gensol.c): Fwiffo on Pluto (stage 3c item 7).</summary>
+    Fwiffo,
+    /// <summary>graphics.ruins: a homeworld's ruins (stage 3c item 6).</summary>
+    Ruins,
+    /// <summary>graphics.maidens (genvux.c): the Shofixti Maidens.</summary>
+    Maidens,
+    /// <summary>graphics.umgahcaster (genspa.c): the Umgah broadcaster on the Spathi's moon.</summary>
+    UmgahCaster,
+    /// <summary>graphics.burvixcaster (genburv.c): the Burvixese broadcaster.</summary>
+    BurvixCaster,
+    /// <summary>graphics.utwigbomb (genutw.c): the Utwig bomb.</summary>
+    UtwigBomb,
+    /// <summary>graphics.taalodevice (genorz.c): the Taalo protector.</summary>
+    TaaloDevice,
+    /// <summary>graphics.aquahelix (genthrad.c): the Aqua Helix.</summary>
+    AquaHelix,
+    /// <summary>graphics.sundevice (genmyc.c): the Sun Device.</summary>
+    SunDevice,
+    /// <summary>graphics.eggcase (genmyc.c): a Mycon egg case.</summary>
+    EggCase,
+    /// <summary>graphics.syreenvault (genvault.c): the Syreen's vault (stage 3c item 6).</summary>
+    SyreenVault,
+    /// <summary>graphics.urquanwreck (genwreck.c): the Ur-Quan wreck (stage 3c item 6).</summary>
+    UrquanWreck,
 }
 
 /// <summary>

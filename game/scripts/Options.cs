@@ -84,7 +84,7 @@ namespace Crateris.Game;
 /// as if they'd flown into its marker), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
 /// --first-run-tick FILE[,FILE] (the first-run screen ticks these add-ons, by file name, before --first-run-use),
-/// --show-report RESOURCE (shows that lander report as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
+/// --show-report RESOURCE[:ENTRY] (shows that lander report, its first entry or the one given, as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
 /// --start-at, --start-orbit, --start-visit, --start-docked, --start-battle and --start-encounter never load the default save
 /// nor write over it: a new game unless --load names one (then they apply to it), saved only to a --save file;
 /// --start-minerals, --start-units, --start-credits, --start-fuel, --start-devices, --start-state, --start-fleet, --start-allied
@@ -184,8 +184,8 @@ public sealed class Options
     /// <summary>--guests-in-battle: guests joining for the first time join the battle by the host, as if they'd flown into its marker (testing).</summary>
     public bool GuestsInBattle { get; private set; }
 
-    /// <summary>--show-report RESOURCE: the lander report (a string table, text.moonbase) shown as the finder's at start: on the screen in orbit (--start-orbit), else a notice (testing).</summary>
-    public string? ShowReport { get; private set; }
+    /// <summary>--show-report RESOURCE[:ENTRY]: the lander report (a string table, text.moonbase; its first entry, or the one given: text.umgahcaster:1) shown as the finder's at start: on the screen in orbit (--start-orbit), else a notice (testing).</summary>
+    public (string Resource, int Entry)? ShowReport { get; private set; }
 
     /// <summary>--start-at X:Y: the host starts in hyperspace at these universe coordinates (testing and debugging).</summary>
     public (short X, short Y)? StartAt { get; private set; }
@@ -281,7 +281,7 @@ public sealed class Options
                 case "--start-fleet": o.StartFleet = Next().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries); break;
                 case "--start-allied": o.StartAllied = Next().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries); break;
                 case "--start-date": o.StartDate = Next(); break;
-                case "--show-report": o.ShowReport = Next(); break;
+                case "--show-report": o.ShowReport = ReportArg(Next()); break;
                 case "--start-orbit":
                 {
                     var parts = Next().Split(':');
@@ -304,5 +304,16 @@ public sealed class Options
         if (o.StartEncounter != null && (o.StartBattle != null || o.StartOrbit != null || o.StartVisit || o.StartDocked))
             throw new ArgumentException("--start-encounter can't be used with --start-battle, --start-orbit, --start-visit or --start-docked");
         return o;
+    }
+
+    // --show-report's RESOURCE[:ENTRY].
+    private static (string, int) ReportArg(string value)
+    {
+        int colon = value.LastIndexOf(':');
+        if (colon < 0)
+            return (value, 0);
+        return int.TryParse(value[(colon + 1)..], out int entry) && entry >= 0
+            ? (value[..colon], entry)
+            : throw new ArgumentException($"--show-report's entry is a number from 0, not {value[(colon + 1)..]}");
     }
 }

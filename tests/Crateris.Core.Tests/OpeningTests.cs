@@ -135,7 +135,7 @@ public class OpeningTests
         var host = world.Host.Ship.Lander!;
         var guest = world.Find("guest")!.Ship.Lander!;
         DriveToTheBase(world, "host");
-        Assert.Equal(new LanderReport(StoryWorlds.MoonbaseReport, "host"), guest.Report);
+        Assert.Equal(new LanderReport(StoryWorlds.MoonbaseReport, FoundBy: "host"), guest.Report);
         Run(world, 100);
         Assert.Null(world.Host.Ship.Lander);
         Assert.Equal(LanderPhase.Ground, guest.Phase);
@@ -154,7 +154,7 @@ public class OpeningTests
         Assert.DoesNotContain("found it", string.Join("\n", finder.StatusLines()));
         // Another player on Luna is told who found it, as a notice; nothing goes to their screen.
         var other = new PlayerSession(Systems, null, "guest", TestContent.Shapes.HyperFlagship.Count) { StringTables = Tables };
-        other.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport, "host"));
+        other.ShowReport(new LanderReport(StoryWorlds.MoonbaseReport, FoundBy: "host"));
         Assert.Null(other.TakeOwnReport());
         Assert.StartsWith("host's lander found it:\n" + table[0][..20], other.Notice);
         Assert.Contains(other.Notice, other.StatusLines());

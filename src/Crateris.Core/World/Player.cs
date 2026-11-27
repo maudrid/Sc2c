@@ -112,6 +112,16 @@ public sealed class PlayerShip
     public Planetside.Lander? Lander { get; internal set; }
 
     /// <summary>
+    /// The ship's place in the lander report of the world it orbits
+    /// (UQM's DiscoveryString, stage 3c item 5): made as it goes into orbit
+    /// (<see cref="Story.StoryWorlds.Discovery"/>), moved on or dropped as
+    /// its landers' reports are shown, and read only while the ship orbits
+    /// that world. Not saved: a game loaded in orbit makes it afresh, as
+    /// UQM's generateOrbital does.
+    /// </summary>
+    public Story.ReportPlace? Discovery { get; internal set; }
+
+    /// <summary>
     /// The visit to Earth's starbase this ship is on, while it's on one (not
     /// saved): not during the Ilwrath's fight, which its starter's ship
     /// fights in flight, nor after it unless that ship fought it to the end.

@@ -31,7 +31,8 @@ public sealed class PlanetsideSprites
         yield return (PlanetsideSheet.Shield, "graphics.landershield");
         yield return (PlanetsideSheet.Launch, "graphics.landerlaunch");
         yield return (PlanetsideSheet.Return, "graphics.landerreturn");
-        yield return (PlanetsideSheet.Moonbase, "graphics.moonbase");
+        foreach (var (sheet, resource) in ContactShapes.EnergyResources)
+            yield return (PlanetsideScreen.EnergySheet(sheet), resource);   // the Lunar base and stage 3c's (item 5)
         yield return (PlanetsideSheet.MiscData, "graphics.miscdata");
         yield return (PlanetsideSheet.Canister, "graphics.lifecan");
         for (int n = 0; n < ContactShapes.LifeSheets; ++n)

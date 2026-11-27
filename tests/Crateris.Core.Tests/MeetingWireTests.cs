@@ -644,10 +644,11 @@ public class MeetingWireTests
         // (item 4), 30 the Zoq-Fot-Pik's speakers (item 5), 31 the talks' screen changes (row 83), 32 the Talking
         // Pet's strobe: a one-shot ambient animation's start among them (item 10), 33 the story pauses and the talks'
         // intro fades (stage 3c item 2), 34 the spheres the players know (item 3), 35 the story's held closing lines
-        // and the Kohr-Ah's game over (item 4), 36 the devices held by ships, the containers and the devices given (item 5).
-        Assert.Equal(36, Protocol.Version);
+        // and the Kohr-Ah's game over (item 4), 36 the devices held by ships, the containers and the devices given (item 5),
+        // 37 the reports' entries and the story worlds' node sheets (item 5, part 2).
+        Assert.Equal(37, Protocol.Version);
         var game = NewGame(guests: 0);
-        var refused = game.Host.Hello(9, "old", "Old", 35);
+        var refused = game.Host.Hello(9, "old", "Old", 36);
         Assert.False(Protocol.Accepted(refused.Result));
         Assert.Contains("Version mismatch", refused.Message);
     }

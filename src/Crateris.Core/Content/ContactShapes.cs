@@ -42,11 +42,35 @@ public sealed class ContactShapes
         Lightning = sheets["graphics.lightning"];
         Lava = sheets["graphics.lavaspot"];
         Moonbase = sheets["graphics.moonbase"];
+        EnergySheets = EnergyResources.ToDictionary(r => r.Key, r => sheets[r.Value]);
         Life = Enumerable.Range(0, LifeSheets).Select(n => sheets[$"graphics.life.{n}"]).ToArray();
     }
 
     /// <summary>The creature sheets: graphics.life.0 to 25 (load_life_form), one a kind.</summary>
     public const int LifeSheets = 26;
+
+    /// <summary>
+    /// The story worlds' energy nodes' sheets (their generators'
+    /// PlanetSideFrame[1]), by the surface's sheet: the Lunar base, and
+    /// stage 3c's (item 5).
+    /// </summary>
+    public static readonly IReadOnlyDictionary<Planetside.SurfaceSheet, string> EnergyResources =
+        new Dictionary<Planetside.SurfaceSheet, string>
+        {
+            [Planetside.SurfaceSheet.Moonbase] = "graphics.moonbase",
+            [Planetside.SurfaceSheet.Fwiffo] = "graphics.fwiffo",
+            [Planetside.SurfaceSheet.Ruins] = "graphics.ruins",
+            [Planetside.SurfaceSheet.Maidens] = "graphics.maidens",
+            [Planetside.SurfaceSheet.UmgahCaster] = "graphics.umgahcaster",
+            [Planetside.SurfaceSheet.BurvixCaster] = "graphics.burvixcaster",
+            [Planetside.SurfaceSheet.UtwigBomb] = "graphics.utwigbomb",
+            [Planetside.SurfaceSheet.TaaloDevice] = "graphics.taalodevice",
+            [Planetside.SurfaceSheet.AquaHelix] = "graphics.aquahelix",
+            [Planetside.SurfaceSheet.SunDevice] = "graphics.sundevice",
+            [Planetside.SurfaceSheet.EggCase] = "graphics.eggcase",
+            [Planetside.SurfaceSheet.SyreenVault] = "graphics.syreenvault",
+            [Planetside.SurfaceSheet.UrquanWreck] = "graphics.urquanwreck",
+        };
 
     /// <summary>The resources the shapes come from.</summary>
     public static readonly IReadOnlyList<string> Resources = new[]
@@ -54,8 +78,8 @@ public sealed class ContactShapes
         "graphics.flagship", "graphics.planets", "graphics.orbitbackground", "graphics.stars",
         "ship.flagship.graphics.hyperspace", "graphics.hyperstars", "graphics.ambient",
         "graphics.lander", "graphics.miscdata", "graphics.lifecan",
-        "graphics.quake", "graphics.lightning", "graphics.lavaspot", "graphics.moonbase",
-    }.Concat(Enumerable.Range(0, LifeSheets).Select(n => $"graphics.life.{n}")).ToArray();
+        "graphics.quake", "graphics.lightning", "graphics.lavaspot",
+    }.Concat(EnergyResources.Values).Concat(Enumerable.Range(0, LifeSheets).Select(n => $"graphics.life.{n}")).ToArray();
 
     /// <summary>Every sheet's frames, by resource id.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<IntersectFrame>> Sheets { get; }
@@ -88,6 +112,9 @@ public sealed class ContactShapes
 
     /// <summary>The Lunar base, Luna's energy node (graphics.moonbase, the Sol generator's PlanetSideFrame[1]).</summary>
     public IReadOnlyList<IntersectFrame> Moonbase { get; }
+
+    /// <summary>Every story world's energy node sheet, the Lunar base's among them, by the surface's sheet (<see cref="EnergyResources"/>).</summary>
+    public IReadOnlyDictionary<Planetside.SurfaceSheet, IReadOnlyList<IntersectFrame>> EnergySheets { get; }
 
     /// <summary>graphics.lightning's last frames, the strike on the ground, which UQM never shows: lightning shows one of the others at random (lightning_process).</summary>
     public const int LightningStrikeFrames = 7;
@@ -158,7 +185,8 @@ public sealed class ContactShapes
         Need("graphics.quake", shapes.Quake, shapes.Quake.Count);
         Need("graphics.lavaspot", shapes.Lava, shapes.Lava.Count);
         // An energy node shows every frame of its sheet.
-        Need("graphics.moonbase", shapes.Moonbase, shapes.Moonbase.Count);
+        foreach (var (sheet, resource) in EnergyResources)
+            Need(resource, shapes.EnergySheets[sheet], shapes.EnergySheets[sheet].Count);
         if (shapes.Lightning.Count <= LightningStrikeFrames)
             throw new ContentPackageException($"graphics.lightning has {shapes.Lightning.Count} frames; lightning needs more than {LightningStrikeFrames}");
         return shapes;

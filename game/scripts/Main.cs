@@ -364,8 +364,8 @@ public partial class Main : Node2D
             var scripts = ConversationScripts.Load(_dataDir);
             _talks = TalkLibrary.Load(content, scripts);
             var reports = Crateris.Core.Story.StoryWorlds.Reports.ToList();
-            if (_options.ShowReport is { } shown && !reports.Contains(shown))
-                reports.Add(shown);
+            if (_options.ShowReport is { } shown && !reports.Contains(shown.Resource))
+                reports.Add(shown.Resource);
             foreach (string report in reports)
             {
                 var table = StringTable.Load(content, report);
@@ -433,7 +433,7 @@ public partial class Main : Node2D
         _player.TradeClosed += TradeClosed;
         _player.RescueOpened += TradeClosed;   // its keys likely held as the ship flies into the wreck: taken too
         if (_options.ShowReport is { } report)
-            _player.ShowReport(new Crateris.Core.Planetside.LanderReport(report));
+            _player.ShowReport(new Crateris.Core.Planetside.LanderReport(report.Resource, report.Entry));
         if (_options.Join)
             StartClient();
         else
@@ -762,8 +762,8 @@ public partial class Main : Node2D
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ShowReport(string resource, string foundBy) =>
-        _player?.ShowReport(new Crateris.Core.Planetside.LanderReport(resource, foundBy == "" ? null : foundBy));
+    private void ShowReport(string resource, int entry, string foundBy) =>
+        _player?.ShowReport(new Crateris.Core.Planetside.LanderReport(resource, entry, foundBy == "" ? null : foundBy));
 
     // The host's save; none once the flagship is lost or has surrendered (the
     // save before its battle or talk is kept, decision 12), nor over the default save from a testing start.
@@ -960,7 +960,7 @@ public partial class Main : Node2D
                 if (Multiplayer.MultiplayerPeer is ENetMultiplayerPeer)
                 {
                     foreach (var (peer, report) in guestReports)
-                        RpcId(peer, MethodName.ShowReport, report.Resource, report.FoundBy ?? "");
+                        RpcId(peer, MethodName.ShowReport, report.Resource, report.Entry, report.FoundBy ?? "");
                 }
             }
             else if (_connected && _player.Snapshot is { } snap)

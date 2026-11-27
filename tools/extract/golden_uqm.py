@@ -835,6 +835,48 @@ def record_surfaces(uqm, exe):
     return data
 
 
+def record_story_nodes(uqm, exe):
+    out = subprocess.run([exe, "story"], capture_output=True, text=True,
+                         check=True).stdout
+    data = header(uqm, ["tools/extract/golden/systems.c",
+                        "tools/extract/golden/stubs.c",
+                        "src/uqm/planets/generate/gendefault.c",
+                        "src/uqm/planets/generate/gensol.c",
+                        "src/uqm/planets/generate/genvux.c",
+                        "src/uqm/planets/generate/genspa.c",
+                        "src/uqm/planets/generate/genburv.c",
+                        "src/uqm/planets/generate/genutw.c",
+                        "src/uqm/planets/generate/genorz.c",
+                        "src/uqm/planets/generate/genthrad.c",
+                        "src/uqm/planets/generate/genmyc.c"], [
+        "The story worlds' single-node pickups (stage 3c item 5), recorded "
+        "by running each world's own generateOrbital, generateEnergy, "
+        "generateLife and pickupEnergy or pickupLife (planets/generate/) "
+        "with the case's story fields set. See tools/extract/golden/"
+        "systems.c's story mode.",
+        "No alien ships are present (StartSphereTracking is false), so no "
+        "guard's talk starts. A string table is its resource's name, with "
+        "more entries than any report table has.",
+        "fields: the story fields recorded, in order. cases: name; star "
+        "(starmap order), planet, moon (-1 for the planet); state (the "
+        "story fields set, NAME=VALUE, and RETRIEVED, the energy nodes "
+        "taken as a mask); entered (orbit reached); graphics (every "
+        "graphic generateOrbital loaded, in order); sheet (whether it set "
+        "PlanetSideFrame[1], the energy node's image); discovery (the "
+        "discovery string generateOrbital left: [table, index], or null); "
+        "energy and life (the nodes generateEnergy and generateLife "
+        "give); orbit_fields (the story fields after generateOrbital). "
+        "pickup, for a case with one: scan (1 energy, 2 biological), "
+        "node, taken (the pickup function's result: the node removed), "
+        "takeoffs (SetLanderTakeoff's calls), reports (each lander report "
+        "DoDiscoveryReport showed, [table, index]), discovery (the "
+        "discovery string left after it) and fields (the story fields "
+        "after it).",
+    ])
+    data.update(json.loads(out))
+    return data
+
+
 def record_ip(uqm, exe):
     out = subprocess.run([exe, "ip"], capture_output=True, text=True,
                          check=True).stdout
@@ -9841,6 +9883,7 @@ def main():
                 ("lander", lambda: record_lander(uqm, lander)),
                 ("star-systems", lambda: record_systems(uqm, systems)),
                 ("world-surfaces", lambda: record_surfaces(uqm, systems)),
+                ("story-nodes", lambda: record_story_nodes(uqm, systems)),
                 ("ip-geometry", lambda: record_ip(uqm, systems)),
                 ("system-layout", lambda: record_layout(uqm, systems)),
                 ("system-sprites", lambda: record_sprites(uqm, systems)),
