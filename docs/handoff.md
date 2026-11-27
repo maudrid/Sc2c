@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3c items 1 to 3 have the owner's go-ahead (2026-11-27); item 1 being built.
+**Last updated:** 2026-11-27. Stage 3c items 1 to 3 have the owner's go-ahead (2026-11-27); item 1 built, reviewed and reported; item 2 being built.
 
 ## Where things are
 
@@ -71,7 +71,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Stage 3c items 1 to 3, the owner's go-ahead of 2026-11-27 ("stop when item 3 is done"): item 1 (the calendar's engine and the simple events) is built (`28c5fe2` code and tests, `471d750` topic map, `81c1c21` docs; all topics 2,675 passed, 0 failed, 0 skipped with the content set; the game builds), review round 1 found one gap (the Kohr-Ah ship at the Zoq-Fot-Pik's world destroyed by another player left no rescue) and four nits, fixed in `134a09f` (all topics 2,680 passed); round 2 found the Zoq-Fot-Pik still dying after that ship was gone, the record's clean-up worded wrong and two untested paths, fixed in `cad8859`; round 3 found no bug (`Set32` not dropping the record, unreachable, and the Progress row's wording), fixed in the commit after (all topics 2,682 passed, 0 failed, 0 skipped), round 4 to check it; then item 2 (story pauses generalised), then item 3 (the fleet missions), each built by a builder subagent, reviewed in rounds and reported; stop after item 3 and wait. The plan, `docs/plans/stage-3c.md`, has every question answered (2026-11-27).
+Stage 3c items 1 to 3, the owner's go-ahead of 2026-11-27 ("stop when item 3 is done"): item 1 (the calendar's engine and the simple events) is built (`28c5fe2` code and tests, `471d750` topic map, `81c1c21` docs; all topics 2,675 passed, 0 failed, 0 skipped with the content set; the game builds), review round 1 found one gap (the Kohr-Ah ship at the Zoq-Fot-Pik's world destroyed by another player left no rescue) and four nits, fixed in `134a09f` (all topics 2,680 passed); round 2 found the Zoq-Fot-Pik still dying after that ship was gone, the record's clean-up worded wrong and two untested paths, fixed in `cad8859`; round 3 found no bug (`Set32` not dropping the record, unreachable, and the Progress row's wording), fixed in `748ba1e` (all topics 2,682 passed, 0 failed, 0 skipped); round 4 found nothing: item 1 reviewed in four rounds and reported (2026-11-27). Item 2 is being built; then item 2 (story pauses generalised), then item 3 (the fleet missions), each built by a builder subagent, reviewed in rounds and reported; stop after item 3 and wait. The plan, `docs/plans/stage-3c.md`, has every question answered (2026-11-27).
 
 ## Decisions waiting on the owner
 
