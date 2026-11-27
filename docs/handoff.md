@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3b-2 is built. Stage 3c's plan is drafted, reviewed and answered by the owner; waiting on the go-ahead for item 1.
+**Last updated:** 2026-11-27. Stage 3c item 1 being built (the owner's go-ahead of 2026-11-27, for this item alone).
 
 ## Where things are
 
@@ -71,11 +71,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for stage 3c's item 1 (the calendar's engine and the simple events). The plan, `docs/plans/stage-3c.md`, is drafted (2026-11-27, from four research passes), reviewed in five rounds, and every question answered by the owner on 2026-11-27 (twelve: 1 to 4 and 7 to 11 as recommended; 5 and 6 as the owner put them, devices held by ships; 12, raised by the owner, edge markers now and the star map later). The answers as written in were reviewed until a review found nothing (`8cabb86`, fixes `f2b8422`, `3183f2b`, `c6352ae`; question 12 `c1c9b57`, fixes `aa93c66`, `5a5b8f4`, the last review clean). Nothing of 3c is built before the go-ahead.
+Stage 3c item 1 (the calendar's engine and the simple events) is being built: the owner's go-ahead of 2026-11-27, for this item alone. A builder subagent builds it and hands back; then review rounds as the working agreement has them, then report and wait. The plan, `docs/plans/stage-3c.md`, has every question answered (2026-11-27).
 
 ## Decisions waiting on the owner
 
-**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Waiting: the go-ahead for item 1.
+**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Item 1 has its go-ahead (2026-11-27).
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
