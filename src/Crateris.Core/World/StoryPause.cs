@@ -100,7 +100,7 @@ public sealed class StoryPause : TalkSequence
     // Its replier has gone through its held closing lines: it ends at its next frame.
     private bool _linesHeard;
 
-    /// <summary>Its replier has gone through its held closing lines (<see cref="HoldsClosing"/>); false if none are held.</summary>
+    /// <summary>Its replier has gone through its held closing lines (<see cref="HoldsClosing"/>); false if none are held or it's said already.</summary>
     internal bool LinesHeard()
     {
         if (Step != VisitStep.StoryClosing || _linesHeard)

@@ -1228,7 +1228,7 @@ public sealed partial class GameWorld
     {
         _rounds = Math.Max(_rounds, p.Round);
         if (p != Pause || !p.Done)
-            return;   // (a game over during its days leaves it where it is, no talk and no Then: the world has stopped)
+            return;   // (the game lost during its days leaves it where it is, no talk and no Then: the end takes over, stage 3c item 4)
         Pause = null;
         if (p.Talked && TalkView.Of(p) is { } closing)
             foreach (var player in _players.Where(q => q.Present))
