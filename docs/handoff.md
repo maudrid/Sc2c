@@ -71,7 +71,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Stage 3c items 1 to 3 have the owner's go-ahead of 2026-11-27 ("stop when item 3 is done"). Items 1 and 2 are built, reviewed and reported (each one's Progress row in `docs/plans/stage-3c.md`: item 1 in four rounds, item 2 in four rounds, `79d91af`..`7b323cd` and the commit after). Item 3 (the fleet missions) is being built; then review rounds, report, and stop after it.
+Stage 3c items 1 to 3 have the owner's go-ahead of 2026-11-27 ("stop when item 3 is done"). Items 1 and 2 are built, reviewed and reported (each one's Progress row in `docs/plans/stage-3c.md`: item 1 in four rounds, item 2 in four rounds, `79d91af`..`7b323cd` and the commit after). Item 3 (the fleet missions) is built (`239b334`..`4a97feb`; all topics 2,740 passed, 0 failed, 0 skipped; protocol 34), review round 1 running; then report, and stop after it.
 
 ## Decisions waiting on the owner
 
