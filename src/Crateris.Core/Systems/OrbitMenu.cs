@@ -96,6 +96,9 @@ public sealed class OrbitMenu
     /// <summary>The world orbited.</summary>
     public WorldId World { get; }
 
+    /// <summary>Where the landing site starts on the scan map, the middle if null (testing: --start-site).</summary>
+    public (int X, int Y)? SiteStart { get; init; }
+
     /// <summary>What entering orbit gave: the planet report and the nodes.</summary>
     public OrbitData Orbit => _orbit;
 
@@ -361,7 +364,7 @@ public sealed class OrbitMenu
                 // earlier in this visit is shown again.
                 Open(MenuPage.Scan, OrbitMenuItem.AutoScan);
                 Scan.ShowFound();
-                _site = Landing.World(_orbit) == DispatchRefusal.None ? new LandingSite() : null;
+                _site = Landing.World(_orbit) == DispatchRefusal.None ? new LandingSite(SiteStart) : null;
                 return MenuOutcome.Moved;
             case OrbitMenuItem.Manifest:
                 Open(MenuPage.Manifest, OrbitMenuItem.Cargo);

@@ -431,6 +431,20 @@ public class StoryPickupsTests
         Assert.DoesNotContain(DeviceOf("TAALO_PROTECTOR_ON_SHIP"), again.Find("g2")!.Ship.Hold.Devices);
     }
 
+    [Fact]
+    public void TheLandingSiteCanStartWhereASetUpPutsIt()
+    {
+        // --start-site (testing: a script can't move the site): the scan map pixel given, in planetside units.
+        var site = new LandingSite((80, 46));
+        Assert.Equal((320, 184), (site.X, site.Y));
+        Assert.Equal((121 << PlanetsideMap.MagShift, 37 << PlanetsideMap.MagShift), (new LandingSite().X, new LandingSite().Y));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new LandingSite((SurfaceMap.Width, 0)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new LandingSite((0, -1)));
+        var menu = new OrbitMenu(new WorldId(82, 2, 1), Systems[82].EnterOrbit(2, 1)) { SiteStart = (10, 20) };
+        menu.Press(MenuKey.Select, _ => 0);   // Scan
+        Assert.Equal((10, 20), menu.Site!.Cursor);
+    }
+
     [ContentFact]
     public void TheClientShowsTheReportsEntry()
     {

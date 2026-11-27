@@ -428,6 +428,7 @@ public partial class Main : Node2D
         {
             StringTables = id => _reportTexts.GetValueOrDefault(id) ?? Array.Empty<string>(),
             ModuleCostScale = _systems.StoryRules?.ModuleCostScale ?? 50,
+            SiteStart = _options.StartSite,
         };
         _player.Logged += Log;
         _player.TradeClosed += TradeClosed;

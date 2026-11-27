@@ -125,11 +125,17 @@ public sealed class LandingSite
     private (int X, int Y)? _flashedAt;
     private double _carry;
 
-    /// <summary>The site starts in the middle of the map, as ScanSystem puts it.</summary>
-    public LandingSite()
+    /// <summary>
+    /// The site starts in the middle of the map, as ScanSystem puts it, or
+    /// (testing: --start-site) at the scan map pixel given.
+    /// </summary>
+    public LandingSite((int X, int Y)? start = null)
     {
-        X = (SurfaceMap.Width >> 1) << PlanetsideMap.MagShift;
-        Y = (SurfaceMap.Height >> 1) << PlanetsideMap.MagShift;
+        var (x, y) = start ?? (SurfaceMap.Width >> 1, SurfaceMap.Height >> 1);
+        if (x < 0 || x >= SurfaceMap.Width || y < 0 || y >= SurfaceMap.Height)
+            throw new ArgumentOutOfRangeException(nameof(start), $"({x}, {y}) is off the scan map");
+        X = x << PlanetsideMap.MagShift;
+        Y = y << PlanetsideMap.MagShift;
     }
 
     /// <summary>Where the lander will go down, in planetside map units (planetLoc).</summary>

@@ -544,6 +544,9 @@ public sealed class PlayerSession
 
     private static string OneLine(string text) => text.Replace('\n', ' ').Replace('\r', ' ');
 
+    /// <summary>Where the landing site starts on the scan map, the middle if null (testing: --start-site X:Y, as a script can't move it).</summary>
+    public (int X, int Y)? SiteStart { get; set; }
+
     /// <summary>A string table's texts by resource (the lander reports), from the content; null without it.</summary>
     public Func<string, IReadOnlyList<string>>? StringTables { get; set; }
 
@@ -1748,7 +1751,10 @@ public sealed class PlayerSession
             if (OrbitMenu?.World != world)
             {
                 // A new visit: the menu starts afresh, nothing found yet.
-                OrbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon)) { Inventory = Devices, Fleet = Fleet };
+                OrbitMenu = new OrbitMenu(world, _systems[star].EnterOrbit(planet, me.OrbitMoon))
+                {
+                    Inventory = Devices, Fleet = Fleet, SiteStart = SiteStart,
+                };
                 OrbitMessage = "";
                 _wasSweeping = false;
             }

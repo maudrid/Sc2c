@@ -84,6 +84,7 @@ namespace Crateris.Game;
 /// as if they'd flown into its marker), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png
 /// (save the last frame on quit; needs a display, not --headless), --show-about (start with the about screen open),
 /// --first-run-tick FILE[,FILE] (the first-run screen ticks these add-ons, by file name, before --first-run-use),
+/// --start-site X:Y (the landing site starts at this scan map pixel, not the middle: a script can't move it),
 /// --show-report RESOURCE[:ENTRY] (shows that lander report, its first entry or the one given, as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
 /// --start-at, --start-orbit, --start-visit, --start-docked, --start-battle and --start-encounter never load the default save
 /// nor write over it: a new game unless --load names one (then they apply to it), saved only to a --save file;
@@ -125,6 +126,9 @@ public sealed class Options
 
     /// <summary>--start-orbit star:planet[:moon]: a new game starts in orbit there (testing and debugging).</summary>
     public (int Star, int Planet, int? Moon)? StartOrbit { get; private set; }
+
+    /// <summary>--start-site X:Y: the landing site starts at this scan map pixel, not the middle (testing: a script can't move it; stage 3c item 5).</summary>
+    public (int X, int Y)? StartSite { get; private set; }
 
     /// <summary>--start-visit: a new game starts at Earth's starbase, in the commander's talk (testing).</summary>
     public bool StartVisit { get; private set; }
@@ -286,6 +290,12 @@ public sealed class Options
                 {
                     var parts = Next().Split(':');
                     o.StartOrbit = (int.Parse(parts[0]), int.Parse(parts[1]), parts.Length > 2 ? int.Parse(parts[2]) : null);
+                    break;
+                }
+                case "--start-site":
+                {
+                    var parts = Next().Split(':');
+                    o.StartSite = (int.Parse(parts[0]), int.Parse(parts[1]));
                     break;
                 }
                 case "--start-at":
