@@ -48,6 +48,15 @@ public enum CommIntroMode
 }
 
 /// <summary>
+/// How a talk's screen comes in (comm.c's CommIntroTransition, as
+/// SetCommIntroMode left it): <see cref="Mode"/>, over <see cref="Time"/>
+/// (UQM's 1/840 seconds; only <see cref="CommIntroMode.FadeInScreen"/>'s
+/// is used: FadeScreen (FadeAllToColor, fadeTime)). The default is
+/// <see cref="CommIntroMode.CrossfadeSpace"/>.
+/// </summary>
+public readonly record struct CommIntro(CommIntroMode Mode, int Time);
+
+/// <summary>
 /// What a talk did, in order: what its script asked of UQM's engine
 /// (the lines queued, the waits, the screen's changes, the story and ship
 /// writes, the random numbers drawn) and the player's part (the replies

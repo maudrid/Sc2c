@@ -78,6 +78,9 @@ public partial class Main : Node2D
     private GameOverView _gameOverView = null!;
     private Label _hud = null!;
     private Label _paused = null!;
+    // The whole screen's fade to black and back (a time skip's, a talk's fade-in: stage 3c item 2).
+    private ColorRect _fadeRect = null!;
+    private readonly ScreenFade _fade = new();
     private BoxNoticeView _boxNotice = null!;   // the notice, below the cargo display or the Devices list (the panel hidden)
     private SystemCatalog _systems = null!;
 
@@ -223,6 +226,13 @@ public partial class Main : Node2D
         _paused.AddThemeColorOverride("font_outline_color", Colors.Black);
         _paused.AddThemeConstantOverride("outline_size", 12);
         pauseLayer.AddChild(_paused);
+        // A story pause's time skip fading every screen to black, and a talk's screen fading in after it
+        // (stage 3c item 2): over every screen, under the game over's and the pause's.
+        var fadeLayer = new CanvasLayer { Layer = 40 };
+        AddChild(fadeLayer);
+        _fadeRect = new ColorRect { Color = new Color(0, 0, 0, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
+        _fadeRect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        fadeLayer.AddChild(_fadeRect);
         // The game over (stage 4a item 12), over every screen but the pause's.
         var gameOverLayer = new CanvasLayer { Layer = 50 };
         AddChild(gameOverLayer);
@@ -1306,6 +1316,9 @@ public partial class Main : Node2D
             _battleView.Visible = false;
             _battleView.Leave();
         }
+        // The time skip's fade and a talk's fade-in, over every screen.
+        _fade.Follow(player.Talk, player.StoryPaused, player.TalkShown, (long)(Time.GetTicksMsec() * 840 / 1000));
+        _fadeRect.Color = new Color(0, 0, 0, (float)_fade.Black((long)(Time.GetTicksMsec() * 840 / 1000)));
         // The game over, over everything, fading in.
         _gameOverView.Why = player.Surrendered ? GameOverView.Surrendered : GameOverView.Lost;
         _gameOverView.Follow(screen == PlayerScreen.GameOver, 1.0 / Engine.PhysicsTicksPerSecond);

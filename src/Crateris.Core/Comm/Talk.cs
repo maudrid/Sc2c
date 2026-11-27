@@ -428,6 +428,21 @@ public sealed class Talk : ITalkStory
     /// <summary>GLOBAL (BattleGroupRef) &amp;&amp; GLOBAL (BattleGroupRef) == GET_GAME_STATE_32 (field): the system's own group met is this one.</summary>
     public bool BattleGroupIs(string offsetField) => _battleGroup is not null && _battleGroup == offsetField;
 
+    /// <summary>
+    /// SetCommIntroMode made by the talk's caller before InitCommunication
+    /// (starbase.c's: the commander's screen crossfading in, or fading in
+    /// after the two weeks): how its screen comes in unless the script sets
+    /// it again before the screen is drawn (<see cref="SetCommIntroMode"/>);
+    /// null for the default. Set before the talk starts.
+    /// </summary>
+    public CommIntro? IntroBefore
+    {
+        get => _introBefore;
+        set => _introBefore = !Started ? value : throw new InvalidOperationException("the talk has started");
+    }
+
+    private CommIntro? _introBefore;
+
     /// <summary>SetCommIntroMode: how the talk's screen comes in (the hypnotised captain's waking fades it in).</summary>
     public void SetCommIntroMode(CommIntroMode mode, int time)
     {

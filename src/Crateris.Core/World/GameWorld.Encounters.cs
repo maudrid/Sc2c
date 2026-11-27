@@ -142,9 +142,9 @@ public sealed partial class GameWorld
     /// HYPERSPACE_ENCOUNTER_EVENT's check_hyperspace_encounter, called as
     /// the event runs each day: in UQM, the roll for the flagship if it's
     /// in hyperspace; here, for each player in hyperspace, in the game's
-    /// order, each with their own numbers (stage 3b, decision 3). During
-    /// the starbase's two weeks too, for the players in hyperspace
-    /// meanwhile (StarbaseVisit takes them back with the two weeks).
+    /// order, each with their own numbers (stage 3b, decision 3). Not
+    /// during a time skip (the stage 3c plan's question 3: UQM's player is
+    /// never in hyperspace during one; <see cref="TimeSkip"/>).
     /// </summary>
     private void HyperspaceEncounterRolls()
     {
@@ -262,19 +262,6 @@ public sealed partial class GameWorld
                 e => e.Element is { Nonsolid: false } el && (el.Met is { } by && by != player.Id || !MayMeetOrRescue(player, e.Race)))
             is { } passing)
             TellWhoIsTalking(player, passing.Race);
-    }
-
-    /// <summary>The encounters and each player's numbers as they are, for taking back (the starbase's two weeks).</summary>
-    internal (List<HyperEncounter> List, Dictionary<string, HyperspaceRandom> Random)? EncountersState() =>
-        Encounters is { } e ? (e.Copy(), _hyperRandom.ToDictionary(r => r.Key, r => r.Value.Clone())) : null;
-
-    /// <summary>Puts back what <see cref="EncountersState"/> took.</summary>
-    internal void RestoreEncounters((List<HyperEncounter> List, Dictionary<string, HyperspaceRandom> Random) state)
-    {
-        Encounters!.Restore(state.List);
-        _hyperRandom.Clear();
-        foreach (var (id, r) in state.Random)
-            _hyperRandom[id] = r.Clone();
     }
 
     /// <summary>

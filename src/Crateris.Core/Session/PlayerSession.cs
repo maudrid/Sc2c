@@ -467,10 +467,13 @@ public sealed class PlayerSession
     /// <summary>
     /// Whether the communication screen shows a talk: this player's own
     /// (talking, or the commander's from the starbase's menu), or the
-    /// story's that everyone watches while the game waits.
+    /// story's that everyone watches while the game waits. A time skip
+    /// with no talk before it in its story (no script) shows none: each
+    /// player's own screen fades to black under it (stage 3c item 2).
     /// </summary>
     public bool TalkShown =>
-        Talk is { Step: not (VisitStep.Menu or VisitStep.Done) } && (Me?.Activity is Activity.Talk or Activity.Starbase || StoryPaused);
+        Talk is { Step: not (VisitStep.Menu or VisitStep.Done) } talk && !(talk.Step == VisitStep.TimePassing && talk.Script == "")
+        && (Me?.Activity is Activity.Talk or Activity.Starbase || StoryPaused);
 
     /// <summary>Whether this player answers the talk shown (the starter, or who the replies passed to).</summary>
     public bool Replying => Talk is { } t && t.Replier == PlayerId;
@@ -1430,7 +1433,7 @@ public sealed class PlayerSession
         }
         if (Talk is { } talk && (Me?.Activity == Activity.Talk || StoryPaused))
         {
-            if (!Replying)
+            if (!Replying && talk.Script != "")
             {
                 string who = Snapshot?.Ships.FirstOrDefault(s => s.Id == talk.Replier)?.Name ?? talk.Replier;
                 lines.Add($"The story's talk: {who} replies; the game waits.");

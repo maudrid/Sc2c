@@ -163,12 +163,27 @@ public sealed partial class GameWorld
     public StarbaseVisit? Visit { get; private set; }
 
     /// <summary>
-    /// Whether the game is paused for a story talk (stage 3, decisions 6
-    /// and 7): the clock, every ship, the landers on their surfaces and
-    /// the orbit menus stop, and everyone is shown the talk, which only
-    /// its replier answers.
+    /// The story pause outside the starbase's opening, if any (stage 3c
+    /// item 2: a time skip, a story talk shown to everyone, or both, which
+    /// any sequence can take, <see cref="StartStoryPause"/>). One at a time,
+    /// and never beside a story visit.
     /// </summary>
-    public bool StoryPaused => Visit is { Story: true };
+    public StoryPause? Pause { get; private set; }
+
+    /// <summary>
+    /// What everyone is shown while the game is paused for the story: the
+    /// story visit (the starbase's opening, while it's story), or the
+    /// story pause; null when the game isn't paused for one.
+    /// </summary>
+    public TalkSequence? StoryShown => Visit is { Story: true } visit ? visit : Pause;
+
+    /// <summary>
+    /// Whether the game is paused for the story (stage 3, decisions 6
+    /// and 7; stage 3c item 2): a story talk or a time skip. The clock,
+    /// every ship, the landers on their surfaces and the orbit menus stop,
+    /// and everyone is shown it; a talk only its replier answers.
+    /// </summary>
+    public bool StoryPaused => StoryShown is not null;
 
     /// <summary>
     /// Whether the host has paused the game (stage 4, decision 15; UQM's
@@ -375,6 +390,14 @@ public sealed partial class GameWorld
         // visit that isn't story, it's undone. During the Ilwrath's fight
         // its battle decides (AfterTheFight, below): a disconnect is a
         // retreat from it (above), and the replier is chosen as it ends.
+        if (Pause is { } pause && pause.Replier == player)
+        {
+            // A story pause's talk goes on with the next player; nobody
+            // left to take the replies is the end of the game (the host
+            // leaving), and it waits with it.
+            if (_players.FirstOrDefault(p => p.Present && p != player) is { } next)
+                pause.Replier = next;
+        }
         if (Visit is { Step: not VisitStep.IlwrathFight } visit && visit.Replier == player)
         {
             var next = visit.Story ? _players.FirstOrDefault(p => p.Present && p != player) : null;
@@ -512,15 +535,23 @@ public sealed partial class GameWorld
         if (StoryPaused)
         {
             // Everything waits for the story (decision 7): input read now
-            // is dropped, and only the visit goes on (time passing's fade),
+            // is dropped, and only the story goes on (a time skip's fade),
             // and a battle whose flagship is dying (below).
             foreach (var p in _players.Where(p => p.Present))
             {
                 _inputs[p.Id].Take(Frame);
                 _actionHeld.Remove(p.Id);
             }
-            Visit!.Frame();
-            AfterVisit(Visit);
+            if (Visit is { Story: true } visit)
+            {
+                visit.Frame();
+                AfterVisit(visit);
+            }
+            else
+            {
+                Pause!.Frame();
+                AfterPause(Pause);
+            }
             // The flagship's crew run out as a story talk started (its
             // starter touching the starbase in the same frame): the game is
             // lost all the same, and its battle runs on, unflown, to the
@@ -795,6 +826,8 @@ public sealed partial class GameWorld
             return;   // a player in a battle or a meeting starts no talk (decision 11)
         if (FlagshipLost)
             return;   // the game is lost: no visit (a story pause would hold off the game over)
+        if (Pause is not null)
+            return;   // the story pause holds every ship (none touches the starbase meanwhile)
         bool opening = Story.Get("STARBASE_AVAILABLE") == 0 || Story.Get("MOONBASE_ON_SHIP") != 0
             || Story.Get("CHMMR_BOMB_STATE") == 2;
         if (opening)
@@ -837,7 +870,7 @@ public sealed partial class GameWorld
 
     // Rounds count on through every visit (StarbaseVisit.FirstRound).
     private int NextRound() =>
-        Math.Max(Math.Max(_rounds, Math.Max(_lastRound, Visit?.Round ?? 0)),
+        Math.Max(Math.Max(_rounds, Math.Max(_lastRound, Math.Max(Visit?.Round ?? 0, Pause?.Round ?? 0))),
             _players.Select(p => Math.Max(p.Ship.Visit?.Round ?? 0, p.Ship.Meeting?.Round ?? 0)).DefaultIfEmpty(0).Max());
 
     /// <summary>
@@ -862,10 +895,11 @@ public sealed partial class GameWorld
         // The story talk's replier answers it (the replies passed to them,
         // as its starter left, while in their own meeting's talk: they're
         // shown the story's); a reply for their meeting's round goes to it.
-        var storyReplied = Visit is { Story: true } s && s.Replier == player ? s : null;
+        var storyReplied = StoryShown is { } s && s.Replier == player ? s : null;
         if (player.Ship.Meeting is { Step: MeetingStep.Talk } meeting && (storyReplied is null || round is int mr && mr != storyReplied.Round))
             return ChooseMeetingReply(meeting, index, round);   // held through any pause (stage 3b-1 item 10)
-        var visit = Visit is { } story && story.Replier == player ? story
+        TalkSequence? visit = Pause is { } pause ? (pause.Replier == player ? pause : null)
+            : Visit is { } story && story.Replier == player ? story
             : !StoryPaused && player.Ship.Visit is { Step: VisitStep.MenuTalk } own ? own
             : null;
         if (visit is null || round is int r && r != visit.Round)
@@ -879,7 +913,7 @@ public sealed partial class GameWorld
             return true;
         }
         bool chosen = visit.Choose(index);
-        AfterVisit(visit);
+        AfterSequence(visit);
         return chosen;
     }
 
@@ -895,7 +929,7 @@ public sealed partial class GameWorld
     /// </summary>
     public bool PageTalk(string id, int round, int lines, TalkPage page)
     {
-        if (GameOver || Visit is not { Story: true } visit || visit.Replier.Id != id || round != visit.Round
+        if (GameOver || StoryShown is not { } visit || visit.Replier.Id != id || round != visit.Round
                 || !Enum.IsDefined(page) || TalkView.Of(visit) is not { } view || view.LinesHash != lines)
             return false;
         if (visit.Paging?.Key != view.LinesKey)
@@ -1102,6 +1136,61 @@ public sealed partial class GameWorld
     public Starbase.StarbaseView? StarbaseFor(string id) =>
         Find(id)?.Ship.Visit is { Step: VisitStep.Menu or VisitStep.MenuTalk, Menu: { } m } ? m.View() : null;
 
+    /// <summary>
+    /// A sequence takes a story pause (stage 3c item 2): a time skip of
+    /// <paramref name="days"/> (none for 0), then a story talk with
+    /// <paramref name="script"/> (none for null) that <paramref name="starter"/>
+    /// answers, shown to everyone (<see cref="StoryPause"/>). When it ends,
+    /// <paramref name="then"/> runs. Null, starting nothing, if the game is
+    /// over or already paused for the story (one at a time: the sequence
+    /// tries again later), or without the story.
+    /// </summary>
+    internal StoryPause? StartStoryPause(Player starter, string what, int days, string? script = null,
+        Dictionary<string, int>? own = null, string? race = null, CommIntro? intro = null, Action<StoryPause>? then = null)
+    {
+        if (GameOver || StoryPaused || Story is null)
+            return null;
+        var pause = new StoryPause(this, starter, NextRound(), what, days, script, own, race, intro) { Then = then };
+        Pause = pause;
+        // Everyone is shown it: no one's closing lines of an earlier story are still theirs to see.
+        _ended.Clear();
+        pause.Begin();
+        AfterPause(pause);
+        return pause;
+    }
+
+    // What becomes of a talk sequence after a reply.
+    private void AfterSequence(TalkSequence sequence)
+    {
+        switch (sequence)
+        {
+            case StarbaseVisit v:
+                AfterVisit(v);
+                break;
+            case StoryPause p:
+                AfterPause(p);
+                break;
+        }
+    }
+
+    // What becomes of the story pause after it changed: once it's over the
+    // game goes on, those who watched its talk see its closing lines, as
+    // they were (as a story visit's), and the sequence that took it goes on.
+    private void AfterPause(StoryPause p)
+    {
+        _rounds = Math.Max(_rounds, p.Round);
+        if (p != Pause || !p.Done)
+            return;
+        Pause = null;
+        if (p.Talked && TalkView.Of(p) is { } closing)
+            foreach (var player in _players.Where(q => q.Present))
+            {
+                _ended[player.Id] = (p, closing with { Step = VisitStep.Done });
+                _storyClosingUntil[player.Id] = Frame + 1;
+            }
+        p.Then?.Invoke(p);
+    }
+
     // What becomes of a visit after it changed: an opening that has docked
     // is no longer the story visit (its closing lines go on showing to
     // those who watched it), a talk with the commander that's over lets go
@@ -1189,17 +1278,18 @@ public sealed partial class GameWorld
         return copy.Save();
     }
 
-    private readonly Dictionary<string, (StarbaseVisit Visit, TalkView? Frozen)> _ended = new();
+    private readonly Dictionary<string, (TalkSequence Visit, TalkView? Frozen)> _ended = new();
     private int _rounds;
     private bool _wasPaused;
 
     /// <summary>
-    /// The visit a player is shown: a story visit, to everyone; their own;
-    /// or their last one, over, whose closing lines they're still shown
-    /// (a story visit's to everyone who saw it). Null if none.
+    /// The talks a player is shown: the story's (a story visit or a story
+    /// pause), to everyone; their own visit; or their last one, over, whose
+    /// closing lines they're still shown (a story's to everyone who saw
+    /// it). Null if none.
     /// </summary>
-    public StarbaseVisit? VisitOf(string id) =>
-        Visit is { Story: true } story ? story
+    public TalkSequence? VisitOf(string id) =>
+        StoryShown is { } story ? story
         : Find(id)?.Ship.Visit is { } v && v.Starter.Id == id ? v
         : _ended.TryGetValue(id, out var e) ? e.Visit : null;
 
@@ -1213,7 +1303,7 @@ public sealed partial class GameWorld
     /// </summary>
     public TalkView? TalkFor(string id)
     {
-        if (Visit is not { Story: true } && Find(id)?.Ship is { Visit: null } ship)
+        if (StoryShown is null && Find(id)?.Ship is { Visit: null } ship)
         {
             // A story's closing lines just kept for them (_ended) are theirs
             // to see, as a notice, before their meeting's talk again or its
@@ -1226,7 +1316,7 @@ public sealed partial class GameWorld
             if (ship.Meeting is { Step: MeetingStep.Talk or MeetingStep.Closing, Talk: not null } m)
                 return TalkView.Of(m);
         }
-        return Visit is { Story: true } || Find(id)?.Ship.Visit is not null || !_ended.TryGetValue(id, out var e)
+        return StoryShown is not null || Find(id)?.Ship.Visit is not null || !_ended.TryGetValue(id, out var e)
             ? TalkView.Of(VisitOf(id))
             : e.Frozen ?? TalkView.Of(e.Visit);
     }
@@ -1681,7 +1771,7 @@ public sealed partial class GameWorld
             _storyOf = story;
         }
         return new WorldSnapshot(Frame, Clock.Year, Clock.Month, Clock.Day, ships, orbited, surfaces,
-            Story is null ? null : _storySnapshot, StoryPaused ? Visit!.Replier.Id : null, HostPaused,
+            Story is null ? null : _storySnapshot, StoryShown?.Replier.Id, HostPaused,
             _battles.Select(BattleSnapshotOf).ToList(),
             _battles.Select(b => new BattleMarkerSnapshot(b.Id, b.Place.Star, b.Place.InnerPlanet, b.Place.X, b.Place.Y, b.EnemyShip.Id))
                 .ToList(),

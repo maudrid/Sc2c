@@ -187,7 +187,8 @@ public sealed partial class GameWorld
     }
 
     // Who holds a race's talk: its lock's holder, or while its talk is
-    // story, the story visit's starter ("" with none); null for nobody.
+    // story, the story's starter (a story pause's, or the visit's; "" with
+    // none); null for nobody.
     private string? TalkHolder(int race) => ConversationOf(race) is { } c ? TalkHolder(c) : null;
 
     private string? TalkHolder(string conversation)
@@ -197,7 +198,7 @@ public sealed partial class GameWorld
         if (TalkLibrary is not { } library || Story is not { } story)
             return null;
         string script = TalkLibrary.ScriptFor(library.Scripts, conversation, story, 0);
-        return TalkRules.Scripts.Contains(script) && TalkRules.IsStory(script, story) ? Visit?.Starter.Id ?? "" : null;
+        return TalkRules.Scripts.Contains(script) && TalkRules.IsStory(script, story) ? (StoryShown ?? Visit)?.Starter.Id ?? "" : null;
     }
 
     // The player is told once who is talking to the race of a group passing through them.

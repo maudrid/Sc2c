@@ -172,7 +172,12 @@ public static class Protocol
     /// a change of its own (ScreenChangeKind.AmbientStart), each time the
     /// script starts it, and has one-shot animations off in the flags it
     /// starts with.
-    public const int Version = 32;
+    /// 33: story pauses generalised and the talks' intro fades (stage 3c
+    /// item 2): a talk's view has a step for a story pause's talk
+    /// (VisitStep.Story, numbered last), and its screen carries how it
+    /// comes in (TalkScreen.Intro: SetCommIntroMode's mode and time) in the
+    /// view whose lines start as it's first drawn.
+    public const int Version = 33;
     public const int DefaultPort = 24642;
 
     /// <summary>

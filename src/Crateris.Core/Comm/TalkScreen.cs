@@ -64,6 +64,11 @@ public readonly record struct ScreenChange(int Line, ScreenChangeKind Kind, int 
 /// <see cref="ColorMap"/> is the colour map shown: the one the screen was
 /// first drawn in (CommData.AlienColorMap at the talk's first segue, as the
 /// script's init and intro left it), or the one the last fade went to.
+/// <see cref="Intro"/> is how the screen comes in (comm.c's
+/// CommIntroTransition, as SetCommIntroMode left it: its caller's before
+/// InitCommunication, <see cref="Talk.IntroBefore"/>, or the script's
+/// before its first segue), in the view whose lines start as the screen is
+/// first drawn; null in the views after (stage 3c item 2).
 /// <see cref="Ambient"/> is each ambient animation's flags and
 /// <see cref="Talking"/> whether the mouth moves with the lines
 /// (EnableTalkingAnim).
@@ -94,7 +99,8 @@ public readonly record struct ScreenChange(int Line, ScreenChangeKind Kind, int 
 /// other change.
 /// </para>
 /// </summary>
-public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> Ambient, bool Talking, IReadOnlyList<ScreenChange> Changes)
+public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> Ambient, bool Talking, IReadOnlyList<ScreenChange> Changes,
+    CommIntro? Intro = null)
 {
     /// <summary>MAX_ANIMATIONS: the most ambient animations a race has.</summary>
     public const int MostAmbient = 20;
@@ -136,6 +142,12 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
         // the reply: the tracks AlienTalkSegue waits for).
         int line = firstLine;
         var tracks = new List<int>();
+        // How the screen comes in (curIntroMode): the caller's, until the
+        // script sets it before the screen is drawn; shown with the view
+        // whose lines start as it's drawn. (UQM's mode set after the draw
+        // would be the next talk's: no script does that.)
+        var intro = talk.IntroBefore ?? new CommIntro(CommIntroMode.CrossfadeSpace, 0);
+        CommIntro? shownIntro = null;
         // The one-shot animations the script started, each before the event at its place.
         var starts = talk.AmbientStarts;
         int nextStart = 0;
@@ -160,7 +172,10 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
             {
                 drawn = true;
                 if (shown)
+                {
                     start = (colorMap, StartFlags(flags), talking);
+                    shownIntro = intro;
+                }
                 palette = fadedBefore ?? colorMap;
             }
             switch (e)
@@ -185,6 +200,9 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
                     else
                         fadedBefore = c.Map;
                     break;
+                case IntroModeSet m when !drawn:
+                    intro = new CommIntro(m.Mode, m.Time);
+                    break;
                 case TalkingAnimation t:
                     if (drawn && shown)
                         changes.Add(new ScreenChange(line, t.Enabled ? ScreenChangeKind.TalkingOn : ScreenChangeKind.TalkingOff));
@@ -208,7 +226,7 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
         start ??= (drawn ? palette : colorMap, StartFlags(flags), talking);
         // More than a view carries can't come from one reply's script; kept to the bound if it did.
         return new TalkScreen(start.Value.Map, start.Value.Flags, start.Value.Talking,
-            changes.Count > MostChanges ? changes.Take(MostChanges).ToList() : changes);
+            changes.Count > MostChanges ? changes.Take(MostChanges).ToList() : changes, shownIntro);
     }
 
     /// <summary>
@@ -237,6 +255,13 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
 
     internal void Encode(WireWriter w, int lines)
     {
+        // How it comes in (0 for not in this view), since protocol 33.
+        w.Byte(Intro is null ? (byte)0 : (byte)1);
+        if (Intro is { } intro)
+        {
+            w.Byte((byte)intro.Mode);
+            w.UInt((ulong)Math.Clamp(intro.Time, 0, MostTime));
+        }
         w.UInt((ulong)ColorMap);
         w.UInt((ulong)Ambient.Count);
         foreach (var f in Ambient)
@@ -265,6 +290,14 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
     /// <summary>A screen from the host, for a view of <paramref name="lines"/> lines; a bad one is an <see cref="InvalidDataException"/>.</summary>
     internal static TalkScreen Decode(ref WireReader r, int lines)
     {
+        CommIntro? intro = r.Byte() switch
+        {
+            0 => null,
+            1 => new CommIntro(r.Byte() is var m && m <= (byte)CommIntroMode.FadeInScreen ? (CommIntroMode)m
+                    : throw new InvalidDataException($"Bad talk screen intro {m}."),
+                Bounded(r.UInt(), MostTime, "intro's time")),
+            var b => throw new InvalidDataException($"Bad talk screen intro {b}."),
+        };
         int map = Bounded(r.UInt(), MostColorMap, "colour map");
         int count = Bounded(r.UInt(), MostAmbient, "ambient animations");
         var ambient = new CommAnimationFlags[count];
@@ -296,7 +329,7 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
                 _ => new ScreenChange(line, kind),
             });
         }
-        return new TalkScreen(map, ambient, talking, changes);
+        return new TalkScreen(map, ambient, talking, changes, intro);
     }
 
     private static int Bounded(ulong n, int most, string what) =>
@@ -304,5 +337,5 @@ public sealed record TalkScreen(int ColorMap, IReadOnlyList<CommAnimationFlags> 
 
     public bool Same(TalkScreen? other) =>
         other is not null && ColorMap == other.ColorMap && Talking == other.Talking && Ambient.SequenceEqual(other.Ambient)
-        && Changes.SequenceEqual(other.Changes);
+        && Changes.SequenceEqual(other.Changes) && Intro == other.Intro;
 }

@@ -384,6 +384,97 @@ public class TalkScreenTests
         WithinLines(view);
     }
 
+    // ------------------------------------------------------------ the intro (stage 3c item 2)
+
+    [ContentTheory]
+    [MemberData(nameof(TalkTests.PortedScripts), MemberType = typeof(TalkTests))]
+    public void EveryRecordedStartsScreenComesInAsUqmsScriptSetIt(string script)
+    {
+        // How the screen comes in (SetCommIntroMode, recorded as "intro"): the last mode the script set before its
+        // first segue (the screen drawn, CommIntroTransition), else the default, in the view whose lines start
+        // then; none in the views after a reply. (The Chmmr emerging, 2 s; the Ur-Quan before the hypnotised
+        // captain, 5 s.)
+        TestContent.With(package =>
+        {
+            foreach (var start in TalkTests.Recorded(script).Sample())
+            {
+                string where = $"{script} {start.GetProperty("name").GetString()}";
+                var steps = start.GetProperty("steps").EnumerateArray().ToList();
+                var expected = new CommIntro(CommIntroMode.CrossfadeSpace, 0);
+                foreach (var e in steps[0].GetProperty("events").EnumerateArray())
+                {
+                    if (e.TryGetProperty("wait", out _) || e.TryGetProperty("offer", out _) || e.TryGetProperty("end", out _))
+                        break;
+                    if (e.TryGetProperty("intro", out var mode))
+                        expected = new CommIntro((CommIntroMode)mode.GetInt32(), e.GetProperty("time").GetInt32());
+                }
+                var talk = TalkTests.Start(package, script, start);
+                Assert.True(expected == TalkScreen.Of(talk, 0)!.Intro, where);
+                if (talk.Ended || talk.Replies.Count == 0)
+                    continue;
+                int from = talk.Events.Count + 1;
+                talk.Choose(0);
+                Assert.True(TalkScreen.Of(talk, from)!.Intro is null, where);
+            }
+        });
+    }
+
+    [ContentFact]
+    public void TheHypnotisedCaptainsUrQuanAndTheEmergingChmmrFadeIn()
+    {
+        TestContent.With(package =>
+        {
+            // The recorded starts whose script sets it (the hypnotised captain's; the Chmmr freed).
+            List<System.Text.Json.JsonElement> Setting(string script) => TalkTests.Recorded(script)
+                .Where(s => s.GetProperty("steps")[0].GetProperty("events").EnumerateArray().Any(e => e.TryGetProperty("intro", out _))).ToList();
+            var urquan = Setting("urquan");
+            Assert.Contains(urquan, s => s.GetProperty("name").GetString() == "hypnotized-first");
+            Assert.All(urquan, u => Assert.Equal(new CommIntro(CommIntroMode.FadeInScreen, Talk.OneSecond * 5),
+                TalkScreen.Of(TalkTests.Start(package, "urquan", u), 0)!.Intro));
+            var chmmr = Setting("chmmr");
+            Assert.NotEmpty(chmmr);
+            Assert.All(chmmr, c => Assert.Equal(new CommIntro(CommIntroMode.FadeInScreen, Talk.OneSecond * 2),
+                TalkScreen.Of(TalkTests.Start(package, "chmmr", c), 0)!.Intro));
+        });
+    }
+
+    [ContentFact]
+    public void TheStarbasesTalksComeInAsVisitStarBaseSetsThem()
+    {
+        // starbase.c: the commander before the alliance crossfades the whole screen in (CIM_CROSSFADE_SCREEN), the
+        // Ilwrath at Earth comes in by default, the commander after the Ilwrath crossfades again, and after the
+        // two weeks the allied commander fades in over 2 s (CIM_FADE_IN_SCREEN); from the menu, by default.
+        var world = WithTalks();
+        var story = world.Story!;
+        story.Set("RADIOACTIVES_PROVIDED", 1);
+        story.Set("MOONBASE_DESTROYED", 1);
+        story.Set("MOONBASE_ON_SHIP", 1);
+        world.CommanderMet = true;
+        world.VisitStarbase(world.Host);
+        Assert.Equal(StarbaseVisit.CommanderCrossfade, TalkView.Of(world.Visit)!.Screen!.Intro);
+        Say(world, "comandr", "base_was_abandoned");
+        Assert.Equal(new CommIntro(CommIntroMode.CrossfadeSpace, 0), TalkView.Of(world.Visit)!.Screen!.Intro);
+        Say(world, "ilwrath", "surrender");
+        Assert.Equal(StarbaseVisit.CommanderCrossfade, TalkView.Of(world.Visit)!.Screen!.Intro);
+        Say(world, "comandr", "cook_their_butts");
+        Assert.Null(TalkView.Of(world.Visit)!.Screen!.Intro);   // a view after a reply
+        Say(world, "comandr", "name_2");
+        Assert.Equal(VisitStep.TimePassing, world.Visit!.Step);
+        for (int i = 0; i < StarbaseVisit.TimePassingFrames; ++i)
+            world.Step();
+        Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
+        var view = TalkView.Of(world.Visit)!;
+        Assert.Equal(new CommIntro(CommIntroMode.FadeInScreen, Talk.OneSecond * 2), view.Screen!.Intro);
+        Assert.Equal(StarbaseVisit.AfterTheDays, view.Screen.Intro);
+        Assert.Equal(view.Screen.Intro, TalkView.Decode(view.Encode())!.Screen!.Intro);
+        Say(world, "starbas", "goodbye_commander");
+        world.DialogueLocks = DialogueLocks.Load(DataDir);
+        world.StarbaseKey("host", MenuKey.Select, out _);   // Talk, from the menu
+        var visit = world.Host.Ship.Visit!;
+        Assert.Equal(VisitStep.MenuTalk, visit.Step);
+        Assert.Equal(new CommIntro(CommIntroMode.CrossfadeSpace, 0), TalkView.Of(visit)!.Screen!.Intro);
+    }
+
     // A view's changes are at its lines or after them, never past (TalkScreen.Encode's clamp a safety net only).
     private static void WithinLines(TalkView view) =>
         Assert.All(view.Screen?.Changes ?? Array.Empty<ScreenChange>(), c => Assert.InRange(c.Line, 0, view.Lines.Count));

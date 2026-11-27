@@ -633,10 +633,12 @@ public class OpeningTests
     }
 
     [ContentFact]
-    public void TheTwoWeeksRollForThePlayersInHyperspaceAndAreTakenBackWithThem()
+    public void TheTwoWeeksRollNoEncountersForThePlayersInHyperspace()
     {
         // A guest in hyperspace in the Ur-Quan's sphere (stage 3b item 3):
-        // each of the two weeks' days rolls for them, as any day does.
+        // a time skip is a story pause, and no day of it rolls (the stage 3c
+        // plan's question 3: UQM's player is never in hyperspace during
+        // one); the fleets still move, and every event still runs.
         var world = WithTalks(guest: true);
         var guest = world.Find("guest")!;
         guest.Ship.Ip = null;
@@ -648,27 +650,26 @@ public class OpeningTests
         story.Set("STARBASE_AVAILABLE", 1);
         story.Set("MOONBASE_ON_SHIP", 1);
         Run(world, 1);
-        var random = world.HyperspaceRandomOf("guest");
-        uint seed = random.Seed;
+        // A fleet on its way (a mission's course, stage 3c item 3's), 100 days to go.
+        var spathi = story.Fleet("SPATHI_SHIP");
+        story.SetFleet("SPATHI_SHIP", spathi with { DestLocX = (short)(spathi.LocX + 1000), DestLocY = spathi.LocY, DaysLeft = 100 });
+        uint seed = world.HyperspaceRandomOf("guest").Seed;
+        int days = world.HyperspaceEncounterDays;
+        var fleets = story.Rules.Races.Select(story.Fleet).ToList();
+        // What the same days do to the fleets run outside a pause (rolling for nobody: the fleets don't depend on it).
+        var twin = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        twin.MoveClockDays(StarbaseVisit.LostDays, rolls: false);
         world.VisitStarbase(world.Host);
         Run(world, StarbaseVisit.TimePassingFrames);
         Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
-        var rolled = world.Encounters!.List.ToList();
-        Assert.NotEmpty(rolled);
-        Assert.All(rolled, e => Assert.Equal("guest", e.Roller));
-        Assert.NotEqual(seed, world.HyperspaceRandomOf("guest").Seed);
-        // Saved without them.
-        Assert.Empty(HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes).Encounters!.List);
-        // Taken back with the opening (the guest gone too, no one takes the
-        // replies), the numbers too: the same days again roll the same groups.
-        world.Leave("guest");
-        world.Leave("host");
-        Assert.True(world.Visit is null);
-        Assert.Equal(JoinResult.Rejoined, world.Join("guest", "Guest"));
-        Assert.Empty(world.Encounters.List);
+        Assert.Empty(world.Encounters!.List);
         Assert.Equal(seed, world.HyperspaceRandomOf("guest").Seed);
-        world.MoveClockDays(14);
-        Assert.Equal(rolled.Select(e => (e.Race, e.Roller, e.OriginX)), world.Encounters.List.Select(e => (e.Race, e.Roller, e.OriginX)));
+        Assert.Equal(days, world.HyperspaceEncounterDays);
+        // The fleets moved over the two weeks (check_race_growth), as the same days move them outside a pause.
+        var after = story.Rules.Races.Select(story.Fleet).ToList();
+        Assert.NotEqual(fleets, after);
+        Assert.Equal((spathi.LocX + 140, 86), (story.Fleet("SPATHI_SHIP").LocX, story.Fleet("SPATHI_SHIP").DaysLeft));
+        Assert.Equal(twin.Story!.Rules.Races.Select(twin.Story.Fleet), after);
     }
 
     [ContentFact]

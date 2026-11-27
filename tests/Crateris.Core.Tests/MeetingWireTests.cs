@@ -537,6 +537,7 @@ public class MeetingWireTests
         }
         void Screen(Net.WireWriter w, ulong map = 0, ulong ambient = 1, byte talking = 1, ulong changes = 0)
         {
+            w.Byte(0);   // how it comes in: not in this view (protocol 33)
             w.UInt(map);
             w.UInt(ambient);
             for (ulong i = 0; i < Math.Min(ambient, 64); ++i)
@@ -578,15 +579,71 @@ public class MeetingWireTests
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(noScreen));
     }
 
+    [Fact]
+    public void ATalksIntroGoesOverTheWireAndBadOnesAreRefused()
+    {
+        // Protocol 33 (stage 3c item 2): how the screen comes in (SetCommIntroMode), in the view whose lines start
+        // as it's first drawn; a story pause's talk is a step of its own.
+        var screen = new TalkScreen(0, new[] { CommAnimationFlags.YoYo }, true, Array.Empty<ScreenChange>(),
+            new CommIntro(CommIntroMode.FadeInScreen, Talk.OneSecond * 5));
+        var view = new TalkView(VisitStep.Story, "comandr", new[] { "One" }, Array.Empty<string>(), 3, "g1", "", Screen: screen);
+        var sent = TalkView.Decode(view.Encode())!;
+        Assert.True(view.Same(sent));
+        Assert.Equal((VisitStep.Story, new CommIntro(CommIntroMode.FadeInScreen, 4200)), (sent.Step, sent.Screen!.Intro));
+        Assert.False(view.Same(view with { Screen = screen with { Intro = null } }));
+        Assert.False(view.Same(view with { Screen = screen with { Intro = new CommIntro(CommIntroMode.FadeInScreen, 840) } }));
+        Assert.Null(TalkView.Decode((view with { Screen = screen with { Intro = null } }).Encode())!.Screen!.Intro);
+        foreach (var mode in Enum.GetValues<CommIntroMode>())
+            Assert.Equal(mode, TalkView.Decode((view with { Screen = screen with { Intro = new CommIntro(mode, 0) } }).Encode())!.Screen!.Intro!.Value.Mode);
+        // A step past the last refused.
+        var past = view.Encode();
+        past[0] = (byte)((int)VisitStep.Story + 2);
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(past));
+        byte[] Hostile(Action<Net.WireWriter> intro)
+        {
+            var bare = new TalkView(VisitStep.Story, "comandr", Array.Empty<string>(), Array.Empty<string>()).Encode();
+            var w = new Net.WireWriter();
+            foreach (byte b in bare[..^1])   // all but its "no screen"
+                w.Byte(b);
+            w.Byte(1);
+            intro(w);
+            w.UInt(0);   // the colour map
+            w.UInt(0);   // no ambient animations
+            w.Byte(1);
+            w.UInt(0);   // no changes
+            return w.Written.ToArray();
+        }
+        Assert.Equal(new CommIntro(CommIntroMode.CrossfadeScreen, TalkScreen.MostTime), TalkView.Decode(Hostile(w =>
+        {
+            w.Byte(1);
+            w.Byte((byte)CommIntroMode.CrossfadeScreen);
+            w.UInt(TalkScreen.MostTime);
+        }))!.Screen!.Intro);
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w => w.Byte(2))));   // no such flag
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w =>
+        {
+            w.Byte(1);
+            w.Byte((byte)CommIntroMode.FadeInScreen + 1);   // no such mode
+            w.UInt(0);
+        })));
+        Assert.Throws<InvalidDataException>(() => TalkView.Decode(Hostile(w =>
+        {
+            w.Byte(1);
+            w.Byte((byte)CommIntroMode.FadeInScreen);
+            w.UInt(TalkScreen.MostTime + 1);   // too long
+        })));
+    }
+
     [ContentFact]
     public void AnOldClientIsRefused()
     {
         // 27 a meeting's closing lines (stage 3b-1 item 11), 28 credits and fuel (3b-2 item 3), 29 the Melnorme's talk
         // (item 4), 30 the Zoq-Fot-Pik's speakers (item 5), 31 the talks' screen changes (row 83), 32 the Talking
-        // Pet's strobe: a one-shot ambient animation's start among them (item 10).
-        Assert.Equal(32, Protocol.Version);
+        // Pet's strobe: a one-shot ambient animation's start among them (item 10), 33 the story pauses and the talks'
+        // intro fades (stage 3c item 2).
+        Assert.Equal(33, Protocol.Version);
         var game = NewGame(guests: 0);
-        var refused = game.Host.Hello(9, "old", "Old", 31);
+        var refused = game.Host.Hello(9, "old", "Old", 32);
         Assert.False(Protocol.Accepted(refused.Result));
         Assert.Contains("Version mismatch", refused.Message);
     }
@@ -1717,6 +1774,59 @@ public class MeetingWireTests
         int i = talk.Replies.Select(r => r.Phrase).ToList().IndexOf(n);
         Assert.True(i >= 0, $"{phrase} isn't offered");
         Assert.True(host.ChooseReply(host.World.Visit.Replier.Id, host.World.Visit.Round, i));
+    }
+
+    // ---- story pauses (stage 3c item 2)
+
+    [ContentFact]
+    public void AStoryPauseIsShownOnEveryClientAndItsTalkAnsweredByItsReplierThroughTheirs()
+    {
+        var game = NewGame(guests: 2, testTalks: false);
+        var host = game.Host;
+        var world = game.World;
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var g1 = NewClient(1);
+        var g2 = NewClient(2);
+        Frame(host, g1, g2);
+        // A test's sequence: two days, then the commander's talk, g1 replying, fading in from the skip's black.
+        var pause = world.StartStoryPause(world.Find("g1")!, "a test's pause", 2, "comandr", new() { ["STARBASE_VISITED"] = 0 },
+            intro: StarbaseVisit.AfterTheDays)!;
+        Frame(host, g1, g2);
+        // The skip: every client paused for the story, shown the fade with no talk (its own screen stays under it).
+        foreach (var c in new[] { g1, g2 })
+        {
+            Assert.True(c.Session.StoryPaused);
+            Assert.Equal((VisitStep.TimePassing, ""), (c.Session.Talk!.Step, c.Session.Talk.Script));
+            Assert.False(c.Session.TalkShown);
+            Assert.NotEqual(PlayerScreen.Comm, c.Session.Screen);
+            Assert.Contains("Time passes...", c.Session.StatusLines());
+            Assert.DoesNotContain(c.Session.StatusLines(), l => l.StartsWith("The story's talk"));
+        }
+        FramesUntil(host, () => pause.Step == VisitStep.Story, TimeSkip.FadeFrames + 5, g1, g2);
+        Frame(host, g1, g2);
+        // The talk on everyone's communication screen, coming in as its sequence set it; g1 replies, g2 watches.
+        foreach (var c in new[] { g1, g2 })
+        {
+            Assert.Equal((VisitStep.Story, "comandr", "g1"), (c.Session.Talk!.Step, c.Session.Talk.Script, c.Session.Talk.Replier));
+            Assert.True(c.Session.TalkShown);
+            Assert.Equal(PlayerScreen.Comm, c.Session.Screen);
+            Assert.Equal(StarbaseVisit.AfterTheDays, c.Session.Talk.Screen!.Intro);
+        }
+        Assert.True(g1.Session.Replying);
+        Assert.False(g2.Session.Replying);
+        int talks = pause.Talk!.Events.OfType<ReplyChosen>().Count();
+        g2.Session.PressMenu(MenuKey.Select);   // a watcher's choice does nothing
+        Frame(host, g1, g2);
+        Assert.Equal(talks, pause.Talk!.Events.OfType<ReplyChosen>().Count());
+        for (int i = 0; i < 200 && world.Pause is not null; ++i)
+        {
+            g1.Session.PressMenu(MenuKey.Select);
+            Frame(host, g1, g2);
+        }
+        Assert.Null(world.Pause);
+        Frame(host, g1, g2);
+        Assert.False(g2.Session.StoryPaused);
+        Assert.False(g2.Session.TalkShown);
     }
 
     // ---- one player, as before

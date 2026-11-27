@@ -29,7 +29,11 @@ public enum VisitStep
     /// <summary>The commander again, impressed: the alliance and its name.</summary>
     Alliance,
 
-    /// <summary>Two weeks pass, the screen fading to black over two seconds (DoTimePassage).</summary>
+    /// <summary>
+    /// Two weeks pass, the screen fading to black over two seconds
+    /// (DoTimePassage: a <see cref="TimeSkip"/>); a story pause's skip too
+    /// (<see cref="StoryPause"/>, stage 3c item 2).
+    /// </summary>
     TimePassing,
 
     /// <summary>The allied commander: the starbase is ready (starbas.c).</summary>
@@ -62,6 +66,12 @@ public enum VisitStep
     /// <see cref="IlwrathFight"/> is.
     /// </summary>
     Meeting,
+
+    /// <summary>
+    /// Not a visit's: a story pause's talk (<see cref="StoryPause"/>, stage
+    /// 3c item 2), shown to everyone, its replier replying. Numbered last.
+    /// </summary>
+    Story,
 }
 
 /// <summary>
@@ -87,8 +97,8 @@ public enum VisitStep
 /// Ilwrath's), the starter's ship, what the talks changed on any other
 /// answerer's ship and the two weeks (with what their days' events did:
 /// the clock's events, the fields they set, the crew's price, the races'
-/// fleets and standings they changed, and the groups they rolled in
-/// hyperspace), and what any event its talks ran at once changed. A save
+/// fleets and standings they changed; they roll no hyperspace encounter,
+/// stage 3c item 2), and what any event its talks ran at once changed. A save
 /// made during it is of the game without it, as UQM can't save in the
 /// middle of one; and if the starter leaves with no one to take the
 /// replies, or every player leaves the Ilwrath's fight with the Ilwrath
@@ -98,49 +108,43 @@ public enum VisitStep
 /// nothing is taken back: leaving ends the visit, as departing does.
 /// </para>
 /// </summary>
-public sealed class StarbaseVisit
+public sealed class StarbaseVisit : TalkSequence
 {
     /// <summary>LOST_DAYS: the days the starbase's building takes.</summary>
     public const int LostDays = 14;
 
-    /// <summary>DoTimePassage's fade: two seconds, in world frames.</summary>
-    public const int TimePassingFrames = 2 * GameClock.FramesPerSecond;
+    /// <summary>DoTimePassage's fade: two seconds, in world frames (<see cref="TimeSkip.FadeFrames"/>).</summary>
+    public const int TimePassingFrames = TimeSkip.FadeFrames;
 
     /// <summary>The Lunar base's gift (DeltaSISGauges (0, 0, 2500)).</summary>
     public const int StarbaseGift = 2500;
 
-    private readonly GameWorld _world;
-    private int _fadeLeft;
+    /// <summary>
+    /// SetCommIntroMode (CIM_FADE_IN_SCREEN, ONE_SECOND * 2) before the
+    /// allied commander's talk after the two weeks (VisitStarBase): his
+    /// screen fades in from the skip's black.
+    /// </summary>
+    public static readonly CommIntro AfterTheDays = new(CommIntroMode.FadeInScreen, Talk.OneSecond * 2);
 
-    // The talks' ship: the answerer's (AnswererTalkShip), made with the
-    // first talk.
-    private AnswererTalkShip? _ship;
+    /// <summary>SetCommIntroMode (CIM_CROSSFADE_SCREEN, 0) before the commander's talks before the alliance (VisitStarBase).</summary>
+    public static readonly CommIntro CommanderCrossfade = new(CommIntroMode.CrossfadeScreen, 0);
 
-    // Who sold the minerals in each sale, by talk and the sale's event.
-    private readonly Dictionary<(int Talk, int At), Player> _sellers = new();
-    private int _talks;
-    private bool _skipped;
-
-    // The two weeks' events taken back with them: the story fields they
-    // changed, with what each was before, the crew's price (the Shofixti's
-    // return lowers it), the clock's events (queued and set aside) as
-    // before them, and the races' fleets and standings they changed
-    // (check_race_growth's growth and headings, a fleet gone extinct, the
-    // events' shields, deaths and returns), as before them. Nothing else
-    // changes the events while the opening goes on after them (the allied
-    // commander's talk there is story: the clock waits).
-    private StoryState.Changes? _daysBefore;
+    // The two weeks (DoTimePassage), once they've begun: their fade and
+    // days, and what the days' events changed, taken back with them: the
+    // story fields they changed, with what each was before, the crew's
+    // price (the Shofixti's return lowers it), the clock's events (queued
+    // and set aside) as before them, and the races' fleets and standings
+    // they changed (check_race_growth's growth and headings, a fleet gone
+    // extinct, the events' shields, deaths and returns), as before them.
+    // Nothing else changes the events while the opening goes on after them
+    // (the allied commander's talk there is story: the clock waits). No
+    // hyperspace encounter is rolled meanwhile (the stage 3c plan's
+    // question 3), so the encounters have nothing to take back.
+    private TimeSkip? _days;
 
     // How many talks the visit had as the two weeks passed: those after
     // them ran after their events (TakeBackTalkEvents).
     private int _talksBeforeDays;
-
-    // The hyperspace encounters and each player's random numbers as the two
-    // weeks began (stage 3b item 3): the days roll for the players in
-    // hyperspace meanwhile, and what they rolled is taken back with them.
-    // Nothing else changes them while the opening goes on after them (the
-    // story pause holds the world's frames).
-    private (List<Hyperspace.HyperEncounter> List, Dictionary<string, Hyperspace.HyperspaceRandom> Random)? _encountersBefore;
 
     // The races whose spheres the opening's talks started tracking
     // (InitCommunication's StartSphereTracking: the Ilwrath's), with their
@@ -152,35 +156,19 @@ public sealed class StarbaseVisit
     private int _greeted;
 
     internal StarbaseVisit(GameWorld world, Player starter, int firstRound = 0)
+        : base(world, starter, firstRound)
     {
-        FirstRound = firstRound;
-        _world = world;
-        Starter = starter;
-        Replier = starter;
         var story = world.Story!;
         StoryBefore = story.Save();
         HoldBefore = starter.Ship.Hold.Save();
         FuelBefore = starter.Ship.Flight.Fuel;
         MetBefore = world.CommanderMet;
         if (story.Get("STARBASE_AVAILABLE") == 0)
-            StartTalk(VisitStep.Commander, "comandr", new() { ["STARBASE_VISITED"] = world.CommanderMet ? 1 : 0 });
+            StartTalk(VisitStep.Commander, "comandr", new() { ["STARBASE_VISITED"] = world.CommanderMet ? 1 : 0 },
+                CommanderCrossfade);
         else
             AfterAlliance();
     }
-
-    public Player Starter { get; }
-
-    /// <summary>
-    /// Who replies: the starter, or, once they've left, the next player in
-    /// join order, the host first (decision 7). The talks are the
-    /// answerer's ship's (the owner's rule, 2026-11-12: the group as a whole
-    /// starts the story): its names, its hold, crew and fuel, the ship
-    /// changing with the answerer (<see cref="AnswererTalkShip"/>).
-    /// </summary>
-    public Player Replier { get; internal set; }
-
-    /// <summary>How the replier has paged the current lines (decision 7): what watchers follow; null before any.</summary>
-    public Comm.TalkPaging? Paging { get; internal set; }
 
     /// <summary>
     /// Whether the visit is still in the opening (before the menu, the
@@ -206,30 +194,10 @@ public sealed class StarbaseVisit
     /// its talk is, or time is passing. A story visit pauses the game for
     /// everyone, and everyone is shown it.
     /// </summary>
-    public bool Story => Step == VisitStep.TimePassing || (Talk is not null && _talkIsStory);
-
-    private bool _talkIsStory;
-
-    // The visit's talks that were story as they started (TalkRules).
-    private readonly HashSet<Talk> _storyTalks = new();
-
-    /// <summary>
-    /// Whether one of its talks was story as it started (decision 6): shown
-    /// to everyone, so what it did isn't told again in notices
-    /// (<see cref="GameWorld.TellTalkEffects"/>).
-    /// </summary>
-    internal bool IsStoryTalk(Talk talk) => _storyTalks.Contains(talk);
-
-    public VisitStep Step { get; private set; }
-
-    /// <summary>The talk going on, if any (none while time passes, or once done).</summary>
-    public Talk? Talk { get; private set; }
-
-    /// <summary>Every talk of the visit so far, in order, the one going on last.</summary>
-    public List<Talk> Talks { get; } = new();
+    public override bool Story => Step == VisitStep.TimePassing || (Talk is not null && TalkIsStory);
 
     /// <summary>World frames left of the fade while time passes.</summary>
-    public int FadeLeft => _fadeLeft;
+    public int FadeLeft => Step == VisitStep.TimePassing ? _days?.FadeLeft ?? 0 : 0;
 
     /// <summary>The story state when the visit started.</summary>
     public StoryState.Saved StoryBefore { get; }
@@ -257,61 +225,11 @@ public sealed class StarbaseVisit
     /// <summary>Whether the group had met the commander when the visit started.</summary>
     public bool MetBefore { get; }
 
-    public bool Done => Step == VisitStep.Done;
-
-    /// <summary>
-    /// The set of replies offered now (its number in the game: the last its
-    /// talks offered, each numbered by the game's one counter, stage 3b-1
-    /// item 10), or <see cref="FirstRound"/> before any.
-    /// </summary>
-    public int Round
-    {
-        get
-        {
-            int round = FirstRound, before = 0;
-            foreach (var t in Talks)
-            {
-                int n = t.Offers;
-                if (n > 0)
-                    round = t.RoundOf(n - 1, FirstRound + before);
-                before += n;
-            }
-            return round;
-        }
-    }
-
-    /// <summary>The numbers of every set of replies its talks have offered, in order.</summary>
-    public IEnumerable<int> Rounds()
-    {
-        int before = 0;
-        foreach (var t in Talks)
-        {
-            int n = t.Offers;
-            for (int i = 0; i < n; ++i)
-                yield return t.RoundOf(i, FirstRound + before);
-            before += n;
-        }
-    }
-
-    /// <summary>
-    /// The sets of replies offered in the game's earlier visits: rounds
-    /// count on from them, so a round names one set of replies in the
-    /// whole game, and a client that has answered one can't mistake the
-    /// next visit's for it.
-    /// </summary>
-    public int FirstRound { get; }
-
-    /// <summary>Whether any of its talks was story, or time passed: everyone was shown it (decision 6).</summary>
-    public bool WasStory { get; private set; }
-
-    /// <summary>
-    /// Whether it was undone: its replier left with no one to take the
-    /// replies; every player left the Ilwrath's fight with the Ilwrath alive
-    /// (destroyed or disconnected); the Ilwrath was killed with nobody in
-    /// the game to answer the commander; or its starter was gone as that
-    /// fight was to start.
-    /// </summary>
-    public bool Undone { get; private set; }
+    // Undone (TalkSequence.Undone): its replier left with no one to take
+    // the replies; every player left the Ilwrath's fight with the Ilwrath
+    // alive (destroyed or disconnected); the Ilwrath was killed with nobody
+    // in the game to answer the commander; or its starter was gone as that
+    // fight was to start.
 
     /// <summary>
     /// Whether the starter's part of the visit is settled: it disconnected
@@ -324,54 +242,27 @@ public sealed class StarbaseVisit
     /// </summary>
     public bool StarterSettled { get; private set; }
 
-    /// <summary>The starter chooses a reply in the talk going on. False if none is offered.</summary>
-    internal bool Choose(int index)
-    {
-        if (Talk is not { Ended: false } talk || index < 0 || index >= talk.Replies.Count)
-            return false;
-        int sales = talk.Sales.Count;
-        var seller = Replier;
-        talk.Choose(index);
-        foreach (var (at, _) in talk.Sales.Skip(sales))
-            _sellers[(Talks.Count - 1, at)] = seller;
-        if (talk.Ended)
-            TalkEnded();
-        return true;
-    }
-
-    /// <summary>A world frame: the fade while time passes.</summary>
+    /// <summary>A world frame: the fade while time passes, and the days at its end.</summary>
     internal void Frame()
     {
-        if (Step != VisitStep.TimePassing)
+        if (Step != VisitStep.TimePassing || !_days!.Frame(_world))
             return;
-        if (--_fadeLeft > 0)
-            return;
-        // MoveGameClockDays: each day's events run, and the day starts
-        // afresh (tick_count = day_in_ticks). What they change is taken
-        // back with the two weeks (TakeBackDays).
-        var story = _world.Story!;
-        var before = story.Save();
-        _encountersBefore = _world.EncountersState();
-        _world.MoveClockDays(LostDays);
-        _daysBefore = StoryState.Changes.Between(before, story.Save());
+        // MoveGameClockDays has run: each day's events, no encounter
+        // rolled, and the day starts afresh (tick_count = day_in_ticks).
+        // What they changed is taken back with the two weeks (TakeBackDays).
         _talksBeforeDays = Talks.Count;
-        _skipped = true;
         // The allied commander, at the starbase (GLOBAL_FLAGS_AND_DATA ~0);
         // whether he has greeted this player on this visit is theirs, and
-        // the visit is new.
-        StartTalk(VisitStep.StarbaseReady, "starbas", new() { ["GLOBAL_FLAGS_AND_DATA"] = 0xFF });
+        // the visit is new. His screen fades in from the skip's black.
+        StartTalk(VisitStep.StarbaseReady, "starbas", new() { ["GLOBAL_FLAGS_AND_DATA"] = 0xFF }, AfterTheDays);
     }
 
-    private void StartTalk(VisitStep step, string script, Dictionary<string, int> own)
+    // A talk of the visit, story or not by its rule (decision 6).
+    private void StartTalk(VisitStep step, string script, Dictionary<string, int> own, CommIntro? intro = null) =>
+        StartTalk(step, script, own, Comm.TalkRules.IsStory(script, _world.Story!), intro);
+
+    private protected override void BeforeTalk(string script)
     {
-        Step = step;
-        // The talk's own random seed (decision 12), the same for the same
-        // game frame, player and talk of the visit.
-        uint seed = unchecked((uint)_world.Frame * 2_654_435_761u + (uint)++_talks * 40_503u);
-        foreach (char c in Starter.Id)
-            seed = unchecked(seed * 31 + c);
-        _talkIsStory = Comm.TalkRules.IsStory(script, _world.Story!);
-        WasStory |= _talkIsStory;
         // InitCommunication: StartSphereTracking for the talk's race
         // (RACE_SHIP_FOR_COMM): the Ilwrath's sphere is known from their
         // talk on; the commander's race is the humans', who have none.
@@ -385,19 +276,9 @@ public sealed class StarbaseVisit
         _world.Story.StartSphereTracking(race);
         if (Opening && _world.Story.Fleet(race) != fleetBefore)
             _trackedBefore.TryAdd(race, fleetBefore);
-        var library = _world.TalkLibrary!;
-        _ship ??= new AnswererTalkShip(() => Replier, library.Strings, _world);
-        Talk = library.Create(script, _world.Story!, own, _ship, _world.Clock, seed);
-        Talk.RoundSource = _world.NewRound;
-        Talks.Add(Talk);
-        if (_talkIsStory)
-            _storyTalks.Add(Talk);
-        Talk.Start();
-        if (Talk.Ended)
-            TalkEnded();
     }
 
-    private void TalkEnded()
+    private protected override void TalkEnded()
     {
         var story = _world.Story!;
         var talk = Talk!;
@@ -459,7 +340,8 @@ public sealed class StarbaseVisit
     internal void AfterTheFight(Player replier)
     {
         Replier = replier;
-        StartTalk(VisitStep.Alliance, "comandr", new() { ["STARBASE_VISITED"] = _world.CommanderMet ? 1 : 0 });
+        StartTalk(VisitStep.Alliance, "comandr", new() { ["STARBASE_VISITED"] = _world.CommanderMet ? 1 : 0 },
+            CommanderCrossfade);
     }
 
     // With the Lunar base aboard (or the Chmmr's bomb just installed, in
@@ -473,7 +355,7 @@ public sealed class StarbaseVisit
             Step = VisitStep.TimePassing;
             WasStory = true;
             Talk = null;
-            _fadeLeft = TimePassingFrames;
+            _days = new TimeSkip(LostDays);
         }
         else
             Dock();
@@ -577,11 +459,10 @@ public sealed class StarbaseVisit
     /// price, the clock's events (queued and set aside) as before them, and
     /// the races' fleets and standings they changed as before them.
     /// </summary>
-    private void TakeBackDays(StoryState story)
-    {
-        if (_skipped && _daysBefore is { } days)
-            days.TakeBackFrom(story);
-    }
+    private void TakeBackDays(StoryState story) => _days?.TakeBackFrom(story);
+
+    // Whether the two weeks have passed.
+    private bool Skipped => _days is { Skipped: true };
 
     /// <summary>
     /// The two weeks' events and those the opening's talks ran at once
@@ -593,7 +474,7 @@ public sealed class StarbaseVisit
     /// </summary>
     private void TakeBackEvents(StoryState story)
     {
-        int split = _skipped ? _talksBeforeDays : Talks.Count;
+        int split = Skipped ? _talksBeforeDays : Talks.Count;
         void TalksFrom(int first, int end)
         {
             for (int t = end - 1; t >= first; --t)
@@ -619,24 +500,9 @@ public sealed class StarbaseVisit
             });
     }
 
-    /// <summary>
-    /// The hyperspace encounters without the visit: as the two weeks began,
-    /// if they've passed (what their days rolled taken back); null if
-    /// they haven't (the encounters as they are).
-    /// </summary>
-    internal IReadOnlyList<Hyperspace.HyperEncounter>? EncountersWithout() =>
-        _skipped && _encountersBefore is { } e ? e.List : null;
-
     /// <summary>The date without the visit: the two weeks, if they've passed, taken back.</summary>
-    public (int Year, int Month, int Day) DateWithout()
-    {
-        var c = _world.Clock;
-        var d = new DateTime(c.Year, c.Month, c.Day).AddDays(_skipped ? -LostDays : 0);
-        return (d.Year, d.Month, d.Day);
-    }
-
-    /// <summary>Who sold the minerals in a talk's sale (its talk's index in <see cref="Talks"/>, the sale's event), or null.</summary>
-    public Player? SellerOf(int talk, int at) => _sellers.GetValueOrDefault((talk, at));
+    public (int Year, int Month, int Day) DateWithout() =>
+        _days?.DateWithout(_world.Clock) ?? (_world.Clock.Year, _world.Clock.Month, _world.Clock.Day);
 
     /// <summary>
     /// A player's hold and fuel as they'd be without the visit's talks:
@@ -683,8 +549,8 @@ public sealed class StarbaseVisit
     /// and the two weeks put back, with what their days' events did (the
     /// clock's events, the fields they set, the crew's price and the races'
     /// fleets and standings they changed, <see cref="TakeBackEvents"/>, which
-    /// takes back the events the talks ran at once too, and the groups
-    /// their days rolled in hyperspace, with the numbers drawn).
+    /// takes back the events the talks ran at once too; the days rolled no
+    /// encounter, stage 3c item 2).
     /// A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
     /// crew; one that disconnected from it was settled as it left
@@ -719,11 +585,7 @@ public sealed class StarbaseVisit
         _world.CommanderMet = MetBefore;
         var (y, m, d) = DateWithout();
         (_world.Clock.Year, _world.Clock.Month, _world.Clock.Day) = (y, m, d);
-        if (_skipped && _encountersBefore is { } encounters)
-            _world.RestoreEncounters(encounters);
-        _skipped = false;
-        _daysBefore = null;
-        _encountersBefore = null;
+        _days?.Forget();
         Undone = true;
         Finish();
     }

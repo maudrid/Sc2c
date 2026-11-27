@@ -96,8 +96,11 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         Step = VisitStep.Done, Lines = Array.Empty<string>(), Speakers = null, Screen = Screen?.AfterChanges(),
     };
 
-    /// <summary>The view of a visit as it stands (its closing lines once it's over), or null without one.</summary>
-    public static TalkView? Of(StarbaseVisit? visit)
+    /// <summary>
+    /// The view of a visit, or a story pause (stage 3c item 2), as it
+    /// stands (its closing lines once it's over), or null without one.
+    /// </summary>
+    public static TalkView? Of(TalkSequence? visit)
     {
         if (visit is null)
             return null;
@@ -268,7 +271,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var r = new WireReader(data);
         ulong step = r.UInt();
         // Any step but the Ilwrath's fight, which is never sent.
-        if (step == 0 || step - 1 > (ulong)VisitStep.Meeting || step - 1 == (ulong)VisitStep.IlwrathFight)
+        if (step == 0 || step - 1 > (ulong)VisitStep.Story || step - 1 == (ulong)VisitStep.IlwrathFight)
             throw new InvalidDataException("Bad talk step.");
         string script = r.String() ?? "";
         ulong round = r.UInt();
