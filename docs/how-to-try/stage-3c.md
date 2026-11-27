@@ -8,6 +8,7 @@ As for stage 3b-2 (`docs/how-to-try/stage-3b-2.md`): build the game (`dotnet bui
 
 The testing options this stage adds (`game/scripts/Options.cs`'s summary lists them all):
 
+- `--start-extinct SHIP[,SHIP]` (item 6): these ships' races are extinct, their fleets gone (`data/ships.json`'s ids, as `--start-allied`'s: `supox`, `druuge`, `pkunk`, `ilwrath`, `orz`, `thradd`, `utwig`, `vux`, `yehat`, `zoqfot`), so orbiting their homeworld finds the ruins instead of their talk. Applied after `--start-allied` and before `--start-fleet`, `--start-date` and the place.
 - `--start-date YYYY-MM-DD` (item 1): the clock moved on to that day, no earlier than the game's, each day passing as the starbase's two weeks pass: its events run (the location gates asking where the players are as the game has them), the races' fleets grow and move, but no hyperspace encounters are rolled. Its log line names the events run (the daily encounter event left out; a fleet's arrival among them), those a location gate held (one for each time it held one) and, once the Kohr-Ah have destroyed every race, that the game is lost (item 4). It's applied after `--start-state`, `--start-devices`, `--start-allied` and `--start-fleet` and before the place (`--start-at`, `--start-orbit` and the rest). With `--load` it moves a saved game's clock over the events its talks queued.
 
 ## Run the tests
@@ -183,6 +184,8 @@ Item 5's tests (part 2): `StoryPickupsTests` (topic `story`, new: every single n
 
 The recording is remade with `python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 --only story-nodes` (a few seconds; code only, no content).
 
+Item 6's tests: `StoryPickupsTests` (its recording now 52 cases: each homeworld's ruins, the three artifact ruins found and not, the Androsynth's chapters with none, two and all three read, the wreck with its key and without, the vault locked, known, with the shuttle and opened, Procyon's starbase; each case's further touches in the same orbit; the cycling tables' entry counts, the content's), `StoryRuinsTests` (topic `story`, new: the ruins there only once their race is extinct, the finder's alone, one a visit, the other players' own; `--start-extinct` turning a homeworld's talk into its ruins; the Ultron the first finder's, the next player reading it found; the Androsynth's chapters in order at new ruins, told to every player, the ruins visited kept through a save; the wreck's key once; the vault read by each ship's shuttle as it goes into orbit and by the finder's as it's touched; Procyon's report as a ship comes to it).
+
 ## Item 5, part 1: devices held by ships
 
 Devices are each ship's own now, as the owner answered the plan's question 5: the portal spawner is everyone's once anyone has it, and the Lunar base the opening's; every other device is held by one ship at a time. The pickups that give them on the story worlds are part 2's and item 6's, their uses item 8's.
@@ -243,6 +246,40 @@ Row 38 (every pickup's: the other landers stay and are told, each ship's own pla
 
 ### Known limits of item 5, part 2
 
-- **The ruins, the wreck, the vault and Procyon's starbase report** are item 6's, Fwiffo item 7's: their nodes show on the scan but aren't on the surface yet (their sheets are loaded).
+- **The ruins, the wreck, the vault and Procyon's starbase report** came with item 6 (below); Fwiffo is item 7's: his node shows on the scan but isn't on the surface yet (his sheet is loaded).
 - **No device is used yet** (item 8).
 - **A report's read-out sound** waits for the game's sound, as the Lunar base's.
+
+## Item 6: the ruins, the wreck and the vault
+
+The story worlds whose nodes stay on the surface, as UQM's generators have them, each touch showing a report as `GenerateDefault_landerReportCycle` goes round the ship's place in the world's text:
+
+1. **The homeworlds' ruins**: the Ilwrath's (star 220, planet 0), the Orz's, the Thraddash's, the Utwig's, the VUX's, the Yehat's and the Zoq-Fot-Pik's homeworlds, once their race is extinct (until then orbiting them starts their talk); Burvixese's (star 304, planet 0) always. Sixteen ruins, one report a visit: the finder's alone, no take-off, nobody else told; another player's own place gives them theirs. The Umgah's ruins are ready but their world is never entered until item 10 ports its Talking Pet half.
+2. **The artifact ruins**: the Supox's (star 467, planet 0) with the Ultron, the Druuge's (174:0) with the Rosy Sphere, the Pkunk's (42:0) with the Clear Spindle, once their race is extinct. The first ruin anyone touches gives the artifact to the finder's ship and sends the lander up, the other landers there told; after that every ruin tells the second text, which says it's been found. That text is read from the story as the ruin is touched, so a player whose place was made before the find reads it found, not the find again.
+3. **The Androsynth's chapters** (star 151, planet 1): each ruin no one has visited tells the next of three chapters, in order, and is marked visited for everyone (kept in the world's taken-node bits 16 to 31, as UQM keeps them, and saved); a ruin someone visited tells nothing. Each chapter is the group's story: the finder sees it typed in, every other player in the game is told it in a notice. Once all three are read, the ruins tell nothing and a ship coming into orbit has no text.
+4. **The Ur-Quan wreck** (star 409, planet 6): the first touch gives the portal key to the finder's ship and sends the lander up; after that it tells its second text. The wreck stays.
+5. **The Syreen's vault** (star 234, planet 0, moon 0): locked, it tells its first text once a visit, the finder's alone, and the vault is known (`KNOW_SYREEN_VAULT`); with the Syreen's shuttle aboard the finder's ship it opens (`SHIP_VAULT_UNLOCKED`), the shuttle used up, the Syreen's visits counted afresh, the lander sent up; opened, it tells its last text. Which text a ship's place starts at reads the orbiting ship's own shuttle; a touch reads the finder's ship as it is then.
+6. **Procyon's starbase** (star 133, planet 1, moon 0): flying into it shows its report, typed into the scan map's area over the system view, and the ship stays by it, as UQM's.
+
+Tried headless, each host with `--host --no-upnp --id host --name Host --save FILE` (a scratch file), the script `none:10,select:1,none:10,select:1,none:250,select:1,none:5,select:1,none:60` (Scan, Auto scan, Dispatch) and then a turn and a drive to the nearest node (the lander comes down up to 64 units from the site, so each drive was found from where it landed, the position read from a `--report FILE` run quitting at frame 400):
+
+- The Ultron: `--start-extinct supox --start-orbit 467:0 --start-site 87:23`, then `left:4,thrust:300,none:300`, `--quit-after 1000`: "Starting with supox extinct", "Lander report text.ultron", "Back in orbit"; the save has device 7 (the Ultron) in the host's hold and `ULTRON_CONDITION` 1. Loading that save (`--load`) and landing the same way: "Lander report text.ultron entry 1", the lander staying down.
+- The Androsynth's chapters with a guest: the host with `--guests-in-orbit --start-orbit 151:1 --start-site 43:19` and the script above after `none:300,`, then `thrust:100,left:3,thrust:300`, `--quit-after 1300`; a guest `--join 127.0.0.1 --name Guest --id guest-1 --script none:1100 --quit-after 1150`: the host's "Lander report text.androsynthruins", "... entry 1", "... entry 2"; the guest's "Lander report text.androsynthruins (found by host)", "Host's lander found it:" with the first chapter ("AN ADDITIONAL REPORT SIR, FROM SCIENCE OFFICER BUKOWSKI..."), then entries 1 and 2 found by host; the save's world 151 `energy_taken` 0x84300000 (four ruins visited, the fourth telling nothing).
+- The wreck: `--start-orbit 409:6 --start-site 214:65`, then `left:3,thrust:82,none:60`: "Lander report text.urquanwreck", "Back in orbit"; the save has device 24 (the portal key) and `PORTAL_KEY` 1.
+- The vault: `--start-orbit 234:0:0 --start-site 28:43`, then `right:1,thrust:94,none:60`: "Lander report text.syreenvault", the lander staying, `KNOW_SYREEN_VAULT` 1; with `--start-devices SYREEN_SHUTTLE_DEVICE --start-state SYREEN_HOME_VISITS=2` the same: "Lander report text.syreenvault entry 1", "Back in orbit", the save's hold with no device and `SHIP_VAULT_UNLOCKED` 1, `SYREEN_HOME_VISITS` 0.
+- The Ilwrath's ruins: `--start-extinct ilwrath --start-orbit 220:0 --start-site 57:35`, then `right:1,thrust:45,none:60`: "Lander report text.ruins", the lander staying; without `--start-extinct` the same `--start-orbit` starts their talk ("Saw host Talk").
+- Procyon: `--start-orbit 133:1:0 --quit-after 100`: "Lander report text.chmmrbase".
+
+Tried windowed, with `--screenshot`: the Ilwrath's ruins (`--start-extinct ilwrath --start-orbit 220:0 --start-site 57:35`, the script and `right:1,thrust:20`, `--quit-after 360`: the ruins drawn round the lander, the report starting to type), the wreck (`--start-orbit 409:6 --start-site 214:65`, `left:3,thrust:40`, `--quit-after 380`: the lander going up off the wreck, the report typing), the vault (`--start-orbit 234:0:0 --start-site 28:43`, `right:1,thrust:60`, `--quit-after 400`: the vault's dome above the lander) and Procyon (`--start-orbit 133:1:0 --quit-after 250`: the ship by planet II in the system view, "REPORT FROM ORBIT ... WE HAVE EXPLORED THE INTERIOR OF THE STARBASE AND FOUND IT ABANDONED" typed over its bottom).
+
+Not tried by hand: the Pkunk's and the Druuge's ruins, the homeworlds other than the Ilwrath's, a second player reading an artifact found by another (the tests run them).
+
+### What's different from UQM
+
+Row 38 (the nodes that stay, their text read from the story as a node is touched, the Androsynth's chapters told to every player, Procyon's report on the system screen) and row 10 (the artifacts and the key to the finder's ship, the vault read by and taking the finder's ship's shuttle).
+
+### Known limits of item 6
+
+- **The Umgah's ruins** wait for item 10: their world is never entered until its Talking Pet half is ported.
+- **Under a report the world goes on**, as with every report since stage 3a: on the system screen at Procyon a ship held on the arrow keys keeps flying while the report is typed.
+- **No device is used yet** (item 8): the Ultron, the Sphere and the Spindle mend nothing yet; the portal key is read only by the Arilou's talk.

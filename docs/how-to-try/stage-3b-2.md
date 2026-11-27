@@ -390,7 +390,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 
 - **The Ultron's repairs** (the Rosy Sphere, the Clear Spindle and the Aqua Helix put into it) are stage 3c's device use: `--start-devices ULTRON_1_DEVICE`, `ULTRON_2_DEVICE` or `ULTRON_3_DEVICE` set its state until then. In play before 3c only the broken Ultron can be had (from the Supox), so the Utwig can be shown it (a sick trick), not given it.
 - **The mission never starts** (its event is stage 3c's; run since its item 3): the Utwig and the Supox never fly at the Kohr-Ah, their spheres stay, and as allies they talk as UQM's do when the Ultron came too late: their 4 ships at each visit home, a greeting alone in space. `--start-state UTWIG_SUPOX_MISSION=N` (1 to 5) gives the mission's talks.
-- **The bomb** on its moon is picked up since stage 3c item 5, and with it the Druuge's hostility (`DRUUGE_MANNER`); the Supox's and the Utwig's ruins, and the Ultron found in the Supox's once they're gone, are 3c's too.
+- **The bomb** on its moon is picked up since stage 3c item 5, and with it the Druuge's hostility (`DRUUGE_MANNER`); the Supox's and the Utwig's ruins, and the Ultron found in the Supox's once they're gone, are there since stage 3c item 6 (`--start-extinct supox` reaches them).
 - **The Utwig's other song** with their Ultron back is asked for but nothing plays (the audio stage), and the base content has no file for it.
 
 ## Item 10: the Thraddash, the Umgah and the Talking Pet
@@ -447,7 +447,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 
 - **The Talking Pet** is met only by the tests: its world's half of `genpet.c` (the zombies' 10 ships with the Pet's own talk, the hypnosis and the jump to the Ur-Quan, the Pet's deal once they're beaten or the Umgah are gone) and the Pet as a device are stage 3c's. Until then the Umgah's world in those states (set up: none is reached in play) starts no talk and isn't orbited, where UQM, with the Umgah extinct and the Pet taken, orbits it and finds their ruins.
 - **The Thraddash's mission never starts** (its event is stage 3c's; run since its item 3): they never fly at the Kohr-Ah, so the Aqua Helix's world is never left unguarded, and before 3c only allies land there. `--start-state THRADD_MISSION=N` (1 to 5) gives the mission's talks. The Ilwrath's war on them (`ILWRATH_FIGHT_THRADDASH`) is 3c's too.
-- **The Aqua Helix** on its world is picked up since stage 3c item 5, and with it their fight for it wherever they're met (`AQUA_HELIX`); the Thraddash's and the Umgah's ruins are stage 3c's (item 6).
+- **The Aqua Helix** on its world is picked up since stage 3c item 5, and with it their fight for it wherever they're met (`AQUA_HELIX`); the Thraddash's ruins are there since stage 3c item 6 (`--start-extinct thradd`), the Umgah's once item 10 opens their world.
 - **The Umgah's zombies** and **the reward** wait for 3c in play: `UMGAH_ZOMBIE_BLOBBIES` is set by the Arilou in QuasiSpace, `TALKING_PET` by the Pet's own talk.
 
 ## Item 11: the Arilou, the Syreen and the Chmmr
@@ -494,7 +494,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 
 - **The Arilou's homeworld** is in QuasiSpace, stage 3c's: its talk is recorded and tested, not reached in play. `--start-state` can't set `ARILOU_SPACE_SIDE` (each ship's own).
 - **The Chmmr** are met only as a group `--start-encounter` brings; their world's talk once they're freed, and the bomb ship's move and its 14 days, are stage 3c's.
-- **The Syreen's** later talks wait on stage 3c's pickups (the egg cases, the shuttle, the vault, the ambush); `--start-state` reaches them.
+- **The Syreen's** later talks wait on stage 3c's pickups (the egg cases since its item 5, the vault since its item 6; the shuttle and the ambush to come); `--start-state` reaches them.
 
 ## What's different from UQM, in all
 
