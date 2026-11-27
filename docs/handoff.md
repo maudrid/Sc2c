@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3c items 1 to 4 built, reviewed and reported; item 5 part 1 (devices held by ships) built (`50dca34`..`1fd8246`, its Progress row), review round 1 running.
+**Last updated:** 2026-11-27. Stage 3c items 1 to 4 built, reviewed and reported; item 5 part 1 (devices held by ships) built (`50dca34`..`1fd8246`, its Progress row), review round 1 found two save bugs (a starter's or a battle-destroyed guest's devices held twice after they leave), a gift-in-talk race, test gaps and nits; the builder is fixing them.
 
 ## Where things are
 
@@ -70,7 +70,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build stage 3c item 5 (devices held by ships, reports and the artifact pickups), at the owner's go-ahead of 2026-11-27 ("do the next step"), which covers item 5 alone: part 1 (devices held by ships, question 5) first (built in `50dca34`..`1fd8246`; every topic 2,772 passed, 0 failed, 0 skipped; protocol 36, save version 15; review round 1 running), then part 2 (reports' entries, the surface sheets, the single-node pickups); then review it (`CLAUDE.md`), report, and wait for the owner before item 6. Item 4 was reviewed in three rounds (its Progress row).
+Build stage 3c item 5 (devices held by ships, reports and the artifact pickups), at the owner's go-ahead of 2026-11-27 ("do the next step"), which covers item 5 alone: part 1 (devices held by ships, question 5) first (built in `50dca34`..`1fd8246`; every topic 2,772 passed, 0 failed, 0 skipped; protocol 36, save version 15; review round 1's findings being fixed), then part 2 (reports' entries, the surface sheets, the single-node pickups); then review it (`CLAUDE.md`), report, and wait for the owner before item 6. Item 4 was reviewed in three rounds (its Progress row).
 
 ## Decisions waiting on the owner
 
