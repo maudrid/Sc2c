@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3c items 1 to 3 built, reviewed and reported; item 4 (the Kohr-Ah) started at the owner's go-ahead ("do the next step", 2026-11-27), a builder subagent on it.
+**Last updated:** 2026-11-27. Stage 3c items 1 to 3 built, reviewed and reported; item 4 (the Kohr-Ah) built (`5def9b2`, `3a9258c`, `7f6b90d`; its Progress row), review round 1 running.
 
 ## Where things are
 
@@ -71,7 +71,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build stage 3c item 4 (the Kohr-Ah: the victory, the genocide, the frenzy, the game over at Sol with the Black Ur-Quan's last talk on item 2's story pause, the gate at the Sa-Matra), at the owner's go-ahead of 2026-11-27 ("do the next step"), which covers item 4 alone; then review it (`CLAUDE.md`), report, and wait for the owner before item 5. Items 1 to 3 were reviewed in four, four and two rounds (their Progress rows).
+Build stage 3c item 4 (the Kohr-Ah: the victory, the genocide, the frenzy, the game over at Sol with the Black Ur-Quan's last talk on item 2's story pause, the gate at the Sa-Matra), at the owner's go-ahead of 2026-11-27 ("do the next step"), which covers item 4 alone; built in `5def9b2`..`7f6b90d` (every topic 2,753 passed, 0 failed, 0 skipped; protocol 35); review it (`CLAUDE.md`; round 1 running), report, and wait for the owner before item 5. Items 1 to 3 were reviewed in four, four and two rounds (their Progress rows).
 
 ## Decisions waiting on the owner
 
