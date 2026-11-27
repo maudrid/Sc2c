@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3c items 1 to 4 built, reviewed and reported; item 5 part 1 reviewed in three rounds; part 2 (reports' entries, the single-node pickups) built (`b8d81ec`..`9957255`, every topic 2,800 passed, 0 failed, 0 skipped; protocol 37), review round 1 running.
+**Last updated:** 2026-11-27. Stage 3c items 1 to 4 built, reviewed and reported; item 5 part 1 reviewed in three rounds; part 2 (reports' entries, the single-node pickups) built (`b8d81ec`..`9957255`, every topic 2,800 passed, 0 failed, 0 skipped; protocol 37); review round 1 found a gap (a report on a node that stays never delivered, which item 6's ruins need), three test gaps and nits; the builder is fixing them.
 
 ## Where things are
 
