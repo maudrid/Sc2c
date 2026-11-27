@@ -105,7 +105,7 @@ Each of these starts a host where a step can be tried at once (the host's option
 | `--start-docked` | A new game starts docked at the starbase's menu, the opening over: the starbase ready, the commander met, no news |
 | `--start-minerals N,N,N,N,N,N,N,N` | The host's hold starts with these minerals, by category: common, corrosive, base metal, noble, rare earth, precious, radioactive, exotic |
 | `--start-units N` | The host's wallet starts with N resource units |
-| `--start-devices DEVICE[,DEVICE]` | The group carries these devices, by `data/devices.json`'s name (`LUNAR_BASE_DEVICE`) or number |
+| `--start-devices DEVICE[,DEVICE]` | These devices are had, by `data/devices.json`'s name (`LUNAR_BASE_DEVICE`) or number: the portal spawner and the Lunar base by everyone, every other one aboard the host's ship (devices are held by ships since stage 3c item 5) |
 | `--start-orbit STAR:PLANET[:MOON]` | A new game starts in orbit there: Sol is star 82, so Mercury is `82:0` and Luna `82:2:1` |
 | `--start-at X:Y` | The host starts in hyperspace there, in universe units (Sol is at 1752:1450) |
 | `--guests-in-orbit` | Guests joining for the first time start in orbit where the host is |

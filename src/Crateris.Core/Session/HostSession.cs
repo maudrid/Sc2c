@@ -770,7 +770,7 @@ public sealed class HostSession
     public TradeRefusal Give(Gift gift)
     {
         var refusal = World.Give(gift);
-        Logged?.Invoke(refusal == TradeRefusal.None ? $"{gift.From} gave {gift.To} {gift.Describe()}"
+        Logged?.Invoke(refusal == TradeRefusal.None ? $"{gift.From} gave {gift.To} {gift.Describe(World.DeviceNames)}"
             : $"{gift.From}'s gift to {gift.To} refused: {refusal}");
         return refusal;
     }
