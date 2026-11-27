@@ -216,7 +216,11 @@ public sealed class StoryState
         for (int i = 0, bit = f.StartBit; i < 4; ++i, value >>= 8, bit += 8)
             changed |= SetBits(_bits, bit, bit + 7, (byte)value);
         if (changed)
+        {
             ++Version;
+            if (_guardsGone.Count > 0)
+                DropGuardsGone();
+        }
     }
 
     /// <summary>The packed bits, as UQM's GameState array holds them.</summary>
