@@ -254,7 +254,7 @@ public class EscortUpgradeTests
         var loaded = HostSave.FromJson(HostSave.ToJson(world));
         Assert.Equal(guest.Modules.Save(), loaded.Find("guest")!.Ship.Modules.Save());
         Assert.Equal(60, loaded.Find("guest")!.Ship.Hold.CrewCapacity);
-        Assert.Equal(14, HostSave.Version);   // 12 then; 13 is the clock's events' (stage 3b item 1), 14 the Melnorme credits' (3b-2 item 3)
+        Assert.Equal(15, HostSave.Version);   // 12 then; 13 is the clock's events' (stage 3b item 1), 14 the Melnorme credits' (3b-2 item 3), 15 the devices held by ships' (3c item 5)
     }
 
     [Fact]

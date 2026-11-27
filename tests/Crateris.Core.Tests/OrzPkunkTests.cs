@@ -351,7 +351,7 @@ public class OrzPkunkTests
         Assert.True(Said(m.Talk, "GIVE_SPINDLE"));
         Assert.True(Said(m.Talk, "CAN_BE_FRIENDS"));
         Assert.False(Said(m.Talk, "VISIT_OUR_HOMEWORLD"));   // ExitConversation's, in space
-        Assert.Equal((1, 1), (story.Get("CLEAR_SPINDLE"), story.Get("CLEAR_SPINDLE_ON_SHIP")));
+        Assert.Equal((1, 1), (story.Get("CLEAR_SPINDLE"), world.Device("h", "CLEAR_SPINDLE_ON_SHIP")));
         Assert.Equal((3, 0, 0), (story.Get("PKUNK_MANNER"), story.Get("PKUNK_VISITS"), story.Get("PKUNK_HOME_VISITS")));
         // Friends, the talk goes on at home: their friendship still to offer (no ships yet).
         Assert.True(Offered(m.Talk, "we_are_vindicator0"));
@@ -429,9 +429,10 @@ public class OrzPkunkTests
         Assert.True(m.Infinite);
         Assert.Equal(MeetingStep.Encounter, m.Step);
         Assert.True(world.EncounterChoice("g", EncounterAction.Hail));
-        // The Clear Spindle given on the first visit: the group's.
+        // The Clear Spindle given on the first visit: the answerer's ship's (stage 3c item 5).
         Assert.True(Said(m.Talk, "GIVE_SPINDLE"));
-        Assert.Equal((1, 1), (story.Get("CLEAR_SPINDLE"), story.Get("CLEAR_SPINDLE_ON_SHIP")));
+        Assert.Equal((1, 1, 0), (story.Get("CLEAR_SPINDLE"), world.Device("g", "CLEAR_SPINDLE_ON_SHIP"),
+            world.Device("h", "CLEAR_SPINDLE_ON_SHIP")));
         Assert.True(Said(m.Talk, "NEUTRAL_HOMEWORLD_HELLO_1"));
         // Their friendship, with 4 ships to the host's fleet; no alliance (their ships aren't for sale).
         Choose(world, "g", "we_are_vindicator0");

@@ -937,9 +937,15 @@ public sealed class Talk : ITalkStory
 
     // ------------------------------------------------------------ the story
 
-    /// <summary>GET_GAME_STATE: the shared story, or the talk's own value for a field that isn't shared.</summary>
+    /// <summary>
+    /// GET_GAME_STATE: the shared story, the talk's own value for a field
+    /// that isn't shared, or for a device held by ships the answering ship's
+    /// (<see cref="HeldDevice"/>).
+    /// </summary>
     public int Get(string field)
     {
+        if (DeviceTable.HeldByShips(field))
+            return HeldDevice(field);
         if (StoryState.NotShared.ContainsKey(field))
         {
             _ = _story.Table[field];
@@ -948,21 +954,104 @@ public sealed class Talk : ITalkStory
         return _story.Get(field);
     }
 
-    /// <summary>SET_GAME_STATE.</summary>
+    /// <summary>
+    /// SET_GAME_STATE. A device held by ships goes to the answering ship or
+    /// leaves it (UQM's one ship is the answerer: the stage 3c plan's
+    /// question 5), and a recorded one's shared record
+    /// (<see cref="DeviceTable.RecordedFields"/>) takes the value too: found,
+    /// sold, or the Ultron given back (5).
+    /// </summary>
     public void Set(string field, int value)
     {
         Check();
         _events.Add(new StateSet(field, (byte)value));
-        if (StoryState.NotShared.ContainsKey(field))
+        if (DeviceTable.HeldByShips(field))
+        {
+            var held = _story.Table[field];
+            if ((byte)value > held.Max)
+                throw new InvalidOperationException($"{field} is {(byte)value}, more than its {held.Bits} bits hold");
+            Ship.SetDevice(field, (byte)value);
+            if (DeviceTable.RecordedFields.Contains(field))
+                _story.Set(field, value);
+        }
+        else if (StoryState.NotShared.ContainsKey(field))
         {
             var f = _story.Table[field];
             if ((byte)value > f.Max)
                 throw new InvalidOperationException($"{field} is {(byte)value}, more than its {f.Bits} bits hold");
             _own[field] = (byte)value;
         }
-        else
+        else if ((byte)value <= _story.Table[field].Max)
             _story.Set(field, value);
+        else
+        {
+            // A value too big for its field runs into the next fields' bits, as UQM's does: a device held by
+            // ships it runs into goes to or leaves the answering ship as those bits now say (UQM's one ship's
+            // GameState holds both).
+            var before = DeviceTable.HeldFields.ToDictionary(f => f, RawBits);
+            _story.Set(field, value);
+            foreach (var (f, was) in before)
+                if (RawBits(f) is var now && now != was)
+                    Ship.SetDevice(f, now);
+        }
     }
+
+    // A field's bits in the story as they stand, whether shared or not.
+    private int RawBits(string field)
+    {
+        var f = _story.Table[field];
+        return StoryState.GetBits(_story.Bits, f.StartBit, f.EndBit);
+    }
+
+    /// <summary>The Ultron read by the Supox while it's found but not aboard the answering ship: as UQM's once given back.</summary>
+    public const int UltronElsewhere = UltronGivenBack;
+
+    /// <summary>
+    /// A device held by ships as the talk reads it (stage 3c item 5; the
+    /// owner's answer to the stage 3c plan's question 5 and the plan's
+    /// readings of it): the answering ship's holding, as UQM's scripts read
+    /// the one ship's; a recorded field's value that's no device's (the Ultron
+    /// given back to the Utwig, 5) is read by every talk from the story's
+    /// record, as no ship holds it. Two exceptions keep the story's own checks: the
+    /// scripts that read a recorded field as "already found, sold or given"
+    /// read its shared record while the answerer doesn't hold it (the
+    /// Supox's ULTRON_CONDITION, a found Ultron elsewhere read as
+    /// <see cref="UltronElsewhere"/>, so no second is given and none of its
+    /// repairs is asked about; the Druuge's Trident and Rod, so neither is
+    /// sold twice); and the Chmmr read the bomb aboard a guest's ship as
+    /// none, since only aboard the host's can it be built into the bomb ship
+    /// (question 5; their talk's readiness by the host's answering is item 11's).
+    /// </summary>
+    private int HeldDevice(string field)
+    {
+        _ = _story.Table[field];
+        if (field == "UTWIG_BOMB_ON_SHIP" && _script is Scripts.ChmmrScript && !Ship.IsHost)
+            return 0;
+        int held = Ship.Device(field);
+        if (held != 0)
+            return held;
+        if (!DeviceTable.RecordedFields.Contains(field))
+            return 0;
+        // A recorded field's value that's no device's (the Ultron given back, 5, or past it) is no ship's: every
+        // talk reads it so, as UQM's one ship does after.
+        int record = _story.Get(field);
+        if (record != 0 && !_story.Rules.Devices.All.Any(d => d.Listed && d.Field == field && (d.Value ?? 1) == record))
+            return record;
+        if (!ReadsRecord(field))
+            return 0;
+        return record != 0 && field == "ULTRON_CONDITION" ? UltronElsewhere : record;
+    }
+
+    /// <summary>ULTRON_CONDITION once the Utwig have it back (utwigc.c:276): no device, the story's record.</summary>
+    public const int UltronGivenBack = 5;
+
+    // Whether this talk's script reads a recorded device field as the story's record (above).
+    private bool ReadsRecord(string field) => field switch
+    {
+        "ULTRON_CONDITION" => _script is Scripts.SupoxScript,
+        "ARTIFACT_2_ON_SHIP" or "ARTIFACT_3_ON_SHIP" => _script is Scripts.DruugeScript,
+        _ => false,
+    };
 
     /// <summary>GET_GAME_STATE_32: the four 8-bit fields from <paramref name="first"/>, low byte first.</summary>
     public uint Get32(string first)

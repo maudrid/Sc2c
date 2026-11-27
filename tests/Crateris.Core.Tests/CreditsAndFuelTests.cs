@@ -236,7 +236,7 @@ public class CreditsAndFuelTests
         world.Find("guest")!.Ship.Hold.Credits = 25;
         string json = HostSave.ToJson(world);
         var node = JsonNode.Parse(json)!;
-        Assert.Equal(14, node["version"]!.GetValue<int>());
+        Assert.Equal(HostSave.Version, node["version"]!.GetValue<int>());
         var loaded = HostSave.FromJson(json, SystemGroupTests.Systems.Value, TestContent.Shapes);
         Assert.Equal((750u, 25u), (loaded.Host.Ship.Hold.Credits, loaded.Find("guest")!.Ship.Hold.Credits));
         // A version 13 save has none, and one with credits is refused.

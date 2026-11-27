@@ -105,6 +105,8 @@ public class GivingScreenTests
             Assert.Equal(GivingScreen.RowY(r - 1) + 9, GivingScreen.RowY(r));
         Assert.Equal(GivingScreen.FreeY, GivingScreen.RowY(TradeScreen.BioRow - 1) + 9);
         Assert.Equal(GivingScreen.FreeY + 12, GivingScreen.RowY(TradeScreen.BioRow));
+        // The devices' row (stage 3c item 5) a pixel closer, the box kept above the orbit menu.
+        Assert.Equal(GivingScreen.RowY(TradeScreen.BioRow) + 8, GivingScreen.RowY(TradeScreen.DeviceRow));
     }
 
     [Fact]
@@ -130,6 +132,7 @@ public class GivingScreenTests
     [InlineData(TradeScreen.FuelRow)]
     [InlineData(TradeScreen.FirstMineralRow + 2)]
     [InlineData(TradeScreen.BioRow)]
+    [InlineData(TradeScreen.DeviceRow)]
     public void TheRowTheCursorIsOnIsLitAsDrawElementAmountLightsOne(int row)
     {
         var drawn = Draw(Shown(row));
@@ -141,7 +144,7 @@ public class GivingScreenTests
             Assert.Equal(r == row ? CargoDisplay.SelectedBack : CargoDisplay.Back, fill.Color);
             Assert.Equal(S + 58, fill.X + fill.Width - 1);   // to the amount's column, as UQM's
             var texts = Texts(drawn).Where(t => t.Y == y + 6).ToList();
-            if (r == TradeScreen.PlayerRow)
+            if (r is TradeScreen.PlayerRow or TradeScreen.DeviceRow)   // across the box, the device's name as the receiver's
                 Assert.Equal(r == row ? CargoDisplay.SelectedAmount : CargoDisplay.Amount, texts.Single().Color);
             else
             {
@@ -319,6 +322,7 @@ public class GivingScreenTests
     [Theory]
     [InlineData(true, TradeScreen.PlayerRow, 999999, 99999, 9999)]
     [InlineData(false, TradeScreen.BioRow, 999999, 1234, 99999)]
+    [InlineData(true, TradeScreen.DeviceRow, 999999, 1234, 99999)]
     [InlineData(true, TradeScreen.UnitsRow, 4000000000, 2000000000, 1000000)]
     public void EverythingIsDrawnInsideItsArea(bool here, int row, long units, int give, int lots)
     {

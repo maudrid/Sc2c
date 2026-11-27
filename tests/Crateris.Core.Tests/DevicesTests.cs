@@ -37,11 +37,21 @@ public class DevicesTests
     public void TheListAndItsCursorAreUqms(string name)
     {
         var sc = Recorded.EnumerateArray().Single(s => s.GetProperty("name").GetString() == name);
-        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
-        foreach (var f in sc.GetProperty("state").EnumerateObject())
-            story.Set(f.Name, f.Value.GetInt32());
-        var list = Rules.Devices.Inventory(story.Get);
+        // UQM's one ship's fields; and the same devices as the port holds them (stage 3c item 5): the shared ones in
+        // the story, the rest aboard the ship.
+        var state = sc.GetProperty("state").EnumerateObject().ToDictionary(f => f.Name, f => f.Value.GetInt32());
+        var list = Rules.Devices.Inventory(f => state.GetValueOrDefault(f));
         Assert.Equal(sc.GetProperty("list").Ints(), list);
+        var story = StoryState.NewGame(Rules, new GameClock(2155, 2, 17));
+        var held = new SortedSet<int>();
+        foreach (var (f, v) in state)
+        {
+            if (DeviceTable.HeldByShips(f))
+                held = Rules.Devices.WithValue(held, f, v);
+            else
+                story.Set(f, v);
+        }
+        Assert.Equal(list, Rules.Devices.Inventory(story.Get, held));
         var steps = sc.GetProperty("steps").EnumerateArray().ToList();
         if (list.Count == 0)
         {
@@ -72,19 +82,37 @@ public class DevicesTests
     }
 
     [Fact]
-    public void TheGroupInventoryIsStoryFieldsSharedByEveryone()
+    public void DevicesAreHeldByShipsButTheSpawnerAndTheLunarBase()
     {
         Assert.Equal(28, Rules.Devices.All.Count);
         foreach (var field in Rules.Devices.Fields)
             Assert.True(Rules.Table.Contains(field), field);
-        Assert.DoesNotContain(Rules.Devices.Fields, f => StoryState.NotShared.ContainsKey(f));
+        // Stage 3c item 5 (the owner's answer to question 5): every listed device's field is held by ships, but the
+        // spawner's and the Lunar base's, shared; the held ones are kept out of the shared story, but the three
+        // whose field stays as the story's record of found, sold or given.
+        Assert.Equal(Rules.Devices.Fields.Except(DeviceTable.SharedFields).OrderBy(f => f), DeviceTable.HeldFields.OrderBy(f => f));
+        Assert.Equal(new[] { "MOONBASE_ON_SHIP", "PORTAL_SPAWNER_ON_SHIP" }, DeviceTable.SharedFields.OrderBy(f => f));
+        Assert.All(DeviceTable.SharedFields.Concat(DeviceTable.RecordedFields), f => Assert.False(StoryState.NotShared.ContainsKey(f)));
+        Assert.All(DeviceTable.HeldFields.Except(DeviceTable.RecordedFields), f =>
+        {
+            Assert.True(StoryState.NotShared.ContainsKey(f));
+            Assert.Contains(f, StoryState.MovedToPlayers);
+        });
+        Assert.Equal(new[] { 0, 27 }, Rules.Devices.All.Where(d => d.Listed && !Rules.Devices.IsHeld(d.Id)).Select(d => d.Id));
+        // A held field's value on a ship: the device's (the Ultron's repairs), set and taken as a talk sets it.
+        var held = Rules.Devices.WithValue(new[] { 4 }, "ULTRON_CONDITION", 3);
+        Assert.Equal(new[] { 4, 9 }, held);
+        Assert.Equal(3, Rules.Devices.ValueOf(held, "ULTRON_CONDITION"));
+        Assert.Equal(new[] { 4, 10 }, Rules.Devices.WithValue(held, "ULTRON_CONDITION", 4));
+        Assert.Equal(new[] { 4 }, Rules.Devices.WithValue(held, "ULTRON_CONDITION", 5));   // given back: no device
+        Assert.Equal(new[] { 9 }, Rules.Devices.WithValue(held, "ROSY_SPHERE_ON_SHIP", 0));
         Assert.Equal(new[] { 14, 15, 16, 23 }, Rules.Devices.All.Where(d => !d.Listed).Select(d => d.Id));
         Assert.Throws<ArgumentException>(() => new DevicesMenu(Array.Empty<int>()));
         Assert.Equal(MenuOutcome.NotYet, new DevicesMenu(new[] { 3 }).Press(MenuKey.Select));   // using them is 3c
     }
 
     [ContentFact]
-    public void EveryPlayersManifestListsTheGroupsDevices()
+    public void EachPlayersManifestListsTheSharedDevicesAndTheirShips()
     {
         var systems = SystemCatalog.Load(DataDir);
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host",
@@ -103,12 +131,16 @@ public class DevicesTests
         me.PressMenu(MenuKey.Down);
         me.PressMenu(MenuKey.Select);
         Assert.Null(me.OrbitMenu!.DeviceList);
-        // The host's lander brought up the Lunar base: the group carries it.
+        // The host's lander brought up the Lunar base: everyone's; the Rosy Sphere aboard the guest's ship, the Talking
+        // Pet aboard the host's (stage 3c item 5): the guest's list has the base and their sphere.
         world.Story!.Set("MOONBASE_ON_SHIP", 1);
-        world.Story.Set("ROSY_SPHERE_ON_SHIP", 1);
+        world.SetDevice("guest", "ROSY_SPHERE_ON_SHIP");
+        world.SetDevice("host", "TALKING_PET_ON_SHIP");
         world.Step();
         me.Observe(world.Snapshot());
         Assert.Equal(new[] { 4, 27 }, me.Devices());
+        Assert.Equal(new[] { 4 }, me.Me!.Hold!.HeldDevices);
+        Assert.Equal(new[] { 1 }, world.Snapshot().Ships.Single(s => s.IsHost).Hold!.HeldDevices);
         me.PressMenu(MenuKey.Select);
         Assert.Equal(new[] { 4, 27 }, me.OrbitMenu.DeviceList);
         // Drawn in the status area (DevicesDisplay), which hides the status panel: its lines don't list them.
@@ -128,18 +160,29 @@ public class DevicesTests
     }
 
     [ContentFact]
-    public void StartDevicesPutThemAboardTheGroup()
+    public void StartDevicesPutThemAboardTheHostsShip()
     {
         var systems = SystemCatalog.Load(DataDir);
         var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "host", "Host", systems,
             TestContent.Shapes);
-        // --start-devices (testing: the Manifest's Devices list): by name, in any case, or number; the Ultron by its state.
+        var story = host.World.Story!;
+        // --start-devices (testing: the Manifest's Devices list): by name, in any case, or number; the Ultron by its
+        // state. Since stage 3c item 5 the shared ones (the Lunar base) in the story, the rest aboard the host's ship,
+        // the Ultron's shared record set with it.
         Assert.Contains("4 devices", host.StartWithDevices(new[] { "ROSY_SPHERE_DEVICE", "egg_casing1_device", "27", "ULTRON_2_DEVICE" }));
-        Assert.Equal(new[] { 4, 9, 19, 27 }, Rules.Devices.Inventory(host.World.Story!.Get));
+        List<int> Listed() => Rules.Devices.Inventory(story.Get, host.World.Host.Ship.Hold.Devices);
+        Assert.Equal(new[] { 4, 9, 19, 27 }, Listed());
+        Assert.Equal(new[] { 4, 9, 19 }, host.World.Host.Ship.Hold.Devices);
+        Assert.Equal((1, 3), (story.Get("MOONBASE_ON_SHIP"), story.Get("ULTRON_CONDITION")));
         Assert.Throws<ArgumentException>(() => host.StartWithDevices(new[] { "DESTRUCT_CODE_DEVICE" }));   // never listed
         Assert.Throws<ArgumentException>(() => host.StartWithDevices(new[] { "NO_SUCH_DEVICE" }));
         Assert.Throws<ArgumentException>(() => host.StartWithDevices(new[] { "ULTRON_0_DEVICE", "ULTRON_3_DEVICE" }));
-        Assert.Equal(new[] { 4, 9, 19, 27 }, Rules.Devices.Inventory(host.World.Story!.Get));   // a refusal changes nothing
+        Assert.Equal(new[] { 4, 9, 19, 27 }, Listed());   // a refusal changes nothing
+        // --start-state's device fields: the host's ship's too, a recorded one's record with it.
+        Assert.Contains("2 story fields", host.StartWithState(new[] { "TALKING_PET_ON_SHIP=1", "ARTIFACT_2_ON_SHIP=1" }));
+        Assert.Equal(new[] { 1, 4, 9, 19, 25 }, host.World.Host.Ship.Hold.Devices);
+        Assert.Equal(1, story.Get("ARTIFACT_2_ON_SHIP"));
+        Assert.Throws<InvalidOperationException>(() => story.Get("TALKING_PET_ON_SHIP"));   // no shared field
     }
 
     [ContentFact]

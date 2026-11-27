@@ -59,11 +59,14 @@ namespace Crateris.Game;
 /// --start-units N (host: the wallet starts with N resource units),
 /// --start-credits N (host: the host starts with N Melnorme credits, to give or trade with), --start-fuel N (host: the
 /// host's ship starts with N units of fuel, up to its tanks; 0 strands it, for the Melnorme's rescue),
-/// --start-devices DEVICE[,DEVICE] (host: the group carries these devices, by data/devices.json's name or number),
+/// --start-devices DEVICE[,DEVICE] (host: these devices are had, by data/devices.json's name or number: the portal
+/// spawner and the Lunar base by everyone, every other one aboard the host's ship, as devices are held by ships since
+/// stage 3c item 5),
 /// --start-state NAME=VALUE[,NAME=VALUE] (host: these story fields set, by data/game-state.json's name, to reach what
 /// waits on stage 3c's devices and events; repeatable; a field that isn't one, a value past what its bits hold, or a
 /// field each talk, ship or player keeps of its own (StoryState.NotShared: GLOBAL_FLAGS_AND_DATA, the Melnorme's
-/// credits, ...) is refused; set before the other --start options, so --start-orbit's world sees them),
+/// credits, ...) is refused, but USED_BROADCASTER and the devices held by ships, which are set on the host's ship; set
+/// before the other --start options, so --start-orbit's world sees them),
 /// (a --start option refused, with a notice, stops the ones after it: --start-state, then --start-devices, then
 /// --start-allied, then --start-fleet, then --start-date, then the others in the order Main.ApplyStartOptions applies them; --encounter-choice, --meeting-replies, --guests-in-orbit
 /// and --guests-in-battle are set before them all, so a refused one doesn't drop those),
@@ -156,7 +159,11 @@ public sealed class Options
     /// <summary>--start-fuel N: the host's ship starts with N units of fuel (testing: the Melnorme's rescue).</summary>
     public uint? StartFuel { get; private set; }
 
-    /// <summary>--start-devices DEVICE[,DEVICE]: the group carries these devices, by name (ROSY_SPHERE_DEVICE) or number (testing: the Manifest's Devices list).</summary>
+    /// <summary>
+    /// --start-devices DEVICE[,DEVICE]: these devices are had, by name (ROSY_SPHERE_DEVICE) or number (testing: the
+    /// Manifest's Devices list): the portal spawner and the Lunar base shared, every other one aboard the host's ship
+    /// (stage 3c item 5).
+    /// </summary>
     public string[]? StartDevices { get; private set; }
 
     /// <summary>--start-state NAME=VALUE[,...], repeatable: these story fields set at the start (testing: what waits on stage 3c).</summary>

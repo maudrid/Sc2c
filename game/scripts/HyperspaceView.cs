@@ -51,6 +51,9 @@ public partial class HyperspaceView : Control
     {
     }
 
+    /// <summary>The names of stars, for the markers to other players (set once the content is open).</summary>
+    public Names? Names { get; set; }
+
     /// <summary>The sprites (set once the content is open, before the game starts).</summary>
     public SpriteTextures? Sprites { get; set; }
 
@@ -131,6 +134,19 @@ public partial class HyperspaceView : Control
             var (x, y) = HyperScreen.Sprite(b.X, b.Y, logX, logY);
             SisScreen.BattleMarker(this, new Vector2(x, y) * SisScreen.Scale, Sprites, RaceLook?.Invoke(b.EnemyShip));
         }
+
+        // The leavers' containers in hyperspace near the ship (stage 3c item 5), each at its place.
+        foreach (var c in _snapshot.Containers ?? Array.Empty<ContainerSnapshot>())
+        {
+            if (c.Star is not null || !StarContact.InReach(Units.LogXToUniverse(c.X), Units.LogYToUniverse(c.Y), ux, uy))
+                continue;
+            var (x, y) = HyperScreen.Sprite(c.X, c.Y, logX, logY);
+            SisScreen.Container(this, new Vector2(x, y) * SisScreen.Scale, EdgeMarkers.ContainerName(c));
+        }
+
+        // The markers to the other players, wrecks and containers not drawn on this screen (question 12).
+        SisScreen.EdgeMarkers(this, EdgeMarkers.InHyperspace(_snapshot, me.Id, logX, logY, _map,
+            st => Names?.Cluster(st) ?? $"star {st.Number}"));
 
         // Ships entering a star: turning and drifting onto it, as UQM plays
         // it (an escort that joined meanwhile rides in with the flagship).

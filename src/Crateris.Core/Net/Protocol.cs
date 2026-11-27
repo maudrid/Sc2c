@@ -187,7 +187,12 @@ public static class Protocol
     /// says when they've gone through them (StoryClosingDone, with the
     /// view's round); the game over's notice says the Kohr-Ah won
     /// (BattleNotice.KilledAll).
-    public const int Version = 35;
+    /// 36: devices held by ships (stage 3c item 5): a ship's hold carries
+    /// the devices it holds (HoldSnapshot.Devices), a snapshot every
+    /// leaver's container (WorldSnapshot.Containers: its number, leaver's
+    /// name, place and devices), and a gift a device (Gift.Device, after
+    /// the fuel), refused as TradeRefusal.DeviceTooFar or HasOne.
+    public const int Version = 36;
     public const int DefaultPort = 24642;
 
     /// <summary>

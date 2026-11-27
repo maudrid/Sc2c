@@ -180,4 +180,9 @@ public sealed class Names
 
     /// <summary>A game string by its index (GAME_STRING), as text: a device's name, say.</summary>
     public string GameString(int index) => _strings[index];
+
+    /// <summary>A device's name on one line (DEVICE_STRING_BASE + 1 + device, its lines joined by spaces; stage 3c item 5).</summary>
+    public string Device(int device) =>
+        string.Join(" ", GameString(Story.DeviceTable.NameString(device))
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 }

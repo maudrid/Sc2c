@@ -185,19 +185,22 @@ public class UtwigSupoxTests
         Assert.False(ship.Destroyed);
     }
 
-    // A device aboard, as --start-devices puts it (its story field at its value): the Ultron's states are
-    // one field's values (ULTRON_CONDITION 1 to 4), its repairs stage 3c's.
-    private static void Aboard(GameWorld world, string device)
+    // A device aboard a player's ship (the host's unless said), as --start-devices puts it (its field at its
+    // value; the Ultron's states are one field's values, ULTRON_CONDITION 1 to 4, its repairs 3c item 8's),
+    // and no other ship's: one device, one holder (stage 3c item 5).
+    private static void Aboard(GameWorld world, string device, string id = "h")
     {
         var d = world.Systems!.StoryRules!.Devices.All.Single(x => x.Name == device);
-        world.Story!.Set(d.Field!, d.Value ?? 1);
+        foreach (var p in world.Players)
+            world.SetDevice(p.Id, d.Field!, 0);
+        world.SetDevice(id, d.Field!, d.Value ?? 1);
     }
 
-    // The devices the group carries, by name (the Manifest's list).
-    private static string[] Devices(GameWorld world)
+    // The devices on a player's list (the host's unless said), by name (the Manifest's: the shared ones and their ship's).
+    private static string[] Devices(GameWorld world, string id = "h")
     {
         var table = world.Systems!.StoryRules!.Devices;
-        return table.Inventory(world.Story!.Get).Select(i => table.All[i].Name).ToArray();
+        return table.Inventory(world.Story!.Get, world.Find(id)!.Ship.Hold.Devices).Select(i => table.All[i].Name).ToArray();
     }
 
     // The broken Ultron handed over by the Supox at their homeworld to a player, who keeps it politely.
@@ -214,7 +217,7 @@ public class UtwigSupoxTests
     // their homeworld by a player, who hails them from the encounter screen: they take it.
     private static Meeting GiveUltron(GameWorld world, string id)
     {
-        Aboard(world, "ULTRON_3_DEVICE");
+        Aboard(world, "ULTRON_3_DEVICE", id);
         var m = Orbit(world, id, Star(world, "UTWIG_DEFINED"), 0);
         Assert.Equal(MeetingStep.Encounter, m.Step);
         Assert.True(world.EncounterChoice(id, EncounterAction.Hail));
@@ -703,11 +706,13 @@ public class UtwigSupoxTests
         Assert.Equal(new[] { "whats_wrong_with_utwig", "i_am0", "bye_neutral" }, Offers(m.Talk));
         Choose(world, "g", "whats_wrong_with_utwig");
         Assert.True(Said(m.Talk, "BROKE_ULTRON"));
-        Assert.Empty(Devices(world));
+        Assert.Empty(Devices(world, "g"));
         Choose(world, "g", "whats_ultron");
         Assert.True(Said(m.Talk, "TAKE_ULTRON"));
         Assert.Equal((1, 0), (story.Get("ULTRON_CONDITION"), story.Get("SUPOX_WAR_NEWS")));
-        Assert.Equal(new[] { "ULTRON_0_DEVICE" }, Devices(world));
+        // The answerer's ship's (stage 3c item 5), the story's record of it found with it.
+        Assert.Equal(new[] { "ULTRON_0_DEVICE" }, Devices(world, "g"));
+        Assert.Empty(Devices(world));
         Assert.Equal(new[] { "what_do_i_do_now", "thanks_now_we_eat_you" }, Offers(m.Talk));
         Choose(world, "g", "thanks_now_we_eat_you");
         Assert.True(Said(m.Talk, "HIDEOUS_MONSTERS"));
@@ -831,22 +836,22 @@ public class UtwigSupoxTests
         var world = NewGame("g");
         var story = world.Story!;
         TakeUltron(world, "g");
-        Assert.Equal(new[] { "ULTRON_0_DEVICE" }, Devices(world));
+        Assert.Equal(new[] { "ULTRON_0_DEVICE" }, Devices(world, "g"));
         world.TakeNotices();
-        // The host, who wasn't given it, shows it: the group's.
-        var m = MeetInSystem(world, "h", "UTWIG_SHIP");
-        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        // Its holder, the guest, shows it (stage 3c item 5: a talk reads the answering ship's devices).
+        var m = MeetInSystem(world, "g", "UTWIG_SHIP");
+        Assert.True(world.EncounterChoice("g", EncounterAction.Hail));
         Assert.Equal(new[] { "we_are_vindicator0", "what_about_urquan_1", "got_ultron", "bye_neutral" }, Offers(m.Talk!));
-        Choose(world, "h", "got_ultron");
+        Choose(world, "g", "got_ultron");
         Assert.Equal(new[] { "NEUTRAL_SPACE_HELLO_1", "DONT_WANT_TO_LOOK", "SICK_TRICK_1" }, Lines(m.Talk!));
         Assert.Equal((1, 1, 0, Segue.Peace), (story.Get("UTWIG_INFO"), story.Get("ULTRON_CONDITION"), story.Get("UTWIG_HAVE_ULTRON"), m.Talk!.Segue));
-        MeetingTests.HearClosing(world, "h");
+        MeetingTests.HearClosing(world, "g");
         Assert.Null(m.Battle);
-        m = MeetInSystem(world, "h", "UTWIG_SHIP");
-        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
-        Choose(world, "h", "got_ultron");
+        m = MeetInSystem(world, "g", "UTWIG_SHIP");
+        Assert.True(world.EncounterChoice("g", EncounterAction.Hail));
+        Choose(world, "g", "got_ultron");
         Assert.Equal(new[] { "NEUTRAL_SPACE_HELLO_2", "DONT_WANT_TO_LOOK", "SICK_TRICK_2" }, Lines(m.Talk!));
-        MeetingTests.HearClosing(world, "h");
+        MeetingTests.HearClosing(world, "g");
         Assert.Null(m.Battle);
         Assert.Equal(Allied.Bad, story.Alliance("UTWIG_SHIP"));
         Assert.DoesNotContain(world.TakeNotices(), n => n.Event == NoticeEvent.AllianceMade);
@@ -874,6 +879,11 @@ public class UtwigSupoxTests
             Retreat(world, "g");
         }
         Assert.Equal((1, 0), (story.Get("ULTRON_CONDITION"), story.Get("UTWIG_HAVE_ULTRON")));
+        // The host, who doesn't hold it, is met as UQM's player without it (utwigc.c:800-806): no reply, a fight.
+        m = MeetInSystem(world, "h", "UTWIG_SHIP");
+        Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
+        Assert.Empty(m.Talk!.Replies);
+        Assert.Equal(Segue.Hostile, m.Talk.Segue);
     }
 
     [ContentFact]
@@ -902,8 +912,8 @@ public class UtwigSupoxTests
         Assert.False(world.Outfit("h", new BuildShip(0, "SUPOX_SHIP")));
         world.TakeNotices();
 
-        Aboard(world, "ULTRON_3_DEVICE");
-        Assert.Equal(new[] { "ULTRON_3_DEVICE" }, Devices(world));
+        Aboard(world, "ULTRON_3_DEVICE", "g");
+        Assert.Equal(new[] { "ULTRON_3_DEVICE" }, Devices(world, "g"));
         var m = Orbit(world, "g", Star(world, "UTWIG_DEFINED"), 0);
         Assert.Equal(MeetingStep.Encounter, m.Step);
         Assert.True(world.EncounterChoice("g", EncounterAction.Hail));
@@ -913,7 +923,7 @@ public class UtwigSupoxTests
         Assert.Empty(m.Talk!.Replies);
         Assert.Equal(Segue.Peace, m.Talk.Segue);
         Assert.Equal((1, 5), (story.Get("UTWIG_HAVE_ULTRON"), story.Get("ULTRON_CONDITION")));
-        Assert.Empty(Devices(world));
+        Assert.Empty(Devices(world, "g"));
         foreach (var field in new[] { "UTWIG_VISITS", "SUPOX_VISITS", "UTWIG_HOME_VISITS", "SUPOX_HOME_VISITS", "BOMB_VISITS", "SUPOX_INFO",
                      "UTWIG_INFO", "SUPOX_WAR_NEWS", "UTWIG_WAR_NEWS", "SUPOX_HOSTILE", "UTWIG_HOSTILE" })
             Assert.True(story.Get(field) == 0, field);

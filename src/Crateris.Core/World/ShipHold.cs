@@ -42,21 +42,29 @@ public enum LanderUpgrades
 /// wallet (ResUnits), 0 in saves from before stage 3a; Melnorme credits
 /// the player's balance with them (MELNORME_CREDIT0/1, each player's own:
 /// docs/differences.md row 19), 0 in saves from before stage 3b-2 item 3.
+/// Devices are those the ship holds, by globdata.h's numbers (stage 3c item
+/// 5: <see cref="ShipHold.Devices"/>), none in saves from before it.
 /// </summary>
 public sealed record HoldState(int Crew, int Landers, int[]? Minerals, int BioData,
-    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0, uint Credits = 0);
+    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0, uint Credits = 0, int[]? Devices = null);
 
 /// <summary>
 /// What a ship carries (<see cref="ShipHold"/>), as snapshots send it:
 /// crew, landers, storage capacity, minerals by element category, bio data,
 /// lander upgrades, resource units, the room in the storage bays the
 /// lander that is out keeps for what it brings up (its MineralCapacity, 0
-/// when none is out), and the Melnorme credits. Equal by value, so
-/// snapshots compare by value.
+/// when none is out), the Melnorme credits, and the devices the ship
+/// holds (stage 3c item 5, by globdata.h's numbers, in order; the shared
+/// ones, the spawner and the Lunar base, are the story's). Equal by value,
+/// so snapshots compare by value.
 /// </summary>
 public sealed record HoldSnapshot(int Crew, int Landers, int StorageCapacity, IReadOnlyList<int> Minerals, int BioData,
-    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0, int LanderRoom = 0, uint Credits = 0)
+    LanderUpgrades Upgrades = LanderUpgrades.None, uint ResourceUnits = 0, int LanderRoom = 0, uint Credits = 0,
+    IReadOnlyList<int>? Devices = null)
 {
+    /// <summary>The devices the ship holds (none if not given).</summary>
+    public IReadOnlyList<int> HeldDevices => Devices ?? Array.Empty<int>();
+
     public int MineralMass => Minerals.Sum();
 
     /// <summary>The minerals another player may give the ship: <see cref="ShipHold.RoomForCargo"/>, as the host takes it.</summary>
@@ -66,7 +74,7 @@ public sealed record HoldSnapshot(int Crew, int Landers, int StorageCapacity, IR
         other is not null && (Crew, Landers, StorageCapacity, BioData, Upgrades, ResourceUnits, LanderRoom, Credits)
             == (other.Crew, other.Landers, other.StorageCapacity, other.BioData, other.Upgrades, other.ResourceUnits, other.LanderRoom,
                 other.Credits)
-        && Minerals.SequenceEqual(other.Minerals);
+        && Minerals.SequenceEqual(other.Minerals) && HeldDevices.SequenceEqual(other.HeldDevices);
 
     public override int GetHashCode() => HashCode.Combine(Crew, Landers, StorageCapacity, BioData, Upgrades, MineralMass);
 }
@@ -186,6 +194,46 @@ public sealed class ShipHold
     }
 
     private uint _credits;
+
+    private readonly SortedSet<int> _devices = new();
+
+    /// <summary>
+    /// The devices this ship holds (stage 3c item 5; the owner's answer to
+    /// the stage 3c plan's question 5), by globdata.h's numbers
+    /// (<see cref="Story.DeviceTable"/>): every device but the shared ones
+    /// (the portal spawner and the Lunar base, story fields), which the
+    /// ship's lander picked up, its player's talks were given, another
+    /// player handed over or a leaver's container gave it. Its talks read
+    /// and change them as UQM's read the one ship's.
+    /// </summary>
+    public IReadOnlyCollection<int> Devices => _devices;
+
+    /// <summary>The ship now holds these devices (by number), and no others.</summary>
+    internal void SetDevices(IEnumerable<int> devices)
+    {
+        var next = new SortedSet<int>(devices);
+        if (next.SetEquals(_devices))
+            return;
+        _devices.Clear();
+        _devices.UnionWith(next);
+        _snapshot = null;
+    }
+
+    /// <summary>A device (by number) comes aboard.</summary>
+    internal void AddDevice(int device)
+    {
+        if (_devices.Add(device))
+            _snapshot = null;
+    }
+
+    /// <summary>A device (by number) leaves the ship: false if it wasn't aboard.</summary>
+    internal bool RemoveDevice(int device)
+    {
+        if (!_devices.Remove(device))
+            return false;
+        _snapshot = null;
+        return true;
+    }
 
     /// <summary>A talk changes the crew aboard (the commander's lander with its crew).</summary>
     internal void SetCrew(int crew)
@@ -350,11 +398,14 @@ public sealed class ShipHold
     /// <summary>The hold for snapshots, made again only when it changes.</summary>
     public HoldSnapshot Snapshot() =>
         _snapshot ??= new HoldSnapshot(Crew, Landers, StorageCapacity, _minerals.ToArray(), BioData, _upgrades, _resourceUnits,
-            LanderOut?.MineralCapacity ?? 0, _credits);
+            LanderOut?.MineralCapacity ?? 0, _credits, _devices.Count == 0 ? null : _devices.ToArray());
 
     /// <summary>The hold for the save; a lander that is out is saved as back aboard with its crew.</summary>
     public HoldState Save() =>
-        new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades, _resourceUnits, _credits);
+        new(Crew + (LanderOut?.Crew ?? 0), Landers, _minerals.ToArray(), BioData, _upgrades, _resourceUnits, _credits, SavedDevices);
+
+    // The devices for the save: none left out.
+    private int[]? SavedDevices => _devices.Count == 0 ? null : _devices.ToArray();
 
     /// <summary>
     /// The hold for the save while its lander is on a surface (decision 5:
@@ -367,12 +418,16 @@ public sealed class ShipHold
         if (LanderOut is null)
             return Save();
         if (crew == 0)
-            return new(Crew, Landers - 1, _minerals.ToArray(), BioData, _upgrades, _resourceUnits, _credits);
+            return new(Crew, Landers - 1, _minerals.ToArray(), BioData, _upgrades, _resourceUnits, _credits, SavedDevices);
         return new(Crew + crew, Landers, _minerals.Zip(minerals, (a, b) => a + b).ToArray(), BioData + bioData, _upgrades,
-            _resourceUnits, _credits);
+            _resourceUnits, _credits, SavedDevices);
     }
 
-    /// <summary>Puts a saved hold back (the loadout gives the storage). A bad one is an <see cref="InvalidDataException"/>.</summary>
+    /// <summary>
+    /// Puts a saved hold back (the loadout gives the storage). A bad one is
+    /// an <see cref="InvalidDataException"/>; its devices are checked against
+    /// the device table by the save (HostSave), which knows it.
+    /// </summary>
     public void Restore(HoldState state)
     {
         if (state.Minerals is not { } minerals)
@@ -393,6 +448,8 @@ public sealed class ShipHold
         _upgrades = state.Upgrades;
         _resourceUnits = state.ResourceUnits;
         _credits = state.Credits;
+        _devices.Clear();
+        _devices.UnionWith(state.Devices ?? Array.Empty<int>());
         LanderOut = null;
         _snapshot = null;
     }

@@ -549,24 +549,40 @@ public class ArilouSyreenChmmrTests
     {
         // chmmrc.c's ExitConversation "proceed" (the Chmmr unleashed, the Pet and the bomb aboard: stage 3c's,
         // set up here; the plan's question 8): their alliance (everyone told), the bomb's state, and the
-        // answering ship (a guest's) rebuilt as chmmrc.c rebuilds the flagship: 1,000,000 RU, no landers,
+        // answering ship (the host's: since stage 3c item 5 the bomb is no bomb to the Chmmr aboard a guest's
+        // ship, question 5) rebuilt as chmmrc.c rebuilds the flagship: 1,000,000 RU, no landers,
         // with the starbase only the reserve's fuel, no crew, no minerals, the modules past the bomb's
         // cleared, thrusters and jets in every slot and the bomb's ten modules; the landers' and the storage
         // bays' prices 0 for everyone (shared). The move to the starbase and the 14 days are stage 3c's.
         var world = NewGame("g");
         var story = world.Story!;
-        foreach (var (f, v) in new[] { ("CHMMR_UNLEASHED", 1), ("TALKING_PET_ON_SHIP", 1), ("UTWIG_BOMB_ON_SHIP", 1) })
-            story.Set(f, v);
-        world.TakeNotices();
-        var guest = world.Find("g")!.Ship;
-        var hostRu = world.Host.Ship.Hold.ResourceUnits;
+        story.Set("CHMMR_UNLEASHED", 1);
+        // The Pet and the bomb aboard a guest's ship (stage 3c item 5): the bomb fits only the host's (question 5),
+        // so to the Chmmr it's not there: not ready, the weapon asked after.
+        world.SetDevice("g", "TALKING_PET_ON_SHIP");
+        world.SetDevice("g", "UTWIG_BOMB_ON_SHIP");
         var (m, _) = MeetInHyperspace(world, "g", "CHMMR_SHIP", x: 4000);
+        Assert.False(Said(m.Talk!, "YOU_ARE_READY"));
+        Assert.True(Said(m.Talk!, "RETURN_WHEN_READY"));
+        Assert.Contains(m.Talk!.Replies, r => r.Function == "NotReady");
+        Choose(world, "g", "bye");
+        MeetingTests.HearClosing(world, "g");
+        Assert.Equal((1, 1), (world.Device("g", "TALKING_PET_ON_SHIP"), world.Device("g", "UTWIG_BOMB_ON_SHIP")));
+        // Aboard the host's ship: ready.
+        world.SetDevice("g", "TALKING_PET_ON_SHIP", 0);
+        world.SetDevice("g", "UTWIG_BOMB_ON_SHIP", 0);
+        world.SetDevice("h", "TALKING_PET_ON_SHIP");
+        world.SetDevice("h", "UTWIG_BOMB_ON_SHIP");
+        world.TakeNotices();
+        var guest = world.Host.Ship;
+        var guestRu = world.Find("g")!.Ship.Hold.ResourceUnits;
+        (m, _) = MeetInHyperspace(world, "h", "CHMMR_SHIP", x: 4000);
         Assert.True(Said(m.Talk!, "YOU_ARE_READY"));
         Assert.True(Said(m.Talk!, "WE_WILL_IMPROVE_BOMB"));
-        Choose(world, "g", "proceed");
+        Choose(world, "h", "proceed");
         Assert.True(Said(m.Talk!, "TAKE_2_WEEKS"));
         Assert.Equal(Allied.Good, story.Alliance("CHMMR_SHIP"));
-        Assert.Equal((2, 0, 0, 0), (story.Get("CHMMR_BOMB_STATE"), story.Get("UTWIG_BOMB_ON_SHIP"),
+        Assert.Equal((2, 0, 0, 0), (story.Get("CHMMR_BOMB_STATE"), world.Device("h", "UTWIG_BOMB_ON_SHIP"),
             story.Get("CHMMR_HOME_VISITS"), story.Get("CHMMR_STACK")));
         Assert.Equal((1000000u, 0, 1000u, 0), (guest.Hold.ResourceUnits, guest.Hold.Landers, guest.Flight.Fuel, guest.Hold.Crew));
         Assert.All(guest.Hold.Minerals, a => Assert.Equal(0, a));
@@ -574,9 +590,9 @@ public class ArilouSyreenChmmrTests
         Assert.All(guest.Modules.JetSlots, s => Assert.Equal(ShipModules.TurningJets, s));
         Assert.Equal(new byte[] { 18, 19, 17, 15, 14, 15, 17, 18, 19, 16, 22, 22, 22, 22, 22, 22 }, guest.Modules.ModuleSlots);
         Assert.Equal((0, 0), (story.ModuleCost("PLANET_LANDER"), story.ModuleCost("STORAGE_BAY")));
-        Assert.Equal(hostRu, world.Host.Ship.Hold.ResourceUnits);   // the answerer's ship alone
-        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "h" && n.Event == NoticeEvent.AllianceMade);
-        MeetingTests.HearClosing(world, "g");
+        Assert.Equal(guestRu, world.Find("g")!.Ship.Hold.ResourceUnits);   // the answerer's ship alone
+        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "g" && n.Event == NoticeEvent.AllianceMade);
+        MeetingTests.HearClosing(world, "h");
         Assert.Null(m.Battle);
     }
 
@@ -605,7 +621,7 @@ public class ArilouSyreenChmmrTests
         }
         // The Ilwrath extinct: no talk, an orbit.
         var world2 = NewGame();
-        world2.Story!.Set("SUN_DEVICE_ON_SHIP", 1);
+        world2.SetDevice("h", "SUN_DEVICE_ON_SHIP");
         // (StartSphereTracking: extinct is no ships left and the race dead.)
         world2.Story.SetFleet("ILWRATH_SHIP", world2.Story.Fleet("ILWRATH_SHIP") with { ActualStrength = 0 });
         world2.Story.SetAlliance("ILWRATH_SHIP", Allied.Dead);

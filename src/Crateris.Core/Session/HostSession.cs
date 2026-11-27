@@ -145,11 +145,14 @@ public sealed class HostSession
     }
 
     /// <summary>
-    /// --start-devices (testing): the group carries these devices (by
-    /// globdata.h's name, as data/devices.json has them, or number): each
-    /// one's story field set (to its value, for the Ultron's states). Ones
-    /// the Manifest never lists are refused (ArgumentException), as are
-    /// two of the Ultron's states, which share one field.
+    /// --start-devices (testing): these devices (by globdata.h's name, as
+    /// data/devices.json has them, or number) are had: the shared ones (the
+    /// portal spawner, the Lunar base) by their story field, every other
+    /// one aboard the host's ship (stage 3c item 5: devices are held by
+    /// ships), the Ultron in the state given, and the recorded ones'
+    /// shared record set too (found or sold). Ones the Manifest never lists
+    /// are refused (ArgumentException), as are two of the Ultron's states,
+    /// which share one field.
     /// </summary>
     public string StartWithDevices(IEnumerable<string> devices)
     {
@@ -169,8 +172,23 @@ public sealed class HostSession
             chosen.Add(d);
         }
         foreach (var d in chosen)
-            story.Set(d.Field!, d.Value ?? 1);
+            SetDeviceField(d.Field!, d.Value ?? 1);
         return $"Starting with {chosen.Count} devices aboard";
+    }
+
+    // A device's field set as the set-up options set it: a device held by
+    // ships on the host's ship (with a recorded one's shared record), a
+    // shared one in the story.
+    private void SetDeviceField(string field, int value)
+    {
+        if (!DeviceTable.HeldByShips(field))
+        {
+            World.Story!.Set(field, value);
+            return;
+        }
+        PlayerTalkShip.SetDeviceOf(World, World.Host, field, value);
+        if (DeviceTable.RecordedFields.Contains(field))
+            World.Story!.Set(field, value);
     }
 
     /// <summary>
@@ -181,7 +199,9 @@ public sealed class HostSession
     /// loaded, and is saved with it. Needs the story
     /// (InvalidOperationException); a field that isn't one, one kept out of
     /// the shared story (<see cref="StoryState.NotShared"/>: each talk's,
-    /// ship's or player's own), or a value that isn't a number from 0 to
+    /// ship's or player's own; but the broadcaster's use and the devices
+    /// held by ships, stage 3c item 5, are set on the host's ship, a
+    /// recorded device's shared record with it), or a value that isn't a number from 0 to
     /// what the field's bits hold is an ArgumentException, before anything
     /// changes. A field given twice takes the last value.
     /// </summary>
@@ -199,8 +219,9 @@ public sealed class HostSession
             string name = a[..eq].Trim(), text = a[(eq + 1)..].Trim();
             if (!table.Contains(name))
                 throw new ArgumentException($"{name} isn't a story field (data/game-state.json's names)");
-            // The broadcaster's use is each player's own (stage 3b-2 item 4): the host's is set.
-            if (StoryState.NotShared.TryGetValue(name, out string? why) && name != "USED_BROADCASTER")
+            // The broadcaster's use is each player's own (stage 3b-2 item 4), and a device held by ships each
+            // ship's (stage 3c item 5): the host's are set.
+            if (StoryState.NotShared.TryGetValue(name, out string? why) && name != "USED_BROADCASTER" && !DeviceTable.HeldByShips(name))
                 throw new ArgumentException($"{name} isn't shared story state, so it can't be set at the start: {why}");
             var field = table[name];
             if (!int.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int value)
@@ -212,6 +233,8 @@ public sealed class HostSession
         {
             if (name == "USED_BROADCASTER")
                 World.Host.Ship.UsedBroadcaster = value != 0;
+            else if (DeviceTable.HeldByShips(name))
+                SetDeviceField(name, value);
             else
                 story.Set(name, value);
         }

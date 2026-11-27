@@ -62,6 +62,15 @@ public enum TradeRefusal : byte
     /// 3b-2 item 4): the strip may take storage bays they'd need.
     /// </summary>
     StripOffered,
+
+    /// <summary>
+    /// A device goes only to a player close by (stage 3c item 5, the
+    /// plan's question 5: fuel's rule, <see cref="Gift.CloseBy"/>).
+    /// </summary>
+    DeviceTooFar,
+
+    /// <summary>The receiver already holds one of the device's kind (the Ultron, in another state).</summary>
+    HasOne,
 }
 
 /// <summary>
@@ -71,17 +80,23 @@ public enum TradeRefusal : byte
 /// the same solar system, the minerals up to the room in the receiver's
 /// storage bays; fuel (in UQM's 1/100 units, FuelOnBoard's) to a player
 /// close by (<see cref="CloseBy"/>), up to the room in the receiver's
-/// tanks (the stage 3b-2 plan's item 3).
+/// tanks (the stage 3b-2 plan's item 3); and a device the giver's ship
+/// holds (by globdata.h's number, <see cref="NoDevice"/> for none) to a
+/// player close by, by fuel's rule (stage 3c item 5; the owner's answer to
+/// the stage 3c plan's question 5).
 /// </summary>
 public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyList<int> Minerals, int BioData,
-    uint Credits = 0, uint Fuel = 0)
+    uint Credits = 0, uint Fuel = 0, int Device = Gift.NoDevice)
 {
+    /// <summary>No device given.</summary>
+    public const int NoDevice = -1;
+
     /// <summary>Whether it carries cargo (minerals or bio data), which goes only within a system.</summary>
     public bool Cargo => Minerals.Any(m => m != 0) || BioData != 0;
 
     public bool Equals(Gift? other) =>
-        other is not null && (From, To, ResourceUnits, BioData, Credits, Fuel)
-            == (other.From, other.To, other.ResourceUnits, other.BioData, other.Credits, other.Fuel)
+        other is not null && (From, To, ResourceUnits, BioData, Credits, Fuel, Device)
+            == (other.From, other.To, other.ResourceUnits, other.BioData, other.Credits, other.Fuel, other.Device)
         && Minerals.SequenceEqual(other.Minerals);
 
     public override int GetHashCode() => HashCode.Combine(From, To, ResourceUnits, BioData, Credits, Fuel);
@@ -101,7 +116,7 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         : starB is null && Math.Abs(ax - bx) <= Hyperspace.HyperEncounters.ScreenX
                         && Math.Abs(ay - by) <= Hyperspace.HyperEncounters.ScreenY;
 
-    /// <summary>The gift as a message (from, to, the units, each category's minerals, the bio data, the credits, the fuel).</summary>
+    /// <summary>The gift as a message (from, to, the units, each category's minerals, the bio data, the credits, the fuel, the device).</summary>
     public byte[] Encode()
     {
         var w = new WireWriter();
@@ -113,6 +128,7 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         w.UInt((ulong)BioData);
         w.UInt(Credits);
         w.UInt(Fuel);
+        w.Int(Device);
         return w.Written.ToArray();
     }
 
@@ -129,15 +145,18 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
             minerals[i] = Small(r.UInt());
         int bio = Small(r.UInt());
         ulong credits = r.UInt(), fuel = r.UInt();
+        long device = r.Int();
         if (units > uint.MaxValue)
             throw new InvalidDataException("Bad resource units.");
         if (credits > uint.MaxValue)
             throw new InvalidDataException("Bad credits.");
         if (fuel > uint.MaxValue)
             throw new InvalidDataException("Bad fuel.");
+        if (device < NoDevice || device > Net.SnapshotCodec.MostDevices)
+            throw new InvalidDataException("Bad device.");
         if (!r.AtEnd)
             throw new InvalidDataException("A gift has bytes after its end.");
-        return new Gift(from, to, (uint)units, minerals, bio, (uint)credits, (uint)fuel);
+        return new Gift(from, to, (uint)units, minerals, bio, (uint)credits, (uint)fuel, (int)device);
     }
 
     /// <summary>The longest player id a gift may name (ids are short; a longer one is refused).</summary>
@@ -145,10 +164,12 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
 
     private static int Small(ulong n) => n <= 1_000_000 ? (int)n : throw new InvalidDataException("Bad gift amount.");
 
-    /// <summary>What it carries, in words.</summary>
-    public string Describe()
+    /// <summary>What it carries, in words; a device by <paramref name="deviceName"/> (by its number), "a device" without it.</summary>
+    public string Describe(Func<int, string?>? deviceName = null)
     {
         var parts = new List<string>();
+        if (Device != NoDevice)
+            parts.Add(deviceName?.Invoke(Device) is { Length: > 0 } name ? $"the {name}" : "a device");
         if (ResourceUnits != 0)
             parts.Add($"{ResourceUnits} RU");
         int minerals = Minerals.Sum();
@@ -184,6 +205,8 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         TradeRefusal.TooFar => "Fuel goes only to a player close by: within a screen in hyperspace, or in the same system.",
         TradeRefusal.NoTankRoom => "Their fuel tanks haven't the room.",
         TradeRefusal.StripOffered => "Not now: the Melnorme are offering to strip their ship, storage bays and all.",
+        TradeRefusal.DeviceTooFar => "A device goes only to a player close by: within a screen in hyperspace, or in the same system.",
+        TradeRefusal.HasOne => "They already hold one of those.",
         _ => "",
     };
 }

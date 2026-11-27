@@ -487,8 +487,9 @@ public class TalkScreenTests
         // TalkView.Over): the screen with no changes, which encodes.
         var world = WithTalks();
         var story = world.Story!;
-        foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED", "VUX_BEAST_ON_SHIP" })
+        foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED" })
             story.Set(f, 1);
+        world.SetDevice("host", "VUX_BEAST_ON_SHIP");   // the host's ship's (stage 3c item 5)
         story.Set("STARBASE_MONTH", 3);
         story.Set("STARBASE_DAY", 3);
         story.Set32("STARBASE_BULLETS0", 0xFFFFFFFF);

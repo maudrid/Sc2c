@@ -190,8 +190,8 @@ public class VuxYehatTests
     {
         var world = NewGame("g");
         var story = world.Story!;
-        // The beast aboard (3c's pickup; --start-devices VUX_BEAST_DEVICE): the group's, whoever carries it.
-        story.Set("VUX_BEAST_ON_SHIP", 1);
+        // The beast aboard the answerer's ship (3c's pickup; stage 3c item 5: devices are held by ships).
+        world.SetDevice("g", "VUX_BEAST_ON_SHIP");
         int star = Star(world, "MAIDENS_DEFINED");
         world.PutInOrbit("g", star, 0);
         var m = world.MeetingOf("g")!;
@@ -211,7 +211,7 @@ public class VuxYehatTests
         var view = TalkView.Of(m)!;
         Assert.Equal(new[] { new ScreenChange(1, ScreenChangeKind.Fade, 1, Talk.OneSecond / 4) }, view.Screen!.Changes);
         Assert.Equal(2, view.Lines.Count);
-        Assert.Equal((1, 0), (story.Get("ZEX_IS_DEAD"), story.Get("VUX_BEAST_ON_SHIP")));
+        Assert.Equal((1, 0), (story.Get("ZEX_IS_DEAD"), world.Device("g", "VUX_BEAST_ON_SHIP")));
         Assert.Equal(Segue.Peace, m.Talk.Segue);
         MeetingTests.HearClosing(world, "g");
         Assert.Null(m.Battle);

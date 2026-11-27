@@ -140,7 +140,7 @@ public class WorldTalkTests
         var world = NewGame();
         var story = world.Story!;
         var locks = world.DialogueLocks!;
-        story.Set("SUN_DEVICE_ON_SHIP", 1);   // Procyon's Ilwrath's test
+        world.SetDevice("h", "SUN_DEVICE_ON_SHIP");   // Procyon's Ilwrath's test
         Assert.Equal(ListedScripts.Keys.OrderBy(k => k), GameWorld.TalkWorlds.Select(w => (w.Special, w.Race)).OrderBy(k => k));
         foreach (var w in GameWorld.TalkWorlds)
         {
@@ -329,7 +329,7 @@ public class WorldTalkTests
         Assert.Null(world.MeetingOf("h"));   // no Sun Device: an orbit
         Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
 
-        story.Set("SUN_DEVICE_ON_SHIP", 1);
+        world.SetDevice("h", "SUN_DEVICE_ON_SHIP");
         world.Host.Ship.Ip!.ReturnFromOrbit();
         world.Host.Ship.Ip.EscapeCounter = 0;
         // An Ilwrath group in the system, and the guest there.
@@ -373,12 +373,22 @@ public class WorldTalkTests
         Assert.Null(world.WorldTalkAt(star, 1, null));
     }
 
-    // A new game's story with these fields set.
+    // A new game's story with these fields set; a device held by ships held by some player's ship (stage 3c item 5).
     private static StoryState StoryWith(params (string Field, int Value)[] sets)
     {
         var story = StoryState.NewGame(OutfitTests.Rules, new GameClock(2155, 2, 17));
+        var held = new HashSet<string>();
         foreach (var (f, v) in sets)
-            story.Set(f, v);
+        {
+            if (DeviceTable.HeldByShips(f))
+            {
+                if (v != 0)
+                    held.Add(f);
+            }
+            else
+                story.Set(f, v);
+        }
+        story.AnyShipHolds = held.Contains;
         return story;
     }
 

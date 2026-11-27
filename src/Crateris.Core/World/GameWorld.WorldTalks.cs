@@ -267,11 +267,12 @@ public sealed partial class GameWorld
             PutAside = false,
         },
         // genchmmr.c:92: Procyon's Ilwrath, before the Chmmr are unleashed, with the Sun Device aboard
-        // while the Ilwrath aren't deceived (the Ilwrath's bit 6 branch, stage 3b-1 item 7's).
+        // while the Ilwrath aren't deceived (the Ilwrath's bit 6 branch, stage 3b-1 item 7's); aboard any
+        // player's ship (stage 3c item 5, the plan's readings of question 5).
         new("CHMMR_DEFINED", 1, null, "ILWRATH_SHIP", 1 << 6, "GenerateChmmr_generateOrbital")
         {
             Matches = s => Flag(s, "CHMMR_UNLEASHED") == 0,
-            Guarded = (s, lives) => Flag(s, "SUN_DEVICE_ON_SHIP") != 0 && Flag(s, "ILWRATH_DECEIVED") == 0 && lives(),
+            Guarded = (s, lives) => s.HeldByAnyShip("SUN_DEVICE_ON_SHIP") && Flag(s, "ILWRATH_DECEIVED") == 0 && lives(),
             StandDown = false,
         },
     };

@@ -40,7 +40,9 @@ namespace Crateris.Presentation;
 /// player in the same solar system: when the receiver is elsewhere the
 /// cargo rows are dimmed, their icons drawn as shapes in the dim colour.
 /// Fuel goes only to a player close by: when the receiver isn't, its row
-/// is dimmed.
+/// is dimmed. Below the bio data, a row more than the cargo display's: the
+/// device to give (stage 3c item 5), by name across the box, dimmed as the
+/// fuel's (a device goes by fuel's rule).
 /// </summary>
 public static class GivingScreen
 {
@@ -59,6 +61,14 @@ public static class GivingScreen
     /// <summary>The fuel row's label, as the units'.</summary>
     public const string FuelLabel = "Fuel";
 
+    /// <summary>The device row's words with no device chosen and some to choose from (stage 3c item 5).</summary>
+    public const string DevicesLabel = "Devices";
+
+    /// <summary>A device's name on one line: its game string's lines (DEVICE_STRING_BASE + 1 + device) joined by spaces.</summary>
+    public static string DeviceName(Func<int, string> gameString, int device) =>
+        string.Join(" ", gameString(Core.Story.DeviceTable.NameString(device))
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
     /// <summary>The cargo rows' colour while the receiver is in another system.</summary>
     public static readonly Rgb Dim = Rgb.From15(0x07, 0x07, 0x10);
 
@@ -68,7 +78,8 @@ public static class GivingScreen
     private const int ToOrgY = 29, UnitsOrgY = 44, CreditsOrgY = UnitsOrgY + Spacing, FuelOrgY = CreditsOrgY + Spacing;
     private const int ElementOrgY = FuelOrgY + Spacing;
     private const int FreeOrgY = ElementOrgY + Categories * Spacing, BioOrgY = FreeOrgY + 12;
-    private const int BoxBottom = BioOrgY + Spacing;   // the box's last line, as the cargo display's
+    private const int DeviceOrgY = BioOrgY + Spacing - 1;   // a pixel closer than the others, the box kept above the orbit menu
+    private const int BoxBottom = DeviceOrgY + Spacing;   // the box's last line, as the cargo display's, a row lower for the devices
     private const int Col0 = 7, HaveCol = 36, GiveCol = 58, Gap = 3, SelOrgX = Col0 + 7 + 5;
     private const int WideX = 4, WideWidth = GiveCol - WideX + 1;   // the rows without an icon, lit across the box
     private const int Categories = Core.World.ShipHold.Categories;
@@ -91,6 +102,7 @@ public static class GivingScreen
         TradeScreen.CreditsRow => CreditsOrgY,
         TradeScreen.FuelRow => FuelOrgY,
         TradeScreen.BioRow => BioOrgY,
+        TradeScreen.DeviceRow => DeviceOrgY,
         _ => ElementOrgY + (row - TradeScreen.FirstMineralRow) * Spacing,
     };
 
@@ -151,6 +163,16 @@ public static class GivingScreen
         }
         Icon(BioOrgY, BioIcon);
         Amount(TradeScreen.BioRow, dim);
+
+        // The device to give (stage 3c item 5), across the box as the player given to is: its name (the game
+        // strings' two lines on one), "-" for none chosen; dimmed unless the receiver is close by, as the fuel is.
+        bool devLit = shown.Row == TradeScreen.DeviceRow;
+        canvas.SetForeground(devLit ? CargoDisplay.SelectedBack : CargoDisplay.Back);
+        canvas.FillRect(new URect(WideX, DeviceOrgY, WideWidth, RowHeight));
+        canvas.SetForeground(!shown.Near ? Dim : devLit ? CargoDisplay.SelectedAmount : CargoDisplay.Amount);
+        canvas.Text(WideX + (WideWidth >> 1), DeviceOrgY + TextBaseline, TextAlign.Center,
+            shown.Device is int device ? Cut(DeviceName(gameString, device), NameRoom, tinyWidth)
+            : shown.Have[TradeScreen.DeviceRow] > 0 ? DevicesLabel : "-");
 
         // The line over the bio data, and the receiver's room (the cargo display's Free row, ShowRemainingCapacity):
         // in their storage bays, or while the fuel row is lit, in their fuel tanks (in whole units, dimmed unless

@@ -142,4 +142,24 @@ public interface ITalkShip
 
     /// <summary>The crew the answering ship holds beside its crew pods (an escort's kit's; a flagship's none).</summary>
     int KitCrew => 0;
+
+    // ---- the devices (stage 3c item 5): the answering ship's own
+
+    /// <summary>
+    /// The value a device held by ships has on the answering ship
+    /// (<see cref="Story.DeviceTable.HeldFields"/>: 1 if it holds it, the
+    /// Ultron's repair level for ULTRON_CONDITION, 0 if not), read live, as
+    /// UQM's scripts read the one ship's GameState (the owner's answer to
+    /// the stage 3c plan's question 5: a talk reads what the answering ship holds).
+    /// </summary>
+    int Device(string field);
+
+    /// <summary>
+    /// A talk gives the answering ship a device held by ships, or takes it
+    /// (SET_GAME_STATE on its field: the value as <see cref="Device"/> reads it, 0 to take it).
+    /// </summary>
+    void SetDevice(string field, int value);
+
+    /// <summary>Whether the answering ship is the host's (the bomb fits only the host's ship, question 5).</summary>
+    bool IsHost { get; }
 }

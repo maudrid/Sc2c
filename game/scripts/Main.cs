@@ -408,6 +408,7 @@ public partial class Main : Node2D
             return false;
         }
         _systemView.Names = _orbitView.Names = _names;
+        _view.Names = _names;   // the markers' stars (stage 3c item 5)
         return true;
     }
 
@@ -486,6 +487,7 @@ public partial class Main : Node2D
             _player?.Notify(SaveGame() ? "Game saved." : "This game isn't saved.");
         };
         _host.World.TalkLibrary = _talks;
+        _host.World.DeviceNames = d => _names?.Device(d);   // a container taken names its devices (stage 3c item 5)
         _host.World.BattleKit = _battleKit;
         _host.World.DialogueLocks = DialogueLocks.Load(_dataDir);
         if (_player != null)

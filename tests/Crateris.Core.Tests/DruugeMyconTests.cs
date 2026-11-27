@@ -311,11 +311,13 @@ public class DruugeMyconTests
     }
 
     [ContentFact]
-    public void TheArtifactsBoughtAreTheGroupsAndThreeHundredCrewSoldAtOnceRaiseThePriceByTwentyTwo()
+    public void TheArtifactsBoughtAreTheBuyersAndThreeHundredCrewSoldAtOnceRaiseThePriceByTwentyTwo()
     {
         // Buy: 100 crew each for the Rosy Sphere (ROSY_SPHERE_ON_SHIP and ROSY_SPHERE) and their two
-        // fakes (ARTIFACT_2_ON_SHIP, ARTIFACT_3_ON_SHIP), story flags: each offered until the group has
-        // it. ExitConversation: more than 250 sold with 100 or fewer before, the price up by 22.
+        // fakes (ARTIFACT_2_ON_SHIP, ARTIFACT_3_ON_SHIP): each offered until it's sold, the buyer's ship
+        // holding it (stage 3c item 5) and the story recording the sale (ROSY_SPHERE; the two fakes'
+        // fields, their only record). ExitConversation: more than 250 sold with 100 or fewer before, the
+        // price up by 22.
         var world = NewGame("g");
         var story = world.Story!;
         story.Set("KNOW_DRUUGE_SLAVERS", 3);
@@ -326,16 +328,18 @@ public class DruugeMyconTests
         Assert.True(Said(m.Talk!, "HAVE_SPHERE") && Said(m.Talk!, "HAVE_ART_1") && Said(m.Talk!, "HAVE_ART_2"));
         Choose(world, "g", "buy_rosy_sphere");
         Assert.True(Said(m.Talk!, "BOUGHT_SPHERE"));
-        Assert.Equal((1, 1, 210), (story.Get("ROSY_SPHERE"), story.Get("ROSY_SPHERE_ON_SHIP"), guest.Hold.Crew));
+        Assert.Equal((1, 1, 210), (story.Get("ROSY_SPHERE"), world.Device("g", "ROSY_SPHERE_ON_SHIP"), guest.Hold.Crew));
         Assert.False(Offered(m.Talk!, "buy_rosy_sphere"));
         Choose(world, "g", "buy_art_1");
         Assert.True(Said(m.Talk!, "BOUGHT_ART_1"));
         Assert.Equal((1, 0, 110), (story.Get("ARTIFACT_2_ON_SHIP"), story.Get("ARTIFACT_3_ON_SHIP"), guest.Hold.Crew));
+        Assert.Equal(1, world.Device("g", "ARTIFACT_2_ON_SHIP"));
         Choose(world, "g", "buy_art_2");
         Assert.True(Said(m.Talk!, "BOUGHT_ART_2"));
         Assert.Equal((1, 10), (story.Get("ARTIFACT_3_ON_SHIP"), guest.Hold.Crew));
         Assert.False(Offered(m.Talk!, "buy_art_1") || Offered(m.Talk!, "buy_art_2"));
         Assert.True(Offered(m.Talk!, "buy_druuge_ship") && Offered(m.Talk!, "buy_fuel"));
+        Assert.Equal(new[] { 4, 25, 26 }, guest.Hold.Devices);
         world.TakeNotices();
         Choose(world, "g", "done_buying", "bye");
         Assert.Equal((300, 25), (CrewSold(story), story.CrewCost));
@@ -416,13 +420,13 @@ public class DruugeMyconTests
     public void TheMaidensAreSoldForSixMaulersOrAsManyAsTheHostsFleetHasRoomFor()
     {
         // DoTransaction: MAIDENS_ON_SHIP cleared, AddEscortShips (DRUUGE_SHIP, 6), and their line by the
-        // room there was (EscortFeasibilityStudy before): all 6, fewer, or none. The Maidens are the
-        // group's (a story flag): a guest sells them, and the ships join the host's fleet.
+        // room there was (EscortFeasibilityStudy before): all 6, fewer, or none. A guest holding the
+        // Maidens (stage 3c item 5) sells them, and the ships join the host's fleet.
         foreach (var (room, line) in new[] { (12, "DEAL_FOR_STATED_SHIPS"), (4, "DEAL_FOR_LESS_SHIPS"), (0, "DEAL_FOR_NO_SHIPS") })
         {
             var world = NewGame("g");
             var story = world.Story!;
-            story.Set("MAIDENS_ON_SHIP", 1);
+            world.SetDevice("g", "MAIDENS_ON_SHIP");
             story.Set("ROSY_SPHERE", 1);   // the regular deal
             if (room < HostFleet.MaxShips)
                 world.AddFleetShips("SPATHI_SHIP", HostFleet.MaxShips - room);
@@ -433,7 +437,7 @@ public class DruugeMyconTests
             Choose(world, "g", "want_to_sell", "sell_maidens");
             Assert.True(Said(m.Talk!, "BOUGHT_MAIDENS") && Said(m.Talk!, "YOU_GET") && Said(m.Talk!, line));
             int joined = Math.Min(room, 6);
-            Assert.Equal((0, joined), (story.Get("MAIDENS_ON_SHIP"), world.Fleet.CountOf("DRUUGE_SHIP")));
+            Assert.Equal((0, joined), (world.Device("g", "MAIDENS_ON_SHIP"), world.Fleet.CountOf("DRUUGE_SHIP")));
             Assert.Equal(new EscortsAdded(Race(world, "DRUUGE_SHIP"), 6, joined), m.Talk!.Events.OfType<EscortsAdded>().Single());
             Assert.False(Offered(m.Talk, "sell_maidens"));
             var told = world.TakeNotices().Where(n => n.Event == NoticeEvent.ShipsGiven).ToList();
@@ -455,7 +459,7 @@ public class DruugeMyconTests
         // line by it; no ships for the broadcaster. The seller's tanks: the guest's, the host's untouched.
         var world = NewGame("g");
         var story = world.Story!;
-        story.Set("BURV_BROADCASTERS_ON_SHIP", 1);
+        world.SetDevice("g", "BURV_BROADCASTERS_ON_SHIP");
         story.Set("ROSY_SPHERE", 1);
         var guest = world.Find("g")!.Ship;
         uint capacity = guest.Flight.FuelCapacity, hostFuel = world.Host.Ship.Flight.Fuel;
@@ -467,7 +471,7 @@ public class DruugeMyconTests
         Assert.True(Said(m.Talk!, "GOOD_DEAL"));
         Assert.Contains(m.Talk!.Events, e => e is LineQueued { Phrase: 0, Text: "13" });
         Assert.Equal(new GaugesChanged(0, 1260, 0), m.Talk.Events.OfType<GaugesChanged>().Single());
-        Assert.Equal((capacity, hostFuel, 0), (guest.Flight.Fuel, world.Host.Ship.Flight.Fuel, story.Get("BURV_BROADCASTERS_ON_SHIP")));
+        Assert.Equal((capacity, hostFuel, 0), (guest.Flight.Fuel, world.Host.Ship.Flight.Fuel, world.Device("g", "BURV_BROADCASTERS_ON_SHIP")));
         Assert.DoesNotContain(m.Talk.Events, e => e is EscortsAdded);
         Assert.False(Said(m.Talk, "YOU_ALSO_GET"));
         Assert.Empty(world.Fleet.Ships);
@@ -481,7 +485,7 @@ public class DruugeMyconTests
         // else; "no way" is the regular deal, the sphere still theirs to offer for the next.
         var world = NewGame();
         var story = world.Story!;
-        story.Set("MAIDENS_ON_SHIP", 1);
+        world.SetDevice("h", "MAIDENS_ON_SHIP");
         story.Set("PORTAL_SPAWNER_ON_SHIP", 1);
         story.Set("KNOW_DRUUGE_SLAVERS", 3);
         var host = world.Host.Ship;
@@ -504,7 +508,7 @@ public class DruugeMyconTests
         Choose(world, "h", "way");
         Assert.True(Said(m.Talk!, "OK_HERES_SPHERE"));
         Assert.False(Said(m.Talk!, "BOUGHT_MAIDENS"));
-        Assert.Equal((0, 1, 1, 3), (story.Get("MAIDENS_ON_SHIP"), story.Get("ROSY_SPHERE"), story.Get("ROSY_SPHERE_ON_SHIP"),
+        Assert.Equal((0, 1, 1, 3), (world.Device("h", "MAIDENS_ON_SHIP"), story.Get("ROSY_SPHERE"), world.Device("h", "ROSY_SPHERE_ON_SHIP"),
             world.Fleet.CountOf("DRUUGE_SHIP")));
         // Theirs no longer: not for sale.
         Choose(world, "h", "done_selling", "want_to_buy");

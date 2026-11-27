@@ -293,7 +293,7 @@ public class TradingTests
         Assert.Equal(("guest", "Guest", true, TradeScreen.UnitsRow), (shown.To, shown.ToName, shown.Here, shown.Row));
         Assert.Equal(world.Find("guest")!.Ship.Hold.RoomForCargo, shown.Room);
         long fuel = world.Host.Ship.Flight.Fuel / 100;
-        Assert.Equal(new long[] { 0, 150, 0, fuel, 0, 0, 12, 0, 0, 0, 0, 0, 3 }, shown.Have);
+        Assert.Equal(new long[] { 0, 150, 0, fuel, 0, 0, 12, 0, 0, 0, 0, 0, 3, 0 }, shown.Have);
         Assert.True(shown.Near);   // in the same system, so close by
         Assert.Equal((int)((world.Find("guest")!.Ship.Flight.FuelCapacity - world.Find("guest")!.Ship.Flight.Fuel) / 100), shown.TankRoom);
         Assert.All(shown.Give, a => Assert.Equal(0, a));

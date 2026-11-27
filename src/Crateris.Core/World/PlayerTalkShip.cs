@@ -162,6 +162,24 @@ internal sealed class PlayerTalkShip : ITalkShip
 
     public int KitCrew => _player.Ship.Modules.KitCrew;
 
+    // The answering ship's devices held by ships (stage 3c item 5), read and changed live.
+    public int Device(string field) => DeviceOf(_world, _player, field);
+
+    public void SetDevice(string field, int value) => SetDeviceOf(_world, _player, field, value);
+
+    public bool IsHost => _player.IsHost;
+
+    /// <summary>The value a held device's field has on a player's ship (none without the story).</summary>
+    internal static int DeviceOf(GameWorld world, Player player, string field) =>
+        world.Story is { } story ? story.Rules.Devices.ValueOf(player.Ship.Hold.Devices, field) : 0;
+
+    /// <summary>A held device's field set on a player's ship: its devices of that field as the value says.</summary>
+    internal static void SetDeviceOf(GameWorld world, Player player, string field, int value)
+    {
+        if (world.Story is { } story)
+            player.Ship.Hold.SetDevices(story.Rules.Devices.WithValue(player.Ship.Hold.Devices, field, value));
+    }
+
     // A ship's slots of a kind as a list a talk reads and changes: each change refits the ship.
     private sealed class Slots : IList<byte>
     {

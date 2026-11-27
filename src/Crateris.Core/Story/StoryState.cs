@@ -56,7 +56,7 @@ public sealed class StoryState
     /// The fields kept out of the shared story state, and why. Shared,
     /// one player's visit would change another's.
     /// </summary>
-    public static readonly IReadOnlyDictionary<string, string> NotShared = new Dictionary<string, string>
+    public static readonly IReadOnlyDictionary<string, string> NotShared = WithHeldDevices(new Dictionary<string, string>
     {
         ["GLOBAL_FLAGS_AND_DATA"] = "where a talk is happening (at the starbase, a homeworld, a broadcaster): each talk's own",
         ["BATTLE_SEGUE"] = "how a talk ends: each talk's own",
@@ -75,18 +75,42 @@ public sealed class StoryState
         ["ARILOU_SPACE_SIDE"] = "whether a ship is in hyperspace or QuasiSpace: each ship's own",
         ["PLANETARY_LANDING"] = "whether a lander is down: each ship's own (PlayerShip.Lander, stage 2b)",
         ["PLANETARY_CHANGE"] = "whether a visit changed its world (for UQM's star info file): taken nodes are saved at once (PlanetWorldState)",
-    };
+    });
+
+    // The devices held by ships (stage 3c item 5), but for those whose field
+    // stays as the story's record of found, sold or given (DeviceTable.RecordedFields).
+    private static Dictionary<string, string> WithHeldDevices(Dictionary<string, string> fields)
+    {
+        foreach (string f in DeviceTable.HeldFields.Where(f => !DeviceTable.RecordedFields.Contains(f)))
+            fields[f] = "a device held by one ship: each ship's own (ShipHold.Devices, stage 3c item 5)";
+        return fields;
+    }
 
     /// <summary>
     /// The fields shared until stage 3b-2 item 4 made them each player's own
-    /// (the Melnorme's rescue fields, the broadcaster's use): a save from
-    /// before has them in its story, which loads them as the host's own
-    /// (<see cref="LoadedPlayerFields"/>) rather than refusing the save.
+    /// (the Melnorme's rescue fields, the broadcaster's use), and stage 3c
+    /// item 5 each ship's (the devices held by ships but for the recorded
+    /// three, <see cref="DeviceTable.RecordedFields"/>, which stay shared as
+    /// their record and are read again for the host's ship by the save): a
+    /// save from before has them in its story, which loads them as the
+    /// host's own (<see cref="LoadedPlayerFields"/>) rather than refusing
+    /// the save.
     /// </summary>
-    public static readonly IReadOnlySet<string> MovedToPlayers = new HashSet<string>
-    {
-        "MELNORME_RESCUE_REFUSED", "MELNORME_RESCUE_COUNT", "USED_BROADCASTER",
-    };
+    public static readonly IReadOnlySet<string> MovedToPlayers = new HashSet<string>(
+        new[] { "MELNORME_RESCUE_REFUSED", "MELNORME_RESCUE_COUNT", "USED_BROADCASTER" }
+            .Concat(DeviceTable.HeldFields.Where(f => !DeviceTable.RecordedFields.Contains(f))));
+
+    /// <summary>
+    /// Whether any player's ship holds a device held by ships, by its field
+    /// (stage 3c item 5): the game's (GameWorld.AnyShipHolds), for the
+    /// story's reads outside talks; none without a game.
+    /// </summary>
+    public Func<string, bool>? AnyShipHolds { get; set; }
+
+    /// <summary>Whether any player's ship holds a held device's field (<see cref="AnyShipHolds"/>).</summary>
+    public bool HeldByAnyShip(string field) =>
+        DeviceTable.HeldByShips(field) ? AnyShipHolds?.Invoke(field) ?? false
+        : throw new ArgumentException($"{field} isn't a device held by ships", nameof(field));
 
     /// <summary>The <see cref="MovedToPlayers"/> fields a restored story had, for the host's own.</summary>
     public Dictionary<string, int> LoadedPlayerFields { get; } = new();

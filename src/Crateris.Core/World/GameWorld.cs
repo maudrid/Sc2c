@@ -81,13 +81,15 @@ public sealed record OrbitedWorldSnapshot(int Star, int Planet, int? Moon, uint 
 /// encounters in hyperspace while a player is there, the groups in the
 /// systems players are in). A guest is sent only its own
 /// lander's surface, only its own battle, the elements near its ship, and
-/// only the groups it sees (<see cref="GroupSnapshot.SeenBy"/>).
+/// only the groups it sees (<see cref="GroupSnapshot.SeenBy"/>). Every
+/// leaver's container in space goes to everyone (<see cref="Containers"/>,
+/// stage 3c item 5).
 /// </summary>
 public sealed record WorldSnapshot(long Frame, int Year, int Month, int Day, IReadOnlyList<ShipSnapshot> Ships,
     IReadOnlyList<OrbitedWorldSnapshot>? OrbitedWorlds = null, IReadOnlyList<SurfaceSnapshot>? Surfaces = null,
     Story.StorySnapshot? Story = null, string? StoryPause = null, bool HostPaused = false,
     IReadOnlyList<BattleSnapshot>? Battles = null, IReadOnlyList<BattleMarkerSnapshot>? Markers = null,
-    IReadOnlyList<GroupSnapshot>? Groups = null);
+    IReadOnlyList<GroupSnapshot>? Groups = null, IReadOnlyList<ContainerSnapshot>? Containers = null);
 
 /// <summary>
 /// The host's authoritative game: world state (clock, planets) and every
@@ -125,7 +127,30 @@ public sealed partial class GameWorld
     /// made from the systems' <see cref="SystemCatalog.StoryRules"/>, so a
     /// world without them (some tests) has none.
     /// </summary>
-    public StoryState? Story { get; internal set; }
+    public StoryState? Story
+    {
+        get => _story;
+        internal set
+        {
+            _story = value;
+            // The story's reads of a device held by ships outside talks (stage 3c item 5): any player's ship's.
+            if (value is not null)
+                value.AnyShipHolds = AnyShipHolds;
+        }
+    }
+
+    private StoryState? _story;
+
+    /// <summary>
+    /// Whether any player's ship holds a device held by ships (by its story
+    /// field, <see cref="DeviceTable.HeldFields"/>; stage 3c item 5): the
+    /// story's reads outside talks (the plan's readings of question 5:
+    /// Tanaka's brother while any ship holds the Maidens, Procyon's Ilwrath
+    /// guard while any ship holds the Sun Device). Every player's ship
+    /// counts, present, away or a wreck; a leaver's container isn't a ship.
+    /// </summary>
+    public bool AnyShipHolds(string field) =>
+        Story is { } story && _players.Any(p => story.Rules.Devices.ValueOf(p.Ship.Hold.Devices, field) != 0);
 
     /// <summary>
     /// The talks' content (the content package's lines for the ported
@@ -331,6 +356,7 @@ public sealed partial class GameWorld
         {
             existing.Name = name;
             existing.Present = true;
+            TakeBackContainer(existing);   // their devices back, if their container is still there (stage 3c item 5)
             _inputs[id].Clear();
             if (existing.Ship.InputHeldUntil >= Frame)
                 _inputs[id].DropThrough(existing.Ship.InputHeldUntil);   // back during its entry
@@ -424,11 +450,12 @@ public sealed partial class GameWorld
         _heldChoices.RemoveAll(h => h.Id == id);
         _heldClosings.RemoveAll(h => h.Id == id);
         EndSpin(player);   // out of hyperspace from where its spin had taken it
+        player.Ship.Flight.Stop();
+        player.Ship.Ip?.Stop();   // in orbit it stays in orbit
+        LeaveDevicesBehind(player, tell: true);   // its devices in a container where it waits (stage 3c item 5)
         player.Present = false;
         _inputs[id].Clear();
         _actionHeld.Remove(id);
-        player.Ship.Flight.Stop();
-        player.Ship.Ip?.Stop();   // in orbit it stays in orbit
         AfterMeetingBattles();   // a meeting's battle ended by the disconnect: the group written back
         AfterTheFight();   // the Ilwrath's fight ended by the disconnect: settled with the player gone
     }
@@ -642,6 +669,7 @@ public sealed partial class GameWorld
         StepSystems(systemFrames);
         JoinBattles();
         FlyIntoWrecks();
+        FlyIntoContainers();
         StepBattles();
         AfterMeetingBattles();
         ForgetToldTalking();
@@ -1549,10 +1577,12 @@ public sealed partial class GameWorld
     /// <summary>
     /// A player gives another resource units and Melnorme credits,
     /// anywhere, minerals and bio data within a solar system, the minerals
-    /// up to the receiver's room (stage 3a, item 9), and fuel to a player
+    /// up to the receiver's room (stage 3a, item 9), fuel to a player
     /// close by (<see cref="Gift.CloseBy"/>: within a screen in hyperspace,
     /// or in the same system) up to the room in the receiver's tanks (the
-    /// stage 3b-2 plan's item 3). Both must be in the game; not while the
+    /// stage 3b-2 plan's item 3), and a device their ship holds to a player
+    /// close by, by fuel's rule (stage 3c item 5; question 5), unless the
+    /// receiver holds one of its kind. Both must be in the game; not while the
     /// game waits for a story talk or is over, nor to or from a ship in a
     /// battle or a wreck. A player in a talk (a meeting's, the starbase's
     /// menu talk) can be given anything: a Melnorme trader topped up with
@@ -1584,18 +1614,26 @@ public sealed partial class GameWorld
         if (Visit is { Opening: true, StarterSettled: false } opening
                 && (opening.Starter.Id == gift.From || opening.Starter.Id == gift.To))
             return TradeRefusal.Paused;
+        bool device = gift.Device != Gift.NoDevice;
         if (gift.Minerals.Count != ShipHold.Categories || gift.Minerals.Any(m => m < 0) || gift.BioData < 0
-                || (gift.ResourceUnits == 0 && gift.Credits == 0 && gift.Fuel == 0 && !gift.Cargo))
+                || (gift.ResourceUnits == 0 && gift.Credits == 0 && gift.Fuel == 0 && !gift.Cargo && !device)
+                || (device && Story?.Rules.Devices.IsHeld(gift.Device) != true))
             return TradeRefusal.Nothing;
         var from = giver.Ship.Hold;
         var to = taker.Ship.Hold;
         if (from.ResourceUnits < gift.ResourceUnits || from.Credits < gift.Credits || from.BioData < gift.BioData
-                || FuelAboard(giver.Ship) < gift.Fuel || gift.Minerals.Where((m, i) => from.Minerals[i] < m).Any())
+                || FuelAboard(giver.Ship) < gift.Fuel || gift.Minerals.Where((m, i) => from.Minerals[i] < m).Any()
+                || (device && !from.Devices.Contains(gift.Device)))
             return TradeRefusal.NotEnough;
         if (gift.Cargo && (giver.Ship.SystemStar is not int star || taker.Ship.SystemStar != star))
             return TradeRefusal.NotHere;
         if (gift.Fuel != 0 && !CloseBy(giver, taker))
             return TradeRefusal.TooFar;
+        // A device goes by fuel's rule (stage 3c item 5, question 5); one of a kind the receiver holds (the Ultron's states) can't.
+        if (device && !CloseBy(giver, taker))
+            return TradeRefusal.DeviceTooFar;
+        if (device && Story!.Rules.Devices.ValueOf(to.Devices, Story.Rules.Devices.All[gift.Device].Field!) != 0)
+            return TradeRefusal.HasOne;
         // The Melnorme's strip offered to the receiver may take the storage bays the minerals would need.
         if (gift.Minerals.Any(m => m != 0)
             && taker.Ship.Meeting?.Talk is { Ended: false, Script: Comm.Scripts.MelnormeScript { StripOffered: true } })
@@ -1614,6 +1652,11 @@ public sealed partial class GameWorld
         to.MoveCargo(gift.Minerals, gift.BioData, +1);
         MoveFuel(giver.Ship, -(long)gift.Fuel);
         MoveFuel(taker.Ship, gift.Fuel);
+        if (device)
+        {
+            from.RemoveDevice(gift.Device);
+            to.AddDevice(gift.Device);
+        }
         _gifts.Add(gift);
         return TradeRefusal.None;
     }
@@ -1823,6 +1866,6 @@ public sealed partial class GameWorld
             _battles.Select(BattleSnapshotOf).ToList(),
             _battles.Select(b => new BattleMarkerSnapshot(b.Id, b.Place.Star, b.Place.InnerPlanet, b.Place.X, b.Place.Y, b.EnemyShip.Id))
                 .ToList(),
-            GroupsSnapshot(present));
+            GroupsSnapshot(present), ContainersSnapshot());
     }
 }

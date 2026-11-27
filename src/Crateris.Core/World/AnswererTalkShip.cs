@@ -200,6 +200,18 @@ internal sealed class AnswererTalkShip : ITalkShip
     /// </summary>
     public IReadOnlyList<FleetShip> EscortsAdded => _escortsAdded;
 
+    // The answerer's devices held by ships (stage 3c item 5). Not kept among
+    // the changes an opening taken back takes back: no talk of a visit
+    // writes one (the commander's and the Ilwrath's opening talks, the
+    // allied commander's, the story pauses' Black Ur-Quan; the commander's
+    // Lunar base is shared story), and nothing else may hand one over to or
+    // from the opening's starter meanwhile (Give refuses it).
+    public int Device(string field) => PlayerTalkShip.DeviceOf(_world, Answerer, field);
+
+    public void SetDevice(string field, int value) => PlayerTalkShip.SetDeviceOf(_world, Answerer, field, value);
+
+    public bool IsHost => Answerer.IsHost;
+
     // The answerer's minerals, which a talk may sell (set to 0) but not add to.
     private sealed class AnswererMinerals : IList<int>
     {

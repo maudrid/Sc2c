@@ -130,8 +130,23 @@ public static class HostSave
     /// MELNORME_RESCUE_REFUSED, MELNORME_RESCUE_COUNT or USED_BROADCASTER in
     /// the shared story loads them as the host's own
     /// (StoryState.MovedToPlayers), unless the host's own part is saved.
+    /// 15 has the devices held by ships (stage 3c item 5; the owner's
+    /// answer to the stage 3c plan's question 5): each ship's hold has the
+    /// devices it holds (HoldState.Devices, by globdata.h's numbers), and the
+    /// leavers' containers are saved (Containers: each one's leaver, place
+    /// and devices). An older save, whose devices were the group's story
+    /// fields, has them put on the host's ship (the device fields held by
+    /// ships come out of its story as StoryState.MovedToPlayers; the three
+    /// recorded ones, ULTRON_CONDITION and the Druuge's two artifacts, stay
+    /// in the story as their record and are put on the host's ship as
+    /// well); an older save with devices in a hold or with containers is
+    /// refused, as is a save with a device held twice, or one a ship can't
+    /// hold. Every guest is away as a save loads: each one's devices are
+    /// left in a container where their ship is, as leaving leaves them
+    /// (GameWorld.LeaveDevicesBehind), and go back to their ship as they
+    /// rejoin while it's there.
     /// </summary>
-    public const int Version = 14;
+    public const int Version = 15;
     public const int OldestReadableVersion = 1;
 
     private static readonly JsonSerializerOptions Options = new()
@@ -145,7 +160,15 @@ public static class HostSave
         int Version, GameSettings Settings, ClockState Clock, long Frame, List<PlayerState> Players,
         List<WorldState>? Worlds = null, StoryState.Saved? Story = null, bool CommanderMet = false,
         List<FleetShip>? Fleet = null, List<EncounterState>? Encounters = null,
-        SystemGroupsState? SystemGroups = null);
+        SystemGroupsState? SystemGroups = null, List<ContainerState>? Containers = null);
+
+    /// <summary>
+    /// A leaver's container (stage 3c item 5, version 15): whose it was
+    /// (their id and name), where it is (a star and an inner view's planet,
+    /// none in hyperspace or in the outer view; the place in that view's
+    /// units) and the devices in it (by globdata.h's numbers).
+    /// </summary>
+    public sealed record ContainerState(string Owner, string OwnerName, int? Star, int? InnerPlanet, int X, int Y, List<int> Devices);
 
     /// <summary>
     /// The groups kept with the systems (stage 3b-1 item 4): the special
@@ -342,7 +365,9 @@ public static class HostSave
                 e.Race, e.Flags, e.Ships.ToList(), e.OriginX, e.OriginY, e.Radius, e.LocX, e.LocY, e.LogX, e.LogY,
                 e.TransitionState, e.Roller, e.KeptFor.Select(k => new KeptState(k.Key, k.Value.X, k.Value.Y)).ToList()))
                 .ToList() : null,
-            SystemGroupsForSave(world));
+            SystemGroupsForSave(world),
+            world.Containers.Count == 0 ? null : world.Containers.Select(c => new ContainerState(c.Owner, c.OwnerName,
+                c.Place.Star, c.Place.InnerPlanet, c.Place.X, c.Place.Y, c.Devices.ToList())).ToList());
         return JsonSerializer.Serialize(save, Options);
     }
 
@@ -427,6 +452,10 @@ public static class HostSave
             throw new InvalidDataException($"A version {save.Version} save can't have Melnorme credits.");
         if (save.Version < 14 && (save.Players ?? new()).Any(p => p.Melnorme is not null))
             throw new InvalidDataException($"A version {save.Version} save can't have the Melnorme's rescue or the broadcaster's use.");
+        if (save.Version < 15 && (save.Players ?? new()).Any(p => p.Hold?.Devices is { Length: > 0 }))
+            throw new InvalidDataException($"A version {save.Version} save can't have devices held by ships.");
+        if (save.Version < 15 && save.Containers is not null)
+            throw new InvalidDataException($"A version {save.Version} save can't have containers.");
         if ((save.Fleet ?? new()).Any(s => s is null || s.Race is null))
             throw new InvalidDataException("The save has a fleet ship that is null or of no race.");
         // A setting a save leaves out is the default, and so is the ship's
@@ -604,6 +633,17 @@ public static class HostSave
                 host.Ship.MelnormeRescueCount = moved.GetValueOrDefault("MELNORME_RESCUE_COUNT");
                 host.Ship.UsedBroadcaster = moved.GetValueOrDefault("USED_BROADCASTER") != 0;
             }
+            // A save from before stage 3c item 5 has the group's devices in its story: they're the host's ship's now
+            // (the owner's answer to question 5), the recorded ones' story fields kept as their record.
+            if (save.Version < 15 && world.Players.FirstOrDefault(p => p.IsHost) is { } holder)
+            {
+                var held = new SortedSet<int>();
+                foreach (string f in DeviceTable.HeldFields)
+                    held = rules.Devices.WithValue(held, f, DeviceTable.RecordedFields.Contains(f)
+                        ? world.Story.Get(f) : world.Story.LoadedPlayerFields.GetValueOrDefault(f));
+                holder.Ship.Hold.SetDevices(held);
+            }
+            CheckDevices(world, rules, save.Containers);
             // The systems are made from the story state (Procyon's starbase, Spathiwa's
             // shield). Nothing in stage 3a changes what they read; the save must agree.
             if (world.Story.SystemStory != systems.Generator.Story)
@@ -612,6 +652,8 @@ public static class HostSave
         }
         else if (save.Story is not null)
             throw new InvalidDataException("The save has a story state, but no data was given to load it with.");
+        else if (world.Players.Any(p => p.Ship.Hold.Devices.Count > 0) || save.Containers is { Count: > 0 })
+            throw new InvalidDataException("The save has devices, but no data was given to load them with.");
         if (save.Fleet is { Count: > 0 } fleet)
         {
             if (systems?.StoryRules is not { } fleetRules)
@@ -652,6 +694,10 @@ public static class HostSave
         foreach (var p in world.Players)
             world.InOrbit(p.Ship);
         world.CommanderMet = save.CommanderMet;
+        // Every guest is away as the save loads: their devices are left where their ship waits, as leaving leaves
+        // them (stage 3c item 5), and go back to their ship as they rejoin while the container is there.
+        foreach (var p in world.Players)
+            world.LeaveDevicesBehind(p);
         // The events whose day has passed run now, in date order (an older
         // save's: it ran none), and those an older save set aside (decision
         // 9), every one run since stage 3c item 4, from where the clock is.
@@ -662,6 +708,49 @@ public static class HostSave
         world.RunDayEvents(loading: true);
         return world;
     }
+    // The devices held by ships and the containers (stage 3c item 5): each
+    // a device a ship holds (listed, not shared), one of a field's at most
+    // on a ship or in a container, none held twice in the game; each
+    // container its leaver's, a player of the game, at a star that is one
+    // and with a device, its place's numbers COORDs. The containers are put
+    // in space.
+    private static void CheckDevices(GameWorld world, StoryRules rules, List<ContainerState>? containers)
+    {
+        var seen = new HashSet<int>();
+        void Check(IEnumerable<int> devices, string where)
+        {
+            var fields = new HashSet<string>();
+            foreach (int d in devices)
+            {
+                if (!rules.Devices.IsHeld(d))
+                    throw new InvalidDataException($"{where}: device {d} isn't one a ship holds.");
+                if (!fields.Add(rules.Devices.All[d].Field!))
+                    throw new InvalidDataException($"{where}: two devices of {rules.Devices.All[d].Field}.");
+                if (!seen.Add(d))
+                    throw new InvalidDataException($"{where}: device {d} is held twice in the game.");
+            }
+        }
+        foreach (var p in world.Players)
+            Check(p.Ship.Hold.Devices, $"Player {p.Id}");
+        foreach (var c in containers ?? new())
+        {
+            if (c is null || c.Owner is null || c.OwnerName is null || c.Devices is null)
+                throw new InvalidDataException("A container in the save is null, or has no leaver or devices.");
+            if (world.Find(c.Owner) is null)
+                throw new InvalidDataException($"A container's leaver {c.Owner} isn't a player.");
+            if (c.Devices.Count == 0)
+                throw new InvalidDataException($"{c.Owner}'s container has no device.");
+            if (c.Star is int star && (world.Systems is null || star < 0 || star >= world.Systems.Map.Stars.Count
+                    || (c.InnerPlanet is int planet && (planet < 0 || planet >= world.Systems[star].Planets.Count)))
+                || (c.Star is null && c.InnerPlanet is not null))
+                throw new InvalidDataException($"{c.Owner}'s container isn't in a place of the game.");
+            if (c.Star is not null && (c.X < short.MinValue || c.X > short.MaxValue || c.Y < short.MinValue || c.Y > short.MaxValue))
+                throw new InvalidDataException($"{c.Owner}'s container's place isn't a COORD.");
+            Check(c.Devices, $"{c.Owner}'s container");
+            world.AddContainer(c.Owner, c.OwnerName, new BattlePlace(c.Star, c.InnerPlanet, c.X, c.Y), c.Devices);
+        }
+    }
+
     // The system groups as they are: left out when there are none.
     private static SystemGroupsState? SystemGroupsForSave(GameWorld world)
     {

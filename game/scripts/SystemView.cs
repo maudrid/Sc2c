@@ -114,6 +114,54 @@ public static class SisScreen
 
     public static Color ShipColor(ShipSnapshot s, string me) =>
         s.Id == me ? Colors.Cyan : (s.IsHost ? Colors.Gold : Colors.LightGreen);
+
+    /// <summary>A leaver's container's colour (stage 3c item 5).</summary>
+    public static readonly Color ContainerColor = new(1f, 0.6f, 0.2f);
+
+    /// <summary>A leaver's container (stage 3c item 5): a small box at its place (pixels), with its words beside it.</summary>
+    public static void Container(CanvasItem c, Vector2 at, string label)
+    {
+        c.DrawRect(new Rect2(at - new Vector2(5, 4), new Vector2(10, 8)), ContainerColor, false, 2);
+        c.DrawLine(at - new Vector2(5, 0), at + new Vector2(5, 0), ContainerColor, 1);
+        c.DrawString(ThemeDB.FallbackFont, at + new Vector2(9, 5), label, HorizontalAlignment.Left, -1, 13, ContainerColor);
+    }
+
+    /// <summary>
+    /// The markers to other players, wrecks and containers (stage 3c item
+    /// 5; question 12), each placed on the screen (<see cref="EdgeMarkers.Place"/>):
+    /// an arrow on the edge, its words beside it inside the screen, or the
+    /// words alone at a target on the screen the view doesn't draw.
+    /// </summary>
+    public static void EdgeMarkers(CanvasItem c, IEnumerable<MarkerTarget> targets)
+    {
+        var font = ThemeDB.FallbackFont;
+        foreach (var t in targets)
+        {
+            if (Crateris.Presentation.EdgeMarkers.Place(t, IpGeometry.ScreenWidth, IpGeometry.ScreenHeight, 4) is not { } m)
+                continue;
+            var color = m.Kind switch
+            {
+                MarkerKind.Wreck => SystemView.WreckTint,
+                MarkerKind.Container => ContainerColor,
+                _ => Colors.LightGreen,
+            };
+            var at = new Vector2((float)m.X, (float)m.Y) * Scale;
+            float width = font.GetStringSize(m.Label, HorizontalAlignment.Left, -1, 12).X;
+            if (!m.AtEdge)
+            {
+                c.DrawString(font, at + new Vector2(8, -6), m.Label, HorizontalAlignment.Left, -1, 12, color);
+                continue;
+            }
+            var dir = new Vector2((float)m.DirX, (float)m.DirY);
+            var side = new Vector2(-dir.Y, dir.X);
+            c.DrawColoredPolygon(new[] { at + dir * 7, at - dir * 5 + side * 6, at - dir * 5 - side * 6 }, color);
+            // The words inside the screen, beside the arrow.
+            var text = at - dir * 12 + new Vector2(dir.X > 0.3f ? -width : dir.X < -0.3f ? 0 : -width / 2, dir.Y > 0.3f ? -4 : 12);
+            text.X = Mathf.Clamp(text.X, 2, Size.X - width - 2);
+            text.Y = Mathf.Clamp(text.Y, 12, Size.Y - 4);
+            c.DrawString(font, text, m.Label, HorizontalAlignment.Left, -1, 12, color);
+        }
+    }
 }
 
 /// <summary>
@@ -298,6 +346,20 @@ public partial class SystemView : Control
             var (x, y) = At(b.X, b.Y, markerZoom);
             SisScreen.BattleMarker(this, new Vector2((float)x, (float)y) * SisScreen.Scale, Sprites, RaceLook?.Invoke(b.EnemyShip));
         }
+
+        // The leavers' containers in this view (stage 3c item 5), at this view's zoom, as the battles' markers.
+        foreach (var c in _snapshot.Containers ?? Array.Empty<ContainerSnapshot>())
+        {
+            if (c.Star != star || c.InnerPlanet != me.InnerPlanet || markerZoom <= 0)
+                continue;
+            var (x, y) = At(c.X, c.Y, markerZoom);
+            SisScreen.Container(this, new Vector2((float)x, (float)y) * SisScreen.Scale, EdgeMarkers.ContainerName(c));
+        }
+
+        // The markers to the other players, wrecks and containers not drawn on this screen (question 12).
+        if (me.ZoomRadius > 0 || me.InnerPlanet is not null)
+            SisScreen.EdgeMarkers(this, EdgeMarkers.InSystem(_snapshot, me.Id, system, me.InnerPlanet, me.ZoomRadius, _systems.Map,
+                Names.Cluster, p => Names.PlanetName(system.Star, p)));
     }
 
     /// <summary>A ship's dimmed look once it's a wreck.</summary>

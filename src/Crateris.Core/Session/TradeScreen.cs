@@ -22,29 +22,33 @@ namespace Crateris.Core.Session;
 /// (<see cref="Gift.CloseBy"/>); the room in their fuel tanks, in whole
 /// units (null without their ship); and, by <see cref="TradeScreen"/>'s
 /// rows, what the giver has and the amount chosen to give (the receiver's
-/// row's unused; the fuel row's in whole units).
+/// row's unused; the fuel row's in whole units; the device row's how many
+/// devices the giver's ship holds, and which of them is chosen, from 1, 0
+/// for none); and the device chosen (by globdata.h's number, null for none).
 /// </summary>
 public sealed record TradeShown(int Row, string? To, string ToName, bool Here, int? Room, IReadOnlyList<long> Have,
-    IReadOnlyList<int> Give, bool Near = false, int? TankRoom = null);
+    IReadOnlyList<int> Give, bool Near = false, int? TankRoom = null, int? Device = null);
 
 /// <summary>
 /// The screen for giving another player resource units, Melnorme credits,
-/// fuel, minerals or bio data (stage 3a, item 9; the credits and the fuel
-/// since stage 3b-2 item 3), the player's own: its rows are the player to
-/// give to, the resource units, the credits, the fuel (in whole units, up
-/// to the receiver's room), each element category and the bio data.
-/// Up and down choose the row; left and right choose the player, or the
-/// amount (by 1; page up and down by 10, the units and the credits by
-/// 100); select gives the row's amount; cancel closes it. A gift goes to the host, which
+/// fuel, minerals, bio data or a device (stage 3a, item 9; the credits and
+/// the fuel since stage 3b-2 item 3, the devices since stage 3c item 5),
+/// the player's own: its rows are the player to give to, the resource
+/// units, the credits, the fuel (in whole units, up to the receiver's
+/// room), each element category, the bio data and the devices their ship
+/// holds (one at a time, to a player close by, as fuel goes).
+/// Up and down choose the row; left and right choose the player, the
+/// device, or the amount (by 1; page up and down by 10, the units and the credits by
+/// 100); select gives the row's amount, or the device; cancel closes it. A gift goes to the host, which
 /// refuses it with a reason if it can't go. It's drawn in the status area
 /// as the Manifest's cargo display is (item 11: Presentation's
 /// GivingScreen, from <see cref="Follow"/>).
 /// </summary>
 public sealed class TradeScreen
 {
-    /// <summary>The rows: the player, the units, the credits, the fuel, the 8 categories, the bio data.</summary>
+    /// <summary>The rows: the player, the units, the credits, the fuel, the 8 categories, the bio data, the devices.</summary>
     public const int PlayerRow = 0, UnitsRow = 1, CreditsRow = 2, FuelRow = 3, FirstMineralRow = 4,
-        BioRow = FirstMineralRow + ShipHold.Categories, Rows = BioRow + 1;
+        BioRow = FirstMineralRow + ShipHold.Categories, DeviceRow = BioRow + 1, Rows = DeviceRow + 1;
 
     public int Row { get; private set; } = UnitsRow;
 
@@ -80,6 +84,11 @@ public sealed class TradeScreen
                 int sign = key is MenuKey.Left or MenuKey.PageDown ? -1 : 1;
                 Amounts[Row] = Math.Clamp(Amounts[Row] + sign * step, 0, Most(mine, Row, tankRoom));
                 break;
+            case MenuKey.Select when To is not null && Row == DeviceRow && Amounts[Row] > 0:
+                var device = new Gift(me, To, 0, new int[ShipHold.Categories], 0,
+                    Device: mine!.Hold!.HeldDevices[Amounts[Row] - 1]);
+                Amounts[Row] = 0;
+                return device;
             case MenuKey.Select when To is not null && Row != PlayerRow && Amounts[Row] > 0:
                 var minerals = new int[ShipHold.Categories];
                 if (Row >= FirstMineralRow && Row < BioRow)
@@ -119,6 +128,7 @@ public sealed class TradeScreen
         row == FuelRow ? Math.Min(Have(mine, row), tankRoom ?? 0) : Have(mine, row);
 
     // What the player has of a row's kind, as the host last said (fuel in whole units).
+    // (The device row's: how many devices the ship holds, the amount being which of them, from 1.)
     private static int Have(ShipSnapshot? ship, int row) => row == FuelRow
         ? (int)(ship?.Fuel / Fuel.Scale ?? 0)
         : ship?.Hold is not { } hold ? 0 : row switch
@@ -126,6 +136,7 @@ public sealed class TradeScreen
             UnitsRow => (int)Math.Min(hold.ResourceUnits, int.MaxValue),
             CreditsRow => (int)Math.Min(hold.Credits, int.MaxValue),
             BioRow => hold.BioData,
+            DeviceRow => hold.HeldDevices.Count,
             _ => hold.Minerals[row - FirstMineralRow],
         };
 
@@ -152,12 +163,15 @@ public sealed class TradeScreen
             for (int i = 0; i < ShipHold.Categories; ++i)
                 have[FirstMineralRow + i] = mine.Minerals[i];
             have[BioRow] = mine.BioData;
+            have[DeviceRow] = mine.HeldDevices.Count;
         }
+        int? device = Amounts[DeviceRow] > 0 && giver?.Hold is { } h && Amounts[DeviceRow] <= h.HeldDevices.Count
+            ? h.HeldDevices[Amounts[DeviceRow] - 1] : null;
         bool here = giver?.SystemStar is int star && taker?.SystemStar == star;
         bool near = giver is not null && taker is not null && Gift.CloseBy(giver.SystemStar, giver.UniverseX, giver.UniverseY,
             taker.SystemStar, taker.UniverseX, taker.UniverseY);
         return new TradeShown(Row, taker?.Id, taker?.Name ?? To ?? "", here, taker is null ? null : RoomFor(taker), have,
-            Amounts.ToArray(), near, tankRoom);
+            Amounts.ToArray(), near, tankRoom, device);
     }
 
     /// <summary>

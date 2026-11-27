@@ -60,6 +60,12 @@ public class TalkTests
         public IList<byte> OwnJetSlots { get; init; } = Enumerable.Repeat(ShipModules.EmptyJet, 8).ToArray();
         public IList<byte> OwnModuleSlots { get; init; } = Enumerable.Repeat(ShipModules.EmptyModule, 16).ToArray();
 
+        // The devices held by ships (stage 3c item 5): the recording's one ship's, from its start's fields.
+        public SortedSet<int> HeldDevices { get; set; } = new();
+        public int Device(string field) => Rules.Devices.ValueOf(HeldDevices, field);
+        public void SetDevice(string field, int value) => HeldDevices = Rules.Devices.WithValue(HeldDevices, field, value);
+        public bool IsHost { get; init; } = true;   // UQM's one ship is the host's
+
         // UQM's recorder stubs AddEscortShips (comm.c): no captains' names drawn; each joins the queue's tail.
         public int AddEscorts(int race, int count, Func<uint> random)
         {
@@ -135,6 +141,9 @@ public class TalkTests
                            | (Field("IMPROVED_LANDER_SPEED") != 0 ? LanderUpgrades.Speed : 0)
                            | (Field("IMPROVED_LANDER_CARGO") != 0 ? LanderUpgrades.Cargo : 0)
                            | (Field("IMPROVED_LANDER_SHOT") != 0 ? LanderUpgrades.Shot : 0),
+                // The devices held by ships (stage 3c item 5): the start's fields, its one ship's holding.
+                HeldDevices = DeviceTable.HeldFields.Aggregate(new SortedSet<int>(),
+                    (held, f) => Rules.Devices.WithValue(held, f, Field(f))),
                 RescueRefused = Field("MELNORME_RESCUE_REFUSED"),
                 RescueCount = Field("MELNORME_RESCUE_COUNT"),
                 OwnDriveSlots = Enumerable.Range(0, 11).Select(i => drives.Contains(i) ? ShipModules.FusionThruster : ShipModules.EmptyDrive).ToArray(),
@@ -194,7 +203,13 @@ public class TalkTests
         var own = new Dictionary<string, int>();
         foreach (var f in start.GetProperty("state").EnumerateObject())
         {
-            if (StoryState.NotShared.ContainsKey(f.Name))
+            // A device held by ships is the ship's (TestShip.From), a recorded one the story's record too.
+            if (DeviceTable.HeldByShips(f.Name))
+            {
+                if (DeviceTable.RecordedFields.Contains(f.Name))
+                    story.Set(f.Name, f.Value.GetInt32());
+            }
+            else if (StoryState.NotShared.ContainsKey(f.Name))
                 own[f.Name] = f.Value.GetInt32();
             else
                 story.Set(f.Name, f.Value.GetInt32());

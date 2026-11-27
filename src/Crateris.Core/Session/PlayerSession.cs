@@ -15,6 +15,7 @@ using Crateris.Core.Hyperspace;
 using Crateris.Core.Net;
 using Crateris.Core.Planetside;
 using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
 using Crateris.Core.World;
 
 namespace Crateris.Core.Session;
@@ -1142,12 +1143,17 @@ public sealed class PlayerSession
     public void ShowGift(Gift gift)
     {
         string Name(string id) => Snapshot?.Ships.FirstOrDefault(s => s.Id == id)?.Name ?? id;
+        string what = gift.Describe(DeviceName);
         if (gift.To == PlayerId)
-            Notify($"{Name(gift.From)} gave you {gift.Describe()}.");
+            Notify($"{Name(gift.From)} gave you {what}.");
         else if (gift.From == PlayerId)
-            Notify($"You gave {Name(gift.To)} {gift.Describe()}.");
-        Log($"Gift from {gift.From} to {gift.To}: {gift.Describe()}");
+            Notify($"You gave {Name(gift.To)} {what}.");
+        Log($"Gift from {gift.From} to {gift.To}: {what}");
     }
+
+    /// <summary>A device's name in words (the content's), null without it or for no device.</summary>
+    public string? DeviceName(int device) =>
+        _names is { } names && _systems.StoryRules?.Devices.All.ElementAtOrDefault(device) is { Listed: true } ? names.Device(device) : null;
 
     /// <summary>A key for the orbit screen's menus (in a talk, for its replies; docked, for the starbase's screens; on the giving screen, for it).</summary>
     public void PressMenu(MenuKey key)
@@ -1452,10 +1458,15 @@ public sealed class PlayerSession
         }
     }
 
-    /// <summary>The devices the group carries (InventoryDevices), by the story the host last sent; none before it has.</summary>
+    /// <summary>
+    /// The devices on this player's Devices list (InventoryDevices; stage 3c
+    /// item 5): the shared ones the story has (the portal spawner, the Lunar
+    /// base) and those their own ship holds, by what the host last sent;
+    /// none before it has.
+    /// </summary>
     public IReadOnlyList<int> Devices() =>
         _systems.StoryRules is { } rules && Snapshot?.Story is { } story
-            ? rules.Devices.Inventory(f => story.Get(rules.Table, f))
+            ? rules.Devices.Inventory(f => story.Get(rules.Table, f), Me?.Hold?.HeldDevices ?? Array.Empty<int>())
             : Array.Empty<int>();
 
     /// <summary>
@@ -1496,6 +1507,13 @@ public sealed class PlayerSession
             lines.Add($"Ships ({Snapshot.Ships.Count}):");
             foreach (var s in Snapshot.Ships)
                 lines.Add($"  {s.Name}{(s.IsHost ? " (host, flagship)" : " (escort)")}{(s.Wrecked ? " (wreck)" : "")}  {Where(s)}");
+            // The leavers' containers, as the wrecks are (stage 3c item 5).
+            if (Snapshot.Containers is { Count: > 0 } containers)
+            {
+                lines.Add($"Containers ({containers.Count}):");
+                foreach (var c in containers)
+                    lines.Add($"  {c.OwnerName}'s container ({c.Devices} device{(c.Devices == 1 ? "" : "s")})  {Where(c)}");
+            }
             if (FleetLine() is { } fleets)
                 lines.Add(fleets);
         }
@@ -1684,6 +1702,16 @@ public sealed class PlayerSession
         me.Modules is { } m ? ShipModules.Restore(m).CrewCapacity : 0;
 
     /// <summary>Where a ship is, in words (entering a star while its entry plays, as the screen shows it).</summary>
+    /// <summary>Where a leaver's container is, in words (stage 3c item 5): its place in hyperspace, or its system and world.</summary>
+    public string Where(ContainerSnapshot c)
+    {
+        if (c.Star is not int star)
+            return $"hyperspace {Units.LogXToUniverse(c.X) / 10.0:0.0} : {Units.LogYToUniverse(c.Y) / 10.0:0.0}";
+        var at = _systems.Map.Stars[star];
+        string cluster = _names?.Cluster(at) ?? $"star {star}";
+        return c.InnerPlanet is int p ? $"the {cluster} system, near {_names?.PlanetName(at, p) ?? $"planet {p}"}" : $"the {cluster} system";
+    }
+
     public string Where(ShipSnapshot s)
     {
         if (s.Activity == Activity.Hyperspace || s.SystemStar is not int star)

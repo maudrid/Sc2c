@@ -245,7 +245,7 @@ public class ShofixtiZoqFotPikTests
         Assert.Null(world.SystemGroups.Systems[star].Defined);
         world.PutInHyperspace("h");
         Frames(world, 1);
-        story.Set("MAIDENS_ON_SHIP", 1);
+        world.SetDevice("h", "MAIDENS_ON_SHIP");   // any player's ship (stage 3c item 5)
         world.PutInSystem("h", star);
         Frames(world, 1);
         d = world.SystemGroups.Systems[star];
@@ -268,7 +268,7 @@ public class ShofixtiZoqFotPikTests
         // and a save and load between them, mark nothing more. Katana then comes on a fresh entry.
         var world = NewGame("g");
         var story = world.Story!;
-        story.Set("MAIDENS_ON_SHIP", 1);
+        world.SetDevice("h", "MAIDENS_ON_SHIP");
         int star = Star(world, "SHOFIXTI_DEFINED");
         world.PutInSystem("h", star);
         world.PutInSystem("g", star);
@@ -300,7 +300,7 @@ public class ShofixtiZoqFotPikTests
         var story = world.Story!;
         int star = Star(world, "SHOFIXTI_DEFINED");
         story.Set("SHOFIXTI_STACK2", 3);
-        story.Set("MAIDENS_ON_SHIP", 1);
+        world.SetDevice("h", "MAIDENS_ON_SHIP");
         world.PutInSystem("h", star);
         Frames(world, 1);
         var m = MeetTanaka(world, star);
@@ -309,7 +309,7 @@ public class ShofixtiZoqFotPikTests
         Choose(world, "h", "procreating_wildly");
         Choose(world, "h", "females");
         Assert.True(Said(m.Talk!, "LEAPING_HAPPINESS"));
-        Assert.Equal((1, 0), (story.Get("SHOFIXTI_RECRUITED"), story.Get("MAIDENS_ON_SHIP")));
+        Assert.Equal((1, 0), (story.Get("SHOFIXTI_RECRUITED"), world.Device("h", "MAIDENS_ON_SHIP")));
         // The return event: set aside until 3c runs the calendar.
         Assert.Contains(m.Talk!.Events, e => e is EventAdded { Event: "SHOFIXTI_RETURN_EVENT" });
         MeetingTests.HearClosing(world, "h");

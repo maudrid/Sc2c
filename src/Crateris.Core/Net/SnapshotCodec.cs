@@ -86,9 +86,11 @@ public static partial class SnapshotCodec
         var groups = GroupSnapshot.SeenBy(snapshot, viewer);
         var baseGroups = GroupSnapshot.SeenBy(baseSnapshot, viewer);
         bool groupsChanged = !SameGroups(groups, baseGroups);
+        bool containersChanged = !SameContainers(snapshot.Containers, baseSnapshot?.Containers);
         writer.UInt((ulong)((dateChanged ? PartDate : 0) | (orbitedChanged ? PartOrbited : 0) | (surfaceChanged ? PartSurface : 0)
             | (storyChanged ? PartStory : 0) | (pauseChanged ? PartPause : 0) | (hostPauseChanged ? PartHostPause : 0)
-            | (battleChanged ? PartBattle : 0) | (markersChanged ? PartMarkers : 0) | (groupsChanged ? PartGroups : 0)));
+            | (battleChanged ? PartBattle : 0) | (markersChanged ? PartMarkers : 0) | (groupsChanged ? PartGroups : 0)
+            | (containersChanged ? PartContainers : 0)));
         if (dateChanged)
         {
             writer.Int((long)snapshot.Year - (baseSnapshot?.Year ?? 0));
@@ -111,6 +113,8 @@ public static partial class SnapshotCodec
             WriteMarkers(writer, snapshot.Markers);
         if (groupsChanged)
             WriteGroups(writer, groups, baseGroups);
+        if (containersChanged)
+            WriteContainers(writer, snapshot.Containers);
 
         writer.UInt((ulong)snapshot.Ships.Count);
         Span<long> now = stackalloc long[Numbers];
@@ -317,7 +321,7 @@ public static partial class SnapshotCodec
         }
         ulong parts = r.UInt();
         if ((parts & ~(ulong)(PartDate | PartOrbited | PartSurface | PartStory | PartPause | PartHostPause | PartBattle | PartMarkers
-                | PartGroups)) != 0
+                | PartGroups | PartContainers)) != 0
                 || (baseSnapshot is null && (parts & (PartDate | PartOrbited)) != (PartDate | PartOrbited)))
             throw new InvalidDataException("Bad snapshot parts.");
         int year = baseSnapshot?.Year ?? 0, month = baseSnapshot?.Month ?? 0, day = baseSnapshot?.Day ?? 0;
@@ -344,6 +348,7 @@ public static partial class SnapshotCodec
         var battles = (parts & PartBattle) != 0 ? ReadBattle(ref r) : null;
         var markers = (parts & PartMarkers) != 0 ? ReadMarkers(ref r) : baseSnapshot?.Markers;
         var seenGroups = (parts & PartGroups) != 0 ? ReadGroups(ref r, baseSnapshot?.Groups) : baseSnapshot?.Groups;
+        var containers = (parts & PartContainers) != 0 ? ReadContainers(ref r) : baseSnapshot?.Containers;
 
         int count = Count(r.UInt(), MostShips);
         var ships = new ShipSnapshot[count];
@@ -401,7 +406,8 @@ public static partial class SnapshotCodec
         }
         if (!r.AtEnd)
             throw new InvalidDataException("The snapshot has bytes left over.");
-        return new WorldSnapshot(frame, year, month, day, ships, worlds, surfaces, story, pause, hostPaused, battles, markers, seenGroups);
+        return new WorldSnapshot(frame, year, month, day, ships, worlds, surfaces, story, pause, hostPaused, battles, markers, seenGroups,
+            containers);
     }
 
     private static void ToNumbers(ShipSnapshot s, Span<long> v)
@@ -500,7 +506,14 @@ public static partial class SnapshotCodec
         w.UInt(h.ResourceUnits);
         w.Int(h.LanderRoom);
         w.UInt(h.Credits);
+        var devices = h.HeldDevices;
+        w.UInt((ulong)devices.Count);
+        for (int i = 0; i < devices.Count; ++i)
+            w.UInt((ulong)devices[i]);
     }
+
+    /// <summary>The most devices a hold carries in a message (UQM has 28).</summary>
+    public const int MostDevices = 64;
 
     private static HoldSnapshot? ReadHold(ref WireReader r)
     {
@@ -512,6 +525,16 @@ public static partial class SnapshotCodec
             minerals[i] = ToInt(r.Int());
         var hold = new HoldSnapshot(ToInt(r.Int()), ToInt(r.Int()), ToInt(r.Int()), minerals, ToInt(r.Int()),
             (LanderUpgrades)ToInt(r.Int()), ToUInt(r.UInt()), ToInt(r.Int()), ToUInt(r.UInt()));
+        var devices = new int[Count(r.UInt(), MostDevices)];
+        for (int i = 0; i < devices.Length; ++i)
+        {
+            ulong d = r.UInt();
+            if (d >= MostDevices || (i > 0 && (int)d <= devices[i - 1]))
+                throw new InvalidDataException("A hold's devices aren't devices in order.");
+            devices[i] = (int)d;
+        }
+        if (devices.Length > 0)
+            hold = hold with { Devices = devices };
         if ((hold.Upgrades & ~LanderUpgrades.All) != 0)
             throw new InvalidDataException("Bad lander upgrades.");
         if (hold.LanderRoom < 0)

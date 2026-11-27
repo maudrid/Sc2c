@@ -243,10 +243,10 @@ public class ThraddashUmgahTests
     }
 
     // The devices the group carries, by name (the Manifest's list).
-    private static string[] Devices(GameWorld world)
+    private static string[] Devices(GameWorld world, string id)
     {
         var table = world.Systems!.StoryRules!.Devices;
-        return table.Inventory(world.Story!.Get).Select(i => table.All[i].Name).ToArray();
+        return table.Inventory(world.Story!.Get, world.Find(id)!.Ship.Hold.Devices).Select(i => table.All[i].Name).ToArray();
     }
 
     private static string[] Told(GameWorld world, string id) =>
@@ -1193,7 +1193,7 @@ public class ThraddashUmgahTests
         world.WorldTalkTable = new[] { PetsWorld(() => ships) };
         story.Set("UMGAH_ZOMBIE_BLOBBIES", 1);
         story.Set("UMGAH_VISITS", 3);
-        story.Set("TAALO_PROTECTOR_ON_SHIP", 1);   // the group's device (3c's pickup)
+        world.SetDevice("g", "TAALO_PROTECTOR_ON_SHIP");   // the answerer's ship's (stage 3c item 5; 3c's pickup)
         int star = Star(world, "TALKING_PET_DEFINED");
         var m = Orbit(world, "g", star, 0);
         Assert.IsType<TalkingPetScript>(m.Talk!.Script);
@@ -1245,7 +1245,7 @@ public class ThraddashUmgahTests
         Retreat(world, "g");
         // Without the protector: the captain hypnotised, at peace (3c's world answers that with the jump
         // to the Ur-Quan; here the flag is the test's to clear).
-        story.Set("TAALO_PROTECTOR_ON_SHIP", 0);
+        world.SetDevice("g", "TAALO_PROTECTOR_ON_SHIP", 0);
         m = Orbit(world, "g", star, 0);
         Assert.Equal(new[] { "HYPNOTIZE_AGAIN_2" }, Lines(m.Talk!));
         Assert.Equal((1, Segue.Peace, MeetingStep.Closing), (story.Get("PLAYER_HYPNOTIZED"), m.Talk!.Segue, m.Step));
@@ -1329,9 +1329,10 @@ public class ThraddashUmgahTests
         Assert.Equal(0, story.Get("TALKING_PET"));
         Choose(world, "g", "want_kill_2");
         Assert.Equal(new[] { "GLAD_YOU_WONT_KILL" }, LastLines(m.Talk));
-        Assert.Equal((1, 1, 0, 0, 0, 0, Segue.Peace), (story.Get("TALKING_PET"), story.Get("TALKING_PET_ON_SHIP"), story.Get("UMGAH_ZOMBIE_BLOBBIES"),
+        Assert.Equal((1, 1, 0, 0, 0, 0, Segue.Peace), (story.Get("TALKING_PET"), world.Device("g", "TALKING_PET_ON_SHIP"), story.Get("UMGAH_ZOMBIE_BLOBBIES"),
             story.Get("UMGAH_VISITS"), story.Get("UMGAH_HOME_VISITS"), story.Get("ARILOU_STACK_2"), m.Talk.Segue));
-        Assert.Contains("TALKING_PET_DEVICE", Devices(world));
+        Assert.Contains("TALKING_PET_DEVICE", Devices(world, "g"));
+        Assert.DoesNotContain("TALKING_PET_DEVICE", Devices(world, "h"));   // the answerer's alone (stage 3c item 5)
         // The closing lines' view: the strobe not started again, and off in the screen it starts in,
         // though the talk's own flag stays on (nothing on the host turns a one-shot off).
         view = TalkView.Of(m)!;
@@ -1391,7 +1392,7 @@ public class ThraddashUmgahTests
             story.SetAlliance("UMGAH_SHIP", Allied.Dead);
             story.SetFleet("UMGAH_SHIP", story.Fleet("UMGAH_SHIP") with { ActualStrength = 0 });
             story.Set("TALKING_PET_HOME_VISITS", visits);
-            story.Set("TAALO_PROTECTOR_ON_SHIP", taalo);
+            world.SetDevice("h", "TAALO_PROTECTOR_ON_SHIP", taalo);
             int umgah = Race(world, "UMGAH_SHIP");
             var m = Orbit(world, "h", Star(world, "TALKING_PET_DEFINED"), 0);
             Assert.Equal(new[] { "UMGAH_ALL_GONE" }, Lines(m.Talk!));
@@ -1402,7 +1403,7 @@ public class ThraddashUmgahTests
                 : new[] { "boneless_dweeb", "ok_lets_do_it", "what_are_you_really", "kill_you" }, Offers(m.Talk));
             Choose(world, "h", "ok_lets_do_it");
             Assert.Equal(new[] { "COMING_ABOARD" }, LastLines(m.Talk));
-            Assert.Equal((1, 1, Segue.Peace), (story.Get("TALKING_PET"), story.Get("TALKING_PET_ON_SHIP"), m.Talk.Segue));
+            Assert.Equal((1, 1, Segue.Peace), (story.Get("TALKING_PET"), world.Device("h", "TALKING_PET_ON_SHIP"), m.Talk.Segue));
         }
     }
 

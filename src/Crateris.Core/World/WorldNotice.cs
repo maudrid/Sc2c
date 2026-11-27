@@ -146,6 +146,22 @@ public enum NoticeEvent : byte
     /// the Supox").
     /// </summary>
     Mission,
+
+    /// <summary>
+    /// A player left the game holding devices (stage 3c item 5): they're in
+    /// a container where their ship was (<see cref="WorldNotice.Count"/> of them).
+    /// </summary>
+    ContainerLeft,
+
+    /// <summary>
+    /// The player flew into a leaver's container and took its devices
+    /// (<see cref="WorldNotice.Count"/> of them, named in <see cref="WorldNotice.Detail"/>);
+    /// <see cref="WorldNotice.Race"/> names the leaver.
+    /// </summary>
+    ContainerYours,
+
+    /// <summary>Another player took a leaver's container (<see cref="WorldNotice.Race"/> names the leaver).</summary>
+    ContainerTaken,
 }
 
 /// <summary>
@@ -198,6 +214,9 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.Extinct => Detail.Length > 0 ? $"The {Race} have been destroyed {Detail}." : $"The {Race} have been destroyed.",
         NoticeEvent.CivilWar => $"{By} started the {Race}'s civil war: the rebels have a fleet of their own.",
         NoticeEvent.Mission => $"The {Race} {Detail}.",
+        NoticeEvent.ContainerLeft => $"{By} left the game: {(Count == 1 ? "their device is" : $"their {Count} devices are")} in a container where their ship was.",
+        NoticeEvent.ContainerYours => $"You took {Race}'s container: {(Detail.Length > 0 ? Detail : Count == 1 ? "a device" : $"{Count} devices")}.",
+        NoticeEvent.ContainerTaken => $"{By} took {Race}'s container.",
         _ => "",
     };
 }

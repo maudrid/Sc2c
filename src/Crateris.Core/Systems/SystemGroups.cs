@@ -310,7 +310,7 @@ public sealed class SystemGroups
                 // once recruited his group flies off (SendOffOwnGroup).
                 if (story.Get("SHOFIXTI_RECRUITED") == 0
                     && (story.Get("SHOFIXTI_KIA") == 0
-                        || (story.Get("SHOFIXTI_BRO_KIA") == 0 && story.Get("MAIDENS_ON_SHIP") != 0)))
+                        || (story.Get("SHOFIXTI_BRO_KIA") == 0 && story.HeldByAnyShip("MAIDENS_ON_SHIP"))))
                 {
                     d.Defined = special;
                     if (!Defined.ContainsKey(special) || !ReadDefined(d, system, zoom))
@@ -820,7 +820,7 @@ public sealed class SystemGroups
             story.Set("SHOFIXTI_VISITS", 0);
             return true;
         }
-        if (story.Get("MAIDENS_ON_SHIP") != 0)
+        if (story.HeldByAnyShip("MAIDENS_ON_SHIP"))
         {
             story.Set("SHOFIXTI_BRO_KIA", 1);
             return true;
