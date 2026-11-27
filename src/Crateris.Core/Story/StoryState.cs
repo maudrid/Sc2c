@@ -553,7 +553,7 @@ public sealed class StoryState
         if (relative && months == 0 && days == 0 && years == 0)
         {
             if (EventsRun.Contains(evt) || !Rules.EventIds.ContainsKey(evt))
-                RunEvent(evt, clock, hyperspaceRoll, playerInSystem);
+                Run(evt, clock, hyperspaceRoll, playerInSystem);
             else
                 Events.PutAside(new StoryEvent(evt, clock.Year, clock.Month, clock.Day));
             return false;
@@ -652,8 +652,13 @@ public sealed class StoryState
     /// ZOQFOT_DEFINED), says so (null: nobody is).
     /// </para>
     /// </summary>
-    public bool RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null) =>
-        Run(evt, clock, hyperspaceRoll, playerInSystem).News;
+    public bool RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null)
+    {
+        bool news = Run(evt, clock, hyperspaceRoll, playerInSystem).News;
+        // The arrivals it ran are listed only by RunDueEvents: not kept for a later day's list.
+        _arrivals.Clear();
+        return news;
+    }
 
     // RunEvent's work: whether the event changed a race (told news), and whether its location gate held it (queued again).
     private (bool News, bool Held) Run(string evt, GameClock clock, Action? hyperspaceRoll, Func<string, bool>? playerInSystem)

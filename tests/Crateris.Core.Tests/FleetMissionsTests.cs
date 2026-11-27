@@ -141,6 +141,40 @@ public class FleetMissionsTests
     }
 
     [Fact]
+    public void TwoArrivalsOnADayAreBothListedOneRunningAnotherMissionAtOnce()
+    {
+        // The Pkunk arriving home (their event re-queued three months on), then the Thraddash home from the
+        // Kohr-Ah with the Ilwrath's war begun, whose arrival runs the Ilwrath's mission at once from within it.
+        var (story, clock) = NewStory();
+        story.Set("PKUNK_MISSION", 2);
+        story.Set("PKUNK_ON_THE_MOVE", 1);
+        story.SetFleet("PKUNK_SHIP", story.Fleet("PKUNK_SHIP") with { LocX = 600 });
+        story.SetRaceDest("PKUNK_SHIP", 502, 401, 1, "ADVANCE_PKUNK_MISSION");
+        story.Set("THRADD_MISSION", 3);
+        story.Set("ILWRATH_FIGHT_THRADDASH", 1);
+        story.SetRaceDest("THRADDASH_SHIP", 2535, 8358, 1, "ADVANCE_THRADD_MISSION");
+        story.SetRaceDest("ILWRATH_SHIP", 2517, 8214, 50, "ADVANCE_ILWRATH_MISSION");
+        clock.NextDay();
+        var done = story.RunDueEvents(clock);
+        Assert.Equal(new[] { "HYPERSPACE_ENCOUNTER_EVENT", "ADVANCE_PKUNK_MISSION", "ADVANCE_THRADD_MISSION" }, done.Select(e => e.Event.Event));
+        Assert.Equal(new[] { false, true, true }, done.Select(e => e.Arrival));
+        Assert.All(done.Skip(1), e => Assert.True(e.News));
+        Assert.False(done[0].News);
+        Assert.Equal(new[]
+        {
+            Step("PKUNK_SHIP", "are back home"), Step("THRADDASH_SHIP", "are back home"),
+            Step("THRADDASH_SHIP", "have set off to meet the Ilwrath in battle"),
+        }, story.TakeNews().Select(n => (n.Race, n.Also, n.Event, n.Detail)));
+        // The Ilwrath's days left, and one: 50 as the Thraddash (earlier in avail_race_q) arrive, before the Ilwrath's day.
+        Assert.Equal((4, 51, 49), (story.Get("THRADD_MISSION"), story.Fleet("THRADDASH_SHIP").DaysLeft, story.Fleet("ILWRATH_SHIP").DaysLeft));
+        // RunEvent run outside the day's list keeps no arrival for a later day's.
+        story.SetRaceDest("MYCON_SHIP", 6858, 577, 1, "ADVANCE_MYCON_MISSION");
+        story.RunEvent("HYPERSPACE_ENCOUNTER_EVENT", clock);
+        clock.NextDay();
+        Assert.DoesNotContain(story.RunDueEvents(clock), e => e.Arrival);
+    }
+
+    [Fact]
     public void ARaceItsLossesRunOutIsTold()
     {
         var (story, clock) = NewStory();
