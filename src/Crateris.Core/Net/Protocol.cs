@@ -191,7 +191,7 @@ public static class Protocol
     /// the devices it holds (HoldSnapshot.Devices), a snapshot every
     /// leaver's container (WorldSnapshot.Containers: its number, leaver's
     /// name, place and devices), and a gift a device (Gift.Device, after
-    /// the fuel), refused as TradeRefusal.DeviceTooFar or HasOne.
+    /// the fuel), refused as TradeRefusal.DeviceTooFar, HasOne or InTalk.
     public const int Version = 36;
     public const int DefaultPort = 24642;
 

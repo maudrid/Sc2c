@@ -1585,7 +1585,7 @@ public sealed partial class GameWorld
     /// receiver holds one of its kind or either is in a talk. Both must be in the game; not while the
     /// game waits for a story talk or is over, nor to or from a ship in a
     /// battle or a wreck. A player in a talk (a meeting's, the starbase's
-    /// menu talk) can be given anything: a Melnorme trader topped up with
+    /// menu talk) can be given anything but a device: a Melnorme trader topped up with
     /// credits, a stranded player with fuel. Given, the gift goes on the
     /// list the receivers are told of (<see cref="TakeGifts"/>).
     /// </summary>

@@ -533,6 +533,10 @@ public sealed class StarbaseVisit : TalkSequence
                 player.Ship.Hold.LanderOut is not null && player.Ship.Battle is null ? Math.Max(0, hold.Crew - player.Ship.Hold.Crew) : 0)
             : (hold, fuel);
 
+    // The starter's devices as they are (stage 3c item 5, review round 1): no talk of a visit changes one, but
+    // the starter may have left them in a container meanwhile; putting its hold back mustn't bring them back.
+    private int[]? LiveDevices => Starter.Ship.Hold.Save().Devices;
+
     /// <summary>
     /// The starter disconnected from the Ilwrath's fight (a retreat at once,
     /// decision 10): its part of the visit is taken back now rather than
@@ -546,10 +550,6 @@ public sealed class StarbaseVisit : TalkSequence
     /// counter back again, so what it does once back in the game, outside
     /// the fight, stays done. The visit itself goes on with the fight.
     /// </summary>
-    // The starter's devices as they are (stage 3c item 5, review round 1): no talk of a visit changes one, but
-    // the starter may have left them in a container meanwhile; putting its hold back mustn't bring them back.
-    private int[]? LiveDevices => Starter.Ship.Hold.Save().Devices;
-
     internal void SettleStarter()
     {
         if (StarterSettled)
@@ -572,7 +572,8 @@ public sealed class StarbaseVisit : TalkSequence
     /// encounter, stage 3c item 2).
     /// A starter wrecked in the Ilwrath's fight
     /// stays a wreck (decision 13): its hold as before the visit, but no
-    /// crew; one that disconnected from it was settled as it left
+    /// crew and its devices as they are (one left in a container stays
+    /// there, stage 3c item 5); one that disconnected from it was settled as it left
     /// (<see cref="SettleStarter"/>: its hold as before the visit with the
     /// crew it left with, its fuel as before it less the retreat's 5
     /// units), and isn't put back again.
