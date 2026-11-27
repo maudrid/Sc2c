@@ -280,6 +280,34 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-date YYYY-MM-DD (testing, the stage 3c plan's item 1): the
+    /// clock moved on to that day, as the starbase's two weeks move it
+    /// (MoveGameClockDays): each day's events run, the location gates
+    /// asking where the players are, and the races' fleets grow and move;
+    /// no hyperspace encounters are rolled (the ships aren't flying
+    /// meanwhile). Changes whatever game is loaded, and is saved with it.
+    /// Needs the story (InvalidOperationException); a date that isn't one,
+    /// or one before the clock's, is an ArgumentException, changing nothing.
+    /// </summary>
+    public string StartDate(string date)
+    {
+        if (World.Story is null)
+            throw new InvalidOperationException("the clock's events need the content");
+        var parts = date.Split('-');
+        if (parts.Length != 3 || !int.TryParse(parts[0], out int y) || !int.TryParse(parts[1], out int m)
+            || !int.TryParse(parts[2], out int d) || y < 1 || y > 9999 || m < 1 || m > 12 || d < 1 || d > GameClock.DaysInMonth(m, y))
+            throw new ArgumentException($"{date}: a date is YYYY-MM-DD");
+        var c = World.Clock;
+        int days = (new DateTime(y, m, d) - new DateTime(c.Year, c.Month, c.Day)).Days;
+        if (days < 0)
+            throw new ArgumentException($"{date}: the clock only goes forward, from {c.Year:D4}-{c.Month:D2}-{c.Day:D2}");
+        var done = World.MoveClockDays(days, rolls: false);
+        int ran = done.Count(e => !e.SetAside && e.Event.Event != "HYPERSPACE_ENCOUNTER_EVENT");
+        return $"Starting on {y:D4}-{m:D2}-{d:D2}: {days} day{(days == 1 ? "" : "s")} passed, {ran} event{(ran == 1 ? "" : "s")} run"
+               + (ran == 0 ? "" : $" ({string.Join(", ", done.Where(e => !e.SetAside && e.Event.Event != "HYPERSPACE_ENCOUNTER_EVENT").Select(e => e.Event.Event))})");
+    }
+
+    /// <summary>
     /// The steps --start-visit takes (testing): <c>base-report</c>, the
     /// commander's talk where the Lunar base is reported, before the
     /// Ilwrath's (<see cref="StartVisit"/>).

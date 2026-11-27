@@ -188,9 +188,12 @@ public sealed partial class GameWorld
                     r.Next("MoveGalaxy");
             }
         }
-        // GameClockTick: a new day runs its events (processClockDayEvents).
+        // GameClockTick: a new day runs its events (processClockDayEvents);
+        // then checkArilouGate (starcon.c's battle frame): the portal's
+        // counter, shared, stepped once a world frame.
         if (Clock.Tick(Settings.SecondsPerGameDay))
             RunDayEvents();
+        Story?.StepArilouGate();
         if (encounters is null)
             return;
         var players = HyperspacePlayers();

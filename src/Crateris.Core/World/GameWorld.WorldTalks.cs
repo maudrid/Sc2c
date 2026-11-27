@@ -81,6 +81,21 @@ internal sealed record TalkWorld(string Special, int Planet, int? Moon, string R
     public string? Unguarded { get; init; }
 
     /// <summary>
+    /// The race whose sphere the generator's test tracks (StartSphereTracking,
+    /// the <c>lives</c> given to <see cref="Guarded"/>), where it isn't the
+    /// talk's: genzoq.c tracks the Zoq-Fot-Pik's before the Kohr-Ah's ship
+    /// talks. Null: the talk's race.
+    /// </summary>
+    public string? TrackedRace { get; init; }
+
+    /// <summary>
+    /// The talk the generator goes on to when the ship doesn't stay out of
+    /// orbit (<see cref="Stays"/> false): genzoq.c's Zoq-Fot-Pik's, once the
+    /// Kohr-Ah's ship at their world is destroyed. Null: the orbit.
+    /// </summary>
+    public TalkWorld? Then { get; init; }
+
+    /// <summary>
     /// Whether <see cref="Unguarded"/> is set too when the world is orbited
     /// with no talk while it's this entry's (genorz.c sets TAALO_UNPROTECTED
     /// after its whole test, the Orz extinct included).
@@ -93,6 +108,15 @@ public sealed partial class GameWorld
 {
     private static int Flag(StoryState s, string field) => s.Get(field);
 
+    // genzoq.c:111: the Zoq-Fot-Pik's own talk at their world, after the Kohr-Ah's ship (the distress) or with none
+    // (before TalkWorlds, which holds it: static fields are made in order).
+    private static readonly TalkWorld ZoqFotPikHome =
+        new("ZOQFOT_DEFINED", 0, null, "ZOQFOTPIK_SHIP", 1 << 7, "GenerateZoqFotPik_generateOrbital")
+        {
+            Guarded = (s, lives) => lives() && Flag(s, "ZOQFOT_DISTRESS") == 0,
+            StandDown = false,
+        };
+
     /// <summary>
     /// Every world whose orbit starts a talk in stage 3b-2's races, by its
     /// generator's generateOrbital, in the generator's order where two
@@ -104,9 +128,7 @@ public sealed partial class GameWorld
     /// out: the Chmmr's own talk at Procyon once they're unleashed and
     /// the bomb ship (genchmmr.c:96, 3c's: the plan's question 8); the
     /// Talking Pet's half of genpet.c (the zombies, the Pet's talks, the
-    /// jump to the Ur-Quan: 3c, the plan's left-out table); the Kohr-Ah's
-    /// ship at the Zoq-Fot-Pik's world in distress (genzoq.c:96, 3c: with
-    /// ZOQFOT_DISTRESS set the world is orbited until then); the Sa-Matra
+    /// jump to the Ur-Quan: 3c, the plan's left-out table); the Sa-Matra
     /// (gensam.c, the endgame).
     /// </summary>
     internal static readonly IReadOnlyList<TalkWorld> TalkWorlds = new TalkWorld[]
@@ -189,12 +211,19 @@ public sealed partial class GameWorld
             Guarded = (s, lives) => lives() && HelixGuarded(s),
             Stays = (s, _) => HelixGuarded(s),
         },
-        // genzoq.c:86 (the Kohr-Ah's ship first while ZOQFOT_DISTRESS is set: 3c's, so the world waits for it).
-        new("ZOQFOT_DEFINED", 0, null, "ZOQFOTPIK_SHIP", 1 << 7, "GenerateZoqFotPik_generateOrbital")
+        // genzoq.c:86: while ZOQFOT_DISTRESS is set (stage 3c item 1), the Kohr-Ah's ship attacking their world
+        // talks first, one ship, not standing anyone down; destroyed, their own talk follows; else the ship stays
+        // by the world. Then their own talk, with no distress.
+        new("ZOQFOT_DEFINED", 0, null, "BLACK_URQUAN_SHIP", 1 << 7, "GenerateZoqFotPik_generateOrbital")
         {
-            Guarded = (s, lives) => lives() && Flag(s, "ZOQFOT_DISTRESS") == 0,
+            TrackedRace = "ZOQFOTPIK_SHIP",
+            Guarded = (s, lives) => lives() && Flag(s, "ZOQFOT_DISTRESS") != 0,
+            Fleet = _ => 1,
             StandDown = false,
+            Stays = (_, survivors) => survivors,
+            Then = ZoqFotPikHome,
         },
+        ZoqFotPikHome,
         // genpet.c:81, the Umgah's half: their world while they aren't the Talking Pet's zombies. In the states
         // the Pet's half handles (the zombies, the Umgah extinct: 3c's) the world starts no talk and, never
         // entered (Surface.EnterOrbit), isn't orbited either: the ship is held by it.
@@ -275,14 +304,14 @@ public sealed partial class GameWorld
         var here = WorldTalkTable.Where(w => w.Special == special && w.Planet == planet && w.Moon == moon
                                              && (w.Matches?.Invoke(story) ?? true)).ToList();
         // Which starts its talk, asked without tracking a sphere.
-        int first = here.FindIndex(w => w.Guarded(story, () => story.WouldTrackSphere(w.Race)));
+        int first = here.FindIndex(w => w.Guarded(story, () => story.WouldTrackSphere(w.TrackedRace ?? w.Race)));
         // As the generator does it, the tests and their tracking with them,
         // up to that one (its talk not ported yet: orbited as before).
         foreach (var w in first >= 0 ? here.Take(first + 1) : here)
         {
             if (WorldScript(w) is null)
                 continue;
-            if (w.Guarded(story, () => story.StartSphereTracking(w.Race)))
+            if (w.Guarded(story, () => story.StartSphereTracking(w.TrackedRace ?? w.Race)))
                 return w;
             if (first < 0 && w.UnguardedWhenOrbited && w.Unguarded is { } flag)
                 story.Set(flag, 1);
@@ -383,7 +412,9 @@ public sealed partial class GameWorld
     /// InitCommunication): unless the ship stays out of orbit
     /// (<see cref="TalkWorld.Stays"/>, given whether any of the ships are
     /// left), the generator falls through to the orbit: its flag set (a
-    /// guard gone: <see cref="TalkWorld.Unguarded"/>) and the player's ship
+    /// guard gone: <see cref="TalkWorld.Unguarded"/>) and, where it goes on
+    /// to another talk (<see cref="TalkWorld.Then"/>), that talk begun
+    /// (taking its lock, or the player told who holds it), else the player's ship
     /// put in orbit around the world, as UQM's EnterPlanetOrbit goes on to
     /// PlanetOrbitMenu, if it's still by it in flight there, out of any
     /// meeting, visit or battle, and was in the battle to its end (one who
@@ -400,6 +431,13 @@ public sealed partial class GameWorld
         if (m.LeftBattleEarly || !player.Present || ship.Destroyed || ship is not { Meeting: null, Visit: null, Battle: null }
             || ship.SystemStar != m.Star || ship.Ip is not { Orbit: null } ip || m.World is not var (planet, moon))
             return;
+        if (w.Then is { } next && WorldScript(next) is not null)
+        {
+            // The generator goes on to the next talk (genzoq.c: the Zoq-Fot-Pik's, the Kohr-Ah's ship destroyed),
+            // the ship still by the world.
+            MeetAtWorld(player, m.Star!.Value, (planet, moon), next);
+            return;
+        }
         ip.PlaceInOrbit(planet, moon);
         if (ip.OrbitData is { Entered: false })
             ip.ReturnFromOrbit();

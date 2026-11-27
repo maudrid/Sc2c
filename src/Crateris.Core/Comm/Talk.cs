@@ -1048,14 +1048,34 @@ public sealed class Talk : ITalkStory
     /// <summary>
     /// AddEvent: a clock event, relative to today or on a date, by gameev.h's
     /// name, queued, run or set aside by the story (StoryState.AddEvent; the
-    /// Ilwrath's ADVANCE_ILWRATH_MISSION is set aside until stage 3c).
+    /// missions' events, such as the Ilwrath's ADVANCE_ILWRATH_MISSION, are
+    /// set aside until stage 3c's item 3). One run at once (relative, due
+    /// today: the Yehat rebels') is kept with what it changed in the story
+    /// (<see cref="RanAtOnce"/>), for a talk that's taken back.
     /// </summary>
     public void AddEvent(bool relative, int months, int days, int years, string evt)
     {
         Check();
         _events.Add(new EventAdded(relative, months, days, years, evt));
+        if (relative && months == 0 && days == 0 && years == 0 && StoryState.EventsRun.Contains(evt))
+        {
+            var before = _story.Save();
+            _story.AddEvent(relative, months, days, years, evt, Clock);
+            _ranAtOnce.Add(StoryState.Changes.Between(before, _story.Save()));
+            return;
+        }
         _story.AddEvent(relative, months, days, years, evt, Clock);
     }
+
+    /// <summary>
+    /// What each clock event the talk ran at once changed in the story
+    /// (the fields, the races' fleets and standings, the crew's price, the
+    /// clock's events), in the order they ran: what an opening taken back
+    /// takes back with its talks (StarbaseVisit).
+    /// </summary>
+    public IReadOnlyList<StoryState.Changes> RanAtOnce => _ranAtOnce;
+
+    private readonly List<StoryState.Changes> _ranAtOnce = new();
 
     /// <summary>CheckAlliance: a race's standing, by races.h's number.</summary>
     public Story.Allied CheckAlliance(int race) => _story.Alliances[race];

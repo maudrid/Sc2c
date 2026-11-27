@@ -22,10 +22,11 @@ namespace Crateris.Core.Tests;
 /// Admiral ZEX at the Maidens' world at peace, his fleet's fight, the
 /// beast given and his death (the world orbited from then on); the Yehat
 /// homeworld's talk; the revolt offered with a Shofixti ship in the host's
-/// fleet whoever answers, its event set aside, the royalists after; the
-/// rebels (brought as --start-encounter brings them until 3c's revolt
-/// gives them a fleet) under the Yehat's lock, their ships to the host's
-/// fleet. The scripts' every path is TalkTests' recordings.
+/// fleet whoever answers, its event run at once (stage 3c item 1: the
+/// rebels' fleet, everyone told) and the royalists touched fleeing after
+/// (the rebellion check), the royalists after; the rebels (brought as
+/// --start-encounter brings them) under the Yehat's lock, their ships to
+/// the host's fleet. The scripts' every path is TalkTests' recordings.
 /// </summary>
 [Trait("Topic", "world")]
 public class VuxYehatTests
@@ -288,19 +289,34 @@ public class VuxYehatTests
 
         // A Shofixti ship in the host's fleet (only --start-fleet brings one before 3c): the guest may send it.
         world.Fleet.Add(story.Rules, "SHOFIXTI_SHIP", 1, () => 0u);
+        int royalists = story.Fleet("YEHAT_SHIP").ActualStrength;
         m = MeetInSystem(world, "g", "YEHAT_SHIP");
+        var group = world.SystemGroups!.Systems[GroupStar].Groups.Single();
         Assert.True(world.EncounterChoice("g", EncounterAction.Hail));
         Choose(world, "g", "shofixti_alive_2");   // told already
+        world.TakeNotices();
         Choose(world, "g", "ok_send");
         Assert.True(Said(m.Talk!, "WE_REVOLT"));
         Assert.Equal(Segue.Peace, m.Talk!.Segue);
         Assert.Equal(1, story.Get("YEHAT_CIVIL_WAR"));
-        // The revolt's event set aside until 3c runs the calendar.
-        Assert.Contains(story.Events.SetAside, e => e.Event == "YEHAT_REBEL_EVENT");
-        Assert.Equal(0, story.Fleet("YEHAT_REBEL_SHIP").ActualStrength);
+        // The revolt's event runs at once (stage 3c item 1): the royalists cut to two thirds, the rebels as many at
+        // (5150, 0), their sphere tracked; the host told, as of the guest's talk.
+        Assert.DoesNotContain(story.Events.SetAside, e => e.Event == "YEHAT_REBEL_EVENT");
+        Assert.Equal(royalists * 2 / 3, story.Fleet("YEHAT_SHIP").ActualStrength);
+        Assert.Equal((royalists * 2 / 3, 5150, 0, 1), (story.Fleet("YEHAT_REBEL_SHIP").ActualStrength,
+            story.Fleet("YEHAT_REBEL_SHIP").LocX, story.Fleet("YEHAT_REBEL_SHIP").LocY, story.Fleet("YEHAT_REBEL_SHIP").KnownStrength));
+        // Kept with what it changed, for a talk taken back (only an opening's is).
+        Assert.Equal(new[] { "YEHAT_REBEL_SHIP", "YEHAT_SHIP" }, Assert.Single(m.Talk.RanAtOnce).Fleets.Keys.OrderBy(k => k));
+        var told = Assert.Single(world.TakeNotices(), n => n.Event == NoticeEvent.CivilWar);
+        Assert.Equal(("h", "g", "Yehat"), (told.PlayerId, told.By, told.Race));
+        Assert.Equal("g started the Yehat's civil war: the rebels have a fleet of their own.", told.Text);
         MeetingTests.HearClosing(world, "g");
         Assert.Null(m.Battle);
         Assert.Equal(1, world.Fleet.CountOf("SHOFIXTI_SHIP"));   // the ship stays (UQM's too)
+        // The rebellion check (check_yehat_rebellion, every system's reinitNpcs): with no battle, the royalist group
+        // that stood down from the touch flees the system.
+        Assert.Equal((IpGroup.Flee | IpGroup.IgnoreFlagship, (byte)0),
+            ((byte)(group.Task & ~IpGroup.ReformGroup), group.DestLoc));
 
         // The royalists from then on.
         m = MeetInSystem(world, "h", "YEHAT_SHIP");

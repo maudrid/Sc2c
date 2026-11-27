@@ -99,8 +99,10 @@ public static class HostSave
     /// aside for stage 3c (StoryState.Saved.SetAside, decision 9); an older
     /// save has none set aside, and one with any is refused. On loading any
     /// save, the events whose day has passed run at once, in date order
-    /// (those of 3c set aside): an older save's, which ran none, as the
-    /// encounters' event waiting since the second day. During a visit's
+    /// (those the port doesn't run yet set aside): an older save's, which
+    /// ran none, as the encounters' event waiting since the second day; and
+    /// with them, since stage 3c item 1, the events a save set aside that
+    /// the port now runs, once, from where the clock is. During a visit's
     /// opening, the two weeks' events are taken back with the two weeks.
     /// Version 13 also has the races' fleets (StoryState.Saved.Fleets,
     /// stage 3b item 2: each race's sphere, known sphere, growth and
@@ -648,7 +650,9 @@ public static class HostSave
             world.InOrbit(p.Ship);
         world.CommanderMet = save.CommanderMet;
         // The events whose day has passed run now, in date order (an older
-        // save's: it ran none); those of 3c are set aside (decision 9).
+        // save's: it ran none), and those an older save set aside that the
+        // port now runs (stage 3c item 1), from where the clock is; the
+        // missions' and the Kohr-Ah's are set aside still (decision 9).
         world.RunDayEvents();
         return world;
     }

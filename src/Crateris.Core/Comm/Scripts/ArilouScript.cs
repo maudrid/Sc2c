@@ -29,8 +29,8 @@ namespace Crateris.Core.Comm.Scripts;
 /// (ARILOU_MANNER 2), saying goodbye at once wherever met. At their
 /// homeworld (QuasiSpace, stage 3c's, recorded): their questions and
 /// stacks, the Talking Pet and the Umgah (ARILOU_CHECKED_UMGAH, the
-/// ARILOU_UMGAH_CHECK event queued ten days on: set aside until 3c, the
-/// stage 3b-2 plan's question 3), the wreck's part for the portal key
+/// ARILOU_UMGAH_CHECK event queued ten days on, run since stage 3c item
+/// 1), the wreck's part for the portal key
 /// (KNOW_ARILOU_WANT_WRECK, PORTAL_KEY_ON_SHIP: the portal spawner
 /// given), and after a talk there with ARILOU_HOME_VISITS at most 1 the
 /// Umgah made the Pet's zombies again (post_arilou_enc:
@@ -128,7 +128,7 @@ public sealed class ArilouScript : CommScript
             NPCPhrase("WELL_GO_CHECK");
 
             SetGameState("ARILOU_CHECKED_UMGAH", 1);
-            // Queued and set aside until stage 3c runs the calendar (the plan's question 3).
+            // Run ten days on (stage 3c item 1).
             T.AddEvent(relative: true, 0, 10, 0, "ARILOU_UMGAH_CHECK");
             DisablePhrase("umgah_acting_weird");
         }

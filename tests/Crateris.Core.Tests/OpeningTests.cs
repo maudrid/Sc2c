@@ -594,8 +594,9 @@ public class OpeningTests
     {
         var world = WithTalks();
         var story = world.Story!;
-        // To 10 August 2155 (the Arilou's day set aside on the way), so the
-        // two weeks pass over the Slylandro's ramp-up on the 18th.
+        // To 10 August 2155 (the Arilou's portal opening and closing each
+        // month on the way), so the two weeks pass over the Slylandro's
+        // ramp-up on the 18th (and the Arilou's 17th).
         world.MoveClockDays(174);
         var events = story.Events.ToList();
         var setAside = story.Events.SetAside.ToList();
@@ -671,36 +672,54 @@ public class OpeningTests
     }
 
     [ContentFact]
-    public void LeavingAsTheStarbaseIsReadyGivesBackTheEventsSetAside()
+    public void LeavingAsTheStarbaseIsReadyTakesBackTheEventsTheTwoWeeksRanAndSetAside()
     {
         var world = WithTalks();
         var story = world.Story!;
         // To 10 March 2155, so the two weeks pass over the Arilou's
-        // entrance on the 17th, a 3c event set aside on its day.
+        // entrance on the 17th and the Shofixti's return on the 15th (with
+        // crew bought at 5 RU, its price lowered to 3), and a mission's day
+        // on the 12th, set aside (stage 3c items 3's).
         world.MoveClockDays(21);
         Assert.Equal((2155, 3, 10), (world.Clock.Year, world.Clock.Month, world.Clock.Day));
         var arilou = new StoryEvent("ARILOU_ENTRANCE_EVENT", 2155, 3, 17);
+        var mission = new StoryEvent("ADVANCE_PKUNK_MISSION", 2155, 3, 12);
+        Assert.True(story.Events.Add(false, 3, 15, 2155, "SHOFIXTI_RETURN_EVENT", world.Clock));
+        Assert.True(story.Events.Add(false, 3, 12, 2155, "ADVANCE_PKUNK_MISSION", world.Clock));
+        story.SetCrewCost(5);
+        story.Set("CREW_PURCHASED0", 44);
+        story.Set("CREW_PURCHASED1", 1);
         Assert.Contains(arilou, story.Events);
         Assert.Empty(story.Events.SetAside);
         var events = story.Events.ToList();
+        var alliances = story.Alliances.ToList();
         story.Set("STARBASE_AVAILABLE", 1);
         story.Set("MOONBASE_ON_SHIP", 1);
         world.VisitStarbase(world.Host);
         Run(world, StarbaseVisit.TimePassingFrames);
         Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
-        Assert.Equal(new[] { arilou }, story.Events.SetAside);
+        Assert.Equal(new[] { mission }, story.Events.SetAside);
         Assert.DoesNotContain(arilou, story.Events);
-        // A save made now is of the game without the two weeks: queued, not set aside.
+        Assert.Equal((3, 0, 0), (story.CrewCost, story.Get("CREW_PURCHASED0"), story.Get("CREW_PURCHASED1")));
+        Assert.Contains(new StoryEvent("ARILOU_ENTRANCE_EVENT", 2155, 4, 17), story.Events);   // opened on the 17th, closed on the 20th
+        Assert.Equal(Allied.Good, story.Alliance("SHOFIXTI_SHIP"));
+        // A save made now is of the game without the two weeks: queued, not run or set aside.
         var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
         Assert.Equal(events, saved.Story!.Events);
         Assert.Empty(saved.Story.Events.SetAside);
+        Assert.Equal((5, 44, 1), (saved.Story.CrewCost, saved.Story.Get("CREW_PURCHASED0"), saved.Story.Get("CREW_PURCHASED1")));
+        Assert.Equal(alliances, saved.Story.Alliances);
         world.Leave("host");
         Assert.Equal(events, story.Events);
         Assert.Empty(story.Events.SetAside);
-        // The day comes again: set aside once, not twice.
-        world.MoveClockDays(14);
-        Assert.Equal(new[] { arilou }, story.Events.SetAside);
-        Assert.DoesNotContain(arilou, story.Events);
+        Assert.Equal((5, 44, 1), (story.CrewCost, story.Get("CREW_PURCHASED0"), story.Get("CREW_PURCHASED1")));
+        Assert.Equal(alliances, story.Alliances);
+        // The days come again: each event once, not twice.
+        var done = world.MoveClockDays(14);
+        Assert.Equal(new[] { mission }, story.Events.SetAside);
+        Assert.Equal(1, done.Count(e => e.Event == arilou));
+        Assert.Equal(1, done.Count(e => e.Event.Event == "SHOFIXTI_RETURN_EVENT"));
+        Assert.Equal(3, story.CrewCost);
     }
 
     [ContentFact]

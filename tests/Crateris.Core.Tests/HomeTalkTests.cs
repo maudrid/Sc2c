@@ -152,8 +152,8 @@ public class HomeTalkTests
         // The Melnorme's password (--start-state KNOW_SPATHI_PASSWORD=1
         // SPATHI_HOME_VISITS=7, their trading not ported yet), the council,
         // the quest taken; the Evil Ones eliminated, the party; the alliance
-        // made, told to the guest, the shield event queued (and set aside
-        // when it falls due until stage 3c).
+        // made, told to the guest, the shield event queued (run six months
+        // on since stage 3c item 1).
         var world = NewGame("g");
         var story = world.Story!;
         story.Set("KNOW_SPATHI_PASSWORD", 1);

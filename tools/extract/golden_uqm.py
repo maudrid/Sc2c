@@ -8357,7 +8357,9 @@ CLOCK_LINK += [f"uqm/ships/{ship}/{ship}.c" for ship in sorted(
 
 # The clock's scenarios: commands for golden/clock.c ("new", "day N",
 # "move N", "hyper 0|1", "rampdown", "dest R X Y D F", "growth R G F E",
-# "track R"; races by races.h's *_SHIP number, events by gameev.h's).
+# "track R", "system S", "add R M D Y E", "strength R N", "ally R F",
+# "crew B C", "distress N"; races by races.h's *_SHIP number, events by
+# gameev.h's, systems by gendef.h's *_DEFINED).
 # A new game's Slylandro ramp-ups fall
 # on 17 February 2155 (at once), 18 August 2155, 16 February and 16 August
 # 2156 (a leap year), and the one on 14 February 2157 (728 days in) finds
@@ -8396,6 +8398,25 @@ CLOCK_SCENARIOS = [
                     "dest 21 1000 1000 255 255", "dest 14 2500 8070 5 16", "growth 16 5 0 127", "growth 1 5 0 127",
                     "dest 22 100 100 3 255", "day 20", "track 14", "track 0", "track 6", "track 16", "track 1",
                     "track 8", "hyper 1", "move 14", "growth 21 156 128 0", "day 10"]),
+    # The events with no mission (stage 3c item 1), queued as the talks
+    # queue them, with the location gates: the Arilou's look at the Umgah
+    # (14) in 10 days; the Shofixti's return (8) in two months, with 300
+    # crew bought at 5 each; the Spathi's shield (11), allied, in 40 days;
+    # the Zoq-Fot-Pik's distress (6) in 20, waiting twice in their system
+    # (6), then their death six months on, waiting once there too; the
+    # Spathi's shield waiting three times in theirs (5); the Arilou's portal
+    # opening and closing meanwhile; the Yehat rebels (15) at once, and the
+    # rebels' sphere (22) tracked.
+    ("the events with no mission", ["new", "add 1 0 10 0 14", "crew 300 5", "add 1 2 0 0 8", "ally 6 1",
+                                    "add 1 0 40 0 11", "add 1 0 20 0 6", "system 6", "day 30", "system 5",
+                                    "day 25", "hyper 1", "day 15", "system 6", "move 150", "hyper 0", "day 10",
+                                    "add 1 0 0 0 15", "track 22"]),
+    # The Zoq-Fot-Pik rescued before their death (their thanks set
+    # ZOQFOT_DISTRESS 0), so it does nothing; the Spathi's shield with no
+    # Spathi fleet left, which does nothing; the Shofixti's return at a
+    # crew price of 1, which wraps round the BYTE to 255.
+    ("the events undone", ["new", "add 1 3 0 0 6", "strength 6 0", "ally 6 1", "add 1 0 5 0 11", "crew 2 1",
+                           "add 1 0 7 0 8", "day 10", "move 90", "distress 0", "move 200", "day 2"]),
 ]
 
 
@@ -8433,9 +8454,15 @@ def record_clock(uqm, exe):
         "(R, X, Y, D, F), race R (races.h's *_SHIP number) heading for (X, "
         "Y) D days away, to run event F there (255 none); growth R G F E: "
         "race R's growth, growth_fract and growth_err_term set, as 3c's "
-        "events set them; track R: StartSphereTracking (R)) and its steps: "
-        "one after new, rampdown and track, one each day of day, one for "
-        "the whole of move.",
+        "events set them; track R: StartSphereTracking (R); system S: the "
+        "flagship in interplanetary flight in the system whose generator is "
+        "gendef.h's S (CurStarDescPtr's Index; 0 none), as the location "
+        "gates read it; add R M D Y E: AddEvent (R ? RELATIVE_EVENT : "
+        "ABSOLUTE_EVENT, M, D, Y, E), as a talk queues an event; strength R "
+        "N: race R's actual_strength N; ally R F: SetRaceAllied (R, F); crew "
+        "B C: CREW_PURCHASED0 and 1 the crew bought B, CrewCost C; distress "
+        "N: ZOQFOT_DISTRESS N) and its steps: one after new, rampdown, track "
+        "and add, one each day of day, one for the whole of move.",
         "A step: [[year, month, day] after it, [[event, depth, year, month, "
         "day]...] each event EventHandler ran, in order, depth 0 for those "
         "clock.c ran (from the queue's head, or AddEvent's due at once) and "
@@ -8446,7 +8473,9 @@ def record_clock(uqm, exe):
         "known_loc.x, known_loc.y, growth, growth_fract, growth_err_term, "
         "days_left, func_index, dest_loc.x, dest_loc.y]...] the fleets "
         "(FLEET_INFO in avail_race_q) that changed since the step before "
-        "(every race's after new)], and after track one more: "
+        "(every race's after new), [ARILOU_SPACE, ARILOU_CHECKED_UMGAH, "
+        "ZOQFOT_DISTRESS, SPATHI_SHIELDED_SELVES, CREW_PURCHASED0, "
+        "CREW_PURCHASED1, CrewCost] after it], and after track one more: "
         "StartSphereTracking's result. Events are gameev.h's numbers "
         "(data/events.json), races races.h's (data/races.json's order). An "
         "event a fleet's arrival runs (gameev.c's own EventHandler call) "
@@ -8464,7 +8493,7 @@ def clock_step_commands(commands):
         word, *n = c.split()
         if word == "day":
             words += ["day"] * int(n[0])
-        elif word in ("new", "move", "rampdown", "track"):
+        elif word in ("new", "move", "rampdown", "track", "add"):
             words.append(word)
     return words
 
@@ -8499,7 +8528,8 @@ def check_clock(scenarios, events):
         steps = scenario["steps"]
         if [f[0] for f in steps[0][5]] != list(range(24)) or any(f[8:12] != [0, 0, 127, 0] for f in steps[0][5]):
             raise RuntimeError(f"clock {scenario['name']}: a new game's fleets aren't every race's, with no growth")
-        if scenario["name"] != "the fleets" and any(s[5] for s in steps[1:]):
+        if (scenario["name"] in ("a new game", "the starbase's two weeks", "the Slylandro ramp-down")
+                and any(s[5] for s in steps[1:])):
             raise RuntimeError(f"clock {scenario['name']}: a fleet changed without growth or a heading")
     fleets = by["the fleets"]["steps"]
 
@@ -8513,11 +8543,34 @@ def check_clock(scenarios, events):
             or not 0 < last(KOHR_AH)[4] < 6000 or last(SLYLANDRO)[2:6] != [65535, 0, 333, 9812]
             or last(CHMMR)[2] != 0 or last(REBELS)[2:6] != [0, 0, 4970, 40] or last(REBELS)[11] != 3):
         raise RuntimeError("clock: the fleets don't grow, shrink, die and move as the scenario has them")
-    tracked = [s[6] for s in fleets if len(s) > 6]
+    tracked = [s[7] for s in fleets if len(s) > 7]
     if tracked != [ILWRATH, ILWRATH, 0, 0, SLYLANDRO, 1, THRADDASH]:
         raise RuntimeError(f"clock: StartSphereTracking gave {tracked}")
     if not any(s[3] == 2 for s in fleets[:8]):
         raise RuntimeError("clock: the Ilwrath's arrival didn't run its event")
+    # The events with no mission: [ARILOU_SPACE, ARILOU_CHECKED_UMGAH,
+    # ZOQFOT_DISTRESS, SPATHI_SHIELDED_SELVES, CREW_PURCHASED0, 1, CrewCost].
+    DISTRESS, DEATH, SHOFIXTI_RETURN, SHIELD, UMGAH_CHECK, REBELS_EVENT = 6, 7, 8, 11, 14, 15
+    SHOFIXTI, YEHAT, ZOQFOT = 5, 11, 19
+    ev = by["the events with no mission"]["steps"]
+
+    def runs(steps, event):
+        return sum(r[0] == event for s in steps for r in s[1])
+
+    def fleet_of(steps, race):
+        return [f for s in steps for f in s[5] if f[0] == race][-1]
+
+    if (runs(ev, DISTRESS) != 3 or runs(ev, SHIELD) != 4 or runs(ev, DEATH) != 2 or runs(ev, SHOFIXTI_RETURN) != 1
+            or runs(ev, UMGAH_CHECK) != 1 or runs(ev, REBELS_EVENT) != 1 or runs(ev, ARILOU) < 6
+            or ev[-1][6][1:] != [2, 2, 1, 0, 0, 3] or fleet_of(ev, ZOQFOT)[1:3] != [0, 0]
+            or fleet_of(ev, SPATHI)[1:3] != [2, 0] or fleet_of(ev, SHOFIXTI)[1] != 1
+            or fleet_of(ev, REBELS)[2] == 0 or fleet_of(ev, REBELS)[2] != fleet_of(ev, YEHAT)[2]
+            or fleet_of(ev, REBELS)[4:6] != [5150, 0] or ev[-1][7] != REBELS):
+        raise RuntimeError("clock: the events with no mission don't run, wait and change the story as the scenario has them")
+    undone = by["the events undone"]["steps"]
+    if (runs(undone, DEATH) != 1 or undone[-1][6][2:] != [0, 0, 0, 0, 255] or fleet_of(undone, ZOQFOT)[1] == 0
+            or fleet_of(undone, SPATHI)[1] != 1):
+        raise RuntimeError("clock: the rescue, the Spathi gone and the crew price's wrap aren't as the scenario has them")
 
 
 CMAP_PROGRAM = os.path.join(HERE, "golden", "cmap.c")

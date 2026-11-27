@@ -16,10 +16,13 @@ using Crateris.Core.World;
 namespace Crateris.Core.Tests;
 
 /// <summary>
-/// The clock's events (docs/plans/stage-3b.md, item 1): each day the
-/// events due run as UQM's processClockDayEvents runs them, the hyperspace
-/// encounters and the Slylandro ramps; stage 3c's are set aside on their
-/// day (decision 9); a save's events whose day has passed run on loading.
+/// The clock's events (docs/plans/stage-3b.md, item 1; docs/plans/stage-3c.md,
+/// item 1): each day the events due run as UQM's processClockDayEvents runs
+/// them, the hyperspace encounters, the Slylandro ramps and since stage 3c
+/// item 1 the events with no mission (each recorded from UQM's gameev.c,
+/// the location gates with them); the missions' and the Kohr-Ah's are set
+/// aside on their day (decision 9); a save's events whose day has passed
+/// run on loading.
 /// </summary>
 [Trait("Topic", "story")]
 public class ClockEventsTests
@@ -55,6 +58,7 @@ public class ClockEventsTests
             GameWorld? world = null;
             bool hyper = false;
             int setAsideBefore = 0, rollsBefore = 0;
+            string? inSystem = null;   // the special system UQM's flagship is in (the location gates)
             // UQM's fleets as the steps so far left them: each step has those that changed.
             var uqmFleets = new (Allied, RaceFleet)[Rules.Races.Count];
 
@@ -74,7 +78,7 @@ public class ClockEventsTests
                 var ran = done.Where(e => !e.SetAside).Select(e => (e.Event.Event, (e.Event.Year, e.Event.Month, e.Event.Day))).ToList();
                 Assert.True(uqmRan.Where(r => StoryState.EventsRun.Contains(r.Event)).Select(r => (r.Event, r.Date)).SequenceEqual(ran),
                     $"{where}: ran {string.Join(", ", ran)}");
-                // Those set aside are 3c's, each run by UQM on its day.
+                // Those set aside are the missions' and the Kohr-Ah's (stage 3c items 3 and 4), each run by UQM on its day.
                 var aside = done.Where(e => e.SetAside).Select(e => e.Event).ToList();
                 Assert.Equal(aside, story.Events.SetAside.Skip(setAsideBefore));
                 setAsideBefore = story.Events.SetAside.Count;
@@ -91,9 +95,8 @@ public class ClockEventsTests
                 Assert.Equal(ran.Count(e => e.Event == "HYPERSPACE_ENCOUNTER_EVENT"), asked);
                 Assert.Equal(hyper ? asked : 0, step[2].GetInt32());
                 Assert.True(step[3].GetInt32() == story.Get("SLYLANDRO_MULTIPLIER"), where);
-                // The queue: the events the port runs as UQM's; 3c's still
-                // queued as in UQM's (UQM's then queues what they run: the
-                // Arilou's exits and returns, which the port's has none of).
+                // The queue: the events the port runs as UQM's; those set
+                // aside still queued as in UQM's.
                 var queue = step[4].EnumerateArray().Select(Event).ToList();
                 Assert.True(queue.Where(e => StoryState.EventsRun.Contains(e.Event))
                         .SequenceEqual(story.Events.Where(e => StoryState.EventsRun.Contains(e.Event))),
@@ -106,10 +109,17 @@ public class ClockEventsTests
                 for (int r = 0; r < Rules.Races.Count; ++r)
                     Assert.True(uqmFleets[r] == (story.Alliances[r], story.Fleets[r]),
                         $"{where}: {Rules.Races[r]} is {story.Alliances[r]} {story.Fleets[r]}, UQM's {uqmFleets[r]}");
+                // The story the events set: the Arilou's portal and look at the Umgah, the Zoq-Fot-Pik's
+                // distress, the Spathi's shield, the crew bought and its price.
+                Assert.True(step[6].Ints().SequenceEqual(new[]
+                {
+                    story.Get("ARILOU_SPACE"), story.Get("ARILOU_CHECKED_UMGAH"), story.Get("ZOQFOT_DISTRESS"),
+                    story.Get("SPATHI_SHIELDED_SELVES"), story.Get("CREW_PURCHASED0"), story.Get("CREW_PURCHASED1"), story.CrewCost,
+                }), $"{where}: the story's {string.Join(",", step[6].Ints())}");
                 // StartSphereTracking's result, UQM's race number or 0.
-                Assert.Equal(step.GetArrayLength() > 6, tracked is not null);
+                Assert.Equal(step.GetArrayLength() > 7, tracked is not null);
                 if (tracked is { } t)
-                    Assert.True(t == (step[6].GetInt32() != 0), where);
+                    Assert.True(t == (step[7].GetInt32() != 0), where);
             }
 
             foreach (string command in scenario.GetProperty("commands").EnumerateArray().Select(c => c.GetString()!))
@@ -121,6 +131,7 @@ public class ClockEventsTests
                 {
                     case "new":
                         world = NewWorld();
+                        world.InSystemForTests = special => special == inSystem;
                         // AddInitialGameEvents: every event is UQM's, the ramp-up run at once (by AddEvent).
                         Assert.Equal(steps[at][4].EnumerateArray().Select(Event), world.Story!.Events);
                         Check(new() { new(At("SLYLANDRO_RAMP_UP", 2155, 2, 17), false) });
@@ -137,6 +148,44 @@ public class ClockEventsTests
                         break;
                     case "hyper":
                         hyper = n != 0;
+                        inSystem = null;
+                        break;
+                    case "system":
+                        // UQM's flagship in a special system (gendef.h's number): the location gates hold its race's events.
+                        hyper = false;
+                        inSystem = n switch { 0 => null, 5 => "SPATHI_DEFINED", 6 => "ZOQFOT_DEFINED", _ => throw new InvalidDataException($"system {n}") };
+                        break;
+                    case "add":
+                    {
+                        // AddEvent, as a talk calls it: queued, or run at once.
+                        var story = world!.Story!;
+                        string evt = names[a[3]];
+                        bool atOnce = n != 0 && a[0] == 0 && a[1] == 0 && a[2] == 0;
+                        story.AddEvent(n != 0, a[0], a[1], a[2], evt, world.Clock, null, world.PlayerInSystem);
+                        Check(atOnce ? new() { new(At(evt, world.Clock.Year, world.Clock.Month, world.Clock.Day), false) } : new());
+                        break;
+                    }
+                    case "strength":
+                    {
+                        var story = world!.Story!;
+                        story.SetFleet(Rules.Races[n], story.Fleets[n] with { ActualStrength = a[0] });
+                        break;
+                    }
+                    case "ally":
+                        world!.Story!.SetRaceAllied(Rules.Races[n], a[0] != 0);
+                        break;
+                    case "crew":
+                    {
+                        // The crew bought and its price, as the starbase's trade leaves them.
+                        var story = world!.Story!;
+                        story.Set("CREW_PURCHASED0", n & 0xFF);
+                        story.Set("CREW_PURCHASED1", n >> 8);
+                        story.SetCrewCost(a[0]);
+                        break;
+                    }
+                    case "distress":
+                        // The Zoq-Fot-Pik's thanks (zoqfotc.c), rescued.
+                        world!.Story!.Set("ZOQFOT_DISTRESS", n);
                         break;
                     case "rampdown":
                     {
@@ -173,7 +222,7 @@ public class ClockEventsTests
         }
     }
 
-    // ---- the events stage 3b-1 runs
+    // ---- the events the port runs
 
     [Fact]
     public void TheEncounterEventRunsEachDayAndQueuesItselfForTheNext()
@@ -211,7 +260,7 @@ public class ClockEventsTests
     }
 
     [Fact]
-    public void ARelativeEventDueNowRunsAtOnceAnd3csIsSetAsideToday()
+    public void ARelativeEventDueNowRunsAtOnceAndAMissionsIsSetAsideToday()
     {
         var world = NewWorld();
         var story = world.Story!;
@@ -219,36 +268,41 @@ public class ClockEventsTests
         Assert.False(story.AddEvent(true, 0, 0, 0, "SLYLANDRO_RAMP_UP", world.Clock));
         Assert.Equal(2, story.Get("SLYLANDRO_MULTIPLIER"));
         Assert.Contains(At("SLYLANDRO_RAMP_UP", 2155, 8, 28), story.Events);   // 182 days from 27 February
-        Assert.False(story.AddEvent(true, 0, 0, 0, "ZOQFOT_DISTRESS_EVENT", world.Clock));
-        Assert.Equal(new[] { At("ZOQFOT_DISTRESS_EVENT", 2155, 2, 27) }, story.Events.SetAside);
-        Assert.DoesNotContain(story.Events, e => e.Event == "ZOQFOT_DISTRESS_EVENT");
+        Assert.False(story.AddEvent(true, 0, 0, 0, "ADVANCE_PKUNK_MISSION", world.Clock));
+        Assert.Equal(new[] { At("ADVANCE_PKUNK_MISSION", 2155, 2, 27) }, story.Events.SetAside);
+        Assert.DoesNotContain(story.Events, e => e.Event == "ADVANCE_PKUNK_MISSION");
         Assert.Throws<KeyNotFoundException>(() => story.AddEvent(true, 0, 0, 0, "NO_SUCH_EVENT", world.Clock));
-        // Run directly, one of 3c's is refused as before.
-        Assert.Throws<NotSupportedException>(() => story.RunEvent("ZOQFOT_DISTRESS_EVENT", world.Clock));
+        // Run directly, a mission's is refused as before (stage 3c item 3's).
+        Assert.Throws<NotSupportedException>(() => story.RunEvent("ADVANCE_PKUNK_MISSION", world.Clock));
+        Assert.Throws<NotSupportedException>(() => story.RunEvent("KOHR_AH_VICTORIOUS_EVENT", world.Clock));
     }
 
-    // ---- 3c's events (decision 9)
+    // ---- the events set aside (decision 9): the missions' and the Kohr-Ah's since stage 3c item 1
 
     [Fact]
-    public void ThreeCsEventsAreSetAsideOnTheirDayWithoutHoldingUpTheRest()
+    public void TheMissionsEventsAreSetAsideOnTheirDayWithoutHoldingUpTheRest()
     {
         var world = NewWorld();
         var story = world.Story!;
-        // Two of 3c's on one day, before the Arilou's, with an encounter event behind them.
+        // Missions' events, two on one day, before the Arilou's, with an encounter event behind them.
         Assert.True(story.Events.Add(false, 3, 1, 2155, "ADVANCE_PKUNK_MISSION", world.Clock));
-        Assert.True(story.Events.Add(false, 3, 1, 2155, "ZOQFOT_DISTRESS_EVENT", world.Clock));
+        Assert.True(story.Events.Add(false, 3, 1, 2155, "ADVANCE_THRADD_MISSION", world.Clock));
+        Assert.True(story.Events.Add(false, 3, 5, 2155, "ADVANCE_MYCON_MISSION", world.Clock));
         var done = world.MoveClockDays(30);   // to 19 March
         Assert.Equal(new[]
         {
-            At("ADVANCE_PKUNK_MISSION", 2155, 3, 1), At("ZOQFOT_DISTRESS_EVENT", 2155, 3, 1), At("ARILOU_ENTRANCE_EVENT", 2155, 3, 17),
+            At("ADVANCE_PKUNK_MISSION", 2155, 3, 1), At("ADVANCE_THRADD_MISSION", 2155, 3, 1), At("ADVANCE_MYCON_MISSION", 2155, 3, 5),
         }, story.Events.SetAside);
         Assert.Equal(story.Events.SetAside, done.Where(e => e.SetAside).Select(e => e.Event));
-        // The encounters went on every day, those days too.
+        // The encounters went on every day, those days too, and the Arilou's portal opened and closed.
         Assert.Equal(30, done.Count(e => e.Event.Event == "HYPERSPACE_ENCOUNTER_EVENT" && !e.SetAside));
         Assert.Equal(30, world.HyperspaceEncounterDays);
+        Assert.Equal(new[] { At("ARILOU_ENTRANCE_EVENT", 2155, 3, 17) },
+            done.Where(e => e.Event.Event.StartsWith("ARILOU", StringComparison.Ordinal)).Select(e => e.Event));
         Assert.Equal(new[]
         {
-            At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 3, 20), At("SLYLANDRO_RAMP_UP", 2155, 8, 18), At("KOHR_AH_VICTORIOUS_EVENT", 2159, 2, 17),
+            At("ARILOU_EXIT_EVENT", 2155, 3, 20), At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 3, 20),   // the exit queued first
+            At("SLYLANDRO_RAMP_UP", 2155, 8, 18), At("KOHR_AH_VICTORIOUS_EVENT", 2159, 2, 17),
         }, story.Events);
 
         // Kept, with their dates, through a save.
@@ -278,8 +332,9 @@ public class ClockEventsTests
     {
         var systems = SystemCatalog.Load(DataDir);
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
-        world.MoveClockDays(40);   // past the Arilou's day
-        Assert.Equal(new[] { At("ARILOU_ENTRANCE_EVENT", 2155, 3, 17) }, world.Story!.Events.SetAside);
+        Assert.True(world.Story!.Events.Add(false, 3, 1, 2155, "ADVANCE_MYCON_MISSION", world.Clock));
+        world.MoveClockDays(40);   // past the mission's day
+        Assert.Equal(new[] { At("ADVANCE_MYCON_MISSION", 2155, 3, 1) }, world.Story!.Events.SetAside);
         string json = HostSave.ToJson(world);
         var loaded = HostSave.FromJson(json, systems, TestContent.Shapes);
         Assert.Equal(world.Story.Events.SetAside, loaded.Story!.Events.SetAside);
@@ -311,13 +366,16 @@ public class ClockEventsTests
         var loaded = HostSave.FromJson(node.ToJsonString(), systems, TestContent.Shapes);
         var story = loaded.Story!;
         // Each ran once, at once, in date order: the encounter event queued
-        // for the next day, the Arilou's set aside, the ramp-up run (2) and
-        // queued 182 days from the day of loading.
-        Assert.Equal(new[] { At("ARILOU_ENTRANCE_EVENT", 2155, 3, 17) }, story.Events.SetAside);
+        // for the next day, the Arilou's portal opened (its exit queued 3
+        // days from the day of loading), the ramp-up run (2) and queued 182
+        // days from the day of loading.
+        Assert.Empty(story.Events.SetAside);
         Assert.Equal(2, story.Get("SLYLANDRO_MULTIPLIER"));
+        Assert.Equal(StoryState.ArilouOpening, story.Get("ARILOU_SPACE"));
         Assert.Equal(new[]
         {
-            At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 9, 2), At("SLYLANDRO_RAMP_UP", 2156, 3, 1), At("KOHR_AH_VICTORIOUS_EVENT", 2159, 2, 17),
+            At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 9, 2), At("ARILOU_EXIT_EVENT", 2155, 9, 4), At("SLYLANDRO_RAMP_UP", 2156, 3, 1),
+            At("KOHR_AH_VICTORIOUS_EVENT", 2159, 2, 17),
         }, story.Events);
         Assert.Equal(1, loaded.HyperspaceEncounterDays);
         Assert.Equal((2155, 9, 1), Date(loaded.Clock));
@@ -348,7 +406,9 @@ public class ClockEventsTests
             world.Step();
         Assert.Equal((2155, 3, 20), Date(world.Clock));
         Assert.Equal(31, world.HyperspaceEncounterDays);
-        Assert.Equal(new[] { At("ARILOU_ENTRANCE_EVENT", 2155, 3, 17) }, world.Story.Events.SetAside);
+        Assert.Empty(world.Story.Events.SetAside);
+        Assert.Equal(StoryState.ArilouClosing, world.Story.Get("ARILOU_SPACE"));   // opened on the 17th, closed on the 20th
+        Assert.Contains(At("ARILOU_ENTRANCE_EVENT", 2155, 4, 17), world.Story.Events);
     }
 
     [Fact]

@@ -24,7 +24,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// been met (SHOFIXTI_VISITS), the Shofixti alive: the revolt's offer, which
 /// needs a Shofixti ship in the escort fleet (HaveEscortShip: the host's,
 /// whoever answers) to be sent over (YEHAT_CIVIL_WAR and the
-/// YEHAT_REBEL_EVENT, set aside until stage 3c), else "not here", or
+/// YEHAT_REBEL_EVENT, run at once since stage 3c item 1), else "not here", or
 /// refused. At home: their news, help, information and the alliance
 /// refused. Once the civil war has begun, the royalists' talks (their
 /// greetings at home and in space, the rebellion, the Pkunk, the
@@ -91,7 +91,7 @@ public sealed class YehatScript : CommScript
             SetGameState("YEHAT_REBEL_TOLD_PKUNK", 0);
             SetGameState("NO_YEHAT_INFO", 0);
 
-            // The revolt: set aside until stage 3c runs the calendar.
+            // The revolt: the rebels' fleet made at once (stage 3c item 1).
             T.AddEvent(relative: true, 0, 0, 0, "YEHAT_REBEL_EVENT");
         }
     }

@@ -221,8 +221,8 @@ public class StoryStateTests
         story.RunEvent("SLYLANDRO_RAMP_UP", clock);
         Assert.Equal(4, story.Get("SLYLANDRO_MULTIPLIER"));
         Assert.Equal(queued, story.Events.Count);
-        // The others wait for stage 3c.
-        Assert.Throws<NotSupportedException>(() => story.RunEvent("ARILOU_ENTRANCE_EVENT", clock));
+        // The missions' wait for stage 3c's item 3.
+        Assert.Throws<NotSupportedException>(() => story.RunEvent("ADVANCE_MYCON_MISSION", clock));
     }
 
     // ---- prices

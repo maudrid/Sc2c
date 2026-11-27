@@ -23,7 +23,7 @@ namespace Crateris.Core.Tests;
 /// their talk keyed by the answering player's own ARILOU_SPACE_SIDE (a
 /// player in QuasiSpace, as stage 3c will put one there, has the home
 /// talk while another has the one in hyperspace), an attack angering
-/// them for everyone, their Umgah check's event queued and set aside;
+/// them for everyone, their Umgah check's event queued and run ten days on;
 /// the Syreen's starbase entered and talked at (no ships, no battle,
 /// never an orbit, under their lock), their alliance after the ambush
 /// told to everyone; a Chmmr group emptied after its talk, with no
@@ -301,12 +301,12 @@ public class ArilouSyreenChmmrTests
     }
 
     [ContentFact]
-    public void TheArilousUmgahCheckIsQueuedAndSetAside()
+    public void TheArilousUmgahCheckIsQueuedAndRunsTenDaysOn()
     {
-        // ArilouHome's "the Umgah are acting weird" (QuasiSpace, stage 3c's; set up here): ARILOU_CHECKED_UMGAH
-        // 1 and ARILOU_UMGAH_CHECK queued ten days on, which stage 3c's calendar would run
-        // (ARILOU_CHECKED_UMGAH 2); until then it's set aside on its day (the plan's question 3) and the
-        // check stays at 1: "what did you learn" has no news yet.
+        // ArilouHome's "the Umgah are acting weird" (QuasiSpace, stage 3c's item 9; set up here):
+        // ARILOU_CHECKED_UMGAH 1 and ARILOU_UMGAH_CHECK queued ten days on, which the calendar runs since stage
+        // 3c item 1 (ARILOU_CHECKED_UMGAH 2): asked the day before, they have no news yet; after it, they've
+        // been to the Umgah.
         var world = NewGame();
         var story = world.Story!;
         story.Set("MET_ARILOU", 1);
@@ -320,18 +320,21 @@ public class ArilouSyreenChmmrTests
         Assert.Equal((2155, 2, 27), (check.Year, check.Month, check.Day));
         Choose(world, "h", "bye_friendly_homeworld");
         MeetingTests.HearClosing(world, "h");
-        for (int day = 0; day < 10; ++day)
+        for (int day = 0; day < 9; ++day)
         {
             world.Clock.NextDay();
             world.RunDayEvents();
         }
-        Assert.Contains(story.Events.SetAside, e => e.Event == "ARILOU_UMGAH_CHECK");
-        Assert.DoesNotContain(story.Events, e => e.Event == "ARILOU_UMGAH_CHECK");
         Assert.Equal(1, story.Get("ARILOU_CHECKED_UMGAH"));
-        // Asked at the next talk, they have no news yet (UQM's event would have made it 2: the compulsion).
+        // Asked the day before, they have no news yet.
         (m, _) = MeetInHyperspace(world, "h", "ARILOU_SHIP", x: 4000);
         Choose(world, "h", "learned_about_umgah");
         Assert.True(Said(m.Talk!, "NO_NEWS_YET"));
+        world.Clock.NextDay();
+        Assert.Contains(world.RunDayEvents(), e => e.Event == check && !e.SetAside);
+        Assert.DoesNotContain(story.Events.SetAside, e => e.Event == "ARILOU_UMGAH_CHECK");
+        Assert.DoesNotContain(story.Events, e => e.Event == "ARILOU_UMGAH_CHECK");
+        Assert.Equal(2, story.Get("ARILOU_CHECKED_UMGAH"));
     }
 
     // ---------------------------------------------------------------- the Syreen

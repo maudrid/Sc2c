@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using Crateris.Core.Hyperspace;
+using Crateris.Core.Story;
 using Crateris.Core.Systems;
 
 namespace Crateris.Core.World;
@@ -90,6 +91,13 @@ public sealed partial class GameWorld
         var events = talk.Events;
         for (; told.Value < events.Count; ++told.Value)
         {
+            // A clock event the talk ran at once (the Yehat's civil war): told as the clock's are, as the talker's.
+            if (events[told.Value] is Comm.EventAdded { Relative: true, Months: 0, Days: 0, Years: 0 } ran
+                && Story is not null && StoryState.EventsRun.Contains(ran.Event))
+            {
+                TellStoryEvent(ran.Event, talker.Id);
+                continue;
+            }
             if (events[told.Value] is Comm.CostsChanged costs)
             {
                 // A module bought from the Melnorme: on sale for everyone (the stage 3b-2 plan's question 5).
@@ -119,6 +127,33 @@ public sealed partial class GameWorld
             foreach (var p in Others(talker.Id))
                 Notice(p, n.Event, talker.Id, RaceNameOf(n.Race), n.Count);
         }
+    }
+
+    /// <summary>
+    /// One of the clock's events that changed a race (stage 3c item 1; the
+    /// owner, 2026-11-21: every event that changes a race is told to every
+    /// player), told to every player present but <paramref name="by"/>,
+    /// the player whose talk ran it ("" for the clock's own: told to
+    /// everyone, a player alone too, as nobody set it off): the Shofixti's
+    /// return, the Spathi's shield, the Zoq-Fot-Pik's distress and death,
+    /// the Yehat's civil war. The others (the Arilou's portal, their look
+    /// at the Umgah) change no race, and tell nothing.
+    /// </summary>
+    internal void TellStoryEvent(string evt, string by)
+    {
+        (NoticeEvent Event, string Race, int Count)? notice = evt switch
+        {
+            "SHOFIXTI_RETURN_EVENT" => (NoticeEvent.Returned, "SHOFIXTI_SHIP", Story!.CrewCost),
+            "SPATHI_SHIELD_EVENT" => (NoticeEvent.Shielded, "SPATHI_SHIP", 0),
+            "ZOQFOT_DISTRESS_EVENT" => (NoticeEvent.Distress, "ZOQFOTPIK_SHIP", 0),
+            "ZOQFOT_DEATH_EVENT" => (NoticeEvent.Extinct, "ZOQFOTPIK_SHIP", 0),
+            "YEHAT_REBEL_EVENT" => (NoticeEvent.CivilWar, "YEHAT_SHIP", 0),
+            _ => null,
+        };
+        if (notice is not { } n)
+            return;
+        foreach (var p in Others(by))
+            Notice(p, n.Event, by, Meeting.RaceName(n.Race), n.Count);
     }
 
     // A module's name in a notice (sis.h's number).

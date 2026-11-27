@@ -14,37 +14,68 @@ using Crateris.Core.Story;
 namespace Crateris.Core.World;
 
 /// <summary>
-/// The clock's events (docs/plans/stage-3b.md, item 1): each new day, as
-/// the world's frames pass it or as days are skipped, the story's events
-/// that are due run (processClockDayEvents), as UQM's GameClockTick and
-/// MoveGameClockDays run them.
+/// The clock's events (docs/plans/stage-3b.md, item 1; docs/plans/stage-3c.md,
+/// item 1): each new day, as the world's frames pass it or as days are
+/// skipped, the story's events that are due run (processClockDayEvents),
+/// as UQM's GameClockTick and MoveGameClockDays run them, held by the
+/// location gates while a player is in their race's system.
 /// </summary>
 public sealed partial class GameWorld
 {
     /// <summary>
     /// The clock's events on the clock's day (<see cref="StoryState.RunDueEvents"/>):
     /// as a day begins, and on loading a save, whose events whose day has
-    /// passed then run at once. What was taken off the queue, in order (none
-    /// without a story).
+    /// passed then run at once, and whose events set aside that the port
+    /// now runs run then too, from where the clock is. Each that changed a
+    /// race is told to every player (<see cref="TellStoryEvent"/>). What
+    /// was taken off the queue, in order (none without a story).
+    /// <paramref name="rolls"/>: whether the day's hyperspace encounters
+    /// are rolled (not for <c>--start-date</c>'s days).
     /// </summary>
-    internal List<StoryState.DueEvent> RunDayEvents() =>
-        Story?.RunDueEvents(Clock, HyperspaceEncounterRolls) ?? new();
+    internal List<StoryState.DueEvent> RunDayEvents(bool rolls = true)
+    {
+        if (Story is not { } story)
+            return new();
+        var done = story.RunDueEvents(Clock, rolls ? HyperspaceEncounterRolls : null, PlayerInSystem);
+        foreach (var e in done.Where(e => e.News))
+            TellStoryEvent(e.Event.Event, "");
+        return done;
+    }
 
     /// <summary>
     /// MoveGameClockDays (clock.c): days pass at once, each running its
     /// events, and the day after starts afresh (tick_count = day_in_ticks),
     /// as the starbase's two weeks pass. What was taken off the queue, in
-    /// order, the days' one after another.
+    /// order, the days' one after another. <paramref name="rolls"/>: as
+    /// <see cref="RunDayEvents"/>'s.
     /// </summary>
-    internal List<StoryState.DueEvent> MoveClockDays(int days)
+    internal List<StoryState.DueEvent> MoveClockDays(int days, bool rolls = true)
     {
         var done = new List<StoryState.DueEvent>();
         for (; days > 0; --days)
         {
             Clock.NextDay();
-            done.AddRange(RunDayEvents());
+            done.AddRange(RunDayEvents(rolls));
         }
         Clock.FramesIntoDay = 0;
         return done;
     }
+
+    /// <summary>
+    /// The location gates' question (the stage 3c plan's question 1):
+    /// whether any player present is in the system of the special star
+    /// named (gendef.h's name: SPATHI_DEFINED, ZOQFOT_DEFINED), flying,
+    /// orbiting, landed, docked, or in a meeting, talk or battle there (the
+    /// ship stays in its system for those). A wreck (a guest's ship lost,
+    /// out of its battle) doesn't hold an event: it can't leave by itself.
+    /// Without the systems, nobody is.
+    /// </summary>
+    internal bool PlayerInSystem(string special) =>
+        InSystemForTests?.Invoke(special)
+        ?? (Systems is { } systems
+            && _players.Any(p => p.Present && !(p.Ship.Destroyed && p.Ship.Battle is null)
+                                 && p.Ship.SystemStar is int star && systems.Map.Stars[star].Special == special));
+
+    /// <summary>The location gates' answer in tests that have no systems (UQM's recorded flagship's place), or null.</summary>
+    internal Func<string, bool>? InSystemForTests { get; set; }
 }

@@ -24,7 +24,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// his reports and questions (STACK1 and STACK3), and with the Maidens
 /// aboard (MAIDENS_ON_SHIP, 3c's pickup) his recruitment
 /// (SHOFIXTI_RECRUITED; the return event it queues, SHOFIXTI_RETURN_EVENT,
-/// set aside until stage 3c). Every path is checked against UQM's own
+/// run two months on since stage 3c item 1). Every path is checked against UQM's own
 /// script (tests/golden/talks-shofixt.json).
 /// </summary>
 public sealed class ShofixtiScript : CommScript
@@ -72,7 +72,7 @@ public sealed class ShofixtiScript : CommScript
             SetGameState("MAIDENS_ON_SHIP", 0);
             T.SetSegue(Segue.Peace);
 
-            // The Shofixti's return: set aside until stage 3c runs the calendar.
+            // The Shofixti's return, two months on.
             T.AddEvent(relative: true, 2, 0, 0, "SHOFIXTI_RETURN_EVENT");
         }
         else if (PlayerSaid(r, "dont_attack"))

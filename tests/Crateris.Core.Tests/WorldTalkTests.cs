@@ -126,6 +126,7 @@ public class WorldTalkTests
         [("SUPOX_DEFINED", "SUPOX_SHIP")] = "supox",
         [("THRADD_DEFINED", "THRADDASH_SHIP")] = "thradd",
         [("AQUA_HELIX_DEFINED", "THRADDASH_SHIP")] = "thradd",
+        [("ZOQFOT_DEFINED", "BLACK_URQUAN_SHIP")] = "blackur",
         [("ZOQFOT_DEFINED", "ZOQFOTPIK_SHIP")] = "zoqfot",
         [("TALKING_PET_DEFINED", "UMGAH_SHIP")] = "umgah",
         [("SLYLANDRO_DEFINED", "SLYLANDRO_SHIP")] = "slyhome",
@@ -157,7 +158,8 @@ public class WorldTalkTests
             // script isn't ported is orbited as before, and nothing of the story changes.
             var before = story.Bits.ToArray();
             var started = world.WorldTalkAt(star, w.Planet, w.Moon);
-            if (w is { Special: "BOMB_DEFINED", Race: "DRUUGE_SHIP" })
+            // The bomb's Druuge guard after the Utwig, the Kohr-Ah's ship only in the Zoq-Fot-Pik's distress.
+            if (w is { Special: "BOMB_DEFINED", Race: "DRUUGE_SHIP" } or { Special: "ZOQFOT_DEFINED", Race: "BLACK_URQUAN_SHIP" })
                 continue;
             Assert.Equal(ported ? w : null, started);
             if (!ported)
@@ -423,7 +425,7 @@ public class WorldTalkTests
         Plain(Listed("UTWIG_DEFINED", "UTWIG_SHIP"), 1 << 7, "genutw.c:111-139 (UTWIG_DEFINED ||)");
         Plain(Listed("SUPOX_DEFINED", "SUPOX_SHIP"), 1 << 7, "gensup.c:82-102");
         Plain(Listed("THRADD_DEFINED", "THRADDASH_SHIP"), 1 << 7, "genthrad.c:99-133 (THRADD_DEFINED ||)");
-        Assert.Equal(22, GameWorld.TalkWorlds.Count);
+        Assert.Equal(23, GameWorld.TalkWorlds.Count);
 
         // genspa.c:123-124: !SPATHI_SHIELDED_SELVES first, then StartSphereTracking.
         var spa = Listed("SPATHI_DEFINED", "SPATHI_SHIP");
@@ -533,14 +535,29 @@ public class WorldTalkTests
         Assert.Equal((1 << 6, Infinite, true, true, (string?)null),
             (helix.GlobalFlags, helix.Fleet(s0), helix.StandDown, helix.PutAside, helix.Unguarded));
 
-        // genzoq.c:90 StartSphereTracking, :92 PutGroupInfo with no NotifyOthers, :117-121 infinite, bit
-        // 7. ZOQFOT_DISTRESS (:96) brings the Kohr-Ah's ship first, 3c's: until then the entry waits.
+        // genzoq.c:90 StartSphereTracking (the Zoq-Fot-Pik's), :92 PutGroupInfo with no NotifyOthers; with
+        // ZOQFOT_DISTRESS set (:96, stage 3c item 1) the Kohr-Ah's ship first: one (:98 CloneShipFragment, crew
+        // 0), bit 7 (:102), the ship staying by the world while it's left (:107), else the Zoq-Fot-Pik's talk
+        // after it (:117-123); with none, their talk: infinite, bit 7.
+        var kohrAh = Listed("ZOQFOT_DEFINED", "BLACK_URQUAN_SHIP");
         var zoq = Listed("ZOQFOT_DEFINED", "ZOQFOTPIK_SHIP");
-        Assert.Equal(((int, int?))(0, null), (zoq.Planet, zoq.Moon));   // :88 matchWorld (0, MATCH_PLANET)
+        Assert.Equal(((int, int?))(0, null), (kohrAh.Planet, kohrAh.Moon));   // :88 matchWorld (0, MATCH_PLANET)
+        Assert.Equal(((int, int?))(0, null), (zoq.Planet, zoq.Moon));
+        Assert.True(GameWorld.TalkWorlds.ToList().IndexOf(kohrAh) < GameWorld.TalkWorlds.ToList().IndexOf(zoq));
+        Assert.Equal("ZOQFOTPIK_SHIP", kohrAh.TrackedRace);
+        Assert.Equal((true, true), Guard(kohrAh, StoryWith(("ZOQFOT_DISTRESS", 1))));
+        Assert.Equal((false, true), Guard(kohrAh, StoryWith(("ZOQFOT_DISTRESS", 1)), lives: false));
+        Assert.Equal((false, true), Guard(kohrAh, s0));
+        Assert.Equal((1 << 7, 1, false, true), (kohrAh.GlobalFlags, kohrAh.Fleet(s0), kohrAh.StandDown, kohrAh.PutAside));
+        Assert.Equal((true, false), (kohrAh.Stays!(s0, true), kohrAh.Stays(s0, false)));
+        Assert.Same(zoq, kohrAh.Then);
+        Assert.Null(kohrAh.Unguarded);
         Assert.Equal((false, true), Guard(zoq, StoryWith(("ZOQFOT_DISTRESS", 1))));
         Assert.Equal((true, true), Guard(zoq, s0));
         Assert.Equal((1 << 7, Infinite, false, true, (Func<StoryState, bool, bool>?)null),
             (zoq.GlobalFlags, zoq.Fleet(s0), zoq.StandDown, zoq.PutAside, zoq.Stays));
+        Assert.Null(zoq.Then);
+        Assert.Null(zoq.TrackedRace);
 
         // genpet.c:83-101, the Umgah's half: their talk while they aren't zombies (:97), with
         // StartSphereTracking (:93); NotifyOthers (:88), infinite (:99), bit 7 (:96).

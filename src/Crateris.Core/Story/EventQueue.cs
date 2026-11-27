@@ -22,11 +22,13 @@ public sealed record StoryEvent(string Event, int Year, int Month, int Day);
 /// goes after every event on its day or before it, so events on one day
 /// run in the order they were added. Each day the events at the head that
 /// are due are taken off and run (<see cref="StoryState.RunDueEvents"/>,
-/// processClockDayEvents). The events stage 3b-1 doesn't run yet (all but
-/// the hyperspace encounters and the Slylandro ramps: the Arilou, the
-/// races' missions, the Kohr-Ah's victory, ...) are taken off on their day
-/// all the same and set aside (<see cref="SetAside"/>, stage 3b decision
-/// 9), so they don't hold up the rest; stage 3c runs them.
+/// processClockDayEvents). The events the port doesn't run yet (the races'
+/// missions and the Kohr-Ah's victory and genocide, stage 3c items 3 and 4;
+/// until stage 3c item 1 every event but the hyperspace encounters and the
+/// Slylandro ramps) are taken off on their day all the same and set aside
+/// (<see cref="SetAside"/>, stage 3b decision 9), so they don't hold up the
+/// rest; each is run, from where the clock is, once the port runs it
+/// (<see cref="StoryState.RunDueEvents"/>).
 /// </summary>
 public sealed class EventQueue : IEnumerable<StoryEvent>
 {
@@ -48,10 +50,11 @@ public sealed class EventQueue : IEnumerable<StoryEvent>
     public StoryEvent this[int index] => _events[index];
 
     /// <summary>
-    /// The events taken off the queue on their day without running, as
-    /// stage 3b-1 doesn't run them yet (stage 3b, decision 9), in the order
-    /// they fell due (so in date order), each with its date: stage 3c runs
-    /// them. Saved with the queue. They aren't in the queue, so they don't
+    /// The events taken off the queue on their day without running, as the
+    /// port doesn't run them yet (stage 3b, decision 9), in the order they
+    /// fell due (so in date order), each with its date: each is run, and
+    /// taken off this list, the first time the port's code runs it
+    /// (<see cref="StoryState.RunDueEvents"/>). Saved with the queue. They aren't in the queue, so they don't
     /// count towards <see cref="MaxEvents"/> (UQM's would have run, freeing
     /// their places).
     /// </summary>
@@ -77,6 +80,18 @@ public sealed class EventQueue : IEnumerable<StoryEvent>
     {
         _setAside.Add(e);
         _changed();
+    }
+
+    /// <summary>The first event set aside that <paramref name="runs"/> picks (the earliest, the list being in date order), or -1.</summary>
+    internal int FirstSetAside(Func<StoryEvent, bool> runs) => _setAside.FindIndex(e => runs(e));
+
+    /// <summary>Takes an event set aside off the list, to run it at last (stage 3c: "from where the clock is").</summary>
+    internal StoryEvent TakeSetAside(int index)
+    {
+        var e = _setAside[index];
+        _setAside.RemoveAt(index);
+        _changed();
+        return e;
     }
 
     /// <summary>
@@ -150,6 +165,9 @@ public sealed class EventQueue : IEnumerable<StoryEvent>
         }
         return list;
     }
+
+    /// <summary>Whether <paramref name="a"/>'s day comes before <paramref name="b"/>'s.</summary>
+    internal static bool Before(StoryEvent a, StoryEvent b) => Before(a.Year, a.Month, a.Day, b.Year, b.Month, b.Day);
 
     private static bool Before(int y, int m, int d, int y2, int m2, int d2) =>
         y < y2 || (y == y2 && (m < m2 || (m == m2 && d < d2)));

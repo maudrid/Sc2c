@@ -3,8 +3,9 @@
 // Follows The Ur-Quan Masters 0.8.0 (globdata.c getGameState, setGameState,
 // getGameState32, setGameState32 and InitGameStructures; shipyard.c
 // CrewTransaction; races.h allied_state and FLEET_INFO; clock.c AddEvent and
-// processClockDayEvents; gameev.c EventHandler, SetRaceDest and
-// check_race_growth; build.c StartSphereTracking),
+// processClockDayEvents; gameev.c EventHandler, arilou_entrance_event,
+// arilou_exit_event, SetRaceDest and check_race_growth; starcon.c
+// checkArilouGate; build.c StartSphereTracking),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002.
 //
 // This program is free software; you can redistribute it and/or modify
@@ -420,30 +421,43 @@ public sealed class StoryState
     // ---------------------------------------------------------------- events
 
     /// <summary>
-    /// The events stage 3b-1 runs (stage 3b, item 1): the daily hyperspace
-    /// encounters and the Slylandro ramps. The others (the Arilou, the
-    /// races' missions, the Kohr-Ah, ...) are stage 3c's: until then they're
-    /// set aside on their day (<see cref="EventQueue.SetAside"/>, decision 9).
+    /// The events the port runs (EventHandler's cases): the daily hyperspace
+    /// encounters and the Slylandro ramps (stage 3b-1), and since stage 3c
+    /// item 1 the events with no mission: the Arilou's portal opening and
+    /// closing, their look at the Umgah, the Shofixti's return, the
+    /// Spathi's shield, the Zoq-Fot-Pik's distress and death, and the Yehat
+    /// rebels. The others (the races' missions, the Kohr-Ah's victory and
+    /// genocide: stage 3c items 3 and 4) are still set aside on their day
+    /// (<see cref="EventQueue.SetAside"/>, stage 3b decision 9).
     /// </summary>
     public static readonly IReadOnlySet<string> EventsRun = new HashSet<string>
     {
         "HYPERSPACE_ENCOUNTER_EVENT", "SLYLANDRO_RAMP_UP", "SLYLANDRO_RAMP_DOWN",
+        "ARILOU_ENTRANCE_EVENT", "ARILOU_EXIT_EVENT", "ARILOU_UMGAH_CHECK", "SHOFIXTI_RETURN_EVENT",
+        "SPATHI_SHIELD_EVENT", "ZOQFOT_DISTRESS_EVENT", "ZOQFOT_DEATH_EVENT", "YEHAT_REBEL_EVENT",
     };
+
+    /// <summary>ARILOU_SPACE's values (gameev.h): the portal closing or closed (CLOSING, 0), opening or open (OPENING, 1).</summary>
+    public const int ArilouClosing = 0, ArilouOpening = 1;
+
+    /// <summary>What ARILOU_SPACE_COUNTER counts up to as the portal opens (checkArilouGate, starcon.c).</summary>
+    public const int ArilouCounterOpen = 9;
 
     /// <summary>
     /// AddEvent (clock.c): queues an event on its date, or runs it at once
     /// if it's relative and due now (all of months, days and years 0); one
-    /// that stage 3b-1 doesn't run (<see cref="EventsRun"/>) is set aside
+    /// that the port doesn't run yet (<see cref="EventsRun"/>) is set aside
     /// then, dated today, as on its day in the queue. A date already past
-    /// isn't queued. False if it wasn't queued.
+    /// isn't queued. False if it wasn't queued. <paramref name="playerInSystem"/>
+    /// is the location gates' question (<see cref="RunEvent"/>).
     /// </summary>
     public bool AddEvent(bool relative, int months, int days, int years, string evt, GameClock clock,
-        Action? hyperspaceRoll = null)
+        Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null)
     {
         if (relative && months == 0 && days == 0 && years == 0)
         {
             if (EventsRun.Contains(evt) || !Rules.EventIds.ContainsKey(evt))
-                RunEvent(evt, clock, hyperspaceRoll);
+                RunEvent(evt, clock, hyperspaceRoll, playerInSystem);
             else
                 Events.PutAside(new StoryEvent(evt, clock.Year, clock.Month, clock.Day));
             return false;
@@ -451,56 +465,166 @@ public sealed class StoryState
         return Events.Add(relative, months, days, years, evt, clock);
     }
 
-    /// <summary>An event the clock took off the queue: run, or set aside for stage 3c (decision 9).</summary>
-    public sealed record DueEvent(StoryEvent Event, bool SetAside);
+    /// <summary>
+    /// An event the clock took off the queue (or off the events set aside):
+    /// run, or set aside until the port runs it (decision 9); <see cref="News"/>
+    /// if running it changed a race, for the players to be told (stage 3b
+    /// decision 11; the owner, 2026-11-21).
+    /// </summary>
+    public sealed record DueEvent(StoryEvent Event, bool SetAside, bool News = false);
 
     /// <summary>
     /// processClockDayEvents (clock.c), on <paramref name="clock"/>'s day:
     /// takes the events at the queue's head off while they're due and runs
-    /// each (<see cref="RunEvent"/>), or sets it aside if stage 3b-1
-    /// doesn't run it (decision 9), so it doesn't hold up the rest. UQM
+    /// each (<see cref="RunEvent"/>), or sets it aside if the port doesn't
+    /// run it yet (decision 9), so it doesn't hold up the rest. UQM
     /// takes the head while its day is today; every event's day comes as
     /// the clock passes it, so taking those due today or before is the
     /// same, and also runs at once, in date order, the events whose day
     /// passed without them: a save's from before stage 3b-1, which ran
-    /// none. <paramref name="hyperspaceRoll"/> is the world's
+    /// none. The events set aside by earlier code that the port now runs
+    /// (stage 3c item 1's: the Arilou's, the Shofixti's return, ...) are
+    /// run with them, in date order (each before a queued one of its day,
+    /// having fallen due first), once, from where the clock is
+    /// (docs/plans/stage-3.md's "Story events" row): what they queue is
+    /// counted from today (a distress run late gives the Zoq-Fot-Pik six
+    /// months from now). <paramref name="hyperspaceRoll"/> is the world's
     /// check_hyperspace_encounter (each player in hyperspace, decision 3),
-    /// called as each day's HYPERSPACE_ENCOUNTER_EVENT runs. What was
-    /// taken off, in order.
+    /// called as each day's HYPERSPACE_ENCOUNTER_EVENT runs;
+    /// <paramref name="playerInSystem"/> the location gates' question
+    /// (<see cref="RunEvent"/>). What was taken off, in order.
     /// </summary>
-    public List<DueEvent> RunDueEvents(GameClock clock, Action? hyperspaceRoll = null)
+    public List<DueEvent> RunDueEvents(GameClock clock, Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null)
     {
         var done = new List<DueEvent>();
-        while (Events.HeadDue(clock))
+        while (true)
         {
+            int aside = Events.FirstSetAside(e => EventsRun.Contains(e.Event));
+            bool due = Events.HeadDue(clock);
+            if (aside >= 0 && (!due || !EventQueue.Before(Events[0], Events.SetAside[aside])))
+            {
+                var late = Events.TakeSetAside(aside);
+                done.Add(new DueEvent(late, false, RunEvent(late.Event, clock, hyperspaceRoll, playerInSystem)));
+                continue;
+            }
+            if (!due)
+                break;
             var e = Events.TakeHead();
-            bool run = EventsRun.Contains(e.Event);
-            done.Add(new DueEvent(e, !run));
-            if (run)
-                RunEvent(e.Event, clock, hyperspaceRoll);
+            if (EventsRun.Contains(e.Event))
+                done.Add(new DueEvent(e, false, RunEvent(e.Event, clock, hyperspaceRoll, playerInSystem)));
             else
+            {
+                done.Add(new DueEvent(e, true));
                 Events.PutAside(e);
+            }
         }
         return done;
     }
 
     /// <summary>
-    /// EventHandler (gameev.c), for the events stage 3b-1 runs
+    /// EventHandler (gameev.c), for the events the port runs
     /// (<see cref="EventsRun"/>). The others (the races' missions, the
-    /// Arilou, ...) come with stage 3c; until then the clock sets them
-    /// aside (<see cref="RunDueEvents"/>), and running one here throws.
+    /// Kohr-Ah's victory and genocide) come with stage 3c's items 3 and 4;
+    /// until then the clock sets them aside (<see cref="RunDueEvents"/>),
+    /// and running one here throws. True if it changed a race (an
+    /// alliance, a death, a shield, a fleet), news for the players.
+    /// <para>
+    /// The location gates (gameev.c:76-105, 132-135): the Spathi's shield
+    /// and the Zoq-Fot-Pik's distress and death wait 7 days at a time
+    /// (queued again, 7 days on) while "the player" is in that race's
+    /// system, UQM's IN_INTERPLANETARY there; here while any player is,
+    /// flying, orbiting, landed or in a meeting, talk or battle there (the
+    /// stage 3c plan's question 1): <paramref name="playerInSystem"/>,
+    /// asked with the system's gendef.h name (SPATHI_DEFINED,
+    /// ZOQFOT_DEFINED), says so (null: nobody is).
+    /// </para>
     /// </summary>
-    public void RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null)
+    public bool RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null)
     {
+        bool Waits(string special)
+        {
+            if (playerInSystem?.Invoke(special) != true)
+                return false;
+            AddEvent(true, 0, 7, 0, evt, clock, hyperspaceRoll, playerInSystem);
+            return true;
+        }
+
         switch (evt)
         {
+            case "ARILOU_ENTRANCE_EVENT":
+                // arilou_entrance_event: the portal opens, for three days.
+                Set("ARILOU_SPACE", ArilouOpening);
+                AddEvent(true, 0, 3, 0, "ARILOU_EXIT_EVENT", clock, hyperspaceRoll, playerInSystem);
+                return false;
+            case "ARILOU_EXIT_EVENT":
+            {
+                // arilou_exit_event: it closes, to open again on the 17th of next month.
+                int year = clock.Year, month = clock.Month % 12;
+                if (month == 0)
+                    ++year;
+                ++month;
+                Set("ARILOU_SPACE", ArilouClosing);
+                AddEvent(false, month, 17, year, "ARILOU_ENTRANCE_EVENT", clock, hyperspaceRoll, playerInSystem);
+                return false;
+            }
             case "HYPERSPACE_ENCOUNTER_EVENT":
-                CheckRaceGrowth(clock, hyperspaceRoll);
+                CheckRaceGrowth(clock, hyperspaceRoll, playerInSystem);
                 // if (inHyperSpace ()) check_hyperspace_encounter (): the
                 // world's, for each player in hyperspace (stage 3b item 3).
                 hyperspaceRoll?.Invoke();
                 AddEvent(true, 0, 1, 0, "HYPERSPACE_ENCOUNTER_EVENT", clock);
-                break;
+                return false;
+            case "ZOQFOT_DISTRESS_EVENT":
+                if (Waits("ZOQFOT_DEFINED"))
+                    return false;
+                Set("ZOQFOT_DISTRESS", 1);
+                AddEvent(true, 6, 0, 0, "ZOQFOT_DEATH_EVENT", clock, hyperspaceRoll, playerInSystem);
+                return true;
+            case "ZOQFOT_DEATH_EVENT":
+            {
+                if (Waits("ZOQFOT_DEFINED") || Get("ZOQFOT_DISTRESS") == 0)
+                    return false;
+                // Not rescued: the Zoq-Fot-Pik die, their fleet gone.
+                int i = Rules.RaceIndex("ZOQFOTPIK_SHIP");
+                SetFleet(i, _fleets[i] with { ActualStrength = 0 });
+                SetAlliance("ZOQFOTPIK_SHIP", Allied.Dead);
+                Set("ZOQFOT_DISTRESS", 2);
+                return true;
+            }
+            case "SHOFIXTI_RETURN_EVENT":
+                // The Shofixti back and allied, and crew no longer an issue:
+                // its price 2 lower (a BYTE, as UQM's), the crew bought counted afresh.
+                SetRaceAllied("SHOFIXTI_SHIP", true);
+                SetCrewCost((byte)(CrewCost - 2));
+                Set("CREW_PURCHASED0", 0);
+                Set("CREW_PURCHASED1", 0);
+                return true;
+            case "SPATHI_SHIELD_EVENT":
+            {
+                if (Waits("SPATHI_DEFINED"))
+                    return false;
+                int i = Rules.RaceIndex("SPATHI_SHIP");
+                if (_fleets[i].ActualStrength == 0)
+                    return false;
+                SetRaceAllied("SPATHI_SHIP", false);
+                Set("SPATHI_SHIELDED_SELVES", 1);
+                SetFleet(i, _fleets[i] with { ActualStrength = 0 });
+                return true;
+            }
+            case "ARILOU_UMGAH_CHECK":
+                Set("ARILOU_CHECKED_UMGAH", 2);
+                return false;
+            case "YEHAT_REBEL_EVENT":
+            {
+                // The royalists cut to two thirds, the rebels as many, their
+                // sphere centred at (5150, 0) and tracked.
+                int royalists = Rules.RaceIndex("YEHAT_SHIP"), rebels = Rules.RaceIndex("YEHAT_REBEL_SHIP");
+                int strength = (ushort)(_fleets[royalists].ActualStrength * 2 / 3);
+                SetFleet(royalists, _fleets[royalists] with { ActualStrength = strength });
+                SetFleet(rebels, _fleets[rebels] with { ActualStrength = strength, LocX = 5150, LocY = 0 });
+                StartSphereTracking("YEHAT_REBEL_SHIP");
+                return true;
+            }
             case "SLYLANDRO_RAMP_UP":
                 if (Get("DESTRUCT_CODE_ON_SHIP") == 0)
                 {
@@ -511,20 +635,40 @@ public sealed class StoryState
                         AddEvent(true, 0, 182, 0, "SLYLANDRO_RAMP_UP", clock);
                     }
                 }
-                break;
+                return false;
             case "SLYLANDRO_RAMP_DOWN":
             {
                 int ramp = (byte)(Get("SLYLANDRO_MULTIPLIER") - 1);
                 if (ramp != 0)
                     AddEvent(true, 0, 23, 0, "SLYLANDRO_RAMP_DOWN", clock);
                 Set("SLYLANDRO_MULTIPLIER", ramp);
-                break;
+                return false;
             }
             default:
                 if (!Rules.EventIds.ContainsKey(evt))
                     throw new KeyNotFoundException($"no event {evt}");
-                throw new NotSupportedException($"{evt} runs from stage 3c (docs/plans/stage-3.md)");
+                throw new NotSupportedException($"{evt} runs from stage 3c's items 3 and 4 (docs/plans/stage-3c.md)");
         }
+    }
+
+    /// <summary>
+    /// checkArilouGate (starcon.c), once a world frame (UQM's, once a
+    /// hyperspace frame; shared, so stepped once for everyone): the
+    /// portal's counter (ARILOU_SPACE_COUNTER) up by one to
+    /// <see cref="ArilouCounterOpen"/> while it's opening, down by one to 0
+    /// while it's closing.
+    /// </summary>
+    public void StepArilouGate()
+    {
+        int counter = Get("ARILOU_SPACE_COUNTER");
+        if (Get("ARILOU_SPACE") == ArilouOpening)
+        {
+            if (counter < ArilouCounterOpen)
+                ++counter;
+        }
+        else if (counter > 0)
+            --counter;
+        Set("ARILOU_SPACE_COUNTER", counter);
     }
 
     /// <summary>
@@ -536,14 +680,14 @@ public sealed class StoryState
     /// grows past MAX_FLEET_STRENGTH. One still alive and heading somewhere
     /// moves a day's share of the way (its days left divide what's left,
     /// rounding towards 0), and on the last day runs its arrival event
-    /// (EventHandler): one stage 3b-1 doesn't run is set aside dated today,
-    /// as the clock's are (decision 9). Every race starts with no growth
-    /// and no heading (InitGameStructures), and only stage 3c's events give
-    /// them any (<see cref="SetRaceDest"/>, <see cref="SetFleet"/>), so in
-    /// stage 3b-1 nothing changes. UQM's sums are kept: the strength's in a
-    /// SIZE, the places' in COORDs.
+    /// (EventHandler): one the port doesn't run yet is set aside dated
+    /// today, as the clock's are (decision 9). Every race starts with no
+    /// growth and no heading (InitGameStructures), and only the missions'
+    /// events give them any (<see cref="SetRaceDest"/>, <see cref="SetFleet"/>:
+    /// stage 3c item 3), so until then nothing changes. UQM's sums are kept:
+    /// the strength's in a SIZE, the places' in COORDs.
     /// </summary>
-    private void CheckRaceGrowth(GameClock clock, Action? hyperspaceRoll)
+    private void CheckRaceGrowth(GameClock clock, Action? hyperspaceRoll, Func<string, bool>? playerInSystem)
     {
         for (int i = 0; i < _fleets.Length; ++i)
         {
@@ -578,11 +722,50 @@ public sealed class StoryState
             SetFleet(i, f);
             if (arrival is not null)
             {
+                // (What an arrival's event changes isn't news yet: none the port runs is one before stage 3c item 3.)
                 if (EventsRun.Contains(arrival))
-                    RunEvent(arrival, clock, hyperspaceRoll);
+                    RunEvent(arrival, clock, hyperspaceRoll, playerInSystem);
                 else
                     Events.PutAside(new StoryEvent(arrival, clock.Year, clock.Month, clock.Day));
             }
+        }
+    }
+
+    /// <summary>
+    /// What changed in the story between two saves of it, kept to be taken
+    /// back (<see cref="TakeBackFrom"/>): the fields that changed, each as
+    /// it was; the crew's price, if it changed; the clock's events (queued
+    /// and set aside) as they were; and the races' fleets and standings
+    /// that changed, as they were. An opening taken back takes back so the
+    /// starbase's two weeks' events and its talks' events run at once
+    /// (StarbaseVisit).
+    /// </summary>
+    public sealed record Changes(
+        Dictionary<string, int> Fields, int? CrewCost, List<StoryEvent> Events, List<StoryEvent> SetAside,
+        Dictionary<string, RaceFleet> Fleets, Dictionary<string, Allied> Alliances)
+    {
+        /// <summary>The changes from <paramref name="before"/> to <paramref name="after"/>.</summary>
+        public static Changes Between(Saved before, Saved after) => new(
+            before.Fields.Keys.Union(after.Fields.Keys)
+                .Where(f => before.Fields.GetValueOrDefault(f) != after.Fields.GetValueOrDefault(f))
+                .ToDictionary(f => f, f => before.Fields.GetValueOrDefault(f)),
+            before.CrewCost != after.CrewCost ? before.CrewCost : null,
+            before.Events, before.SetAside ?? new(),
+            before.Fleets!.Where(f => f.Value != after.Fleets![f.Key]).ToDictionary(f => f.Key, f => f.Value),
+            before.Alliances.Where(a => a.Value != after.Alliances[a.Key]).ToDictionary(a => a.Key, a => a.Value));
+
+        /// <summary>Puts what changed back in <paramref name="story"/> as it was.</summary>
+        public void TakeBackFrom(StoryState story)
+        {
+            foreach (var (field, value) in Fields)
+                story.Set(field, value);
+            if (CrewCost is int cost)
+                story.SetCrewCost(cost);
+            story.Events.Restore(Events, SetAside);
+            foreach (var (race, fleet) in Fleets)
+                story.SetFleet(race, fleet);
+            foreach (var (race, standing) in Alliances)
+                story.SetAlliance(race, standing);
         }
     }
 
@@ -591,7 +774,7 @@ public sealed class StoryState
     /// <summary>
     /// The story state in a save: the fields that aren't 0, by name, and
     /// everything beside them: the clock's events queued, and those set
-    /// aside for stage 3c (since save version 13; none before), and each
+    /// aside until the port runs them (since save version 13; none before), and each
     /// race's fleet (since stage 3b item 2, in version 13; without them, a
     /// new game's).
     /// </summary>

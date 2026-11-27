@@ -23,7 +23,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// (the Evil Ones on Spathiwa, SPATHI_CREATURES_ELIMINATED, which the
 /// planet's pickups set: <see cref="Story.StoryWorlds.PickupLife"/>), the
 /// party and the alliance made (SetRaceAllied; the shield event it queues,
-/// SPATHI_SHIELD_EVENT, set aside until stage 3c), the allies' talk, and
+/// SPATHI_SHIELD_EVENT, run six months on since stage 3c item 1), the allies' talk, and
 /// their anger after a fight or a lie. Fwiffo in the escorts (HaveEscortShip,
 /// the host's fleet: the stage 3b-2 plan's question 4) is a hostage. Every
 /// path is checked against UQM's own script (tests/golden/talks-spahome.json).
@@ -103,7 +103,7 @@ public sealed class SpathiHomeScript : CommScript
             NPCPhrase("DEPART_FOR_EARTH");
 
             T.SetRaceAllied(SpathiShip, true);
-            // The shield event: set aside until stage 3c runs the calendar.
+            // The shield event, six months on.
             T.AddEvent(relative: true, 6, 0, 0, "SPATHI_SHIELD_EVENT");
             SetGameState("SPATHI_HOME_VISITS", 0);
             SetGameState("SPATHI_VISITS", 0);

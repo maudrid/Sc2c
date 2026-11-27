@@ -28,8 +28,9 @@ namespace Crateris.Core.Comm.Scripts;
 /// its news (ZOQFOT_INFO), the war's news by the date, the Utwig and Supox's
 /// mission and the Kohr-Ah's frenzy (ZOQFOT_KNOW_MASK), the allies'
 /// questions, and the alliance made (SetRaceAllied; the distress event it
-/// queues, ZOQFOT_DISTRESS_EVENT, set aside until stage 3c); the thanks for
-/// a rescue from distress (3c's) with 4 ships to the host's fleet. Every
+/// queues, ZOQFOT_DISTRESS_EVENT, run three months on since stage 3c item
+/// 1); the thanks for a rescue from distress (the Kohr-Ah's ship at their
+/// world destroyed) with 4 ships to the host's fleet. Every
 /// path is checked against UQM's own script (tests/golden/talks-zoqfot.json).
 /// </summary>
 public sealed class ZoqFotPikScript : CommScript
@@ -125,7 +126,7 @@ public sealed class ZoqFotPikScript : CommScript
         {
             Say("WE_ALLY", 6);
             T.SetRaceAllied(ZoqFotPikShip, true);
-            // The distress event: set aside until stage 3c runs the calendar.
+            // The distress event, three months on.
             T.AddEvent(relative: true, 3, 0, 0, "ZOQFOT_DISTRESS_EVENT");
             SetGameState("ZOQFOT_HOME_VISITS", 0);
         }
@@ -378,7 +379,7 @@ public sealed class ZoqFotPikScript : CommScript
             Say("GOOD", 10);
 
             T.SetRaceAllied(ZoqFotPikShip, true);
-            // The distress event: set aside until stage 3c runs the calendar.
+            // The distress event, three months on.
             T.AddEvent(relative: true, 3, 0, 0, "ZOQFOT_DISTRESS_EVENT");
         }
         else if (PlayerSaid(r, "enough_info"))

@@ -523,6 +523,10 @@ public partial class Main : Node2D
                 Log(host.StartAllied(allied));
             if (_options.StartFleet is { } fleet)
                 Log(host.StartWithFleet(fleet));
+            // The clock moved on after the story and before the place, so its events see the story as set and the
+            // host's ship where the game left it (the calendar's location gates).
+            if (_options.StartDate is { } date)
+                Log(host.StartDate(date));
             if (_options.StartAt is { } at)
                 Log(host.StartAt(at.X, at.Y));
             if (_options.StartOrbit is { } o)

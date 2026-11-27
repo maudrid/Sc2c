@@ -10,9 +10,12 @@ namespace Crateris.Core.World;
 
 /// <summary>
 /// What a <see cref="WorldNotice"/> tells: an event another player set off
-/// (docs/plans/stage-3b.md, decision 11). Stage 3b-1 brought the first and
-/// 3b-2 its talks' (alliances, ships given, prices raised); 3c adds its
-/// story events' here.
+/// (docs/plans/stage-3b.md, decision 11), or one of the clock's events that
+/// changed a race (the owner, 2026-11-21: every such event is told to every
+/// player). Stage 3b-1 brought the first and 3b-2 its talks' (alliances,
+/// ships given, prices raised); 3c adds its story events' here (item 1:
+/// the Shofixti's return, the Spathi's shield, the Zoq-Fot-Pik's distress
+/// and death, the Yehat's civil war).
 /// </summary>
 public enum NoticeEvent : byte
 {
@@ -103,6 +106,30 @@ public enum NoticeEvent : byte
     /// crew member; <see cref="WorldNotice.Race"/> names the race.
     /// </summary>
     CrewPrice,
+
+    /// <summary>
+    /// The clock's event (stage 3c item 1): the Shofixti came back
+    /// (SHOFIXTI_RETURN_EVENT), allied, their ships for sale and the crew's
+    /// price at the starbase lowered, to <see cref="WorldNotice.Count"/>
+    /// resource units a crew member.
+    /// </summary>
+    Returned,
+
+    /// <summary>The clock's event: the race shielded their world (SPATHI_SHIELD_EVENT), no longer allies, their fleet gone.</summary>
+    Shielded,
+
+    /// <summary>The clock's event: the race is in distress, the Kohr-Ah attacking their world (ZOQFOT_DISTRESS_EVENT).</summary>
+    Distress,
+
+    /// <summary>The clock's event: the race was destroyed, not rescued in time (ZOQFOT_DEATH_EVENT).</summary>
+    Extinct,
+
+    /// <summary>
+    /// The race's civil war began (YEHAT_REBEL_EVENT, run at once by
+    /// <see cref="WorldNotice.By"/>'s talk): the royalists' fleet cut to two
+    /// thirds, the rebels' as large.
+    /// </summary>
+    CivilWar,
 }
 
 /// <summary>
@@ -148,6 +175,11 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.Calmed => $"{By} calmed the {Race}.",
         NoticeEvent.ModuleForSale => $"{By} bought the {Race} from the Melnorme: it's for sale at the starbase.",
         NoticeEvent.CrewPrice => $"{By} sold crew to the {Race}: crew cost {Count} RU each at the starbase now.",
+        NoticeEvent.Returned => $"The {Race} are back and allied: their ships are for sale, and crew cost {Count} RU each at the starbase now.",
+        NoticeEvent.Shielded => $"The {Race} have shielded their world: they're no longer allies, and their ships are gone.",
+        NoticeEvent.Distress => $"The {Race} are in distress: the Kohr-Ah are attacking their world.",
+        NoticeEvent.Extinct => $"The {Race} have been destroyed.",
+        NoticeEvent.CivilWar => $"{By} started the {Race}'s civil war: the rebels have a fleet of their own.",
         _ => "",
     };
 }

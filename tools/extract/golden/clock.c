@@ -36,7 +36,8 @@
  *   new          a new game (above)
  *   day N        N days by GameClockTick, a day each tick (day_in_ticks 1)
  *   move N       MoveGameClockDays (N), as the starbase's two weeks do
- *   hyper 0|1    the flagship out of or in hyperspace (CurrentActivity)
+ *   hyper 0|1    the flagship out of or in hyperspace (CurrentActivity),
+ *                in no special system
  *   rampdown     what slyhome.c does when told of the self-destruct code:
  *                DESTRUCT_CODE_ON_SHIP 1, SLYLANDRO_MULTIPLIER + 1, then
  *                AddEvent (RELATIVE_EVENT, 0, 0, 0, SLYLANDRO_RAMP_DOWN)
@@ -48,9 +49,21 @@
  *                race R's growth G, growth_fract F and growth_err_term E,
  *                as 3c's events set them (thradd_mission, ilwrath_mission)
  *   track R      StartSphereTracking (R), as a talk or a world does
+ *   system S     the flagship in interplanetary flight in the system whose
+ *                generator is gendef.h's S (SPATHI_DEFINED 5, ZOQFOT_DEFINED
+ *                6: CurStarDescPtr's Index), as the location gates read it;
+ *                0 for a system with none ("hyper 0" is one too)
+ *   add R M D Y E
+ *                AddEvent (R ? RELATIVE_EVENT : ABSOLUTE_EVENT, M, D, Y, E),
+ *                as a talk queues an event (one due at once runs then)
+ *   strength R N race R's actual_strength N
+ *   ally R F     SetRaceAllied (R, F), as a talk makes or ends an alliance
+ *   crew B C     CREW_PURCHASED0 and 1 the crew bought B (low byte first),
+ *                and CrewCost C, as the starbase's crew trade leaves them
+ *   distress N   ZOQFOT_DISTRESS N, as the Zoq-Fot-Pik's thanks set it (0)
  *
- * Output: a JSON line after "new", "rampdown", "track" and each day of
- * "day" (one for the whole of "move"): [[year, month, day], [[event,
+ * Output: a JSON line after "new", "rampdown", "track", "add" and each
+ * day of "day" (one for the whole of "move"): [[year, month, day], [[event,
  * depth, year, month, day]...] the events EventHandler ran, depth 0 for
  * those clock.c ran (from the queue, or AddEvent's at once) and more for
  * those run at once from within another, with the date they ran on,
@@ -59,8 +72,10 @@
  * known_strength, loc.x, loc.y, known_loc.x, known_loc.y, growth,
  * growth_fract, growth_err_term, days_left, func_index, dest_loc.x,
  * dest_loc.y]...] the fleets (avail_race_q, by race) that changed since
- * the last line (every one after "new")], and after "track" one more:
- * StartSphereTracking's result.
+ * the last line (every one after "new"), [ARILOU_SPACE,
+ * ARILOU_CHECKED_UMGAH, ZOQFOT_DISTRESS, SPATHI_SHIELDED_SELVES,
+ * CREW_PURCHASED0, CREW_PURCHASED1, CrewCost] the story the events set],
+ * and after "track" one more: StartSphereTracking's result.
  */
 
 #include "libs/threadlib.h"
@@ -72,6 +87,7 @@
 #include "uqm/gameev.h"
 #include "uqm/build.h"
 #include "uqm/master.h"
+#include "uqm/planets/planets.h"
 #include "uqm/races.h"
 #include "uqm/setup.h"
 #include "uqm/starmap.h"
@@ -287,6 +303,12 @@ print_step (int tracked)
 	}
 	printf ("]");
 	print_fleets ();
+	printf (",[%d,%d,%d,%d,%d,%d,%d]", GET_GAME_STATE (ARILOU_SPACE),
+			GET_GAME_STATE (ARILOU_CHECKED_UMGAH),
+			GET_GAME_STATE (ZOQFOT_DISTRESS),
+			GET_GAME_STATE (SPATHI_SHIELDED_SELVES),
+			GET_GAME_STATE (CREW_PURCHASED0), GET_GAME_STATE (CREW_PURCHASED1),
+			GLOBAL (CrewCost));
 	if (tracked >= 0)
 		printf (",%d", tracked);
 	printf ("]\n");
@@ -347,7 +369,10 @@ main (void)
 			print_step (-1);
 		}
 		else if (!strcmp (cmd, "hyper"))
+		{
 			GLOBAL (CurrentActivity) = n ? IN_HYPERSPACE : IN_INTERPLANETARY;
+			CurStarDescPtr = NULL;
+		}
 		else if (!strcmp (cmd, "rampdown"))
 		{
 			BYTE i;
@@ -374,6 +399,32 @@ main (void)
 		}
 		else if (!strcmp (cmd, "track"))
 			print_step (StartSphereTracking ((COUNT) n));
+		else if (!strcmp (cmd, "system"))
+		{
+			static STAR_DESC here;
+
+			GLOBAL (CurrentActivity) = IN_INTERPLANETARY;
+			here.Index = (BYTE) n;
+			CurStarDescPtr = n ? &here : NULL;
+		}
+		else if (!strcmp (cmd, "add"))
+		{
+			AddEvent (n ? RELATIVE_EVENT : ABSOLUTE_EVENT, (COUNT) a[0],
+					(COUNT) a[1], (COUNT) a[2], (BYTE) a[3]);
+			print_step (-1);
+		}
+		else if (!strcmp (cmd, "strength"))
+			fleet (n)->actual_strength = (COUNT) a[0];
+		else if (!strcmp (cmd, "ally"))
+			SetRaceAllied ((COUNT) n, (BOOLEAN) a[0]);
+		else if (!strcmp (cmd, "crew"))
+		{
+			SET_GAME_STATE (CREW_PURCHASED0, LOBYTE (n));
+			SET_GAME_STATE (CREW_PURCHASED1, HIBYTE (n));
+			GLOBAL (CrewCost) = (BYTE) a[0];
+		}
+		else if (!strcmp (cmd, "distress"))
+			SET_GAME_STATE (ZOQFOT_DISTRESS, n);
 		else
 		{
 			fprintf (stderr, "no command %s\n", cmd);

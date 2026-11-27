@@ -125,7 +125,7 @@ public sealed class SystemGroups
     private const int NameOffset = 5, NumCaptainsNames = 16;
 
     private readonly StoryRules _rules;
-    private readonly int _drone, _urquan, _melnorme, _shofixti, _zoqfot, _spathi, _supox, _utwig, _slylandro;
+    private readonly int _drone, _urquan, _melnorme, _shofixti, _zoqfot, _spathi, _supox, _utwig, _slylandro, _yehat;
     private readonly Dictionary<int, string> _homeWorld = new();
 
     public SystemGroups(StoryRules rules)
@@ -136,6 +136,7 @@ public sealed class SystemGroups
         _melnorme = rules.RaceIndex("MELNORME_SHIP");
         _shofixti = rules.RaceIndex("SHOFIXTI_SHIP");
         _zoqfot = rules.RaceIndex("ZOQFOTPIK_SHIP");
+        _yehat = rules.RaceIndex("YEHAT_SHIP");
         _spathi = rules.RaceIndex("SPATHI_SHIP");
         _supox = rules.RaceIndex("SUPOX_SHIP");
         _utwig = rules.RaceIndex("UTWIG_SHIP");
@@ -710,6 +711,9 @@ public sealed class SystemGroups
     /// left them. After a battle (<paramref name="battleRace"/>, the
     /// encounter's race, UninitEncounter's EncounterRace), the race's groups
     /// turn on the players as one comes back into flight there (DoMissions).
+    /// Every system's reinitNpcs checks the Yehat's rebellion
+    /// (check_yehat_rebellion: the Yehat groups touched flee after a
+    /// meeting with no battle, once their civil war has begun).
     /// The special systems' reinitNpcs: at the Zoq-Fot-Pik scout's system its
     /// scout, re-forming from the touch, flies off (GenerateZoqFotPikScout_reinitNpcs);
     /// at the Shofixti's, the recruited Shofixti do (check_old_shofixti, by
@@ -734,6 +738,7 @@ public sealed class SystemGroups
         Flush(d);
         if (battleRace >= 0)
             d.EncounterRace = battleRace;
+        CheckYehatRebellion(d, story);
         if (d.Defined == "SOL_DEFINED" && d.Groups.Count > 0 && d.Groups[0] is var head
             && head.Race == _drone && (head.Task & IpGroup.ReformGroup) != 0)
         {
@@ -741,6 +746,24 @@ public sealed class SystemGroups
             head.DestLoc = 0;
         }
         SendOffOwnGroup(d, story);
+    }
+
+    // GenerateDefault_reinitNpcs' check_yehat_rebellion (gendefault.c:338),
+    // in every system but the Sa-Matra's (its own reinitNpcs): once the
+    // Yehat's civil war has begun, after a meeting with no battle (no
+    // EncounterRace waiting), the royalist groups that stood down from a
+    // touch (IGNORE_FLAGSHIP) flee the system, keeping only REFORM_GROUP of
+    // their task (UQM's: the Yehat a player talked into the revolt, with no
+    // battle after it, leave).
+    private void CheckYehatRebellion(SystemDraw d, StoryState? story)
+    {
+        if (story is null || story.Get("YEHAT_CIVIL_WAR") == 0 || d.EncounterRace >= 0 || d.Defined == "SAMATRA_DEFINED")
+            return;
+        foreach (var g in d.Groups.Where(g => g.Race == _yehat && (g.Task & IpGroup.IgnoreFlagship) != 0))
+        {
+            g.Task = (byte)((g.Task & IpGroup.ReformGroup) | IpGroup.Flee | IpGroup.IgnoreFlagship);
+            g.DestLoc = 0;
+        }
     }
 
     // GenerateZoqFotPikScout_reinitNpcs and check_old_shofixti: the special
