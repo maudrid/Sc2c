@@ -546,7 +546,6 @@ public static class StoryWorlds
     /// orbit (generateOrbital's own DoDiscoveryReport): Procyon's starbase,
     /// the Chmmr's moon (genchmmr.c), whatever the story. Null for any other.
     /// </summary>
-
     public static LanderReport? ArrivalReport(string? special, WorldId world) =>
         special == "CHMMR_DEFINED" && world.Planet == 1 && world.Moon == 0 ? new LanderReport(ChmmrBaseReport) : null;
 
