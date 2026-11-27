@@ -36,7 +36,10 @@ public static class TalkRules
         // drone's (which runs the Ur-Quan's script) included: each is its
         // answerer's, under the race's dialogue lock.
         ["urquan"] = _ => false,
-        ["blackur"] = _ => false,
+        // The Kohr-Ah met, the same; but once they've destroyed every race
+        // (KOHR_AH_KILLED_ALL, stage 3c item 4) their talk is the game's end,
+        // the Black Ur-Quan's last, shown to everyone on a story pause.
+        ["blackur"] = story => story.Get("KOHR_AH_KILLED_ALL") != 0,
         // Stage 3b-1 item 7: the Spathi met in space, ordinary (decision 6);
         // Fwiffo on Pluto (3c's) too, as a talk with a race's ship.
         ["spathi"] = _ => false,

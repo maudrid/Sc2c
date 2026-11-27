@@ -181,7 +181,13 @@ public static class Protocol
     /// spheres the players know (StorySnapshot.Fleets: each tracked race's
     /// strength and centre, for the status panel's fleet lines), sent when
     /// they change.
-    public const int Version = 34;
+    /// 35: the Kohr-Ah's victory (stage 3c item 4): a talk's view has a
+    /// step for a story pause's held closing lines (VisitStep.StoryClosing,
+    /// numbered last: the Black Ur-Quan's last talk), whose replier's client
+    /// says when they've gone through them (StoryClosingDone, with the
+    /// view's round); the game over's notice says the Kohr-Ah won
+    /// (BattleNotice.KilledAll).
+    public const int Version = 35;
     public const int DefaultPort = 24642;
 
     /// <summary>
@@ -207,14 +213,19 @@ public static class Protocol
     public static T Decode<T>(byte[] bytes) =>
         JsonSerializer.Deserialize<T>(bytes, Options) ?? throw new InvalidDataException("Empty message.");
 
-    /// <summary>A join's answer in words; <paramref name="surrendered"/>: a game over came of the flagship's surrender (GameWorld.Surrendered).</summary>
-    public static string Describe(JoinResult result, bool surrendered = false) => result switch
+    /// <summary>A join's answer in words; <paramref name="loss"/>: how a game over came (GameWorld.Loss).</summary>
+    public static string Describe(JoinResult result, GameLoss loss = GameLoss.None) => result switch
     {
         JoinResult.Joined => "Joined. Your escort is undocking from the flagship.",
         JoinResult.Rejoined => "Welcome back. Your ship is where you left it.",
         JoinResult.AlreadyPresent => "That player is already connected.",
         JoinResult.Full => "The game is full (4 players).",
-        JoinResult.GameOver => surrendered ? "The game is over: the flagship surrendered." : "The game is over: the flagship was lost.",
+        JoinResult.GameOver => loss switch
+        {
+            GameLoss.Surrendered => "The game is over: the flagship surrendered.",
+            GameLoss.KohrAhVictorious => "The game is over: the Kohr-Ah have destroyed every race.",
+            _ => "The game is over: the flagship was lost.",
+        },
         _ => result.ToString(),
     };
 

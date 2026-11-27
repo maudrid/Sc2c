@@ -99,10 +99,10 @@ public static class HostSave
     /// aside for stage 3c (StoryState.Saved.SetAside, decision 9); an older
     /// save has none set aside, and one with any is refused. On loading any
     /// save, the events whose day has passed run at once, in date order
-    /// (those the port doesn't run yet set aside): an older save's, which
+    /// (until stage 3c item 4, those the port didn't run yet set aside): an older save's, which
     /// ran none, as the encounters' event waiting since the second day; and
     /// with them, since stage 3c item 1, the events a save set aside that
-    /// the port now runs, once, from where the clock is. During a visit's
+    /// the port now runs (since item 4 every one), once, from where the clock is. During a visit's
     /// opening, the two weeks' events are taken back with the two weeks.
     /// Version 13 also has the races' fleets (StoryState.Saved.Fleets,
     /// stage 3b item 2: each race's sphere, known sphere, growth and
@@ -218,7 +218,8 @@ public static class HostSave
     /// <summary>
     /// The world as a save. Refused (<see cref="InvalidOperationException"/>)
     /// once the flagship is lost or has surrendered
-    /// (<see cref="GameWorld.FlagshipLost"/>), or while it waits at the
+    /// (<see cref="GameWorld.FlagshipLost"/>), or the Kohr-Ah have destroyed
+    /// every race (<see cref="GameWorld.KohrAhVictorious"/>), or while it waits at the
     /// closing lines of a talk it surrendered in
     /// (<see cref="GameWorld.FlagshipSurrendering"/>): the host's save is
     /// kept as it was (decision 12). A meeting waiting at its closing lines
@@ -233,6 +234,8 @@ public static class HostSave
     {
         if (world.FlagshipLost)
             throw new InvalidOperationException("the flagship is lost: the game isn't saved (its save is kept as it was)");
+        if (world.KohrAhVictorious)
+            throw new InvalidOperationException("the Kohr-Ah have destroyed every race: the game isn't saved (its save is kept as it was)");
         if (world.FlagshipSurrendering)
             throw new InvalidOperationException("the flagship surrenders: the game isn't saved (its save is kept as it was)");
         string json = Write(world);
@@ -650,11 +653,12 @@ public static class HostSave
             world.InOrbit(p.Ship);
         world.CommanderMet = save.CommanderMet;
         // The events whose day has passed run now, in date order (an older
-        // save's: it ran none), and those an older save set aside that the
-        // port now runs (stage 3c items 1 and 3), from where the clock is;
-        // the Kohr-Ah's are set aside still (decision 9). The
-        // location gates count every saved player's ship, nobody being in
-        // the game yet.
+        // save's: it ran none), and those an older save set aside (decision
+        // 9), every one run since stage 3c item 4, from where the clock is.
+        // The location gates count every saved player's ship, nobody being
+        // in the game yet. A genocide that kills the last race here (or a
+        // save holding KOHR_AH_KILLED_ALL) starts the game's end as the
+        // game starts (GameWorld.KohrAhVictorious).
         world.RunDayEvents(loading: true);
         return world;
     }

@@ -638,6 +638,9 @@ public partial class Main : Node2D
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ClosingDone(int meeting) => _host?.GuestClosingDone(Multiplayer.GetRemoteSenderId(), meeting);
 
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void StoryClosingDone(int round) => _host?.GuestStoryClosingDone(Multiplayer.GetRemoteSenderId(), round);
+
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowMeeting(byte[] meeting)
     {
@@ -894,6 +897,8 @@ public partial class Main : Node2D
                     _host.ChooseEncounter(_host.HostId, meeting, action);
                 if (inGame && _player.TakeClosingDone() is int closed)
                     _host.ClosingDone(_host.HostId, closed);
+                if (inGame && _player.TakeStoryClosingDone() is int heard)
+                    _host.StoryClosingDone(_host.HostId, heard);
                 if (inGame)
                 {
                     foreach (var gift in _player.TakeGifts())
@@ -968,6 +973,8 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.EncounterChoice, meeting, (int)action);
                 if (_player.TakeClosingDone() is int closed)
                     RpcId(1, MethodName.ClosingDone, closed);
+                if (_player.TakeStoryClosingDone() is int heard)
+                    RpcId(1, MethodName.StoryClosingDone, heard);
                 foreach (var key in _player.TakeStarbaseKeys())
                     RpcId(1, MethodName.StarbaseKey, (int)key);
                 foreach (var gift in _player.TakeGifts())
@@ -1292,7 +1299,8 @@ public partial class Main : Node2D
             _commView.Close();
             _sellingView.Stop();
         }
-        // A meeting's closing lines: gone through once played and the last replay's time is up (item 11);
+        // A meeting's closing lines, or the story's held ones (the Black Ur-Quan's last talk): gone through once
+        // played and the last replay's time is up (item 11);
         // every frame, so lines shown again after something else start afresh.
         player.FollowClosing(_commView.Visible && _commView.Busy, 1.0 / Engine.PhysicsTicksPerSecond);
         if (!_commView.Visible || player.ShownTalk is null)
@@ -1320,7 +1328,12 @@ public partial class Main : Node2D
         _fade.Follow(player.Talk, player.StoryPaused, player.TalkShown, (long)(Time.GetTicksMsec() * 840 / 1000));
         _fadeRect.Color = new Color(0, 0, 0, (float)_fade.Black((long)(Time.GetTicksMsec() * 840 / 1000)));
         // The game over, over everything, fading in.
-        _gameOverView.Why = player.Surrendered ? GameOverView.Surrendered : GameOverView.Lost;
+        _gameOverView.Why = player.Loss switch
+        {
+            GameLoss.Surrendered => GameOverView.Surrendered,
+            GameLoss.KohrAhVictorious => GameOverView.KilledAll,
+            _ => GameOverView.Lost,
+        };
         _gameOverView.Follow(screen == PlayerScreen.GameOver, 1.0 / Engine.PhysicsTicksPerSecond);
         if (_planetsideView.Visible)
             _planetsideView.Show(player);

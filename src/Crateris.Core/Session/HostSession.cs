@@ -73,7 +73,7 @@ public sealed class HostSession
     /// (question 13), what couldn't be made logged.
     /// </summary>
     public string? SaveJson() =>
-        World.FlagshipLost || World.FlagshipSurrendering ? null : HostSave.ToJson(World, Logged);
+        World.GameLost || World.FlagshipSurrendering ? null : HostSave.ToJson(World, Logged);
 
     /// <summary>
     /// --start-at: the host's ship in hyperspace at universe coordinates, at
@@ -284,8 +284,10 @@ public sealed class HostSession
     /// clock moved on to that day, as the starbase's two weeks move it
     /// (MoveGameClockDays): each day's events run, the location gates
     /// asking where the players are, and the races' fleets grow and move;
-    /// it says which events ran (the daily encounter event left out), which
-    /// a location gate held (each time it held one) and which were set aside;
+    /// it says which events ran (the daily encounter event left out) and which
+    /// a location gate held (each time it held one), and whether the
+    /// Kohr-Ah have killed every race (the game lost: its end starts as the
+    /// game does, <see cref="GameWorld.KohrAhVictorious"/>);
     /// no hyperspace encounters are rolled (the ships aren't flying
     /// meanwhile). Changes whatever game is loaded, and is saved with it.
     /// Needs the story (InvalidOperationException); a date that isn't one,
@@ -304,14 +306,13 @@ public sealed class HostSession
         if (days < 0)
             throw new ArgumentException($"{date}: the clock only goes forward, from {c.Year:D4}-{c.Month:D2}-{c.Day:D2}");
         var done = World.MoveClockDays(days, rolls: false);
-        var ran = done.Where(e => !e.SetAside && !e.Held && e.Event.Event != "HYPERSPACE_ENCOUNTER_EVENT").Select(e => e.Event.Event).ToList();
+        var ran = done.Where(e => !e.Held && e.Event.Event != "HYPERSPACE_ENCOUNTER_EVENT").Select(e => e.Event.Event).ToList();
         var held = done.Where(e => e.Held).Select(e => e.Event.Event).ToList();
-        var aside = done.Where(e => e.SetAside).Select(e => e.Event.Event).ToList();
         static string Listed(List<string> events, string what) =>
             $"{events.Count} event{(events.Count == 1 ? "" : "s")} {what}" + (events.Count == 0 ? "" : $" ({string.Join(", ", events)})");
         return $"Starting on {y:D4}-{m:D2}-{d:D2}: {days} day{(days == 1 ? "" : "s")} passed, {Listed(ran, "run")}"
                + (held.Count == 0 ? "" : $", {Listed(held, "held by a player in their race's system")}")
-               + (aside.Count == 0 ? "" : $", {Listed(aside, "set aside")}");
+               + (World.KohrAhVictorious ? "; the Kohr-Ah have destroyed every race: the game is lost" : "");
     }
 
     /// <summary>
@@ -520,7 +521,7 @@ public sealed class HostSession
         else
         {
             result = World.Join(playerId, name);
-            message = Protocol.Describe(result, World.Surrendered);
+            message = Protocol.Describe(result, World.Loss);
         }
         // A repeated hello is answered (and logged) with the player already on the connection.
         string answered = already ?? playerId;
@@ -674,6 +675,27 @@ public sealed class HostSession
         bool done = World.ClosingDone(id, meeting);
         if (done)
             Logged?.Invoke($"{id}: the closing lines heard" + (World.HostPaused || World.StoryPaused ? " (the meeting goes on as the pause lifts)" : ""));
+        return done;
+    }
+
+    /// <summary>A guest has gone through the story's held closing lines (stage 3c item 4): <see cref="StoryClosingDone"/>.</summary>
+    public void GuestStoryClosingDone(long peer, int round)
+    {
+        if (_peers.TryGetValue(peer, out var id))
+            StoryClosingDone(id, round);
+    }
+
+    /// <summary>
+    /// The story's replier has gone through its held closing lines, for its
+    /// set of replies <paramref name="round"/> (the Black Ur-Quan's last
+    /// talk: the game over follows, <see cref="GameWorld.StoryClosingDone"/>),
+    /// logged; false if it changed nothing.
+    /// </summary>
+    public bool StoryClosingDone(string id, int round)
+    {
+        bool done = World.StoryClosingDone(id, round);
+        if (done)
+            Logged?.Invoke($"{id}: the story's closing lines heard" + (World.HostPaused ? " (it ends as the pause lifts)" : ""));
         return done;
     }
 
@@ -952,6 +974,8 @@ public sealed class HostSession
                     }
             if (pause.Done)
                 Logged?.Invoke($"The story pause is over: {pause.What}");
+            else if (pause != World.Pause)
+                Logged?.Invoke($"The story pause stops where it is: {pause.What}");   // the game's end took over (stage 3c item 4)
             else
                 _pausesLogged.Add((pause, fading, skipped, talk, events));
         }
@@ -981,7 +1005,7 @@ public sealed class HostSession
         {
             var c = World.Clock;
             Logged?.Invoke($"{skip.Days} days passed: it's {c.Year:D4}-{c.Month:D2}-{c.Day:D2}"
-                + (World.GameOver ? "; the game is over" : ""));
+                + (World.KohrAhVictorious ? "; the Kohr-Ah have destroyed every race" : World.GameOver ? "; the game is over" : ""));
             skipped = true;
         }
     }
@@ -1172,9 +1196,14 @@ public sealed class HostSession
         if (World.GameOver && !_gameOverLogged)
         {
             _gameOverLogged = true;
-            Logged?.Invoke(World.Surrendered ? "Game over: the flagship surrendered" : "Game over: the flagship was lost");
+            Logged?.Invoke(World.Loss switch
+            {
+                GameLoss.Surrendered => "Game over: the flagship surrendered",
+                GameLoss.KohrAhVictorious => "Game over: the Kohr-Ah have destroyed every race",
+                _ => "Game over: the flagship was lost",
+            });
             foreach (var p in World.Players)
-                Tell(p.Id, new BattleNotice(BattleNoticeKind.GameOver, Text: World.Surrendered ? BattleNotice.Surrender : ""));
+                Tell(p.Id, new BattleNotice(BattleNoticeKind.GameOver, Text: BattleNotice.GameOverText(World.Loss)));
         }
     }
 

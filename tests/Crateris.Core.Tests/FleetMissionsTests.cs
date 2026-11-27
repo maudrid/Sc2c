@@ -201,11 +201,11 @@ public class FleetMissionsTests
         var told = world.TakeNotices();
         Assert.Equal(new[] { "g", "h" }, told.Select(n => n.PlayerId).OrderBy(p => p));
         Assert.All(told, n => Assert.Equal("The Mycon have set off for Organon.", n.Text));
-        // Their arrival at Organon 30 days on runs the mission (not set aside), listed as an arrival
+        // Their arrival at Organon 30 days on runs the mission, listed as an arrival
         // after its day's event, and is told.
         var done = world.MoveClockDays(30, rolls: false);
         var arrived = Assert.Single(done, e => e.Arrival);
-        Assert.Equal(("ADVANCE_MYCON_MISSION", false, true), (arrived.Event.Event, arrived.SetAside, arrived.News));
+        Assert.Equal(("ADVANCE_MYCON_MISSION", true), (arrived.Event.Event, arrived.News));
         Assert.Equal("HYPERSPACE_ENCOUNTER_EVENT", done[done.IndexOf(arrived) - 1].Event.Event);
         Assert.Empty(story.Events.SetAside);
         Assert.All(world.TakeNotices(), n => Assert.Equal("The Mycon have reached Organon and are losing ships there.", n.Text));

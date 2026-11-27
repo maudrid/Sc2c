@@ -12,25 +12,28 @@ namespace Crateris.Game;
 
 /// <summary>
 /// The game over (stage 4a item 12, decision 12): UQM, its flagship lost
-/// or surrendered to the Ur-Quan (stage 3b-1 item 6), leaves the game and
+/// or surrendered to the Ur-Quan (stage 3b-1 item 6), or every race
+/// destroyed by the Kohr-Ah (stage 3c item 4, after the Black Ur-Quan's
+/// last talk), leaves the game and
 /// fades back to its start (starcon.c leaves its loop with
 /// <c>CrewEnlisted</c> ~0); here every player's screen fades to black over
-/// a second, then says the game is over, which of the two ended it
+/// a second, then says the game is over, which of the three ended it
 /// (<c>Why</c>) and the key that ends it. The host's game then ends, its
-/// save as it was before (nothing is saved after the flagship's loss or
-/// surrender), and the guests are let go.
+/// save as it was before (nothing is saved once the game is lost), and the
+/// guests are let go.
 /// </summary>
 public partial class GameOverView : Node2D
 {
     /// <summary>How long the fade to black takes, in seconds.</summary>
     public const double FadeSeconds = 1.0;
 
-    public const string Title = "GAME OVER", Lost = "The flagship was lost.", Surrendered = "The flagship surrendered.", Again = "The host's save is kept as it was: the loss isn't saved.",
+    public const string Title = "GAME OVER", Lost = "The flagship was lost.", Surrendered = "The flagship surrendered.",
+        KilledAll = "The Kohr-Ah have destroyed every race.", Again = "The host's save is kept as it was: the loss isn't saved.",
         KeyLine = "Press Enter or Esc to leave.";
 
     private double _shown = -1;
 
-    /// <summary>Why the game is over: the flagship lost, or its surrender (PlayerSession.Surrendered).</summary>
+    /// <summary>Why the game is over: the flagship lost, its surrender, or the Kohr-Ah's victory (PlayerSession.Loss).</summary>
     public string Why { get; set; } = Lost;
 
     /// <summary>The window's size, which the fade covers.</summary>

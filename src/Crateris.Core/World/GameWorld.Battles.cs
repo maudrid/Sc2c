@@ -63,9 +63,39 @@ public sealed partial class GameWorld
     /// Ur-Quan (stage 3b-1 item 6, <see cref="Surrendered"/>) is the game
     /// over too, from its talk once its closing lines have been gone through
     /// (stage 3b-1 item 11): no battle, and no save from the talk's end
-    /// (<see cref="FlagshipSurrendering"/> while the lines play).
+    /// (<see cref="FlagshipSurrendering"/> while the lines play). The
+    /// Kohr-Ah destroying every race is the game over too (stage 3c item 4,
+    /// <see cref="KohrAhVictorious"/>), once the Black Ur-Quan's last talk
+    /// has been gone through. How it was lost: <see cref="Loss"/>.
     /// </summary>
     public bool GameOver { get; private set; }
+
+    /// <summary>How the game was lost, once it's over (<see cref="GameOver"/>); <see cref="GameLoss.None"/> before.</summary>
+    public GameLoss Loss { get; private set; }
+
+    /// <summary>
+    /// The Kohr-Ah have destroyed every race (KOHR_AH_KILLED_ALL, stage 3c
+    /// item 4: black_urquan_genocide reaching Sol with nobody left, UQM's
+    /// CrewEnlisted = ~0): the game is lost for everyone from the moment the
+    /// field is set, by a day's events (in a time skip's days, in
+    /// <c>--start-date</c>'s, or as a save loads), or by <c>--start-state</c>.
+    /// From then on no save is made and no visit or other story pause
+    /// starts (<see cref="GameLost"/>); a sequence whose days set it stops
+    /// where it is, as UQM's VisitStarBase returns (starbase.c:494), and the
+    /// Black Ur-Quan's last talk is shown to everyone on a story pause that
+    /// takes over from whatever story is shown (<see cref="StoryPause.TakesOver"/>),
+    /// the host's player answering; once its closing lines have been gone
+    /// through, the game is over (<see cref="GameLoss.KohrAhVictorious"/>).
+    /// </summary>
+    public bool KohrAhVictorious { get; private set; }
+
+    /// <summary>
+    /// The game is lost, or being lost: the flagship's crew ran out or it
+    /// surrendered (<see cref="FlagshipLost"/>), or the Kohr-Ah have
+    /// destroyed every race (<see cref="KohrAhVictorious"/>). No save is
+    /// made, and no visit or story pause starts (but the game's end).
+    /// </summary>
+    public bool GameLost => FlagshipLost || KohrAhVictorious;
 
     /// <summary>
     /// The flagship's crew has run out in a battle (it's exploding, or the
@@ -563,25 +593,27 @@ public sealed partial class GameWorld
     }
 
     // The game over (decision 12): the flagship lost, with no crew; the world
-    // stops. (A surrender ends the game from its talk: LoseTheGame.)
+    // stops. (A surrender ends the game from its talk, the Kohr-Ah's victory
+    // from the Black Ur-Quan's last talk: LoseTheGame.)
     private void EndGame(BattleFighter flagship)
     {
         flagship.CrewLeft = 0;
         flagship.Player.Ship.Hold.SetCrew(0);
         flagship.Player.Ship.Destroyed = true;
-        LoseTheGame(surrendered: false);
+        LoseTheGame(GameLoss.FlagshipLost);
     }
 
-    private void LoseTheGame(bool surrendered)
+    private void LoseTheGame(GameLoss why)
     {
-        FlagshipLost = true;
+        if (why != GameLoss.KohrAhVictorious)
+            FlagshipLost = true;
         GameOver = true;
-        Surrendered = surrendered;
+        Loss = why;
         HostPaused = false;   // the game has stopped for good: no pause to lift (decision 12)
     }
 
     /// <summary>The game was lost by the flagship's surrender (to the Ur-Quan), not in a battle.</summary>
-    public bool Surrendered { get; private set; }
+    public bool Surrendered => Loss == GameLoss.Surrendered;
 
     // A player's ship leaving a battle mid-battle with its crew (a retreat,
     // or a disconnect): its crew back aboard, 5 units of fuel paid (its
@@ -849,4 +881,20 @@ public sealed partial class GameWorld
             .ToArray();
         return new BattleArmadaSnapshot(ships, f.Pick is { } menu ? new BattlePickSnapshot(menu.Row, menu.Column) : null);
     }
+}
+
+/// <summary>How the game was lost (<see cref="GameWorld.Loss"/>).</summary>
+public enum GameLoss
+{
+    /// <summary>It isn't over.</summary>
+    None,
+
+    /// <summary>The host's flagship was lost in a battle (stage 4 decision 12).</summary>
+    FlagshipLost,
+
+    /// <summary>The host's flagship surrendered to the Ur-Quan (stage 3b-1 item 6).</summary>
+    Surrendered,
+
+    /// <summary>The Kohr-Ah destroyed every race (stage 3c item 4, <see cref="GameWorld.KohrAhVictorious"/>).</summary>
+    KohrAhVictorious,
 }

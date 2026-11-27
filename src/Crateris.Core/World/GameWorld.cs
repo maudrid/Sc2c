@@ -166,16 +166,19 @@ public sealed partial class GameWorld
     /// The story pause outside the starbase's opening, if any (stage 3c
     /// item 2: a time skip, a story talk shown to everyone, or both, which
     /// any sequence can take, <see cref="StartStoryPause"/>). One at a time,
-    /// and never beside a story visit.
+    /// and never beside a story visit, but the game's end, which takes over
+    /// from either (<see cref="StoryPause.TakesOver"/>: the Kohr-Ah's
+    /// victory, stage 3c item 4).
     /// </summary>
     public StoryPause? Pause { get; private set; }
 
     /// <summary>
     /// What everyone is shown while the game is paused for the story: the
-    /// story visit (the starbase's opening, while it's story), or the
-    /// story pause; null when the game isn't paused for one.
+    /// game's end, once it has taken over (<see cref="StoryPause.TakesOver"/>);
+    /// else the story visit (the starbase's opening, while it's story), or
+    /// the story pause; null when the game isn't paused for one.
     /// </summary>
-    public TalkSequence? StoryShown => Visit is { Story: true } visit ? visit : Pause;
+    public TalkSequence? StoryShown => Pause is { TakesOver: true } end ? end : Visit is { Story: true } visit ? visit : Pause;
 
     /// <summary>
     /// Whether the game is paused for the story (stage 3, decisions 6
@@ -482,6 +485,11 @@ public sealed partial class GameWorld
         if (GameOver)
             return;   // the world stops (decision 12)
         Frame++;
+        // The Kohr-Ah's victory seen since the last frame (a game started so: --start-date's days, a save's,
+        // --start-state's KOHR_AH_KILLED_ALL): the game's end begins.
+        StartTheEndIfDue();
+        if (GameOver)
+            return;
         ScrapUnmannedFleetShips();   // the shipyard's ship of no crew, once its crew editing has ended any way
         bool paused = StoryPaused || HostPaused;
         if (_wasPaused && !paused)
@@ -542,7 +550,7 @@ public sealed partial class GameWorld
                 _inputs[p.Id].Take(Frame);
                 _actionHeld.Remove(p.Id);
             }
-            if (Visit is { Story: true } visit)
+            if (StoryShown is StarbaseVisit visit)
             {
                 visit.Frame();
                 AfterVisit(visit);
@@ -552,6 +560,8 @@ public sealed partial class GameWorld
                 Pause!.Frame();
                 AfterPause(Pause);
             }
+            // The Kohr-Ah's victory in the days just skipped: the game's end takes over now.
+            StartTheEndIfDue();
             // The flagship's crew run out as a story talk started (its
             // starter touching the starbase in the same frame): the game is
             // lost all the same, and its battle runs on, unflown, to the
@@ -641,6 +651,8 @@ public sealed partial class GameWorld
         StepSurfaces();
         // The clock, and hyperspace's encounters (GameWorld.Encounters.cs).
         EndOfFrame();
+        // The Kohr-Ah's victory in the day just begun: the game's end starts now, before anything else can.
+        StartTheEndIfDue();
     }
 
     // The keys on the surface: turn, thrust, fire, take off.
@@ -813,8 +825,9 @@ public sealed partial class GameWorld
     /// menu (docked). One opening goes on at a time: while another does, or
     /// without the talks' content, the ship stays in flight (docs/differences.md
     /// row 27); and it waits while another player talks to the commander
-    /// from the menu (row 17). Once the flagship is lost (its crew run out,
-    /// or it surrendered to the Ur-Quan, <see cref="FlagshipLost"/>) no ship
+    /// from the menu (row 17). Once the game is lost (the flagship's crew run out,
+    /// it surrendered to the Ur-Quan, or the Kohr-Ah have destroyed every
+    /// race: <see cref="GameLost"/>) no ship
     /// touching it docks or starts a
     /// visit, so no story pause can start before the game over (stage 4a
     /// item 7).
@@ -824,7 +837,7 @@ public sealed partial class GameWorld
         if (TalkLibrary is null || Story is null || player.Ship.Visit is not null || player.Ship.Battle is not null
             || player.Ship.Meeting is not null)
             return;   // a player in a battle or a meeting starts no talk (decision 11)
-        if (FlagshipLost)
+        if (GameLost)
             return;   // the game is lost: no visit (a story pause would hold off the game over)
         if (Pause is not null)
             return;   // the story pause holds every ship (none touches the starbase meanwhile)
@@ -941,6 +954,19 @@ public sealed partial class GameWorld
         visit.Paging.Pages.Add(page);
         return true;
     }
+
+    /// <summary>
+    /// The replier of a story pause that holds its closing lines
+    /// (<see cref="StoryPause.HoldsClosing"/>: the Black Ur-Quan's last
+    /// talk, stage 3c item 4) has gone through them, for the set of replies
+    /// <paramref name="round"/> (the view's): the pause ends at the next
+    /// frame the host's pause doesn't hold, and the sequence that took it
+    /// goes on (the game over). False, changing nothing, from anyone else,
+    /// for another round, or with no such lines shown.
+    /// </summary>
+    public bool StoryClosingDone(string id, int round) =>
+        !GameOver && Find(id) is { Present: true } && Pause is { Step: VisitStep.StoryClosing } pause && StoryShown == pause
+        && pause.Replier.Id == id && pause.Round == round && pause.LinesHeard();
 
     /// <summary>What a docked player's request to talk to the commander came to.</summary>
     public enum CommanderTalk
@@ -1144,15 +1170,24 @@ public sealed partial class GameWorld
     /// <paramref name="script"/> (none for null) that <paramref name="starter"/>
     /// answers, shown to everyone (<see cref="StoryPause"/>). When it ends,
     /// <paramref name="then"/> runs. Null, starting nothing, if the game is
-    /// over or already paused for the story (one at a time: the sequence
-    /// tries again later), or without the story.
+    /// over or lost (<see cref="GameLost"/>: the game over to come), or already paused for the story (one at a time: the sequence
+    /// tries again later), or without the story. The game's end
+    /// (<paramref name="theEnd"/>, the Kohr-Ah's victory: <see cref="StartTheEndIfDue"/>)
+    /// starts whatever is shown and the game being lost: it takes over from
+    /// the story pause or story visit (which stop where they are, the
+    /// pause's <see cref="StoryPause.Then"/> never run), and holds its
+    /// closing lines (<see cref="StoryPause.HoldsClosing"/>).
     /// </summary>
     internal StoryPause? StartStoryPause(Player starter, string what, int days, string? script = null,
-        Dictionary<string, int>? own = null, string? race = null, CommIntro? intro = null, Action<StoryPause>? then = null)
+        Dictionary<string, int>? own = null, string? race = null, CommIntro? intro = null, Action<StoryPause>? then = null,
+        bool theEnd = false)
     {
-        if (GameOver || StoryPaused || Story is null)
+        if (GameOver || Story is null || (!theEnd && (StoryPaused || GameLost)))
             return null;
-        var pause = new StoryPause(this, starter, NextRound(), what, days, script, own, race, intro) { Then = then };
+        var pause = new StoryPause(this, starter, NextRound(), what, days, script, own, race, intro)
+        {
+            Then = then, TakesOver = theEnd, HoldsClosing = theEnd,
+        };
         Pause = pause;
         _newPauses.Add(pause);
         // Everyone is shown it: no one's closing lines of an earlier story are still theirs to see.

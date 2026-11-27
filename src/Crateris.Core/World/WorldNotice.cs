@@ -121,7 +121,12 @@ public enum NoticeEvent : byte
     /// <summary>The clock's event: the race is in distress, the Kohr-Ah attacking their world (ZOQFOT_DISTRESS_EVENT).</summary>
     Distress,
 
-    /// <summary>The clock's event: the race was destroyed, not rescued in time (ZOQFOT_DEATH_EVENT).</summary>
+    /// <summary>
+    /// The clock's event: the race was destroyed, not rescued in time
+    /// (ZOQFOT_DEATH_EVENT), by its losses (the Ilwrath's war), or by the
+    /// Kohr-Ah's genocide (stage 3c item 4: <see cref="WorldNotice.Detail"/>
+    /// "by the Kohr-Ah").
+    /// </summary>
     Extinct,
 
     /// <summary>
@@ -190,7 +195,7 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.Returned => $"The {Race} are back and allied: their ships are for sale, and crew cost {Count} RU each at the starbase now.",
         NoticeEvent.Shielded => $"The {Race} have shielded their world: they're no longer allies, and their ships are gone.",
         NoticeEvent.Distress => $"The {Race} are in distress: the Kohr-Ah are attacking their world.",
-        NoticeEvent.Extinct => $"The {Race} have been destroyed.",
+        NoticeEvent.Extinct => Detail.Length > 0 ? $"The {Race} have been destroyed {Detail}." : $"The {Race} have been destroyed.",
         NoticeEvent.CivilWar => $"{By} started the {Race}'s civil war: the rebels have a fleet of their own.",
         NoticeEvent.Mission => $"The {Race} {Detail}.",
         _ => "",

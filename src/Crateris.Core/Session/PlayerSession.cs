@@ -702,33 +702,45 @@ public sealed class PlayerSession
     public bool AtClosingLines =>
         Meeting is { Step: MeetingStep.Closing } && Talk is { Step: VisitStep.Meeting, Replies.Count: 0 } t && t.Replier == PlayerId;
 
+    /// <summary>
+    /// Whether the story shown holds its closing lines for this player to
+    /// go through, its replier (<see cref="VisitStep.StoryClosing"/>: the
+    /// Black Ur-Quan's last talk, stage 3c item 4), their communication
+    /// screen showing them: everyone else watches and waits.
+    /// </summary>
+    public bool AtStoryClosingLines => Talk is { Step: VisitStep.StoryClosing, Replies.Count: 0 } t && t.Replier == PlayerId;
+
     private string? _closingKey;
     private double _closingLeft;
     private bool _closingPlayed;
     private int _closingSent;
     private int? _closingDone;
+    private int? _storyClosingSent, _storyClosingDone;
 
     /// <summary>
     /// Time passes on the communication screen at a meeting's closing lines
-    /// (<see cref="AtClosingLines"/>; call it every frame):
+    /// (<see cref="AtClosingLines"/>), or the story's held ones
+    /// (<see cref="AtStoryClosingLines"/>; call it every frame):
     /// <paramref name="busy"/> while the lines play (or play again) or the
     /// summary is open. Once they've played and the last replay's time has
     /// run out (<see cref="LastReplaySeconds"/>, <see cref="AfterReplaySeconds"/>
     /// after a replay or the summary), they're gone through: said to the host
-    /// once a meeting (<see cref="TakeClosingDone"/>). Lines shown again
+    /// once a meeting (<see cref="TakeClosingDone"/>), or once a story's set
+    /// of replies (<see cref="TakeStoryClosingDone"/>). Lines shown again
     /// after something else (a story's closing lines shown meanwhile) play
     /// from the start, the wait with them.
     /// </summary>
     public void FollowClosing(bool busy, double seconds)
     {
-        if (!AtClosingLines)
+        bool meeting = AtClosingLines;
+        if (!meeting && !AtStoryClosingLines)
         {
             _closingKey = null;   // not shown now: from the start when they are again
             return;
         }
-        if (Meeting!.Id == _closingSent)
+        if (meeting ? Meeting!.Id == _closingSent : Talk!.Round == _storyClosingSent)
             return;
-        string key = $"{Meeting.Id}\u0001{Talk!.LinesKey}";
+        string key = meeting ? $"{Meeting!.Id}\u0001{Talk!.LinesKey}" : $"story {Talk!.Round}\u0001{Talk.LinesKey}";
         if (key != _closingKey)
         {
             _closingKey = key;
@@ -745,8 +757,19 @@ public sealed class PlayerSession
         _closingLeft -= seconds;
         if (_closingLeft > 0)
             return;
-        _closingDone = _closingSent = Meeting.Id;
+        if (meeting)
+            _closingDone = _closingSent = Meeting!.Id;
+        else
+            _storyClosingDone = _storyClosingSent = Talk!.Round;
         Log("Closing lines heard");
+    }
+
+    /// <summary>The story's set of replies whose held closing lines this player has gone through, to send to the host once; null if none waits.</summary>
+    public int? TakeStoryClosingDone()
+    {
+        var d = _storyClosingDone;
+        _storyClosingDone = null;
+        return d;
     }
 
     /// <summary>The meeting whose closing lines this player has gone through, to send to the host once; null if none waits.</summary>
@@ -993,11 +1016,14 @@ public sealed class PlayerSession
     /// </summary>
     public string? RescueOffer { get; private set; }
 
-    /// <summary>Whether the host has said the game is over (the flagship lost, or surrendered: <see cref="Surrendered"/>).</summary>
+    /// <summary>Whether the host has said the game is over (how: <see cref="Loss"/>).</summary>
     public bool GameOver { get; private set; }
 
+    /// <summary>How the game over the host told of came: the flagship lost in a battle, its surrender (<see cref="BattleNotice.Surrender"/>), or the Kohr-Ah's victory (<see cref="BattleNotice.KilledAll"/>); <see cref="GameLoss.None"/> before.</summary>
+    public GameLoss Loss { get; private set; }
+
     /// <summary>Whether the game over the host told of was the flagship's surrender (<see cref="BattleNotice.Surrender"/>), not its loss in a battle.</summary>
-    public bool Surrendered { get; private set; }
+    public bool Surrendered => Loss == GameLoss.Surrendered;
 
     /// <summary>A battle notice from the host: kept, said in words, and logged.</summary>
     public void ShowBattleNotice(BattleNotice notice)
@@ -1023,7 +1049,7 @@ public sealed class PlayerSession
                 break;
             case BattleNoticeKind.GameOver:
                 GameOver = true;
-                Surrendered = notice.Text == BattleNotice.Surrender;
+                Loss = BattleNotice.LossOf(notice.Text);
                 break;
         }
         FollowRescue();

@@ -221,8 +221,9 @@ public class StoryStateTests
         story.RunEvent("SLYLANDRO_RAMP_UP", clock);
         Assert.Equal(4, story.Get("SLYLANDRO_MULTIPLIER"));
         Assert.Equal(queued, story.Events.Count);
-        // The Kohr-Ah's wait for stage 3c's item 4.
-        Assert.Throws<NotSupportedException>(() => story.RunEvent("KOHR_AH_GENOCIDE_EVENT", clock));
+        // The Kohr-Ah's run since stage 3c's item 4: the genocide begins the frenzy (news).
+        Assert.True(story.RunEvent("KOHR_AH_GENOCIDE_EVENT", clock));
+        Assert.Equal(1, story.Get("KOHR_AH_FRENZY"));
     }
 
     // ---- prices

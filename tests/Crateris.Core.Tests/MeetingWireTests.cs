@@ -258,6 +258,8 @@ public class MeetingWireTests
             c.Session.FollowClosing(false, FrameSeconds);
             if (c.Session.TakeClosingDone() is int closed)
                 host.GuestClosingDone(c.Peer, closed);
+            if (c.Session.TakeStoryClosingDone() is int heard)
+                host.GuestStoryClosingDone(c.Peer, heard);
         }
         return snapshot;
     }
@@ -595,9 +597,10 @@ public class MeetingWireTests
         Assert.Null(TalkView.Decode((view with { Screen = screen with { Intro = null } }).Encode())!.Screen!.Intro);
         foreach (var mode in Enum.GetValues<CommIntroMode>())
             Assert.Equal(mode, TalkView.Decode((view with { Screen = screen with { Intro = new CommIntro(mode, 0) } }).Encode())!.Screen!.Intro!.Value.Mode);
-        // A step past the last refused.
+        // The story's held closing lines (protocol 35, stage 3c item 4) a step of their own; a step past the last refused.
+        Assert.Equal(VisitStep.StoryClosing, TalkView.Decode((view with { Step = VisitStep.StoryClosing }).Encode())!.Step);
         var past = view.Encode();
-        past[0] = (byte)((int)VisitStep.Story + 2);
+        past[0] = (byte)((int)VisitStep.StoryClosing + 2);
         Assert.Throws<InvalidDataException>(() => TalkView.Decode(past));
         byte[] Hostile(Action<Net.WireWriter> intro)
         {
@@ -640,10 +643,11 @@ public class MeetingWireTests
         // 27 a meeting's closing lines (stage 3b-1 item 11), 28 credits and fuel (3b-2 item 3), 29 the Melnorme's talk
         // (item 4), 30 the Zoq-Fot-Pik's speakers (item 5), 31 the talks' screen changes (row 83), 32 the Talking
         // Pet's strobe: a one-shot ambient animation's start among them (item 10), 33 the story pauses and the talks'
-        // intro fades (stage 3c item 2), 34 the spheres the players know (item 3).
-        Assert.Equal(34, Protocol.Version);
+        // intro fades (stage 3c item 2), 34 the spheres the players know (item 3), 35 the story's held closing lines
+        // and the Kohr-Ah's game over (item 4).
+        Assert.Equal(35, Protocol.Version);
         var game = NewGame(guests: 0);
-        var refused = game.Host.Hello(9, "old", "Old", 33);
+        var refused = game.Host.Hello(9, "old", "Old", 34);
         Assert.False(Protocol.Accepted(refused.Result));
         Assert.Contains("Version mismatch", refused.Message);
     }
@@ -1777,6 +1781,61 @@ public class MeetingWireTests
     }
 
     // ---- story pauses (stage 3c item 2)
+
+    [ContentFact]
+    public void TheKohrAhsVictoryIsShownOnEveryClientThenTheGameOverWithItsReason()
+    {
+        // Stage 3c item 4: every race dead, the Black Ur-Quan's last talk on every screen, its closing lines held
+        // until the host's player (its replier) has gone through them; then the game over, saying why.
+        var game = NewGame(guests: 2, testTalks: false);
+        var host = game.Host;
+        var world = game.World;
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var g1 = NewClient(1);
+        var g2 = NewClient(2);
+        Frame(host, g1, g2);
+        world.Story!.Set("KOHR_AH_KILLED_ALL", 1);   // as the genocide's last step sets it
+        Frame(host, g1, g2);
+        Assert.Null(host.SaveJson());
+        foreach (var c in new[] { g1, g2 })
+        {
+            Assert.True(c.Session.StoryPaused);
+            Assert.Equal((VisitStep.StoryClosing, "blackur", "h"), (c.Session.Talk!.Step, c.Session.Talk.Script, c.Session.Talk.Replier));
+            Assert.True(c.Session.TalkShown);
+            Assert.Equal(PlayerScreen.Comm, c.Session.Screen);
+            Assert.False(c.Session.AtStoryClosingLines);   // the host's to go through
+            Assert.False(c.Session.Replying && c.Session.Talk.Replies.Count > 0);
+        }
+        for (int i = 0; i < 300; ++i)
+            Frame(host, g1, g2);   // the watchers' clients say nothing, however long
+        Assert.False(world.GameOver);
+        // The host's own client goes through them (the game's loop sends what its session says).
+        var own = new PlayerSession(SystemGroupTests.Systems.Value, null, "h", TestContent.Shapes.HyperFlagship.Count);
+        own.ShowTalk(TalkView.Decode(world.TalkFor("h")!.Encode()));
+        Assert.True(own.AtStoryClosingLines);
+        own.FollowClosing(busy: true, 10);   // while they play, nothing
+        Assert.Null(own.TakeStoryClosingDone());
+        own.FollowClosing(busy: false, PlayerSession.LastReplaySeconds + 0.1);
+        int round = Assert.IsType<int>(own.TakeStoryClosingDone());
+        Assert.Null(own.TakeStoryClosingDone());   // once
+        Assert.True(host.StoryClosingDone("h", round));
+        Frame(host, g1, g2);
+        Assert.True(world.GameOver);
+        Frame(host, g1, g2);
+        foreach (var c in new[] { g1, g2 })
+        {
+            Assert.True(c.Session.GameOver);
+            Assert.Equal(GameLoss.KohrAhVictorious, c.Session.Loss);
+            Assert.Equal(PlayerScreen.GameOver, c.Session.Screen);
+            Assert.Contains(c.Notices, n => n.Describe() == "Game over: the Kohr-Ah have destroyed every race.");
+        }
+        Assert.Contains("A story pause for everyone: the Kohr-Ah have destroyed every race", game.Log);
+        Assert.Contains("h: the story's closing lines heard", game.Log);
+        Assert.Contains("Game over: the Kohr-Ah have destroyed every race", game.Log);
+        var refused = host.Hello(9, "late", "Late", Protocol.Version);
+        Assert.Equal(JoinResult.GameOver, refused.Result);
+        Assert.Equal("The game is over: the Kohr-Ah have destroyed every race.", refused.Message);
+    }
 
     [ContentFact]
     public void AStoryPauseIsShownOnEveryClientAndItsTalkAnsweredByItsReplierThroughTheirs()

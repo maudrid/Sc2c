@@ -8349,7 +8349,7 @@ CLOCK_PROGRAM = os.path.join(HERE, "golden", "clock.c")
 # the ships' list (master.c) and every ship whose RACE_DESC a new game's
 # avail_race_q is made from (ARILOU_ID to MMRNMHRM_ID, and the probe).
 CLOCK_LINK = ["uqm/gameev.c", "uqm/globdata.c", "uqm/displist.c", "uqm/build.c", "uqm/master.c",
-              "libs/math/random.c"]
+              "libs/math/random.c", "libs/math/sqrt.c"]
 CLOCK_LINK += [f"uqm/ships/{ship}/{ship}.c" for ship in sorted(
     ["androsyn", "arilou", "blackurq", "chenjesu", "chmmr", "druuge", "human", "ilwrath", "melnorme",
      "mmrnmhrm", "mycon", "orz", "pkunk", "probe", "shofixti", "slylandr", "spathi", "supox", "syreen",
@@ -8359,8 +8359,8 @@ CLOCK_LINK += [f"uqm/ships/{ship}/{ship}.c" for ship in sorted(
 # "move N", "hyper 0|1", "rampdown", "dest R X Y D F", "growth R G F E",
 # "track R", "system S", "add R M D Y E", "strength R N", "ally R F",
 # "crew B C", "distress N", "state F N"; races by races.h's *_SHIP number,
-# events by gameev.h's, systems by gendef.h's *_DEFINED, F a mission field
-# of golden/clock.c's MISSION_FIELDS by name).
+# events by gameev.h's, systems by gendef.h's *_DEFINED, F a story field
+# of golden/clock.c's MISSION_FIELDS or KOHR_AH_FIELDS by name).
 # A new game's Slylandro ramp-ups fall
 # on 17 February 2155 (at once), 18 August 2155, 16 February and 16 August
 # 2156 (a leap year), and the one on 14 February 2157 (728 days in) finds
@@ -8458,6 +8458,40 @@ CLOCK_SCENARIOS = [
     # growth and makes them wait there again.
     ("the missions undone", ["new", "strength 9 0", "add 1 0 0 0 9", "strength 4 0", "add 1 0 0 0 4", "strength 8 0",
                              "add 1 0 0 0 5", "strength 15 20", "add 1 0 0 0 13", "day 90"]),
+    # The Kohr-Ah (stage 3c item 4). A new game's victory (3) four years
+    # on, 17 February 2159 (1,461 days: seven moves of 200 and the 61st day
+    # after), and the genocide (10) race by race, each the Kohr-Ah's
+    # fleet's arrival, day by day to Sol and KOHR_AH_KILLED_ALL (the game
+    # over, CrewEnlisted ~0) on 19 November 2159: the Druuge first though
+    # the Mycon are nearer, then the nearest each time; the Arilou killed
+    # as any race, the Melnorme and the Slylandro (met anywhere) and the
+    # Ur-Quan never; the Yehat rebels (no sphere) killed with the Yehat at
+    # their place, the humans at Sol. The Kohr-Ah's and the Ur-Quan's talk
+    # counts (set before, and again on the way) reset by each step. The
+    # flagship at the Sa-Matra (29) once the frenzy has begun holds
+    # nothing.
+    ("the Kohr-Ah's victory and genocide", ["new", "state KOHR_AH_VISITS 2", "state KOHR_AH_REASONS 1",
+                                            "state KOHR_AH_PLEAD 3", "state KOHR_AH_INFO 2", "state URQUAN_VISITS 5"]
+     + ["move 200"] * 7 + ["day 61", "system 29", "day 40", "state KOHR_AH_VISITS 1", "state URQUAN_VISITS 2",
+                           "day 240"]),
+    # The flagship at the Sa-Matra as the victory falls: it waits, queued
+    # again as the genocide 7 days on, twice more; then in hyperspace the
+    # genocide begins.
+    ("the Sa-Matra's gate", ["new"] + ["move 200"] * 7 + ["day 55", "system 29", "day 20", "hyper 1", "day 20"]),
+    # The Utwig's and the Supox's mission (9) begun: the victory a year
+    # late, the genocide on 17 February 2160.
+    ("the victory a year late", ["new", "add 1 0 0 0 9"] + ["move 200"] * 7 + ["day 61", "move 200", "move 165",
+                                                                                "day 30"]),
+    # The Mycon (15) sent off to a place by the Kohr-Ah (as a mission
+    # leaves a fleet away from home) and the Druuge (13) gone: the victory
+    # heads for the Mycon there, a day away (the speed's least), and kills
+    # them away from home the same day. The Druuge back (their strength) as
+    # the Kohr-Ah head for the Zoq-Fot-Pik (19): arrived at the Zoq-Fot-Pik,
+    # the Druuge come first and the scan stops at them, so the Zoq-Fot-Pik
+    # (after them in the list) aren't killed; the Kohr-Ah head on for the
+    # Druuge and kill them.
+    ("the Druuge first, and a fleet away from home", ["new", "dest 15 6100 6300 20 255", "strength 13 0"]
+     + ["move 200"] * 7 + ["day 61", "day 3", "strength 13 254", "day 80"]),
 ]
 
 
@@ -8502,8 +8536,8 @@ def record_clock(uqm, exe):
         "ABSOLUTE_EVENT, M, D, Y, E), as a talk queues an event; strength R "
         "N: race R's actual_strength N; ally R F: SetRaceAllied (R, F); crew "
         "B C: CREW_PURCHASED0 and 1 the crew bought B, CrewCost C; distress "
-        "N: ZOQFOT_DISTRESS N; state F N: the mission field F N, as a talk "
-        "sets it) and its steps: one after new, rampdown, track "
+        "N: ZOQFOT_DISTRESS N; state F N: the story field F N (a mission's "
+        "or the Kohr-Ah's), as a talk or --start-state sets it) and its steps: one after new, rampdown, track "
         "and add, one each day of day, one for the whole of move.",
         "A step: [[year, month, day] after it, [[event, depth, year, month, "
         "day]...] each event EventHandler ran, in order, depth 0 for those "
@@ -8521,7 +8555,10 @@ def record_clock(uqm, exe):
         "PKUNK_SWITCH, YEHAT_ABSORBED_PKUNK, THRADD_MISSION, "
         "ILWRATH_FIGHT_THRADDASH, HELIX_UNPROTECTED, THRADD_VISITS, "
         "MYCON_KNOW_AMBUSH, UTWIG_SUPOX_MISSION, UTWIG_VISITS, UTWIG_INFO, "
-        "SUPOX_VISITS, SUPOX_INFO, UTWIG_WAR_NEWS, SUPOX_WAR_NEWS] after it], "
+        "SUPOX_VISITS, SUPOX_INFO, UTWIG_WAR_NEWS, SUPOX_WAR_NEWS, "
+        "KOHR_AH_FRENZY, KOHR_AH_VISITS, KOHR_AH_REASONS, KOHR_AH_PLEAD, "
+        "KOHR_AH_INFO, URQUAN_VISITS, KOHR_AH_KILLED_ALL, and 1 if "
+        "CrewEnlisted is ~0, the game over, else 0] after it], "
         "and after track one more: "
         "StartSphereTracking's result. Events are gameev.h's numbers "
         "(data/events.json), races races.h's (data/races.json's order). An "
@@ -8658,6 +8695,40 @@ def check_clock(scenarios, events):
         raise RuntimeError("clock: the Utwig and the Supox don't fight the Kohr-Ah and come home as the scenario has them")
     if story("the missions undone")[11] != 1 or story("the missions undone")[16] != 1 or story("the missions undone")[7] != 0:
         raise RuntimeError("clock: the missions with no fleet don't count as the scenario has them")
+    # The Kohr-Ah: the story's [..., KOHR_AH_FRENZY 23, KOHR_AH_VISITS 24,
+    # KOHR_AH_REASONS 25, KOHR_AH_PLEAD 26, KOHR_AH_INFO 27, URQUAN_VISITS
+    # 28, KOHR_AH_KILLED_ALL 29, CrewEnlisted ~0 30].
+    VICTORY, GENOCIDE = 3, 10
+    HUMAN, DRUUGE, MELNORME, ZOQFOTPIK, ARILOU = 2, 13, 12, 19, 0
+    if (events["KOHR_AH_VICTORIOUS_EVENT"], events["KOHR_AH_GENOCIDE_EVENT"]) != (VICTORY, GENOCIDE):
+        raise RuntimeError("clock: the Kohr-Ah's events' numbers aren't gameev.h's as this check knows them")
+    kv = by["the Kohr-Ah's victory and genocide"]["steps"]
+    killed = [f[0] for s in kv for f in s[5] if f[2] == 0 and f[0] not in (KOHR_AH, REBELS)
+              and any(g[0] == f[0] and g[2] != 0 for g in kv[0][5])]
+    over = [i for i, s in enumerate(kv) if s[6][29]]
+    at_sol = [i for i, s in enumerate(kv) if any(f[0] == KOHR_AH and f[4:6] == [1752, 1450] for f in s[5])]
+    if (runs(kv, VICTORY) != 1 or [r[2:] for s in kv for r in s[1] if r[0] == VICTORY] != [[2159, 2, 17]]
+            or killed[0] != DRUUGE or MYCON not in killed[1:] or ARILOU not in killed or URQUAN in killed
+            or MELNORME in killed or SLYLANDRO in killed or len(killed) != len(set(killed))
+            or fleet_of(kv, HUMAN)[1] != 0 or fleet_of(kv, REBELS)[1] != 0 or not over or over[:1] != at_sol[:1]
+            or kv[over[0]][0] != [2159, 11, 19] or kv[over[0]][6][29:31] != [1, 1] or kv[over[0] - 1][6][29] != 0
+            or kv[-1][6][23:29] != [1, 0, 0, 0, 0, 0] or kv[-1][6][29:31] != [1, 1]):
+        raise RuntimeError("clock: the Kohr-Ah's victory and genocide don't run to Sol as the scenario has them")
+    sg = by["the Sa-Matra's gate"]["steps"]
+    genocides = [(r[2:], s[6][23]) for s in sg for r in s[1] if r[0] == GENOCIDE]
+    if (runs(sg, VICTORY) != 1 or genocides != [([2159, 2, 24], 0), ([2159, 3, 3], 0), ([2159, 3, 10], 1)]):
+        raise RuntimeError(f"clock: the Sa-Matra's gate holds the victory and genocide as {genocides}")
+    late = by["the victory a year late"]["steps"]
+    if ([(r[0], r[2:]) for s in late for r in s[1] if r[0] in (VICTORY, GENOCIDE)]
+            != [(VICTORY, [2159, 2, 17]), (GENOCIDE, [2160, 2, 17])]
+            or story("the victory a year late")[16] == 0 or story("the victory a year late")[23] != 1
+            or fleet_of(late, DRUUGE)[2] != 0):
+        raise RuntimeError("clock: the victory isn't a year late with the Utwig's and Supox's mission begun")
+    df = by["the Druuge first, and a fleet away from home"]["steps"]
+    if (fleet_of(df, MYCON)[1:3] != [0, 0] or fleet_of(df, MYCON)[4:6] != [6100, 6300]
+            or fleet_of(df, DRUUGE)[1:3] != [0, 0] or fleet_of(df, ZOQFOTPIK)[2] == 0
+            or not any(f[0] == KOHR_AH and f[4:6] == [3761, 5333] for s in df for f in s[5])):
+        raise RuntimeError("clock: the Druuge don't come first, or the Mycon aren't killed away from home")
 
 
 CMAP_PROGRAM = os.path.join(HERE, "golden", "cmap.c")

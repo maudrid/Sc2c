@@ -72,6 +72,14 @@ public enum VisitStep
     /// 3c item 2), shown to everyone, its replier replying. Numbered last.
     /// </summary>
     Story,
+
+    /// <summary>
+    /// Not a visit's: a story pause's talk over, its closing lines held on
+    /// everyone's screen with no replies until its replier has gone through
+    /// them (<see cref="StoryPause.HoldsClosing"/>: the Black Ur-Quan's last
+    /// talk, stage 3c item 4). Numbered last.
+    /// </summary>
+    StoryClosing,
 }
 
 /// <summary>
@@ -250,9 +258,9 @@ public sealed class StarbaseVisit : TalkSequence
     {
         if (Step != VisitStep.TimePassing || !_days!.Frame(_world))
             return;
-        // A game over during the days (the Kohr-Ah's genocide, stage 3c item 4): VisitStarBase returns at once
-        // ("You are now dead!", starbase.c:494): no commander, the visit left where it is (the world has stopped).
-        if (_world.GameOver)
+        // The game lost during the days (the Kohr-Ah's genocide, stage 3c item 4): VisitStarBase returns at once
+        // ("You are now dead!", starbase.c:494): no commander, the visit left where it is (the game's end takes over).
+        if (_world.GameOver || _world.KohrAhVictorious)
             return;
         // MoveGameClockDays has run: each day's events, no encounter
         // rolled, and the day starts afresh (tick_count = day_in_ticks).

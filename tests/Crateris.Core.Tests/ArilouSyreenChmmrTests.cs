@@ -331,7 +331,7 @@ public class ArilouSyreenChmmrTests
         Choose(world, "h", "learned_about_umgah");
         Assert.True(Said(m.Talk!, "NO_NEWS_YET"));
         world.Clock.NextDay();
-        Assert.Contains(world.RunDayEvents(), e => e.Event == check && !e.SetAside);
+        Assert.Contains(world.RunDayEvents(), e => e.Event == check);
         Assert.DoesNotContain(story.Events.SetAside, e => e.Event == "ARILOU_UMGAH_CHECK");
         Assert.DoesNotContain(story.Events, e => e.Event == "ARILOU_UMGAH_CHECK");
         Assert.Equal(2, story.Get("ARILOU_CHECKED_UMGAH"));

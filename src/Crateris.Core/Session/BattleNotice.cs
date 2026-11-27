@@ -53,7 +53,8 @@ public enum BattleNoticeKind : byte
     /// <summary>
     /// The game is over: the flagship was lost (decision 12), or surrendered
     /// to the Ur-Quan (<see cref="BattleNotice.Text"/> <see cref="BattleNotice.Surrender"/>,
-    /// stage 3b-1 item 6). The world has stopped.
+    /// stage 3b-1 item 6), or the Kohr-Ah destroyed every race
+    /// (<see cref="BattleNotice.KilledAll"/>, stage 3c item 4). The world has stopped.
     /// </summary>
     GameOver,
 }
@@ -79,6 +80,25 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
 
     /// <summary>The game over's <see cref="Text"/> when the flagship surrendered (GameWorld.Surrendered), not lost in a battle.</summary>
     public const string Surrender = "surrendered";
+
+    /// <summary>The game over's <see cref="Text"/> when the Kohr-Ah destroyed every race (GameWorld.KohrAhVictorious, stage 3c item 4).</summary>
+    public const string KilledAll = "killed all";
+
+    /// <summary>The game over's <see cref="Text"/> for how the game was lost ("" for the flagship lost in a battle).</summary>
+    public static string GameOverText(GameLoss loss) => loss switch
+    {
+        GameLoss.Surrendered => Surrender,
+        GameLoss.KohrAhVictorious => KilledAll,
+        _ => "",
+    };
+
+    /// <summary>How the game was lost, by a game over's <see cref="Text"/> (<see cref="GameOverText"/>).</summary>
+    public static GameLoss LossOf(string text) => text switch
+    {
+        Surrender => GameLoss.Surrendered,
+        KilledAll => GameLoss.KohrAhVictorious,
+        _ => GameLoss.FlagshipLost,
+    };
 
     public byte[] Encode()
     {
@@ -136,7 +156,12 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
         BattleNoticeKind.RescueOffer => $"You're at {Other}'s wreck: you can give it crew.",
         BattleNoticeKind.Revived => Text == Rescued ? $"{Other} gave your ship {Crew} crew: it flies again."
             : $"You gave {Other}'s wreck {Crew} crew: it flies again.",
-        BattleNoticeKind.GameOver => Text == Surrender ? "Game over: the flagship surrendered." : "Game over: the flagship was lost.",
+        BattleNoticeKind.GameOver => LossOf(Text) switch
+        {
+            GameLoss.Surrendered => "Game over: the flagship surrendered.",
+            GameLoss.KohrAhVictorious => "Game over: the Kohr-Ah have destroyed every race.",
+            _ => "Game over: the flagship was lost.",
+        },
         _ => "",
     };
 }

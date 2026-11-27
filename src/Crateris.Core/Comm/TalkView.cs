@@ -271,7 +271,7 @@ public sealed record TalkView(VisitStep Step, string Script, IReadOnlyList<strin
         var r = new WireReader(data);
         ulong step = r.UInt();
         // Any step but the Ilwrath's fight, which is never sent.
-        if (step == 0 || step - 1 > (ulong)VisitStep.Story || step - 1 == (ulong)VisitStep.IlwrathFight)
+        if (step == 0 || step - 1 > (ulong)VisitStep.StoryClosing || step - 1 == (ulong)VisitStep.IlwrathFight)
             throw new InvalidDataException("Bad talk step.");
         string script = r.String() ?? "";
         ulong round = r.UInt();

@@ -730,7 +730,7 @@ public sealed partial class GameWorld
         ship.Hold.SetCrew(0);
         ship.Destroyed = true;   // stopped already (the spin's end), and a wreck doesn't fly
         if (ship.Kind == ShipKind.Flagship)
-            LoseTheGame(surrendered: true);
+            LoseTheGame(GameLoss.Surrendered);
         EndMeeting(m, fought: false);
     }
 

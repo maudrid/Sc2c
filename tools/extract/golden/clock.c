@@ -51,8 +51,9 @@
  *   track R      StartSphereTracking (R), as a talk or a world does
  *   system S     the flagship in interplanetary flight in the system whose
  *                generator is gendef.h's S (SPATHI_DEFINED 5, ZOQFOT_DEFINED
- *                6: CurStarDescPtr's Index), as the location gates read it;
- *                0 for a system with none ("hyper 0" is one too)
+ *                6, SAMATRA_DEFINED 29: CurStarDescPtr's Index), as the
+ *                location gates read it; 0 for a system with none ("hyper
+ *                0" is one too)
  *   add R M D Y E
  *                AddEvent (R ? RELATIVE_EVENT : ABSOLUTE_EVENT, M, D, Y, E),
  *                as a talk queues an event (one due at once runs then)
@@ -61,8 +62,9 @@
  *   crew B C     CREW_PURCHASED0 and 1 the crew bought B (low byte first),
  *                and CrewCost C, as the starbase's crew trade leaves them
  *   distress N   ZOQFOT_DISTRESS N, as the Zoq-Fot-Pik's thanks set it (0)
- *   state F N    the mission field F (one of MISSION_FIELDS, by name) N,
- *                as a talk or --start-state sets it
+ *   state F N    the story field F (one of MISSION_FIELDS or
+ *                KOHR_AH_FIELDS, by name) N, as a talk or --start-state
+ *                sets it
  *
  * Output: a JSON line after "new", "rampdown", "track", "add" and each
  * day of "day" (one for the whole of "move"): [[year, month, day], [[event,
@@ -76,7 +78,8 @@
  * dest_loc.y]...] the fleets (avail_race_q, by race) that changed since
  * the last line (every one after "new"), [ARILOU_SPACE,
  * ARILOU_CHECKED_UMGAH, ZOQFOT_DISTRESS, SPATHI_SHIELDED_SELVES,
- * CREW_PURCHASED0, CREW_PURCHASED1, CrewCost, then MISSION_FIELDS in order]
+ * CREW_PURCHASED0, CREW_PURCHASED1, CrewCost, then MISSION_FIELDS and
+ * KOHR_AH_FIELDS in order, then whether CrewEnlisted is ~0 (the game over)]
  * the story the events set],
  * and after "track" one more: StartSphereTracking's result.
  */
@@ -217,12 +220,21 @@ free_ship (RACE_DESC *raceDescPtr, BOOLEAN FreeIconData,
 	F (UTWIG_SUPOX_MISSION) F (UTWIG_VISITS) F (UTWIG_INFO) F (SUPOX_VISITS) \
 	F (SUPOX_INFO) F (UTWIG_WAR_NEWS) F (SUPOX_WAR_NEWS)
 
+/* The story fields the Kohr-Ah's victory and genocide (gameev.c's
+ * KOHR_AH_VICTORIOUS_EVENT, black_urquan_genocide: stage 3c item 4) set,
+ * printed after the missions'. */
+#define KOHR_AH_FIELDS \
+	F (KOHR_AH_FRENZY) F (KOHR_AH_VISITS) F (KOHR_AH_REASONS) \
+	F (KOHR_AH_PLEAD) F (KOHR_AH_INFO) F (URQUAN_VISITS) F (KOHR_AH_KILLED_ALL)
+
 static void
 print_missions (void)
 {
 #define F(f) printf (",%d", GET_GAME_STATE (f));
 	MISSION_FIELDS
+	KOHR_AH_FIELDS
 #undef F
+	printf (",%d", GLOBAL_SIS (CrewEnlisted) == (COUNT) ~0);
 }
 
 static void
@@ -230,8 +242,9 @@ set_mission_field (const char *name, int value)
 {
 #define F(f) if (!strcmp (name, #f)) { SET_GAME_STATE (f, value); return; }
 	MISSION_FIELDS
+	KOHR_AH_FIELDS
 #undef F
-	fprintf (stderr, "no mission field %s\n", name);
+	fprintf (stderr, "no story field %s\n", name);
 	exit (1);
 }
 

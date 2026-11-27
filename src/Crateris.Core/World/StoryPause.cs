@@ -79,6 +79,36 @@ public sealed class StoryPause : TalkSequence
     /// <summary>What the sequence that took it does as it ends (the world calls it once, after the pause has lifted).</summary>
     public Action<StoryPause>? Then { get; init; }
 
+    /// <summary>
+    /// Whether it takes over from whatever story is shown (the game's end,
+    /// stage 3c item 4: the Kohr-Ah's victory): the story visit or story
+    /// pause going on stops where it is, and this one is shown instead
+    /// (<see cref="GameWorld.StoryShown"/>).
+    /// </summary>
+    public bool TakesOver { get; init; }
+
+    /// <summary>
+    /// Whether, as its talk ends, it holds its closing lines on everyone's
+    /// screen (<see cref="VisitStep.StoryClosing"/>, no replies) until its
+    /// replier has gone through them (<see cref="GameWorld.StoryClosingDone"/>),
+    /// instead of ending at once with them left to each player's screen:
+    /// the game's end (the Black Ur-Quan's last talk, whose only line is
+    /// its closing one) ends the game only then.
+    /// </summary>
+    public bool HoldsClosing { get; init; }
+
+    // Its replier has gone through its held closing lines: it ends at its next frame.
+    private bool _linesHeard;
+
+    /// <summary>Its replier has gone through its held closing lines (<see cref="HoldsClosing"/>); false if none are held.</summary>
+    internal bool LinesHeard()
+    {
+        if (Step != VisitStep.StoryClosing)
+            return false;
+        _linesHeard = true;
+        return true;
+    }
+
     /// <summary>Whether its talk, if any, has been held so far (the replier's lines and replies).</summary>
     public bool Talked => Talks.Count > 0;
 
@@ -101,13 +131,15 @@ public sealed class StoryPause : TalkSequence
             AfterDays();
     }
 
-    /// <summary>A world frame: its skip's fade, the days at its end, then its talk.</summary>
+    /// <summary>A world frame: its skip's fade, the days at its end, then its talk; its held closing lines' end once they're heard.</summary>
     internal void Frame()
     {
-        // A game over during the days (the Kohr-Ah's genocide, stage 3c item 4) ends it there, as UQM's skip
-        // returns at once (starbase.c:494): no talk, nothing after (the world has stopped).
-        if (Step == VisitStep.TimePassing && Skip!.Frame(_world) && !_world.GameOver)
+        // The game lost during the days (the Kohr-Ah's genocide, stage 3c item 4) stops it there, as UQM's skip
+        // returns at once (starbase.c:494): no talk, nothing after (the game's end takes over).
+        if (Step == VisitStep.TimePassing && Skip!.Frame(_world) && !_world.GameOver && !_world.KohrAhVictorious)
             AfterDays();
+        else if (Step == VisitStep.StoryClosing && _linesHeard)
+            Finish();
     }
 
     // The days have passed (or there were none): the talk, or the end.
@@ -129,7 +161,13 @@ public sealed class StoryPause : TalkSequence
             _world.Story!.StartSphereTracking(race);
     }
 
-    private protected override void TalkEnded() => Finish();
+    private protected override void TalkEnded()
+    {
+        if (HoldsClosing)
+            Step = VisitStep.StoryClosing;   // its talk kept, shown with no replies until its replier has heard it
+        else
+            Finish();
+    }
 
     private void Finish()
     {

@@ -673,7 +673,7 @@ public class OpeningTests
     }
 
     [ContentFact]
-    public void LeavingAsTheStarbaseIsReadyTakesBackTheEventsTheTwoWeeksRanAndSetAside()
+    public void LeavingAsTheStarbaseIsReadyTakesBackTheEventsTheTwoWeeksRan()
     {
         var world = WithTalks();
         var story = world.Story!;
@@ -681,15 +681,17 @@ public class OpeningTests
         // entrance on the 17th and the Shofixti's return on the 15th (with
         // crew bought at 5 RU, its price lowered to 3), the Pkunk's mission
         // on the 13th (run since stage 3c item 3, the Pkunk setting off),
-        // and a Kohr-Ah event's day on the 12th, set aside (item 4's).
+        // and the Kohr-Ah's genocide on the 12th (run since item 4: the
+        // frenzy, their fleet off to the Druuge).
         world.MoveClockDays(21);
         Assert.Equal((2155, 3, 10), (world.Clock.Year, world.Clock.Month, world.Clock.Day));
         var arilou = new StoryEvent("ARILOU_ENTRANCE_EVENT", 2155, 3, 17);
-        var mission = new StoryEvent("KOHR_AH_GENOCIDE_EVENT", 2155, 3, 12);
+        var genocide = new StoryEvent("KOHR_AH_GENOCIDE_EVENT", 2155, 3, 12);
         Assert.True(story.Events.Add(false, 3, 15, 2155, "SHOFIXTI_RETURN_EVENT", world.Clock));
         Assert.True(story.Events.Add(false, 3, 12, 2155, "KOHR_AH_GENOCIDE_EVENT", world.Clock));
         Assert.True(story.Events.Add(false, 3, 13, 2155, "ADVANCE_PKUNK_MISSION", world.Clock));
         var pkunk = story.Fleet("PKUNK_SHIP");
+        var kohrAh = story.Fleet("BLACK_URQUAN_SHIP");
         story.SetCrewCost(5);
         story.Set("CREW_PURCHASED0", 44);
         story.Set("CREW_PURCHASED1", 1);
@@ -702,28 +704,32 @@ public class OpeningTests
         world.VisitStarbase(world.Host);
         Run(world, StarbaseVisit.TimePassingFrames);
         Assert.Equal(VisitStep.StarbaseReady, world.Visit!.Step);
-        Assert.Equal(new[] { mission }, story.Events.SetAside);
+        Assert.Empty(story.Events.SetAside);
+        Assert.Equal((1, 9500, 2792), (story.Get("KOHR_AH_FRENZY"), story.Fleet("BLACK_URQUAN_SHIP").DestLocX, story.Fleet("BLACK_URQUAN_SHIP").DestLocY));
         Assert.DoesNotContain(arilou, story.Events);
         Assert.Equal((3, 0, 0), (story.CrewCost, story.Get("CREW_PURCHASED0"), story.Get("CREW_PURCHASED1")));
         Assert.Contains(new StoryEvent("ARILOU_ENTRANCE_EVENT", 2155, 4, 17), story.Events);   // opened on the 17th, closed on the 20th
         Assert.Equal(Allied.Good, story.Alliance("SHOFIXTI_SHIP"));
         Assert.Equal((1, 182 - 12), (story.Get("PKUNK_MISSION"), story.Fleet("PKUNK_SHIP").DaysLeft));   // 13 to 24 March
-        // A save made now is of the game without the two weeks: queued, not run or set aside.
+        // A save made now is of the game without the two weeks: queued, not run.
         var saved = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
         Assert.Equal(events, saved.Story!.Events);
         Assert.Empty(saved.Story.Events.SetAside);
         Assert.Equal((5, 44, 1), (saved.Story.CrewCost, saved.Story.Get("CREW_PURCHASED0"), saved.Story.Get("CREW_PURCHASED1")));
         Assert.Equal(alliances, saved.Story.Alliances);
         Assert.Equal((0, pkunk), (saved.Story.Get("PKUNK_MISSION"), saved.Story.Fleet("PKUNK_SHIP")));
+        Assert.Equal((0, kohrAh), (saved.Story.Get("KOHR_AH_FRENZY"), saved.Story.Fleet("BLACK_URQUAN_SHIP")));
         world.Leave("host");
         Assert.Equal(events, story.Events);
         Assert.Empty(story.Events.SetAside);
         Assert.Equal((5, 44, 1), (story.CrewCost, story.Get("CREW_PURCHASED0"), story.Get("CREW_PURCHASED1")));
         Assert.Equal(alliances, story.Alliances);
         Assert.Equal((0, pkunk), (story.Get("PKUNK_MISSION"), story.Fleet("PKUNK_SHIP")));
+        Assert.Equal((0, kohrAh), (story.Get("KOHR_AH_FRENZY"), story.Fleet("BLACK_URQUAN_SHIP")));
         // The days come again: each event once, not twice.
         var done = world.MoveClockDays(14);
-        Assert.Equal(new[] { mission }, story.Events.SetAside);
+        Assert.Equal(1, done.Count(e => e.Event == genocide));
+        Assert.Equal(1, story.Get("KOHR_AH_FRENZY"));
         Assert.Equal(1, done.Count(e => e.Event == arilou));
         Assert.Equal(1, done.Count(e => e.Event.Event == "SHOFIXTI_RETURN_EVENT"));
         Assert.Equal(1, done.Count(e => e.Event.Event == "ADVANCE_PKUNK_MISSION"));

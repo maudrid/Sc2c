@@ -4,7 +4,8 @@
 // getGameState32, setGameState32 and InitGameStructures; shipyard.c
 // CrewTransaction; races.h allied_state and FLEET_INFO; clock.c AddEvent and
 // processClockDayEvents; gameev.c EventHandler, arilou_entrance_event,
-// arilou_exit_event, SetRaceDest and check_race_growth; starcon.c
+// arilou_exit_event, SetRaceDest, check_race_growth and black_urquan_genocide;
+// libs/math/sqrt.c square_root (UqmMath); starcon.c
 // checkArilouGate; build.c StartSphereTracking),
 // Copyright Paul Reiche, Fred Ford and Toys for Bob, Inc. 1992-2002.
 //
@@ -14,6 +15,7 @@
 // (at your option) any later version.
 
 using Crateris.Core.Systems;
+using Crateris.Core.Uqm;
 using Crateris.Core.World;
 
 namespace Crateris.Core.Story;
@@ -471,16 +473,17 @@ public sealed class StoryState
     // ---------------------------------------------------------------- events
 
     /// <summary>
-    /// The events the port runs (EventHandler's cases): the daily hyperspace
-    /// encounters and the Slylandro ramps (stage 3b-1), since stage 3c
-    /// item 1 the events with no mission (the Arilou's portal opening and
-    /// closing, their look at the Umgah, the Shofixti's return, the
-    /// Spathi's shield, the Zoq-Fot-Pik's distress and death, and the Yehat
-    /// rebels), and since item 3 the races' missions (the Pkunk's, the
-    /// Thraddash's, the Ilwrath's, the Mycon's and the Utwig's and Supox's).
-    /// The Kohr-Ah's victory and genocide (stage 3c item 4) are still set
-    /// aside on their day (<see cref="EventQueue.SetAside"/>, stage 3b
-    /// decision 9).
+    /// The events the port runs (EventHandler's cases): since stage 3c
+    /// item 4, every one gameev.h has. The daily hyperspace encounters and
+    /// the Slylandro ramps came with stage 3b-1, the events with no mission
+    /// (the Arilou's portal opening and closing, their look at the Umgah,
+    /// the Shofixti's return, the Spathi's shield, the Zoq-Fot-Pik's
+    /// distress and death, and the Yehat rebels) with stage 3c item 1, the
+    /// races' missions with item 3, and the Kohr-Ah's victory and genocide
+    /// with item 4. Until then the clock set the others aside on their day
+    /// (<see cref="EventQueue.SetAside"/>, stage 3b decision 9): a save
+    /// that holds some has them run from where the clock is
+    /// (<see cref="RunDueEvents"/>).
     /// </summary>
     public static readonly IReadOnlySet<string> EventsRun = new HashSet<string>
     {
@@ -488,7 +491,7 @@ public sealed class StoryState
         "ARILOU_ENTRANCE_EVENT", "ARILOU_EXIT_EVENT", "ARILOU_UMGAH_CHECK", "SHOFIXTI_RETURN_EVENT",
         "SPATHI_SHIELD_EVENT", "ZOQFOT_DISTRESS_EVENT", "ZOQFOT_DEATH_EVENT", "YEHAT_REBEL_EVENT",
         "ADVANCE_PKUNK_MISSION", "ADVANCE_THRADD_MISSION", "ADVANCE_ILWRATH_MISSION", "ADVANCE_MYCON_MISSION",
-        "ADVANCE_UTWIG_SUPOX_MISSION",
+        "ADVANCE_UTWIG_SUPOX_MISSION", "KOHR_AH_VICTORIOUS_EVENT", "KOHR_AH_GENOCIDE_EVENT",
     };
 
     /// <summary>The races' missions' events (stage 3c item 3), each also a fleet's arrival.</summary>
@@ -543,29 +546,25 @@ public sealed class StoryState
 
     /// <summary>
     /// AddEvent (clock.c): queues an event on its date, or runs it at once
-    /// if it's relative and due now (all of months, days and years 0); one
-    /// that the port doesn't run yet (<see cref="EventsRun"/>) is set aside
-    /// then, dated today, as on its day in the queue. A date already past
-    /// isn't queued. False if it wasn't queued. <paramref name="playerInSystem"/>
-    /// is the location gates' question (<see cref="RunEvent"/>).
+    /// if it's relative and due now (all of months, days and years 0). A
+    /// date already past isn't queued. False if it wasn't queued.
+    /// <paramref name="playerInSystem"/> is the location gates' question
+    /// (<see cref="RunEvent"/>).
     /// </summary>
     public bool AddEvent(bool relative, int months, int days, int years, string evt, GameClock clock,
         Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null)
     {
         if (relative && months == 0 && days == 0 && years == 0)
         {
-            if (EventsRun.Contains(evt) || !Rules.EventIds.ContainsKey(evt))
-                Run(evt, clock, hyperspaceRoll, playerInSystem);
-            else
-                Events.PutAside(new StoryEvent(evt, clock.Year, clock.Month, clock.Day));
+            Run(evt, clock, hyperspaceRoll, playerInSystem);
             return false;
         }
         return Events.Add(relative, months, days, years, evt, clock);
     }
 
     /// <summary>
-    /// An event the clock took off the queue (or off the events set aside):
-    /// run, or set aside until the port runs it (decision 9); <see cref="News"/>
+    /// An event the clock took off the queue (or off the events a save set
+    /// aside, decision 9) and ran; <see cref="News"/>
     /// if running it changed a race, for the players to be told (stage 3b
     /// decision 11; the owner, 2026-11-21: <see cref="TakeNews"/> has what);
     /// <see cref="Held"/> if its location gate held it, queued again 7 days
@@ -574,23 +573,22 @@ public sealed class StoryState
     /// HYPERSPACE_ENCOUNTER_EVENT moved the fleet), not taken off the
     /// queue; listed after that day's event.
     /// </summary>
-    public sealed record DueEvent(StoryEvent Event, bool SetAside, bool News = false, bool Held = false, bool Arrival = false);
+    public sealed record DueEvent(StoryEvent Event, bool News = false, bool Held = false, bool Arrival = false);
 
-    // The arrivals check_race_growth ran (or set aside) while the day's event ran, for RunDueEvents' list.
+    // The arrivals check_race_growth ran while the day's event ran, for RunDueEvents' list.
     private readonly List<DueEvent> _arrivals = new();
 
     /// <summary>
     /// processClockDayEvents (clock.c), on <paramref name="clock"/>'s day:
     /// takes the events at the queue's head off while they're due and runs
-    /// each (<see cref="RunEvent"/>), or sets it aside if the port doesn't
-    /// run it yet (decision 9), so it doesn't hold up the rest. UQM
+    /// each (<see cref="RunEvent"/>). UQM
     /// takes the head while its day is today; every event's day comes as
     /// the clock passes it, so taking those due today or before is the
     /// same, and also runs at once, in date order, the events whose day
     /// passed without them: a save's from before stage 3b-1, which ran
-    /// none. The events set aside by earlier code that the port now runs
-    /// (stage 3c item 1's: the Arilou's, the Shofixti's return, ...) are
-    /// run with them, in date order (each before a queued one of its day,
+    /// none. The events a save holds set aside (by the port before stage
+    /// 3c item 4, which didn't run them yet: <see cref="EventQueue.SetAside"/>)
+    /// are run with them, in date order (each before a queued one of its day,
     /// having fallen due first), once, from where the clock is
     /// (docs/plans/stage-3.md's "Story events" row): what they queue is
     /// counted from today (a distress run late gives the Zoq-Fot-Pik six
@@ -605,13 +603,12 @@ public sealed class StoryState
         var done = new List<DueEvent>();
         while (true)
         {
-            int aside = Events.FirstSetAside(e => EventsRun.Contains(e.Event));
             bool due = Events.HeadDue(clock);
-            if (aside >= 0 && (!due || !EventQueue.Before(Events[0], Events.SetAside[aside])))
+            if (Events.SetAside.Count > 0 && (!due || !EventQueue.Before(Events[0], Events.SetAside[0])))
             {
-                var late = Events.TakeSetAside(aside);
+                var late = Events.TakeSetAside();
                 var (news, held) = Run(late.Event, clock, hyperspaceRoll, playerInSystem);
-                done.Add(new DueEvent(late, false, news, held));
+                done.Add(new DueEvent(late, news, held));
                 done.AddRange(_arrivals);
                 _arrivals.Clear();
                 continue;
@@ -619,39 +616,31 @@ public sealed class StoryState
             if (!due)
                 break;
             var e = Events.TakeHead();
-            if (EventsRun.Contains(e.Event))
-            {
-                var (news, held) = Run(e.Event, clock, hyperspaceRoll, playerInSystem);
-                done.Add(new DueEvent(e, false, news, held));
-                done.AddRange(_arrivals);
-                _arrivals.Clear();
-            }
-            else
-            {
-                done.Add(new DueEvent(e, true));
-                Events.PutAside(e);
-            }
+            var (ran, wasHeld) = Run(e.Event, clock, hyperspaceRoll, playerInSystem);
+            done.Add(new DueEvent(e, ran, wasHeld));
+            done.AddRange(_arrivals);
+            _arrivals.Clear();
         }
         return done;
     }
 
     /// <summary>
-    /// EventHandler (gameev.c), for the events the port runs
-    /// (<see cref="EventsRun"/>). The others (the Kohr-Ah's victory and
-    /// genocide) come with stage 3c's item 4; until then the clock sets
-    /// them aside (<see cref="RunDueEvents"/>), and running one here
-    /// throws. True if it changed a race (an alliance, a death, a shield, a
+    /// EventHandler (gameev.c), every event's (<see cref="EventsRun"/>).
+    /// True if it changed a race (an alliance, a death, a shield, a
     /// fleet), news for the players, kept until taken (<see cref="TakeNews"/>;
     /// and <see cref="DueEvent.Held"/> says whether its gate held it).
     /// <para>
-    /// The location gates (gameev.c:76-105, 132-135): the Spathi's shield
+    /// The location gates (gameev.c:68-105, 132-135): the Spathi's shield
     /// and the Zoq-Fot-Pik's distress and death wait 7 days at a time
     /// (queued again, 7 days on) while "the player" is in that race's
-    /// system, UQM's IN_INTERPLANETARY there; here while any player is,
+    /// system, UQM's IN_INTERPLANETARY there, and the Kohr-Ah's genocide
+    /// (their victory's too, which falls through to it) while the player
+    /// is at the Sa-Matra before the frenzy has begun (queued again as the
+    /// genocide); here while any player is,
     /// flying, orbiting, landed or in a meeting, talk or battle there (the
     /// stage 3c plan's question 1): <paramref name="playerInSystem"/>,
     /// asked with the system's gendef.h name (SPATHI_DEFINED,
-    /// ZOQFOT_DEFINED), says so (null: nobody is).
+    /// ZOQFOT_DEFINED, SAMATRA_DEFINED), says so (null: nobody is).
     /// </para>
     /// </summary>
     public bool RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null)
@@ -785,6 +774,26 @@ public sealed class StoryState
             case "ADVANCE_UTWIG_SUPOX_MISSION":
                 UtwigSupoxMission(clock);
                 return false;
+            case "KOHR_AH_VICTORIOUS_EVENT":
+                // The Kohr-Ah have won their war with the Ur-Quan: the
+                // genocide begins now, or a year on while the Utwig and the
+                // Supox fight them (UTWIG_SUPOX_MISSION, ever set: it's 6 once
+                // they're home).
+                if (Get("UTWIG_SUPOX_MISSION") != 0)
+                {
+                    AddEvent(true, 0, 0, 1, "KOHR_AH_GENOCIDE_EVENT", clock, hyperspaceRoll, playerInSystem);
+                    return false;
+                }
+                goto case "KOHR_AH_GENOCIDE_EVENT";   // FALLTHROUGH, gate and all
+            case "KOHR_AH_GENOCIDE_EVENT":
+                // Before the frenzy, held while a player is at the Sa-Matra (queued again as the genocide).
+                if (Get("KOHR_AH_FRENZY") == 0 && playerInSystem?.Invoke("SAMATRA_DEFINED") == true)
+                {
+                    AddEvent(true, 0, 7, 0, "KOHR_AH_GENOCIDE_EVENT", clock, hyperspaceRoll, playerInSystem);
+                    return true;
+                }
+                BlackUrquanGenocide();
+                return false;
             case "SLYLANDRO_RAMP_UP":
                 if (Get("DESTRUCT_CODE_ON_SHIP") == 0)
                 {
@@ -805,9 +814,7 @@ public sealed class StoryState
                 return false;
             }
             default:
-                if (!Rules.EventIds.ContainsKey(evt))
-                    throw new KeyNotFoundException($"no event {evt}");
-                throw new NotSupportedException($"{evt} runs from stage 3c's item 4 (docs/plans/stage-3c.md)");
+                throw new KeyNotFoundException($"no event {evt}");
         }
     }
 
@@ -1086,6 +1093,95 @@ public sealed class StoryState
         Set("UTWIG_SUPOX_MISSION", state + 1);
     }
 
+    // ---------------------------------------------------------------- the Kohr-Ah (stage 3c item 4)
+
+    // Sol, where the genocide ends (hyper.h's SOL_X, SOL_Y).
+    private const int SolX = 1752, SolY = 1450;
+
+    /// <summary>
+    /// black_urquan_genocide (gameev.c:316-401), the Kohr-Ah's victory and
+    /// each of their fleet's arrivals: every race (but the Kohr-Ah, the
+    /// Ur-Quan and those met anywhere, INFINITE_RADIUS) whose fleet is
+    /// where the Kohr-Ah's is (the race they came for, at home or away on
+    /// a mission; any with no sphere there too) is killed (DEAD_GUY,
+    /// strength 0); of the others still alive, the nearest is next, the
+    /// first found of equals, but the Druuge first whenever they live (the
+    /// scan stops at them). With none left, the Kohr-Ah head for Sol, and
+    /// once there every race is dead: KOHR_AH_KILLED_ALL, the game over
+    /// (UQM's CrewEnlisted = ~0; the world's, GameWorld.KohrAhVictorious).
+    /// Otherwise KOHR_AH_FRENZY, the Kohr-Ah's and the Ur-Quan's talks
+    /// counted afresh, and the Kohr-Ah's fleet heads there at a day for
+    /// every 158 units of the way (square_root, at least 1, at most 255),
+    /// to run this again on arriving. UQM's types are kept (the ways in
+    /// SIZEs, the distances in longs, the days a BYTE). Each race killed
+    /// that had a sphere is news (<see cref="NoticeEvent.Extinct"/>, by the
+    /// Kohr-Ah), and so is each new course (<see cref="NoticeEvent.Mission"/>,
+    /// the race they're heading for named, or Sol).
+    /// </summary>
+    private void BlackUrquanGenocide()
+    {
+        int kohrAh = Rules.RaceIndex("BLACK_URQUAN_SHIP"), urquan = Rules.RaceIndex("URQUAN_SHIP");
+        int druuge = Rules.RaceIndex("DRUUGE_SHIP");
+        var k = _fleets[kohrAh];
+        long bestDist = -1;
+        short bestDx = (short)(SolX - k.LocX), bestDy = (short)(SolY - k.LocY);
+        int best = -1;
+        for (int i = 0; i < _fleets.Length; ++i)
+        {
+            var f = _fleets[i];
+            if (i == kohrAh || i == urquan || f.ActualStrength == Rules.InfiniteRadius)
+                continue;
+            short dx = (short)(f.LocX - k.LocX), dy = (short)(f.LocY - k.LocY);
+            if (dx == 0 && dy == 0)
+            {
+                // Arrived at the victim's home world (or where its fleet is). Cleanse it.
+                SetAlliance(Rules.Races[i], Allied.Dead);
+                SetFleet(i, f with { ActualStrength = 0 });
+                if (f.ActualStrength != 0)
+                    Tell(NoticeEvent.Extinct, Rules.Races[i], detail: "by the Kohr-Ah");
+            }
+            else if (f.ActualStrength != 0)
+            {
+                long dist = (long)dx * dx + (long)dy * dy;
+                if (bestDist < 0 || dist < bestDist || i == druuge)
+                {
+                    bestDist = dist;
+                    bestDx = dx;
+                    bestDy = dy;
+                    best = i;
+                    if (i == druuge)
+                        break;   // hNextShip = 0: the Druuge first
+                }
+            }
+        }
+        if (bestDist < 0 && bestDx == 0 && bestDy == 0)
+        {
+            // All spheres of influence are gone: the game over.
+            Set("KOHR_AH_KILLED_ALL", 1);
+            return;
+        }
+        // Moving towards the next race to cleanse (or Sol).
+        if (bestDist < 0)
+            bestDist = (long)bestDx * bestDx + (long)bestDy * bestDy;
+        int speed = UqmMath.SquareRoot((uint)bestDist) / 158;
+        if (speed == 0)
+            speed = 1;
+        else if (speed > 255)
+            speed = 255;
+        bool frenzyBegins = Get("KOHR_AH_FRENZY") == 0;
+        Set("KOHR_AH_FRENZY", 1);
+        Set("KOHR_AH_VISITS", 0);
+        Set("KOHR_AH_REASONS", 0);
+        Set("KOHR_AH_PLEAD", 0);
+        Set("KOHR_AH_INFO", 0);
+        Set("URQUAN_VISITS", 0);
+        SetRaceDest("BLACK_URQUAN_SHIP", (short)(k.LocX + bestDx), (short)(k.LocY + bestDy), (byte)speed, "KOHR_AH_GENOCIDE_EVENT");
+        string toward = best < 0 ? "Sol" : "the " + Meeting.RaceName(Rules.Races[best]);
+        TellMission("BLACK_URQUAN_SHIP", frenzyBegins ? $"have won their war with the Ur-Quan and begun to wipe out every other race: they're heading for {toward}"
+            : best < 0 ? $"have wiped out every other race: they're heading for {toward}"
+            : $"are heading for {toward}");
+    }
+
     /// <summary>
     /// checkArilouGate (starcon.c), once a world frame (UQM's, once a
     /// hyperspace frame; shared, so stepped once for everyone): the
@@ -1116,10 +1212,9 @@ public sealed class StoryState
     /// moves a day's share of the way (its days left divide what's left,
     /// rounding towards 0), and on the last day runs its arrival event
     /// (EventHandler, with no location gate: the missions' events since
-    /// stage 3c item 3, each listed as an arrival after the day's event in
-    /// <see cref="RunDueEvents"/>); one the port doesn't run yet (the
-    /// Kohr-Ah's genocide, item 4) is set aside dated today, as the clock's
-    /// are (decision 9). A race its losses run out is news (the Ilwrath's
+    /// stage 3c item 3, the Kohr-Ah's genocide since item 4, each listed as
+    /// an arrival after the day's event in <see cref="RunDueEvents"/>). A
+    /// race its losses run out is news (the Ilwrath's
     /// war). Every race starts with no growth and no heading
     /// (InitGameStructures), and only the missions' events give them any
     /// (<see cref="SetRaceDest"/>, <see cref="SetFleet"/>). UQM's sums are kept:
@@ -1163,18 +1258,10 @@ public sealed class StoryState
             {
                 // Run at once (gameev.c's own EventHandler call: no location gate), listed after the day's event.
                 var arrived = new StoryEvent(arrival, clock.Year, clock.Month, clock.Day);
-                if (EventsRun.Contains(arrival))
-                {
-                    int told = _news.Count;
-                    var (news, held) = Run(arrival, clock, hyperspaceRoll, playerInSystem);
-                    _toldByArrivals += _news.Count - told;
-                    _arrivals.Add(new DueEvent(arrived, false, news, held, Arrival: true));
-                }
-                else
-                {
-                    Events.PutAside(arrived);
-                    _arrivals.Add(new DueEvent(arrived, true, Arrival: true));
-                }
+                int told = _news.Count;
+                var (news, held) = Run(arrival, clock, hyperspaceRoll, playerInSystem);
+                _toldByArrivals += _news.Count - told;
+                _arrivals.Add(new DueEvent(arrived, news, held, Arrival: true));
             }
         }
     }
@@ -1222,7 +1309,8 @@ public sealed class StoryState
     /// <summary>
     /// The story state in a save: the fields that aren't 0, by name, and
     /// everything beside them: the clock's events queued, and those set
-    /// aside until the port runs them (since save version 13; none before), and each
+    /// aside until the port ran them (since save version 13; none before;
+    /// none made since stage 3c item 4, which runs every event), and each
     /// race's fleet (since stage 3b item 2, in version 13; without them, a
     /// new game's), and the guards recorded gone (<see cref="GuardsGone"/>,
     /// stage 3c item 1: an optional part, none without it).
