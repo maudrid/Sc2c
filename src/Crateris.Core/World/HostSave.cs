@@ -140,8 +140,8 @@ public static class HostSave
     /// recorded ones, ULTRON_CONDITION and the Druuge's two artifacts, stay
     /// in the story as their record and are put on the host's ship as
     /// well); an older save with devices in a hold or with containers is
-    /// refused, as is a save with a device held twice, or one a ship can't
-    /// hold. Every guest is away as a save loads: each one's devices are
+    /// refused, as is a save with a device held twice, one a ship can't
+    /// hold, or a held device's field in its story. Every guest is away as a save loads: each one's devices are
     /// left in a container where their ship is, as leaving leaves them
     /// (GameWorld.LeaveDevicesBehind), and go back to their ship as they
     /// rejoin while it's there.
@@ -635,6 +635,8 @@ public static class HostSave
             }
             // A save from before stage 3c item 5 has the group's devices in its story: they're the host's ship's now
             // (the owner's answer to question 5), the recorded ones' story fields kept as their record.
+            if (save.Version >= 15 && world.Story.LoadedPlayerFields.Keys.FirstOrDefault(DeviceTable.HeldByShips) is { } shared)
+                throw new InvalidDataException($"Story state: {shared} is held by ships since version 15, not shared story state.");
             if (save.Version < 15 && world.Players.FirstOrDefault(p => p.IsHost) is { } holder)
             {
                 var held = new SortedSet<int>();

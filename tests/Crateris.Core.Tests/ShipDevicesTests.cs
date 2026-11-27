@@ -391,6 +391,7 @@ public class ShipDevicesTests
         Refused(n => n["containers"]![0]!["owner"] = "nobody", "isn't a player");
         Refused(n => n["containers"]![0]!["devices"] = new JsonArray(), "has no device");
         Refused(n => n["containers"]![0]!["star"] = 9999, "isn't in a place");
+        Refused(n => n["story"]!["fields"]!["MAIDENS_ON_SHIP"] = 1, "held by ships since version 15");
         // An older save can't have them.
         Refused(n => n["version"] = 14, "can't have devices held by ships");
     }
