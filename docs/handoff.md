@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3c items 1 to 3 built, reviewed and reported; waiting on the owner (item 4 next).
+**Last updated:** 2026-11-27. Stage 3c items 1 to 3 built, reviewed and reported; item 4 (the Kohr-Ah) started at the owner's go-ahead ("do the next step", 2026-11-27), a builder subagent on it.
 
 ## Where things are
 
@@ -71,11 +71,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner. Their go-ahead of 2026-11-27 covered stage 3c items 1 to 3 ("stop when item 3 is done"), and all three are built, reviewed and reported: item 1 in four rounds (`28c5fe2`..`748ba1e`), item 2 in four (`79d91af`..`7b323cd`), item 3 in two (`239b334`..`48aad79`; round 2 found only this handoff out of date and a line range, fixed with this update). Next, with the owner's go-ahead: item 4 (the Kohr-Ah: the victory, the genocide, the game over at Sol on item 2's story pause).
+Build stage 3c item 4 (the Kohr-Ah: the victory, the genocide, the frenzy, the game over at Sol with the Black Ur-Quan's last talk on item 2's story pause, the gate at the Sa-Matra), at the owner's go-ahead of 2026-11-27 ("do the next step"), which covers item 4 alone; then review it (`CLAUDE.md`), report, and wait for the owner before item 5. Items 1 to 3 were reviewed in four, four and two rounds (their Progress rows).
 
 ## Decisions waiting on the owner
 
-**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Items 1 to 3 built, reviewed and reported (2026-11-27); item 4 waits on its go-ahead.
+**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Items 1 to 3 built, reviewed and reported (2026-11-27); item 4 under way (its go-ahead 2026-11-27).
 
 **Item 1's reading (b), to confirm:** the calendar's events (the Shofixti's return, the Spathi's shield, the Zoq-Fot-Pik's distress and death, the Yehat's civil war) are told to every present player, a lone player too, since no player set them off; 3b-1's rule was that a player alone sees nothing new. The other readings, (a) and (c) to (h), are in item 1's Progress row.
 
