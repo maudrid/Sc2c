@@ -472,7 +472,7 @@ public sealed class PlayerSession
     /// player's own screen fades to black under it (stage 3c item 2).
     /// </summary>
     public bool TalkShown => TalklessSkip
-        ? _screenUnderSkip == PlayerScreen.Comm && _talkUnderSkip is not null
+        ? _talkUnderSkip is not null
         : Talk is { Step: not (VisitStep.Menu or VisitStep.Done) } && (Me?.Activity is Activity.Talk or Activity.Starbase || StoryPaused);
 
     /// <summary>
@@ -490,9 +490,10 @@ public sealed class PlayerSession
     /// </summary>
     public TalkView? ShownTalk => TalklessSkip ? _talkUnderSkip : Talk;
 
-    // The talk and the screen shown as a talk-less skip came, kept under its fade.
+    // The talk the communication screen showed as a talk-less skip came (null if it showed none), kept under its
+    // fade: with it, the screen is the communication screen still (TalkShown); without, the player's own screen
+    // as ever (their encounter screen, their flight), which nothing changes while the game waits.
     private TalkView? _talkUnderSkip;
-    private PlayerScreen? _screenUnderSkip;
 
     /// <summary>Whether this player answers the talk shown (the starter, or who the replies passed to); nobody during a talk-less skip.</summary>
     public bool Replying => !TalklessSkip && Talk is { } t && t.Replier == PlayerId;
@@ -529,10 +530,10 @@ public sealed class PlayerSession
         {
             // A talk-less skip: what was shown stays under its fade.
             if (!TalklessSkip)
-                (_talkUnderSkip, _screenUnderSkip) = (TalkShown ? Talk : null, Screen);
+                _talkUnderSkip = TalkShown ? Talk : null;
         }
         else
-            (_talkUnderSkip, _screenUnderSkip) = (null, null);
+            _talkUnderSkip = null;
         if (view is null || Talk is null || view.Round != Talk.Round)
             ReplyCursor = 0;
         Talk = view;
@@ -1400,8 +1401,6 @@ public sealed class PlayerSession
         {
             if (GameOver)
                 return PlayerScreen.GameOver;
-            if (TalklessSkip && _screenUnderSkip is { } under)
-                return under;   // as it was, under the skip's fade
             if (TalkShown)
                 return PlayerScreen.Comm;
             var me = Me;

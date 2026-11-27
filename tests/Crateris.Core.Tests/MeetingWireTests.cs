@@ -1870,7 +1870,7 @@ public class MeetingWireTests
         Assert.Equal(VisitStep.Meeting, g1.Session.ShownTalk!.Step);
         Assert.Equal(PlayerScreen.Comm, g1.Session.Screen);
         Assert.True(pause.Done);
-        // The host's log tells a pause from start to end, though it began and ended between its frames.
+        // The host's log tells the pause from start to end.
         Assert.Contains("A story pause for everyone: a test's skip", game.Log);
         Assert.Contains("The story pause is over: a test's skip", game.Log);
         game.Log.Clear();
@@ -1880,6 +1880,77 @@ public class MeetingWireTests
         Assert.Equal(new[] { "A story pause for everyone: first", "The story pause is over: first",
             "A story pause for everyone: second", "The story pause is over: second" },
             game.Log.Where(l => l.StartsWith("A story pause", StringComparison.Ordinal) || l.StartsWith("The story pause", StringComparison.Ordinal)));
+    }
+
+    [ContentFact]
+    public void UnderATalklessSkipTheEncounterScreenFlightAndTheCommandersTalkFromTheMenuStay()
+    {
+        // Review round 2: a guest at its encounter screen keeps it (not the communication screen), one docked in the
+        // commander's talk from the menu keeps that talk on its communication screen (only under a general pause:
+        // the visit's two weeks can't start while another player holds the commander's lock), and one flying keeps
+        // its flight; as the skip ends, each as before.
+        var game = NewGame(guests: 2);
+        var host = game.Host;
+        var world = game.World;
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        var g1 = NewClient(1);
+        var g2 = NewClient(2);
+        GroupBy(world, "g1", "SPATHI_SHIP");
+        FramesUntil(host, () => g1.Session.Meeting is { OffersChoice: true }, 300, g1, g2);
+        Assert.Equal(PlayerScreen.Encounter, g1.Session.Screen);
+        Assert.Equal(PlayerScreen.Hyperspace, g2.Session.Screen);
+        // g2 flies; then docked in the commander's talk.
+        var pause = world.StartStoryPause(world.Host, "a test's skip", 1)!;
+        Frame(host, g1, g2);
+        Assert.True(g1.Session.TalklessSkip && g2.Session.TalklessSkip);
+        Assert.Equal(PlayerScreen.Encounter, g1.Session.Screen);
+        Assert.False(g1.Session.TalkShown);
+        Assert.Equal(PlayerScreen.Hyperspace, g2.Session.Screen);
+        FramesUntil(host, () => world.Pause is null, TimeSkip.FadeFrames + 5, g1, g2);
+        world.PutInOrbit("g2", SolStar, Earth, 1);
+        world.Find("g2")!.Ship.Ip!.ReturnFromOrbit();
+        world.VisitStarbase(world.Find("g2")!);
+        Assert.Equal(GameWorld.CommanderTalk.Started, world.TalkToCommander("g2", out _));
+        FramesUntil(host, () => g2.Session.Talk is { Step: VisitStep.MenuTalk }, 10, g1, g2);
+        Assert.Equal(PlayerScreen.Comm, g2.Session.Screen);
+        var menuTalk = g2.Session.Talk;
+        world.StartStoryPause(world.Host, "another skip", 1);
+        Frame(host, g1, g2);
+        Assert.True(g2.Session.TalklessSkip);
+        Assert.Equal(PlayerScreen.Comm, g2.Session.Screen);
+        Assert.Same(menuTalk, g2.Session.ShownTalk);
+        Assert.False(g2.Session.Replying);
+        FramesUntil(host, () => world.Pause is null, TimeSkip.FadeFrames + 5, g1, g2);
+        Frame(host, g1, g2);
+        Assert.Equal(VisitStep.MenuTalk, g2.Session.ShownTalk!.Step);
+        Assert.Equal(PlayerScreen.Comm, g2.Session.Screen);
+        Assert.Equal(PlayerScreen.Encounter, g1.Session.Screen);
+        Assert.True(pause.Done);
+    }
+
+    [Fact]
+    public void ThePausesTakenAndOverBetweenTwoOfTheHostsFramesAreLogged()
+    {
+        // Review round 2: LogStory's path for a pause it never saw going on: taken and over between two of its
+        // calls (the world stepped on its own meanwhile), told whole as it next looks.
+        var game = NewGame(guests: 0);
+        var host = game.Host;
+        var world = game.World;
+        host.Step(ShipInput.None);
+        game.Log.Clear();
+        var pause = world.StartStoryPause(world.Host, "unseen", 2)!;
+        for (int i = 0; i < TimeSkip.FadeFrames; ++i)
+            world.Step();
+        Assert.True(pause.Done);
+        host.Step(ShipInput.None);
+        var c = world.Clock;
+        Assert.Equal(new[]
+        {
+            "A story pause for everyone: unseen",
+            "Time passes: every screen fades to black, then 2 days pass (no encounters meanwhile)",
+            $"2 days passed: it's {c.Year:D4}-{c.Month:D2}-{c.Day:D2}",
+            "The story pause is over: unseen",
+        }, game.Log.Where(l => l.Contains("unseen") || l.StartsWith("Time passes") || l.StartsWith("2 days")));
     }
 
     // ---- one player, as before
