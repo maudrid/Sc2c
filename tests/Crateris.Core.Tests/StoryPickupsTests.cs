@@ -48,8 +48,12 @@ public class StoryPickupsTests
         var golden = Golden.Load("story-nodes");
         var fields = golden.GetProperty("fields").EnumerateArray().Select(f => f.GetString()!).ToList();
         var cases = golden.GetProperty("cases").EnumerateArray().ToList();
-        Assert.Equal(26, cases.Count);
+        Assert.Equal(52, cases.Count);
+        // The tables a cycle goes round have the content's counts in the recording, as in the port.
+        foreach (var size in golden.GetProperty("table_sizes").EnumerateObject())
+            Assert.Equal(size.Value.GetInt32(), StoryWorlds.ReportEntries[size.Name]);
         var seen = new HashSet<StoryNode>();
+        var sitesSeen = new HashSet<StorySite>();
         foreach (var c in cases)
         {
             string name = c.GetProperty("name").GetString()!;
@@ -58,20 +62,46 @@ public class StoryPickupsTests
             var world = new WorldId(star, planet, moon);
             string? special = Systems.Map.Stars[star].Special;
             var story = StoryState.NewGame(Rules, new GameClock(2155, 3, 4));
+            // The recording's StartSphereTracking is false: no race lives to guard its world.
+            foreach (string race in Rules.Races)
+                Extinct(story, race);
+            // The finder's ship's devices (the held fields), the recorded ones' record in the story too.
+            var ship = new Dictionary<string, int>();
+            int Held(string field) => ship.GetValueOrDefault(field);
             uint retrieved = 0;
             foreach (string assignment in c.GetProperty("state").GetString()!.Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
                 var (field, value) = (assignment.Split('=')[0], int.Parse(assignment.Split('=')[1]));
                 if (field == "RETRIEVED")
                     retrieved = (uint)value;
+                else if (DeviceTable.HeldByShips(field))
+                {
+                    ship[field] = value;
+                    if (DeviceTable.RecordedFields.Contains(field))
+                        story.Set(field, value);
+                }
                 else
                     story.Set(field, value);
             }
-            Assert.Equal(1, c.GetProperty("entered").GetInt32());
             var orbit = Systems[star].EnterOrbit(planet, moon);
+            // The Umgah's world is never entered until stage 3c item 10 ports genpet.c's Talking Pet half
+            // (Surface.EnterOrbit): its ruins are StoryWorlds' already, but its nodes aren't counted here.
+            bool petsWorld = special == "TALKING_PET_DEFINED";
+            Assert.True((c.GetProperty("entered").GetInt32() == 1 && !petsWorld) == orbit.Entered, name);
+
+            // generateOrbital's own report (Procyon's starbase), the ship not put in orbit.
+            var arrival = c.TryGetProperty("orbit_reports", out var shown) ? shown.EnumerateArray().Select(Place).ToList()
+                : new List<(string, int)?>();
+            var report = StoryWorlds.ArrivalReport(special, world);
+            Assert.Equal(arrival, report is { } a ? new[] { ((string, int)?)(a.Resource, a.Entry) } : Array.Empty<(string, int)?>());
+            if (!orbit.Entered && !petsWorld)
+            {
+                Assert.Equal(JsonValueKind.Null, c.GetProperty("discovery").ValueKind);
+                continue;
+            }
 
             // generateOrbital: the report's place, the sheet loaded, the story it sets.
-            var place = StoryWorlds.Discovery(special, world, story, retrieved);
+            var place = StoryWorlds.Discovery(special, world, story, retrieved, Held);
             Assert.True(Place(c.GetProperty("discovery")) == Of(place), name);
             var sheet = StoryWorlds.EnergySheet(special, world, story, retrieved);
             var graphics = c.GetProperty("graphics").EnumerateArray().Select(g => g.GetString()).ToList();
@@ -83,48 +113,76 @@ public class StoryPickupsTests
                 Assert.Equal(sheet is { } s ? new[] { ContactShapes.EnergyResources[s] } : Array.Empty<string>(), graphics);
             }
             StoryWorlds.Orbited(Systems.Map, world, story);
-            Fields(c.GetProperty("orbit_fields"), story, null, name + " orbit");
+            Fields(c.GetProperty("orbit_fields"), story, Held, name + " orbit");
 
             // generateEnergy and generateLife: the nodes on the scan, by the story and the taken nodes.
-            int energy = PlanetWorldState.Remaining(retrieved | (StoryWorlds.EnergyHidden(special, world, story) ? uint.MaxValue : 0),
-                orbit.Nodes!.Energy).Count;
-            Assert.True(c.GetProperty("energy").GetInt32() == energy, name);
-            Assert.Equal(c.GetProperty("life").GetInt32(), orbit.Nodes.Life.Count);
+            if (!petsWorld)
+            {
+                int energy = PlanetWorldState.Remaining(retrieved | (StoryWorlds.EnergyHidden(special, world, story) ? uint.MaxValue : 0),
+                    orbit.Nodes!.Energy).Count;
+                Assert.True(c.GetProperty("energy").GetInt32() == energy, name);
+                Assert.Equal(c.GetProperty("life").GetInt32(), orbit.Nodes.Life.Count);
+            }
 
-            if (!c.TryGetProperty("pickup", out var pickup))
+            if (!c.TryGetProperty("pickup", out var first))
                 continue;
-            var finder = new Finder(place);
-            int node = pickup.GetProperty("node").GetInt32();
-            bool taken = true;
-            if (pickup.GetProperty("scan").GetInt32() == (int)ScanType.Energy)
-                taken = StoryWorlds.PickupEnergy(special, world, story, finder, node);
-            else
-                StoryWorlds.PickupCreature(special, world, story, finder, node);   // every creature is taken
-            Assert.True((pickup.GetProperty("taken").GetInt32() == 1) == taken, name);
-            Assert.True((pickup.GetProperty("takeoffs").GetInt32() > 0) == finder.Takeoff, name);
-            var reports = pickup.GetProperty("reports").EnumerateArray().Select(Place).ToList();
-            Assert.Equal(reports, finder.Report is { } r ? new[] { ((string, int)?)(r.Resource, r.Entry) } : Array.Empty<(string, int)?>());
-            Assert.True(Place(pickup.GetProperty("discovery")) == Of(finder.Place), name);
-            Fields(pickup.GetProperty("fields"), story, finder, name + " pickup");
-            if (StoryWorlds.Nodes.FirstOrDefault(n => n.On(special, world) && n.Node == node) is { } storyNode && finder.Takeoff)
-                seen.Add(storyNode);
+            var touches = new List<JsonElement> { first };
+            if (c.TryGetProperty("again", out var again))
+                touches.AddRange(again.EnumerateArray());
+            foreach (var pickup in touches)
+            {
+                // Each touch from the place the last left, the world's nodes as they are then.
+                var finder = new Finder(place, Held, retrieved);
+                int node = pickup.GetProperty("node").GetInt32();
+                string what = $"{name} node {node}";
+                bool taken = true;
+                if (pickup.GetProperty("scan").GetInt32() == (int)ScanType.Energy)
+                    taken = StoryWorlds.PickupEnergy(special, world, story, finder, node);
+                else
+                    StoryWorlds.PickupCreature(special, world, story, finder, node);   // every creature is taken
+                Assert.True((pickup.GetProperty("taken").GetInt32() == 1) == taken, what);
+                Assert.True((pickup.GetProperty("takeoffs").GetInt32() > 0) == finder.Takeoff, what);
+                var reports = pickup.GetProperty("reports").EnumerateArray().Select(Place).ToList();
+                Assert.Equal(reports, finder.Report is { } r ? new[] { ((string, int)?)(r.Resource, r.Entry) } : Array.Empty<(string, int)?>());
+                Assert.True(Place(pickup.GetProperty("discovery")) == Of(finder.Place), what);
+                foreach (string device in finder.Devices)
+                    ship[device] = 1;
+                foreach (string device in finder.Taken)
+                    ship[device] = 0;
+                uint after = finder.Visited.Aggregate(retrieved, (mask, bit) => mask | 1u << bit);
+                Assert.True((pickup.TryGetProperty("retrieved", out var mask) ? mask.GetUInt32() : retrieved) == after, what);
+                retrieved = after;
+                place = finder.Place;
+                Fields(pickup.GetProperty("fields"), story, Held, what + " pickup");
+                if (StoryWorlds.Nodes.FirstOrDefault(n => n.On(special, world) && n.Node == node) is { } storyNode && finder.Takeoff)
+                    seen.Add(storyNode);
+                if (StoryWorlds.SiteOf(special, world) is { } site)
+                    sitesSeen.Add(site);
+            }
         }
-        // Every single node taken in the recording.
+        // Every single node taken in the recording, every site touched.
         Assert.Equal(StoryWorlds.Nodes.ToHashSet(), seen);
+        Assert.Equal(StoryWorlds.Sites.ToHashSet(), sitesSeen);
 
         // The recorded fields: the shared ones the story's, the held devices the finder's ship's.
-        void Fields(JsonElement values, StoryState story, Finder? finder, string what)
+        void Fields(JsonElement values, StoryState story, Func<string, int> held, string what)
         {
             var v = values.Ints();
             for (int i = 0; i < fields.Count; ++i)
             {
                 if (NotStoryWorlds.Contains(fields[i]))
                     continue;
-                int port = DeviceTable.HeldByShips(fields[i]) ? (finder?.Devices.Contains(fields[i]) == true ? 1 : 0)
-                    : story.Get(fields[i]);
+                int port = DeviceTable.HeldByShips(fields[i]) ? held(fields[i]) : story.Get(fields[i]);
                 Assert.True(v[i] == port, $"{what}: {fields[i]} is {port}, UQM's {v[i]}");
             }
         }
+    }
+
+    // A race extinct (its fleet gone, DEAD_GUY): StartSphereTracking false.
+    internal static void Extinct(StoryState story, string race)
+    {
+        story.SetFleet(race, story.Fleet(race) with { ActualStrength = 0 });
+        story.SetAlliance(race, Allied.Dead);
     }
 
     private static (string, int)? Of(ReportPlace? p) => p is null ? null : (p.Resource, p.Entry);
@@ -177,7 +235,7 @@ public class StoryPickupsTests
 
     // ------------------------------------------------------------ in the game
 
-    private static GameWorld NewGame(int guests = 1)
+    internal static GameWorld NewGame(int guests = 1)
     {
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, Systems.Map), "host", "Host", Systems,
             TestContent.Shapes);
@@ -192,11 +250,11 @@ public class StoryPickupsTests
         return world;
     }
 
-    private static int Star(GameWorld world, string special) => world.Systems!.Map.Stars.First(s => s.Special == special).Number;
+    internal static int Star(GameWorld world, string special) => world.Systems!.Map.Stars.First(s => s.Special == special).Number;
 
-    private static int DeviceOf(string field) => Rules.Devices.All.First(d => d.Listed && d.Field == field).Id;
+    internal static int DeviceOf(string field) => Rules.Devices.All.First(d => d.Listed && d.Field == field).Id;
 
-    private static void Frames(GameWorld world, int frames, string? who = null, ShipInput keys = ShipInput.None)
+    internal static void Frames(GameWorld world, int frames, string? who = null, ShipInput keys = ShipInput.None)
     {
         for (int i = 0; i < frames; ++i)
         {
@@ -207,7 +265,7 @@ public class StoryPickupsTests
     }
 
     // Lands a player's lander (at the node's site, or elsewhere) and waits for it on the ground.
-    private static Lander Land(GameWorld world, string id, int x, int y)
+    internal static Lander Land(GameWorld world, string id, int x, int y)
     {
         world.Find(id)!.Ship.Hold.Upgrades = LanderUpgrades.All;   // shielded: the hot worlds' hazards would kill it on the way
         Assert.Equal(DispatchRefusal.None, world.Dispatch(id, x, y));
@@ -337,7 +395,7 @@ public class StoryPickupsTests
     }
 
     // Keeps a node under a lander for some frames, as a lander parked on it would.
-    private static void StayOn(GameWorld world, Lander lander, SurfaceElement node, int frames)
+    internal static void StayOn(GameWorld world, Lander lander, SurfaceElement node, int frames)
     {
         for (int i = 0; i < frames && lander.Phase == LanderPhase.Ground; ++i)
         {

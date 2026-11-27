@@ -581,8 +581,14 @@ public sealed class PlayerSession
     /// <summary>The next of this player's own lander reports to show (their texts, oldest first); null if none waits.</summary>
     public string? TakeOwnReport() => _ownReports.Count > 0 ? _ownReports.Dequeue() : null;
 
-    /// <summary>The screens a lander report is shown on (over the scan map): planet-side and orbit.</summary>
-    public static bool ShowsReports(PlayerScreen screen) => screen is PlayerScreen.Planetside or PlayerScreen.Orbit;
+    /// <summary>
+    /// The screens a lander report is shown on (over the scan map's area):
+    /// planet-side and orbit, and the system's, where Procyon's starbase
+    /// shows its report as a ship comes to it (genchmmr.c's
+    /// DoDiscoveryReport, over the bottom of the space window; stage 3c item 6).
+    /// </summary>
+    public static bool ShowsReports(PlayerScreen screen) =>
+        screen is PlayerScreen.Planetside or PlayerScreen.Orbit or PlayerScreen.System;
 
     /// <summary>
     /// The player's own report to show now on <paramref name="screen"/>
@@ -602,7 +608,7 @@ public sealed class PlayerSession
 
     /// <summary>
     /// The player is somewhere their own reports can't be shown (not at the
-    /// planet-side or orbit screen, nor in a talk they'll come back from):
+    /// planet-side, orbit or system screen, nor in a talk they'll come back from):
     /// each waiting one is a notice instead, so none shows later at another world.
     /// </summary>
     public void NoticeOwnReports()

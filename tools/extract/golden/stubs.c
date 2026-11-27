@@ -63,7 +63,6 @@ long GameOptions () { return 0; }
 long GetGroupInfo () { return 0; }
 long GetPlanetInfo () { return 0; }
 long GetStarShipFromIndex () { return 0; }
-long GetStringTableCount () { return 0; }
 long GetTimeCounter () { return 0; }
 long InitCommunication () { return 0; }
 long InitDisplayList () { return 0; }

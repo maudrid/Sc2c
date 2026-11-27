@@ -307,6 +307,14 @@ SetRelStringTableIndex (STRING s, SIZE i)
 	(void) i;
 	return s;
 }
+/* As strings.c: the table's size (genand.c counts the Androsynth's
+ * chapters by it). */
+COUNT
+GetStringTableCount (STRING s)
+{
+	BintabEntry *e = as_entry (s);
+	return e ? (COUNT) e->parent->size : 0;
+}
 COUNT
 GetStringTableIndex (STRING s)
 {
@@ -660,17 +668,39 @@ MAKE_HOT_SPOT (COORD x, COORD y)
 
 /* Story mode: a string table that is its resource's name, with
  * STORY_TABLE_SIZE entries (more than any report table has, so an index
- * never wraps), each saying which it is (GetStringTableIndex). */
+ * never wraps), each saying which it is (GetStringTableIndex); but the
+ * tables GenerateDefault_landerReportCycle goes round (stage 3c item 6:
+ * the ruins, the wreck, the vault) and Procyon's starbase report have the
+ * content's own counts (story_sizes), since the cycle ends where the
+ * index wraps. */
 #define STORY_TABLE_SIZE 32
+static const struct { const char *res; int size; } story_sizes[] =
+{
+	{ "text.ruins", 1 }, { "text.burvixeseruins", 1 }, { "text.ultron", 2 },
+	{ "text.sphere", 2 }, { "text.spindle", 2 },
+	{ "text.androsynthruins", 3 }, { "text.urquanwreck", 2 },
+	{ "text.syreenvault", 3 }, { "text.chmmrbase", 1 },
+};
+
+static int
+story_table_size (RESOURCE res)
+{
+	size_t i;
+	for (i = 0; i < sizeof story_sizes / sizeof story_sizes[0]; ++i)
+		if (!strcmp (story_sizes[i].res, res))
+			return story_sizes[i].size;
+	return STORY_TABLE_SIZE;
+}
+
 static STRING_TABLE
 story_table (RESOURCE res)
 {
 	Bintab *t = calloc (1, sizeof *t);
 	int i;
-	t->size = STORY_TABLE_SIZE;
+	t->size = story_table_size (res);
 	t->name = res;
-	t->entries = calloc (STORY_TABLE_SIZE, sizeof *t->entries);
-	for (i = 0; i < STORY_TABLE_SIZE; ++i)
+	t->entries = calloc (t->size, sizeof *t->entries);
+	for (i = 0; i < t->size; ++i)
 	{
 		t->entries[i].magic = BINTAB_MAGIC;
 		t->entries[i].parent = t;
@@ -2124,7 +2154,11 @@ DoDiscoveryReport (SOUND ReadOutSounds)
 	F (SUN_DEVICE_ON_SHIP) F (SUN_DEVICE_UNGUARDED) F (MYCON_VISITS) \
 	F (EGG_CASE0_ON_SHIP) F (EGG_CASE1_ON_SHIP) F (EGG_CASE2_ON_SHIP) \
 	F (KNOW_ABOUT_SHATTERED) F (MOONBASE_DESTROYED) F (MOONBASE_ON_SHIP) \
-	F (FOUND_PLUTO_SPATHI)
+	F (FOUND_PLUTO_SPATHI) F (ULTRON_CONDITION) F (ROSY_SPHERE) \
+	F (ROSY_SPHERE_ON_SHIP) F (CLEAR_SPINDLE) F (CLEAR_SPINDLE_ON_SHIP) \
+	F (PORTAL_KEY) F (PORTAL_KEY_ON_SHIP) F (SHIP_VAULT_UNLOCKED) \
+	F (SYREEN_SHUTTLE_ON_SHIP) F (SYREEN_HOME_VISITS) F (KNOW_SYREEN_VAULT) \
+	F (TALKING_PET) F (UMGAH_ZOMBIE_BLOBBIES)
 
 static void
 print_story_fields (void)
@@ -2175,6 +2209,7 @@ typedef struct
 	const char *state;
 	int scan;           /* the pickup's scan, or -1 for none */
 	int node;
+	const char *again;  /* the nodes touched after it, comma-separated, or NULL */
 } STORY_CASE;
 
 static const STORY_CASE story_cases[] =
@@ -2214,7 +2249,82 @@ static const STORY_CASE story_cases[] =
 			ENERGY_SCAN, 0 },
 	{ "egg-case2", EGG_CASE2_DEFINED, 0, -1, "", ENERGY_SCAN, 0 },
 	{ "egg-case0-taken", EGG_CASE0_DEFINED, 0, -1, "RETRIEVED=1", -1, 0 },
+	/* Stage 3c item 6: the ruins (their race extinct: no ship is ever
+	 * present here, StartSphereTracking false), the wreck, the vault,
+	 * Procyon's starbase. */
+	{ "ruins-ilwrath", ILWRATH_DEFINED, 0, -1, "", ENERGY_SCAN, 3, "3,4" },
+	{ "ruins-orz", ORZ_DEFINED, 0, -1, "", ENERGY_SCAN, 0, "1" },
+	{ "ruins-umgah", TALKING_PET_DEFINED, 0, -1, "TALKING_PET=1",
+			ENERGY_SCAN, 15, "15" },
+	{ "ruins-thraddash", THRADD_DEFINED, 0, -1, "", ENERGY_SCAN, 7, "8" },
+	{ "ruins-utwig", UTWIG_DEFINED, 0, -1, "", ENERGY_SCAN, 2, "2" },
+	{ "ruins-vux", VUX_DEFINED, 0, -1, "", ENERGY_SCAN, 9, "10" },
+	{ "ruins-yehat", YEHAT_DEFINED, 0, -1, "", ENERGY_SCAN, 11, "11" },
+	{ "ruins-zoqfotpik", ZOQFOT_DEFINED, 0, -1, "", ENERGY_SCAN, 5, "6" },
+	{ "ruins-burvixese", BURVIXESE_DEFINED, 0, -1, "", ENERGY_SCAN, 1, "1" },
+	{ "ultron", SUPOX_DEFINED, 0, -1, "", ENERGY_SCAN, 2, "5,6" },
+	{ "ultron-found", SUPOX_DEFINED, 0, -1, "ULTRON_CONDITION=1",
+			ENERGY_SCAN, 4, "4" },
+	{ "ultron-given-back", SUPOX_DEFINED, 0, -1, "ULTRON_CONDITION=5",
+			ENERGY_SCAN, 0, NULL },
+	{ "rosy-sphere", DRUUGE_DEFINED, 0, -1, "", ENERGY_SCAN, 1, "1,2" },
+	{ "rosy-sphere-found", DRUUGE_DEFINED, 0, -1, "ROSY_SPHERE=1",
+			ENERGY_SCAN, 3, "3" },
+	{ "clear-spindle", PKUNK_DEFINED, 0, -1, "", ENERGY_SCAN, 12, "13,14" },
+	{ "clear-spindle-found", PKUNK_DEFINED, 0, -1, "CLEAR_SPINDLE=1",
+			ENERGY_SCAN, 6, "6" },
+	{ "androsynth", ANDROSYNTH_DEFINED, 1, -1, "", ENERGY_SCAN, 3,
+			"3,5,7,9,5" },
+	{ "androsynth-two-read", ANDROSYNTH_DEFINED, 1, -1,
+			"RETRIEVED=196608", ENERGY_SCAN, 1, "4,8" },
+	{ "androsynth-all-read", ANDROSYNTH_DEFINED, 1, -1,
+			"RETRIEVED=458752", ENERGY_SCAN, 6, NULL },
+	{ "wreck", URQUAN_WRECK_DEFINED, 6, -1, "", ENERGY_SCAN, 0, "0,0" },
+	{ "wreck-key-taken", URQUAN_WRECK_DEFINED, 6, -1, "PORTAL_KEY=1",
+			ENERGY_SCAN, 0, "0" },
+	{ "vault", SHIP_VAULT_DEFINED, 0, 0, "", ENERGY_SCAN, 0, "0" },
+	{ "vault-known", SHIP_VAULT_DEFINED, 0, 0, "KNOW_SYREEN_VAULT=1",
+			ENERGY_SCAN, 0, NULL },
+	{ "vault-shuttle", SHIP_VAULT_DEFINED, 0, 0,
+			"SYREEN_SHUTTLE_ON_SHIP=1,SYREEN_HOME_VISITS=3,KNOW_SYREEN_VAULT=1",
+			ENERGY_SCAN, 0, "0,0" },
+	{ "vault-unlocked", SHIP_VAULT_DEFINED, 0, 0,
+			"SHIP_VAULT_UNLOCKED=1,KNOW_SYREEN_VAULT=1", ENERGY_SCAN, 0, "0" },
+	{ "procyon-starbase", CHMMR_DEFINED, 1, 0, "", -1, 0 },
 };
+
+/* One pickup on a node and what it did: whether the node is taken, the
+ * take-offs, the reports shown, the discovery string left, the story
+ * fields after it, and the energy nodes' retrieved mask where the pickup
+ * itself changed it (the Androsynth's ruins mark those visited in its
+ * upper 16 bits). */
+static void
+story_pickup (int scan, int node, PLANET_DESC *world)
+{
+	bool taken;
+	char discovery[128];
+	DWORD before = pSolarSysState->SysInfo.PlanetInfo
+			.ScanRetrieveMask[ENERGY_SCAN];
+	DWORD after;
+	story_takeoffs = 0;
+	story_reports[0] = '\0';
+	taken = scan == ENERGY_SCAN
+			? (*pSolarSysState->genFuncs->pickupEnergy) (
+				pSolarSysState, world, node)
+			: (*pSolarSysState->genFuncs->pickupLife) (
+				pSolarSysState, world, node);
+	story_string (discovery, sizeof discovery,
+			pSolarSysState->SysInfo.PlanetInfo.DiscoveryString);
+	printf ("{\"scan\": %d, \"node\": %d, "
+			"\"taken\": %d, \"takeoffs\": %d, \"reports\": [%s], "
+			"\"discovery\": %s, \"fields\": ", scan, node,
+			taken, story_takeoffs, story_reports, discovery);
+	print_story_fields ();
+	after = pSolarSysState->SysInfo.PlanetInfo.ScanRetrieveMask[ENERGY_SCAN];
+	if (after != before)
+		printf (", \"retrieved\": %u", (unsigned) after);
+	printf ("}");
+}
 
 static int
 story_main (void)
@@ -2230,7 +2340,14 @@ story_main (void)
 		STORY_FIELDS
 #undef F
 	}
-	printf ("], \"cases\": [");
+	printf ("], \"table_sizes\": {");
+	{
+		size_t i;
+		for (i = 0; i < sizeof story_sizes / sizeof story_sizes[0]; ++i)
+			printf ("%s\"%s\": %d", i ? ", " : "", story_sizes[i].res,
+					story_sizes[i].size);
+	}
+	printf ("}, \"cases\": [");
 	for (c = 0; c < sizeof story_cases / sizeof story_cases[0]; ++c)
 	{
 		const STORY_CASE *sc = &story_cases[c];
@@ -2277,14 +2394,17 @@ story_main (void)
 		pSolarSysState->InOrbit = TRUE;
 		pSolarSysState->PlanetSideFrame[1] = 0;
 		story_graphic_count = 0;
+		story_reports[0] = '\0';
 		(*pSolarSysState->genFuncs->generateOrbital) (pSolarSysState, world);
 		entered = pSolarSysState->TopoFrame != 0
 				&& !(GLOBAL (CurrentActivity) & (CHECK_ABORT | CHECK_LOAD
 				| START_ENCOUNTER));
-		energy = (*pSolarSysState->genFuncs->generateEnergy) (pSolarSysState,
-				world, GENERATE_ALL, NULL);
-		life = (*pSolarSysState->genFuncs->generateLife) (pSolarSysState,
-				world, GENERATE_ALL, NULL);
+		/* A world not entered (Procyon's starbase) has no surface to
+		 * generate nodes on. */
+		energy = entered ? (*pSolarSysState->genFuncs->generateEnergy) (
+				pSolarSysState, world, GENERATE_ALL, NULL) : 0;
+		life = entered ? (*pSolarSysState->genFuncs->generateLife) (
+				pSolarSysState, world, GENERATE_ALL, NULL) : 0;
 		story_string (discovery, sizeof discovery,
 				pSolarSysState->SysInfo.PlanetInfo.DiscoveryString);
 
@@ -2300,24 +2420,30 @@ story_main (void)
 				pSolarSysState->PlanetSideFrame[1] != 0, discovery,
 				energy, life);
 		print_story_fields ();
+		/* The reports generateOrbital itself shows (Procyon's starbase),
+		 * only where there are any. */
+		if (story_reports[0])
+			printf (", \"orbit_reports\": [%s]", story_reports);
 		if (sc->scan >= 0)
 		{
-			bool taken;
-			story_takeoffs = 0;
-			story_reports[0] = '\0';
-			taken = sc->scan == ENERGY_SCAN
-					? (*pSolarSysState->genFuncs->pickupEnergy) (
-						pSolarSysState, world, sc->node)
-					: (*pSolarSysState->genFuncs->pickupLife) (
-						pSolarSysState, world, sc->node);
-			story_string (discovery, sizeof discovery,
-					pSolarSysState->SysInfo.PlanetInfo.DiscoveryString);
-			printf (", \"pickup\": {\"scan\": %d, \"node\": %d, "
-					"\"taken\": %d, \"takeoffs\": %d, \"reports\": [%s], "
-					"\"discovery\": %s, \"fields\": ", sc->scan, sc->node,
-					taken, story_takeoffs, story_reports, discovery);
-			print_story_fields ();
-			printf ("}");
+			printf (", \"pickup\": ");
+			story_pickup (sc->scan, sc->node, world);
+		}
+		if (sc->scan >= 0 && sc->again)
+		{
+			/* The nodes touched after it, in the same orbit: each its
+			 * pickup again, the discovery string as the last left it. */
+			char buf[128], *tok, *save = NULL;
+			int first = 1;
+			printf (", \"again\": [");
+			snprintf (buf, sizeof buf, "%s", sc->again);
+			for (tok = strtok_r (buf, ",", &save); tok;
+					tok = strtok_r (NULL, ",", &save))
+			{
+				printf ("%s", sep (&first));
+				story_pickup (sc->scan, atoi (tok), world);
+			}
+			printf ("]");
 		}
 		printf ("}");
 		pSolarSysState->InOrbit = FALSE;

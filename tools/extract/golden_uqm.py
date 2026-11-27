@@ -848,15 +848,31 @@ def record_story_nodes(uqm, exe):
                         "src/uqm/planets/generate/genutw.c",
                         "src/uqm/planets/generate/genorz.c",
                         "src/uqm/planets/generate/genthrad.c",
-                        "src/uqm/planets/generate/genmyc.c"], [
-        "The story worlds' single-node pickups (stage 3c item 5), recorded "
+                        "src/uqm/planets/generate/genmyc.c",
+                        "src/uqm/planets/generate/genilw.c",
+                        "src/uqm/planets/generate/genpet.c",
+                        "src/uqm/planets/generate/genyeh.c",
+                        "src/uqm/planets/generate/genzoq.c",
+                        "src/uqm/planets/generate/gensup.c",
+                        "src/uqm/planets/generate/gendru.c",
+                        "src/uqm/planets/generate/genpku.c",
+                        "src/uqm/planets/generate/genand.c",
+                        "src/uqm/planets/generate/genwreck.c",
+                        "src/uqm/planets/generate/genvault.c",
+                        "src/uqm/planets/generate/genchmmr.c"], [
+        "The story worlds' single-node pickups (stage 3c item 5) and their "
+        "ruins, the Ur-Quan wreck, the Syreen's vault and Procyon's "
+        "starbase (stage 3c item 6), recorded "
         "by running each world's own generateOrbital, generateEnergy, "
         "generateLife and pickupEnergy or pickupLife (planets/generate/) "
         "with the case's story fields set. See tools/extract/golden/"
         "systems.c's story mode.",
         "No alien ships are present (StartSphereTracking is false), so no "
-        "guard's talk starts. A string table is its resource's name, with "
-        "more entries than any report table has.",
+        "guard's talk starts (the homeworlds' ruins are reached so, their "
+        "race extinct). A string table is its resource's name, with more "
+        "entries than any report table has, but for those in table_sizes, "
+        "which have the content's counts (a cycling report ends where its "
+        "index wraps).",
         "fields: the story fields recorded, in order. cases: name; star "
         "(starmap order), planet, moon (-1 for the planet); state (the "
         "story fields set, NAME=VALUE, and RETRIEVED, the energy nodes "
@@ -870,8 +886,13 @@ def record_story_nodes(uqm, exe):
         "node, taken (the pickup function's result: the node removed), "
         "takeoffs (SetLanderTakeoff's calls), reports (each lander report "
         "DoDiscoveryReport showed, [table, index]), discovery (the "
-        "discovery string left after it) and fields (the story fields "
-        "after it).",
+        "discovery string left after it), fields (the story fields "
+        "after it) and, where the pickup itself changed it, retrieved (the "
+        "energy nodes' retrieved mask after it: the Androsynth's ruins mark "
+        "those visited in its upper 16 bits). orbit_reports, where "
+        "generateOrbital itself showed any (Procyon's starbase): [table, "
+        "index] each. again, for a case touching more nodes in the same "
+        "orbit: each further pickup as pickup is, in order.",
     ])
     data.update(json.loads(out))
     return data

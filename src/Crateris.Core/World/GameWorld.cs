@@ -819,6 +819,8 @@ public sealed partial class GameWorld
                     ip.ReturnFromOrbit();
                     if (IsEarthsStarbase(ship.SystemStar!.Value, touched))
                         VisitStarbase(_players.First(p => p.Ship == ship));
+                    else
+                        ShowArrivalReport(_players.First(p => p.Ship == ship), ship.SystemStar!.Value, touched!.Value);
                 }
                 else
                     InOrbit(ship);
@@ -845,6 +847,18 @@ public sealed partial class GameWorld
     // Earth's first moon is the starbase (GenerateSol_generateMoons).
     private bool IsEarthsStarbase(int star, (int Planet, int? Moon)? world) =>
         Systems!.Map.Stars[star].Special == "SOL_DEFINED" && world == (2, 0);
+
+    // A world whose generateOrbital shows a report as a ship comes to it, the ship not put in orbit (Procyon's
+    // starbase, StoryWorlds.ArrivalReport; stage 3c item 6): the player's own, as UQM's DoDiscoveryReport there.
+    private LanderReport? ArrivalReportAt(int star, (int Planet, int? Moon) world) =>
+        Story is null || Systems is null ? null
+            : StoryWorlds.ArrivalReport(Systems.Map.Stars[star].Special, new WorldId(star, world.Planet, world.Moon));
+
+    private void ShowArrivalReport(Player player, int star, (int Planet, int? Moon) world)
+    {
+        if (ArrivalReportAt(star, world) is { } report)
+            _reports.Add((player.Id, report));
+    }
 
     /// <summary>
     /// A player touches Earth's starbase (VisitStarBase): before the
@@ -1434,7 +1448,8 @@ public sealed partial class GameWorld
             throw new InvalidOperationException("this world has no systems");
         if (!Systems.HasWorld(star, planet, moon))
             throw new ArgumentException($"star {star} has no planet {planet}" + (moon is int m ? $" moon {m}" : ""));
-        if (!Systems[star].EnterOrbit(planet, moon).Entered && !StartsATalk(star, planet, moon))
+        if (!Systems[star].EnterOrbit(planet, moon).Entered && !StartsATalk(star, planet, moon)
+                && ArrivalReportAt(star, (planet, moon)) is null)
             throw new ArgumentException($"star {star} planet {planet} moon {moon}: that world can't be orbited");
 
         if (player.Ship.Battle is not null)
@@ -1466,7 +1481,10 @@ public sealed partial class GameWorld
             MeetAtWorld(player, star, (planet, moon), talkWorld);
         }
         else if (!ship.Ip.OrbitData!.Entered)
+        {
             ship.Ip.ReturnFromOrbit();   // a world never entered whose talk doesn't start now: by it, as flying into it
+            ShowArrivalReport(player, star, (planet, moon));
+        }
         else
             InOrbit(ship);
     }
@@ -1486,7 +1504,7 @@ public sealed partial class GameWorld
             return;
         StoryWorlds.Orbited(Systems.Map, world, story);
         ship.Discovery = StoryWorlds.Discovery(Systems.Map.Stars[world.Star].Special, world, story,
-            Planets.RetrieveMask(world, ScanType.Energy));
+            Planets.RetrieveMask(world, ScanType.Energy), field => story.Rules.Devices.ValueOf(ship.Hold.Devices, field));
     }
 
     // Whether one of the worlds whose orbit starts a talk is this one (asked without its side effects).
@@ -1569,7 +1587,8 @@ public sealed partial class GameWorld
     {
         if (Story is not { } story || !_landerPlayers.TryGetValue(lander, out var finder))
             return false;
-        var found = new Finder(PlaceIn(finder.Ship, world));
+        var found = new Finder(PlaceIn(finder.Ship, world), field => PlayerTalkShip.DeviceOf(this, finder, field),
+            Planets.RetrieveMask(world, ScanType.Energy));
         bool taken = StoryEnergyPickup(special, world, story, found, node);
         Found(finder, world, surface, lander, found);
         return taken;
@@ -1601,15 +1620,22 @@ public sealed partial class GameWorld
 
     // What a story world's pickup did, made so (the stage 3c plan's question
     // 10): the ship's place in the report moved on; the devices given to the
-    // finder's ship; a report with a take-off to its player and word of it to
-    // the other landers there, which stay (stage 3, decision 9); one without,
-    // to the finder alone.
+    // finder's ship, or taken from it (the vault's shuttle); the ruins visited
+    // marked (the Androsynth's, the node staying); a report with a take-off to
+    // its player and word of it to the other landers there, which stay (stage
+    // 3, decision 9); the group's story (the Androsynth's chapters) to its
+    // player and word of it to every other player in the game, the other
+    // landers there too; any other without a take-off, to the finder alone.
     private void Found(Player finder, WorldId world, PlanetsideSurface surface, Lander lander, Finder found)
     {
         if (finder.Ship.OrbitedWorld == world)
             finder.Ship.Discovery = found.Place;
         foreach (string field in found.Devices)
             GiveFound(finder, field);
+        foreach (string field in found.Taken)
+            PlayerTalkShip.SetDeviceOf(this, finder, field, 0);
+        foreach (int bit in found.Visited)
+            Planets.SetRetrieved(world, ScanType.Energy, bit);
         if (found.Takeoff)
             lander.Takeoff(found.Report);
         else if (found.Report is { } shown)
@@ -1617,14 +1643,19 @@ public sealed partial class GameWorld
         if (found.Report is not { } report)
             return;
         _reports.Add((finder.Id, report));
-        if (!found.Takeoff)
+        if (!found.Takeoff && !found.ToEveryone)
             return;
+        var word = report with { FoundBy = finder.Id };
+        var told = new HashSet<Player> { finder };
         foreach (var other in surface.Landers.Where(l => l != lander))
         {
-            other.Told(report with { FoundBy = finder.Id });
-            if (_landerPlayers.TryGetValue(other, out var told))
-                _reports.Add((told.Id, other.Report!));
+            other.Told(word);
+            if (_landerPlayers.TryGetValue(other, out var player) && told.Add(player))
+                _reports.Add((player.Id, word));
         }
+        if (found.ToEveryone)
+            foreach (var player in _players.Where(p => p.Present && told.Add(p)))
+                _reports.Add((player.Id, word));
     }
 
     /// <summary>

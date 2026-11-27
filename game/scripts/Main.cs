@@ -129,7 +129,8 @@ public partial class Main : Node2D
         AddChild(_orbitView);
         _planetsideView = new PlanetsideView(_systems) { Position = systemScreenAt, Visible = false };
         AddChild(_planetsideView);
-        // The lander report, typed into the scan map's area of the planet-side and orbit views.
+        // The lander report, typed into the scan map's area of the planet-side and orbit views (and the system
+        // view's, Procyon's starbase's).
         _reportView = new ReportView
         {
             Position = systemScreenAt + new Vector2(0, (IpGeometry.ScreenHeight - SurfaceMap.Height) * SisScreen.Scale),
@@ -1262,7 +1263,7 @@ public partial class Main : Node2D
         _systemView.Visible = screen == PlayerScreen.System;
         _orbitView.Visible = screen == PlayerScreen.Orbit;
         _planetsideView.Visible = screen == PlayerScreen.Planetside;
-        // The player's own lander report, over the scan map's area of the planet-side and orbit views.
+        // The player's own lander report, over the scan map's area of the planet-side, orbit and system views.
         _reportView.Visible = PlayerSession.ShowsReports(screen);
         if (Headless)
             player.TakeOwnReport();   // nothing to show it on (the session has logged it)
