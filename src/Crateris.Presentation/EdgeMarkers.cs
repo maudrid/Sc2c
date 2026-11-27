@@ -89,7 +89,7 @@ public static class EdgeMarkers
             if (s.SystemStar is int star)
             {
                 var st = map.Stars[star];
-                var (x, y) = Toward(Units.UniverseToLogX(st.X), Units.UniverseToLogY(st.Y), logX, logY);
+                var (x, y) = TowardStar(st, logX, logY);
                 list.Add(new(kind, $"{name}: {cluster(st)} {Distance(ux, uy, st.X, st.Y)}", x, y, false));
             }
             else
@@ -105,7 +105,7 @@ public static class EdgeMarkers
             if (c.Star is int star)
             {
                 var st = map.Stars[star];
-                var (x, y) = Toward(Units.UniverseToLogX(st.X), Units.UniverseToLogY(st.Y), logX, logY);
+                var (x, y) = TowardStar(st, logX, logY);
                 list.Add(new(MarkerKind.Container, $"{name}: {cluster(st)} {Distance(ux, uy, st.X, st.Y)}", x, y, false));
             }
             else
@@ -224,6 +224,11 @@ public static class EdgeMarkers
     private static (double X, double Y) Toward(long x, long y, int viewerLogX, int viewerLogY) =>
         ((x - viewerLogX + HyperFlight.CenterX - HyperScreen.OriginX) * HyperScale,
          (y - viewerLogY + HyperFlight.CenterY - HyperScreen.OriginY) * HyperScale);
+
+    // A star's place on the hyperspace screen, as HyperScreen.Star gives it (the view's middle its), but in doubles and unwrapped.
+    private static (double X, double Y) TowardStar(Star star, int viewerLogX, int viewerLogY) =>
+        ((Units.UniverseToLogX(star.X) + (Units.LogSpaceWidth >> 1) - (long)viewerLogX - HyperScreen.OriginX) * HyperScale,
+         (Units.UniverseToLogY(star.Y) + (Units.LogSpaceHeight >> 1) - (long)viewerLogY - HyperScreen.OriginY) * HyperScale);
 
     // A point far from the screen's middle in a direction (the system views' display: y down, as the locations').
     private static (double X, double Y) Way(double dx, double dy)

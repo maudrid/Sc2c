@@ -64,7 +64,7 @@ public class TalkTests
         public SortedSet<int> HeldDevices { get; set; } = new();
         public int Device(string field) => Rules.Devices.ValueOf(HeldDevices, field);
         public void SetDevice(string field, int value) => HeldDevices = Rules.Devices.WithValue(HeldDevices, field, value);
-        public bool IsHost { get; init; } = true;   // UQM's one ship is the host's
+        public bool IsHost { get; set; } = true;   // UQM's one ship is the host's
 
         // UQM's recorder stubs AddEscortShips (comm.c): no captains' names drawn; each joins the queue's tail.
         public int AddEscorts(int race, int count, Func<uint> random)
