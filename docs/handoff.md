@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-28. Stage 3c items 1 to 5 built, reviewed and reported; items 6 and 7 started at the owner's go-ahead ("do 6 and 7", 2026-11-27): item 6 built (`4d08fbf`..`323aab9`), review round 1's findings fixed (`36b1f5c`), round 2 running.
+**Last updated:** 2026-11-28. Stage 3c items 1 to 5 built, reviewed and reported; items 6 and 7 started at the owner's go-ahead ("do 6 and 7", 2026-11-27): item 6 built (`4d08fbf`..`323aab9`), review rounds 1 and 2 fixed (`36b1f5c`, `0ab3f3b`), round 3 running.
 
 ## Where things are
 
