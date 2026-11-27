@@ -8,7 +8,7 @@ As for stage 3b-2 (`docs/how-to-try/stage-3b-2.md`): build the game (`dotnet bui
 
 The testing options this stage adds (`game/scripts/Options.cs`'s summary lists them all):
 
-- `--start-date YYYY-MM-DD` (item 1): the clock moved on to that day, no earlier than the game's, each day passing as the starbase's two weeks pass: its events run (the location gates asking where the players are as the game has them), the races' fleets grow and move, but no hyperspace encounters are rolled. Its log line names the events run (the daily encounter event left out), those a location gate held (one for each time it held one) and those set aside. It's applied after `--start-state`, `--start-devices`, `--start-allied` and `--start-fleet` and before the place (`--start-at`, `--start-orbit` and the rest). With `--load` it moves a saved game's clock over the events its talks queued.
+- `--start-date YYYY-MM-DD` (item 1): the clock moved on to that day, no earlier than the game's, each day passing as the starbase's two weeks pass: its events run (the location gates asking where the players are as the game has them), the races' fleets grow and move, but no hyperspace encounters are rolled. Its log line names the events run (the daily encounter event left out; a fleet's arrival among them), those a location gate held (one for each time it held one) and, once the Kohr-Ah have destroyed every race, that the game is lost (item 4). It's applied after `--start-state`, `--start-devices`, `--start-allied` and `--start-fleet` and before the place (`--start-at`, `--start-orbit` and the rest). With `--load` it moves a saved game's clock over the events its talks queued.
 
 ## Run the tests
 
@@ -22,11 +22,13 @@ The recording is remade with `python3 tools/extract/golden_uqm.py --uqm ../uqm-0
 
 Item 2's tests: `StoryPauseTests` (topic `story`: a test's sequence taking a story pause: its skip held by the host's pause, everyone frozen through its fade, its days running their events with no encounter rolled, then over; a story talk after the days shown to every player, answered and paged by its replier alone, the replies passing on as they leave, its closing lines after; a talk-only pause, the starbase's opening waiting under it; a pause's talk refused unless story; saves during and after the skip; review round 1: a reply for the replier's meeting held through a pause's skip and through the visit's two weeks, a game over during the days starting no talk, a player in their meeting's talk shown the pause's closing lines before it again), `OpeningTests` (the two weeks rolling no encounter for a guest in hyperspace while the fleets move as the same days move them), `TalkScreenTests` (topic `talk`: every recorded start's screen coming in as UQM's script set it, `"intro"` in the talks' recordings; the hypnotised captain's Ur-Quan and the emerging Chmmr; the starbase's talks' intros), `MeetingWireTests` (topic `world`: the intro and the story pause's step on the wire and their bounds; a story pause on two clients, the skip not shown as a talk, the talk on both, the replier's client answering; a client keeping its meeting's talk, its encounter screen, its flight or its talk with the commander from the menu under a talk-less skip; the host's log, every pause from start to end, one taken and over between two of its frames too), `ScreenFadeTests` (topic `drawing`: the whole screen's fade to black and back).
 
-Item 3's tests: `ClockEventsTests` (topic `story`: each mission replayed day by day against UQM's own `gameev.c` over its whole course, seven new scenarios in `tests/golden/clock-events.json`: the Pkunk's migration turned home and absorbed, the Ilwrath's war, the Thraddash recalled to it, the Thraddash's mission, the Mycon's, the Utwig's and the Supox's, and the missions with no fleet), `FleetMissionsTests` (topic `story`, new: what each mission's steps tell, a fleet's arrival run and told to every player present, two arrivals on a day both listed, one running another mission at once, a race its losses run out, the spheres known, their wire and the status panel's line), `OpeningTests` (a mission an opening's talk ran at once taken back, the Ilwrath's run from within it too), `RaceFleetsTests` (an arrival running its mission, the Kohr-Ah's set aside), and the talks that start a mission, now run at once: `ThraddashUmgahTests`, `DruugeMyconTests`, `UtwigSupoxTests`, `OrzPkunkTests`, `IlwrathSpathiMeetingTests` (topic `world`).
+Item 3's tests: `ClockEventsTests` (topic `story`: each mission replayed day by day against UQM's own `gameev.c` over its whole course, seven new scenarios in `tests/golden/clock-events.json`: the Pkunk's migration turned home and absorbed, the Ilwrath's war, the Thraddash recalled to it, the Thraddash's mission, the Mycon's, the Utwig's and the Supox's, and the missions with no fleet), `FleetMissionsTests` (topic `story`, new: what each mission's steps tell, a fleet's arrival run and told to every player present, two arrivals on a day both listed, one running another mission at once, a race its losses run out, the spheres known, their wire and the status panel's line), `OpeningTests` (a mission an opening's talk ran at once taken back, the Ilwrath's run from within it too), `RaceFleetsTests` (an arrival running its mission), and the talks that start a mission, now run at once: `ThraddashUmgahTests`, `DruugeMyconTests`, `UtwigSupoxTests`, `OrzPkunkTests`, `IlwrathSpathiMeetingTests` (topic `world`).
+
+Item 4's tests: `ClockEventsTests` (topic `story`: four new scenarios replayed against UQM's own `gameev.c`: the victory on time and the genocide day by day to Sol and the game over, the Sa-Matra's gate holding the victory twice and then not, the victory a year late with the Utwig's and Supox's mission begun, and the Druuge first with the Mycon killed away from home and the Zoq-Fot-Pik spared at their own home while the Druuge live; and a save's set-aside events run once as it loads), `KohrAhTests` (topic `story`, new: the genocide's news race by race, the year's delay, the gate, the speed's clamp, the talk's rule; the game lost and its end: no save, visit or other pause, the Black Ur-Quan's last talk held until the host's player has gone through it, taking over from the starbase's two weeks and from a pause's days, held by the host's pause, at game start from `--start-state`, a save and `--start-date`), `MeetingWireTests` (topic `world`: the end on two clients and the host's own client going through the lines, the game over's reason, a refused join, protocol 35), `CalendarEventsTests`, `RaceFleetsTests`, `OpeningTests` and `StoryStateTests` (the Kohr-Ah's events run where they were the example set aside).
 
 ## Item 1: the calendar's engine and the simple events
 
-The clock's events run as UQM's `gameev.c` runs them, except the races' missions and the Kohr-Ah's victory and genocide (items 3 and 4), which were still set aside on their day (the missions run since item 3, below):
+The clock's events run as UQM's `gameev.c` runs them, except the races' missions and the Kohr-Ah's victory and genocide (items 3 and 4), which were still set aside on their day (they run since items 3 and 4, below):
 
 1. **The Arilou's portal** opens on the 17th of each month and closes three days later (`ARILOU_SPACE`; its counter, `ARILOU_SPACE_COUNTER`, counts up to 9 as it opens and down as it closes, a step each world frame). Nothing is drawn yet: the portal itself, and the way through it to QuasiSpace, are item 9's.
 2. **The Arilou's look at the Umgah** runs ten days after their homeworld's talk asks it (QuasiSpace's, item 9; `--start-state` reaches it): asked before, they have no news; after, they've been.
@@ -63,7 +65,7 @@ Each is a row of `docs/differences.md`: the calendar's co-op rules (row 88: the 
 ### Known limits of item 1
 
 - **The portal** opens and closes only as story fields: nothing is drawn, and it can't be entered (item 9).
-- **The missions and the Kohr-Ah** (the Pkunk's, the Thraddash's, the Ilwrath's, the Mycon's, the Utwig and Supox's; the Kohr-Ah's victory and genocide) are still set aside: items 3 and 4 (the missions run since item 3).
+- **The missions and the Kohr-Ah** (the Pkunk's, the Thraddash's, the Ilwrath's, the Mycon's, the Utwig and Supox's; the Kohr-Ah's victory and genocide) are still set aside: items 3 and 4 (built, below).
 - **The fleets aren't on the screen**: the rebels' and the others' spheres change, but there's no star map; the status panel's fleet lines come with item 3 (the plan's question 8; built, below).
 - **The Shofixti's return** is reached in play only once the Maidens can be picked up (item 5); until then a test or a save queues it.
 
@@ -80,7 +82,7 @@ With several players:
 - **A time skip is a story pause for everyone, its fade on every screen** (the plan's co-op rules): everyone waits, input meant for then is dropped, and nothing moves; the clock jumps for all.
 - **No hyperspace encounters during a skip** (question 3): a player in hyperspace meets no new group from those days; the fleets still move and every event still runs.
 - **The game over during a skip's days** (the Kohr-Ah's genocide, item 4's) ends it there for everyone: no talk follows, as in UQM.
-- **A story talk outside the starbase** is shown to everyone and answered by the player whose sequence started it, the replies passing to the next player (the host first) if they leave, as the opening's (row 2). Nothing in play starts one yet (item 4's Black Ur-Quan is the first); `StoryPauseTests` and `MeetingWireTests` run one with the commander's talk.
+- **A story talk outside the starbase** is shown to everyone and answered by the player whose sequence started it, the replies passing to the next player (the host first) if they leave, as the opening's (row 2). Since item 4 the Black Ur-Quan's last talk is one (below); `StoryPauseTests` and `MeetingWireTests` also run one with the commander's talk.
 
 Tried headless, each with `--host --no-upnp --id host --name Host --save FILE` (a scratch file):
 
@@ -97,7 +99,7 @@ Rows 2 (story pauses outside the starbase), 3 (the skip: every player's whole sc
 
 ### Known limits of item 2
 
-- **Nothing but the starbase takes a story pause in play yet**: the Black Ur-Quan's last talk (item 4), the Pet's jump (item 10) and the bomb's days (item 11) will.
+- **Only the starbase and the Black Ur-Quan's last talk (item 4) take a story pause in play yet**: the Pet's jump (item 10) and the bomb's days (item 11) will.
 - **The crossfades** (UQM's default for every talk, 31/60 s over the space window, and the commander's whole-screen ones before the alliance) are sent but cut at once, as before.
 - **A story pause isn't saved**: a save made during one is of the game as it stands (its days in it once they've passed); the starbase's opening is still saved as before it began.
 
@@ -132,11 +134,46 @@ Not tried by hand: the Pkunk's good reason on the way and their absorption (a Pk
 
 ### What's different from UQM
 
-Rows 66 (the missions run, only the Kohr-Ah's still set aside), 76 (each step told), 85 and 86 (the Utwig's and the Thraddash's missions run at once from their talks), 88 (no gates for the missions, as UQM has none) and 89 (new, temporary: the spheres known listed in the status panel, with no star map).
+Rows 66 (the missions run, the Kohr-Ah's still set aside until item 4), 76 (each step told), 85 and 86 (the Utwig's and the Thraddash's missions run at once from their talks), 88 (no gates for the missions, as UQM has none) and 89 (new, temporary: the spheres known listed in the status panel, with no star map).
 
 ### Known limits of item 3
 
 - **`--start-state` sets a mission's field, not its fleet.** A state that says a race is on the move with its fleet still at home plays on as UQM's would with that state: `--start-state PKUNK_MISSION=1` and a good reason have the Pkunk absorbed by the Yehat at once, as having arrived. Reach a mission by its talk, and move the clock with `--start-date`.
 - **The Ilwrath's war** is reached in play only by the broadcaster's talk with their "gods" (item 8).
 - **No star map**: the spheres are a line of words in the status panel, the known strength and place read, not moved as UQM's map moves them (row 89); the map is a stage of its own.
-- **The Kohr-Ah** (their victory, which a year's delay holds while the Utwig and Supox fight them, `UTWIG_SUPOX_MISSION` set as UQM's; and the genocide) are item 4's.
+- **The Kohr-Ah** (their victory, which a year's delay holds while the Utwig and Supox fight them, `UTWIG_SUPOX_MISSION` set as UQM's; and the genocide) are item 4's (below).
+
+## Item 4: the Kohr-Ah
+
+The Kohr-Ah's victory and genocide run as UQM's `gameev.c` runs them, recorded day by day from UQM to the game over; with them every event of the calendar runs.
+
+1. **The victory.** Four years into the game (17 February 2159) the Kohr-Ah win their war with the Ur-Quan and the frenzy begins (`KOHR_AH_FRENZY`): the Kohr-Ah's and the Ur-Quan's talks change (3b-1's branches on the field). While the Utwig and the Supox fight them (their mission begun, `UTWIG_SUPOX_MISSION`) it comes a year later.
+2. **The genocide.** Their fleet heads for a race, a day for every 158 units of the way (at least one, at most 255), and kills it on arriving, wherever that race's fleet is (at home, or away on a mission); then the next, the nearest, but the Druuge first while they live. The Melnorme and the Slylandro (met anywhere) and the Ur-Quan are never killed. On a new game's course it ends on 19 November 2159.
+3. **The game over.** With no race left they head for Sol; there the humans die too and the game is lost (`KOHR_AH_KILLED_ALL`). From that moment no save is made and no visit or other story pause starts; a starbase visit's two weeks or a story pause's days that bring it stop where they are (their other days still pass). Then every player's screen shows the Black Ur-Quan's last talk ("Attention human! This broadcast is to inform you of your defeat. ..."), answered by the host's player; it waits on its closing lines until the host's player has gone through them (about three seconds after they've played), and the game is over: "The Kohr-Ah have destroyed every race." on the game over screen, the host's save as it was.
+4. **The gate at the Sa-Matra.** Before the frenzy, the victory (and the genocide it falls through to) waits 7 days at a time while any player is in the Sa-Matra's system (star 313), queued again as the genocide; once the frenzy has begun nothing holds it.
+
+With several players:
+
+- **Everyone is told** each course and each race destroyed (row 76): "The Kohr-Ah are heading for the Mycon.", "The Druuge have been destroyed by the Kohr-Ah.", a player alone too.
+- **The game over is everyone's**: the Black Ur-Quan's last talk is a story pause shown to all, the host's player answering; it takes over from whatever story is shown and freezes every meeting and battle meanwhile (a flagship already dying in a battle still runs on to its own game over). The host's pause holds its end too. Late joiners are refused: "The game is over: the Kohr-Ah have destroyed every race."
+- **The gate** waits while any player is in the Sa-Matra's system (question 1); the genocide kills a race whoever is meeting it (question 2).
+
+Tried headless, each with `--host --no-upnp --id host --name Host --save FILE` (a scratch file; the later runs `--load` the same file):
+
+- `--start-date 2159-02-17 --quit-after 48`: "Starting on 2159-02-17: 1461 days passed, 100 events run (ARILOU_ENTRANCE_EVENT, ...)", ending with the victory, and "host: The Kohr-Ah have won their war with the Ur-Quan and begun to wipe out every other race: they're heading for the Druuge."; the save has `KOHR_AH_FRENZY` 1 and the Kohr-Ah's fleet at (6112, 6139) on its way to (9500, 2792), 30 days left.
+- `--load FILE --start-date 2159-03-19 --quit-after 48`: "3 events run (ARILOU_EXIT_EVENT, ARILOU_ENTRANCE_EVENT, KOHR_AH_GENOCIDE_EVENT)", "host: The Druuge have been destroyed by the Kohr-Ah.", "host: The Kohr-Ah are heading for the Mycon."
+- `--load FILE --start-date 2159-11-19 --quit-after 600`: "...; the Kohr-Ah have destroyed every race: the game is lost", each race destroyed and each course in turn (the Mycon, the VUX, the Orz, the Spathi, the Zoq-Fot-Pik, the Umgah, the Arilou, the Thraddash, the Supox, the Utwig, the Yehat, the Pkunk, the Ilwrath), "host: The Kohr-Ah have wiped out every other race: they're heading for Sol."; then "A story pause for everyone: the Kohr-Ah have destroyed every race", "The story's talk (blackur), host replying, shown to everyone", the talk's line, "host: the story's closing lines heard", "The story pause is over: ...", "Game over: the Kohr-Ah have destroyed every race". The save file is left as it was (2159-03-19).
+- `--start-state KOHR_AH_KILLED_ALL=1 --quit-after 200`: the same end as the game starts; no save is written.
+- The gate: `--start-orbit 313:0 --quit-after 2` (in orbit at the Sa-Matra), then `--load FILE --start-date 2159-02-25 --quit-after 48`: "..., 2 events held by a player in their race's system (KOHR_AH_VICTORIOUS_EVENT, KOHR_AH_GENOCIDE_EVENT)", the save with `KOHR_AH_GENOCIDE_EVENT` queued for 2159-03-03 and no frenzy; then `--load FILE --start-orbit 82:3 --quit-after 2` (Mars) and `--load FILE --start-date 2159-03-03 --quit-after 48`: "1 event run (KOHR_AH_GENOCIDE_EVENT)", "host: The Kohr-Ah have won their war ...".
+
+Not tried by hand: the game's end drawn on a screen (headless draws nothing; the end on two clients is `MeetingWireTests`'), the end taking over from the starbase's two weeks or a pause's days, the year's delay (the tests and the recording run them).
+
+### What's different from UQM
+
+Rows 50 (the Kohr-Ah's game over, everyone's, the last talk on a story pause held until the host's player has heard it), 66 (closed: every event runs), 76 (the genocide's news) and 88 (the Sa-Matra's gate with several players). The gate's log line says "held by a player in their race's system" for the Sa-Matra too.
+
+### Known limits of item 4
+
+- **No star map**: the Kohr-Ah's course is told in words; their sphere is in the status panel's line once their talk (the last one included) has tracked it.
+- **The Sa-Matra itself** (its guards, the Talking Pet's use there, the last battle) is the endgame's; only its gate is here.
+
