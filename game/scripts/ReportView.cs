@@ -19,7 +19,9 @@ namespace Crateris.Game;
 /// The lander report on the finder's screen (stage 3a, item 11): UQM's
 /// DoDiscoveryReport (<see cref="DiscoveryReport"/>) typed into the scan
 /// map's area, over the planet-side and orbit views' map (both have it in
-/// the same place), in the lander's font and colours, on the client's
+/// the same place; and over the system view's bottom for Procyon's
+/// starbase's report as a ship comes to it, stage 3c item 6, as UQM's
+/// over its space window), in the lander's font and colours, on the client's
 /// clock. While it's up the player's keys are its own, as UQM waits for
 /// them (any key: the rest of the page at once, the next page, the report
 /// put away); once it's put away and the keys are up, they're the

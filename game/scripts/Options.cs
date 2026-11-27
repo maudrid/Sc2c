@@ -81,7 +81,8 @@ namespace Crateris.Game;
 /// --start-at and --start-orbit, so --start-orbit's world sees them),
 /// --start-date YYYY-MM-DD (host: the clock moved on to that day, no earlier than the game's, each day passing as
 /// the starbase's two weeks pass, its events run and the fleets moved, but no hyperspace encounters rolled; set after
-/// --start-state, --start-devices, --start-allied and --start-fleet, so the events see them, and before the place),
+/// --start-state, --start-devices, --start-allied, --start-extinct and --start-fleet, so the events see them, and before
+/// the place),
 /// --guests-in-orbit (host: guests joining for the first time start in
 /// orbit where the host is), --guests-in-battle (host: guests joining for the first time join the battle by the host,
 /// as if they'd flown into its marker), --start-at X:Y (in hyperspace, universe units), --screenshot FILE.png

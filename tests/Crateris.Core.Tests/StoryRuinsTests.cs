@@ -7,6 +7,7 @@
 // (at your option) any later version.
 
 using Crateris.Core.Data;
+using Crateris.Core.Hyperspace;
 using Crateris.Core.Planetside;
 using Crateris.Core.Session;
 using Crateris.Core.Story;
@@ -265,6 +266,32 @@ public class StoryRuinsTests
     }
 
     [ContentFact]
+    public void AShuttleHandedOverAfterTheLockedTextOpensTheVaultWithItsText()
+    {
+        // Review round 1: the locked text shown uses up the visit's text; a shuttle given to the finder on the giving
+        // screen while its lander is down, the next touch opens the vault with its own text, the lander up, the
+        // others told, never silently.
+        var (world, at) = Orbiting("SHIP_VAULT_DEFINED", "host", "guest");
+        world.Find("guest")!.Ship.Hold.AddDevice(DeviceOf("SYREEN_SHUTTLE_ON_SHIP"));
+        Orbit(world, at, "host");
+        Orbit(world, at, "guest");
+        var host = LandOn(world, at, "host", 0);
+        var guest = Land(world, "guest", 10, 10);
+        var vault = EnergyNode(world, at, 0);
+        Assert.Equal(new[] { ("host", new LanderReport(StoryWorlds.VaultReport)) }, Touch(world, host, vault));
+        Assert.Null(world.Host.Ship.Discovery);
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("guest", "host", 0, new int[ShipHold.Categories], 0,
+            Device: DeviceOf("SYREEN_SHUTTLE_ON_SHIP"))));
+        Assert.Contains(DeviceOf("SYREEN_SHUTTLE_ON_SHIP"), world.Host.Ship.Hold.Devices);
+        var opened = new LanderReport(StoryWorlds.VaultReport, 1);
+        Assert.Equal(new[] { ("host", opened), ("guest", opened with { FoundBy = "host" }) }, Touch(world, host, vault));
+        Assert.True(host.InTransit);
+        Assert.Equal(opened with { FoundBy = "host" }, guest.Report);
+        Assert.Equal(1, world.Story!.Get("SHIP_VAULT_UNLOCKED"));
+        Assert.DoesNotContain(DeviceOf("SYREEN_SHUTTLE_ON_SHIP"), world.Host.Ship.Hold.Devices);
+    }
+
+    [ContentFact]
     public void ProcyonsStarbaseShowsItsReportAsAShipComesToIt()
     {
         // genchmmr.c: the Chmmr's moon, a starbase never entered; its report the player's own, the ship by it.
@@ -276,7 +303,69 @@ public class StoryRuinsTests
         Assert.Equal(new[] { ("guest", new LanderReport(StoryWorlds.ChmmrBaseReport)) }, world.TakeReports());
         Assert.Null(world.Find("guest")!.Ship.OrbitedWorld);
         Assert.Equal(star, world.Find("guest")!.Ship.SystemStar);
-        // The client shows it on the system screen, over the scan map's area, as UQM's does over the space window.
-        Assert.True(PlayerSession.ShowsReports(PlayerScreen.System));
+    }
+
+    // One frame of a player's flight in a system toward a point on the screen: turned to it, thrusting once facing it.
+    private static void SteerTo(GameWorld world, string id, IpPoint target)
+    {
+        var ip = world.Find(id)!.Ship.Ip!;
+        int want = Uqm.UqmMath.AngleToFacing(Uqm.UqmMath.ArcTan((short)(target.X - ip.Screen.X), (short)(target.Y - ip.Screen.Y)));
+        int turn = (want - ip.Facing) & (Uqm.UqmMath.Facings - 1);
+        Frames(world, 1, id, turn == 0 ? ShipInput.Thrust : turn > Uqm.UqmMath.Facings / 2 ? ShipInput.Left : ShipInput.Right);
+    }
+
+    [ContentFact]
+    public void FlyingIntoProcyonsStarbaseShowsItsReportOnceATouch()
+    {
+        // Review round 1: StepSystem's way in, flying into the moon. By it (as --start-orbit leaves the ship, the
+        // contact remembered), staying there shows nothing more; flown away and back into it, the report again, as
+        // UQM's each time the ship comes to it.
+        var world = NewGame(guests: 0);
+        int star = Star(world, "CHMMR_DEFINED");
+        world.PutInOrbit("host", star, 1, 0);
+        world.TakeReports();
+        var ip = world.Host.Ship.Ip!;
+        Assert.Equal(1, ip.InnerPlanet);
+        Frames(world, 60);
+        Assert.Empty(world.TakeReports());
+        var moon = ip.MoonScreen[0];
+        // Away from it...
+        Frames(world, 25, "host", ShipInput.Thrust);
+        Assert.Empty(world.TakeReports());
+        Assert.NotEqual(moon, ip.Screen);
+        // ...and back into it.
+        var shown = new List<(string, LanderReport)>();
+        for (int i = 0; i < 2000 && shown.Count == 0; ++i)
+        {
+            SteerTo(world, "host", moon);
+            shown.AddRange(world.TakeReports());
+        }
+        Assert.Equal(new[] { ("host", new LanderReport(StoryWorlds.ChmmrBaseReport)) }, shown);
+        Assert.Null(world.Host.Ship.OrbitedWorld);
+        Assert.Equal(1, world.Host.Ship.Ip!.InnerPlanet);
+        Frames(world, 60);
+        Assert.Empty(world.TakeReports());
+    }
+
+    [Fact]
+    public void ProcyonsReportShowsOnTheSystemScreenAndNoOtherThere()
+    {
+        // Review round 1: the system screen shows a world's report as a ship comes to it (Procyon's starbase's), as
+        // UQM's over its space window; any other own report waiting there is a notice, as before item 6.
+        var player = new PlayerSession(SystemGroupTests.Systems.Value, null, "host", TestContent.Shapes.HyperFlagship.Count)
+        {
+            StringTables = id => new[] { id + " text" },
+        };
+        Assert.False(PlayerSession.ShowsReports(PlayerScreen.System));
+        player.ShowReport(new LanderReport(StoryWorlds.RuinsReport));
+        player.ShowReport(new LanderReport(StoryWorlds.ChmmrBaseReport));
+        Assert.Null(player.OwnReportFor(PlayerScreen.System, free: false));
+        Assert.StartsWith(StoryWorlds.RuinsReport + " text", player.Notice);
+        Assert.Equal(StoryWorlds.ChmmrBaseReport + " text", player.OwnReportFor(PlayerScreen.System, free: true));
+        Assert.Null(player.TakeOwnReport());
+        // Elsewhere (hyperspace) it's a notice, as every report.
+        player.ShowReport(new LanderReport(StoryWorlds.ChmmrBaseReport));
+        Assert.Null(player.OwnReportFor(PlayerScreen.Hyperspace, free: true));
+        Assert.Null(player.TakeOwnReport());
     }
 }

@@ -569,38 +569,42 @@ public sealed class PlayerSession
             Notify($"{who}'s lander found it:\n{text}", ReportSeconds);
         }
         else
-            _ownReports.Enqueue(text);
+            _ownReports.Enqueue((Story.StoryWorlds.IsArrivalReport(report.Resource), text));
     }
 
     // The report's text: its table's entry the finder's place in it gave (DiscoveryString's), "" for one it hasn't.
     private string ReportText(string resource, int entry) =>
         StringTables?.Invoke(resource) is { } texts && entry >= 0 && entry < texts.Count ? texts[entry] : "";
 
-    private readonly Queue<string> _ownReports = new();
+    // This player's own reports waiting to be shown, each with whether it's a world's report as a ship comes to it
+    // (Procyon's starbase, StoryWorlds.ArrivalReport), shown on the system screen.
+    private readonly Queue<(bool Arrival, string Text)> _ownReports = new();
 
     /// <summary>The next of this player's own lander reports to show (their texts, oldest first); null if none waits.</summary>
-    public string? TakeOwnReport() => _ownReports.Count > 0 ? _ownReports.Dequeue() : null;
+    public string? TakeOwnReport() => _ownReports.Count > 0 ? _ownReports.Dequeue().Text : null;
 
-    /// <summary>
-    /// The screens a lander report is shown on (over the scan map's area):
-    /// planet-side and orbit, and the system's, where Procyon's starbase
-    /// shows its report as a ship comes to it (genchmmr.c's
-    /// DoDiscoveryReport, over the bottom of the space window; stage 3c item 6).
-    /// </summary>
-    public static bool ShowsReports(PlayerScreen screen) =>
-        screen is PlayerScreen.Planetside or PlayerScreen.Orbit or PlayerScreen.System;
+    /// <summary>The screens a lander report is shown on (over the scan map's area): planet-side and orbit.</summary>
+    public static bool ShowsReports(PlayerScreen screen) => screen is PlayerScreen.Planetside or PlayerScreen.Orbit;
 
     /// <summary>
     /// The player's own report to show now on <paramref name="screen"/>
     /// (null: none), the screen <paramref name="free"/> for one: on a screen
-    /// that shows them, the next waiting; in a talk, kept till the player is
-    /// back; anywhere else, each waiting one a notice instead
+    /// that shows them, the next waiting; on the system screen, a world's
+    /// report as the ship comes to it (Procyon's starbase, typed over the
+    /// space window as UQM's DoDiscoveryReport there; stage 3c item 6), any
+    /// other waiting one a notice instead; in a talk, kept till the player
+    /// is back; anywhere else, each waiting one a notice instead
     /// (<see cref="NoticeOwnReports"/>).
     /// </summary>
     public string? OwnReportFor(PlayerScreen screen, bool free)
     {
         if (ShowsReports(screen))
             return free ? TakeOwnReport() : null;
+        if (screen == PlayerScreen.System)
+        {
+            NoticeOwnReports(keepArrivals: true);
+            return free ? TakeOwnReport() : null;
+        }
         if (screen != PlayerScreen.Comm)
             NoticeOwnReports();
         return null;
@@ -608,13 +612,22 @@ public sealed class PlayerSession
 
     /// <summary>
     /// The player is somewhere their own reports can't be shown (not at the
-    /// planet-side, orbit or system screen, nor in a talk they'll come back from):
-    /// each waiting one is a notice instead, so none shows later at another world.
+    /// planet-side or orbit screen, nor in a talk they'll come back from):
+    /// each waiting one is a notice instead, so none shows later at another
+    /// world; at the system screen (<paramref name="keepArrivals"/>) a
+    /// world's report as the ship comes to it is kept, to be shown there.
     /// </summary>
-    public void NoticeOwnReports()
+    public void NoticeOwnReports(bool keepArrivals = false)
     {
-        while (_ownReports.TryDequeue(out var text))
-            Notify(text, ReportSeconds);
+        int count = _ownReports.Count;
+        for (int i = 0; i < count; ++i)
+        {
+            var report = _ownReports.Dequeue();
+            if (keepArrivals && report.Arrival)
+                _ownReports.Enqueue(report);
+            else
+                Notify(report.Text, ReportSeconds);
+        }
     }
 
     /// <summary>How long a lander report shown as a notice stays up at least (a longer one a page at a time, each its share or as long as it takes to read, <see cref="Notify"/>).</summary>
