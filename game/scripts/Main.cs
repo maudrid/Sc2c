@@ -535,6 +535,9 @@ public partial class Main : Node2D
             // what it gives stays (the Orz at the Taalo moon, the Pkunk's ships: stage 3b-2 item 7).
             if (_options.StartAllied is { } allied)
                 Log(host.StartAllied(allied));
+            // Races extinct before the place too, so --start-orbit at their homeworld finds the ruins, not their talk.
+            if (_options.StartExtinct is { } extinct)
+                Log(host.StartExtinct(extinct));
             if (_options.StartFleet is { } fleet)
                 Log(host.StartWithFleet(fleet));
             // The clock moved on after the story and before the place, so its events see the story as set and the

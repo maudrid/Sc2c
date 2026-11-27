@@ -303,6 +303,29 @@ public sealed class HostSession
     }
 
     /// <summary>
+    /// --start-extinct SHIP,... (testing, the stage 3c plan's item 6): these
+    /// ships' races are extinct, as the calendar's deaths leave a race (its
+    /// fleet's strength 0, DEAD_GUY), by data/ships.json's id as
+    /// --start-allied's, so their homeworlds' ruins can be reached (their
+    /// talk no longer starts). Changes whatever game is loaded, and is
+    /// saved with it. Needs the story (InvalidOperationException); a ship
+    /// of no race that can have a fleet is an ArgumentException, changing
+    /// nothing.
+    /// </summary>
+    public string StartExtinct(IEnumerable<string> ships)
+    {
+        if (World.Story is not { } story)
+            throw new InvalidOperationException("the races' fates need the content");
+        var races = ships.Select(s => story.Rules.RaceOfShip(s) ?? throw new ArgumentException($"{s}: no ship of a race that has a fleet")).ToList();
+        foreach (var r in races)
+        {
+            story.SetFleet(r.Race, story.Fleet(r.Race) with { ActualStrength = 0 });
+            story.SetAlliance(r.Race, Story.Allied.Dead);
+        }
+        return $"Starting with {string.Join(", ", races.Select(r => r.Ship))} extinct";
+    }
+
+    /// <summary>
     /// --start-date YYYY-MM-DD (testing, the stage 3c plan's item 1): the
     /// clock moved on to that day, as the starbase's two weeks move it
     /// (MoveGameClockDays): each day's events run, the location gates

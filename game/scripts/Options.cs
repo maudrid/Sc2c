@@ -68,7 +68,7 @@ namespace Crateris.Game;
 /// credits, ...) is refused, but USED_BROADCASTER and the devices held by ships, which are set on the host's ship; set
 /// before the other --start options, so --start-orbit's world sees them),
 /// (a --start option refused, with a notice, stops the ones after it: --start-state, then --start-devices, then
-/// --start-allied, then --start-fleet, then --start-date, then the others in the order Main.ApplyStartOptions applies them; --encounter-choice, --meeting-replies, --guests-in-orbit
+/// --start-allied, then --start-extinct, then --start-fleet, then --start-date, then the others in the order Main.ApplyStartOptions applies them; --encounter-choice, --meeting-replies, --guests-in-orbit
 /// and --guests-in-battle are set before them all, so a refused one doesn't drop those),
 /// --start-fleet SHIP[:CREW][,SHIP[:CREW]] (host: the host's fleet is these ships, up to 12, by data/ships.json's id,
 /// each with that crew or its race's starting crew; not androsyn, chenjesu or mmrnmhrm, races with no fleet; set
@@ -76,6 +76,9 @@ namespace Crateris.Game;
 /// --start-allied SHIP[,SHIP] (host: these ships' races are allied, so the shipyard builds their ships, by
 /// data/ships.json's id, as --start-fleet's; set before --start-fleet, --start-at and --start-orbit, so
 /// --start-orbit's world sees them),
+/// --start-extinct SHIP[,SHIP] (host: these ships' races are extinct, their fleets gone, by data/ships.json's id, as
+/// --start-allied's, so their homeworlds' ruins can be reached; set after --start-allied and before --start-fleet,
+/// --start-at and --start-orbit, so --start-orbit's world sees them),
 /// --start-date YYYY-MM-DD (host: the clock moved on to that day, no earlier than the game's, each day passing as
 /// the starbase's two weeks pass, its events run and the fleets moved, but no hyperspace encounters rolled; set after
 /// --start-state, --start-devices, --start-allied and --start-fleet, so the events see them, and before the place),
@@ -88,8 +91,8 @@ namespace Crateris.Game;
 /// --show-report RESOURCE[:ENTRY] (shows that lander report, its first entry or the one given, as if the player's lander had found it: on the screen when the game starts in orbit, with --start-orbit; else a notice).
 /// --start-at, --start-orbit, --start-visit, --start-docked, --start-battle and --start-encounter never load the default save
 /// nor write over it: a new game unless --load names one (then they apply to it), saved only to a --save file;
-/// --start-minerals, --start-units, --start-credits, --start-fuel, --start-devices, --start-state, --start-fleet, --start-allied
-/// and --start-date alone change whatever game is loaded, and are saved with it.
+/// --start-minerals, --start-units, --start-credits, --start-fuel, --start-devices, --start-state, --start-fleet, --start-allied,
+/// --start-extinct and --start-date alone change whatever game is loaded, and are saved with it.
 /// With no options the game starts as a solo host.
 /// </summary>
 public sealed class Options
@@ -178,6 +181,9 @@ public sealed class Options
 
     /// <summary>--start-allied SHIP[,...]: these ships' races are allied (testing: the shipyard builds their ships).</summary>
     public string[]? StartAllied { get; private set; }
+
+    /// <summary>--start-extinct SHIP[,...]: these ships' races are extinct (testing: their homeworlds' ruins).</summary>
+    public string[]? StartExtinct { get; private set; }
 
     /// <summary>--start-date YYYY-MM-DD: the clock moved on to that day, each day's events run (testing: the calendar's events).</summary>
     public string? StartDate { get; private set; }
@@ -284,6 +290,7 @@ public sealed class Options
                     break;
                 case "--start-fleet": o.StartFleet = Next().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries); break;
                 case "--start-allied": o.StartAllied = Next().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries); break;
+                case "--start-extinct": o.StartExtinct = Next().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries); break;
                 case "--start-date": o.StartDate = Next(); break;
                 case "--show-report": o.ShowReport = ReportArg(Next()); break;
                 case "--start-orbit":

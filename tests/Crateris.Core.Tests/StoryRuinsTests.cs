@@ -6,6 +6,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Core.Data;
 using Crateris.Core.Planetside;
 using Crateris.Core.Session;
 using Crateris.Core.Story;
@@ -27,6 +28,8 @@ namespace Crateris.Core.Tests;
 [Trait("Topic", "story")]
 public class StoryRuinsTests
 {
+    private static readonly string DataDir = Path.Combine(AppContext.BaseDirectory, "data");
+
     // A site's world, its ship (or ships) in orbit around it.
     private static (GameWorld World, WorldId At) Orbiting(string special, params string[] ids)
     {
@@ -85,6 +88,28 @@ public class StoryRuinsTests
         Assert.Null(world.Host.Ship.Discovery);
         Assert.Equal(new[] { ("guest", new LanderReport(StoryWorlds.RuinsReport)) }, Touch(world, guest, EnergyNode(world, at, 5)));
         Assert.Null(lander.Report!.FoundBy);   // nor the host of the guest's
+    }
+
+    [ContentFact]
+    public void ARaceMadeExtinctByASetUpLeavesItsRuinsWhereItsTalkWas()
+    {
+        // --start-extinct: the race's fleet gone and DEAD_GUY, as the calendar's deaths leave it; orbiting its
+        // homeworld then is the ruins' orbit, not its talk (gensup.c's StartSphereTracking).
+        var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, SystemGroupTests.Systems.Value.Map), "host",
+            "Host", SystemGroupTests.Systems.Value, TestContent.Shapes);
+        var world = host.World;
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        world.DialogueLocks = Comm.DialogueLocks.Load(DataDir);
+        int star = Star(world, "SUPOX_DEFINED");
+        Assert.NotNull(world.WorldTalkAt(star, 0, null));
+        Assert.Equal("Starting with supox extinct", host.StartExtinct(new[] { "supox" }));
+        Assert.Equal((Allied.Dead, 0), (world.Story!.Alliance("SUPOX_SHIP"), world.Story.Fleet("SUPOX_SHIP").ActualStrength));
+        Assert.Null(world.WorldTalkAt(star, 0, null));
+        world.PutInOrbit("host", star, 0);
+        Assert.Equal(new ReportPlace(new WorldId(star, 0, null), "text.ultron", 0), world.Host.Ship.Discovery);
+        // A ship of no race with a fleet is refused, changing nothing.
+        Assert.Throws<ArgumentException>(() => host.StartExtinct(new[] { "druuge", "androsyn" }));
+        Assert.NotEqual(Allied.Dead, world.Story.Alliance("DRUUGE_SHIP"));
     }
 
     [ContentFact]
