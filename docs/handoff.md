@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3c items 1 to 4 built, reviewed and reported; item 5 part 1 (devices held by ships) built (`50dca34`..`1fd8246`, its Progress row), review round 1 found two save bugs (a starter's or a battle-destroyed guest's devices held twice after they leave), a gift-in-talk race, test gaps and nits; the builder is fixing them.
+**Last updated:** 2026-11-27. Stage 3c items 1 to 4 built, reviewed and reported; item 5 part 1 (devices held by ships) built and reviewed in three rounds; part 2 (reports, surface sheets, single-node pickups) being built by a builder subagent.
 
 ## Where things are
 
@@ -13,7 +13,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Before it:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (3c item 4, review round 1's fixes, 2026-11-27): `run_tests.py` ran all 16 topics, 2,754 passed, 0 failed, 0 skipped with the content set; the game build (the two long-standing warnings, `Main.cs`'s CS8602 and `ReportView.cs`'s CS0108, the builder's run); `clock-events.json` re-records byte for byte (the builder's run). Round 2's fixes were comments and docs only. Protocol 35 (item 4's game-over reason). Not run: `tools/test_network.py` and the data checks.
+- **Last checks** (3c item 5 part 1, review round 1's fixes, 2026-11-27): `run_tests.py` ran all 16 topics, 2,778 passed, 0 failed, 0 skipped with the content set; the game build (the two long-standing warnings, `Main.cs`'s CS8602 and `ReportView.cs`'s CS0108). Round 2's fixes were comments and docs only. Protocol 36, save version 15. Not run: `tools/test_network.py` and the data checks.
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
@@ -70,7 +70,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Build stage 3c item 5 (devices held by ships, reports and the artifact pickups), at the owner's go-ahead of 2026-11-27 ("do the next step"), which covers item 5 alone: part 1 (devices held by ships, question 5) first (built in `50dca34`..`1fd8246`; every topic 2,772 passed, 0 failed, 0 skipped; protocol 36, save version 15; review round 1's findings being fixed), then part 2 (reports' entries, the surface sheets, the single-node pickups); then review it (`CLAUDE.md`), report, and wait for the owner before item 6. Item 4 was reviewed in three rounds (its Progress row).
+Build stage 3c item 5 (devices held by ships, reports and the artifact pickups), at the owner's go-ahead of 2026-11-27 ("do the next step"), which covers item 5 alone: part 1 (devices held by ships, question 5) first (built in `50dca34`..`1fd8246`, reviewed in three rounds: round 1's two save bugs, a gift-in-talk race, test gaps and nits fixed in `d2bd12f`; round 2's docs nits in `3b50013`; round 3 nothing; protocol 36, save version 15), then part 2 (reports' entries, the surface sheets, the single-node pickups); then review it (`CLAUDE.md`), report, and wait for the owner before item 6. Item 4 was reviewed in three rounds (its Progress row).
 
 ## Decisions waiting on the owner
 
