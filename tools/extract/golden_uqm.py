@@ -8358,8 +8358,9 @@ CLOCK_LINK += [f"uqm/ships/{ship}/{ship}.c" for ship in sorted(
 # The clock's scenarios: commands for golden/clock.c ("new", "day N",
 # "move N", "hyper 0|1", "rampdown", "dest R X Y D F", "growth R G F E",
 # "track R", "system S", "add R M D Y E", "strength R N", "ally R F",
-# "crew B C", "distress N"; races by races.h's *_SHIP number, events by
-# gameev.h's, systems by gendef.h's *_DEFINED).
+# "crew B C", "distress N", "state F N"; races by races.h's *_SHIP number,
+# events by gameev.h's, systems by gendef.h's *_DEFINED, F a mission field
+# of golden/clock.c's MISSION_FIELDS by name).
 # A new game's Slylandro ramp-ups fall
 # on 17 February 2155 (at once), 18 August 2155, 16 February and 16 August
 # 2156 (a leap year), and the one on 14 February 2157 (728 days in) finds
@@ -8417,6 +8418,44 @@ CLOCK_SCENARIOS = [
     # crew price of 1, which wraps round the BYTE to 255.
     ("the events undone", ["new", "add 1 3 0 0 6", "strength 6 0", "ally 6 1", "add 1 0 5 0 11", "crew 2 1",
                            "add 1 0 7 0 8", "day 10", "move 90", "distress 0", "move 200", "day 2"]),
+    # The missions (stage 3c item 3), each started as its talk starts it,
+    # day by day over its whole course. The Pkunk's (4): queued six months
+    # on by their friendship, their migration to the Yehat (11) begun, then
+    # turned home by a good reason (at once) 60 days on, home after as long
+    # again, three months' wait, off again, and absorbed by the Yehat on
+    # arriving (the Yehat's sphere tracked).
+    ("the Pkunk's migration", ["new", "add 1 6 0 0 4", "move 175", "day 15", "day 60", "add 1 0 0 0 4", "day 70",
+                               "move 80", "day 20", "day 175"]),
+    # The Ilwrath's war (12, at once from their "gods"), the Thraddash (8)
+    # allied and never gone: 90 days to the Thraddash's borders, then both
+    # races losing all over 128 days as the Ilwrath close on the midpoint,
+    # the Thraddash no longer allies, their visits counted afresh.
+    ("the Ilwrath's war", ["new", "ally 8 1", "state THRADD_VISITS 3", "add 1 0 0 0 12", "day 230"]),
+    # The Thraddash's mission (5, at once from their talk) begun while the
+    # Ilwrath are on their way: recalled home from the Kohr-Ah as the war
+    # starts, and on arriving the Ilwrath's mission run at once from
+    # theirs, sending them to the midpoint.
+    ("the Thraddash recalled to the war", ["new", "add 1 0 0 0 12", "day 80", "add 1 0 0 0 5", "day 180"]),
+    # The Thraddash's mission over its whole course (to the Kohr-Ah, half
+    # lost, home), then the Ilwrath's war with them at home.
+    ("the Thraddash's mission", ["new", "add 1 0 0 0 5", "day 50", "add 1 0 0 0 12", "day 230"]),
+    # The Mycon's (13, at once from their talk): to Organon in 30 days (the
+    # starbase's two weeks passing over their arrival), half lost there
+    # over 14, then on to (6392, 2200) knowing the ambush.
+    ("the Mycon's mission", ["new", "add 1 0 0 0 13", "day 20", "move 14", "day 50"]),
+    # The Utwig's and the Supox's (9, at once from the Utwig's talk): to
+    # the Kohr-Ah in 21 days, their visits, information and news counted
+    # afresh; half of each lost over 160 days; home in 21.
+    ("the Utwig's and the Supox's mission", ["new", "state UTWIG_VISITS 3", "state UTWIG_INFO 2", "state SUPOX_VISITS 4",
+                                             "state SUPOX_INFO 1", "state UTWIG_WAR_NEWS 2", "state SUPOX_WAR_NEWS 1",
+                                             "add 1 0 0 0 9", "day 30", "state UTWIG_WAR_NEWS 1", "day 190"]),
+    # Missions with no fleet: the Utwig gone (only the count goes on), the
+    # Pkunk and the Thraddash gone (nothing; the Thraddash's count goes on);
+    # and the Mycon with too little to lose a whole ship a day (their
+    # growth 0, its fraction counted), so at Organon their event finds no
+    # growth and makes them wait there again.
+    ("the missions undone", ["new", "strength 9 0", "add 1 0 0 0 9", "strength 4 0", "add 1 0 0 0 4", "strength 8 0",
+                             "add 1 0 0 0 5", "strength 15 20", "add 1 0 0 0 13", "day 90"]),
 ]
 
 
@@ -8461,7 +8500,8 @@ def record_clock(uqm, exe):
         "ABSOLUTE_EVENT, M, D, Y, E), as a talk queues an event; strength R "
         "N: race R's actual_strength N; ally R F: SetRaceAllied (R, F); crew "
         "B C: CREW_PURCHASED0 and 1 the crew bought B, CrewCost C; distress "
-        "N: ZOQFOT_DISTRESS N) and its steps: one after new, rampdown, track "
+        "N: ZOQFOT_DISTRESS N; state F N: the mission field F N, as a talk "
+        "sets it) and its steps: one after new, rampdown, track "
         "and add, one each day of day, one for the whole of move.",
         "A step: [[year, month, day] after it, [[event, depth, year, month, "
         "day]...] each event EventHandler ran, in order, depth 0 for those "
@@ -8475,7 +8515,12 @@ def record_clock(uqm, exe):
         "(FLEET_INFO in avail_race_q) that changed since the step before "
         "(every race's after new), [ARILOU_SPACE, ARILOU_CHECKED_UMGAH, "
         "ZOQFOT_DISTRESS, SPATHI_SHIELDED_SELVES, CREW_PURCHASED0, "
-        "CREW_PURCHASED1, CrewCost] after it], and after track one more: "
+        "CREW_PURCHASED1, CrewCost, PKUNK_MISSION, PKUNK_ON_THE_MOVE, "
+        "PKUNK_SWITCH, YEHAT_ABSORBED_PKUNK, THRADD_MISSION, "
+        "ILWRATH_FIGHT_THRADDASH, HELIX_UNPROTECTED, THRADD_VISITS, "
+        "MYCON_KNOW_AMBUSH, UTWIG_SUPOX_MISSION, UTWIG_VISITS, UTWIG_INFO, "
+        "SUPOX_VISITS, SUPOX_INFO, UTWIG_WAR_NEWS, SUPOX_WAR_NEWS] after it], "
+        "and after track one more: "
         "StartSphereTracking's result. Events are gameev.h's numbers "
         "(data/events.json), races races.h's (data/races.json's order). An "
         "event a fleet's arrival runs (gameev.c's own EventHandler call) "
@@ -8562,15 +8607,53 @@ def check_clock(scenarios, events):
 
     if (runs(ev, DISTRESS) != 3 or runs(ev, SHIELD) != 4 or runs(ev, DEATH) != 2 or runs(ev, SHOFIXTI_RETURN) != 1
             or runs(ev, UMGAH_CHECK) != 1 or runs(ev, REBELS_EVENT) != 1 or runs(ev, ARILOU) < 6
-            or ev[-1][6][1:] != [2, 2, 1, 0, 0, 3] or fleet_of(ev, ZOQFOT)[1:3] != [0, 0]
+            or ev[-1][6][1:7] != [2, 2, 1, 0, 0, 3] or fleet_of(ev, ZOQFOT)[1:3] != [0, 0]
             or fleet_of(ev, SPATHI)[1:3] != [2, 0] or fleet_of(ev, SHOFIXTI)[1] != 1
             or fleet_of(ev, REBELS)[2] == 0 or fleet_of(ev, REBELS)[2] != fleet_of(ev, YEHAT)[2]
             or fleet_of(ev, REBELS)[4:6] != [5150, 0] or ev[-1][7] != REBELS):
         raise RuntimeError("clock: the events with no mission don't run, wait and change the story as the scenario has them")
     undone = by["the events undone"]["steps"]
-    if (runs(undone, DEATH) != 1 or undone[-1][6][2:] != [0, 0, 0, 0, 255] or fleet_of(undone, ZOQFOT)[1] == 0
+    if (runs(undone, DEATH) != 1 or undone[-1][6][2:7] != [0, 0, 0, 0, 255] or fleet_of(undone, ZOQFOT)[1] == 0
             or fleet_of(undone, SPATHI)[1] != 1):
         raise RuntimeError("clock: the rescue, the Spathi gone and the crew price's wrap aren't as the scenario has them")
+    # The missions: the story after each scenario, [..., CrewCost (6),
+    # PKUNK_MISSION 7, PKUNK_ON_THE_MOVE 8, PKUNK_SWITCH 9,
+    # YEHAT_ABSORBED_PKUNK 10, THRADD_MISSION 11, ILWRATH_FIGHT_THRADDASH
+    # 12, HELIX_UNPROTECTED 13, THRADD_VISITS 14, MYCON_KNOW_AMBUSH 15,
+    # UTWIG_SUPOX_MISSION 16, UTWIG_VISITS 17, UTWIG_INFO 18, SUPOX_VISITS
+    # 19, SUPOX_INFO 20, UTWIG_WAR_NEWS 21, SUPOX_WAR_NEWS 22].
+    PKUNK, SUPOX, UTWIG, MYCON = 4, 7, 9, 15
+    PKUNK_EVENT, THRADD_EVENT, UTWIG_EVENT, ILWRATH_EVENT, MYCON_EVENT = 4, 5, 9, 12, 13
+
+    def story(name):
+        return by[name]["steps"][-1][6]
+
+    pk = by["the Pkunk's migration"]["steps"]
+    if (runs(pk, PKUNK_EVENT) != 3 or story("the Pkunk's migration")[7:11] != [4, 1, 0, 1]
+            or fleet_of(pk, PKUNK)[1:3] != [0, 0] or fleet_of(pk, PKUNK)[4:6] != [4970, 400]
+            or fleet_of(pk, YEHAT)[3] != 1):
+        raise RuntimeError("clock: the Pkunk don't migrate, turn home, wait and get absorbed as the scenario has them")
+    for name, thradd_state in (("the Ilwrath's war", 0), ("the Thraddash recalled to the war", 4),
+                               ("the Thraddash's mission", 4)):
+        steps = by[name]["steps"]
+        if (story(name)[11:15] != [thradd_state, 1, 1, 0] or fleet_of(steps, ILWRATH)[1:3] != [0, 0]
+                or fleet_of(steps, THRADDASH)[1:3] != [0, 0] or fleet_of(steps, ILWRATH)[4:6] != [2517, 8214]):
+            raise RuntimeError(f"clock {name}: the Ilwrath's war doesn't end with both races dead")
+    if not any(r[0] == ILWRATH_EVENT and r[1] == 1 for s in by["the Thraddash recalled to the war"]["steps"] for r in s[1]):
+        raise RuntimeError("clock: the recalled Thraddash's arrival doesn't run the Ilwrath's mission at once")
+    if runs(by["the Thraddash's mission"]["steps"], THRADD_EVENT) != 1:
+        raise RuntimeError("clock: the Thraddash's mission isn't started once by its talk")
+    my = by["the Mycon's mission"]["steps"]
+    if (runs(my, MYCON_EVENT) != 2 or story("the Mycon's mission")[15] != 1 or fleet_of(my, MYCON)[4:6] == [6858, 577]
+            or fleet_of(my, MYCON)[8:10] != [0, 0] or fleet_of(my, MYCON)[12] != 255):
+        raise RuntimeError("clock: the Mycon don't go to Organon, lose half and head on as the scenario has them")
+    us = by["the Utwig's and the Supox's mission"]["steps"]
+    if (runs(us, UTWIG_EVENT) != 3 or story("the Utwig's and the Supox's mission")[16:23] != [6, 0, 0, 0, 0, 0, 0]
+            or fleet_of(us, UTWIG)[4:6] != [8534, 8797] or fleet_of(us, SUPOX)[4:6] != [7468, 9246]
+            or fleet_of(us, UTWIG)[2] != 60 or fleet_of(us, SUPOX)[2] != 30):
+        raise RuntimeError("clock: the Utwig and the Supox don't fight the Kohr-Ah and come home as the scenario has them")
+    if story("the missions undone")[11] != 1 or story("the missions undone")[16] != 1 or story("the missions undone")[7] != 0:
+        raise RuntimeError("clock: the missions with no fleet don't count as the scenario has them")
 
 
 CMAP_PROGRAM = os.path.join(HERE, "golden", "cmap.c")

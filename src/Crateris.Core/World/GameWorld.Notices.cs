@@ -68,8 +68,8 @@ public sealed partial class GameWorld
 
     private string RaceNameOf(int race) => Meeting.RaceName(Story!.Rules.Races[race]);
 
-    private void Notice(Player to, NoticeEvent ev, string by, string race, int count = 0) =>
-        _worldNotices.Add(new WorldNotice(to.Id, ev, NameOf(by), race, count));
+    private void Notice(Player to, NoticeEvent ev, string by, string race, int count = 0, string detail = "") =>
+        _worldNotices.Add(new WorldNotice(to.Id, ev, NameOf(by), race, count, detail));
 
     // How many of each talk's events the others have been told of (TellTalkEffects).
     private readonly System.Runtime.CompilerServices.ConditionalWeakTable<Comm.Talk, System.Runtime.CompilerServices.StrongBox<int>> _talkTold = new();
@@ -91,11 +91,11 @@ public sealed partial class GameWorld
         var events = talk.Events;
         for (; told.Value < events.Count; ++told.Value)
         {
-            // A clock event the talk ran at once (the Yehat's civil war): told as the clock's are, as the talker's.
-            if (events[told.Value] is Comm.EventAdded { Relative: true, Months: 0, Days: 0, Years: 0 } ran
-                && Story is not null && StoryState.EventsRun.Contains(ran.Event))
+            // A clock event the talk ran at once (the Yehat's civil war, a mission's start): what it told, as the talker's.
+            if (events[told.Value] is Comm.EventAdded)
             {
-                TellStoryEvent(ran.Event, talker.Id);
+                foreach (var news in talk.NewsOf(told.Value))
+                    TellStoryEvent(news, talker.Id);
                 continue;
             }
             if (events[told.Value] is Comm.CostsChanged costs)
@@ -130,30 +130,25 @@ public sealed partial class GameWorld
     }
 
     /// <summary>
-    /// One of the clock's events that changed a race (stage 3c item 1; the
-    /// owner, 2026-11-21: every event that changes a race is told to every
-    /// player), told to every player present but <paramref name="by"/>,
-    /// the player whose talk ran it ("" for the clock's own: told to
-    /// everyone, a player alone too, as nobody set it off): the Shofixti's
-    /// return, the Spathi's shield, the Zoq-Fot-Pik's distress and death,
-    /// the Yehat's civil war. The others (the Arilou's portal, their look
-    /// at the Umgah) change no race, and tell nothing.
+    /// What one of the clock's events told (<see cref="StoryState.StoryNews"/>:
+    /// stage 3c item 1; the owner, 2026-11-21: every event that changes a
+    /// race is told to every player), told to every player present but
+    /// <paramref name="by"/>, the player whose talk ran it ("" for the
+    /// clock's own: told to everyone, a player alone too, as nobody set it
+    /// off): the Shofixti's return, the Spathi's shield, the Zoq-Fot-Pik's
+    /// distress and death, the Yehat's civil war, and since item 3 each
+    /// mission's steps (a fleet setting off, arriving, losing ships, heading
+    /// home, destroyed) and a race its losses run out. The events that
+    /// change no race (the Arilou's portal, their look at the Umgah, a
+    /// mission's wait) tell nothing.
     /// </summary>
-    internal void TellStoryEvent(string evt, string by)
+    internal void TellStoryEvent(StoryState.StoryNews news, string by)
     {
-        (NoticeEvent Event, string Race, int Count)? notice = evt switch
-        {
-            "SHOFIXTI_RETURN_EVENT" => (NoticeEvent.Returned, "SHOFIXTI_SHIP", Story!.CrewCost),
-            "SPATHI_SHIELD_EVENT" => (NoticeEvent.Shielded, "SPATHI_SHIP", 0),
-            "ZOQFOT_DISTRESS_EVENT" => (NoticeEvent.Distress, "ZOQFOTPIK_SHIP", 0),
-            "ZOQFOT_DEATH_EVENT" => (NoticeEvent.Extinct, "ZOQFOTPIK_SHIP", 0),
-            "YEHAT_REBEL_EVENT" => (NoticeEvent.CivilWar, "YEHAT_SHIP", 0),
-            _ => null,
-        };
-        if (notice is not { } n)
-            return;
+        string race = Meeting.RaceName(news.Race) + (news.Also is { } also ? " and the " + Meeting.RaceName(also) : "");
+        // A talk's mission step says whose talk it was, as the talks' ships do.
+        string detail = news.Event == NoticeEvent.Mission && by.Length > 0 ? $"{news.Detail} ({NameOf(by)}'s talk)" : news.Detail;
         foreach (var p in Others(by))
-            Notice(p, n.Event, by, Meeting.RaceName(n.Race), n.Count);
+            Notice(p, news.Event, by, race, news.Count, detail);
     }
 
     // A module's name in a notice (sis.h's number).

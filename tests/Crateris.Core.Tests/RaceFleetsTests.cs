@@ -103,27 +103,38 @@ public class RaceFleetsTests
     // ---- check_race_growth's arrivals, SetRaceDest, StartSphereTracking
 
     [Fact]
-    public void AFleetsArrivalRunsItsEventOr3csIsSetAside()
+    public void AFleetsArrivalRunsItsEventOrTheKohrAhsIsSetAside()
     {
         var world = NewWorld();
         var story = world.Story!;
         story.SetRaceDest("ILWRATH_SHIP", 2500, 8070, 3, "ADVANCE_ILWRATH_MISSION");
         story.SetRaceDest("URQUAN_SHIP", 5000, 5000, 2, "SLYLANDRO_RAMP_UP");
         story.SetRaceDest("SPATHI_SHIP", 0, 0, 2, null);
+        story.SetRaceDest("VUX_SHIP", 10, 10, 1, "KOHR_AH_GENOCIDE_EVENT");
         var done = world.MoveClockDays(3);
         // The Ur-Quan's arrival on the second day ran the ramp-up (not one the clock took off its queue).
         Assert.Equal(2, story.Get("SLYLANDRO_MULTIPLIER"));
         Assert.Contains(new StoryEvent("SLYLANDRO_RAMP_UP", 2155, 8, 18), story.Events);
         Assert.Contains(new StoryEvent("SLYLANDRO_RAMP_UP", 2155, 8, 20), story.Events);   // 182 days from 19 February
-        Assert.All(done, e => Assert.Equal("HYPERSPACE_ENCOUNTER_EVENT", e.Event.Event));
-        // The Ilwrath's on the third, one of 3c's: set aside on that day for 3c.
-        Assert.Equal(new[] { new StoryEvent("ADVANCE_ILWRATH_MISSION", 2155, 2, 20) }, story.Events.SetAside);
-        Assert.Equal((2500, 8070, 0), (story.Fleet("ILWRATH_SHIP").LocX, story.Fleet("ILWRATH_SHIP").LocY, story.Fleet("ILWRATH_SHIP").DaysLeft));
+        // Each listed as an arrival after its day's event: the Kohr-Ah's (stage 3c item 4's) set aside on
+        // the first day; the Ilwrath's mission run on the third (stage 3c item 3), their war begun.
+        Assert.Equal(new[]
+        {
+            new StoryState.DueEvent(new StoryEvent("HYPERSPACE_ENCOUNTER_EVENT", 2155, 2, 18), false),
+            new StoryState.DueEvent(new StoryEvent("KOHR_AH_GENOCIDE_EVENT", 2155, 2, 18), true, Arrival: true),
+            new StoryState.DueEvent(new StoryEvent("HYPERSPACE_ENCOUNTER_EVENT", 2155, 2, 19), false),
+            new StoryState.DueEvent(new StoryEvent("SLYLANDRO_RAMP_UP", 2155, 2, 19), false, Arrival: true),
+            new StoryState.DueEvent(new StoryEvent("HYPERSPACE_ENCOUNTER_EVENT", 2155, 2, 20), false),
+            new StoryState.DueEvent(new StoryEvent("ADVANCE_ILWRATH_MISSION", 2155, 2, 20), false, true, Arrival: true),
+        }, done);
+        Assert.Equal(new[] { new StoryEvent("KOHR_AH_GENOCIDE_EVENT", 2155, 2, 18) }, story.Events.SetAside);
+        Assert.Equal((2500, 8070, 127, 1), (story.Fleet("ILWRATH_SHIP").LocX, story.Fleet("ILWRATH_SHIP").LocY,
+            story.Fleet("ILWRATH_SHIP").DaysLeft, story.Get("ILWRATH_FIGHT_THRADDASH")));
         // The Spathi there, with nothing to run.
         Assert.Equal((0, 0, 0), (story.Fleet("SPATHI_SHIP").LocX, story.Fleet("SPATHI_SHIP").LocY, story.Fleet("SPATHI_SHIP").DaysLeft));
         // Arrived, they stay.
         world.MoveClockDays(3);
-        Assert.Equal((2500, 8070), (story.Fleet("ILWRATH_SHIP").LocX, story.Fleet("ILWRATH_SHIP").LocY));
+        Assert.Equal((0, 0), (story.Fleet("SPATHI_SHIP").LocX, story.Fleet("SPATHI_SHIP").LocY));
         Assert.Single(story.Events.SetAside);
     }
 

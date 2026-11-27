@@ -470,20 +470,68 @@ public sealed class StoryState
 
     /// <summary>
     /// The events the port runs (EventHandler's cases): the daily hyperspace
-    /// encounters and the Slylandro ramps (stage 3b-1), and since stage 3c
-    /// item 1 the events with no mission: the Arilou's portal opening and
+    /// encounters and the Slylandro ramps (stage 3b-1), since stage 3c
+    /// item 1 the events with no mission (the Arilou's portal opening and
     /// closing, their look at the Umgah, the Shofixti's return, the
     /// Spathi's shield, the Zoq-Fot-Pik's distress and death, and the Yehat
-    /// rebels. The others (the races' missions, the Kohr-Ah's victory and
-    /// genocide: stage 3c items 3 and 4) are still set aside on their day
-    /// (<see cref="EventQueue.SetAside"/>, stage 3b decision 9).
+    /// rebels), and since item 3 the races' missions (the Pkunk's, the
+    /// Thraddash's, the Ilwrath's, the Mycon's and the Utwig's and Supox's).
+    /// The Kohr-Ah's victory and genocide (stage 3c item 4) are still set
+    /// aside on their day (<see cref="EventQueue.SetAside"/>, stage 3b
+    /// decision 9).
     /// </summary>
     public static readonly IReadOnlySet<string> EventsRun = new HashSet<string>
     {
         "HYPERSPACE_ENCOUNTER_EVENT", "SLYLANDRO_RAMP_UP", "SLYLANDRO_RAMP_DOWN",
         "ARILOU_ENTRANCE_EVENT", "ARILOU_EXIT_EVENT", "ARILOU_UMGAH_CHECK", "SHOFIXTI_RETURN_EVENT",
         "SPATHI_SHIELD_EVENT", "ZOQFOT_DISTRESS_EVENT", "ZOQFOT_DEATH_EVENT", "YEHAT_REBEL_EVENT",
+        "ADVANCE_PKUNK_MISSION", "ADVANCE_THRADD_MISSION", "ADVANCE_ILWRATH_MISSION", "ADVANCE_MYCON_MISSION",
+        "ADVANCE_UTWIG_SUPOX_MISSION",
     };
+
+    /// <summary>The races' missions' events (stage 3c item 3), each also a fleet's arrival.</summary>
+    public static readonly IReadOnlySet<string> MissionEvents = new HashSet<string>
+    {
+        "ADVANCE_PKUNK_MISSION", "ADVANCE_THRADD_MISSION", "ADVANCE_ILWRATH_MISSION", "ADVANCE_MYCON_MISSION",
+        "ADVANCE_UTWIG_SUPOX_MISSION",
+    };
+
+    /// <summary>
+    /// What an event did that the players are told (stage 3b decision 11;
+    /// the owner, 2026-11-21: every event that changes a race is told to
+    /// every player): the notice, the race it's about (a ship name) and a
+    /// second one for an event about two (the Utwig and the Supox, the
+    /// Ilwrath and the Thraddash), a number (the crew's new price for the
+    /// Shofixti's return) and, for a mission's step, what the fleets are
+    /// doing in words (<see cref="NoticeEvent.Mission"/>: "have set off to
+    /// attack the Kohr-Ah").
+    /// </summary>
+    public sealed record StoryNews(NoticeEvent Event, string Race, string? Also = null, int Count = 0, string Detail = "");
+
+    // What the events run have told, in order, until taken (TakeNews).
+    private readonly List<StoryNews> _news = new();
+
+    /// <summary>How many pieces of news the events have told that haven't been taken (<see cref="TakeNews"/>).</summary>
+    public int NewsCount => _news.Count;
+
+    /// <summary>
+    /// The news the events run have told since the <paramref name="from"/>th
+    /// not yet taken, in order, taken: the world tells the clock's to every
+    /// player (GameWorld.RunDayEvents), a talk keeps what the events it ran
+    /// at once told (Talk.AddEvent).
+    /// </summary>
+    public List<StoryNews> TakeNews(int from = 0)
+    {
+        var taken = _news.Skip(from).ToList();
+        _news.RemoveRange(from, _news.Count - from);
+        return taken;
+    }
+
+    private void Tell(NoticeEvent ev, string race, string? also = null, int count = 0, string detail = "") =>
+        _news.Add(new StoryNews(ev, race, also, count, detail));
+
+    // A mission's step, told in words.
+    private void TellMission(string race, string detail, string? also = null) => Tell(NoticeEvent.Mission, race, also, 0, detail);
 
     /// <summary>ARILOU_SPACE's values (gameev.h): the portal closing or closed (CLOSING, 0), opening or open (OPENING, 1).</summary>
     public const int ArilouClosing = 0, ArilouOpening = 1;
@@ -517,10 +565,17 @@ public sealed class StoryState
     /// An event the clock took off the queue (or off the events set aside):
     /// run, or set aside until the port runs it (decision 9); <see cref="News"/>
     /// if running it changed a race, for the players to be told (stage 3b
-    /// decision 11; the owner, 2026-11-21); <see cref="Held"/> if its
-    /// location gate held it, queued again 7 days on (<see cref="RunEvent"/>).
+    /// decision 11; the owner, 2026-11-21: <see cref="TakeNews"/> has what);
+    /// <see cref="Held"/> if its location gate held it, queued again 7 days
+    /// on (<see cref="RunEvent"/>). <see cref="Arrival"/>: run by a fleet's
+    /// arrival (check_race_growth's own EventHandler call, as the day's
+    /// HYPERSPACE_ENCOUNTER_EVENT moved the fleet), not taken off the
+    /// queue; listed after that day's event.
     /// </summary>
-    public sealed record DueEvent(StoryEvent Event, bool SetAside, bool News = false, bool Held = false);
+    public sealed record DueEvent(StoryEvent Event, bool SetAside, bool News = false, bool Held = false, bool Arrival = false);
+
+    // The arrivals check_race_growth ran (or set aside) while the day's event ran, for RunDueEvents' list.
+    private readonly List<DueEvent> _arrivals = new();
 
     /// <summary>
     /// processClockDayEvents (clock.c), on <paramref name="clock"/>'s day:
@@ -555,6 +610,8 @@ public sealed class StoryState
                 var late = Events.TakeSetAside(aside);
                 var (news, held) = Run(late.Event, clock, hyperspaceRoll, playerInSystem);
                 done.Add(new DueEvent(late, false, news, held));
+                done.AddRange(_arrivals);
+                _arrivals.Clear();
                 continue;
             }
             if (!due)
@@ -564,6 +621,8 @@ public sealed class StoryState
             {
                 var (news, held) = Run(e.Event, clock, hyperspaceRoll, playerInSystem);
                 done.Add(new DueEvent(e, false, news, held));
+                done.AddRange(_arrivals);
+                _arrivals.Clear();
             }
             else
             {
@@ -576,12 +635,12 @@ public sealed class StoryState
 
     /// <summary>
     /// EventHandler (gameev.c), for the events the port runs
-    /// (<see cref="EventsRun"/>). The others (the races' missions, the
-    /// Kohr-Ah's victory and genocide) come with stage 3c's items 3 and 4;
-    /// until then the clock sets them aside (<see cref="RunDueEvents"/>),
-    /// and running one here throws. True if it changed a race (an
-    /// alliance, a death, a shield, a fleet), news for the players (and
-    /// <see cref="DueEvent.Held"/> says whether its gate held it).
+    /// (<see cref="EventsRun"/>). The others (the Kohr-Ah's victory and
+    /// genocide) come with stage 3c's item 4; until then the clock sets
+    /// them aside (<see cref="RunDueEvents"/>), and running one here
+    /// throws. True if it changed a race (an alliance, a death, a shield, a
+    /// fleet), news for the players, kept until taken (<see cref="TakeNews"/>;
+    /// and <see cref="DueEvent.Held"/> says whether its gate held it).
     /// <para>
     /// The location gates (gameev.c:76-105, 132-135): the Spathi's shield
     /// and the Zoq-Fot-Pik's distress and death wait 7 days at a time
@@ -596,8 +655,20 @@ public sealed class StoryState
     public bool RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null) =>
         Run(evt, clock, hyperspaceRoll, playerInSystem).News;
 
-    // RunEvent's work: whether the event changed a race, and whether its location gate held it (queued again).
+    // RunEvent's work: whether the event changed a race (told news), and whether its location gate held it (queued again).
     private (bool News, bool Held) Run(string evt, GameClock clock, Action? hyperspaceRoll, Func<string, bool>? playerInSystem)
+    {
+        int told = _news.Count, byArrivals = _toldByArrivals;
+        bool held = RunHandler(evt, clock, hyperspaceRoll, playerInSystem);
+        // A fleet's arrival's news is its own (its DueEvent's), not the day's event's.
+        return (_news.Count - told - (_toldByArrivals - byArrivals) > 0, held);
+    }
+
+    // How many pieces of news the fleets' arrivals have told (CheckRaceGrowth), for Run to tell its own apart.
+    private int _toldByArrivals;
+
+    // EventHandler's cases: true if the event's location gate held it (queued again).
+    private bool RunHandler(string evt, GameClock clock, Action? hyperspaceRoll, Func<string, bool>? playerInSystem)
     {
         bool Waits(string special)
         {
@@ -613,7 +684,7 @@ public sealed class StoryState
                 // arilou_entrance_event: the portal opens, for three days.
                 Set("ARILOU_SPACE", ArilouOpening);
                 AddEvent(true, 0, 3, 0, "ARILOU_EXIT_EVENT", clock, hyperspaceRoll, playerInSystem);
-                return (false, false);
+                return false;
             case "ARILOU_EXIT_EVENT":
             {
                 // arilou_exit_event: it closes, to open again on the 17th of next month.
@@ -623,7 +694,7 @@ public sealed class StoryState
                 ++month;
                 Set("ARILOU_SPACE", ArilouClosing);
                 AddEvent(false, month, 17, year, "ARILOU_ENTRANCE_EVENT", clock, hyperspaceRoll, playerInSystem);
-                return (false, false);
+                return false;
             }
             case "HYPERSPACE_ENCOUNTER_EVENT":
                 CheckRaceGrowth(clock, hyperspaceRoll, playerInSystem);
@@ -631,27 +702,29 @@ public sealed class StoryState
                 // world's, for each player in hyperspace (stage 3b item 3).
                 hyperspaceRoll?.Invoke();
                 AddEvent(true, 0, 1, 0, "HYPERSPACE_ENCOUNTER_EVENT", clock);
-                return (false, false);
+                return false;
             case "ZOQFOT_DISTRESS_EVENT":
                 if (Waits("ZOQFOT_DEFINED"))
-                    return (false, true);
+                    return true;
                 Set("ZOQFOT_DISTRESS", 1);
                 AddEvent(true, 6, 0, 0, "ZOQFOT_DEATH_EVENT", clock, hyperspaceRoll, playerInSystem);
-                return (true, false);
+                Tell(NoticeEvent.Distress, "ZOQFOTPIK_SHIP");
+                return false;
             case "ZOQFOT_DEATH_EVENT":
             {
                 if (Waits("ZOQFOT_DEFINED"))
-                    return (false, true);
+                    return true;
                 // Rescued; or their Kohr-Ah ship destroyed with the rescue to come at the next orbit (GuardsGone):
                 // spared, the event spent, as UQM's rescue would have followed the ship's destruction at once.
                 if (Get("ZOQFOT_DISTRESS") == 0 || _guardsGone.Contains("ZOQFOT_KOHR_AH"))
-                    return (false, false);
+                    return false;
                 // Not rescued: the Zoq-Fot-Pik die, their fleet gone.
                 int i = Rules.RaceIndex("ZOQFOTPIK_SHIP");
                 SetFleet(i, _fleets[i] with { ActualStrength = 0 });
                 SetAlliance("ZOQFOTPIK_SHIP", Allied.Dead);
                 Set("ZOQFOT_DISTRESS", 2);
-                return (true, false);
+                Tell(NoticeEvent.Extinct, "ZOQFOTPIK_SHIP");
+                return false;
             }
             case "SHOFIXTI_RETURN_EVENT":
                 // The Shofixti back and allied, and crew no longer an issue:
@@ -660,22 +733,24 @@ public sealed class StoryState
                 SetCrewCost((byte)(CrewCost - 2));
                 Set("CREW_PURCHASED0", 0);
                 Set("CREW_PURCHASED1", 0);
-                return (true, false);
+                Tell(NoticeEvent.Returned, "SHOFIXTI_SHIP", count: CrewCost);
+                return false;
             case "SPATHI_SHIELD_EVENT":
             {
                 if (Waits("SPATHI_DEFINED"))
-                    return (false, true);
+                    return true;
                 int i = Rules.RaceIndex("SPATHI_SHIP");
                 if (_fleets[i].ActualStrength == 0)
-                    return (false, false);
+                    return false;
                 SetRaceAllied("SPATHI_SHIP", false);
                 Set("SPATHI_SHIELDED_SELVES", 1);
                 SetFleet(i, _fleets[i] with { ActualStrength = 0 });
-                return (true, false);
+                Tell(NoticeEvent.Shielded, "SPATHI_SHIP");
+                return false;
             }
             case "ARILOU_UMGAH_CHECK":
                 Set("ARILOU_CHECKED_UMGAH", 2);
-                return (false, false);
+                return false;
             case "YEHAT_REBEL_EVENT":
             {
                 // The royalists cut to two thirds, the rebels as many, their
@@ -685,8 +760,24 @@ public sealed class StoryState
                 SetFleet(royalists, _fleets[royalists] with { ActualStrength = strength });
                 SetFleet(rebels, _fleets[rebels] with { ActualStrength = strength, LocX = 5150, LocY = 0 });
                 StartSphereTracking("YEHAT_REBEL_SHIP");
-                return (true, false);
+                Tell(NoticeEvent.CivilWar, "YEHAT_SHIP");
+                return false;
             }
+            case "ADVANCE_PKUNK_MISSION":
+                PkunkMission(clock);
+                return false;
+            case "ADVANCE_THRADD_MISSION":
+                ThraddMission(clock, hyperspaceRoll, playerInSystem);
+                return false;
+            case "ADVANCE_ILWRATH_MISSION":
+                IlwrathMission();
+                return false;
+            case "ADVANCE_MYCON_MISSION":
+                MyconMission(clock);
+                return false;
+            case "ADVANCE_UTWIG_SUPOX_MISSION":
+                UtwigSupoxMission(clock);
+                return false;
             case "SLYLANDRO_RAMP_UP":
                 if (Get("DESTRUCT_CODE_ON_SHIP") == 0)
                 {
@@ -697,20 +788,295 @@ public sealed class StoryState
                         AddEvent(true, 0, 182, 0, "SLYLANDRO_RAMP_UP", clock);
                     }
                 }
-                return (false, false);
+                return false;
             case "SLYLANDRO_RAMP_DOWN":
             {
                 int ramp = (byte)(Get("SLYLANDRO_MULTIPLIER") - 1);
                 if (ramp != 0)
                     AddEvent(true, 0, 23, 0, "SLYLANDRO_RAMP_DOWN", clock);
                 Set("SLYLANDRO_MULTIPLIER", ramp);
-                return (false, false);
+                return false;
             }
             default:
                 if (!Rules.EventIds.ContainsKey(evt))
                     throw new KeyNotFoundException($"no event {evt}");
-                throw new NotSupportedException($"{evt} runs from stage 3c's items 3 and 4 (docs/plans/stage-3c.md)");
+                throw new NotSupportedException($"{evt} runs from stage 3c's item 4 (docs/plans/stage-3c.md)");
         }
+    }
+
+    // ---------------------------------------------------------------- the missions (stage 3c item 3)
+
+    // Where the missions go (gameev.c): the Yehat's space and the Pkunk's
+    // home; the Kohr-Ah and the Thraddash's home; where the Ilwrath meet the
+    // Thraddash, and the midpoint they fight to (MADD_LENGTH days of
+    // losses); Organon and where the Mycon go after; the Utwig's and the
+    // Supox's fronts and homes.
+    private const int YehatX = 4970, YehatY = 400, PkunkHomeX = 502, PkunkHomeY = 401;
+    private const int KohrAhX = 4879, KohrAhY = 7201, ThraddHomeX = 2535, ThraddHomeY = 8358;
+    private const int IlwrathFrontX = 2500, IlwrathFrontY = 8070, MaddLength = 128;
+    private const int WarX = (IlwrathFrontX + ThraddHomeX) >> 1, WarY = (IlwrathFrontY + ThraddHomeY) >> 1;
+    private const int OrganonX = 6858, OrganonY = 577;
+
+    // A fleet's daily loss that takes away `loss` over `days` days (the
+    // missions' growth: a BYTE of the negated whole part, and the
+    // remainder in 256ths; strength_loss is a SIZE).
+    private static (int Growth, int Fract) Losing(int loss, int days) =>
+        ((byte)(-(short)loss / days), (byte)((((short)loss % days) << 8) / days));
+
+    /// <summary>
+    /// pkunk_mission (gameev.c:405-467): the Pkunk's migration to the
+    /// Yehat (PKUNK_MISSION odd while they go), over half a year less what
+    /// they've already travelled; turned home by a good reason given on the
+    /// way (an odd state run before they arrive), taking as long as they've
+    /// travelled; back home, three months' wait before they set off again;
+    /// arrived at the Yehat's, absorbed (YEHAT_ABSORBED_PKUNK, the Pkunk
+    /// extinct, the Yehat's sphere tracked). Nothing with no Pkunk fleet.
+    /// </summary>
+    private void PkunkMission(GameClock clock)
+    {
+        int i = Rules.RaceIndex("PKUNK_SHIP");
+        var f = _fleets[i];
+        if (f.ActualStrength == 0)
+            return;
+        int state = Get("PKUNK_MISSION");
+        if (f.DaysLeft == 0 && state != 0)
+        {
+            if ((state & 1) != 0 || (f.LocX == YehatX && f.LocY == YehatY))
+                f = f with { ActualStrength = 0 };   // made it to Yehat space
+            else if (f.LocX == PkunkHomeX && f.LocY == PkunkHomeY && Get("PKUNK_ON_THE_MOVE") != 0)
+            {
+                Set("PKUNK_ON_THE_MOVE", 0);
+                AddEvent(true, 3, 0, 0, "ADVANCE_PKUNK_MISSION", clock);
+                TellMission("PKUNK_SHIP", "are back home");
+                return;
+            }
+        }
+        if (f.ActualStrength == 0)
+        {
+            Set("YEHAT_ABSORBED_PKUNK", 1);
+            SetFleet(i, f);
+            SetAlliance("PKUNK_SHIP", Allied.Dead);
+            StartSphereTracking("YEHAT_SHIP");
+            TellMission("PKUNK_SHIP", "have reached the Yehat and been absorbed by them: they're no more");
+        }
+        else
+        {
+            bool toYehat = (state & 1) == 0;
+            Set("PKUNK_ON_THE_MOVE", 1);
+            Set("PKUNK_SWITCH", 0);
+            SetFleet(i, f with
+            {
+                DestLocX = toYehat ? YehatX : PkunkHomeX, DestLocY = toYehat ? YehatY : PkunkHomeY,
+                DaysLeft = (byte)((365 >> 1) - f.DaysLeft), Arrival = "ADVANCE_PKUNK_MISSION",
+            });
+            TellMission("PKUNK_SHIP", toYehat ? "have set off to join the Yehat" : "have turned back for home");
+        }
+        Set("PKUNK_MISSION", state + 1);
+    }
+
+    /// <summary>
+    /// thradd_mission (gameev.c:469-523): the Thraddash to the Kohr-Ah in 14
+    /// days (THRADD_MISSION 0), there losing half their strength over 14
+    /// days (1), then home in 14 (2), and home (3, then 4): with the
+    /// Ilwrath's war begun, the Ilwrath's mission runs at once.
+    /// </summary>
+    private void ThraddMission(GameClock clock, Action? hyperspaceRoll, Func<string, bool>? playerInSystem)
+    {
+        int i = Rules.RaceIndex("THRADDASH_SHIP");
+        var f = _fleets[i];
+        int state = Get("THRADD_MISSION");
+        if (f.ActualStrength != 0 && state < 3)
+        {
+            bool attacking = state < 2;
+            if (state == 1)
+            {
+                // Arrived at the Kohr-Ah, engaging.
+                var (growth, fract) = Losing(f.ActualStrength >> 1, 14);
+                f = f with { Growth = growth, GrowthFract = fract, GrowthErrTerm = 255 >> 1 };
+            }
+            else if (state != 0)
+                f = f with { Growth = 0, GrowthFract = 0 };   // stop the losses
+            SetFleet(i, f with
+            {
+                DestLocX = attacking ? KohrAhX : ThraddHomeX, DestLocY = attacking ? KohrAhY : ThraddHomeY,
+                DaysLeft = 14, Arrival = "ADVANCE_THRADD_MISSION",
+            });
+            TellMission("THRADDASH_SHIP", state switch
+            {
+                0 => "have set off to attack the Kohr-Ah",
+                1 => "have reached the Kohr-Ah and are losing ships fighting them",
+                _ => "are heading home from the Kohr-Ah",
+            });
+        }
+        else if (f.ActualStrength != 0 && state == 3)
+            TellMission("THRADDASH_SHIP", "are back home");
+        state = (byte)(state + 1);
+        Set("THRADD_MISSION", state);
+        if (state == 4 && Get("ILWRATH_FIGHT_THRADDASH") != 0)
+            AddEvent(true, 0, 0, 0, "ADVANCE_ILWRATH_MISSION", clock, hyperspaceRoll, playerInSystem);   // returned home: notify the Ilwrath
+    }
+
+    /// <summary>
+    /// ilwrath_mission (gameev.c:525-600): the Ilwrath to the Thraddash's
+    /// borders in 90 days; arrived, the war (ILWRATH_FIGHT_THRADDASH, the
+    /// Aqua Helix unguarded, HELIX_UNPROTECTED): both races lose all their
+    /// strength over MADD_LENGTH days as the Ilwrath close on the midpoint
+    /// in one day less, the Thraddash no longer allies and their visits
+    /// counted afresh; the Thraddash at home (or never gone) head for the
+    /// midpoint too, those away at the Kohr-Ah recalled home in 10 days
+    /// (THRADD_MISSION 3, so the Ilwrath's mission runs again as they
+    /// arrive and sends them on); the Ilwrath at the midpoint, both races
+    /// dead.
+    /// </summary>
+    private void IlwrathMission()
+    {
+        int il = Rules.RaceIndex("ILWRATH_SHIP"), th = Rules.RaceIndex("THRADDASH_SHIP");
+        var ilwrath = _fleets[il];
+        if (ilwrath.LocX == WarX && ilwrath.LocY == WarY)
+        {
+            SetFleet(il, ilwrath with { ActualStrength = 0 });
+            SetFleet(th, _fleets[th] with { ActualStrength = 0 });
+            SetAlliance("ILWRATH_SHIP", Allied.Dead);
+            SetAlliance("THRADDASH_SHIP", Allied.Dead);
+            TellMission("ILWRATH_SHIP", "have destroyed each other", "THRADDASH_SHIP");
+            return;
+        }
+        if (ilwrath.ActualStrength == 0)
+            return;
+        if (Get("ILWRATH_FIGHT_THRADDASH") == 0 && (ilwrath.DestLocX != IlwrathFrontX || ilwrath.DestLocY != IlwrathFrontY))
+        {
+            SetRaceDest("ILWRATH_SHIP", IlwrathFrontX, IlwrathFrontY, 90, "ADVANCE_ILWRATH_MISSION");
+            TellMission("ILWRATH_SHIP", "have set off to make war on the Thraddash");
+            return;
+        }
+        bool war = ilwrath.DaysLeft == 0, unallied = false;
+        if (war)
+        {
+            // Arrived for battle.
+            Set("ILWRATH_FIGHT_THRADDASH", 1);
+            Set("HELIX_UNPROTECTED", 1);
+            var (growth, fract) = Losing(ilwrath.ActualStrength, MaddLength);
+            ilwrath = ilwrath with
+            {
+                Growth = growth, GrowthFract = fract,
+                DestLocX = WarX, DestLocY = WarY, DaysLeft = MaddLength - 1, Arrival = "ADVANCE_ILWRATH_MISSION",
+            };
+            SetFleet(il, ilwrath);
+            (growth, fract) = Losing(_fleets[th].ActualStrength, MaddLength);
+            SetFleet(th, _fleets[th] with { Growth = growth, GrowthFract = fract });
+            Set("THRADD_VISITS", 0);
+            if (Alliance("THRADDASH_SHIP") == Allied.Good)
+                unallied = SetRaceAllied("THRADDASH_SHIP", false);
+        }
+        int thraddState = Get("THRADD_MISSION");
+        bool toWar = thraddState == 0 || thraddState > 3, recalled = !toWar && thraddState < 3;
+        if (toWar)
+            SetRaceDest("THRADDASH_SHIP", WarX, WarY, (byte)(ilwrath.DaysLeft + 1), null);   // never went to the Kohr-Ah, or returned
+        else if (recalled)
+        {
+            SetRaceDest("THRADDASH_SHIP", ThraddHomeX, ThraddHomeY, 10, "ADVANCE_THRADD_MISSION");   // recall on the double
+            Set("THRADD_MISSION", 3);
+        }
+        if (war)
+            TellMission("ILWRATH_SHIP", "are at war: both are losing ships"
+                + (recalled ? ", the Thraddash called home from the Kohr-Ah" : "")
+                + (unallied ? ", and the Thraddash are no longer allies" : ""), "THRADDASH_SHIP");
+        else if (toWar && _fleets[th].ActualStrength != 0)
+            TellMission("THRADDASH_SHIP", "have set off to meet the Ilwrath in battle");
+        else if (recalled && _fleets[th].ActualStrength != 0)
+            TellMission("THRADDASH_SHIP", "are called home from the Kohr-Ah to fight the Ilwrath");
+    }
+
+    /// <summary>
+    /// mycon_mission (gameev.c:691-728): the Mycon to Organon in 30 days;
+    /// there, half their strength lost over 14 days; then, knowing the
+    /// ambush (MYCON_KNOW_AMBUSH), on to (6392, 2200) in 30 days, the losses
+    /// stopped, with no event on arriving.
+    /// </summary>
+    private void MyconMission(GameClock clock)
+    {
+        int i = Rules.RaceIndex("MYCON_SHIP");
+        var f = _fleets[i];
+        if (f.ActualStrength == 0)
+            return;
+        if (f.Growth != 0)
+        {
+            // Head back.
+            Set("MYCON_KNOW_AMBUSH", 1);
+            SetFleet(i, f with { DestLocX = 6392, DestLocY = 2200, DaysLeft = 30, Arrival = null, Growth = 0, GrowthFract = 0 });
+            TellMission("MYCON_SHIP", "are heading back from Organon");
+        }
+        else if (f.LocX != OrganonX || f.LocY != OrganonY)
+        {
+            SetRaceDest("MYCON_SHIP", OrganonX, OrganonY, 30, "ADVANCE_MYCON_MISSION");   // to Organon
+            TellMission("MYCON_SHIP", "have set off for Organon");
+        }
+        else
+        {
+            // Endure losses at Organon.
+            AddEvent(true, 0, 14, 0, "ADVANCE_MYCON_MISSION", clock);
+            var (growth, fract) = Losing(f.ActualStrength >> 1, 14);
+            SetFleet(i, f with { Growth = growth, GrowthFract = fract, GrowthErrTerm = 255 >> 1 });
+            TellMission("MYCON_SHIP", "have reached Organon and are losing ships there");
+        }
+    }
+
+    /// <summary>
+    /// utwig_supox_mission (gameev.c:602-689): the Utwig and the Supox to
+    /// the Kohr-Ah in 21 days (UTWIG_SUPOX_MISSION 0; the arrival is the
+    /// Utwig's), their visits and news counted afresh; there, half of each
+    /// one's strength lost over 160 days (1), the event again after 80 (2,
+    /// on to 4) and 80 more; then home in 21 days, the losses stopped (4);
+    /// home (5, then 6). Nothing but the count with no Utwig fleet.
+    /// </summary>
+    private void UtwigSupoxMission(GameClock clock)
+    {
+        int u = Rules.RaceIndex("UTWIG_SHIP"), s = Rules.RaceIndex("SUPOX_SHIP");
+        int state = Get("UTWIG_SUPOX_MISSION");
+        if (_fleets[u].ActualStrength != 0 && state < 5)
+        {
+            if (state == 1)
+            {
+                AddEvent(true, 0, 160 >> 1, 0, "ADVANCE_UTWIG_SUPOX_MISSION", clock);
+                var (growth, fract) = Losing(_fleets[u].ActualStrength >> 1, 160);
+                SetFleet(u, _fleets[u] with { Growth = growth, GrowthFract = fract, GrowthErrTerm = 255 >> 1 });
+                int loss = (short)(_fleets[s].ActualStrength >> 1);
+                if (loss != 0)
+                {
+                    (growth, fract) = Losing(loss, 160);
+                    SetFleet(s, _fleets[s] with { Growth = growth, GrowthFract = fract, GrowthErrTerm = 255 >> 1 });
+                }
+                Set("UTWIG_WAR_NEWS", 0);
+                Set("SUPOX_WAR_NEWS", 0);
+                TellMission("UTWIG_SHIP", "have reached the Kohr-Ah and are losing ships fighting them", "SUPOX_SHIP");
+            }
+            else if (state == 2)
+            {
+                AddEvent(true, 0, 160 >> 1, 0, "ADVANCE_UTWIG_SUPOX_MISSION", clock);
+                ++state;
+            }
+            else
+            {
+                bool setOff = state == 0;
+                if (!setOff)
+                {
+                    SetFleet(u, _fleets[u] with { Growth = 0, GrowthFract = 0 });
+                    SetFleet(s, _fleets[s] with { Growth = 0, GrowthFract = 0 });
+                    Set("UTWIG_WAR_NEWS", 0);
+                    Set("SUPOX_WAR_NEWS", 0);
+                }
+                Set("UTWIG_VISITS", 0);
+                Set("UTWIG_INFO", 0);
+                Set("SUPOX_VISITS", 0);
+                Set("SUPOX_INFO", 0);
+                SetRaceDest("UTWIG_SHIP", setOff ? 7208 : 8534, setOff ? 7000 : 8797, 21, "ADVANCE_UTWIG_SUPOX_MISSION");
+                SetRaceDest("SUPOX_SHIP", setOff ? 6479 : 7468, setOff ? 7541 : 9246, 21, null);
+                TellMission("UTWIG_SHIP", setOff ? "have set off to attack the Kohr-Ah" : "are heading home from the Kohr-Ah", "SUPOX_SHIP");
+            }
+        }
+        else if (_fleets[u].ActualStrength != 0 && state == 5)
+            TellMission("UTWIG_SHIP", "are back home", "SUPOX_SHIP");
+        Set("UTWIG_SUPOX_MISSION", state + 1);
     }
 
     /// <summary>
@@ -742,11 +1108,14 @@ public sealed class StoryState
     /// grows past MAX_FLEET_STRENGTH. One still alive and heading somewhere
     /// moves a day's share of the way (its days left divide what's left,
     /// rounding towards 0), and on the last day runs its arrival event
-    /// (EventHandler): one the port doesn't run yet is set aside dated
-    /// today, as the clock's are (decision 9). Every race starts with no
-    /// growth and no heading (InitGameStructures), and only the missions'
-    /// events give them any (<see cref="SetRaceDest"/>, <see cref="SetFleet"/>:
-    /// stage 3c item 3), so until then nothing changes. UQM's sums are kept:
+    /// (EventHandler, with no location gate: the missions' events since
+    /// stage 3c item 3, each listed as an arrival after the day's event in
+    /// <see cref="RunDueEvents"/>); one the port doesn't run yet (the
+    /// Kohr-Ah's genocide, item 4) is set aside dated today, as the clock's
+    /// are (decision 9). A race its losses run out is news (the Ilwrath's
+    /// war). Every race starts with no growth and no heading
+    /// (InitGameStructures), and only the missions' events give them any
+    /// (<see cref="SetRaceDest"/>, <see cref="SetFleet"/>). UQM's sums are kept:
     /// the strength's in a SIZE, the places' in COORDs.
     /// </summary>
     private void CheckRaceGrowth(GameClock clock, Action? hyperspaceRoll, Func<string, bool>? playerInSystem)
@@ -765,6 +1134,7 @@ public sealed class StoryState
             {
                 delta = 0;
                 SetAlliance(Rules.Races[i], Allied.Dead);
+                Tell(NoticeEvent.Extinct, Rules.Races[i]);   // its losses ran it out (the Ilwrath's war)
             }
             else if (delta > Rules.MaxFleetStrength)
                 delta = Rules.MaxFleetStrength;
@@ -784,11 +1154,20 @@ public sealed class StoryState
             SetFleet(i, f);
             if (arrival is not null)
             {
-                // (What an arrival's event changes isn't news yet: none the port runs is one before stage 3c item 3.)
+                // Run at once (gameev.c's own EventHandler call: no location gate), listed after the day's event.
+                var arrived = new StoryEvent(arrival, clock.Year, clock.Month, clock.Day);
                 if (EventsRun.Contains(arrival))
-                    RunEvent(arrival, clock, hyperspaceRoll, playerInSystem);
+                {
+                    int told = _news.Count;
+                    var (news, held) = Run(arrival, clock, hyperspaceRoll, playerInSystem);
+                    _toldByArrivals += _news.Count - told;
+                    _arrivals.Add(new DueEvent(arrived, false, news, held, Arrival: true));
+                }
                 else
-                    Events.PutAside(new StoryEvent(arrival, clock.Year, clock.Month, clock.Day));
+                {
+                    Events.PutAside(arrived);
+                    _arrivals.Add(new DueEvent(arrived, true, Arrival: true));
+                }
             }
         }
     }

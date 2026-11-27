@@ -462,11 +462,11 @@ public class IlwrathSpathiMeetingTests
     }
 
     [ContentFact]
-    public void TheGodsOrderingTheIlwrathAgainstTheThraddashSetsTheirMissionAside()
+    public void TheGodsOrderingTheIlwrathAgainstTheThraddashStartsTheirMission()
     {
         // The broadcaster's branch (3c's, with the device), through the
-        // world's talk: the event AddEvent adds is the story's, set aside
-        // until 3c runs it.
+        // world's talk: the event AddEvent adds is the story's, run at once
+        // (stage 3c item 3): the Ilwrath set off for the Thraddash's borders.
         var world = NewGame();
         var talk = world.RaceTalk(world.Host, Race(world, "ILWRATH_SHIP"), 1, 1 << 4)!;
         talk.Activity = TalkActivity.InInterplanetary;
@@ -475,8 +475,11 @@ public class IlwrathSpathiMeetingTests
         talk.Choose(Reply(talk, "go_kill_thraddash"));
         Assert.Equal(1, world.Story!.Get("ILWRATH_DECEIVED"));
         Assert.Contains(new EventAdded(true, 0, 0, 0, "ADVANCE_ILWRATH_MISSION"), talk.Events);
-        var aside = Assert.Single(world.Story.Events.SetAside, e => e.Event == "ADVANCE_ILWRATH_MISSION");
-        Assert.Equal((world.Clock.Year, world.Clock.Month, world.Clock.Day), (aside.Year, aside.Month, aside.Day));
+        Assert.Empty(world.Story.Events.SetAside);
+        var ilwrath = world.Story.Fleet("ILWRATH_SHIP");
+        Assert.Equal((2500, 8070, 90, "ADVANCE_ILWRATH_MISSION"), (ilwrath.DestLocX, ilwrath.DestLocY, ilwrath.DaysLeft, ilwrath.Arrival));
+        Assert.Equal(new StoryState.StoryNews(NoticeEvent.Mission, "ILWRATH_SHIP", Detail: "have set off to make war on the Thraddash"),
+            Assert.Single(talk.NewsOf(talk.Events.ToList().FindIndex(e => e is EventAdded))));
     }
 
     [ContentFact]

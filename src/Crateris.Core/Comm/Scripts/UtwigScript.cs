@@ -34,7 +34,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// of theirs and the Supox's counted afresh, both races allied
 /// (SetRaceAllied), and unless the Kohr-Ah have won their war
 /// (KOHR_AH_FRENZY) their mission starts (ADVANCE_UTWIG_SUPOX_MISSION,
-/// queued for today and set aside until stage 3c runs the calendar). The
+/// due today, so run at once: since stage 3c item 3 their fleets set off). The
 /// allies: at home their news by the mission's state
 /// (UTWIG_SUPOX_MISSION, UTWIG_WAR_NEWS) and 4 ships while the mission
 /// hasn't started (to the host's fleet, whoever answers, while it has
@@ -131,9 +131,8 @@ public sealed class UtwigScript : CommScript
                     {
                         NPCPhrase("OK_ATTACK_KOHRAH");
 
-                        // The mission's first step, due today: set aside
-                        // until stage 3c runs the calendar (the stage 3b-2
-                        // plan's question 3).
+                        // The mission's first step, due today: run at once
+                        // (StoryState's, since stage 3c item 3).
                         T.AddEvent(relative: true, 0, 0, 0, "ADVANCE_UTWIG_SUPOX_MISSION");
                     }
 

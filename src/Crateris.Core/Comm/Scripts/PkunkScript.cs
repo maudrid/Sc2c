@@ -15,7 +15,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// <summary>
 /// The Pkunk (pkunkc.c), whole: in space (neutral, friendly, or migrating
 /// while their mission has them on the move: PKUNK_MISSION odd, stage
-/// 3c's) and at their homeworld (GLOBAL_FLAGS_AND_DATA bit 7). At home the
+/// 3c item 3's) and at their homeworld (GLOBAL_FLAGS_AND_DATA bit 7). At home the
 /// Clear Spindle is given on the first visit (CLEAR_SPINDLE and
 /// CLEAR_SPINDLE_ON_SHIP: the group's, as the stage 3b-2 plan has the
 /// devices), and the Kohr-Ah's victory sensed after the first year; their
@@ -23,14 +23,14 @@ namespace Crateris.Core.Comm.Scripts;
 /// SetRaceAllied, so their ships never go on sale) won by offering help
 /// or asking for it, with 4 ships to the escort fleet (the host's, whoever
 /// answers: AddEscortShips, as much as it has room for) and their
-/// migration's event queued (ADVANCE_PKUNK_MISSION, set aside until stage
-/// 3c); then once a year, on or after the date a year from the last gift
+/// migration's event queued six months on (ADVANCE_PKUNK_MISSION, run
+/// since stage 3c item 3); then once a year, on or after the date a year from the last gift
 /// (PKUNK_SHIP_MONTH, _DAY, _YEAR), more ships at the homeworld (ShipsReady,
 /// PrepareShip), or no room. Their anger after a fight (post_pkunk_enc:
 /// PKUNK_MANNER 1), mended at home with the spindle if it wasn't given;
 /// their hatred for good after "we must conquer" (PKUNK_MANNER 2); the
-/// migration's reasons (PKUNK_REASONS: the good ones queue the event at
-/// once, set aside too). Every path is checked against UQM's own script
+/// migration's reasons (PKUNK_REASONS: the good ones run the event at
+/// once, turning them home). Every path is checked against UQM's own script
 /// (tests/golden/talks-pkunk.json).
 /// </summary>
 public sealed class PkunkScript : CommScript

@@ -21,8 +21,8 @@ namespace Crateris.Core.Comm.Scripts;
 /// (THRADDASH_BODY_COUNT, counted by the battles' end; THRADD_BODY_LEVEL);
 /// their news (THRADD_INFO), themselves and the Ur-Quan
 /// (THRADD_STACK_1), down to "I've got an idea": at peace, their mission
-/// to impress the Ur-Quan queued for today (ADVANCE_THRADD_MISSION, which
-/// stage 3c runs: set aside until then) unless the Kohr-Ah have won; the
+/// to impress the Ur-Quan queued for today (ADVANCE_THRADD_MISSION, run at
+/// once since stage 3c item 3) unless the Kohr-Ah have won; the
 /// mission's greetings (THRADD_MISSION 1 to 3, THRADD_MISSION_VISITS) and,
 /// once they're back (4), how it went; every other way out of the hostile
 /// talk a fight. At the Helix's world: their questions kept in the
@@ -114,7 +114,7 @@ public sealed class ThraddashScript : CommScript
             NPCPhrase("GOOD_IDEA");
 
             T.SetSegue(Segue.Peace);
-            // Due today: stage 3c's event, set aside until then (the plan's question 3).
+            // Due today: run at once (since stage 3c item 3).
             T.AddEvent(relative: true, 0, 0, 0, "ADVANCE_THRADD_MISSION");
             SetGameState("THRADD_STACK_1", 5);
         }

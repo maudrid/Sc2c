@@ -122,40 +122,45 @@ public class CalendarEventsTests
     {
         // A game whose clock stands on 1 September 2155, with the events an
         // earlier stage's code set aside on their days: the Arilou's
-        // entrance, the Zoq-Fot-Pik's distress, a mission's (still set
-        // aside: stage 3c item 3's), the Shofixti's return.
+        // entrance, the Zoq-Fot-Pik's distress, the Pkunk's mission (run
+        // since stage 3c item 3), the Kohr-Ah's genocide (still set aside:
+        // item 4's), the Shofixti's return.
         var world = BareWorld(2155, 9, 1);
         var story = world.Story!;
         var queue = new[]
         {
             At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 9, 1), At("SLYLANDRO_RAMP_UP", 2156, 2, 16), At("KOHR_AH_VICTORIOUS_EVENT", 2159, 2, 17),
         };
-        var pkunk = At("ADVANCE_PKUNK_MISSION", 2155, 4, 2);
+        var genocide = At("KOHR_AH_GENOCIDE_EVENT", 2155, 4, 3);
         story.Events.Restore(queue, new[]
         {
-            At("ARILOU_ENTRANCE_EVENT", 2155, 3, 17), At("ZOQFOT_DISTRESS_EVENT", 2155, 4, 1), pkunk,
-            At("SHOFIXTI_RETURN_EVENT", 2155, 4, 5),
+            At("ARILOU_ENTRANCE_EVENT", 2155, 3, 17), At("ZOQFOT_DISTRESS_EVENT", 2155, 4, 1), At("ADVANCE_PKUNK_MISSION", 2155, 4, 2),
+            genocide, At("SHOFIXTI_RETURN_EVENT", 2155, 4, 5),
         });
         var done = world.RunDayEvents();
-        // Each run once, in date order, before today's queued event; the mission's left aside.
+        // Each run once, in date order, before today's queued event; the Kohr-Ah's left aside.
         Assert.Equal(new[]
         {
             new StoryState.DueEvent(At("ARILOU_ENTRANCE_EVENT", 2155, 3, 17), false),
             new StoryState.DueEvent(At("ZOQFOT_DISTRESS_EVENT", 2155, 4, 1), false, true),
+            new StoryState.DueEvent(At("ADVANCE_PKUNK_MISSION", 2155, 4, 2), false, true),
             new StoryState.DueEvent(At("SHOFIXTI_RETURN_EVENT", 2155, 4, 5), false, true),
             new StoryState.DueEvent(At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 9, 1), false),
         }, done);
-        Assert.Equal(new[] { pkunk }, story.Events.SetAside);
-        // What they queue counted from today: the portal's exit 3 days on, the death six months on.
+        Assert.Equal(new[] { genocide }, story.Events.SetAside);
+        // What they queue counted from today: the portal's exit 3 days on, the death six months on; the
+        // Pkunk set off today, half a year from the Yehat (a day of it gone with today's fleets).
         Assert.Equal(new[]
         {
             At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 9, 2), At("ARILOU_EXIT_EVENT", 2155, 9, 4), At("SLYLANDRO_RAMP_UP", 2156, 2, 16),
             At("ZOQFOT_DEATH_EVENT", 2156, 3, 1), At("KOHR_AH_VICTORIOUS_EVENT", 2159, 2, 17),
         }, story.Events);
         Assert.Equal((StoryState.ArilouOpening, 1, Allied.Good), (story.Get("ARILOU_SPACE"), story.Get("ZOQFOT_DISTRESS"), story.Alliance("SHOFIXTI_SHIP")));
-        // None runs twice: nothing more today, and the mission stays aside.
+        Assert.Equal((1, 181, "ADVANCE_PKUNK_MISSION"), (story.Get("PKUNK_MISSION"), story.Fleet("PKUNK_SHIP").DaysLeft, story.Fleet("PKUNK_SHIP").Arrival));
+        // None runs twice: nothing more today, and the Kohr-Ah's stays aside.
         Assert.Empty(world.RunDayEvents());
-        Assert.Equal(new[] { pkunk }, story.Events.SetAside);
+        Assert.Equal(new[] { genocide }, story.Events.SetAside);
+        Assert.Equal(1, story.Get("PKUNK_MISSION"));
         Assert.Equal(1, story.CrewCost);   // 3, less 2 once
     }
 
@@ -717,10 +722,10 @@ public class CalendarEventsTests
         Assert.Equal("Starting on 2155-03-21: 0 days passed, 0 events run", host.StartDate("2155-03-21"));
         // Those a location gate held, and those set aside, told apart from those run.
         Assert.True(story.Events.Add(true, 0, 1, 0, "SPATHI_SHIELD_EVENT", world.Clock));
-        Assert.True(story.Events.Add(true, 0, 2, 0, "ADVANCE_PKUNK_MISSION", world.Clock));
+        Assert.True(story.Events.Add(true, 0, 2, 0, "KOHR_AH_GENOCIDE_EVENT", world.Clock));
         world.PutInSystem("host", Star(world, "SPATHI_DEFINED"));
         Assert.Equal("Starting on 2155-03-30: 9 days passed, 0 events run, 2 events held by a player in their race's system "
-                     + "(SPATHI_SHIELD_EVENT, SPATHI_SHIELD_EVENT), 1 event set aside (ADVANCE_PKUNK_MISSION)", host.StartDate("2155-03-30"));
+                     + "(SPATHI_SHIELD_EVENT, SPATHI_SHIELD_EVENT), 1 event set aside (KOHR_AH_GENOCIDE_EVENT)", host.StartDate("2155-03-30"));
         // Not backwards, and only real dates.
         foreach (var bad in new[] { "2155-03-20", "2155-02-30", "2155-3", "tomorrow", "2155-13-01" })
             Assert.Throws<ArgumentException>(() => host.StartDate(bad));

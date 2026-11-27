@@ -21,8 +21,8 @@ namespace Crateris.Core.Tests;
 /// The Thraddash, the Umgah and the Talking Pet in the world (the stage
 /// 3b-2 plan's item 10): the Thraddash's homeworld, met at the encounter
 /// screen and never orbited while they live; their groups in space, "I've
-/// got an idea" ending in peace with their mission's event set aside
-/// until 3c, and the mission's talks by set-up; their alliance done for
+/// got an idea" ending in peace with their mission set off at once
+/// (since stage 3c item 3), and the mission's talks; their alliance done for
 /// real (25 of their ships destroyed in battles with them by two players,
 /// their praise on the way, then their worship: allied at once, everyone
 /// told, the shipyard building their ships, the culture's three choices
@@ -351,12 +351,13 @@ public class ThraddashUmgahTests
     }
 
     [ContentFact]
-    public void AnIdeaSendsTheThraddashAtTheKohrAhInPeaceAndTheirMissionWaitsForStage3c()
+    public void AnIdeaSendsTheThraddashAtTheKohrAhInPeaceAndTheirMissionStarts()
     {
         // thraddc.c's ThraddHostile and ExitConversation: asked about themselves and the Ur-Quan down to
         // THRADD_STACK_1 4, "I've got an idea" is offered (unless KOHR_AH_FRENZY): GOOD_IDEA, the talk at
-        // peace, AddEvent (RELATIVE_EVENT, 0, 0, 0, ADVANCE_THRADD_MISSION) (due at once: set aside until
-        // 3c, question 3) and THRADD_STACK_1 5, so it's offered once.
+        // peace, AddEvent (RELATIVE_EVENT, 0, 0, 0, ADVANCE_THRADD_MISSION), run at once (since stage 3c
+        // item 3: their fleet off to the Kohr-Ah, THRADD_MISSION 1, the host told) and THRADD_STACK_1 5,
+        // so it's offered once.
         var world = NewGame("g");
         var story = world.Story!;
         var m = MeetInSystem(world, "g", "THRADDASH_SHIP");
@@ -367,36 +368,31 @@ public class ThraddashUmgahTests
         Assert.Equal((1, 0), (story.Get("THRADD_VISITS"), story.Get("THRADD_HOME_VISITS")));
         Choose(world, "g", "what_about_you_1", "what_about_you_2", "what_about_urquan_1", "what_about_urquan_2");
         Assert.Equal(new[] { "whats_up_hostile_1", "got_idea", "submit_1", "be_friends_1", "bye_hostile_1" }, Offers(m.Talk));
+        world.TakeNotices();
         Choose(world, "g", "got_idea");
         Assert.Equal(new[] { "GOOD_IDEA" }, LastLines(m.Talk));
-        Assert.Equal((Segue.Peace, 5, 0), (m.Talk.Segue, story.Get("THRADD_STACK_1"), story.Get("THRADD_MISSION")));
-        var today = new StoryEvent("ADVANCE_THRADD_MISSION", world.Clock.Year, world.Clock.Month, world.Clock.Day);
-        Assert.Equal(today, Assert.Single(story.Events.SetAside, e => e.Event == "ADVANCE_THRADD_MISSION"));
+        Assert.Equal((Segue.Peace, 5, 1), (m.Talk.Segue, story.Get("THRADD_STACK_1"), story.Get("THRADD_MISSION")));
+        Assert.Equal((4879, 7201, 14, "ADVANCE_THRADD_MISSION"), (story.Fleet("THRADDASH_SHIP").DestLocX,
+            story.Fleet("THRADDASH_SHIP").DestLocY, story.Fleet("THRADDASH_SHIP").DaysLeft, story.Fleet("THRADDASH_SHIP").Arrival));
+        Assert.Empty(story.Events.SetAside);
         Assert.DoesNotContain(story.Events, e => e.Event == "ADVANCE_THRADD_MISSION");
+        var told = world.TakeNotices().Single(n => n.Event == NoticeEvent.Mission);
+        Assert.Equal(("h", "The Thraddash have set off to attack the Kohr-Ah (g's talk)."), (told.PlayerId, told.Text));
         MeetingTests.HearClosing(world, "g");
         Assert.Null(m.Battle);
         Assert.Equal(Allied.Bad, story.Alliance("THRADDASH_SHIP"));
 
-        // Until 3c runs the event the mission never starts: they greet as before, the idea not offered again.
+        // On their mission (thradd_mission, gameev.c: THRADD_MISSION 1 as they set off): in space their
+        // mission's greeting, told once in full (THRADD_MISSION_VISITS), the idea not offered again; at their
+        // homeworld the ordinary greeting.
         m = MeetInSystem(world, "h", "THRADDASH_SHIP");
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
-        Assert.Equal(new[] { "HOSTILE_SPACE_HELLO_2" }, Lines(m.Talk!));
-        Assert.Equal(new[] { "whats_up_hostile_1", "submit_1", "be_friends_1", "bye_hostile_1" }, Offers(m.Talk!));
+        Assert.Equal(new[] { "WE_GO_TO_IMPRESS_URQUAN_1" }, Lines(m.Talk!));
+        Assert.Equal((1, 1), (story.Get("THRADD_VISITS"), story.Get("THRADD_MISSION_VISITS")));   // the visits not counted
+        Assert.DoesNotContain("got_idea", Offers(m.Talk!));
         Choose(world, "h", "bye_hostile_1");
         WinTheFight(world, "h", m);
         Assert.Equal(1, story.Get("THRADDASH_BODY_COUNT"));
-        Assert.Single(story.Events.SetAside, e => e.Event == "ADVANCE_THRADD_MISSION");
-
-        // As 3c's event will leave it (thradd_mission, gameev.c: THRADD_MISSION 1 as they set off): in
-        // space their mission's greeting, told once in full (THRADD_MISSION_VISITS); at their homeworld
-        // the ordinary greeting.
-        story.Set("THRADD_MISSION", 1);
-        m = MeetInSystem(world, "g", "THRADDASH_SHIP");
-        Assert.True(world.EncounterChoice("g", EncounterAction.Hail));
-        Assert.Equal(new[] { "WE_GO_TO_IMPRESS_URQUAN_1" }, Lines(m.Talk!));
-        Assert.Equal((2, 1), (story.Get("THRADD_VISITS"), story.Get("THRADD_MISSION_VISITS")));   // the visits not counted
-        Choose(world, "g", "bye_hostile_2");
-        WinTheFight(world, "g", m);
         m = MeetInSystem(world, "g", "THRADDASH_SHIP");
         Assert.True(world.EncounterChoice("g", EncounterAction.Hail));
         Assert.Equal(new[] { "WE_GO_TO_IMPRESS_URQUAN_2" }, Lines(m.Talk!));
@@ -411,7 +407,7 @@ public class ThraddashUmgahTests
         story.Set("THRADD_MISSION", 4);
         m = MeetInSystem(world, "h", "THRADDASH_SHIP");
         Assert.True(world.EncounterChoice("h", EncounterAction.Hail));
-        Assert.Equal(new[] { "HOSTILE_SPACE_HELLO_3" }, Lines(m.Talk!));
+        Assert.Equal(new[] { "HOSTILE_SPACE_HELLO_2" }, Lines(m.Talk!));   // the visits counted on from before the mission
         Assert.Equal(new[] { "whats_up_hostile_1", "submit_1", "be_friends_1", "how_impressed_urquan_1", "bye_hostile_2" }, Offers(m.Talk!));
         Choose(world, "h", "how_impressed_urquan_1");
         Assert.Equal(new[] { "IMPRESSED_LIKE_SO_1" }, LastLines(m.Talk!));

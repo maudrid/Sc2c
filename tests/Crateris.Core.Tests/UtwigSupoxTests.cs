@@ -33,7 +33,7 @@ namespace Crateris.Core.Tests;
 /// insulted); the Ultron shown broken (a sick trick, or a fight from a
 /// hostile greeting) and mended (given by a guest: both races allied,
 /// both alliances told to the others, the shipyard building their ships,
-/// the mission's event set aside until 3c; with the Supox extinct the
+/// the mission set off at once, since stage 3c item 3; with the Supox extinct the
 /// Utwig allied alone); the allies' 4 ships to the host's fleet by its
 /// room, whoever answers, and the Utwig's DONT_NEED, which UQM can't
 /// reach, said when the fleet fills between their offer and the answer;
@@ -881,7 +881,7 @@ public class UtwigSupoxTests
     {
         // utwigc.c:263-293: the Ultron mended whole (ULTRON_CONDITION 4) shown at their homeworld:
         // HAPPY_DAYS, OK_ATTACK_KOHRAH and the mission's event (AddEvent (RELATIVE_EVENT, 0, 0, 0,
-        // ADVANCE_UTWIG_SUPOX_MISSION): due at once, set aside until 3c, question 3), UTWIG_HAVE_ULTRON,
+        // ADVANCE_UTWIG_SUPOX_MISSION): due at once, run then since stage 3c item 3), UTWIG_HAVE_ULTRON,
         // ULTRON_CONDITION 5 (no device any more), every visit, news and grudge of both races cleared,
         // and both allied (SetRaceAllied twice). The shipyard's list follows the alliances.
         var world = NewGame("g", "k");
@@ -918,15 +918,21 @@ public class UtwigSupoxTests
                      "UTWIG_INFO", "SUPOX_WAR_NEWS", "UTWIG_WAR_NEWS", "SUPOX_HOSTILE", "UTWIG_HOSTILE" })
             Assert.True(story.Get(field) == 0, field);
         Assert.Equal((Allied.Good, Allied.Good), (story.Alliance("UTWIG_SHIP"), story.Alliance("SUPOX_SHIP")));
-        // The mission's event: set aside, dated today, not queued and not run (UQM runs it at once:
-        // UTWIG_SUPOX_MISSION 1 by the end of the reply; here it waits for 3c).
-        var today = new StoryEvent("ADVANCE_UTWIG_SUPOX_MISSION", world.Clock.Year, world.Clock.Month, world.Clock.Day);
-        Assert.Equal(today, Assert.Single(story.Events.SetAside, e => e.Event == "ADVANCE_UTWIG_SUPOX_MISSION"));
+        // The mission's event, run at once as UQM runs it (stage 3c item 3): UTWIG_SUPOX_MISSION 1 by
+        // the end of the reply, both fleets off to the Kohr-Ah in 21 days.
+        Assert.Empty(story.Events.SetAside);
         Assert.DoesNotContain(story.Events, e => e.Event == "ADVANCE_UTWIG_SUPOX_MISSION");
-        Assert.Equal(0, story.Get("UTWIG_SUPOX_MISSION"));
-        // The others (the host, docked, and the other guest) are each told of each alliance, in the
-        // talk's order; the guest who made them isn't.
-        var told = world.TakeNotices().Where(n => n.Event is NoticeEvent.AllianceMade or NoticeEvent.AllianceBroken or NoticeEvent.ShipsGiven).ToList();
+        Assert.Equal(1, story.Get("UTWIG_SUPOX_MISSION"));
+        Assert.Equal((7208, 7000, 21, 6479, 7541, 21), (story.Fleet("UTWIG_SHIP").DestLocX, story.Fleet("UTWIG_SHIP").DestLocY,
+            story.Fleet("UTWIG_SHIP").DaysLeft, story.Fleet("SUPOX_SHIP").DestLocX, story.Fleet("SUPOX_SHIP").DestLocY, story.Fleet("SUPOX_SHIP").DaysLeft));
+        // The others (the host, docked, and the other guest) are each told of the mission and each
+        // alliance, in the talk's order; the guest who made them isn't.
+        var all = world.TakeNotices();
+        foreach (var other in new[] { "h", "k" })
+            Assert.Equal("The Utwig and the Supox have set off to attack the Kohr-Ah (g's talk).",
+                Assert.Single(all, n => n.PlayerId == other && n.Event == NoticeEvent.Mission).Text);
+        Assert.DoesNotContain(all, n => n.PlayerId == "g");
+        var told = all.Where(n => n.Event is NoticeEvent.AllianceMade or NoticeEvent.AllianceBroken or NoticeEvent.ShipsGiven).ToList();
         foreach (var other in new[] { "h", "k" })
             Assert.Equal(new[]
             {
@@ -1002,9 +1008,10 @@ public class UtwigSupoxTests
         // (UTWIG_SUPOX_MISSION 0), "can you help?": HAVE_4_SHIPS and AddEscortShips (race, 4), which
         // adds as many as there's room for (the host's fleet, whoever answers: question 4). The Utwig
         // offer it only with room (EscortFeasibilityStudy in AlliedHome); the Supox always, and with no
-        // room say DONT_NEED.
+        // room say DONT_NEED. (The Ultron given too late, KOHR_AH_FRENZY, so the mission never starts.)
         var world = NewGame("g");
         var story = world.Story!;
+        story.Set("KOHR_AH_FRENZY", 1);
         GiveUltron(world, "h");
         int utwig = Star(world, "UTWIG_DEFINED"), supox = Star(world, "SUPOX_DEFINED");
         world.TakeNotices();
@@ -1058,43 +1065,16 @@ public class UtwigSupoxTests
     }
 
     [ContentFact]
-    public void TheAlliesTalksGoByTheMissionsStateWhichStaysWhereTheGiftLeftItUntilStage3c()
+    public void TheAlliesTalksGoByTheMissionsState()
     {
-        // The mission's event is set aside (question 3), so UTWIG_SUPOX_MISSION stays 0 after the gift
-        // where UQM's event, run at once (clock.c:234-238), makes it 1: until 3c the allies talk as UQM's
-        // would had the Ultron come too late: at home their ships at each visit while there's room, no
-        // news of the war; in space the greeting alone (utwigc.c:855-869). With the state 3c's event
-        // would set (--start-state UTWIG_SUPOX_MISSION=1; the event also clears their visits and news):
-        // no ships, the fleet on its way, and in space what's up before the Kohr-Ah.
+        // The mission's event runs at once as the Utwig take the Ultron (stage 3c item 3, as UQM's
+        // clock.c:234-238): UTWIG_SUPOX_MISSION 1, their visits and news cleared, so at home no ships, the
+        // fleet on its way, and in space what's up before the Kohr-Ah (utwigc.c:855-869).
         var world = NewGame("g");
         var story = world.Story!;
         GiveUltron(world, "g");
         int utwig = Star(world, "UTWIG_DEFINED"), supox = Star(world, "SUPOX_DEFINED");
-        Assert.Equal(0, story.Get("UTWIG_SUPOX_MISSION"));
-        // Twice at the Utwig's homeworld: 4 ships each time.
-        foreach (int ships in new[] { 4, 8 })
-        {
-            var gift = Orbit(world, "h", utwig, 0);
-            Choose(world, "h", "can_you_help");
-            Assert.True(Said(gift.Talk!, "HAVE_4_SHIPS"));
-            Assert.Equal(ships, world.Fleet.CountOf("UTWIG_SHIP"));
-            MeetingTests.HearClosing(world, "h");
-        }
-        // In space: the greeting alone, at peace, for each race.
-        foreach (var (race, visits) in new[] { ("UTWIG_SHIP", "UTWIG_VISITS"), ("SUPOX_SHIP", "SUPOX_VISITS") })
-        {
-            var met = MeetInSystem(world, "g", race);
-            Assert.Equal(new[] { "HELLO_DURING_KOHRAH_SPACE_1" }, Lines(met.Talk!));
-            Assert.Empty(met.Talk!.Replies);
-            Assert.Equal((Segue.Peace, 1), (met.Talk.Segue, story.Get(visits)));
-            MeetingTests.HearClosing(world, "g");
-            Assert.Null(met.Battle);
-        }
-
-        // As 3c's event would leave it once run.
-        story.Set("UTWIG_SUPOX_MISSION", 1);
-        story.Set("UTWIG_VISITS", 0);
-        story.Set("SUPOX_VISITS", 0);
+        Assert.Equal(1, story.Get("UTWIG_SUPOX_MISSION"));
         var m = Orbit(world, "h", utwig, 0);
         Assert.Equal(new[] { "how_goes_war", "learn_new_info", "what_now_homeworld", "how_is_ultron", "bye_allied_homeworld" }, Offers(m.Talk!));
         Choose(world, "h", "how_goes_war");
@@ -1104,7 +1084,7 @@ public class UtwigSupoxTests
         Assert.True(Said(m.Talk!, "NO_NEW_INFO"));
         Choose(world, "h", "bye_allied_homeworld");
         MeetingTests.HearClosing(world, "h");
-        Assert.Equal(8, world.Fleet.CountOf("UTWIG_SHIP"));
+        Assert.Equal(0, world.Fleet.CountOf("UTWIG_SHIP"));
         m = Orbit(world, "h", supox, 0);
         Assert.Equal(new[] { "how_goes_war", "learn_new_info", "what_now_homeworld", "how_is_ultron", "bye_allied_homeworld" }, Offers(m.Talk!));
         Choose(world, "h", "bye_allied_homeworld");
@@ -1122,6 +1102,32 @@ public class UtwigSupoxTests
             MeetingTests.HearClosing(world, "g");
             Assert.Null(met.Battle);
         }
+
+        // Given too late (KOHR_AH_FRENZY: TOO_LATE, no mission, utwigc.c:266-273), UTWIG_SUPOX_MISSION
+        // stays 0: at home their ships at each visit while there's room, no news of the war; in space the
+        // greeting alone.
+        world = NewGame("g");
+        story = world.Story!;
+        story.Set("KOHR_AH_FRENZY", 1);
+        GiveUltron(world, "g");
+        Assert.Equal(0, story.Get("UTWIG_SUPOX_MISSION"));
+        foreach (int ships in new[] { 4, 8 })
+        {
+            var gift = Orbit(world, "h", utwig, 0);
+            Choose(world, "h", "can_you_help");
+            Assert.True(Said(gift.Talk!, "HAVE_4_SHIPS"));
+            Assert.Equal(ships, world.Fleet.CountOf("UTWIG_SHIP"));
+            MeetingTests.HearClosing(world, "h");
+        }
+        foreach (var (race, visits) in new[] { ("UTWIG_SHIP", "UTWIG_VISITS"), ("SUPOX_SHIP", "SUPOX_VISITS") })
+        {
+            var met = MeetInSystem(world, "g", race);
+            Assert.Equal(new[] { "HELLO_DURING_KOHRAH_SPACE_1" }, Lines(met.Talk!));
+            Assert.Empty(met.Talk!.Replies);
+            Assert.Equal((Segue.Peace, 1), (met.Talk.Segue, story.Get(visits)));
+            MeetingTests.HearClosing(world, "g");
+            Assert.Null(met.Battle);
+        }
     }
 
     [ContentFact]
@@ -1132,8 +1138,10 @@ public class UtwigSupoxTests
         // so DONT_NEED is never said in UQM. With several the host's fleet can fill meanwhile (the
         // shipyard, another player's talk): here the Supox's 4 ships, given to the host while the guest's
         // talk with the Utwig waits at its replies (the two races' locks are separate). The Utwig then
-        // say DONT_NEED and give nothing.
+        // say DONT_NEED and give nothing. (The Ultron given too late, KOHR_AH_FRENZY, so the mission never
+        // starts and the ships are on offer.)
         var world = NewGame("g");
+        world.Story!.Set("KOHR_AH_FRENZY", 1);
         GiveUltron(world, "h");
         int utwig = Star(world, "UTWIG_DEFINED"), supox = Star(world, "SUPOX_DEFINED");
         world.AddFleetShips("SPATHI_SHIP", HostFleet.MaxShips - 4);

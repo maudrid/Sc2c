@@ -22,10 +22,10 @@ public sealed record StoryEvent(string Event, int Year, int Month, int Day);
 /// goes after every event on its day or before it, so events on one day
 /// run in the order they were added. Each day the events at the head that
 /// are due are taken off and run (<see cref="StoryState.RunDueEvents"/>,
-/// processClockDayEvents). The events the port doesn't run yet (the races'
-/// missions and the Kohr-Ah's victory and genocide, stage 3c items 3 and 4;
-/// until stage 3c item 1 every event but the hyperspace encounters and the
-/// Slylandro ramps) are taken off on their day all the same and set aside
+/// processClockDayEvents). The events the port doesn't run yet (the
+/// Kohr-Ah's victory and genocide, stage 3c item 4; until stage 3c item 1
+/// every event but the hyperspace encounters and the Slylandro ramps, and
+/// until item 3 the races' missions) are taken off on their day all the same and set aside
 /// (<see cref="SetAside"/>, stage 3b decision 9), so they don't hold up the
 /// rest; each is run, from where the clock is, once the port runs it
 /// (<see cref="StoryState.RunDueEvents"/>).

@@ -26,8 +26,10 @@ public sealed partial class GameWorld
     /// The clock's events on the clock's day (<see cref="StoryState.RunDueEvents"/>):
     /// as a day begins, and on loading a save, whose events whose day has
     /// passed then run at once, and whose events set aside that the port
-    /// now runs run then too, from where the clock is. Each that changed a
-    /// race is told to every player (<see cref="TellStoryEvent"/>). What
+    /// now runs run then too, from where the clock is. What each that
+    /// changed a race told (a fleet's arrival's too) is told to every
+    /// player (<see cref="TellStoryEvent"/>), with any news left from events
+    /// run outside a talk since the last day. What
     /// was taken off the queue, in order (none without a story).
     /// <paramref name="rolls"/>: whether the day's hyperspace encounters
     /// are rolled (not for <c>--start-date</c>'s days); <paramref name="loading"/>:
@@ -40,8 +42,8 @@ public sealed partial class GameWorld
             return new();
         var done = story.RunDueEvents(Clock, rolls ? HyperspaceEncounterRolls : null,
             loading ? special => PlayerInSystem(special, everyone: true) : special => PlayerInSystem(special));
-        foreach (var e in done.Where(e => e.News))
-            TellStoryEvent(e.Event.Event, "");
+        foreach (var news in story.TakeNews())
+            TellStoryEvent(news, "");
         return done;
     }
 

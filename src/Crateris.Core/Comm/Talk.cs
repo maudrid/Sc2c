@@ -1062,11 +1062,13 @@ public sealed class Talk : ITalkStory
 
     /// <summary>
     /// AddEvent: a clock event, relative to today or on a date, by gameev.h's
-    /// name, queued, run or set aside by the story (StoryState.AddEvent; the
-    /// missions' events, such as the Ilwrath's ADVANCE_ILWRATH_MISSION, are
-    /// set aside until stage 3c's item 3). One run at once (relative, due
-    /// today: the Yehat rebels') is kept with what it changed in the story
-    /// (<see cref="RanAtOnce"/>), for a talk that's taken back.
+    /// name, queued, run or set aside by the story (StoryState.AddEvent).
+    /// One run at once (relative, due today: the Yehat rebels', and since
+    /// stage 3c item 3 the missions' the Thraddash's, the Ilwrath's, the
+    /// Mycon's and the Utwig's talks start, and the Pkunk's good reason to
+    /// go home) is kept with what it changed in the story
+    /// (<see cref="RanAtOnce"/>), for a talk that's taken back, and with
+    /// what it told (<see cref="NewsOf"/>), for the other players.
     /// </summary>
     public void AddEvent(bool relative, int months, int days, int years, string evt)
     {
@@ -1075,12 +1077,26 @@ public sealed class Talk : ITalkStory
         if (relative && months == 0 && days == 0 && years == 0 && StoryState.EventsRun.Contains(evt))
         {
             var before = _story.Save();
+            int told = _story.NewsCount;
             _story.AddEvent(relative, months, days, years, evt, Clock);
             _ranAtOnce.Add(StoryState.Changes.Between(before, _story.Save()));
+            var news = _story.TakeNews(told);
+            if (news.Count > 0)
+                _news[_events.Count - 1] = news;
             return;
         }
         _story.AddEvent(relative, months, days, years, evt, Clock);
     }
+
+    /// <summary>
+    /// What the clock event the talk added as its <paramref name="index"/>th
+    /// event (an <see cref="EventAdded"/>) told, run at once: a mission's
+    /// step, the civil war (none for one queued, or one that told nothing).
+    /// </summary>
+    public IReadOnlyList<StoryState.StoryNews> NewsOf(int index) =>
+        _news.TryGetValue(index, out var news) ? news : Array.Empty<StoryState.StoryNews>();
+
+    private readonly Dictionary<int, List<StoryState.StoryNews>> _news = new();
 
     /// <summary>
     /// What each clock event the talk ran at once changed in the story

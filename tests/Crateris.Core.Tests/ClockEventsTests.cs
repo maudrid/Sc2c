@@ -20,9 +20,9 @@ namespace Crateris.Core.Tests;
 /// item 1): each day the events due run as UQM's processClockDayEvents runs
 /// them, the hyperspace encounters, the Slylandro ramps and since stage 3c
 /// item 1 the events with no mission (each recorded from UQM's gameev.c,
-/// the location gates with them); the missions' and the Kohr-Ah's are set
-/// aside on their day (decision 9); a save's events whose day has passed
-/// run on loading.
+/// the location gates with them), and since item 3 the missions, each over
+/// its whole course; the Kohr-Ah's are set aside on their day (decision 9);
+/// a save's events whose day has passed run on loading.
 /// </summary>
 [Trait("Topic", "story")]
 public class ClockEventsTests
@@ -41,6 +41,14 @@ public class ClockEventsTests
     private static (int, int, int) Date(GameClock c) => (c.Year, c.Month, c.Day);
 
     // ---- against UQM's own clock
+
+    // The story fields the missions read and set, as golden/clock.c prints them (its MISSION_FIELDS).
+    private static readonly string[] MissionFields =
+    {
+        "PKUNK_MISSION", "PKUNK_ON_THE_MOVE", "PKUNK_SWITCH", "YEHAT_ABSORBED_PKUNK", "THRADD_MISSION",
+        "ILWRATH_FIGHT_THRADDASH", "HELIX_UNPROTECTED", "THRADD_VISITS", "MYCON_KNOW_AMBUSH", "UTWIG_SUPOX_MISSION",
+        "UTWIG_VISITS", "UTWIG_INFO", "SUPOX_VISITS", "SUPOX_INFO", "UTWIG_WAR_NEWS", "SUPOX_WAR_NEWS",
+    };
 
     // tests/golden/clock-events.json: UQM's clock.c and gameev.c, day by
     // day, with the races' fleets (stage 3b item 2) after each step.
@@ -74,12 +82,14 @@ public class ClockEventsTests
                 var uqmRan = step[1].EnumerateArray()
                     .Select(r => (Event: names[r[0].GetInt32()], Depth: r[1].GetInt32(), Date: (r[2].GetInt32(), r[3].GetInt32(), r[4].GetInt32())))
                     .ToList();
-                Assert.True(uqmRan.All(r => r.Depth == 0), where);   // nothing these scenarios run runs another at once
-                var ran = done.Where(e => !e.SetAside).Select(e => (e.Event.Event, (e.Event.Year, e.Event.Month, e.Event.Day))).ToList();
-                Assert.True(uqmRan.Where(r => StoryState.EventsRun.Contains(r.Event)).Select(r => (r.Event, r.Date)).SequenceEqual(ran),
+                // Those run at once from within another (the Thraddash home
+                // running the Ilwrath's mission) and a fleet's arrival (which
+                // UQM's recording doesn't list) are seen in what they did.
+                var ran = done.Where(e => !e.SetAside && !e.Arrival).Select(e => (e.Event.Event, (e.Event.Year, e.Event.Month, e.Event.Day))).ToList();
+                Assert.True(uqmRan.Where(r => r.Depth == 0 && StoryState.EventsRun.Contains(r.Event)).Select(r => (r.Event, r.Date)).SequenceEqual(ran),
                     $"{where}: ran {string.Join(", ", ran)}");
-                // Those set aside are the missions' and the Kohr-Ah's (stage 3c items 3 and 4), each run by UQM on its day.
-                var aside = done.Where(e => e.SetAside).Select(e => e.Event).ToList();
+                // Those set aside are the Kohr-Ah's (stage 3c item 4), each run by UQM on its day.
+                var aside = done.Where(e => e.SetAside && !e.Arrival).Select(e => e.Event).ToList();
                 Assert.Equal(aside, story.Events.SetAside.Skip(setAsideBefore));
                 setAsideBefore = story.Events.SetAside.Count;
                 foreach (var e in aside)
@@ -110,12 +120,12 @@ public class ClockEventsTests
                     Assert.True(uqmFleets[r] == (story.Alliances[r], story.Fleets[r]),
                         $"{where}: {Rules.Races[r]} is {story.Alliances[r]} {story.Fleets[r]}, UQM's {uqmFleets[r]}");
                 // The story the events set: the Arilou's portal and look at the Umgah, the Zoq-Fot-Pik's
-                // distress, the Spathi's shield, the crew bought and its price.
+                // distress, the Spathi's shield, the crew bought and its price, and the missions' fields.
                 Assert.True(step[6].Ints().SequenceEqual(new[]
                 {
                     story.Get("ARILOU_SPACE"), story.Get("ARILOU_CHECKED_UMGAH"), story.Get("ZOQFOT_DISTRESS"),
                     story.Get("SPATHI_SHIELDED_SELVES"), story.Get("CREW_PURCHASED0"), story.Get("CREW_PURCHASED1"), story.CrewCost,
-                }), $"{where}: the story's {string.Join(",", step[6].Ints())}");
+                }.Concat(MissionFields.Select(story.Get))), $"{where}: the story's {string.Join(",", step[6].Ints())}");
                 // StartSphereTracking's result, UQM's race number or 0.
                 Assert.Equal(step.GetArrayLength() > 7, tracked is not null);
                 if (tracked is { } t)
@@ -125,8 +135,8 @@ public class ClockEventsTests
             foreach (string command in scenario.GetProperty("commands").EnumerateArray().Select(c => c.GetString()!))
             {
                 var words = command.Split(' ');
-                int n = words.Length > 1 ? int.Parse(words[1]) : 0;
-                int[] a = words.Skip(2).Select(int.Parse).ToArray();
+                int n = words.Length > 1 && words[0] != "state" ? int.Parse(words[1]) : 0;
+                int[] a = words[0] == "state" ? Array.Empty<int>() : words.Skip(2).Select(int.Parse).ToArray();
                 switch (words[0])
                 {
                     case "new":
@@ -186,6 +196,11 @@ public class ClockEventsTests
                     case "distress":
                         // The Zoq-Fot-Pik's thanks (zoqfotc.c), rescued.
                         world!.Story!.Set("ZOQFOT_DISTRESS", n);
+                        break;
+                    case "state":
+                        // A mission's field, as a talk sets it.
+                        Assert.Contains(words[1], MissionFields);
+                        world!.Story!.Set(words[1], int.Parse(words[2]));
                         break;
                     case "rampdown":
                     {
@@ -260,7 +275,7 @@ public class ClockEventsTests
     }
 
     [Fact]
-    public void ARelativeEventDueNowRunsAtOnceAndAMissionsIsSetAsideToday()
+    public void ARelativeEventDueNowRunsAtOnceAndAKohrAhsIsSetAsideToday()
     {
         var world = NewWorld();
         var story = world.Story!;
@@ -268,30 +283,34 @@ public class ClockEventsTests
         Assert.False(story.AddEvent(true, 0, 0, 0, "SLYLANDRO_RAMP_UP", world.Clock));
         Assert.Equal(2, story.Get("SLYLANDRO_MULTIPLIER"));
         Assert.Contains(At("SLYLANDRO_RAMP_UP", 2155, 8, 28), story.Events);   // 182 days from 27 February
-        Assert.False(story.AddEvent(true, 0, 0, 0, "ADVANCE_PKUNK_MISSION", world.Clock));
-        Assert.Equal(new[] { At("ADVANCE_PKUNK_MISSION", 2155, 2, 27) }, story.Events.SetAside);
-        Assert.DoesNotContain(story.Events, e => e.Event == "ADVANCE_PKUNK_MISSION");
+        Assert.False(story.AddEvent(true, 0, 0, 0, "KOHR_AH_GENOCIDE_EVENT", world.Clock));
+        Assert.Equal(new[] { At("KOHR_AH_GENOCIDE_EVENT", 2155, 2, 27) }, story.Events.SetAside);
+        Assert.DoesNotContain(story.Events, e => e.Event == "KOHR_AH_GENOCIDE_EVENT");
         Assert.Throws<KeyNotFoundException>(() => story.AddEvent(true, 0, 0, 0, "NO_SUCH_EVENT", world.Clock));
-        // Run directly, a mission's is refused as before (stage 3c item 3's).
-        Assert.Throws<NotSupportedException>(() => story.RunEvent("ADVANCE_PKUNK_MISSION", world.Clock));
+        // Run directly, the Kohr-Ah's are refused as before (stage 3c item 4's).
+        Assert.Throws<NotSupportedException>(() => story.RunEvent("KOHR_AH_GENOCIDE_EVENT", world.Clock));
         Assert.Throws<NotSupportedException>(() => story.RunEvent("KOHR_AH_VICTORIOUS_EVENT", world.Clock));
+        // A mission's runs at once since stage 3c item 3 (the Pkunk set off).
+        Assert.False(story.AddEvent(true, 0, 0, 0, "ADVANCE_PKUNK_MISSION", world.Clock));
+        Assert.Equal(1, story.Get("PKUNK_MISSION"));
+        Assert.Single(story.Events.SetAside);
     }
 
-    // ---- the events set aside (decision 9): the missions' and the Kohr-Ah's since stage 3c item 1
+    // ---- the events set aside (decision 9): the Kohr-Ah's since stage 3c item 3
 
     [Fact]
-    public void TheMissionsEventsAreSetAsideOnTheirDayWithoutHoldingUpTheRest()
+    public void TheKohrAhsEventsAreSetAsideOnTheirDayWithoutHoldingUpTheRest()
     {
         var world = NewWorld();
         var story = world.Story!;
-        // Missions' events, two on one day, before the Arilou's, with an encounter event behind them.
-        Assert.True(story.Events.Add(false, 3, 1, 2155, "ADVANCE_PKUNK_MISSION", world.Clock));
-        Assert.True(story.Events.Add(false, 3, 1, 2155, "ADVANCE_THRADD_MISSION", world.Clock));
-        Assert.True(story.Events.Add(false, 3, 5, 2155, "ADVANCE_MYCON_MISSION", world.Clock));
+        // The Kohr-Ah's events, two on one day, before the Arilou's, with an encounter event behind them.
+        Assert.True(story.Events.Add(false, 3, 1, 2155, "KOHR_AH_GENOCIDE_EVENT", world.Clock));
+        Assert.True(story.Events.Add(false, 3, 1, 2155, "KOHR_AH_VICTORIOUS_EVENT", world.Clock));
+        Assert.True(story.Events.Add(false, 3, 5, 2155, "KOHR_AH_GENOCIDE_EVENT", world.Clock));
         var done = world.MoveClockDays(30);   // to 19 March
         Assert.Equal(new[]
         {
-            At("ADVANCE_PKUNK_MISSION", 2155, 3, 1), At("ADVANCE_THRADD_MISSION", 2155, 3, 1), At("ADVANCE_MYCON_MISSION", 2155, 3, 5),
+            At("KOHR_AH_GENOCIDE_EVENT", 2155, 3, 1), At("KOHR_AH_VICTORIOUS_EVENT", 2155, 3, 1), At("KOHR_AH_GENOCIDE_EVENT", 2155, 3, 5),
         }, story.Events.SetAside);
         Assert.Equal(story.Events.SetAside, done.Where(e => e.SetAside).Select(e => e.Event));
         // The encounters went on every day, those days too, and the Arilou's portal opened and closed.
@@ -332,9 +351,9 @@ public class ClockEventsTests
     {
         var systems = SystemCatalog.Load(DataDir);
         var world = GameWorld.NewGame(new GameSettings(), NewGameData.Load(DataDir, systems.Map), "h", "Host", systems, TestContent.Shapes);
-        Assert.True(world.Story!.Events.Add(false, 3, 1, 2155, "ADVANCE_MYCON_MISSION", world.Clock));
-        world.MoveClockDays(40);   // past the mission's day
-        Assert.Equal(new[] { At("ADVANCE_MYCON_MISSION", 2155, 3, 1) }, world.Story!.Events.SetAside);
+        Assert.True(world.Story!.Events.Add(false, 3, 1, 2155, "KOHR_AH_GENOCIDE_EVENT", world.Clock));
+        world.MoveClockDays(40);   // past the event's day
+        Assert.Equal(new[] { At("KOHR_AH_GENOCIDE_EVENT", 2155, 3, 1) }, world.Story!.Events.SetAside);
         string json = HostSave.ToJson(world);
         var loaded = HostSave.FromJson(json, systems, TestContent.Shapes);
         Assert.Equal(world.Story.Events.SetAside, loaded.Story!.Events.SetAside);

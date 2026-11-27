@@ -61,6 +61,8 @@
  *   crew B C     CREW_PURCHASED0 and 1 the crew bought B (low byte first),
  *                and CrewCost C, as the starbase's crew trade leaves them
  *   distress N   ZOQFOT_DISTRESS N, as the Zoq-Fot-Pik's thanks set it (0)
+ *   state F N    the mission field F (one of MISSION_FIELDS, by name) N,
+ *                as a talk or --start-state sets it
  *
  * Output: a JSON line after "new", "rampdown", "track", "add" and each
  * day of "day" (one for the whole of "move"): [[year, month, day], [[event,
@@ -74,7 +76,8 @@
  * dest_loc.y]...] the fleets (avail_race_q, by race) that changed since
  * the last line (every one after "new"), [ARILOU_SPACE,
  * ARILOU_CHECKED_UMGAH, ZOQFOT_DISTRESS, SPATHI_SHIELDED_SELVES,
- * CREW_PURCHASED0, CREW_PURCHASED1, CrewCost] the story the events set],
+ * CREW_PURCHASED0, CREW_PURCHASED1, CrewCost, then MISSION_FIELDS in order]
+ * the story the events set],
  * and after "track" one more: StartSphereTracking's result.
  */
 
@@ -205,6 +208,33 @@ free_ship (RACE_DESC *raceDescPtr, BOOLEAN FreeIconData,
 	free (raceDescPtr);
 }
 
+/* The story fields the missions (gameev.c's *_mission, stage 3c item 3)
+ * read and set, printed after the rest in each step, and set by "state". */
+#define MISSION_FIELDS \
+	F (PKUNK_MISSION) F (PKUNK_ON_THE_MOVE) F (PKUNK_SWITCH) \
+	F (YEHAT_ABSORBED_PKUNK) F (THRADD_MISSION) F (ILWRATH_FIGHT_THRADDASH) \
+	F (HELIX_UNPROTECTED) F (THRADD_VISITS) F (MYCON_KNOW_AMBUSH) \
+	F (UTWIG_SUPOX_MISSION) F (UTWIG_VISITS) F (UTWIG_INFO) F (SUPOX_VISITS) \
+	F (SUPOX_INFO) F (UTWIG_WAR_NEWS) F (SUPOX_WAR_NEWS)
+
+static void
+print_missions (void)
+{
+#define F(f) printf (",%d", GET_GAME_STATE (f));
+	MISSION_FIELDS
+#undef F
+}
+
+static void
+set_mission_field (const char *name, int value)
+{
+#define F(f) if (!strcmp (name, #f)) { SET_GAME_STATE (f, value); return; }
+	MISSION_FIELDS
+#undef F
+	fprintf (stderr, "no mission field %s\n", name);
+	exit (1);
+}
+
 static int depth, ran_count, rolls;
 static int ran[256][5];
 
@@ -303,12 +333,14 @@ print_step (int tracked)
 	}
 	printf ("]");
 	print_fleets ();
-	printf (",[%d,%d,%d,%d,%d,%d,%d]", GET_GAME_STATE (ARILOU_SPACE),
+	printf (",[%d,%d,%d,%d,%d,%d,%d", GET_GAME_STATE (ARILOU_SPACE),
 			GET_GAME_STATE (ARILOU_CHECKED_UMGAH),
 			GET_GAME_STATE (ZOQFOT_DISTRESS),
 			GET_GAME_STATE (SPATHI_SHIELDED_SELVES),
 			GET_GAME_STATE (CREW_PURCHASED0), GET_GAME_STATE (CREW_PURCHASED1),
 			GLOBAL (CrewCost));
+	print_missions ();
+	printf ("]");
 	if (tracked >= 0)
 		printf (",%d", tracked);
 	printf ("]\n");
@@ -425,6 +457,18 @@ main (void)
 		}
 		else if (!strcmp (cmd, "distress"))
 			SET_GAME_STATE (ZOQFOT_DISTRESS, n);
+		else if (!strcmp (cmd, "state"))
+		{
+			char name[64];
+			int value;
+
+			if (sscanf (line, "%*s %63s %d", name, &value) != 2)
+			{
+				fprintf (stderr, "state: %s", line);
+				return 1;
+			}
+			set_mission_field (name, value);
+		}
 		else
 		{
 			fprintf (stderr, "no command %s\n", cmd);

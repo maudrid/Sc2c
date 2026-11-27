@@ -28,8 +28,7 @@ namespace Crateris.Core.Comm.Scripts;
 /// (KNOW_ABOUT_SHATTERED), and, once the Syreen have set their ambush
 /// (MYCON_AMBUSH, 3c's), the trick: the three clues, after which the Mycon
 /// leave in peace to be ambushed (MYCON_FELL_FOR_AMBUSH and the
-/// ADVANCE_MYCON_MISSION event, set aside until stage 3c runs the
-/// calendar). At the Sun Device's world: their news, the trick refused
+/// ADVANCE_MYCON_MISSION event, run at once since stage 3c item 3). At the Sun Device's world: their news, the trick refused
 /// there (NO_TRICK_AT_SUN), the implanting asked about once they fell for
 /// it, landing refused (a fight) and the one peaceful farewell. With the
 /// Sun Device taken (SUN_DEVICE) or the ambush known (MYCON_KNOW_AMBUSH)
@@ -266,7 +265,7 @@ public sealed class MyconScript : CommScript
 
             T.SetSegue(Segue.Peace);
             SetGameState("MYCON_FELL_FOR_AMBUSH", 1);
-            // Their flight to the ambush: set aside until stage 3c runs the calendar.
+            // Their flight to the ambush, run at once (since stage 3c item 3).
             T.AddEvent(relative: true, 0, 0, 0, "ADVANCE_MYCON_MISSION");
         }
         else

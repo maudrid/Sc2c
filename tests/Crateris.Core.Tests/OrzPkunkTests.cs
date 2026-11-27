@@ -27,7 +27,7 @@ namespace Crateris.Core.Tests;
 /// their anger is mended there), their friendship (no alliance) with 4
 /// ships to the host's fleet, no room for them then, and the yearly gift
 /// by date and room; their
-/// groups in space; the migration's event set aside until 3c. The
+/// groups in space; a good reason turning their migration home. The
 /// scripts' every path is TalkTests' recordings.
 /// </summary>
 [Trait("Topic", "world")]
@@ -445,7 +445,7 @@ public class OrzPkunkTests
         var told = world.TakeNotices();
         Assert.Contains(told, n => n.PlayerId == "h" && n.Event == NoticeEvent.ShipsGiven && n.Count == 4);
         Assert.DoesNotContain(told, n => n.Event == NoticeEvent.AllianceMade);
-        // The next ships a year on (2156-02-17); their migration's event queued six months on, for 3c.
+        // The next ships a year on (2156-02-17); their migration's event queued six months on.
         Assert.Equal((2, 17, 1), (story.Get("PKUNK_SHIP_MONTH"), story.Get("PKUNK_SHIP_DAY"), story.Get("PKUNK_SHIP_YEAR")));
         Assert.Contains(story.Events, e => e == new Story.StoryEvent("ADVANCE_PKUNK_MISSION", 2155, 8, 17));
         Assert.Equal(Segue.Peace, m.Talk.Segue);
@@ -487,7 +487,7 @@ public class OrzPkunkTests
     }
 
     [ContentFact]
-    public void PkunkGroupsInSpaceAndTheMigrationsEventSetAside()
+    public void PkunkGroupsInSpaceAndAGoodReasonTurnsTheirMigrationHome()
     {
         var world = NewGame();
         var story = world.Story!;
@@ -503,16 +503,19 @@ public class OrzPkunkTests
         MeetingTests.HearClosing(world, "h");
         Assert.Null(m.Battle);
 
-        // Migrating (PKUNK_MISSION odd, 3c's; --start-state reaches it): a good reason queues their
-        // mission's event at once, set aside until 3c runs the calendar.
+        // Migrating (PKUNK_MISSION odd, 100 days from the Yehat): a good reason runs their mission's
+        // event at once (stage 3c item 3), turning them home, as long on the way as they've travelled.
         story.Set("PKUNK_MANNER", 3);
         story.Set("PKUNK_MISSION", 1);
+        story.SetRaceDest("PKUNK_SHIP", 4970, 400, 100, "ADVANCE_PKUNK_MISSION");
         m = MeetInSystem(world, "h", "PKUNK_SHIP");
         Assert.Equal(MeetingStep.Talk, m.Step);
         Assert.True(Said(m.Talk!, "MIGRATING_SPACE_1"));
         Choose(world, "h", "good_reason_1");
         Assert.True(Said(m.Talk!, "WE_GO_HOME_1"));
-        Assert.Contains(story.Events.SetAside, e => e.Event == "ADVANCE_PKUNK_MISSION");
+        Assert.DoesNotContain(story.Events.SetAside, e => e.Event == "ADVANCE_PKUNK_MISSION");
         Assert.Equal(1, story.Get("PKUNK_REASONS"));
+        Assert.Equal((2, 502, 401, 82), (story.Get("PKUNK_MISSION"), story.Fleet("PKUNK_SHIP").DestLocX,
+            story.Fleet("PKUNK_SHIP").DestLocY, story.Fleet("PKUNK_SHIP").DaysLeft));
     }
 }

@@ -130,6 +130,17 @@ public enum NoticeEvent : byte
     /// thirds, the rebels' as large.
     /// </summary>
     CivilWar,
+
+    /// <summary>
+    /// A step of a race's mission (stage 3c item 3: the Pkunk's, the
+    /// Thraddash's, the Ilwrath's, the Mycon's, the Utwig's and Supox's):
+    /// its fleet setting off, arriving, losing ships, heading home or
+    /// destroyed, in words (<see cref="WorldNotice.Detail"/>: "have set off
+    /// to attack the Kohr-Ah"), with the talk that ran it, if one did;
+    /// <see cref="WorldNotice.Race"/> names the race (or the two, "Utwig and
+    /// the Supox").
+    /// </summary>
+    Mission,
 }
 
 /// <summary>
@@ -138,13 +149,14 @@ public enum NoticeEvent : byte
 /// their name) and the race it's about (<see cref="Race"/>, as
 /// <see cref="Meeting.RaceName"/> names it), and for ships given or taken
 /// how many (<see cref="Count"/>; for an anger its level, for the crew's
-/// price the new price; 0 for the other events). The world gathers them
+/// price the new price; 0 for the other events), and for a mission's step
+/// what the fleets are doing (<see cref="Detail"/>, stage 3c item 3). The world gathers them
 /// (<see cref="GameWorld.TakeNotices"/>), each once for each player it
 /// tells; the host's session sends each in words (<see cref="Text"/>) as
 /// the battle notices are sent (<c>BattleNoticeKind.Told</c>) to a player
 /// present, and drops it for one away (by the time they're back it's stale).
 /// </summary>
-public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, string Race, int Count = 0)
+public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, string Race, int Count = 0, string Detail = "")
 {
     /// <summary>In words, for the player it's for.</summary>
     public string Text => Event switch
@@ -180,6 +192,7 @@ public sealed record WorldNotice(string PlayerId, NoticeEvent Event, string By, 
         NoticeEvent.Distress => $"The {Race} are in distress: the Kohr-Ah are attacking their world.",
         NoticeEvent.Extinct => $"The {Race} have been destroyed.",
         NoticeEvent.CivilWar => $"{By} started the {Race}'s civil war: the rebels have a fleet of their own.",
+        NoticeEvent.Mission => $"The {Race} {Detail}.",
         _ => "",
     };
 }

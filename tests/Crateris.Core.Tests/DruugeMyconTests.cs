@@ -32,7 +32,7 @@ namespace Crateris.Core.Tests;
 /// whose replies fight or go on as the talk's own draw says; their
 /// homeworld's endless fleet; the Sun Device's world, guarded without end
 /// and then by the 5 that fell for the ambush; the trick at their
-/// homeworld and its event set aside until 3c; the thief's greeting; the
+/// homeworld and their mission set off (since stage 3c item 3); the thief's greeting; the
 /// shattered worlds seen from orbit and asked about. A Druuge talk left or
 /// saved before its goodbye counting the crew sold all the same. Each
 /// expectation is UQM's (druugec.c, myconc.c, gendru.c, genmyc.c,
@@ -1051,12 +1051,12 @@ public class DruugeMyconTests
     }
 
     [ContentFact]
-    public void TheMyconFallForTheTrickAtTheirHomeworldAndItsEventIsSetAside()
+    public void TheMyconFallForTheTrickAtTheirHomeworldAndSetOffForOrganon()
     {
         // NormalMycon offers the trick at home once MYCON_AMBUSH is set (the Syreen's, 3c), whatever
         // the draw; TrickMycon: the three clues in any order, then WE_GO_TO_IMPLANT, peace,
         // MYCON_FELL_FOR_AMBUSH and AddEvent (RELATIVE_EVENT, 0, 0, 0, ADVANCE_MYCON_MISSION), due at
-        // once: set aside until stage 3c runs the calendar (the plan's question 3). (The talk is at peace
+        // once, run then since stage 3c item 3: their fleet off to Organon, the host told. (The talk is at peace
         // from the hail already, comm.c's InitCommunication clearing BATTLE_SEGUE for it, and nothing on
         // the trick's way sets it hostile: TrickMycon's own setSegue is pinned by TalkTests' recordings.)
         var world = NewGame("g");
@@ -1088,8 +1088,10 @@ public class DruugeMyconTests
         Assert.True(m.Talk.Ended);
         Assert.Equal((Segue.Peace, 1), (m.Talk.Segue, story.Get("MYCON_FELL_FOR_AMBUSH")));
         Assert.Contains(m.Talk.Events, e => e is EventAdded { Relative: true, Months: 0, Days: 0, Years: 0, Event: "ADVANCE_MYCON_MISSION" });
-        Assert.Contains(story.Events.SetAside, e => e.Event == "ADVANCE_MYCON_MISSION");
+        Assert.DoesNotContain(story.Events.SetAside, e => e.Event == "ADVANCE_MYCON_MISSION");
         Assert.DoesNotContain(story.Events, e => e.Event == "ADVANCE_MYCON_MISSION");
+        Assert.Equal((6858, 577, 30), (story.Fleet("MYCON_SHIP").DestLocX, story.Fleet("MYCON_SHIP").DestLocY, story.Fleet("MYCON_SHIP").DaysLeft));
+        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "h" && n.Text == "The Mycon have set off for Organon (g's talk).");
         MeetingTests.HearClosing(world, "g");
         Assert.Null(m.Battle);
         Assert.NotEqual(Activity.Orbit, world.Find("g")!.Ship.Activity);
