@@ -74,7 +74,7 @@ public sealed class StoryPause : TalkSequence
     public string What { get; }
 
     /// <summary>Its time skip, if it has one.</summary>
-    public TimeSkip? Skip { get; }
+    public override TimeSkip? Skip { get; }
 
     /// <summary>What the sequence that took it does as it ends (the world calls it once, after the pause has lifted).</summary>
     public Action<StoryPause>? Then { get; init; }

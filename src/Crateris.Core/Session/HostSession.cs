@@ -901,6 +901,70 @@ public sealed class HostSession
 
     private bool _gameOverLogged;
 
+    // What of the story shown has been logged: which, whether its skip's fade and days, and how many of its talk's events.
+    private (TalkSequence? Shown, bool Fading, bool Skipped, Talk? Talk, int Events) _storyLogged;
+
+    // The story pauses in the log (stage 3c item 2), for headless runs and
+    // bug reports: a story pause as it's taken, a time skip's fade (the
+    // starbase's two weeks' too) and its days as they pass, with the date
+    // after; a story pause's talk's lines, replies and end, as a meeting's
+    // are; and its end.
+    private void LogStory()
+    {
+        var shown = World.StoryShown;
+        var (was, fading, skipped, talk, events) = _storyLogged;
+        if (shown is StoryPause begun && begun != was)
+        {
+            Logged?.Invoke($"A story pause for everyone: {begun.What}");
+            (was, fading, skipped, talk, events) = (begun, false, false, null, 0);
+        }
+        else if (shown is not null && shown != was)
+            (was, fading, skipped, talk, events) = (shown, false, false, null, 0);
+        if (was?.Skip is { } skip)
+        {
+            if (!fading && (was.Step == VisitStep.TimePassing || skip.Skipped))
+            {
+                Logged?.Invoke($"Time passes: every screen fades to black, then {skip.Days} days pass (no encounters meanwhile)");
+                fading = true;
+            }
+            if (!skipped && skip.Skipped)
+            {
+                var c = World.Clock;
+                Logged?.Invoke($"{skip.Days} days passed: it's {c.Year:D4}-{c.Month:D2}-{c.Day:D2}");
+                skipped = true;
+            }
+        }
+        if (was is StoryPause pause)
+        {
+            if (pause.Talk is { } now && now != talk)
+            {
+                Logged?.Invoke($"The story's talk ({now.Script.Phrases.Name}), {pause.Replier.Id} replying, shown to everyone");
+                (talk, events) = (now, 0);
+            }
+            if (talk is not null)
+                for (; events < talk.Events.Count; ++events)
+                    switch (talk.Events[events])
+                    {
+                        case LineQueued { Clip: not null } l:
+                            Logged?.Invoke($"  {talk.Script.Phrases.Name}: {l.Text}");
+                            break;
+                        case RepliesOffered o:
+                            for (int i = 0; i < o.Replies.Count; ++i)
+                                Logged?.Invoke($"  {pause.Replier.Id}'s reply {i}: {o.Replies[i].Text}");
+                            break;
+                        case ReplyChosen c:
+                            Logged?.Invoke($"  {pause.Replier.Id} chose reply {c.Index}");
+                            break;
+                        case TalkEnded:
+                            Logged?.Invoke($"  The story's talk ends");
+                            break;
+                    }
+            if (pause.Done)
+                Logged?.Invoke($"The story pause is over: {pause.What}");
+        }
+        _storyLogged = shown is null || was is StoryPause { Done: true } ? default : (was, fading, skipped, talk, events);
+    }
+
     // What of each meeting going on has been logged: its step and how many of its talk's events.
     private readonly Dictionary<Meeting, (MeetingStep Step, int Events, bool Talked)> _meetingsLogged = new();
 
@@ -1083,6 +1147,7 @@ public sealed class HostSession
             Tell(revival.Wreck, new BattleNotice(BattleNoticeKind.Revived, Crew: revival.Crew, Other: revival.Rescuer, Text: BattleNotice.Rescued));
         }
         LogMeetings();
+        LogStory();
         if (World.GameOver && !_gameOverLogged)
         {
             _gameOverLogged = true;

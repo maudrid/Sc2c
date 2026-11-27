@@ -1827,6 +1827,16 @@ public class MeetingWireTests
         Frame(host, g1, g2);
         Assert.False(g2.Session.StoryPaused);
         Assert.False(g2.Session.TalkShown);
+        // The host's log tells it, for headless runs: the pause, its skip, its talk and its end.
+        int at = game.Log.IndexOf("A story pause for everyone: a test's pause");
+        Assert.True(at >= 0);
+        var log = game.Log.Skip(at).ToList();
+        Assert.Equal("Time passes: every screen fades to black, then 2 days pass (no encounters meanwhile)", log[1]);
+        Assert.StartsWith("2 days passed: it's 2155-", log[2]);
+        Assert.Equal("The story's talk (comandr), g1 replying, shown to everyone", log[3]);
+        Assert.Contains("  g1 chose reply 0", log);
+        Assert.Contains("  The story's talk ends", log);
+        Assert.Equal("The story pause is over: a test's pause", log.Last(l => l.StartsWith("The story pause")));
     }
 
     // ---- one player, as before

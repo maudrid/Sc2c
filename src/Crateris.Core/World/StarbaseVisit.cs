@@ -196,6 +196,9 @@ public sealed class StarbaseVisit : TalkSequence
     /// </summary>
     public override bool Story => Step == VisitStep.TimePassing || (Talk is not null && TalkIsStory);
 
+    /// <summary>The two weeks (DoTimePassage), once they've begun; null before.</summary>
+    public override TimeSkip? Skip => _days;
+
     /// <summary>World frames left of the fade while time passes.</summary>
     public int FadeLeft => Step == VisitStep.TimePassing ? _days?.FadeLeft ?? 0 : 0;
 

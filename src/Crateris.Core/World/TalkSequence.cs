@@ -91,6 +91,9 @@ public abstract class TalkSequence
     /// <summary>Whether it's over.</summary>
     public bool Done => Step == VisitStep.Done;
 
+    /// <summary>Its time skip, once it has one (the starbase's two weeks; a story pause's days); null for none.</summary>
+    public virtual TimeSkip? Skip => null;
+
     // Whether the talk going on was story as it started.
     private protected bool TalkIsStory;
 
