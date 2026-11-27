@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-27. Stage 3c items 1 to 5 built, reviewed and reported; waiting on the owner (item 6 next).
+**Last updated:** 2026-11-27. Stage 3c items 1 to 5 built, reviewed and reported; items 6 and 7 started at the owner's go-ahead ("do 6 and 7", 2026-11-27), item 6 with a builder subagent.
 
 ## Where things are
 
@@ -45,6 +45,7 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decided
 
+- **Items 4's and 5's readings put to the owner (the owner, 2026-11-27): kept as built.** Item 4: any way `KOHR_AH_KILLED_ALL` is set, `--start-state` included, loses the game; only the host's player goes through the last talk's closing lines. Item 5: the Supox read an Ultron aboard another ship as given back; a talk's write too big for its field can give or take a device on the answering ship; the Chmmr see no bomb aboard a guest's ship until item 11; the bomb's pickup turning the Druuge hostile isn't told to every player (as UQM tells nobody; only the other landers on that world are told of the pickup).
 - **Item 11's readings put to the owner (the owner, 2026-11-26): kept as built.** The Chmmr's bomb branch, reached only by set-up until 3c, rebuilds the answering ship (a guest's too) and zeroes the landers' and storage bays' prices for everyone, but doesn't move the ship or pass the 14 days (question 8 leaves the bomb ship to 3c); the rest as item 11's Progress row and `differences.md` row 87 have them.
 - **Items 8's, 9's and 10's questions and readings put to the owner (the owner, 2026-11-26): kept as built.** Item 10: the Aqua Helix's world stays guarded and the Umgah's world held until 3c (`differences.md` rows 66 and 27), and its readings (row 86). Item 9: the allied Utwig and Supox give 4 ships at every visit home until 3c's event (row 66), and its readings (row 85). Item 8's readings (row 84). Each item's Progress row in `docs/plans/stage-3b-2.md` holds them.
 - **Items 5's and 6's readings put to the owner (the owner, 2026-11-24): kept as built.** Tanaka marked lost by the first player to leave after his death (`differences.md` row 82); the Yehat rebels brought by `--start-encounter YEHAT_REBEL_SHIP` with `--start-state` for their story, and the Yehat revolt told to nobody else.
@@ -70,15 +71,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner. Their go-ahead of 2026-11-27 ("do the next step") covered stage 3c item 5 alone, and it's built, reviewed and reported, in two parts: part 1 (devices held by ships) built in `50dca34`..`1fd8246`, reviewed in three rounds (round 1's two save bugs, a gift-in-talk race, test gaps and nits fixed in `d2bd12f`; round 2's docs nits in `3b50013`; round 3 nothing); part 2 (reports' entries, the single-node pickups) built in `b8d81ec`..`9957255`, reviewed in three rounds (round 1's gap, a report on a node that stays never delivered, test gaps and nits fixed in `00cb894`; round 2 a stale count, `a9d68d8`, `869883b`; round 3 nothing). Next, with the owner's go-ahead: item 6 (the homeworlds' ruins, the three artifact ruins, the Androsynth's chapters, the Ur-Quan wreck and its portal key, the Syreen's vault, Procyon's starbase report), on part 2's reports.
+Build stage 3c items 6 (the ruins, the wreck and the vault) and 7 (Fwiffo on Pluto), at the owner's go-ahead of 2026-11-27 ("do 6 and 7"), which covers those two items: item 6 first, reviewed (`CLAUDE.md`), then item 7, reviewed; report, then wait for the owner before item 8.
 
 ## Decisions waiting on the owner
 
-**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Items 1 to 5 built, reviewed and reported (2026-11-27); item 6 waits on its go-ahead.
-
-**Item 4's readings, to confirm** (its Progress row): (a) any way `KOHR_AH_KILLED_ALL` is set, `--start-state` included, loses the game (`--start-state KOHR_AH_KILLED_ALL=1` no longer just gives the Kohr-Ah's greeting); (d) only the host's player goes through the last talk's closing lines before the game over.
-
-**Item 5's readings, to confirm** (its Progress row): part 1's (a) the Supox read an Ultron aboard another ship as given back (no second one; only its holder talks repairs), (c) a talk's write too big for its field can give or take a device on the answering ship (a recorded Utwig start relies on it), (d) the Chmmr see no bomb aboard a guest's ship until item 11; part 2's (q) **a question:** should the bomb's pickup turning the Druuge hostile be told to every player (the notices-to-everyone rule), where UQM tells nobody? As built, only the other landers on that world are told of the pickup.
+**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Items 1 to 5 built, reviewed and reported (2026-11-27); items 6 and 7 under way (their go-ahead 2026-11-27).
 
 **Item 1's reading (b), to confirm:** the calendar's events (the Shofixti's return, the Spathi's shield, the Zoq-Fot-Pik's distress and death, the Yehat's civil war) are told to every present player, a lone player too, since no player set them off; 3b-1's rule was that a player alone sees nothing new. The other readings, (a) and (c) to (h), are in item 1's Progress row.
 
