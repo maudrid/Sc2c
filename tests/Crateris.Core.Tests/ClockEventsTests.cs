@@ -161,7 +161,7 @@ public class ClockEventsTests
                         var story = world!.Story!;
                         string evt = names[a[3]];
                         bool atOnce = n != 0 && a[0] == 0 && a[1] == 0 && a[2] == 0;
-                        story.AddEvent(n != 0, a[0], a[1], a[2], evt, world.Clock, null, world.PlayerInSystem);
+                        story.AddEvent(n != 0, a[0], a[1], a[2], evt, world.Clock, null, special => world.PlayerInSystem(special));
                         Check(atOnce ? new() { new(At(evt, world.Clock.Year, world.Clock.Month, world.Clock.Day), false) } : new());
                         break;
                     }

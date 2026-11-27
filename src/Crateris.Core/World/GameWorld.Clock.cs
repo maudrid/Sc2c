@@ -30,13 +30,16 @@ public sealed partial class GameWorld
     /// race is told to every player (<see cref="TellStoryEvent"/>). What
     /// was taken off the queue, in order (none without a story).
     /// <paramref name="rolls"/>: whether the day's hyperspace encounters
-    /// are rolled (not for <c>--start-date</c>'s days).
+    /// are rolled (not for <c>--start-date</c>'s days); <paramref name="loading"/>:
+    /// a save is loading, nobody in the game yet, so the location gates
+    /// ask where every saved player's ship is (<see cref="PlayerInSystem"/>).
     /// </summary>
-    internal List<StoryState.DueEvent> RunDayEvents(bool rolls = true)
+    internal List<StoryState.DueEvent> RunDayEvents(bool rolls = true, bool loading = false)
     {
         if (Story is not { } story)
             return new();
-        var done = story.RunDueEvents(Clock, rolls ? HyperspaceEncounterRolls : null, PlayerInSystem);
+        var done = story.RunDueEvents(Clock, rolls ? HyperspaceEncounterRolls : null,
+            loading ? special => PlayerInSystem(special, everyone: true) : special => PlayerInSystem(special));
         foreach (var e in done.Where(e => e.News))
             TellStoryEvent(e.Event.Event, "");
         return done;
@@ -68,12 +71,15 @@ public sealed partial class GameWorld
     /// orbiting, landed, docked, or in a meeting, talk or battle there (the
     /// ship stays in its system for those). A wreck (a guest's ship lost,
     /// out of its battle) doesn't hold an event: it can't leave by itself.
-    /// Without the systems, nobody is.
+    /// A player away doesn't either, but while a save loads
+    /// (<paramref name="everyone"/>), before anyone is back in the game,
+    /// every saved player's ship counts where the save has it. Without the
+    /// systems, nobody is.
     /// </summary>
-    internal bool PlayerInSystem(string special) =>
+    internal bool PlayerInSystem(string special, bool everyone = false) =>
         InSystemForTests?.Invoke(special)
         ?? (Systems is { } systems
-            && _players.Any(p => p.Present && !(p.Ship.Destroyed && p.Ship.Battle is null)
+            && _players.Any(p => (everyone || p.Present) && !(p.Ship.Destroyed && p.Ship.Battle is null)
                                  && p.Ship.SystemStar is int star && systems.Map.Stars[star].Special == special));
 
     /// <summary>The location gates' answer in tests that have no systems (UQM's recorded flagship's place), or null.</summary>

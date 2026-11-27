@@ -284,6 +284,8 @@ public sealed class HostSession
     /// clock moved on to that day, as the starbase's two weeks move it
     /// (MoveGameClockDays): each day's events run, the location gates
     /// asking where the players are, and the races' fleets grow and move;
+    /// it says which events ran (the daily encounter event left out), which
+    /// a location gate held (each time it held one) and which were set aside;
     /// no hyperspace encounters are rolled (the ships aren't flying
     /// meanwhile). Changes whatever game is loaded, and is saved with it.
     /// Needs the story (InvalidOperationException); a date that isn't one,
@@ -302,9 +304,14 @@ public sealed class HostSession
         if (days < 0)
             throw new ArgumentException($"{date}: the clock only goes forward, from {c.Year:D4}-{c.Month:D2}-{c.Day:D2}");
         var done = World.MoveClockDays(days, rolls: false);
-        int ran = done.Count(e => !e.SetAside && e.Event.Event != "HYPERSPACE_ENCOUNTER_EVENT");
-        return $"Starting on {y:D4}-{m:D2}-{d:D2}: {days} day{(days == 1 ? "" : "s")} passed, {ran} event{(ran == 1 ? "" : "s")} run"
-               + (ran == 0 ? "" : $" ({string.Join(", ", done.Where(e => !e.SetAside && e.Event.Event != "HYPERSPACE_ENCOUNTER_EVENT").Select(e => e.Event.Event))})");
+        var ran = done.Where(e => !e.SetAside && !e.Held && e.Event.Event != "HYPERSPACE_ENCOUNTER_EVENT").Select(e => e.Event.Event).ToList();
+        var held = done.Where(e => e.Held).Select(e => e.Event.Event).ToList();
+        var aside = done.Where(e => e.SetAside).Select(e => e.Event.Event).ToList();
+        static string Listed(List<string> events, string what) =>
+            $"{events.Count} event{(events.Count == 1 ? "" : "s")} {what}" + (events.Count == 0 ? "" : $" ({string.Join(", ", events)})");
+        return $"Starting on {y:D4}-{m:D2}-{d:D2}: {days} day{(days == 1 ? "" : "s")} passed, {Listed(ran, "run")}"
+               + (held.Count == 0 ? "" : $", {Listed(held, "held by a player in their race's system")}")
+               + (aside.Count == 0 ? "" : $", {Listed(aside, "set aside")}");
     }
 
     /// <summary>

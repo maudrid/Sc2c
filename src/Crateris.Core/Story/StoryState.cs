@@ -469,9 +469,10 @@ public sealed class StoryState
     /// An event the clock took off the queue (or off the events set aside):
     /// run, or set aside until the port runs it (decision 9); <see cref="News"/>
     /// if running it changed a race, for the players to be told (stage 3b
-    /// decision 11; the owner, 2026-11-21).
+    /// decision 11; the owner, 2026-11-21); <see cref="Held"/> if its
+    /// location gate held it, queued again 7 days on (<see cref="RunEvent"/>).
     /// </summary>
-    public sealed record DueEvent(StoryEvent Event, bool SetAside, bool News = false);
+    public sealed record DueEvent(StoryEvent Event, bool SetAside, bool News = false, bool Held = false);
 
     /// <summary>
     /// processClockDayEvents (clock.c), on <paramref name="clock"/>'s day:
@@ -504,14 +505,18 @@ public sealed class StoryState
             if (aside >= 0 && (!due || !EventQueue.Before(Events[0], Events.SetAside[aside])))
             {
                 var late = Events.TakeSetAside(aside);
-                done.Add(new DueEvent(late, false, RunEvent(late.Event, clock, hyperspaceRoll, playerInSystem)));
+                var (news, held) = Run(late.Event, clock, hyperspaceRoll, playerInSystem);
+                done.Add(new DueEvent(late, false, news, held));
                 continue;
             }
             if (!due)
                 break;
             var e = Events.TakeHead();
             if (EventsRun.Contains(e.Event))
-                done.Add(new DueEvent(e, false, RunEvent(e.Event, clock, hyperspaceRoll, playerInSystem)));
+            {
+                var (news, held) = Run(e.Event, clock, hyperspaceRoll, playerInSystem);
+                done.Add(new DueEvent(e, false, news, held));
+            }
             else
             {
                 done.Add(new DueEvent(e, true));
@@ -527,7 +532,8 @@ public sealed class StoryState
     /// Kohr-Ah's victory and genocide) come with stage 3c's items 3 and 4;
     /// until then the clock sets them aside (<see cref="RunDueEvents"/>),
     /// and running one here throws. True if it changed a race (an
-    /// alliance, a death, a shield, a fleet), news for the players.
+    /// alliance, a death, a shield, a fleet), news for the players (and
+    /// <see cref="DueEvent.Held"/> says whether its gate held it).
     /// <para>
     /// The location gates (gameev.c:76-105, 132-135): the Spathi's shield
     /// and the Zoq-Fot-Pik's distress and death wait 7 days at a time
@@ -539,7 +545,11 @@ public sealed class StoryState
     /// ZOQFOT_DEFINED), says so (null: nobody is).
     /// </para>
     /// </summary>
-    public bool RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null)
+    public bool RunEvent(string evt, GameClock clock, Action? hyperspaceRoll = null, Func<string, bool>? playerInSystem = null) =>
+        Run(evt, clock, hyperspaceRoll, playerInSystem).News;
+
+    // RunEvent's work: whether the event changed a race, and whether its location gate held it (queued again).
+    private (bool News, bool Held) Run(string evt, GameClock clock, Action? hyperspaceRoll, Func<string, bool>? playerInSystem)
     {
         bool Waits(string special)
         {
@@ -555,7 +565,7 @@ public sealed class StoryState
                 // arilou_entrance_event: the portal opens, for three days.
                 Set("ARILOU_SPACE", ArilouOpening);
                 AddEvent(true, 0, 3, 0, "ARILOU_EXIT_EVENT", clock, hyperspaceRoll, playerInSystem);
-                return false;
+                return (false, false);
             case "ARILOU_EXIT_EVENT":
             {
                 // arilou_exit_event: it closes, to open again on the 17th of next month.
@@ -565,7 +575,7 @@ public sealed class StoryState
                 ++month;
                 Set("ARILOU_SPACE", ArilouClosing);
                 AddEvent(false, month, 17, year, "ARILOU_ENTRANCE_EVENT", clock, hyperspaceRoll, playerInSystem);
-                return false;
+                return (false, false);
             }
             case "HYPERSPACE_ENCOUNTER_EVENT":
                 CheckRaceGrowth(clock, hyperspaceRoll, playerInSystem);
@@ -573,23 +583,25 @@ public sealed class StoryState
                 // world's, for each player in hyperspace (stage 3b item 3).
                 hyperspaceRoll?.Invoke();
                 AddEvent(true, 0, 1, 0, "HYPERSPACE_ENCOUNTER_EVENT", clock);
-                return false;
+                return (false, false);
             case "ZOQFOT_DISTRESS_EVENT":
                 if (Waits("ZOQFOT_DEFINED"))
-                    return false;
+                    return (false, true);
                 Set("ZOQFOT_DISTRESS", 1);
                 AddEvent(true, 6, 0, 0, "ZOQFOT_DEATH_EVENT", clock, hyperspaceRoll, playerInSystem);
-                return true;
+                return (true, false);
             case "ZOQFOT_DEATH_EVENT":
             {
-                if (Waits("ZOQFOT_DEFINED") || Get("ZOQFOT_DISTRESS") == 0)
-                    return false;
+                if (Waits("ZOQFOT_DEFINED"))
+                    return (false, true);
+                if (Get("ZOQFOT_DISTRESS") == 0)
+                    return (false, false);
                 // Not rescued: the Zoq-Fot-Pik die, their fleet gone.
                 int i = Rules.RaceIndex("ZOQFOTPIK_SHIP");
                 SetFleet(i, _fleets[i] with { ActualStrength = 0 });
                 SetAlliance("ZOQFOTPIK_SHIP", Allied.Dead);
                 Set("ZOQFOT_DISTRESS", 2);
-                return true;
+                return (true, false);
             }
             case "SHOFIXTI_RETURN_EVENT":
                 // The Shofixti back and allied, and crew no longer an issue:
@@ -598,22 +610,22 @@ public sealed class StoryState
                 SetCrewCost((byte)(CrewCost - 2));
                 Set("CREW_PURCHASED0", 0);
                 Set("CREW_PURCHASED1", 0);
-                return true;
+                return (true, false);
             case "SPATHI_SHIELD_EVENT":
             {
                 if (Waits("SPATHI_DEFINED"))
-                    return false;
+                    return (false, true);
                 int i = Rules.RaceIndex("SPATHI_SHIP");
                 if (_fleets[i].ActualStrength == 0)
-                    return false;
+                    return (false, false);
                 SetRaceAllied("SPATHI_SHIP", false);
                 Set("SPATHI_SHIELDED_SELVES", 1);
                 SetFleet(i, _fleets[i] with { ActualStrength = 0 });
-                return true;
+                return (true, false);
             }
             case "ARILOU_UMGAH_CHECK":
                 Set("ARILOU_CHECKED_UMGAH", 2);
-                return false;
+                return (false, false);
             case "YEHAT_REBEL_EVENT":
             {
                 // The royalists cut to two thirds, the rebels as many, their
@@ -623,7 +635,7 @@ public sealed class StoryState
                 SetFleet(royalists, _fleets[royalists] with { ActualStrength = strength });
                 SetFleet(rebels, _fleets[rebels] with { ActualStrength = strength, LocX = 5150, LocY = 0 });
                 StartSphereTracking("YEHAT_REBEL_SHIP");
-                return true;
+                return (true, false);
             }
             case "SLYLANDRO_RAMP_UP":
                 if (Get("DESTRUCT_CODE_ON_SHIP") == 0)
@@ -635,14 +647,14 @@ public sealed class StoryState
                         AddEvent(true, 0, 182, 0, "SLYLANDRO_RAMP_UP", clock);
                     }
                 }
-                return false;
+                return (false, false);
             case "SLYLANDRO_RAMP_DOWN":
             {
                 int ramp = (byte)(Get("SLYLANDRO_MULTIPLIER") - 1);
                 if (ramp != 0)
                     AddEvent(true, 0, 23, 0, "SLYLANDRO_RAMP_DOWN", clock);
                 Set("SLYLANDRO_MULTIPLIER", ramp);
-                return false;
+                return (false, false);
             }
             default:
                 if (!Rules.EventIds.ContainsKey(evt))

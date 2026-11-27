@@ -96,6 +96,21 @@ internal sealed record TalkWorld(string Special, int Planet, int? Moon, string R
     public TalkWorld? Then { get; init; }
 
     /// <summary>
+    /// The world's record that this guard is gone, where UQM keeps no story
+    /// field for it (<see cref="GameWorld.GuardsGone"/>): the Kohr-Ah's ship
+    /// at the Zoq-Fot-Pik's world, which UQM's one player always destroys
+    /// in their orbit, its <see cref="Then"/> following at once. Once it's
+    /// destroyed, whoever destroyed it (the meeting's player, or another in
+    /// its battle after they left), it's recorded gone, and while it is an
+    /// orbit that passes the entry's test starts <see cref="Then"/>'s talk
+    /// instead: so the rescue comes even when <see cref="Then"/> couldn't
+    /// follow at once (its lock held, the meeting's player out of the
+    /// battle or wrecked). The record goes once the story no longer guards
+    /// the entry (the distress over). Null: none.
+    /// </summary>
+    public string? GoneRecord { get; init; }
+
+    /// <summary>
     /// Whether <see cref="Unguarded"/> is set too when the world is orbited
     /// with no talk while it's this entry's (genorz.c sets TAALO_UNPROTECTED
     /// after its whole test, the Orz extinct included).
@@ -222,6 +237,7 @@ public sealed partial class GameWorld
             StandDown = false,
             Stays = (_, survivors) => survivors,
             Then = ZoqFotPikHome,
+            GoneRecord = "ZOQFOT_KOHR_AH",
         },
         ZoqFotPikHome,
         // genpet.c:81, the Umgah's half: their world while they aren't the Talking Pet's zombies. In the states
@@ -263,6 +279,13 @@ public sealed partial class GameWorld
     private static bool HelixGuarded(StoryState s) =>
         Flag(s, "HELIX_UNPROTECTED") == 0 && (byte)(Flag(s, "THRADD_MISSION") - 1) >= 3;
 
+    /// <summary>
+    /// The world talks' guards destroyed that UQM keeps no story field for
+    /// (<see cref="TalkWorld.GoneRecord"/>: the Kohr-Ah's ship at the
+    /// Zoq-Fot-Pik's world), saved (HostSave).
+    /// </summary>
+    internal HashSet<string> GuardsGone { get; } = new();
+
     /// <summary>The worlds whose orbit starts a talk: <see cref="TalkWorlds"/>; tests give their own.</summary>
     internal IReadOnlyList<TalkWorld> WorldTalkTable { get; set; } = TalkWorlds;
 
@@ -303,16 +326,21 @@ public sealed partial class GameWorld
         string? special = Systems.Map.Stars[star].Special;
         var here = WorldTalkTable.Where(w => w.Special == special && w.Planet == planet && w.Moon == moon
                                              && (w.Matches?.Invoke(story) ?? true)).ToList();
+        // A guard recorded gone that the story no longer guards (the distress over): the record goes.
+        foreach (var w in here.Where(w => w.GoneRecord is { } r && GuardsGone.Contains(r) && !w.Guarded(story, () => true)))
+            GuardsGone.Remove(w.GoneRecord!);
+        // The talk an entry starts: a guard recorded gone starts the talk that follows it.
+        TalkWorld Starts(TalkWorld w) => w.GoneRecord is { } r && GuardsGone.Contains(r) && w.Then is { } next ? next : w;
         // Which starts its talk, asked without tracking a sphere.
         int first = here.FindIndex(w => w.Guarded(story, () => story.WouldTrackSphere(w.TrackedRace ?? w.Race)));
         // As the generator does it, the tests and their tracking with them,
         // up to that one (its talk not ported yet: orbited as before).
         foreach (var w in first >= 0 ? here.Take(first + 1) : here)
         {
-            if (WorldScript(w) is null)
+            if (WorldScript(Starts(w)) is null)
                 continue;
             if (w.Guarded(story, () => story.StartSphereTracking(w.TrackedRace ?? w.Race)))
-                return w;
+                return Starts(w);
             if (first < 0 && w.UnguardedWhenOrbited && w.Unguarded is { } flag)
                 story.Set(flag, 1);
         }
@@ -426,6 +454,8 @@ public sealed partial class GameWorld
             return;
         if (w.Unguarded is { } flag)
             story.Set(flag, 1);
+        if (w.GoneRecord is { } gone)
+            GuardsGone.Add(gone);   // whoever destroyed it: the talk after it comes at the next orbit if not now
         var player = m.Player;
         var ship = player.Ship;
         if (m.LeftBattleEarly || !player.Present || ship.Destroyed || ship is not { Meeting: null, Visit: null, Battle: null }

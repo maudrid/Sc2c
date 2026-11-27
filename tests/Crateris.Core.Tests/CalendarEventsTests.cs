@@ -160,6 +160,26 @@ public class CalendarEventsTests
     }
 
     [Fact]
+    public void ASetAsideEventRunsBeforeAQueuedOneOfItsDayAndAfterAnEarlierOne()
+    {
+        // Reading (c): a set-aside event fell due before a queued one of its
+        // day (it was taken off the queue first), so it runs first; a queued
+        // one of an earlier day (a save's from before 3b-1) runs before it.
+        var world = BareWorld(2155, 9, 1);
+        var story = world.Story!;
+        story.Events.Restore(new[]
+        {
+            At("ARILOU_UMGAH_CHECK", 2155, 8, 15), At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 9, 1), At("ARILOU_ENTRANCE_EVENT", 2155, 9, 1),
+        }, new[] { At("SHOFIXTI_RETURN_EVENT", 2155, 8, 20), At("ZOQFOT_DISTRESS_EVENT", 2155, 9, 1) });
+        Assert.Equal(new[]
+        {
+            At("ARILOU_UMGAH_CHECK", 2155, 8, 15), At("SHOFIXTI_RETURN_EVENT", 2155, 8, 20), At("ZOQFOT_DISTRESS_EVENT", 2155, 9, 1),
+            At("HYPERSPACE_ENCOUNTER_EVENT", 2155, 9, 1), At("ARILOU_ENTRANCE_EVENT", 2155, 9, 1),
+        }, world.RunDayEvents().Select(e => e.Event));
+        Assert.Empty(story.Events.SetAside);
+    }
+
+    [Fact]
     public void ASetAsideEventItsGateHoldsIsQueuedAgainSevenDaysFromToday()
     {
         var world = BareWorld(2155, 9, 1);
@@ -168,7 +188,7 @@ public class CalendarEventsTests
             new[] { At("SPATHI_SHIELD_EVENT", 2155, 5, 1) });
         world.InSystemForTests = special => special == "SPATHI_DEFINED";
         var done = world.RunDayEvents();
-        Assert.Equal(new StoryState.DueEvent(At("SPATHI_SHIELD_EVENT", 2155, 5, 1), false), done[0]);
+        Assert.Equal(new StoryState.DueEvent(At("SPATHI_SHIELD_EVENT", 2155, 5, 1), false, false, true), done[0]);
         Assert.Empty(story.Events.SetAside);
         Assert.Contains(At("SPATHI_SHIELD_EVENT", 2155, 9, 8), story.Events);
         Assert.Equal(0, story.Get("SPATHI_SHIELDED_SELVES"));
@@ -209,6 +229,31 @@ public class CalendarEventsTests
         Assert.Equal(s.Events, again.Story!.Events);
         Assert.Equal(1, again.Story.CrewCost);
         Assert.Empty(again.TakeNotices());
+    }
+
+    [ContentFact]
+    public void ASavesEventsHeldAsItLoadsByASavedPlayerInTheRacesSystem()
+    {
+        // Nobody is in the game as a save loads: the gates ask where every
+        // saved player's ship is (a guest's too, though away).
+        var world = NewGame("g");
+        var story = world.Story!;
+        int zoq = Star(world, "ZOQFOT_DEFINED");
+        Assert.True(story.Events.Add(true, 0, 1, 0, "ZOQFOT_DISTRESS_EVENT", world.Clock));
+        world.PutInSystem("g", zoq);
+        Frames(world, 1);
+        var node = JsonNode.Parse(HostSave.ToJson(world))!;
+        node["clock"]!["day"] = world.Clock.Day + 3;   // the distress's day passed
+        var loaded = HostSave.FromJson(node.ToJsonString(), world.Systems!, TestContent.Shapes);
+        Assert.Equal(0, loaded.Story!.Get("ZOQFOT_DISTRESS"));
+        var again = Assert.Single(loaded.Story.Events, e => e.Event == "ZOQFOT_DISTRESS_EVENT");
+        Assert.Equal((loaded.Clock.Month, loaded.Clock.Day + 7), (again.Month, again.Day));
+        // The guest elsewhere: it runs as the save loads.
+        world.PutInHyperspace("g");
+        Frames(world, 1);
+        node = JsonNode.Parse(HostSave.ToJson(world))!;
+        node["clock"]!["day"] = world.Clock.Day + 3;
+        Assert.Equal(1, HostSave.FromJson(node.ToJsonString(), world.Systems!, TestContent.Shapes).Story!.Get("ZOQFOT_DISTRESS"));
     }
 
     // ---- the location gates (question 1)
@@ -409,6 +454,84 @@ public class CalendarEventsTests
         Assert.Equal(story.Rules.RaceIndex("BLACK_URQUAN_SHIP"), world.MeetingOf("g")!.Race);
     }
 
+    [ContentFact]
+    public void TheKohrAhsShipDestroyedByAGuestAfterTheHostLeftStillBringsTheRescue()
+    {
+        // The host meets the Kohr-Ah's ship and retreats; the guest, let in,
+        // destroys it. No thanks talk follows (the host flies elsewhere), but
+        // the ship is recorded gone: the next orbit of their world, by
+        // anyone, is the Zoq-Fot-Pik's rescue, with no new Kohr-Ah ship.
+        var world = InDistress(out int star);
+        var story = world.Story!;
+        world.PutInOrbit("h", star, 0);
+        var m = world.MeetingOf("h")!;
+        Assert.Equal(story.Rules.RaceIndex("BLACK_URQUAN_SHIP"), m.Race);
+        world.PutInSystem("g", star);
+        var gip = world.Find("g")!.Ship.Ip!;
+        gip.PlaceInOrbit(0, null);
+        gip.ReturnFromOrbit();   // the guest by the same world
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        Assert.True(world.LetIntoBattle("g"));
+        Frames(world, 3);
+        var wb = m.Battle!;
+        for (int i = 0; i < 300 && world.Host.Ship.Battle is not null; ++i)
+        {
+            world.SubmitInput("h", world.Frame + 1, ShipInput.TakeOff);
+            world.SubmitInput("g", world.Frame + 1, ShipInput.None);
+            if (wb.Enemy.RaceDesc is { } enemy)
+                enemy.EnergyLevel = 0;
+            world.Step();
+        }
+        Assert.Null(world.Host.Ship.Battle);
+        WorldTalkTests.WinTheBattle(world, m);
+        Frames(world, 2);
+        Assert.Null(world.MeetingOf("h"));
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Equal(1, story.Get("ZOQFOT_DISTRESS"));
+        Assert.Contains("ZOQFOT_KOHR_AH", world.GuardsGone);
+        // Saved with the game.
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), world.Systems!, TestContent.Shapes);
+        Assert.Equal(new[] { "ZOQFOT_KOHR_AH" }, loaded.GuardsGone);
+        // The guest's orbit: the Zoq-Fot-Pik at once, their thanks.
+        world.PutInHyperspace("g");
+        Frames(world, 1);
+        world.PutInOrbit("g", star, 0);
+        var zfp = world.MeetingOf("g")!;
+        Assert.Equal(story.Rules.RaceIndex("ZOQFOTPIK_SHIP"), zfp.Race);
+        Assert.True(Said(zfp.Talk!, "THANKS_FOR_RESCUE1"));
+        Assert.Equal(0, story.Get("ZOQFOT_DISTRESS"));
+        // The record goes with the distress.
+        Assert.NotNull(world.WorldTalkAt(star, 0, null));
+        Assert.Empty(world.GuardsGone);
+    }
+
+    [ContentFact]
+    public void TheKohrAhsShipDestroyedWhileTheirLockIsHeldBringsTheRescueAtTheNextOrbit()
+    {
+        var world = InDistress(out int star);
+        var story = world.Story!;
+        world.PutInOrbit("h", star, 0);
+        var m = world.MeetingOf("h")!;
+        // The guest talking to the Zoq-Fot-Pik elsewhere meanwhile: their lock held.
+        Assert.True(world.DialogueLocks!.TryTake("ZOQFOTPIK_CONVERSATION", "g", out _));
+        world.TakeNotices();
+        Assert.True(world.EncounterChoice("h", EncounterAction.Attack));
+        WorldTalkTests.WinTheBattle(world, m);
+        Frames(world, 2);
+        // No thanks now: the host told who's talking to them, the ship by the world.
+        Assert.Null(world.MeetingOf("h"));
+        Assert.Contains(world.TakeNotices(), n => n.PlayerId == "h" && n.Event == NoticeEvent.Talking);
+        Assert.Equal(1, story.Get("ZOQFOT_DISTRESS"));
+        Assert.Contains("ZOQFOT_KOHR_AH", world.GuardsGone);
+        // The lock let go: the host's next orbit is the rescue.
+        world.DialogueLocks.Release("ZOQFOTPIK_CONVERSATION", "g");
+        world.PutInOrbit("h", star, 0);
+        var zfp = world.MeetingOf("h")!;
+        Assert.Equal(story.Rules.RaceIndex("ZOQFOTPIK_SHIP"), zfp.Race);
+        Assert.True(Said(zfp.Talk!, "THANKS_FOR_RESCUE1"));
+        Assert.Equal(0, story.Get("ZOQFOT_DISTRESS"));
+    }
+
     // ---- the Arilou's portal (starcon.c's checkArilouGate)
 
     [Fact]
@@ -470,6 +593,50 @@ public class CalendarEventsTests
         Assert.NotEqual(IpGroup.Flee, group.Task & ~(IpGroup.IgnoreFlagship | IpGroup.ReformGroup));
     }
 
+    [Fact]
+    public void TheRebellionCheckSendsOffOnlyTheYehatGroupsThatStoodDown()
+    {
+        // check_yehat_rebellion (gendefault.c:338) after a meeting with no
+        // battle, the civil war begun: a Yehat group that stood down from the
+        // touch (IGNORE_FLAGSHIP), heading for a planet, flees, keeping only
+        // REFORM_GROUP of its task, heading nowhere; a Yehat group that
+        // didn't stand down, and another race's that did, stay as they were.
+        var rules = Rules;
+        int yehat = rules.RaceIndex("YEHAT_SHIP"), spathi = rules.RaceIndex("SPATHI_SHIP");
+        (SystemGroups, SystemDraw, IpGroup[]) Setup(int civilWar, out StoryState story)
+        {
+            story = StoryState.NewGame(rules, new GameClock(2155, 2, 17));
+            story.Set("YEHAT_CIVIL_WAR", civilWar);
+            var sg = new SystemGroups(rules) { Ported = rules.Races.ToHashSet() };
+            var d = new SystemDraw(GroupStar) { Random = new HyperspaceRandom(9) { Places = new() } };
+            sg.Systems[GroupStar] = d;
+            IpGroup G(int race, byte task, byte dest) => new() { Race = race, Task = task, DestLoc = dest, InSystem = true };
+            var groups = new[]
+            {
+                G(yehat, (byte)(IpGroup.OnStation | IpGroup.IgnoreFlagship | IpGroup.ReformGroup), 3),   // the one met
+                G(yehat, (byte)(IpGroup.Explore | IpGroup.IgnoreFlagship), 2),
+                G(yehat, IpGroup.OnStation, 4),
+                G(spathi, (byte)(IpGroup.OnStation | IpGroup.IgnoreFlagship), 5),
+            };
+            d.Groups.AddRange(groups);
+            return (sg, d, groups);
+        }
+        var (sg, d, g) = Setup(1, out var story);
+        sg.EndMeeting(d, g[0], null, -1, story);
+        Assert.Equal((IpGroup.Flee | IpGroup.IgnoreFlagship | IpGroup.ReformGroup, (byte)0), (g[0].Task, g[0].DestLoc));
+        Assert.Equal((IpGroup.Flee | IpGroup.IgnoreFlagship, (byte)0), (g[1].Task, g[1].DestLoc));
+        Assert.Equal((IpGroup.OnStation, (byte)4), (g[2].Task, g[2].DestLoc));
+        Assert.Equal(((byte)(IpGroup.OnStation | IpGroup.IgnoreFlagship), (byte)5), (g[3].Task, g[3].DestLoc));
+        // After a battle (its race to turn on the players), or before the war: nobody flees.
+        foreach (var (war, battle) in new[] { (1, yehat), (0, -1) })
+        {
+            (sg, d, g) = Setup(war, out story);
+            sg.EndMeeting(d, g[0], null, battle, story);
+            Assert.Equal(((byte)(IpGroup.OnStation | IpGroup.IgnoreFlagship | IpGroup.ReformGroup), (byte)3), (g[0].Task, g[0].DestLoc));
+            Assert.Equal(((byte)(IpGroup.Explore | IpGroup.IgnoreFlagship), (byte)2), (g[1].Task, g[1].DestLoc));
+        }
+    }
+
     // ---- --start-date
 
     [ContentFact]
@@ -489,10 +656,16 @@ public class CalendarEventsTests
             host.StartDate("2155-03-21"));
         Assert.Equal(Allied.Good, story.Alliance("SHOFIXTI_SHIP"));
         Assert.Equal("Starting on 2155-03-21: 0 days passed, 0 events run", host.StartDate("2155-03-21"));
+        // Those a location gate held, and those set aside, told apart from those run.
+        Assert.True(story.Events.Add(true, 0, 1, 0, "SPATHI_SHIELD_EVENT", world.Clock));
+        Assert.True(story.Events.Add(true, 0, 2, 0, "ADVANCE_PKUNK_MISSION", world.Clock));
+        world.PutInSystem("host", Star(world, "SPATHI_DEFINED"));
+        Assert.Equal("Starting on 2155-03-30: 9 days passed, 0 events run, 2 events held by a player in their race's system "
+                     + "(SPATHI_SHIELD_EVENT, SPATHI_SHIELD_EVENT), 1 event set aside (ADVANCE_PKUNK_MISSION)", host.StartDate("2155-03-30"));
         // Not backwards, and only real dates.
         foreach (var bad in new[] { "2155-03-20", "2155-02-30", "2155-3", "tomorrow", "2155-13-01" })
             Assert.Throws<ArgumentException>(() => host.StartDate(bad));
-        Assert.Equal((2155, 3, 21), (world.Clock.Year, world.Clock.Month, world.Clock.Day));
+        Assert.Equal((2155, 3, 30), (world.Clock.Year, world.Clock.Month, world.Clock.Day));
     }
 
     // ---- what an event changes, taken back
