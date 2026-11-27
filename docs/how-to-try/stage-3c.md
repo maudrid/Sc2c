@@ -20,6 +20,8 @@ Item 1's tests: `ClockEventsTests` (topic `story`: every event the port runs rep
 
 The recording is remade with `python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 --content PACKAGE --only clock-events` (a few seconds; code only).
 
+Item 2's tests: `StoryPauseTests` (topic `story`: a test's sequence taking a story pause: its skip held by the host's pause, everyone frozen through its fade, its days running their events with no encounter rolled, then over; a story talk after the days shown to every player, answered and paged by its replier alone, the replies passing on as they leave, its closing lines after; a talk-only pause, the starbase's opening waiting under it; a pause's talk refused unless story; saves during and after the skip), `OpeningTests` (the two weeks rolling no encounter for a guest in hyperspace while the fleets move as the same days move them), `TalkScreenTests` (topic `talk`: every recorded start's screen coming in as UQM's script set it, `"intro"` in the talks' recordings; the hypnotised captain's Ur-Quan and the emerging Chmmr; the starbase's talks' intros), `MeetingWireTests` (topic `world`: the intro and the story pause's step on the wire and their bounds; a story pause on two clients, the skip not shown as a talk, the talk on both, the replier's client answering; the host's log), `ScreenFadeTests` (topic `drawing`: the whole screen's fade to black and back).
+
 ## Item 1: the calendar's engine and the simple events
 
 The clock's events run as UQM's `gameev.c` runs them, except the races' missions and the Kohr-Ah's victory and genocide (items 3 and 4), which are still set aside on their day:
@@ -62,3 +64,36 @@ Each is a row of `docs/differences.md`: the calendar's co-op rules (row 88: the 
 - **The missions and the Kohr-Ah** (the Pkunk's, the Thraddash's, the Ilwrath's, the Mycon's, the Utwig and Supox's; the Kohr-Ah's victory and genocide) are still set aside: items 3 and 4.
 - **The fleets aren't on the screen**: the rebels' and the others' spheres change, but there's no star map; the status panel's fleet lines come with item 3 (the plan's question 8).
 - **The Shofixti's return** is reached in play only once the Maidens can be picked up (item 5); until then a test or a save queues it.
+
+## Item 2: story pauses generalised
+
+UQM skips time in three places (the starbase's two weeks, the bomb's 14 days, the Talking Pet's 15), each a two-second fade to black and then the days at once, and shows a few talks' screens fading in. The port's one story pause, the starbase's opening, is now one any sequence can take (`World/StoryPause.cs`): a time skip (`World/TimeSkip.cs`), a story talk on everyone's screen, or both, the talk after the days, and then the sequence that took it goes on. The starbase's two weeks are its first user; the Black Ur-Quan's last talk (item 4), the Pet's jump (item 10) and the bomb's days (item 11) come later.
+
+1. **The two weeks, with a friend.** Bring the Lunar base to the commander (`docs/how-to-try/stage-3a.md`, or `--start-visit base-report`), with a friend flying in hyperspace. After the alliance's name, every player's whole screen fades to black over two seconds, whatever it shows (the friend's hyperspace view too), and the game waits. Then the 14 days pass at once: the date jumps, each day's events run (the Arilou's portal, a Shofixti return due then), the races' fleets grow and move, but no group of alien ships is rolled for anyone, the friend in hyperspace included (the plan's question 3). The allied commander's screen then fades in from black over two seconds (UQM's `CIM_FADE_IN_SCREEN`), on every screen.
+2. **A visit straight into the two weeks** (the starbase open, the base aboard: `--start-state STARBASE_AVAILABLE=1,MOONBASE_ON_SHIP=1 --start-visit`): there's no talk before it, so each player's own screen fades under it rather than the communication screen.
+3. **The talks' intro.** A talk's screen comes in as UQM's `SetCommIntroMode` says: the allied commander after the two weeks fades in (2 s), the Chmmr emerging fades in (2 s: `--start-state CHMMR_EMERGING=1 --start-at 4000:4000 --start-encounter chmmr`), the Ur-Quan before the hypnotised captain fades in (5 s: `--start-state PLAYER_HYPNOTIZED=1 --start-at 4000:4000 --start-encounter urquan --encounter-choice hail`). With no skip before them their screens aren't dark, so nothing shows yet: the Chmmr's comes from the Sun Device's white flash (item 8 and 11) and the Ur-Quan's from the Pet's jump (item 10).
+
+With several players:
+
+- **A time skip is a story pause for everyone, its fade on every screen** (the plan's co-op rules): everyone waits, input meant for then is dropped, and nothing moves; the clock jumps for all.
+- **No hyperspace encounters during a skip** (question 3): a player in hyperspace meets no new group from those days; the fleets still move and every event still runs.
+- **A story talk outside the starbase** is shown to everyone and answered by the player whose sequence started it, the replies passing to the next player (the host first) if they leave, as the opening's (row 2). Nothing in play starts one yet (item 4's Black Ur-Quan is the first); `StoryPauseTests` and `MeetingWireTests` run one with the commander's talk.
+
+Tried headless, each with `--host --no-upnp --id host --name Host --save FILE` (a scratch file):
+
+- `--start-state STARBASE_AVAILABLE=1,MOONBASE_ON_SHIP=1 --start-visit --quit-after 200`: "Starting in the TimePassing talk at Earth's starbase", "Time passes: every screen fades to black, then 14 days pass (no encounters meanwhile)", "14 days passed: it's 2155-03-03". The save (made as it quits, in the allied commander's talk) is of the game before the visit: 2155-02-17, `MOONBASE_ON_SHIP` still 1.
+- The same with `--script "none:200,select:1,none:200" --quit-after 500`: after the two lines above, "Reply 0: Before proceeding I need some additional background information.", "host: reply 0": the allied commander's talk after the days, answered.
+- `--start-state CHMMR_EMERGING=1 --start-at 4000:4000 --start-encounter chmmr --quit-after 300`: "host talks to the Chmmr", "Chmmr: WE ARE FREE! ...": the talk whose screen fades in over 2 s (its view's `TalkScreen.Intro`; headless draws nothing).
+- `--start-state PLAYER_HYPNOTIZED=1 --start-at 4000:4000 --start-encounter urquan --encounter-choice hail --quit-after 300`: "host talks to the Ur-Quan", "Ur-Quan: ...in addition, your refusal to answer our transmissions is taken as an insult...": the hypnotised captain's talk, fading in over 5 s.
+
+Not tried by hand: the fade and the fade-in on a screen (drawn by the client's `ScreenFade` over every screen; `ScreenFadeTests` checks its timing), a friend in hyperspace during the two weeks (`OpeningTests` and `MeetingWireTests` have it).
+
+### What's different from UQM
+
+Rows 2 (story pauses outside the starbase), 3 (the skip: every player's whole screen fades; no encounter rolled), 67 (no rolls during a skip) and 83 (the intro: the fade-in drawn, the crossfades cut). UQM's fade is `FadeAllToBlack` over its whole screen, as the port's now is (before, only the communication screen's area faded).
+
+### Known limits of item 2
+
+- **Nothing but the starbase takes a story pause in play yet**: the Black Ur-Quan's last talk (item 4), the Pet's jump (item 10) and the bomb's days (item 11) will.
+- **The crossfades** (UQM's default for every talk, 31/60 s over the space window, and the commander's whole-screen ones before the alliance) are sent but cut at once, as before.
+- **A story pause isn't saved**: a save made during one is of the game as it stands (its days in it once they've passed); the starbase's opening is still saved as before it began.

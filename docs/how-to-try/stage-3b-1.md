@@ -110,7 +110,7 @@ Each is a row of `docs/differences.md`:
 ## Known limits of stage 3b-1
 
 - **Five races.** Only the Ur-Quan (and drone), Kohr-Ah, Ilwrath, Spathi and Slylandro probes fly and talk; the rest, their homeworlds and the Melnorme's trading are 3b-2's (built: `docs/how-to-try/stage-3b-2.md`).
-- **What isn't drawn.** The encounter screen's menu and message line, and the battle-won screen's status area (its frame, the resource units counting up), are the status lines'; the host's fleet ships aren't drawn in the battle-won screen's pick frame; the port has no hyperspace radar, so the groups' radar blips aren't drawn; the talk's opening fade (`SetCommIntroMode`) isn't sent.
+- **What isn't drawn.** The encounter screen's menu and message line, and the battle-won screen's status area (its frame, the resource units counting up), are the status lines'; the host's fleet ships aren't drawn in the battle-won screen's pick frame; the port has no hyperspace radar, so the groups' radar blips aren't drawn; the talk's opening fade (`SetCommIntroMode`) isn't sent (since stage 3c item 2 it is, and a fade-in is drawn: `docs/how-to-try/stage-3c.md`; the crossfades still cut).
 - **The game menu** at the host's encounter screen comes in a later stage.
 - **Nothing moves the spheres** yet: the races' growth and missions are 3c's events.
 - **No sound or music**, as before.
