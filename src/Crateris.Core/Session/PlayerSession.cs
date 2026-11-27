@@ -492,7 +492,8 @@ public sealed class PlayerSession
 
     // The talk the communication screen showed as a talk-less skip came (null if it showed none), kept under its
     // fade: with it, the screen is the communication screen still (TalkShown); without, the player's own screen
-    // as ever (their encounter screen, their flight), which nothing changes while the game waits.
+    // as ever (their encounter screen, their flight), which the world doesn't change while it waits; only the
+    // client's own battle-won tally can close under the fade, showing the player's own screen beneath it.
     private TalkView? _talkUnderSkip;
 
     /// <summary>Whether this player answers the talk shown (the starter, or who the replies passed to); nobody during a talk-less skip.</summary>
