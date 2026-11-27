@@ -901,45 +901,36 @@ public sealed class HostSession
 
     private bool _gameOverLogged;
 
-    // What of the story shown has been logged: which, whether its skip's fade and days, and how many of its talk's events.
-    private (TalkSequence? Shown, bool Fading, bool Skipped, Talk? Talk, int Events) _storyLogged;
+    // What of each story pause has been logged: whether its skip's fade and days, its talk and how many of its events.
+    private readonly List<(StoryPause Pause, bool Fading, bool Skipped, Talk? Talk, int Events)> _pausesLogged = new();
+
+    // What of the starbase visit's two weeks has been logged.
+    private (StarbaseVisit? Visit, bool Fading, bool Skipped) _visitLogged;
 
     // The story pauses in the log (stage 3c item 2), for headless runs and
-    // bug reports: a story pause as it's taken, a time skip's fade (the
-    // starbase's two weeks' too) and its days as they pass, with the date
-    // after; a story pause's talk's lines, replies and end, as a meeting's
-    // are; and its end.
+    // bug reports: every story pause from its start to its end (one taken
+    // and over between two frames, or one its Then takes as it ends, too),
+    // a time skip's fade (the starbase's two weeks' too) and its days as
+    // they pass, with the date after; a story pause's talk's lines,
+    // replies and end, as a meeting's are.
     private void LogStory()
     {
-        var shown = World.StoryShown;
-        var (was, fading, skipped, talk, events) = _storyLogged;
-        if (shown is StoryPause begun && begun != was)
+        // Those logged before first (one ending as its Then takes the next), then the new ones, each in order.
+        var all = _pausesLogged.Select(p => (Entry: p, New: false))
+            .Concat(World.TakeNewPauses().Select(p => (Entry: (Pause: p, Fading: false, Skipped: false, Talk: (Talk?)null, Events: 0), New: true)))
+            .ToList();
+        _pausesLogged.Clear();
+        foreach (var (entry, isNew) in all)
         {
-            Logged?.Invoke($"A story pause for everyone: {begun.What}");
-            (was, fading, skipped, talk, events) = (begun, false, false, null, 0);
-        }
-        else if (shown is not null && shown != was)
-            (was, fading, skipped, talk, events) = (shown, false, false, null, 0);
-        if (was?.Skip is { } skip)
-        {
-            if (!fading && (was.Step == VisitStep.TimePassing || skip.Skipped))
+            if (isNew)
+                Logged?.Invoke($"A story pause for everyone: {entry.Pause.What}");
+            var (pause, fading, skipped, talk, events) = entry;
+            LogSkip(pause, ref fading, ref skipped);
+            // Its talk, once begun (Talks: it may have begun and ended since the last frame).
+            if (talk is null && pause.Talks.Count > 0)
             {
-                Logged?.Invoke($"Time passes: every screen fades to black, then {skip.Days} days pass (no encounters meanwhile)");
-                fading = true;
-            }
-            if (!skipped && skip.Skipped)
-            {
-                var c = World.Clock;
-                Logged?.Invoke($"{skip.Days} days passed: it's {c.Year:D4}-{c.Month:D2}-{c.Day:D2}");
-                skipped = true;
-            }
-        }
-        if (was is StoryPause pause)
-        {
-            if (pause.Talk is { } now && now != talk)
-            {
-                Logged?.Invoke($"The story's talk ({now.Script.Phrases.Name}), {pause.Replier.Id} replying, shown to everyone");
-                (talk, events) = (now, 0);
+                talk = pause.Talks[0];
+                Logged?.Invoke($"The story's talk ({talk.Script.Phrases.Name}), {pause.Replier.Id} replying, shown to everyone");
             }
             if (talk is not null)
                 for (; events < talk.Events.Count; ++events)
@@ -949,20 +940,50 @@ public sealed class HostSession
                             Logged?.Invoke($"  {talk.Script.Phrases.Name}: {l.Text}");
                             break;
                         case RepliesOffered o:
-                            for (int i = 0; i < o.Replies.Count; ++i)
-                                Logged?.Invoke($"  {pause.Replier.Id}'s reply {i}: {o.Replies[i].Text}");
+                            for (int r = 0; r < o.Replies.Count; ++r)
+                                Logged?.Invoke($"  {pause.Replier.Id}'s reply {r}: {o.Replies[r].Text}");
                             break;
                         case ReplyChosen c:
                             Logged?.Invoke($"  {pause.Replier.Id} chose reply {c.Index}");
                             break;
                         case TalkEnded:
-                            Logged?.Invoke($"  The story's talk ends");
+                            Logged?.Invoke("  The story's talk ends");
                             break;
                     }
             if (pause.Done)
                 Logged?.Invoke($"The story pause is over: {pause.What}");
+            else
+                _pausesLogged.Add((pause, fading, skipped, talk, events));
         }
-        _storyLogged = shown is null || was is StoryPause { Done: true } ? default : (was, fading, skipped, talk, events);
+        if (World.Visit is { } visit)
+        {
+            var (was, fading, skipped) = _visitLogged;
+            if (was != visit)
+                (fading, skipped) = (false, false);
+            LogSkip(visit, ref fading, ref skipped);
+            _visitLogged = (visit, fading, skipped);
+        }
+        else
+            _visitLogged = default;
+    }
+
+    // A sequence's time skip in the log: its fade as it begins, its days as they pass.
+    private void LogSkip(TalkSequence sequence, ref bool fading, ref bool skipped)
+    {
+        if (sequence.Skip is not { } skip)
+            return;
+        if (!fading && (sequence.Step == VisitStep.TimePassing || skip.Skipped))
+        {
+            Logged?.Invoke($"Time passes: every screen fades to black, then {skip.Days} days pass (no encounters meanwhile)");
+            fading = true;
+        }
+        if (!skipped && skip.Skipped)
+        {
+            var c = World.Clock;
+            Logged?.Invoke($"{skip.Days} days passed: it's {c.Year:D4}-{c.Month:D2}-{c.Day:D2}"
+                + (World.GameOver ? "; the game is over" : ""));
+            skipped = true;
+        }
     }
 
     // What of each meeting going on has been logged: its step and how many of its talk's events.

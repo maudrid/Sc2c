@@ -59,6 +59,7 @@ public sealed partial class GameWorld
         {
             Clock.NextDay();
             done.AddRange(RunDayEvents(rolls));
+            DayForTests?.Invoke();
         }
         Clock.FramesIntoDay = 0;
         return done;
@@ -81,6 +82,12 @@ public sealed partial class GameWorld
         ?? (Systems is { } systems
             && _players.Any(p => (everyone || p.Present) && !(p.Ship.Destroyed && p.Ship.Battle is null)
                                  && p.Ship.SystemStar is int star && systems.Map.Stars[star].Special == special));
+
+    /// <summary>What a test does after each day <see cref="MoveClockDays"/> passes (a game over mid-skip), or null.</summary>
+    internal Action? DayForTests { get; set; }
+
+    /// <summary>The game lost, for tests (what the Kohr-Ah's genocide will do, stage 3c item 4).</summary>
+    internal void LoseTheGameForTests() => LoseTheGame(surrendered: false);
 
     /// <summary>The location gates' answer in tests that have no systems (UQM's recorded flagship's place), or null.</summary>
     internal Func<string, bool>? InSystemForTests { get; set; }

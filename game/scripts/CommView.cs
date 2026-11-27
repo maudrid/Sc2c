@@ -100,7 +100,7 @@ public partial class CommView : Node2D
     /// </summary>
     public void Show(PlayerSession session, long linesFrom)
     {
-        if (_content is null || _scripts is null || session.Talk is not { } talk)
+        if (_content is null || _scripts is null || session.ShownTalk is not { } talk)
             return;
         if (talk.Script != _script)
         {

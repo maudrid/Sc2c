@@ -1263,7 +1263,7 @@ public partial class Main : Node2D
         {
             // The player's own reply sold their minerals: counted down before the commander's lines (SellMinerals).
             long linesFrom = 0;
-            if (player.Talk is { } talk)
+            if (player.ShownTalk is { } talk)
             {
                 _sellingView.Follow(talk.LinesKey);
                 if ((talk.Sale is not null || talk.BioSale is not null) && talk.Replier == player.PlayerId && !Headless)
@@ -1295,7 +1295,7 @@ public partial class Main : Node2D
         // A meeting's closing lines: gone through once played and the last replay's time is up (item 11);
         // every frame, so lines shown again after something else start afresh.
         player.FollowClosing(_commView.Visible && _commView.Busy, 1.0 / Engine.PhysicsTicksPerSecond);
-        if (!_commView.Visible || player.Talk is null)
+        if (!_commView.Visible || player.ShownTalk is null)
             _sellingView.ShowCredits(null);
         _sellingView.Visible = _commView.Visible && _sellingView.Showing;
         // The encounter screen, drawn once a meeting; the battle-won screen run on with the keys held, and its

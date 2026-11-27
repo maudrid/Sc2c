@@ -1839,6 +1839,49 @@ public class MeetingWireTests
         Assert.Equal("The story pause is over: a test's pause", log.Last(l => l.StartsWith("The story pause")));
     }
 
+    [Fact]
+    public void UnderATalklessSkipAClientKeepsItsScreenAndIsGivenNoTalkKeys()
+    {
+        // Review round 1: a guest in its meeting's talk as a skip with no talk comes keeps that talk on its
+        // communication screen under the fade (not the encounter screen), answers nothing and is told no keys; the
+        // host in flight keeps its own screen. As the skip ends, the meeting's talk again.
+        var game = NewGame(guests: 1);
+        game.Init = Segue.Peace;
+        var host = game.Host;
+        var world = game.World;
+        var g1 = NewClient(1);
+        GroupBy(world, "g1", "SPATHI_SHIP");
+        FramesUntil(host, () => g1.Session.Talk is { Replies.Count: > 0 }, 300, g1);
+        Assert.Equal(PlayerScreen.Comm, g1.Session.Screen);
+        var meetingTalk = g1.Session.Talk;
+        var pause = world.StartStoryPause(world.Find("g1")!, "a test's skip", 2)!;
+        Frame(host, g1);
+        Assert.True(g1.Session.StoryPaused && g1.Session.TalklessSkip);
+        Assert.Equal(PlayerScreen.Comm, g1.Session.Screen);
+        Assert.True(g1.Session.TalkShown);
+        Assert.Same(meetingTalk, g1.Session.ShownTalk);
+        Assert.False(g1.Session.Replying);   // the skip's replier, but nothing to answer
+        Assert.Contains("Time passes...", g1.Session.StatusLines());
+        Assert.DoesNotContain(g1.Session.StatusLines(), l => l.StartsWith("Esc:", StringComparison.Ordinal)
+            || l.StartsWith("The story's talk", StringComparison.Ordinal));
+        FramesUntil(host, () => world.Pause is null, TimeSkip.FadeFrames + 5, g1);
+        Frame(host, g1);
+        Assert.False(g1.Session.TalklessSkip);
+        Assert.Equal(VisitStep.Meeting, g1.Session.ShownTalk!.Step);
+        Assert.Equal(PlayerScreen.Comm, g1.Session.Screen);
+        Assert.True(pause.Done);
+        // The host's log tells a pause from start to end, though it began and ended between its frames.
+        Assert.Contains("A story pause for everyone: a test's skip", game.Log);
+        Assert.Contains("The story pause is over: a test's skip", game.Log);
+        game.Log.Clear();
+        world.StartStoryPause(world.Host, "first", 1, then: _ => world.StartStoryPause(world.Host, "second", 1));
+        for (int i = 0; i < 3 * TimeSkip.FadeFrames && (world.Pause is not null || !game.Log.Contains("The story pause is over: second")); ++i)
+            Frame(host, g1);
+        Assert.Equal(new[] { "A story pause for everyone: first", "The story pause is over: first",
+            "A story pause for everyone: second", "The story pause is over: second" },
+            game.Log.Where(l => l.StartsWith("A story pause", StringComparison.Ordinal) || l.StartsWith("The story pause", StringComparison.Ordinal)));
+    }
+
     // ---- one player, as before
 
     [ContentFact]

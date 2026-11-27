@@ -104,7 +104,9 @@ public sealed class StoryPause : TalkSequence
     /// <summary>A world frame: its skip's fade, the days at its end, then its talk.</summary>
     internal void Frame()
     {
-        if (Step == VisitStep.TimePassing && Skip!.Frame(_world))
+        // A game over during the days (the Kohr-Ah's genocide, stage 3c item 4) ends it there, as UQM's skip
+        // returns at once (starbase.c:494): no talk, nothing after (the world has stopped).
+        if (Step == VisitStep.TimePassing && Skip!.Frame(_world) && !_world.GameOver)
             AfterDays();
     }
 

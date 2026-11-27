@@ -250,6 +250,10 @@ public sealed class StarbaseVisit : TalkSequence
     {
         if (Step != VisitStep.TimePassing || !_days!.Frame(_world))
             return;
+        // A game over during the days (the Kohr-Ah's genocide, stage 3c item 4): VisitStarBase returns at once
+        // ("You are now dead!", starbase.c:494): no commander, the visit left where it is (the world has stopped).
+        if (_world.GameOver)
+            return;
         // MoveGameClockDays has run: each day's events, no encounter
         // rolled, and the day starts afresh (tick_count = day_in_ticks).
         // What they changed is taken back with the two weeks (TakeBackDays).

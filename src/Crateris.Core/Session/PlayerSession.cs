@@ -471,12 +471,31 @@ public sealed class PlayerSession
     /// with no talk before it in its story (no script) shows none: each
     /// player's own screen fades to black under it (stage 3c item 2).
     /// </summary>
-    public bool TalkShown =>
-        Talk is { Step: not (VisitStep.Menu or VisitStep.Done) } talk && !(talk.Step == VisitStep.TimePassing && talk.Script == "")
-        && (Me?.Activity is Activity.Talk or Activity.Starbase || StoryPaused);
+    public bool TalkShown => TalklessSkip
+        ? _screenUnderSkip == PlayerScreen.Comm && _talkUnderSkip is not null
+        : Talk is { Step: not (VisitStep.Menu or VisitStep.Done) } && (Me?.Activity is Activity.Talk or Activity.Starbase || StoryPaused);
 
-    /// <summary>Whether this player answers the talk shown (the starter, or who the replies passed to).</summary>
-    public bool Replying => Talk is { } t && t.Replier == PlayerId;
+    /// <summary>
+    /// Whether the story shown is a time skip with no talk before it (no
+    /// script: stage 3c item 2): each player's screen stays as it was
+    /// under its fade (<see cref="ShownTalk"/>, <see cref="Screen"/>), and
+    /// there's nothing to answer.
+    /// </summary>
+    public bool TalklessSkip => Talk is { Step: VisitStep.TimePassing, Script: "" };
+
+    /// <summary>
+    /// The talk the communication screen shows: <see cref="Talk"/>, or
+    /// during a talk-less skip the one it showed as the skip came (the
+    /// player's own meeting's or the commander's from the menu), under the fade.
+    /// </summary>
+    public TalkView? ShownTalk => TalklessSkip ? _talkUnderSkip : Talk;
+
+    // The talk and the screen shown as a talk-less skip came, kept under its fade.
+    private TalkView? _talkUnderSkip;
+    private PlayerScreen? _screenUnderSkip;
+
+    /// <summary>Whether this player answers the talk shown (the starter, or who the replies passed to); nobody during a talk-less skip.</summary>
+    public bool Replying => !TalklessSkip && Talk is { } t && t.Replier == PlayerId;
 
     /// <summary>The reply the cursor is on.</summary>
     public int ReplyCursor { get; private set; }
@@ -506,6 +525,14 @@ public sealed class PlayerSession
                 Notify(string.Join("\n", view.Lines.Select(OneLine)));
             view = null;
         }
+        if (view is { Step: VisitStep.TimePassing, Script: "" })
+        {
+            // A talk-less skip: what was shown stays under its fade.
+            if (!TalklessSkip)
+                (_talkUnderSkip, _screenUnderSkip) = (TalkShown ? Talk : null, Screen);
+        }
+        else
+            (_talkUnderSkip, _screenUnderSkip) = (null, null);
         if (view is null || Talk is null || view.Round != Talk.Round)
             ReplyCursor = 0;
         Talk = view;
@@ -1373,6 +1400,8 @@ public sealed class PlayerSession
         {
             if (GameOver)
                 return PlayerScreen.GameOver;
+            if (TalklessSkip && _screenUnderSkip is { } under)
+                return under;   // as it was, under the skip's fade
             if (TalkShown)
                 return PlayerScreen.Comm;
             var me = Me;
@@ -1431,7 +1460,9 @@ public sealed class PlayerSession
             var host = Snapshot?.Ships.FirstOrDefault(s => s.IsHost);
             lines.Add($"Undocking from {host?.Name ?? "the"}'s flagship...");
         }
-        if (Talk is { } talk && (Me?.Activity == Activity.Talk || StoryPaused))
+        if (TalklessSkip && StoryPaused)
+            lines.Add("Time passes...");   // no talk: nothing to answer or page
+        else if (Talk is { } talk && (Me?.Activity == Activity.Talk || StoryPaused))
         {
             if (!Replying && talk.Script != "")
             {

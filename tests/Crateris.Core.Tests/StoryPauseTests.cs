@@ -231,4 +231,152 @@ public class StoryPauseTests
         Assert.Null(world.Pause);
         Assert.False(world.StoryPaused);
     }
+
+    // ------------------------------------------------------------ review round 1
+
+    // NewGame with the test's talks for meetings (a line, one reply, then the end, MeetingTests.TestTalk: peaceful
+    // from init, so a meeting goes to its talk at once) and the dialogue locks, no day's roll meanwhile.
+    private static GameWorld WithMeetings(bool talks = false)
+    {
+        var world = NewGame(talks);
+        world.DialogueLocks = DialogueLocks.Load(DataDir);
+        world.Clock.FramesIntoDay = -100000;
+        world.MeetingTalks = (_, _, seed) => MeetingTests.TestTalk(world.Story!, Segue.Peace, Segue.Peace, seed).Talk;
+        return world;
+    }
+
+    // The guest in its meeting's talk with a Spathi group, its reply offered.
+    private static Meeting InMeetingTalk(GameWorld world)
+    {
+        var f = world.Find("g")!.Ship.Flight;
+        int race = world.Story!.Rules.RaceIndex("SPATHI_SHIP");
+        var e = new Hyperspace.HyperEncounter
+        {
+            Race = race, Roller = "g", OriginX = f.UniverseX, OriginY = f.UniverseY, Radius = 2000,
+            LocX = (short)(f.UniverseX + 10), LocY = f.UniverseY,
+            LogX = Uqm.Units.UniverseToLogX((short)(f.UniverseX + 10)), LogY = Uqm.Units.UniverseToLogY(f.UniverseY),
+        };
+        e.Ships.Add(world.Story.Rules.RaceShips[race].Crew);
+        world.Encounters!.List.Add(e);
+        for (int i = 0; i < 300 && world.MeetingOf("g") is not { Step: MeetingStep.Talk, Talk.Replies.Count: > 0 }; ++i)
+            Run(world, 1);
+        var m = world.MeetingOf("g")!;
+        Assert.Equal(MeetingStep.Talk, m.Step);
+        return m;
+    }
+
+    [Fact]
+    public void AReplyToTheRepliersMeetingDuringASkipIsHeldAndMadeAsThePauseEnds()
+    {
+        // Round 1: during a skip there's no story talk to answer, so a reply for the replier's own meeting goes
+        // to it, held through the pause (it went to the pause, which has no talk, and was dropped).
+        var world = WithMeetings();
+        var m = InMeetingTalk(world);
+        var pause = world.StartStoryPause(world.Find("g")!, "a test's skip", 2)!;
+        Assert.Equal(pause.FirstRound, m.Round);   // the same number: the reply must still go to the meeting
+        Assert.True(world.ChooseReply("g", 0, m.Round));
+        Assert.Equal(new[] { ("g", 0, (int?)m.Round) }, world.HeldReplies);
+        Assert.Empty(m.Talk!.Events.OfType<ReplyChosen>());
+        Run(world, TimeSkip.FadeFrames + 1);
+        Assert.Null(world.Pause);
+        Assert.Single(m.Talk.Events.OfType<ReplyChosen>());
+        Assert.True(m.Talk.Ended);
+    }
+
+    [ContentFact]
+    public void AReplyToTheMeetingOfAVisitsReplierDuringTheTwoWeeksIsHeldToo()
+    {
+        // Round 1: the visit straight into the two weeks, the replies passed (the host gone) to the guest in its
+        // meeting's talk: its reply goes to its meeting, held, and made once the story's over.
+        var world = WithMeetings(talks: true);
+        var m = InMeetingTalk(world);
+        world.PutInOrbit("h", 82, 2, 1);
+        world.Host.Ship.Ip!.ReturnFromOrbit();
+        world.Story!.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(world.Host);
+        var visit = world.Visit!;
+        Assert.Equal(VisitStep.TimePassing, visit.Step);
+        world.Leave("h");
+        Assert.Equal("g", visit.Replier.Id);
+        Assert.True(world.ChooseReply("g", 0, m.Round));
+        Assert.Single(world.HeldReplies);
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.Equal(VisitStep.StarbaseReady, visit.Step);
+        Assert.Empty(m.Talk!.Events.OfType<ReplyChosen>());   // still held: the commander's talk is story
+        var goodbye = Scripts["starbas"].PhraseNumber("goodbye_commander");
+        for (int i = 0; i < 20 && world.Visit is not null; ++i)
+        {
+            var talk = visit.Talk!;
+            int r = talk.Replies.Select(x => x.Phrase).ToList().IndexOf(goodbye);
+            Assert.True(world.ChooseReply("g", Math.Max(r, 0), visit.Round));
+        }
+        Assert.Null(world.Visit);
+        Run(world, 1);
+        Assert.Single(m.Talk.Events.OfType<ReplyChosen>());
+    }
+
+    [Fact]
+    public void TheGameOverDuringTheDaysEndsThePauseThere()
+    {
+        // Round 1: UQM's skip returns at once if its days end the game (starbase.c:494): no talk, nothing after.
+        var world = NewGame();
+        int then = 0;
+        world.DayForTests = () =>
+        {
+            if (world.Clock.Day == 18)
+                world.LoseTheGameForTests();
+        };
+        var pause = world.StartStoryPause(world.Host, "a test's skip", 3, then: _ => ++then)!;
+        Run(world, TimeSkip.FadeFrames);
+        Assert.True(world.GameOver);
+        Assert.True(pause.Skip!.Skipped);
+        Assert.Null(pause.Talk);
+        Assert.Equal(0, then);
+        Run(world, 10);
+        Assert.Equal(0, then);
+    }
+
+    [ContentFact]
+    public void TheGameOverDuringTheDaysStartsNoTalk()
+    {
+        // The same with a talk to come (the pause's) and the starbase's two weeks (the allied commander).
+        var world = NewGame(talks: true);
+        world.DayForTests = () => world.LoseTheGameForTests();
+        var pause = world.StartStoryPause(world.Host, "a test's talk", 2, "comandr", new() { ["STARBASE_VISITED"] = 0 })!;
+        Run(world, TimeSkip.FadeFrames);
+        Assert.True(world.GameOver);
+        Assert.Empty(pause.Talks);
+
+        world = NewGame(talks: true);
+        world.PutInOrbit("h", 82, 2, 1);
+        world.Host.Ship.Ip!.ReturnFromOrbit();
+        world.Story!.Set("MOONBASE_ON_SHIP", 1);
+        world.VisitStarbase(world.Host);
+        var visit = world.Visit!;
+        world.DayForTests = () => world.LoseTheGameForTests();
+        Run(world, StarbaseVisit.TimePassingFrames);
+        Assert.True(world.GameOver);
+        Assert.Empty(visit.Talks);
+        Assert.Equal(VisitStep.TimePassing, visit.Step);
+    }
+
+    [ContentFact]
+    public void APlayerInTheirMeetingsTalkIsShownThePausesClosingLinesBeforeItAgain()
+    {
+        // Round 1: as the visit's: the story's closing lines kept for the frame after its end, then the meeting's talk.
+        var world = WithMeetings(talks: true);
+        var m = InMeetingTalk(world);
+        var pause = world.StartStoryPause(world.Host, "a test's talk", 0, "comandr", new() { ["STARBASE_VISITED"] = 0 })!;
+        Assert.Equal(VisitStep.Story, world.TalkFor("g")!.Step);
+        for (int i = 0; i < 100 && world.Pause is not null; ++i)
+            Assert.True(world.ChooseReply("h", 0, pause.Round));
+        Assert.Null(world.Pause);
+        var shown = world.TalkFor("g")!;
+        Assert.Equal((VisitStep.Done, "comandr"), (shown.Step, shown.Script));
+        Run(world, 1);
+        Assert.Equal((VisitStep.Done, "comandr"), (world.TalkFor("g")!.Step, world.TalkFor("g")!.Script));
+        Run(world, 1);
+        Assert.Equal(VisitStep.Meeting, world.TalkFor("g")!.Step);
+        Assert.Same(m, world.MeetingOf("g"));
+    }
 }

@@ -895,7 +895,9 @@ public sealed partial class GameWorld
         // The story talk's replier answers it (the replies passed to them,
         // as its starter left, while in their own meeting's talk: they're
         // shown the story's); a reply for their meeting's round goes to it.
-        var storyReplied = StoryShown is { } s && s.Replier == player ? s : null;
+        // (Only while the story's talk offers replies: during a time skip there's no talk to answer, and a reply
+        // for the player's meeting goes to it, held through the pause, whatever its round.)
+        var storyReplied = StoryShown is { Talk: { Ended: false, Replies.Count: > 0 } } s && s.Replier == player ? s : null;
         if (player.Ship.Meeting is { Step: MeetingStep.Talk } meeting && (storyReplied is null || round is int mr && mr != storyReplied.Round))
             return ChooseMeetingReply(meeting, index, round);   // held through any pause (stage 3b-1 item 10)
         TalkSequence? visit = Pause is { } pause ? (pause.Replier == player ? pause : null)
@@ -1152,11 +1154,22 @@ public sealed partial class GameWorld
             return null;
         var pause = new StoryPause(this, starter, NextRound(), what, days, script, own, race, intro) { Then = then };
         Pause = pause;
+        _newPauses.Add(pause);
         // Everyone is shown it: no one's closing lines of an earlier story are still theirs to see.
         _ended.Clear();
         pause.Begin();
         AfterPause(pause);
         return pause;
+    }
+
+    private readonly List<StoryPause> _newPauses = new();
+
+    /// <summary>The story pauses taken since last asked, in order (the host's log: each told from its start to its end).</summary>
+    internal IReadOnlyList<StoryPause> TakeNewPauses()
+    {
+        var taken = _newPauses.ToList();
+        _newPauses.Clear();
+        return taken;
     }
 
     // What becomes of a talk sequence after a reply.
@@ -1180,7 +1193,7 @@ public sealed partial class GameWorld
     {
         _rounds = Math.Max(_rounds, p.Round);
         if (p != Pause || !p.Done)
-            return;
+            return;   // (a game over during its days leaves it where it is, no talk and no Then: the world has stopped)
         Pause = null;
         if (p.Talked && TalkView.Of(p) is { } closing)
             foreach (var player in _players.Where(q => q.Present))
