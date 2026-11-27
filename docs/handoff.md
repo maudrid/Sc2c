@@ -71,11 +71,13 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Stage 3c items 1 to 3, the owner's go-ahead of 2026-11-27 ("stop when item 3 is done"): item 1 (the calendar's engine and the simple events) is being built, then item 2 (story pauses generalised), then item 3 (the fleet missions), each built by a builder subagent, reviewed in rounds and reported; stop after item 3 and wait. The plan, `docs/plans/stage-3c.md`, has every question answered (2026-11-27).
+Stage 3c items 1 to 3, the owner's go-ahead of 2026-11-27 ("stop when item 3 is done"): item 1 (the calendar's engine and the simple events) is built (`28c5fe2` code and tests, `471d750` topic map, `81c1c21` docs; all topics 2,675 passed, 0 failed, 0 skipped with the content set; the game builds), review round 1 running; then item 2 (story pauses generalised), then item 3 (the fleet missions), each built by a builder subagent, reviewed in rounds and reported; stop after item 3 and wait. The plan, `docs/plans/stage-3c.md`, has every question answered (2026-11-27).
 
 ## Decisions waiting on the owner
 
 **Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Items 1 to 3 have their go-ahead (2026-11-27); stop after item 3.
+
+**Item 1's reading (b), to confirm:** the calendar's events (the Shofixti's return, the Spathi's shield, the Zoq-Fot-Pik's distress and death, the Yehat's civil war) are told to every present player, a lone player too, since no player set them off; 3b-1's rule was that a player alone sees nothing new. The other readings, (a) and (c) to (g), are in item 1's Progress row.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
