@@ -651,8 +651,8 @@ public static class HostSave
         world.CommanderMet = save.CommanderMet;
         // The events whose day has passed run now, in date order (an older
         // save's: it ran none), and those an older save set aside that the
-        // port now runs (stage 3c item 1), from where the clock is; the
-        // missions' and the Kohr-Ah's are set aside still (decision 9). The
+        // port now runs (stage 3c items 1 and 3), from where the clock is;
+        // the Kohr-Ah's are set aside still (decision 9). The
         // location gates count every saved player's ship, nobody being in
         // the game yet.
         world.RunDayEvents(loading: true);

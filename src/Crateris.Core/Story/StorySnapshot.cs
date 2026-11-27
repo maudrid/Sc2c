@@ -17,7 +17,7 @@ namespace Crateris.Core.Story;
 /// SPHERE_RADIUS_INCREMENT) and centre (universe units), as UQM's star
 /// map would show it once opened: each tracked sphere (KnownStrength not
 /// 0, StartSphereTracking) brought up to where the fleet is and how strong
-/// (pstarmap.c's DoMoveSpheres sets known_loc and known_strength so), and
+/// (pstarmap.c's UpdateMap, which StarMap calls while ARILOU_SPACE_SIDE is 1 or less, sets known_loc and known_strength so), and
 /// one shrunk to nothing not shown.
 /// </summary>
 public readonly record struct KnownFleet(int Race, int Strength, int X, int Y);

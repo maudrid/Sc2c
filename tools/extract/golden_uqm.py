@@ -8423,9 +8423,10 @@ CLOCK_SCENARIOS = [
     # on by their friendship, their migration to the Yehat (11) begun, then
     # turned home by a good reason (at once) 60 days on, home after as long
     # again, three months' wait, off again, and absorbed by the Yehat on
-    # arriving (the Yehat's sphere tracked).
-    ("the Pkunk's migration", ["new", "add 1 6 0 0 4", "move 175", "day 15", "day 60", "add 1 0 0 0 4", "day 70",
-                               "move 80", "day 20", "day 175"]),
+    # arriving (the Yehat's sphere tracked). PKUNK_SWITCH set before each
+    # departure, to see the mission clear it.
+    ("the Pkunk's migration", ["new", "add 1 6 0 0 4", "state PKUNK_SWITCH 1", "move 175", "day 15", "day 60",
+                               "add 1 0 0 0 4", "day 70", "move 80", "state PKUNK_SWITCH 1", "day 20", "day 175"]),
     # The Ilwrath's war (12, at once from their "gods"), the Thraddash (8)
     # allied and never gone: 90 days to the Thraddash's borders, then both
     # races losing all over 128 days as the Ilwrath close on the midpoint,
@@ -8448,7 +8449,8 @@ CLOCK_SCENARIOS = [
     # afresh; half of each lost over 160 days; home in 21.
     ("the Utwig's and the Supox's mission", ["new", "state UTWIG_VISITS 3", "state UTWIG_INFO 2", "state SUPOX_VISITS 4",
                                              "state SUPOX_INFO 1", "state UTWIG_WAR_NEWS 2", "state SUPOX_WAR_NEWS 1",
-                                             "add 1 0 0 0 9", "day 30", "state UTWIG_WAR_NEWS 1", "day 190"]),
+                                             "add 1 0 0 0 9", "day 30", "state UTWIG_WAR_NEWS 1", "state SUPOX_WAR_NEWS 1",
+                                             "day 190"]),
     # Missions with no fleet: the Utwig gone (only the count goes on), the
     # Pkunk and the Thraddash gone (nothing; the Thraddash's count goes on);
     # and the Mycon with too little to lose a whole ship a day (their
@@ -8629,7 +8631,9 @@ def check_clock(scenarios, events):
         return by[name]["steps"][-1][6]
 
     pk = by["the Pkunk's migration"]["steps"]
-    if (runs(pk, PKUNK_EVENT) != 3 or story("the Pkunk's migration")[7:11] != [4, 1, 0, 1]
+    switch_after = [s[6][9] for s, c in zip(pk, clock_step_commands(by["the Pkunk's migration"]["commands"]))
+                    if c == "day" and any(r[0] == PKUNK_EVENT for r in s[1])]
+    if (runs(pk, PKUNK_EVENT) != 3 or story("the Pkunk's migration")[7:11] != [4, 1, 0, 1] or switch_after != [0, 0]
             or fleet_of(pk, PKUNK)[1:3] != [0, 0] or fleet_of(pk, PKUNK)[4:6] != [4970, 400]
             or fleet_of(pk, YEHAT)[3] != 1):
         raise RuntimeError("clock: the Pkunk don't migrate, turn home, wait and get absorbed as the scenario has them")

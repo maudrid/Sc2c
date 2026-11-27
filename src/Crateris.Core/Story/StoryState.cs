@@ -39,7 +39,9 @@ public enum Allied
 /// worths, each race's standing (allied_state in avail_race_q) and fleet
 /// (the rest of its FLEET_INFO: <see cref="RaceFleet"/>), and the clock's
 /// events. One instance per game, on the host; clients are sent it
-/// (<see cref="StorySnapshot"/>: the fleets and events stay on the host).
+/// (<see cref="StorySnapshot"/>: the events and the fleets stay on the
+/// host but for the spheres the players know, <see cref="StorySnapshot.Fleets"/>,
+/// stage 3c item 3).
 ///
 /// A few fields hold one activity's working state, not the story's, and
 /// are kept per player or per talk instead (decision 11; Melnorme credits
