@@ -161,7 +161,7 @@ Tanaka waits at the Shofixti's system (star 16) in his damaged scout: one crew, 
 
 1. **Two fights he survives.** "No one insults..." and, at the next meeting, "Mighty words..." each start a fight; retreat from it to keep him alive.
 2. **The third meeting.** "Donkey breath" (with the captain's, the alliance's and the ship's names spliced into the reply that follows): he realises his mistake, and he's friendly from then on: his reports and questions.
-3. **His death.** Destroy his scout and leave the system into hyperspace (the first player to leave after it, the others still there or not; once): he's marked lost (`SHOFIXTI_KIA`). His brother Katana comes only with the Maidens aboard (stage 3c's pickup: `--start-devices MAIDENS_DEVICE`); his death is marked the same way.
+3. **His death.** Destroy his scout and leave the system into hyperspace (the first player to leave after it, the others still there or not; once): he's marked lost (`SHOFIXTI_KIA`). His brother Katana comes only with the Maidens aboard any player's ship (picked up on their world since stage 3c item 5, or `--start-devices MAIDENS_DEVICE`); his death is marked the same way.
 4. **Recruiting.** With the Maidens aboard, his friendly talk offers "an important duty": the Shofixti are recruited (`SHOFIXTI_RECRUITED`), the Maidens leave the ship, the return event is queued two months on and set aside until stage 3c, and his group flies off out of the system for good.
 
 Any Shofixti in a battle in the world is his damaged scout until the Shofixti are recruited, as UQM's (an enemy's, or a host's fleet ship before then: only `--start-fleet` brings one).
@@ -199,7 +199,7 @@ The VUX's groups fly in their sphere. Every talk with them ends in a fight: thei
 
 1. **Their homeworld** (star 98, planet 0) starts their talk against their endless fleet: the encounter screen, the homeworld's greetings, the fight. The ship is never put in orbit there.
 2. **Admiral ZEX** at the Maidens' world (star 118, planet 0) talks at peace (no encounter screen): his menagerie, why he doesn't attack, the Precursor device he lied about. "Regardless" (after "we require the Maidens") fights his endless fleet. While he lives the ship is never put in orbit there.
-3. **The beast.** With the beast aboard (stage 3c's pickup: `--start-devices VUX_BEAST_DEVICE`) and his wish known (asked about the creature he wants), "we have captured the monster" offers it; given, it kills him: his colours fade (as his last line starts, on every client's communication screen: the screen-change fix below), `ZEX_IS_DEAD` is set, the beast leaves the ship, and the ship goes into orbit; from then on the world is orbited by anyone.
+3. **The beast.** With the beast aboard (picked up on its world since stage 3c item 5, or `--start-devices VUX_BEAST_DEVICE`) and his wish known (asked about the creature he wants), "we have captured the monster" offers it; given, it kills him: his colours fade (as his last line starts, on every client's communication screen: the screen-change fix below), `ZEX_IS_DEAD` is set, the beast leaves the ship, and the ship goes into orbit; from then on the world is orbited by anyone.
 
 ### The Yehat
 
@@ -226,7 +226,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 ### Known limits of item 6
 
 - **The rebels and the revolt** need stage 3c: the revolt's event, which cuts the royalists' fleet to two thirds and gives the rebels as much, is set aside (run since stage 3c item 1); the Shofixti ship it needs comes only with the Shofixti's return (3c) or `--start-fleet`; the endgame's cavalry (the rebels' last-battle branch) is recorded and tested only.
-- **The beast** is stage 3c's pickup (`--start-devices VUX_BEAST_DEVICE` until then).
+- **The beast** is picked up on its world since stage 3c item 5 (`docs/how-to-try/stage-3c.md`); `--start-devices VUX_BEAST_DEVICE` puts it aboard.
 
 ## The talks' screen changes (after item 6)
 
@@ -280,7 +280,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 ### Known limits of item 7
 
 - **The Pkunk's migration** (their mission event, the fleet on the move and its talks at home) is stage 3c's: recorded and tested, reached only with `--start-state` (run since stage 3c item 3, six months after their friendship).
-- **The Taalo protector** on the moon is stage 3c's pickup; the moon can be landed on once it's open.
+- **The Taalo protector** on the moon is picked up since stage 3c item 5; the moon can be landed on once it's open.
 
 ## Item 8: the Druuge and the Mycon
 
@@ -300,7 +300,7 @@ The Mycon's groups fly in their sphere. They're always met at the encounter scre
 
 1. **Their homeworld** (star 129, planet 0) starts their talk against their endless fleet; every farewell is a fight, and the ship is never put in orbit there.
 2. **The Sun Device's world** (star 136, planet 0) is guarded by an endless fleet: their news, and the one farewell that isn't a fight; the ship stays out of orbit. Once they've fallen for the ambush, 5 ships guard it, made afresh at each orbit: "we'd like to land" is a fight, and with all 5 destroyed the world is open (`SUN_DEVICE_UNGUARDED`). The Sun Device itself is stage 3c's pickup; once it's taken (`SUN_DEVICE`) every Mycon talk is a threat and a fight.
-3. **The shattered worlds.** Orbit the first planet of a system where the Mycon left an egg case (stars 124, 157 and 166: `KNOW_ABOUT_SHATTERED` 1, the group's) and the Mycon at their homeworld can be asked about the shattered worlds, once. The egg cases themselves are stage 3c's pickups.
+3. **The shattered worlds.** Orbit the first planet of a system where the Mycon left an egg case (stars 124, 157 and 166: `KNOW_ABOUT_SHATTERED` 1, the group's) and the Mycon at their homeworld can be asked about the shattered worlds, once. The egg cases themselves are picked up there since stage 3c item 5.
 4. **The trick.** Once the Syreen have set their ambush (`MYCON_AMBUSH`: a branch of their talk, item 11, that waits on stage 3c's pickups, so `--start-state` until then), "I have a cunning plan" at the Mycon's homeworld and the three clues send them off in peace (`MYCON_FELL_FOR_AMBUSH`); their flight to the ambush is an event set aside until stage 3c. Tried at the Sun Device's world, the trick is refused for good.
 
 Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
@@ -332,7 +332,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 ### Known limits of item 8
 
 - **A Mauler or an artifact needs 100 crew**, more than a new game's flagship holds: buy crew pods and crew at the starbase first. No testing flag sets the crew.
-- **The goods to sell, the bomb and the Sun Device** are stage 3c's pickups (`--start-devices`, `--start-state` until then); the Druuge's ruins and the Rosy Sphere found there once they're gone are 3c's too.
+- **The goods to sell, the bomb and the Sun Device** are picked up on their worlds since stage 3c item 5 (`--start-devices` and `--start-state` put them aboard too); the Druuge's ruins and the Rosy Sphere found there once they're gone are 3c's too.
 - **The bomb's moon's Druuge** need the Utwig's Ultron back, which needs it mended (3c's devices): `--start-devices ULTRON_3_DEVICE` and the gift at the Utwig's homeworld (item 9), or `--start-state UTWIG_HAVE_ULTRON=1`, until then.
 - **The Mycon never fly to the ambush** (their mission event is stage 3c's; run since its item 3, their fleet flying to Organon): their sphere stays where it is, and only the Sun Device's world's guard changes.
 
@@ -390,7 +390,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 
 - **The Ultron's repairs** (the Rosy Sphere, the Clear Spindle and the Aqua Helix put into it) are stage 3c's device use: `--start-devices ULTRON_1_DEVICE`, `ULTRON_2_DEVICE` or `ULTRON_3_DEVICE` set its state until then. In play before 3c only the broken Ultron can be had (from the Supox), so the Utwig can be shown it (a sick trick), not given it.
 - **The mission never starts** (its event is stage 3c's; run since its item 3): the Utwig and the Supox never fly at the Kohr-Ah, their spheres stay, and as allies they talk as UQM's do when the Ultron came too late: their 4 ships at each visit home, a greeting alone in space. `--start-state UTWIG_SUPOX_MISSION=N` (1 to 5) gives the mission's talks.
-- **The bomb** on its moon is stage 3c's pickup, and with it the Druuge's hostility (`DRUUGE_MANNER`); the Supox's and the Utwig's ruins, and the Ultron found in the Supox's once they're gone, are 3c's too.
+- **The bomb** on its moon is picked up since stage 3c item 5, and with it the Druuge's hostility (`DRUUGE_MANNER`); the Supox's and the Utwig's ruins, and the Ultron found in the Supox's once they're gone, are 3c's too.
 - **The Utwig's other song** with their Ultron back is asked for but nothing plays (the audio stage), and the base content has no file for it.
 
 ## Item 10: the Thraddash, the Umgah and the Talking Pet
@@ -447,7 +447,7 @@ Tried headless, each with `--host --no-upnp --id host --name Host --save FILE`:
 
 - **The Talking Pet** is met only by the tests: its world's half of `genpet.c` (the zombies' 10 ships with the Pet's own talk, the hypnosis and the jump to the Ur-Quan, the Pet's deal once they're beaten or the Umgah are gone) and the Pet as a device are stage 3c's. Until then the Umgah's world in those states (set up: none is reached in play) starts no talk and isn't orbited, where UQM, with the Umgah extinct and the Pet taken, orbits it and finds their ruins.
 - **The Thraddash's mission never starts** (its event is stage 3c's; run since its item 3): they never fly at the Kohr-Ah, so the Aqua Helix's world is never left unguarded, and before 3c only allies land there. `--start-state THRADD_MISSION=N` (1 to 5) gives the mission's talks. The Ilwrath's war on them (`ILWRATH_FIGHT_THRADDASH`) is 3c's too.
-- **The Aqua Helix** on its world is stage 3c's pickup, and with it their fight for it wherever they're met (`AQUA_HELIX`); the Thraddash's and the Umgah's ruins too.
+- **The Aqua Helix** on its world is picked up since stage 3c item 5, and with it their fight for it wherever they're met (`AQUA_HELIX`); the Thraddash's and the Umgah's ruins are stage 3c's (item 6).
 - **The Umgah's zombies** and **the reward** wait for 3c in play: `UMGAH_ZOMBIE_BLOBBIES` is set by the Arilou in QuasiSpace, `TALKING_PET` by the Pet's own talk.
 
 ## Item 11: the Arilou, the Syreen and the Chmmr

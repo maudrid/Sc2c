@@ -179,6 +179,10 @@ Rows 50 (the Kohr-Ah's game over, everyone's, the last talk on a story pause hel
 - **No star map**: the Kohr-Ah's course is told in words; their sphere is in the status panel's line once their talk (the last one included) has tracked it.
 - **The Sa-Matra itself** (its guards, the Talking Pet's use there, the last battle) is the endgame's; only its gate is here.
 
+Item 5's tests (part 2): `StoryPickupsTests` (topic `story`, new: every single node's world, sheet, report text and pickup against UQM's own generators, recorded with the story fields set, `tests/golden/story-nodes.json`, 26 cases; each report's entries the content's; every node's sheet loaded and drawn; a cycling report going round once; each energy node taken in a game, its device the finder's ship's, its report the finder's and word of it the other lander's, which stays, each ship's place its own; the Umgah broadcaster's entry chosen as the ship goes into orbit; Zex's Beauty taken; a node the story has found off the scan and the surface, Pluto's too; an egg case gone for everyone; no device given twice, a ship or a container holding one; the client showing a report's entry; `--start-site`), `OpeningTests` (the Lunar base, now one of the single nodes) and `MeetingWireTests` (protocol 37).
+
+The recording is remade with `python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 --only story-nodes` (a few seconds; code only, no content).
+
 ## Item 5, part 1: devices held by ships
 
 Devices are each ship's own now, as the owner answered the plan's question 5: the portal spawner is everyone's once anyone has it, and the Lunar base the opening's; every other device is held by one ship at a time. The pickups that give them on the story worlds are part 2's and item 6's, their uses item 8's.
@@ -207,7 +211,38 @@ Row 10 (devices held by ships, the shared records, the hand-over, the containers
 
 ### Known limits of item 5, part 1
 
-- **No pickups yet** but the Lunar base: the story worlds' devices come with part 2 and item 6; until then `--start-devices` and `--start-state` put devices on the host's ship, and the hand-over moves them.
+- **No pickups yet** but the Lunar base: the story worlds' devices come with part 2 (below) and item 6; `--start-devices` and `--start-state` put devices on the host's ship, and the hand-over moves them.
 - **No device is used yet** (item 8): the orbit menu's Devices list still says they come later; the bomb's use only aboard the host's ship comes with it.
 - **The markers** don't reach into QuasiSpace (item 9), and a target's distance is in hyperspace's coordinates (none for one in the same system).
 
+## Item 5, part 2: the story worlds' reports and single-node pickups
+
+The story worlds' single nodes can be picked up, as UQM's generators have them, each with its lander report: the Shofixti Maidens (star 118, planet 0, once Zex is dead), Zex's Beauty (star 496, planet 0: a creature, stunned and brought aboard), the Umgah broadcaster on the Spathi's moon (222:0:0), the Burvixese broadcaster (304:0:0), the Utwig bomb (474:5:1), the Taalo protector (154:1:2), the Aqua Helix (441:0), the Sun Device (136:0) and the three egg cases (the first planets of stars 157, 124 and 166). The ruins, the wreck and the vault are item 6's, Fwiffo item 7's.
+
+1. **On the surface** each node is drawn with its own sheet (the capsule of Maidens, the broadcasters, the bomb, the Helix and the rest) and animates as the Lunar base does. Driving onto it (or bringing the beast's canister aboard) types its report into the scan map's area and sends the lander up by itself.
+2. **The finder's.** The device goes to the finder's ship (its Devices list shows it); the story is the group's: the Maidens, the broadcasters, the bomb, the protector, the Helix and the Sun Device marked found for everyone, the egg case's node gone for everyone; the bomb turns the Druuge hostile (`DRUUGE_MANNER` 1, their visits counted afresh), the Helix and the Sun Device start their guards' visits afresh (`HELIX_VISITS`, `MYCON_VISITS` 0), and the Helix's world is unguarded from then on (`HELIX_UNPROTECTED`).
+3. **The other landers there** stay down and their players are told who found it, with the report's text a page at a time, as with the Lunar base (`docs/differences.md` row 38).
+4. **Each ship's own place in the report.** A world's report text is each orbiting ship's own, made as it goes into orbit as UQM's `generateOrbital` loads it: the Umgah broadcaster's report has two entries, the first (about the Spathi's shield) once the Spathi have shielded themselves, the second while they haven't, chosen as the ship goes into orbit. A report shown once is gone for that ship's visit; a report that goes round its entries (the ruins, item 6) goes on from where that ship's last one left it; one with no take-off is the finder's alone.
+5. **The scan follows the story.** A node the story has found (by anyone, or set with `--start-state`, the Maidens' `SHOFIXTI_MAIDENS` say) is off the energy scan and the surface, as is Pluto's once Fwiffo is found (`FOUND_PLUTO_SPATHI`).
+6. **A device no ship takes twice.** Set-ups can put a device aboard without its world's story (`--start-devices`): its node is still there, and whoever picks it up gets the report and the story but not a second one while a ship or a container holds one.
+
+The testing options it adds: `--start-site X:Y` (the landing site starts at that scan map pixel instead of the middle, as a script can't move it) and `--show-report RESOURCE:ENTRY` (an entry other than the first).
+
+Tried headless, each host with `--host --no-upnp --id host --name Host --save FILE` (a scratch file):
+
+- The Taalo protector: `--start-state TAALO_UNPROTECTED=1 --start-orbit 154:1:2 --start-site 58:14 --script "none:10,select:1,none:10,select:1,none:250,select:1,none:5,select:1,none:60,right:8,thrust:25,none:300" --quit-after 700` (Scan, Auto scan, Dispatch lander at the node, then a turn and a short drive): "host: lander down at 232, 56", "Landed", "Lander report text.taalodevice", "Back in orbit: crew 50, landers 1"; the save (version 15) has the host's hold's `devices` [17] (the Taalo protector), the story's `TAALO_PROTECTOR` 1, and the moon's `energy_taken` 1.
+- With a guest landed there too: the host with `--guests-in-orbit` and the same, its script starting `none:300,...` and `right:4`, `--quit-after 1100`, and a guest (`--join 127.0.0.1 --name Guest --id guest-1 --start-site 70:30 --script "none:250,select:1,none:10,select:1,none:250,select:1,none:5,select:1,none:600" --quit-after 1000`): "guest-1: lander down at 280, 120", then the host's "Lander report text.taalodevice" and "Back in orbit"; the guest's log "Lander report text.taalodevice (found by host)", "Host's lander found it:" with the report's text, and its lander landed and staying; the save has the protector in the host's hold and none in the guest's.
+
+Tried windowed, with `--screenshot` (each a landing at the node's site with `--start-site` and the Scan, Auto scan, Dispatch script, the shot taken just after landing, `--quit-after 318` to `370`): the Maidens (`--start-state ZEX_IS_DEAD=1 --start-orbit 118:0 --start-site 80:46`), the bomb (`--start-state UTWIG_HAVE_ULTRON=1,BOMB_UNPROTECTED=1 --start-orbit 474:5:1 --start-site 95:52`), the Taalo protector, the Aqua Helix (`--start-state HELIX_UNPROTECTED=1 --start-orbit 441:0 --start-site 217:39`), the Sun Device (`--start-state SUN_DEVICE_UNGUARDED=1 --start-orbit 136:0 --start-site 25:50`: the lander came down on it, the report being typed), the Burvixese broadcaster (`--start-orbit 304:0:0 --start-site 155:18`) and an egg case (`--start-orbit 166:0 --start-site 120:11`): each node drawn with its own image beside the lander, its dot on the scan map. And `--start-state TAALO_UNPROTECTED=1 --start-orbit 154:1:2 --show-report text.umgahcaster:1 --quit-after 200`: the Umgah broadcaster's second entry typed over the scan map ("... WE HAVE LOCATED AN ALIEN ARTIFACT DOWN HERE. WE WERE I...", where the first goes on "PERHAPS MORE IMPORTANTLY").
+
+Not tried by hand: Zex's Beauty and the Umgah broadcaster in a game (the Spathi's moon starts their talk until they've shielded themselves; the tests take both), the scan following the story, a device not given twice (the tests run them).
+
+### What's different from UQM
+
+Row 38 (every pickup's: the other landers stay and are told, each ship's own place in a world's report text, a report with no take-off the finder's alone) and row 10 (each pickup's device to the finder's ship, none given twice).
+
+### Known limits of item 5, part 2
+
+- **The ruins, the wreck, the vault and Procyon's starbase report** are item 6's, Fwiffo item 7's: their nodes show on the scan but aren't on the surface yet (their sheets are loaded).
+- **No device is used yet** (item 8).
+- **A report's read-out sound** waits for the game's sound, as the Lunar base's.
