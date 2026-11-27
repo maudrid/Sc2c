@@ -153,10 +153,16 @@ public sealed class Finder
     }
 
     /// <summary>
-    /// A text's entry shown whatever the ship's place, which stays as it is
-    /// (the vault's opening once its locked text has used up the visit's).
+    /// A text's entry shown whatever the ship's place, the place then where
+    /// the cycle leaves it after that entry (<see cref="LanderReportCycle"/>),
+    /// as if the text had never gone: the vault's opening once its locked
+    /// text has used up the visit's, the next touch its last text as UQM's.
     /// </summary>
-    public void ShowEntry(string resource, int entry) => Report = new LanderReport(resource, entry);
+    public void ShowEntry(ReportPlace at)
+    {
+        Place = at;
+        LanderReportCycle();
+    }
 
     /// <summary>SetLanderTakeoff.</summary>
     public void SetTakeoff() => Takeoff = true;
@@ -444,7 +450,7 @@ public static class StoryWorlds
     {
         if (SiteOf(special, world) is { } site)
         {
-            PickupSite(site, story, finder, node);
+            PickupSite(site, world, story, finder, node);
             return false;   // do not remove the node
         }
         return NodeOf(special, world, ScanType.Energy) is { } n && n.Node == node && !n.IsFound(story) && Take(n, story, finder);
@@ -467,7 +473,7 @@ public static class StoryWorlds
     /// Syreen's visits counted afresh; locked, its first text once
     /// (GenerateDefault_landerReport) and the vault known.
     /// </summary>
-    public static void PickupSite(StorySite site, StoryState story, Finder finder, int node)
+    public static void PickupSite(StorySite site, WorldId world, StoryState story, Finder finder, int node)
     {
         switch (site.Kind)
         {
@@ -515,7 +521,7 @@ public static class StoryWorlds
                         finder.LanderReportCycle();
                     }
                     else
-                        finder.ShowEntry(VaultReport, 1);
+                        finder.ShowEntry(new ReportPlace(world, VaultReport, 1));
                     finder.SetTakeoff();
                     story.Set("SHIP_VAULT_UNLOCKED", 1);
                     finder.Take("SYREEN_SHUTTLE_ON_SHIP");
@@ -532,13 +538,14 @@ public static class StoryWorlds
         }
     }
 
+    /// <summary>Whether a report is a world's as a ship comes to it (<see cref="ArrivalReport"/>'s), shown on the system screen.</summary>
+    public static bool IsArrivalReport(string resource) => resource == ChmmrBaseReport;
+
     /// <summary>
     /// The report a world shows as a ship comes to it, the ship not put in
     /// orbit (generateOrbital's own DoDiscoveryReport): Procyon's starbase,
     /// the Chmmr's moon (genchmmr.c), whatever the story. Null for any other.
     /// </summary>
-    /// <summary>Whether a report is a world's as a ship comes to it (<see cref="ArrivalReport"/>'s), shown on the system screen.</summary>
-    public static bool IsArrivalReport(string resource) => resource == ChmmrBaseReport;
 
     public static LanderReport? ArrivalReport(string? special, WorldId world) =>
         special == "CHMMR_DEFINED" && world.Planet == 1 && world.Moon == 0 ? new LanderReport(ChmmrBaseReport) : null;

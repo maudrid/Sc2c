@@ -289,6 +289,9 @@ public class StoryRuinsTests
         Assert.Equal(opened with { FoundBy = "host" }, guest.Report);
         Assert.Equal(1, world.Story!.Get("SHIP_VAULT_UNLOCKED"));
         Assert.DoesNotContain(DeviceOf("SYREEN_SHUTTLE_ON_SHIP"), world.Host.Ship.Hold.Devices);
+        // Review round 2: the place left where the opening's text leaves it, as on the usual way: the ship's
+        // place in the vault's text at its last entry, which the next touch this visit shows.
+        Assert.Equal(new ReportPlace(at, StoryWorlds.VaultReport, 2), world.Host.Ship.Discovery);
     }
 
     [ContentFact]
