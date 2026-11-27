@@ -71,6 +71,14 @@ public enum TradeRefusal : byte
 
     /// <summary>The receiver already holds one of the device's kind (the Ultron, in another state).</summary>
     HasOne,
+
+    /// <summary>
+    /// A device doesn't go to or from a ship in a talk (or at a meeting's
+    /// encounter screen, or docked in the commander's talk): the talk reads
+    /// the devices aboard, and may have offered its replies by them (stage
+    /// 3c item 5, review round 1).
+    /// </summary>
+    InTalk,
 }
 
 /// <summary>
@@ -152,7 +160,7 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
             throw new InvalidDataException("Bad credits.");
         if (fuel > uint.MaxValue)
             throw new InvalidDataException("Bad fuel.");
-        if (device < NoDevice || device > Net.SnapshotCodec.MostDevices)
+        if (device < NoDevice || device >= Net.SnapshotCodec.MostDevices)
             throw new InvalidDataException("Bad device.");
         if (!r.AtEnd)
             throw new InvalidDataException("A gift has bytes after its end.");
@@ -207,6 +215,7 @@ public sealed record Gift(string From, string To, uint ResourceUnits, IReadOnlyL
         TradeRefusal.StripOffered => "Not now: the Melnorme are offering to strip their ship, storage bays and all.",
         TradeRefusal.DeviceTooFar => "A device goes only to a player close by: within a screen in hyperspace, or in the same system.",
         TradeRefusal.HasOne => "They already hold one of those.",
+        TradeRefusal.InTalk => "A device doesn't change ships during a talk.",
         _ => "",
     };
 }

@@ -331,6 +331,10 @@ public static class HostSave
             // apart.)
             if (visit is not null && !starter)
                 (hold, fuel) = visit.WithoutTalks(p, hold, fuel);
+            // The devices are the ship's as they are (stage 3c item 5, review round 1): a visit's talks and a
+            // battle change none, but its player may have left them in a container meanwhile (a starter who
+            // left mid-opening, a ship destroyed in a battle still running), or handed one over before.
+            hold = hold with { Devices = p.Ship.Hold.Save().Devices };
             return new PlayerState(p.Id, p.Name, p.IsHost, p.Ship.Kind, p.Ship.Loadout, p.UndockPending,
                 new FlightState(inHyperspace ? wb!.Place.X : f.LogX, inHyperspace ? wb!.Place.Y : f.LogY, f.Facing,
                     fuel, f.Status, f.TurnWait, f.ThrustWait,

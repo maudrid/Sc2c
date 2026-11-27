@@ -251,6 +251,21 @@ public sealed class StoryState
         }
     }
 
+    /// <summary>
+    /// A field kept out of the shared story (<see cref="NotShared"/>) set in
+    /// the packed bits, for a bigger field's write to run into as UQM's
+    /// unchecked SET_GAME_STATE does (a talk puts its answering ship's
+    /// device there first, and clears it after: <c>Talk.Set</c>). Its bits
+    /// mean nothing otherwise, and aren't saved.
+    /// </summary>
+    internal void SetUnsharedBits(string name, int value)
+    {
+        if (!NotShared.ContainsKey(name))
+            throw new ArgumentException($"{name} is shared story state", nameof(name));
+        var f = Table[name];
+        SetBits(_bits, f.StartBit, f.EndBit, (byte)value);
+    }
+
     /// <summary>The packed bits, as UQM's GameState array holds them.</summary>
     public ReadOnlySpan<byte> Bits => _bits;
 

@@ -216,6 +216,7 @@ public class ShipDevicesTests
         var none = gift with { Device = Gift.NoDevice };
         Assert.Equal(none, Gift.Decode(none.Encode()));
         Assert.Throws<InvalidDataException>(() => Gift.Decode((gift with { Device = 9999 }).Encode()));
+        Assert.Throws<InvalidDataException>(() => Gift.Decode((gift with { Device = SnapshotCodec.MostDevices }).Encode()));   // as a hold's
         Assert.Equal("the Talking Pet, 3 RU", gift.Describe(d => d == Pet ? "Talking Pet" : null));
         Assert.Equal("a device", (gift with { ResourceUnits = 0 }).Describe());
     }
@@ -417,6 +418,222 @@ public class ShipDevicesTests
         fields["ULTRON_CONDITION"] = 5;
         loaded = HostSave.FromJson(node.ToJsonString(), Systems, TestContent.Shapes);
         Assert.Equal(new[] { Maidens, Artifact2 }, loaded.Host.Ship.Hold.Devices);
+    }
+
+    // ---------------------------------------------------------------- review round 1
+
+    private static readonly ConversationScripts Scripts = ConversationScripts.Load(DataDir);
+
+    // The replier's reply by its phrase id, in a visit's talk.
+    private static void Say(GameWorld world, string script, string phrase)
+    {
+        var talk = world.Visit!.Talk!;
+        int i = talk.Replies.Select(r => r.Phrase).ToList().IndexOf(Scripts[script].PhraseNumber(phrase));
+        Assert.True(i >= 0, $"{phrase} isn't offered");
+        Assert.True(world.ChooseReply(world.Visit.Replier.Id, i));
+    }
+
+    private static void SavedAndLoaded(GameWorld world, Action<GameWorld> check)
+    {
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), Systems, TestContent.Shapes);
+        check(loaded);
+    }
+
+    [ContentFact]
+    public void AStarterWhoLeavesMidOpeningLeavesItsDevicesAndNeitherTheSaveNorTheUndoBringsThemBack()
+    {
+        // Review round 1: the starter's hold is saved and put back as before the visit, but its devices as they
+        // are: the container holds them, never the ship too.
+        var world = NewGame(guests: 2);
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        world.EncounterRaces = new HashSet<string>();
+        world.SetDevice("g1", "MAIDENS_ON_SHIP");
+        int sol = Star(world, "SOL_DEFINED");
+        world.PutInOrbit("g1", sol, 2, 1);
+        world.Find("g1")!.Ship.Ip!.ReturnFromOrbit();
+        world.VisitStarbase(world.Find("g1")!);
+        Assert.True(world.Visit is { Opening: true });
+        Say(world, "comandr", "yes_this_is_supply_ship");
+        world.Leave("g1");
+        Assert.Equal("host", world.Visit!.Replier.Id);
+        Assert.Equal(new[] { Maidens }, Assert.Single(world.Containers).Devices);
+        SavedAndLoaded(world, loaded =>
+        {
+            Assert.Empty(loaded.Find("g1")!.Ship.Hold.Devices);
+            Assert.Equal(new[] { Maidens }, Assert.Single(loaded.Containers).Devices);
+        });
+        // The opening undone (nobody left to reply): the starter's hold as before it, but its devices in the
+        // container still, not aboard too; back, it gets them from there.
+        world.Leave("host");
+        world.Leave("g2");
+        Assert.Null(world.Visit);
+        Assert.Empty(world.Find("g1")!.Ship.Hold.Devices);
+        Assert.Equal(new[] { Maidens }, Assert.Single(world.Containers).Devices);
+        Assert.Equal(JoinResult.Rejoined, world.Join("g1", "Guest 1"));
+        Assert.Equal(new[] { Maidens }, world.Find("g1")!.Ship.Hold.Devices);
+        Assert.Empty(world.Containers);
+    }
+
+    [ContentFact]
+    public void AGuestDestroyedInABattleStillRunningLeavesItsDevicesWhereItsWreckWillLieAndTheSaveLoads()
+    {
+        var world = NewGame(guests: 2);
+        world.BattleKit = Kit();
+        world.SetDevice("g2", "MAIDENS_ON_SHIP");
+        var g2 = world.Find("g2")!.Ship;
+        g2.Flight.LogX += 12;   // joined a little way from the marker
+        g2.Flight.LogY -= 8;
+        var wb = WorldBattleTests.Started(world);
+        Kill(wb.Battle, Fighter(wb, "g2").Starship);
+        for (int i = 0; i < 300 && Fighter(wb, "g2").Exit != BattleExit.Destroyed; ++i)
+            Run(world, 1);
+        Assert.Equal(BattleExit.Destroyed, Fighter(wb, "g2").Exit);
+        world.Leave("g2");
+        Assert.Null(wb.Outcome);
+        Assert.Equal(wb.Place, Assert.Single(world.Containers).Place);
+        Assert.NotEqual(wb.Place, new BattlePlace(null, null, g2.Flight.LogX, g2.Flight.LogY));
+        SavedAndLoaded(world, loaded =>
+        {
+            Assert.Empty(loaded.Find("g2")!.Ship.Hold.Devices);
+            Assert.Equal(new[] { Maidens }, Assert.Single(loaded.Containers).Devices);
+        });
+        // The battle won: its wreck lies by it.
+        Kill(wb.Battle, wb.Enemy);
+        RunOut(world, wb);
+        Assert.True(g2.Wreck);
+        Assert.Equal(new BattlePlace(null, null, g2.Flight.LogX, g2.Flight.LogY), Assert.Single(world.Containers).Place);
+    }
+
+    // A game with the races' talks, a guest "g", and a group of a race met by the guest in hyperspace.
+    private static (GameWorld World, Meeting Meeting) GuestMeeting()
+    {
+        var world = SystemGroupTests.NewWorld();
+        Assert.Equal(JoinResult.Joined, world.Join("g", "Guest"));
+        world.UndockShown("g");
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        world.DialogueLocks = DialogueLocks.Load(DataDir);
+        world.BattleKit = Kit();
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        world.Clock.FramesIntoDay = -100000;   // no day's roll meanwhile
+        var f = world.Find("g")!.Ship.Flight;
+        f.PlaceAtUniverse(5800, 6100);   // far from the others
+        f.Stop();
+        f.StarJustLeft = null;
+        int r = world.Story.Rules.RaceIndex("ILWRATH_SHIP");
+        var e = new Hyperspace.HyperEncounter
+        {
+            Race = r, Roller = "g", OriginX = f.UniverseX, OriginY = f.UniverseY, Radius = 2000,
+            LocX = (short)(f.UniverseX + 10), LocY = f.UniverseY,
+            LogX = Uqm.Units.UniverseToLogX((short)(f.UniverseX + 10)), LogY = Uqm.Units.UniverseToLogY(f.UniverseY),
+        };
+        e.Ships.Add(world.Story.Rules.RaceShips[r].Crew);
+        world.Encounters!.List.Add(e);
+        for (int i = 0; i < 600 && world.MeetingOf("g") is not { Step: not MeetingStep.Spin }; ++i)
+            Run(world, 1);
+        return (world, world.MeetingOf("g")!);
+    }
+
+    [ContentFact]
+    public void NoDeviceGoesToOrFromAShipInATalk()
+    {
+        // Review round 1: a talk reads the devices aboard and may have offered its replies by them (shofixt.c:310),
+        // so a gift reaching the host as one starts is refused; anything else may still be given.
+        var (world, m) = GuestMeeting();
+        Assert.Equal(Activity.Talk, world.Find("g")!.Ship.Activity);
+        var gf = world.Find("g")!.Ship.Flight;
+        world.Host.Ship.Flight.LogX = gf.LogX + 40;   // close by
+        world.Host.Ship.Flight.LogY = gf.LogY;
+        world.SetDevice("h", "ROSY_SPHERE_ON_SHIP");
+        world.SetDevice("g", "MAIDENS_ON_SHIP");
+        world.Host.Ship.Hold.ResourceUnits = 10;
+        var none = new int[ShipHold.Categories];
+        Assert.Equal(TradeRefusal.InTalk, world.Give(new Gift("h", "g", 0, none, 0, Device: Rosy)));
+        Assert.Equal(TradeRefusal.InTalk, world.Give(new Gift("g", "h", 0, none, 0, Device: Maidens)));
+        Assert.Equal(TradeRefusal.None, world.Give(new Gift("h", "g", 10, none, 0)));
+        Assert.Equal(new[] { Rosy }, world.Host.Ship.Hold.Devices);
+        Assert.Equal(new[] { Maidens }, world.Find("g")!.Ship.Hold.Devices);
+        Assert.Equal("A device doesn't change ships during a talk.", Gift.Why(TradeRefusal.InTalk));
+        // Leaving at the meeting: the container where the ship met the group (the meeting dropped).
+        var place = new BattlePlace(null, null, world.Find("g")!.Ship.Flight.LogX, world.Find("g")!.Ship.Flight.LogY);
+        world.Leave("g");
+        Assert.Null(world.MeetingOf("g"));
+        Assert.Equal(place, Assert.Single(world.Containers).Place);
+    }
+
+    [ContentFact]
+    public void ALeaverDockedOrInAStoryPauseLeavesItsContainerWhereItsShipWaits()
+    {
+        // Docked: the visit ends as leaving the starbase does, the ship by the starbase, in Earth's inner view.
+        var world = NewGame(guests: 2);
+        world.TalkLibrary = UrquanMeetingTests.Library.Value;
+        world.EncounterRaces = new HashSet<string>();
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        world.CommanderMet = true;
+        int sol = Star(world, "SOL_DEFINED");
+        var g1 = world.Find("g1")!;
+        world.PutInOrbit("g1", sol, 2, 1);
+        g1.Ship.Ip!.ReturnFromOrbit();
+        world.VisitStarbase(g1);
+        Assert.NotNull(g1.Ship.Visit);
+        world.SetDevice("g1", "VUX_BEAST_ON_SHIP");
+        world.Leave("g1");
+        Assert.Null(g1.Ship.Visit);
+        Assert.Equal(new BattlePlace(sol, 2, g1.Ship.Ip!.Location.X, g1.Ship.Ip.Location.Y), Assert.Single(world.Containers).Place);
+        Assert.Equal(2, g1.Ship.Ip.InnerPlanet);
+        // Under a story pause: where the ship waits (nothing moves meanwhile).
+        world.SetDevice("g2", "AQUA_HELIX_ON_SHIP");
+        var g2 = world.Find("g2")!.Ship;
+        Assert.NotNull(world.StartStoryPause(world.Host, "a test's skip", 3));
+        Run(world, 1);
+        world.Leave("g2");
+        Assert.Equal(new BattlePlace(null, null, g2.Flight.LogX, g2.Flight.LogY), world.Containers[1].Place);
+    }
+
+    [ContentFact]
+    public void AWriteRunningIntoAHeldDevicesBitsReachesTheAnsweringShipEachTime()
+    {
+        // Review round 1 (the reading of UQM's unchecked SET_GAME_STATE): SHOFIXTI_MAIDENS' bit is followed by
+        // MAIDENS_ON_SHIP's; a 2 written into it gives the answering ship the Maidens, every time, as UQM's one
+        // GameState would, and leaves nothing in the story's bits.
+        TestContent.With(package =>
+        {
+            var talk = Started(package, "shofixt");
+            var ship = (TalkTests.TestShip)talk.Ship;
+            talk.Set("SHOFIXTI_MAIDENS", 2);
+            Assert.Equal(new[] { Maidens }, ship.HeldDevices);
+            ship.HeldDevices = new SortedSet<int>();
+            talk.Set("SHOFIXTI_MAIDENS", 2);
+            Assert.Equal(new[] { Maidens }, ship.HeldDevices);
+            var f = talk.Story.Table["MAIDENS_ON_SHIP"];
+            Assert.Equal(0, StoryState.GetBits(talk.Story.Bits, f.StartBit, f.EndBit));
+            talk.Set("SHOFIXTI_MAIDENS", 2);   // aboard already: kept
+            Assert.Equal(new[] { Maidens }, ship.HeldDevices);
+        });
+    }
+
+    [ContentFact]
+    public void TheGivingScreenKeepsTheDeviceChosenByWhichItIs()
+    {
+        // Review round 1: another device arriving (one numbered lower) doesn't change the one chosen.
+        var world = NewGame();
+        world.SetDevice("host", "MAIDENS_ON_SHIP");
+        var screen = new TradeScreen();
+        var snapshot = world.Snapshot();
+        screen.Press(MenuKey.Up, snapshot, "host");
+        screen.Press(MenuKey.Up, snapshot, "host");
+        screen.Press(MenuKey.Right, snapshot, "host");
+        Assert.Equal(Maidens, screen.Follow(snapshot, "host").Device);
+        world.SetDevice("host", "TALKING_PET_ON_SHIP");
+        snapshot = world.Snapshot();
+        var shown = screen.Follow(snapshot, "host");
+        Assert.Equal((Maidens, 2), (shown.Device, shown.Give[TradeScreen.DeviceRow]));
+        Assert.Equal(Maidens, screen.Press(MenuKey.Select, snapshot, "host")!.Device);
+        // One gone meanwhile: none chosen.
+        screen.Press(MenuKey.Right, snapshot, "host");
+        Assert.Equal(Pet, screen.Follow(snapshot, "host").Device);
+        world.SetDevice("host", "TALKING_PET_ON_SHIP", 0);
+        Assert.Null(screen.Follow(world.Snapshot(), "host").Device);
+        Assert.Null(screen.Press(MenuKey.Select, world.Snapshot(), "host"));
     }
 
     // ---------------------------------------------------------------- the wire and the client

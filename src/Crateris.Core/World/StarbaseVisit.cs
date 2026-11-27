@@ -227,7 +227,7 @@ public sealed class StarbaseVisit : TalkSequence
         return fleet.Where(s => !added.Any(a => a.Slot == s.Slot && a.Race == s.Race && a.Captain == s.Captain));
     }
 
-    /// <summary>The starter's hold when the visit started.</summary>
+    /// <summary>The starter's hold when the visit started (put back and saved with its devices as they are, not these).</summary>
     public HoldState HoldBefore { get; }
 
     /// <summary>The starter's fuel when the visit started.</summary>
@@ -546,11 +546,15 @@ public sealed class StarbaseVisit : TalkSequence
     /// counter back again, so what it does once back in the game, outside
     /// the fight, stays done. The visit itself goes on with the fight.
     /// </summary>
+    // The starter's devices as they are (stage 3c item 5, review round 1): no talk of a visit changes one, but
+    // the starter may have left them in a container meanwhile; putting its hold back mustn't bring them back.
+    private int[]? LiveDevices => Starter.Ship.Hold.Save().Devices;
+
     internal void SettleStarter()
     {
         if (StarterSettled)
             return;
-        Starter.Ship.Hold.Restore(HoldBefore with { Crew = Starter.Ship.Hold.Crew });
+        Starter.Ship.Hold.Restore(HoldBefore with { Crew = Starter.Ship.Hold.Crew, Devices = LiveDevices });
         Starter.Ship.Flight.Fuel = FuelBefore > GameWorld.RetreatFuelCost ? FuelBefore - GameWorld.RetreatFuelCost : 0;
         _ship?.Forget(Starter);   // put back already (but the crew it left with), not to be taken back again
         StarterSettled = true;
@@ -584,7 +588,7 @@ public sealed class StarbaseVisit : TalkSequence
         _world.Fleet.Restore(_world.Story!.Rules, FleetWithout(_world.Fleet.Ships).ToList());
         if (!StarterSettled)
         {
-            Starter.Ship.Hold.Restore(HoldBefore);
+            Starter.Ship.Hold.Restore(HoldBefore with { Devices = LiveDevices });
             if (Starter.Ship.Destroyed)
                 Starter.Ship.Hold.SetCrew(0);
             Starter.Ship.Flight.Fuel = FuelBefore;

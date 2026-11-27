@@ -74,7 +74,8 @@ public sealed partial class GameWorld
     /// meeting or battle left where the ship was before it, a docked ship by
     /// the starbase), and for every guest away as a save loads. A ship in
     /// orbit leaves it beside its world, in the planet's inner view where
-    /// the ship is; a wreck where it lies. Nothing for a ship holding no
+    /// the ship is; a wreck where it lies (one destroyed in a battle still
+    /// running at the battle's place, where it will lie). Nothing for a ship holding no
     /// device, nor for the host, whose leaving ends the game (its devices
     /// stay aboard, saved).
     /// </summary>
@@ -84,7 +85,11 @@ public sealed partial class GameWorld
         if (player.IsHost || player.Ship.Hold.Devices.Count == 0)
             return;
         int count = player.Ship.Hold.Devices.Count;
-        AddContainer(player.Id, player.Name, PlaceOf(player.Ship), player.Ship.Hold.Devices.ToList());
+        // A ship destroyed in a battle still running (its player watching it) will be a wreck at the battle's
+        // place: its container lies there (review round 1); any other where the ship waits.
+        var place = player.Ship.Battle is { } wb && wb.FighterOf(player.Id) is { Exit: BattleExit.Destroyed }
+            ? wb.Place : PlaceOf(player.Ship);
+        AddContainer(player.Id, player.Name, place, player.Ship.Hold.Devices.ToList());
         player.Ship.Hold.SetDevices(Array.Empty<int>());
         if (tell)
             foreach (var p in Others(player.Id))

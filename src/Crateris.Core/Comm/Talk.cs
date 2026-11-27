@@ -987,12 +987,18 @@ public sealed class Talk : ITalkStory
         {
             // A value too big for its field runs into the next fields' bits, as UQM's does: a device held by
             // ships it runs into goes to or leaves the answering ship as those bits now say (UQM's one ship's
-            // GameState holds both).
+            // GameState holds both). A field kept out of the shared story holds the answering ship's value for
+            // the write, and nothing after (review round 1: so every such write finds it as the ship has it).
+            var unshared = DeviceTable.HeldFields.Where(f => !DeviceTable.RecordedFields.Contains(f)).ToList();
+            foreach (var f in unshared)
+                _story.SetUnsharedBits(f, Ship.Device(f));
             var before = DeviceTable.HeldFields.ToDictionary(f => f, RawBits);
             _story.Set(field, value);
             foreach (var (f, was) in before)
                 if (RawBits(f) is var now && now != was)
                     Ship.SetDevice(f, now);
+            foreach (var f in unshared)
+                _story.SetUnsharedBits(f, 0);
         }
     }
 

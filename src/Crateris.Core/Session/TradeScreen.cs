@@ -79,16 +79,25 @@ public sealed class TradeScreen
                     To = others[(i + d + others.Count) % others.Count];
                 }
                 break;
+            case MenuKey.Left or MenuKey.Right or MenuKey.PageUp or MenuKey.PageDown when Row == DeviceRow:
+                // The device chosen, by its number: the next or the one before among those the ship holds.
+                var held = mine?.Hold?.HeldDevices ?? Array.Empty<int>();
+                int at = _device is int chosen ? held.ToList().IndexOf(chosen) : -1;
+                at = Math.Clamp(at + (key is MenuKey.Left or MenuKey.PageDown ? -1 : 1), -1, held.Count - 1);
+                _device = at < 0 ? null : held[at];
+                Amounts[DeviceRow] = at + 1;
+                break;
             case MenuKey.Left or MenuKey.Right or MenuKey.PageUp or MenuKey.PageDown:
                 int step = key is MenuKey.PageUp or MenuKey.PageDown ? (Row is UnitsRow or CreditsRow ? 100 : 10) : 1;
                 int sign = key is MenuKey.Left or MenuKey.PageDown ? -1 : 1;
                 Amounts[Row] = Math.Clamp(Amounts[Row] + sign * step, 0, Most(mine, Row, tankRoom));
                 break;
-            case MenuKey.Select when To is not null && Row == DeviceRow && Amounts[Row] > 0:
-                var device = new Gift(me, To, 0, new int[ShipHold.Categories], 0,
-                    Device: mine!.Hold!.HeldDevices[Amounts[Row] - 1]);
+            case MenuKey.Select when To is not null && Row == DeviceRow && _device is int give:
+                _device = null;
                 Amounts[Row] = 0;
-                return device;
+                return new Gift(me, To, 0, new int[ShipHold.Categories], 0, Device: give);
+            case MenuKey.Select when Row == DeviceRow:
+                break;
             case MenuKey.Select when To is not null && Row != PlayerRow && Amounts[Row] > 0:
                 var minerals = new int[ShipHold.Categories];
                 if (Row >= FirstMineralRow && Row < BioRow)
@@ -118,10 +127,19 @@ public sealed class TradeScreen
         var mine = snapshot?.Ships.FirstOrDefault(s => s.Id == me);
         var taker = To is null ? null : snapshot?.Ships.FirstOrDefault(s => s.Id == To);
         int? tankRoom = taker is null ? null : TankRoomOf(taker);
-        for (int row = UnitsRow; row < Rows; ++row)
+        for (int row = UnitsRow; row < DeviceRow; ++row)
             Amounts[row] = Math.Min(Amounts[row], Most(mine, row, tankRoom));
+        // The device chosen is kept by its number (review round 1: another arriving doesn't change which), none
+        // once the ship no longer holds it; its row's amount is its place among them, from 1.
+        var held = mine?.Hold?.HeldDevices ?? Array.Empty<int>();
+        if (_device is int d && !held.Contains(d))
+            _device = null;
+        Amounts[DeviceRow] = _device is int kept ? held.ToList().IndexOf(kept) + 1 : 0;
         return (mine, tankRoom);
     }
+
+    // The device chosen on the device row (globdata.h's number), null for none.
+    private int? _device;
 
     // The most a row can give: what the player has, and for fuel no more than the receiver's room.
     private static int Most(ShipSnapshot? mine, int row, int? tankRoom) =>
@@ -165,8 +183,7 @@ public sealed class TradeScreen
             have[BioRow] = mine.BioData;
             have[DeviceRow] = mine.HeldDevices.Count;
         }
-        int? device = Amounts[DeviceRow] > 0 && giver?.Hold is { } h && Amounts[DeviceRow] <= h.HeldDevices.Count
-            ? h.HeldDevices[Amounts[DeviceRow] - 1] : null;
+        int? device = _device;
         bool here = giver?.SystemStar is int star && taker?.SystemStar == star;
         bool near = giver is not null && taker is not null && Gift.CloseBy(giver.SystemStar, giver.UniverseX, giver.UniverseY,
             taker.SystemStar, taker.UniverseX, taker.UniverseY);

@@ -1701,7 +1701,6 @@ public sealed class PlayerSession
     private static int CrewRoom(ShipSnapshot me) =>
         me.Modules is { } m ? ShipModules.Restore(m).CrewCapacity : 0;
 
-    /// <summary>Where a ship is, in words (entering a star while its entry plays, as the screen shows it).</summary>
     /// <summary>Where a leaver's container is, in words (stage 3c item 5): its place in hyperspace, or its system and world.</summary>
     public string Where(ContainerSnapshot c)
     {
@@ -1712,6 +1711,7 @@ public sealed class PlayerSession
         return c.InnerPlanet is int p ? $"the {cluster} system, near {_names?.PlanetName(at, p) ?? $"planet {p}"}" : $"the {cluster} system";
     }
 
+    /// <summary>Where a ship is, in words (entering a star while its entry plays, as the screen shows it).</summary>
     public string Where(ShipSnapshot s)
     {
         if (s.Activity == Activity.Hyperspace || s.SystemStar is not int star)

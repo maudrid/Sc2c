@@ -1582,7 +1582,7 @@ public sealed partial class GameWorld
     /// or in the same system) up to the room in the receiver's tanks (the
     /// stage 3b-2 plan's item 3), and a device their ship holds to a player
     /// close by, by fuel's rule (stage 3c item 5; question 5), unless the
-    /// receiver holds one of its kind. Both must be in the game; not while the
+    /// receiver holds one of its kind or either is in a talk. Both must be in the game; not while the
     /// game waits for a story talk or is over, nor to or from a ship in a
     /// battle or a wreck. A player in a talk (a meeting's, the starbase's
     /// menu talk) can be given anything: a Melnorme trader topped up with
@@ -1632,6 +1632,10 @@ public sealed partial class GameWorld
         // A device goes by fuel's rule (stage 3c item 5, question 5); one of a kind the receiver holds (the Ultron's states) can't.
         if (device && !CloseBy(giver, taker))
             return TradeRefusal.DeviceTooFar;
+        // A talk reads the devices aboard, and may have offered its replies by them (Tanaka's "females" with the
+        // Maidens aboard): none goes to or from a ship in one (stage 3c item 5, review round 1).
+        if (device && (InTalk(giver) || InTalk(taker)))
+            return TradeRefusal.InTalk;
         if (device && Story!.Rules.Devices.ValueOf(to.Devices, Story.Rules.Devices.All[gift.Device].Field!) != 0)
             return TradeRefusal.HasOne;
         // The Melnorme's strip offered to the receiver may take the storage bays the minerals would need.
@@ -1660,6 +1664,11 @@ public sealed partial class GameWorld
         _gifts.Add(gift);
         return TradeRefusal.None;
     }
+
+    // In a talk, or about to be: a meeting at its encounter screen, talk or closing lines, a visit's talk, the
+    // commander's talk from the starbase's menu.
+    private static bool InTalk(Player p) =>
+        p.Ship.Activity == Activity.Talk || p.Ship.Visit is { Talk: { Ended: false } };
 
     /// <summary>
     /// Whether fuel can go between two players' ships (<see cref="Gift.CloseBy"/>):
