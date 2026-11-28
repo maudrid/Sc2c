@@ -48,7 +48,7 @@ public class StoryPickupsTests
         var golden = Golden.Load("story-nodes");
         var fields = golden.GetProperty("fields").EnumerateArray().Select(f => f.GetString()!).ToList();
         var cases = golden.GetProperty("cases").EnumerateArray().ToList();
-        Assert.Equal(52, cases.Count);
+        Assert.Equal(54, cases.Count);
         // The tables a cycle goes round have the content's counts in the recording, as in the port.
         foreach (var size in golden.GetProperty("table_sizes").EnumerateObject())
             Assert.Equal(size.Value.GetInt32(), StoryWorlds.ReportEntries[size.Name]);
@@ -69,11 +69,14 @@ public class StoryPickupsTests
             var ship = new Dictionary<string, int>();
             int Held(string field) => ship.GetValueOrDefault(field);
             uint retrieved = 0;
+            int landerCrew = 0;   // the lander's crew as it touches the node (Fwiffo's KillLanderCrewSeq)
             foreach (string assignment in c.GetProperty("state").GetString()!.Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
                 var (field, value) = (assignment.Split('=')[0], int.Parse(assignment.Split('=')[1]));
                 if (field == "RETRIEVED")
                     retrieved = (uint)value;
+                else if (field == "LANDER_CREW")
+                    landerCrew = value;
                 else if (DeviceTable.HeldByShips(field))
                 {
                     ship[field] = value;
@@ -105,13 +108,8 @@ public class StoryPickupsTests
             Assert.True(Place(c.GetProperty("discovery")) == Of(place), name);
             var sheet = StoryWorlds.EnergySheet(special, world, story, retrieved);
             var graphics = c.GetProperty("graphics").EnumerateArray().Select(g => g.GetString()).ToList();
-            if (name.StartsWith("pluto"))
-                Assert.Null(sheet);   // Fwiffo's sheet is put on the surface with his story (stage 3c item 7)
-            else
-            {
-                Assert.True((c.GetProperty("sheet").GetInt32() == 1) == (sheet is not null), name);
-                Assert.Equal(sheet is { } s ? new[] { ContactShapes.EnergyResources[s] } : Array.Empty<string>(), graphics);
-            }
+            Assert.True((c.GetProperty("sheet").GetInt32() == 1) == (sheet is not null), name);
+            Assert.Equal(sheet is { } s ? new[] { ContactShapes.EnergyResources[s] } : Array.Empty<string>(), graphics);
             StoryWorlds.Orbited(Systems.Map, world, story);
             Fields(c.GetProperty("orbit_fields"), story, Held, name + " orbit");
 
@@ -140,6 +138,20 @@ public class StoryPickupsTests
                     taken = StoryWorlds.PickupEnergy(special, world, story, finder, node);
                 else
                     StoryWorlds.PickupCreature(special, world, story, finder, node);   // every creature is taken
+                // Fwiffo's KillLanderCrewSeq: asked with UQM's arguments, the lander losing them as the port's
+                // does (one at a time while any are left: LanderCrewLossIsUqms), the rest of the pickup if it lives.
+                if (pickup.TryGetProperty("kill_crew", out var kill))
+                {
+                    var k = kill.Ints();
+                    Assert.Equal((k[0], k[1]), finder.CrewLoss);
+                    Assert.Equal(landerCrew, k[2]);
+                    int left = Math.Max(0, landerCrew - k[0]);
+                    Assert.Equal(k[3], left);
+                    if (left > 0)
+                        StoryWorlds.FwiffoFound(story, finder);
+                }
+                else
+                    Assert.Null(finder.CrewLoss);
                 Assert.True((pickup.GetProperty("taken").GetInt32() == 1) == taken, what);
                 Assert.True((pickup.GetProperty("takeoffs").GetInt32() > 0) == finder.Takeoff, what);
                 var reports = pickup.GetProperty("reports").EnumerateArray().Select(Place).ToList();

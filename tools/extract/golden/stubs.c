@@ -71,7 +71,6 @@ long InitPlanetInfo () { return 0; }
 long InitQueue () { return 0; }
 long InitSISContexts () { return 0; }
 long InsertQueue () { return 0; }
-long KillLanderCrewSeq () { return 0; }
 long LoadLanderData () { return 0; }
 void *LoadMusicInstance () { return dummy_handle; }
 long LoadStdLanderFont () { return 0; }

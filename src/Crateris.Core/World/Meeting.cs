@@ -214,6 +214,14 @@ public sealed class Meeting
     // The world's entry whose orbit started the meeting (GameWorld.TalkWorlds), or null for a group met.
     internal TalkWorld? WorldTalk;
 
+    /// <summary>
+    /// Whether this is Fwiffo's meeting (stage 3c item 7): his one ship, met
+    /// in orbit after a lander came back aboard while FOUND_PLUTO_SPATHI was
+    /// 1, with no group in the system (its groups put aside, none standing
+    /// down); the ship stays in orbit through it.
+    /// </summary>
+    public bool Fwiffo { get; internal init; }
+
     // How a saved copy's stand-in for a meeting at its closing lines ended its talk (no Talk there: question 13).
     internal Segue? EndedAs;
 

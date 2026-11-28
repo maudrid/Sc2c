@@ -30,6 +30,16 @@
  * graphics.miscdata (and the creatures'), the frames CheckObjectCollision
  * tests; needed for landings with nodes or hazards.
  *
+ * Or: lander killcrew, reading lines "crew shields count period" and
+ * writing what KillLanderCrewSeq (count, period) does to a lander with
+ * crew_left crew and LANDER_SHIELDS shields (a 4-bit mask, as
+ * planets.h's disasters), as GenerateSol_pickupEnergy calls it for Fwiffo
+ * (stage 3c item 7): {"crew", "shields", "count", "period", "lived" (its
+ * result), "crew_left", "damage_index" (after it), "deaths" (each
+ * SleepThreadUntil it calls: [the clock as it's called, crew_left then,
+ * the time it sleeps to]), "seed_same" (whether TFB_Random's seed is as
+ * before: no shield asked about draws nothing)}.
+ *
  * Or: lander chances, reading lines "tectonics weather temperature" and
  * writing PlanetSide's chances out of 256 for each, [TectonicsChance,
  * WeatherChance, FireChance] (GetHazardChance, GetThermalHazardRating).
@@ -280,9 +290,20 @@ static TimeCount now;
 
 TimeCount GetTimeCounter (void) { return now; }
 
+/* killcrew mode: each sleep's [now, crew_left, until], recorded. */
+static int record_sleeps;
+static char sleeps_out[4096];
+static size_t sleeps_len;
+static int crew_left_now (void);
+
 void
 SleepThreadUntil (TimeCount t)
 {
+	if (record_sleeps && sleeps_len < sizeof sleeps_out - 64)
+		sleeps_len += snprintf (sleeps_out + sleeps_len,
+				sizeof sleeps_out - sleeps_len, "%s[%lu, %d, %lu]",
+				sleeps_len ? ", " : "", (unsigned long) now,
+				crew_left_now (), (unsigned long) t);
 	if (t > now)
 		now = t;
 }
@@ -902,6 +923,35 @@ ClearDrawable (void)
 	lander_drawn = 0;
 }
 
+static int crew_left_now (void) { return crew_left; }
+
+/* ---- KillLanderCrewSeq (killcrew mode) ---- */
+
+static void
+kill_crew (int first, int crew, int shields, int count, int period)
+{
+	int i, lived;
+	DWORD before;
+	for (i = 0; i < SHEET_MISC; ++i)
+		LanderFrame[i] = MAKE_FRAME (i, 0);
+	SET_GAME_STATE (LANDER_SHIELDS, shields);
+	crew_left = crew;
+	damage_index = 0;
+	now = 0;
+	sleeps_len = 0;
+	sleeps_out[0] = '\0';
+	TFB_SeedRandom (12345);
+	before = peek_seed ();
+	record_sleeps = 1;
+	lived = KillLanderCrewSeq (count, period);
+	record_sleeps = 0;
+	printf ("%s{\"crew\": %d, \"shields\": %d, \"count\": %d, "
+			"\"period\": %d, \"lived\": %d, \"crew_left\": %d, "
+			"\"damage_index\": %d, \"deaths\": [%s], \"seed_same\": %d}",
+			first ? "" : ",\n", crew, shields, count, period, lived,
+			crew_left, damage_index, sleeps_out, peek_seed () == before);
+}
+
 /* ---- A landing ---- */
 
 static SOLARSYS_STATE solar_state;
@@ -1018,6 +1068,19 @@ main (int argc, char *argv[])
 			first = 0;
 		}
 	done:
+		printf ("]\n");
+		return 0;
+	}
+	if (argc > 1 && strcmp (argv[1], "killcrew") == 0)
+	{
+		int crew, shields, count, period, first = 1;
+		RadarContext = (CONTEXT) radar_context;
+		printf ("[");
+		while (scanf ("%d %d %d %d", &crew, &shields, &count, &period) == 4)
+		{
+			kill_crew (first, crew, shields, count, period);
+			first = 0;
+		}
 		printf ("]\n");
 		return 0;
 	}

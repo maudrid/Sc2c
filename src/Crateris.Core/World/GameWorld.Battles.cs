@@ -175,7 +175,9 @@ public sealed partial class GameWorld
     /// frame and number (UQM seeds from the clock). Refused (an
     /// <see cref="InvalidOperationException"/>) without the battle's content,
     /// during a story talk, after the game is over, or for a ship not
-    /// present and in flight, or already in a battle, or destroyed; a
+    /// present and in flight (or in orbit for Fwiffo's battle, stage 3c
+    /// item 7: the ship fights from orbit and stays in it), or already in a
+    /// battle, or destroyed; a
     /// fleet empty or of more than MAX_SHIPS_PER_SIDE's 14, a ship not ported, a crew out of its ship's range, an
     /// infinite fleet of more than one ship or with a crew, or
     /// <see cref="BattleStart.EnemyCrew"/> given with a fleet are argument errors.
@@ -206,7 +208,8 @@ public sealed partial class GameWorld
         if (GameOver || StoryPaused)
             throw new InvalidOperationException("the game is paused or over");
         if (!player.Present || ship.Destroyed || ship.Battle is not null || ship.Entry is not null
-            || ship.Activity is not (Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem))
+            || ship.Activity is not (Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem)
+               && !(ship.Activity == Activity.Orbit && ship.Meeting is { Fwiffo: true, Step: MeetingStep.Battle }))
             throw new InvalidOperationException($"{id}'s ship isn't in flight, free to fight ({ship.Activity})");
         foreach (var s in fleet.Ships)
         {

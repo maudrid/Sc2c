@@ -282,6 +282,38 @@ def record_lander(uqm, exe):
     return data
 
 
+def record_lander_killcrew(uqm, exe):
+    """KillLanderCrewSeq (lander.c) as Fwiffo's pickup calls it (stage 3c item 7)."""
+    # crew shields count period: gensol.c's FWIFFO_FRAGS 8 at ONE_SECOND / 20 (42 ticks), with crews
+    # that live and die through it, every shield, and a shorter run for the loop's own rule.
+    lines = [(12, 0, 8, 42), (9, 0, 8, 42), (8, 0, 8, 42), (3, 0, 8, 42), (1, 0, 8, 42),
+             (12, 15, 8, 42), (8, 15, 8, 42), (12, 0, 3, 100)]
+    out = subprocess.run([exe, "killcrew"], input="".join(f"{c} {s} {n} {p}\n" for c, s, n, p in lines),
+                         capture_output=True, text=True, check=True).stdout
+    data = header(uqm, ["tools/extract/golden/lander.c",
+                        "tools/extract/golden/lander_stubs.c",
+                        "src/uqm/planets/lander.c",
+                        "src/uqm/planets/generate/gensol.c",
+                        "src/libs/math/random.c"], [
+        "UQM 0.8.0's KillLanderCrewSeq (lander.c), as GenerateSol_pickupEnergy "
+        "calls it when a lander runs into Fwiffo on Pluto (FWIFFO_FRAGS 8, "
+        "ONE_SECOND / 20 = 42 ticks apart), recorded by running it on a "
+        "lander with so many crew and LANDER_SHIELDS set, drawing and sound "
+        "stubbed and a clock that each sleep moves on (tools/extract/golden/"
+        "lander.c's killcrew mode). Code only, no content.",
+        "runs: crew (crew_left before), shields (LANDER_SHIELDS: 15 every "
+        "shield), count and period (its arguments, the period in ticks of "
+        "ONE_SECOND 840), lived (its result: crew left), crew_left and "
+        "damage_index after it, deaths (each SleepThreadUntil it called, "
+        "after a DeltaLanderCrew (-1, LANDER_INJURED): [the clock then, "
+        "crew_left then, the tick it sleeps to]) and seed_same (TFB_Random's "
+        "seed unchanged: LANDER_INJURED's shield bit lies past the four "
+        "shields, so no shield is asked about and nothing is drawn).",
+    ])
+    data["runs"] = json.loads(out)
+    return data
+
+
 def pickup_worlds():
     """Worlds with mineral nodes only (no energy, no life), most nodes first:
     [star, planet, moon or -1, nodes]."""
@@ -862,7 +894,7 @@ def record_story_nodes(uqm, exe):
                         "src/uqm/planets/generate/genchmmr.c"], [
         "The story worlds' single-node pickups (stage 3c item 5) and their "
         "ruins, the Ur-Quan wreck, the Syreen's vault and Procyon's "
-        "starbase (stage 3c item 6), recorded "
+        "starbase (stage 3c item 6) and Fwiffo on Pluto (item 7), recorded "
         "by running each world's own generateOrbital, generateEnergy, "
         "generateLife and pickupEnergy or pickupLife (planets/generate/) "
         "with the case's story fields set. See tools/extract/golden/"
@@ -893,6 +925,12 @@ def record_story_nodes(uqm, exe):
         "generateOrbital itself showed any (Procyon's starbase): [table, "
         "index] each. again, for a case touching more nodes in the same "
         "orbit: each further pickup as pickup is, in order.",
+        "Fwiffo on Pluto (stage 3c item 7): the state's LANDER_CREW is the "
+        "lander's crew as it touches him; the pickup's kill_crew, where it "
+        "called KillLanderCrewSeq, is [numKilled, period (ticks of ONE_SECOND "
+        "840), the crew before, the crew after], the crew lost one at a time "
+        "while any are left as lander.c's loop loses them (lander-killcrew."
+        "json records lander.c's own), its result whether any are left.",
     ])
     data.update(json.loads(out))
     return data
@@ -9902,6 +9940,7 @@ def main():
         jobs = [("hyperspace-flight", lambda: record_flight(uqm, flight)),
                 ("uqm-math", lambda: record_math(uqm, math)),
                 ("lander", lambda: record_lander(uqm, lander)),
+                ("lander-killcrew", lambda: record_lander_killcrew(uqm, lander)),
                 ("star-systems", lambda: record_systems(uqm, systems)),
                 ("world-surfaces", lambda: record_surfaces(uqm, systems)),
                 ("story-nodes", lambda: record_story_nodes(uqm, systems)),

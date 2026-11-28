@@ -413,6 +413,7 @@ public sealed partial class GameWorld
         AbandonMeeting(player);   // a meeting before its battle is dropped; at its closing lines, the talk's end made but no battle (a hostile one dropped)
         DisconnectFromBattle(player);   // decision 10: a retreat at once
         DialogueLocks?.ReleaseAll(id);
+        FwiffoPlayerLeft(id);   // Fwiffo's talk not coming to them: the next lander back aboard brings it (stage 3c item 7)
         // The replier of a story talk leaving hands the replies on to the
         // next player in join order, the host first, so the story isn't
         // left half told (decision 7); with no one to take them, or for a
@@ -677,6 +678,7 @@ public sealed partial class GameWorld
         if (GameOver)
             return;   // the world stops at once (decision 12): no surface's frame, no clock
         StepSurfaces();
+        StepFwiffo();   // Fwiffo's talk, once its ship's lander is back aboard (stage 3c item 7)
         // The clock, and hyperspace's encounters (GameWorld.Encounters.cs).
         EndOfFrame();
         // The Kohr-Ah's victory in the day just begun: the game's end starts now, before anything else can.
@@ -717,7 +719,11 @@ public sealed partial class GameWorld
                     Planets.SetRetrieved(world, scan, node);
                 }
                 foreach (var gone in _landerPlayers.Keys.Where(l => l.Phase == LanderPhase.Gone).ToList())
+                {
+                    var player = _landerPlayers[gone];
                     LanderGone(gone);
+                    FwiffoLanderBack(player);   // his talk, while FOUND_PLUTO_SPATHI is 1 (stage 3c item 7)
+                }
             }
         }
         _surfaces.RemoveAll(s => s.Surface.Landers.Count == 0);
@@ -1585,11 +1591,17 @@ public sealed partial class GameWorld
     // (stage 3c item 6's ruins, wreck and vault).
     private bool PickupEnergy(string? special, WorldId world, PlanetsideSurface surface, Lander lander, int node)
     {
-        if (Story is not { } story || !_landerPlayers.TryGetValue(lander, out var finder))
-            return false;
+        if (Story is not { } story || !_landerPlayers.TryGetValue(lander, out var finder) || lander.Seized)
+            return false;   // a lander held while its crew are lost (Fwiffo's) touches nothing new meanwhile
         var found = new Finder(PlaceIn(finder.Ship, world), field => PlayerTalkShip.DeviceOf(this, finder, field),
             Planets.RetrieveMask(world, ScanType.Energy));
         bool taken = StoryEnergyPickup(special, world, story, found, node);
+        if (found.CrewLoss is { } loss)
+        {
+            // Fwiffo (stage 3c item 7): the lander's crew lost first, the rest after (GameWorld.Fwiffo.cs).
+            PickupFwiffo(finder, world, surface, lander, loss);
+            return false;
+        }
         Found(finder, world, surface, lander, found);
         return taken;
     }

@@ -259,6 +259,7 @@ public sealed class PlanetsideSurface
             lander.TextFrame();
             if (lander.Struck)
                 lander.Hurt(LanderDisaster.Lightning);
+            lander.CrewLossFrame();   // a story world's crew loss (Fwiffo's) going on
         }
         foreach (var lander in landers)
         {

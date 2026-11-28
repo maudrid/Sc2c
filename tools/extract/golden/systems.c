@@ -2112,6 +2112,28 @@ SetLanderTakeoff (void)
 	++story_takeoffs;
 }
 
+/* KillLanderCrewSeq, which the Fwiffo cases' pickup calls (gensol.c,
+ * stage 3c item 7): its arguments recorded, and the lander's crew (the
+ * case's LANDER_CREW) lost as lander.c's loop loses them, one at a time
+ * while any are left (each DeltaLanderCrew with LANDER_INJURED, which no
+ * shield stops; lander-killcrew.json records lander.c's own), its result
+ * whether any are left. Outside story mode it isn't called. */
+static int story_lander_crew;
+static char story_kills[128];
+
+bool
+KillLanderCrewSeq (COUNT numKilled, DWORD period)
+{
+	int before = story_lander_crew;
+	COUNT i;
+	for (i = 0; i < numKilled && story_lander_crew; ++i)
+		--story_lander_crew;
+	snprintf (story_kills, sizeof story_kills, "[%u, %lu, %d, %d]",
+			(unsigned) numKilled, (unsigned long) period, before,
+			story_lander_crew);
+	return story_lander_crew > 0;
+}
+
 static void
 story_string (char *out, size_t n, STRING s)
 {
@@ -2172,7 +2194,8 @@ print_story_fields (void)
 }
 
 /* NAME=VALUE,... ; RETRIEVED=MASK takes energy nodes (when retrieved is
- * given, else ignored). */
+ * given, else ignored); LANDER_CREW=N is the lander's crew as it touches
+ * the node (KillLanderCrewSeq's). */
 static void
 set_story_fields (const char *state, DWORD *retrieved)
 {
@@ -2191,6 +2214,11 @@ set_story_fields (const char *state, DWORD *retrieved)
 		{
 			if (retrieved)
 				*retrieved = (DWORD) value;
+			continue;
+		}
+		if (!strcmp (tok, "LANDER_CREW"))
+		{
+			story_lander_crew = value;
 			continue;
 		}
 #define F(f) if (!strcmp (tok, #f)) { SET_GAME_STATE (f, value); continue; }
@@ -2291,6 +2319,11 @@ static const STORY_CASE story_cases[] =
 	{ "vault-unlocked", SHIP_VAULT_DEFINED, 0, 0,
 			"SHIP_VAULT_UNLOCKED=1,KNOW_SYREEN_VAULT=1", ENERGY_SCAN, 0, "0" },
 	{ "procyon-starbase", CHMMR_DEFINED, 1, 0, "", -1, 0 },
+	/* Stage 3c item 7: Fwiffo on Pluto, a lander with crew to spare and
+	 * one with no more than he kills. */
+	{ "pluto-fwiffo", SOL_DEFINED, 8, -1, "LANDER_CREW=12", ENERGY_SCAN, 0 },
+	{ "pluto-fwiffo-lander-lost", SOL_DEFINED, 8, -1, "LANDER_CREW=8",
+			ENERGY_SCAN, 0 },
 };
 
 /* One pickup on a node and what it did: whether the node is taken, the
@@ -2308,6 +2341,7 @@ story_pickup (int scan, int node, PLANET_DESC *world)
 	DWORD after;
 	story_takeoffs = 0;
 	story_reports[0] = '\0';
+	story_kills[0] = '\0';
 	taken = scan == ENERGY_SCAN
 			? (*pSolarSysState->genFuncs->pickupEnergy) (
 				pSolarSysState, world, node)
@@ -2323,6 +2357,10 @@ story_pickup (int scan, int node, PLANET_DESC *world)
 	after = pSolarSysState->SysInfo.PlanetInfo.ScanRetrieveMask[ENERGY_SCAN];
 	if (after != before)
 		printf (", \"retrieved\": %u", (unsigned) after);
+	/* KillLanderCrewSeq's call, where it was made: [numKilled, period,
+	 * the crew before, the crew after]. */
+	if (story_kills[0])
+		printf (", \"kill_crew\": %s", story_kills);
 	printf ("}");
 }
 

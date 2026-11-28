@@ -178,6 +178,18 @@ public sealed class Finder
 
     /// <summary>The report is the group's story (the Androsynth's chapters): told to every player.</summary>
     public void TellEveryone() => ToEveryone = true;
+
+    /// <summary>
+    /// The lander's crew to be lost before the pickup goes on (KillLanderCrewSeq:
+    /// how many, and UQM's clock ticks between them), or null: Fwiffo on
+    /// Pluto (gensol.c). The world runs it on the lander
+    /// (<see cref="Planetside.Lander.LoseCrew"/>) and, if the lander lives
+    /// through it, the rest of the pickup (<see cref="StoryWorlds.FwiffoFound"/>).
+    /// </summary>
+    public (int Count, int PeriodTicks)? CrewLoss { get; private set; }
+
+    /// <summary>KillLanderCrewSeq asked for: the pickup waits on it.</summary>
+    public void KillLanderCrewSeq(int count, int periodTicks) => CrewLoss = (count, periodTicks);
 }
 
 /// <summary>What kind of story site a world with nodes that stay is (stage 3c item 6).</summary>
@@ -222,8 +234,8 @@ public sealed record StorySite(string Special, int Planet, int? Moon, SiteKind K
 /// item 6: <see cref="Sites"/>); Procyon's starbase's report as a ship comes
 /// to it (<see cref="ArrivalReport"/>); the nodes the story has found hidden
 /// from the scan and the surface (<see cref="EnergyHidden"/>, Pluto's once
-/// Fwiffo's found among them). Fwiffo on Pluto comes with stage 3c item 7;
-/// until then his node shows on the scan but isn't on the surface. And the
+/// Fwiffo's found among them); Fwiffo on Pluto (stage 3c item 7: his crew
+/// loss asked of the world, <see cref="FwiffoFound"/> after it). And the
 /// story worlds' life: the Evil Ones on
 /// Spathiwa (the stage 3b-2 plan's question 2), which the Spathi at home
 /// ask about, and Zex's Beauty. And the orbits that mark a world: the
@@ -350,8 +362,18 @@ public static class StoryWorlds
         [AndrosynthReport] = 3, ["text.urquanwreck"] = 2, [VaultReport] = 3, [ChmmrBaseReport] = 1,
     };
 
-    /// <summary>Fwiffo's report on Pluto (gensol.c), its place made as a ship goes into orbit; his pickup is stage 3c item 7's.</summary>
+    /// <summary>Fwiffo's report on Pluto (gensol.c), its place made as a ship goes into orbit.</summary>
     public const string FwiffoReport = "text.fwiffo";
+
+    /// <summary>FWIFFO_FRAGS (gensol.c): the lander crew Fwiffo kills before he gives up.</summary>
+    public const int FwiffoFrags = 8;
+
+    /// <summary>gensol.c's ONE_SECOND / 20: UQM's clock ticks between his kills.</summary>
+    public const int FwiffoPeriodTicks = Lander.TicksPerSecond / 20;
+
+    /// <summary>FOUND_PLUTO_SPATHI: 0 not found, 1 found and his talk to come, 2 after it (3 once told at Spathiwa).</summary>
+    public const string FwiffoFoundField = "FOUND_PLUTO_SPATHI";
+
 
     /// <summary>Every lander report a story world can show (their string tables).</summary>
     public static IEnumerable<string> Reports => ReportEntries.Keys;
@@ -379,14 +401,16 @@ public static class StoryWorlds
     /// <summary>
     /// The sheet a world's energy nodes are drawn and touched with on its
     /// surface (the generator's PlanetSideFrame[1]), or null if they aren't
-    /// put there (Fwiffo's comes with stage 3c item 7). A single node's is
-    /// there until it's been found (its retrieved bit says so too), an egg
-    /// case's while its node isn't taken (<paramref name="energyTaken"/>,
-    /// the world's retrieved energy nodes), a site's while it's open (a
-    /// homeworld's ruins once its race is extinct), as the generators load it.
+    /// put there. A single node's is there until it's been found (its
+    /// retrieved bit says so too), Fwiffo's on Pluto until he's found
+    /// (gensol.c), an egg case's while its node isn't taken
+    /// (<paramref name="energyTaken"/>, the world's retrieved energy nodes),
+    /// a site's while it's open (a homeworld's ruins once its race is
+    /// extinct), as the generators load it.
     /// </summary>
     public static SurfaceSheet? EnergySheet(string? special, WorldId world, StoryState? story, uint energyTaken = 0) =>
         story is null ? null
+        : IsPluto(special, world) ? (story.Get(FwiffoFoundField) == 0 ? SurfaceSheet.Fwiffo : null)
         : SiteOf(special, world) is { } site ? (site.Open(story) ? site.Sheet : null)
         : NodeOf(special, world, ScanType.Energy) is { } node && !node.IsFound(story)
           && (node.Found is not null || (energyTaken & 1u << node.Node) == 0) ? node.Sheet : null;
@@ -400,7 +424,7 @@ public static class StoryWorlds
     /// nodes), the Umgah broadcaster's first entry once the Spathi have
     /// shielded themselves and its second, which doesn't speak of the
     /// shield, while they haven't (genspa.c); Fwiffo's on Pluto until he's
-    /// found (gensol.c; his pickup is stage 3c item 7's); a site's while
+    /// found (gensol.c); a site's while
     /// it's open, at the entry the story says (<c>SiteEntry</c>: an
     /// artifact's or the wreck's second once it's found, the Androsynth's
     /// first chapter unread, the vault's by its state and the orbiting
@@ -443,11 +467,21 @@ public static class StoryWorlds
     /// base, the group's), and the generator's other fields set. True if
     /// the node is taken; false for a node that stays (a <see cref="Sites"/>
     /// world's: <see cref="PickupSite"/>), whose report and take-off
-    /// <paramref name="finder"/> carries, and for any other node, changing
-    /// nothing.
+    /// <paramref name="finder"/> carries; false for Fwiffo on Pluto
+    /// (GenerateSol_pickupEnergy), whose first step, the lander's 8 crew
+    /// lost, is asked of the world (<see cref="Finder.KillLanderCrewSeq"/>),
+    /// the rest following if the lander lives (<see cref="FwiffoFound"/>);
+    /// and false for any other node, changing nothing.
     /// </summary>
     public static bool PickupEnergy(string? special, WorldId world, StoryState story, Finder finder, int node)
     {
+        if (IsPluto(special, world))
+        {
+            // Ran into Fwiffo on Pluto (his node shows only while he isn't found: EnergyHidden).
+            if (node == 0 && story.Get(FwiffoFoundField) == 0)
+                finder.KillLanderCrewSeq(FwiffoFrags, FwiffoPeriodTicks);
+            return false;   // the node stays while the lander takes off; FOUND_PLUTO_SPATHI hides it after
+        }
         if (SiteOf(special, world) is { } site)
         {
             PickupSite(site, world, story, finder, node);
@@ -536,6 +570,23 @@ public static class StoryWorlds
                 }
                 break;
         }
+    }
+
+    /// <summary>
+    /// GenerateSol_pickupEnergy after its KillLanderCrewSeq, the lander
+    /// living through it (<see cref="Finder.CrewLoss"/>): Fwiffo found
+    /// (FOUND_PLUTO_SPATHI 1), his report shown at the ship's place
+    /// (GenerateDefault_landerReport) and the lander sent up. The node
+    /// isn't taken: it stays while the lander takes off, and the found
+    /// field keeps it off the surface and the scan after
+    /// (<see cref="EnergyHidden"/>). A lander that dies first does nothing
+    /// more (the pickup returns at once).
+    /// </summary>
+    public static void FwiffoFound(StoryState story, Finder finder)
+    {
+        story.Set(FwiffoFoundField, 1);
+        finder.LanderReport();
+        finder.SetTakeoff();
     }
 
     /// <summary>Whether a report is a world's as a ship comes to it (<see cref="ArrivalReport"/>'s), shown on the system screen.</summary>

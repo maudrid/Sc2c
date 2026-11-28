@@ -41,7 +41,7 @@ public static class TalkRules
         // the Black Ur-Quan's last, shown to everyone on a story pause.
         ["blackur"] = story => story.Get("KOHR_AH_KILLED_ALL") != 0,
         // Stage 3b-1 item 7: the Spathi met in space, ordinary (decision 6);
-        // Fwiffo on Pluto (3c's) too, as a talk with a race's ship.
+        // Fwiffo on Pluto (stage 3c item 7) too, as a talk with a race's ship, under the Spathi's lock.
         ["spathi"] = _ => false,
         // Stage 3b-1 item 8: the Slylandro probe met in space, ordinary
         // (decision 6), as any talk with a race's ships.

@@ -97,6 +97,10 @@ public sealed class Lander
     public const int ExplosionWaitFrames = 840 * 2 / 24;
     /// <summary>The explosion's first frame in the lander's sheet.</summary>
     public const int ExplosionFrame = 46;
+    /// <summary>ONE_SECOND (timelib.h): UQM's clock ticks in a second.</summary>
+    public const int TicksPerSecond = 840;
+    /// <summary>PLANET_SIDE_RATE (ONE_SECOND / 35): the ticks of one surface frame.</summary>
+    public const int FrameTicks = TicksPerSecond / PlanetsideSurface.FrameRate;
 
     private readonly PlanetsideSurface _surface;
     private readonly ShipHold _hold;
@@ -241,7 +245,7 @@ public sealed class Lander
     internal void Frame(LanderInput input)
     {
         FrameDrawn = true;
-        if (Phase == LanderPhase.Ground && Crew > 0 && ((input & LanderInput.TakeOff) != 0 || InTransit))
+        if (Phase == LanderPhase.Ground && Crew > 0 && _loss is null && ((input & LanderInput.TakeOff) != 0 || InTransit))
         {
             Phase = LanderPhase.TakingOff;
             _phaseFrame = 0;
@@ -281,10 +285,10 @@ public sealed class Lander
                     Land();
                 break;
             case LanderPhase.Ground:
-                if (Crew > 0)
+                if (Crew > 0 && _loss is null)
                     Drive(input);
                 else
-                    Scroll(0, 0);   // dead: no keys
+                    Scroll(0, 0);   // dead, or held while its crew are lost: no keys
                 break;
             case LanderPhase.TakingOff:
                 Height = _phaseFrame < Heights.Count ? Heights[_phaseFrame] : OffScreen;
@@ -339,6 +343,105 @@ public sealed class Lander
         DamageIndex = DamageCycle;
     }
 
+    // KillLanderCrewSeq's run (gensol.c's Fwiffo): how many to lose, the
+    // ticks between them, how many are lost, the frames since it began, and
+    // what the world does at its end (true: the lander lived through it).
+    private sealed class CrewLoss
+    {
+        public int Count, Period, Lost, Frames;
+        public Action<bool> Done = _ => { };
+    }
+
+    private CrewLoss? _loss;
+
+    /// <summary>
+    /// Whether the lander is held while its crew are lost one by one
+    /// (<see cref="LoseCrew"/>): its keys aren't read and it doesn't move or
+    /// take off, while the world goes on round it.
+    /// </summary>
+    public bool Seized => _loss is not null;
+
+    /// <summary>
+    /// KillLanderCrewSeq (lander.c), as a story world's pickup asks it
+    /// (gensol.c: Fwiffo on Pluto, 8 crew a twentieth of a second apart):
+    /// one crew member lost now, then one every <paramref name="periodTicks"/>
+    /// of UQM's clock, each as LANDER_INJURED's DeltaLanderCrew (no shield:
+    /// its bit lies past LANDER_SHIELDS' four, so nothing is drawn at
+    /// random), until <paramref name="count"/> are lost or the crew are all
+    /// dead. UQM's game waits meanwhile; here only this lander is held (no
+    /// keys, no move, no take-off) while the world goes on round it (the
+    /// stage 3c plan's question 10), a loss falling on the first surface
+    /// frame that begins at or after its tick (<see cref="FrameTicks"/>
+    /// each). <paramref name="done"/> is called at the run's end: true once
+    /// its last wait is over with crew left (count × period ticks after it
+    /// began), false as soon as the crew are all dead (whatever killed the
+    /// last). A lander taken off the surface (its player leaving) ends it
+    /// without a call.
+    /// </summary>
+    internal void LoseCrew(int count, int periodTicks, Action<bool> done)
+    {
+        if (_loss is not null)
+            throw new InvalidOperationException("the lander's crew are being lost already");
+        if (count < 1 || periodTicks < 1)
+            throw new ArgumentOutOfRangeException(nameof(count), "a crew loss is one at least, some ticks apart");
+        // Asked as the lander touches the node, so the frame it begins in ends
+        // with this lander's own CrewLossFrame (PlanetsideSurface.Step): frame 0.
+        _loss = new CrewLoss { Count = count, Period = periodTicks, Frames = -1, Done = done };
+        Injure();
+        _loss.Lost = 1;
+        if (Crew == 0)
+            EndCrewLoss(false);
+    }
+
+    /// <summary>
+    /// The end of a surface frame for a lander whose crew are being lost
+    /// (<see cref="LoseCrew"/>): the losses whose ticks this next frame has
+    /// reached, then the run's end if its last wait is over.
+    /// </summary>
+    internal void CrewLossFrame()
+    {
+        if (_loss is not { } l)
+            return;
+        if (Crew == 0)
+        {
+            EndCrewLoss(false);   // killed by something else meanwhile
+            return;
+        }
+        int ticks = ++l.Frames * FrameTicks;
+        while (l.Lost < l.Count && l.Lost * l.Period <= ticks)
+        {
+            Injure();
+            l.Lost++;
+            if (Crew == 0)
+            {
+                EndCrewLoss(false);
+                return;
+            }
+        }
+        if (l.Count * l.Period <= ticks)
+            EndCrewLoss(true);
+    }
+
+    private void EndCrewLoss(bool lived)
+    {
+        var done = _loss!.Done;
+        _loss = null;
+        done(lived);
+    }
+
+    // DeltaLanderCrew (-1, LANDER_INJURED): a crew member dies, no shield
+    // asked about (LANDER_INJURED's bit 4 lies past LANDER_SHIELDS' four;
+    // the port's upgrade bit 4 is the speed, so the upgrades aren't read),
+    // and the lander flashes.
+    private void Injure()
+    {
+        if (Crew < 1)
+            return;
+        ShieldHit = false;
+        Crew--;
+        DamageIndex = DamageCycle;
+    }
+
     /// <summary>For tests of rules UQM has no recording for: puts the lander at a place.</summary>
     internal void PlaceForTest(int x, int y)
     {
@@ -363,6 +466,7 @@ public sealed class Lander
     {
         Phase = LanderPhase.Gone;
         FrameDrawn = false;
+        _loss = null;   // a crew loss ends with it, nothing more done
     }
 
     // PlanetSide after the take-off: the crew go back to the ship with the
