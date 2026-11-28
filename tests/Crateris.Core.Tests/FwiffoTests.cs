@@ -332,6 +332,7 @@ public class FwiffoTests
         FindHim(world, "host");
         Back(world, "host");
         var m = world.MeetingOf("host")!;
+        byte escape = world.Host.Ship.Ip!.EscapeCounter;
         Assert.True(world.ChooseReply("host", Reply(m.Talk!, "we_fight_1")));
         Assert.True(Said(m.Talk!, "OK_WE_FIGHT_AT_PLUTO"));
         Assert.Equal(Segue.Hostile, m.Talk!.Segue);
@@ -346,6 +347,38 @@ public class FwiffoTests
         Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
         Assert.Equal(2, world.Story!.Get("FOUND_PLUTO_SPATHI"));
         Assert.Null(world.DialogueLocks!.Holder(Spathi));
+        // Still in orbit, the ship keeps the escape counter it had (UQM's fake load saves and restores it;
+        // nothing in orbit counts it down): out of orbit, it touches things at once (review round 1).
+        Assert.Equal(escape, world.Host.Ship.Ip!.EscapeCounter);
+        Frames(world, 3, "host", ShipInput.Action);
+        Assert.Null(world.Host.Ship.Orbit);
+        Assert.True(world.Host.Ship.Ip!.EscapeCounter <= escape);
+    }
+
+    [ContentFact]
+    public void RetreatingFromHisBattleLeavesTheShipInOrbitWithItsEscapeCounter()
+    {
+        var world = NewGame();
+        world.Story!.Set("STARBASE_AVAILABLE", 1);   // a retreat allowed (RunAwayAllowed)
+        OrbitPluto(world, "host");
+        FindHim(world, "host");
+        Back(world, "host");
+        var m = world.MeetingOf("host")!;
+        byte escape = world.Host.Ship.Ip!.EscapeCounter;
+        Assert.True(world.ChooseReply("host", Reply(m.Talk!, "we_fight_1")));
+        Assert.True(world.ClosingDone("host"));
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        for (int i = 0; i < 300 && m.Step == MeetingStep.Battle; ++i)
+        {
+            if (m.Battle!.Enemy.RaceDesc is { } rd)
+                rd.CrewLevel = rd.MaxCrew;   // he lives: the battle ends by the retreat
+            Frames(world, 1, "host", ShipInput.TakeOff);
+        }
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.True(m.LeftBattleEarly || m.Battle!.Outcome is not BattleOutcome.Won);
+        Assert.NotNull(world.Host.Ship.Orbit);
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Assert.Equal(escape, world.Host.Ship.Ip!.EscapeCounter);
     }
 
     [ContentFact]
@@ -465,5 +498,224 @@ public class FwiffoTests
         Assert.Equal(1, loaded.Story!.Get("FOUND_PLUTO_SPATHI"));
         Assert.Null(loaded.Host.Ship.Meeting);
         Assert.Null(loaded.FwiffoFor);
+    }
+
+    // ------------------------------------------------------------ review round 1
+
+    // His talk joined: asked about himself until the monsters are told, then "join us".
+    private static void JoinHim(GameWorld world, string id)
+    {
+        var talk = world.MeetingOf(id)!.Talk!;
+        Assert.True(world.ChooseReply(id, Reply(talk, "hi_there")));
+        foreach (string ask in new[] { "what_doing_on_pluto_1", "what_doing_on_pluto_2", "what_doing_on_pluto_3",
+                     "what_about_moonbase", "what_about_other_spathi", "how_many_crew", "really_thousands", "full_of_monsters" })
+            Assert.True(world.ChooseReply(id, Reply(talk, ask)), ask);
+        Assert.True(world.ChooseReply(id, Reply(talk, "join_us")));
+        Assert.True(talk.Ended);
+    }
+
+    // A lander down on his node, its crew being lost.
+    private static Lander Seized(GameWorld world, string id)
+    {
+        var site = world.Find(id)!.Ship.Orbit!.Nodes!.Energy[0];
+        var lander = Land(world, id, site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
+        var node = FwiffoNode(world);
+        for (int i = 0; i < 40 && !lander.Seized; ++i)
+        {
+            node.X = lander.X;
+            node.Y = lander.Y;
+            Frames(world, 1);
+        }
+        Assert.True(lander.Seized);
+        return lander;
+    }
+
+    [ContentFact]
+    public void TheFinderLeavingMidCrewLossFindsNothing()
+    {
+        var world = NewGame();
+        OrbitPluto(world, "guest");
+        Seized(world, "guest");
+        Assert.Equal("guest", world.DialogueLocks!.Holder(Spathi));
+        world.TakeReports();
+        world.Leave("guest");
+        Frames(world, 20);
+        Assert.Null(world.DialogueLocks.Holder(Spathi));
+        Assert.Equal(0, world.Story!.Get("FOUND_PLUTO_SPATHI"));
+        Assert.Null(world.FwiffoFor);
+        Assert.Empty(world.TakeReports());
+    }
+
+    [ContentFact]
+    public void ALanderKilledMidCrewLossByAnythingElseFindsNothingAndLetsTheLockGo()
+    {
+        var world = NewGame();
+        OrbitPluto(world, "host");
+        var lander = Seized(world, "host");
+        world.TakeReports();
+        lander.KillForTest();   // a hazard or a creature's last blow
+        Frames(world, 2);
+        Assert.False(lander.Seized);
+        Assert.Null(world.DialogueLocks!.Holder(Spathi));
+        Assert.Equal(0, world.Story!.Get("FOUND_PLUTO_SPATHI"));
+        Assert.Empty(world.TakeReports());
+        Back(world, "host");
+        Assert.Null(world.Host.Ship.Meeting);
+    }
+
+    [ContentFact]
+    public void OfTwoLandersTouchingHimAtOnceTheFirstHasHimAndTheOtherPassesOverUntilItDies()
+    {
+        var world = NewGame();
+        OrbitPluto(world, "host");
+        OrbitPluto(world, "guest");
+        var site = world.Host.Ship.Orbit!.Nodes!.Energy[0];
+        var host = Land(world, "host", site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
+        var guest = Land(world, "guest", site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
+        var node = FwiffoNode(world);
+        world.TakeNotices();
+        for (int i = 0; i < 40 && !host.Seized && !guest.Seized; ++i)
+        {
+            guest.PlaceForTest(host.X, host.Y);
+            node.X = host.X;
+            node.Y = host.Y;
+            Frames(world, 1);
+        }
+        // The host's lander landed first, so is first on the surface: it has him; the guest's passes over.
+        Assert.True(host.Seized);
+        Assert.False(guest.Seized);
+        Assert.Equal("host", world.DialogueLocks!.Holder(Spathi));
+        Assert.Contains(world.TakeNotices(), n => n is { PlayerId: "guest", Event: NoticeEvent.Talking, By: "Host" });
+        Assert.Equal(12, guest.Crew);
+        host.KillForTest();
+        for (int i = 0; i < 60 && !guest.InTransit && guest.Crew > 0; ++i)
+        {
+            node.X = guest.X;
+            node.Y = guest.Y;
+            Frames(world, 1);
+        }
+        Assert.True(guest.InTransit);
+        Assert.Equal(12 - 8, guest.Crew);
+        Assert.Equal(1, world.Story!.Get("FOUND_PLUTO_SPATHI"));
+        Assert.Equal("guest", world.FwiffoFor);
+    }
+
+    [ContentFact]
+    public void ThePlayerLeavingMidTalkLeavesTheFieldAtOneForTheNextLanderBack()
+    {
+        var world = NewGame();
+        OrbitPluto(world, "guest");
+        FindHim(world, "guest");
+        Back(world, "guest");
+        Assert.NotNull(world.MeetingOf("guest"));
+        world.Leave("guest");
+        Assert.Equal(1, world.Story!.Get("FOUND_PLUTO_SPATHI"));
+        Assert.Null(world.DialogueLocks!.Holder(Spathi));
+        Assert.Null(world.FwiffoFor);
+        OrbitPluto(world, "host");
+        Land(world, "host", 10, 10);
+        Frames(world, 1, "host", ShipInput.TakeOff);
+        Back(world, "host");
+        Assert.True(world.MeetingOf("host") is { Fwiffo: true });
+    }
+
+    [ContentFact]
+    public void ThePlayerLeavingMidBattleLeavesHisTalkOver()
+    {
+        // His talk's end (post_encounter_func, before the battle as UQM's InitCommunication) set the field 2 and
+        // let the lock go: leaving his battle brings no talk again.
+        var world = NewGame();
+        OrbitPluto(world, "guest");
+        FindHim(world, "guest");
+        Back(world, "guest");
+        var m = world.MeetingOf("guest")!;
+        Assert.True(world.ChooseReply("guest", Reply(m.Talk!, "we_fight_1")));
+        Assert.True(world.ClosingDone("guest"));
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        Assert.Equal(2, world.Story!.Get("FOUND_PLUTO_SPATHI"));
+        Assert.Null(world.DialogueLocks!.Holder(Spathi));
+        world.Leave("guest");
+        Frames(world, 2);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        OrbitPluto(world, "host");
+        Land(world, "host", 10, 10);
+        Frames(world, 1, "host", ShipInput.TakeOff);
+        Back(world, "host");
+        Assert.Null(world.Host.Ship.Meeting);
+        Assert.Null(world.FwiffoFor);
+    }
+
+    [ContentFact]
+    public void ASaveAtHisClosingLinesCarriesTheTalksEndAndNoMeeting()
+    {
+        var world = NewGame();
+        OrbitPluto(world, "host");
+        FindHim(world, "host");
+        Back(world, "host");
+        JoinHim(world, "host");
+        var m = world.MeetingOf("host")!;
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        var loaded = HostSave.FromJson(HostSave.ToJson(world), world.Systems!, TestContent.Shapes);
+        Assert.Null(loaded.Host.Ship.Meeting);
+        Assert.NotNull(loaded.Host.Ship.Orbit);
+        Assert.Equal(new WorldId(Pluto(world).Star, 8, null), loaded.Host.Ship.OrbitedWorld);
+        Assert.Equal(2, loaded.Story!.Get("FOUND_PLUTO_SPATHI"));
+        Assert.Contains(loaded.Fleet.Ships, s => s.Race == "SPATHI_SHIP" && s.Crew == 1);
+        Assert.Null(loaded.FwiffoFor);
+        // The live meeting goes on waiting for its player.
+        Assert.Equal(MeetingStep.Closing, m.Step);
+        Assert.True(world.ClosingDone("host"));
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+    }
+
+    [ContentFact]
+    public void AWaitingTalkIsDroppedAsItsPlayerLeaves()
+    {
+        var world = NewGame();
+        world.Story!.Set("FOUND_PLUTO_SPATHI", 1);
+        Assert.True(world.DialogueLocks!.TryTake(Spathi, "host", out _));
+        OrbitPluto(world, "guest");
+        Land(world, "guest", 10, 10);
+        Frames(world, 1, "guest", ShipInput.TakeOff);
+        Back(world, "guest");
+        Assert.Equal("guest", world.FwiffoFor);
+        world.Leave("guest");
+        Assert.Null(world.FwiffoFor);
+        world.DialogueLocks.Release(Spathi, "host");
+        Frames(world, 2);
+        Assert.Null(world.Host.Ship.Meeting);
+        Assert.Null(world.DialogueLocks.Holder(Spathi));
+        // The next lander back aboard brings it.
+        OrbitPluto(world, "host");
+        Land(world, "host", 10, 10);
+        Frames(world, 1, "host", ShipInput.TakeOff);
+        Back(world, "host");
+        Assert.True(world.MeetingOf("host") is { Fwiffo: true });
+    }
+
+    [ContentFact]
+    public void AfterHisTalkTheOrbitsStartIsDoneAfreshAsUqmsReloadInOrbit()
+    {
+        // UQM's fake load comes back into the system in orbit, running the world's generateOrbital again: a ship
+        // orbiting the Ilwrath's ruins, its one report a visit used up, has it again after his talk.
+        var world = NewGame();
+        var story = world.Story!;
+        Extinct(story, "ILWRATH_SHIP");
+        story.Set("FOUND_PLUTO_SPATHI", 1);
+        var at = new WorldId(Star(world, "ILWRATH_DEFINED"), 0, null);
+        world.Host.Ship.Hold.SetCrew(30);
+        world.PutInOrbit("host", at.Star, at.Planet, at.Moon);
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), world.Host.Ship.Discovery);
+        var site = world.Host.Ship.Orbit!.Nodes!.Energy[3];
+        var lander = Land(world, "host", site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
+        StayOn(world, lander, world.SurfaceOf(at)!.Elements.Single(e => e.Kind == SurfaceElementKind.Energy && e.Node == 3), 5);
+        Assert.Null(world.Host.Ship.Discovery);   // the ruins' report shown: gone for the visit
+        Frames(world, 1, "host", ShipInput.TakeOff);
+        Back(world, "host");
+        Assert.True(world.MeetingOf("host") is { Fwiffo: true });
+        Assert.Null(world.Host.Ship.Discovery);
+        JoinHim(world, "host");
+        Assert.True(world.ClosingDone("host"));
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), world.Host.Ship.Discovery);
     }
 }

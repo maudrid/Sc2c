@@ -276,12 +276,21 @@ public sealed class HostFleet
     public FleetSnapshot Snapshot() => new(_ships.ToArray());
 
     /// <summary>
+    /// Whether a fleet ship is Fwiffo's Eluder: a Spathi ship captained by
+    /// NAME_OFFSET + NUM_CAPTAINS_NAMES, the Spathi's name after their 16
+    /// captains', as his talk's SetEscortCrewComplement names it (spathic.c;
+    /// stage 3c item 7, review round 1: a save with him aboard loads).
+    /// </summary>
+    public static bool IsFwiffo(FleetShip s) => s.Race == "SPATHI_SHIP" && s.Captain == CaptainNameOffset + NumCaptainsNames;
+
+    /// <summary>
     /// The fleet as a save holds it, or as a test sets it: every ship's
     /// race one that can have a fleet, its crew from 0 to its most (UQM's
     /// shipyard holds one of none while its crew is edited, scrapping it
     /// after, and encount.c drops one after a battle: the shipyard and the
     /// battles that come do so too; a save may come between), its
-    /// captain one of its race's 16 names, its slot 0 to 11 and its own;
+    /// captain one of its race's 16 names (or the Spathi's Fwiffo, the name
+    /// after them: <see cref="IsFwiffo"/>), its slot 0 to 11 and its own;
     /// 12 ships at most. Anything else is an <see cref="ArgumentException"/>,
     /// and the fleet is left as it was.
     /// </summary>
@@ -295,7 +304,7 @@ public sealed class HostFleet
             var raceShip = Fleetable(rules, s.Race);
             if (s.Crew < 0 || s.Crew > raceShip.MaxCrew)
                 throw new ArgumentException($"a {s.Race} of {s.Crew} crew: 0 to {raceShip.MaxCrew}");
-            if (s.Captain is < CaptainNameOffset or >= CaptainNameOffset + NumCaptainsNames)
+            if (s.Captain is < CaptainNameOffset or >= CaptainNameOffset + NumCaptainsNames && !IsFwiffo(s))
                 throw new ArgumentException($"a {s.Race}'s captain {s.Captain} isn't one of its names");
             if (s.Slot is < 0 or >= MaxShips)
                 throw new ArgumentException($"fleet slot {s.Slot}: 0 to {MaxShips - 1}");

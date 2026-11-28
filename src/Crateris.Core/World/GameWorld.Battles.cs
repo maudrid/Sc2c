@@ -641,17 +641,20 @@ public sealed partial class GameWorld
     // Out of a battle, alive: in flight where it joined, and in a system
     // unable to touch anything for ESCAPE_COUNTER's 110 frames, so it can
     // fly clear (UQM sets it as the battle is built; here every ship
-    // leaving a battle in a system has it, joiners too).
+    // leaving a battle in a system has it, joiners too). A ship that fought
+    // from orbit (Fwiffo's battle, stage 3c item 7) is still in orbit and
+    // keeps the counter it had: UQM's fake load saves ESCAPE_COUNTER before
+    // his talk and puts it back after (comm.c), and nothing in orbit counts
+    // it down (review round 1).
     private static void BackInFlight(PlayerShip ship)
     {
         ship.Battle = null;
-        if (ship.Ip is { } ip)
+        if (ship.Ip is { Orbit: null } ip)
         {
             ip.EscapeCounter = IpFlight.EscapeFrames;
             // The system comes back (InitSolarSys, ResetSolarSys): the
             // ship's element is made again where it is.
-            if (ip.Orbit is null)
-                ip.Reenter();
+            ip.Reenter();
         }
     }
 

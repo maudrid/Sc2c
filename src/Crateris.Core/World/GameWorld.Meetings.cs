@@ -752,6 +752,8 @@ public sealed partial class GameWorld
             {
                 m.LeftBattleEarly = wb.Outcome is null;
                 ReturnToFlight(m);
+                if (m.Fwiffo && m.LeftBattleEarly)
+                    AfterFwiffo(m);   // back in orbit from his battle: the orbit's start done afresh (stage 3c item 7)
             }
             if (wb.Outcome is not null)
                 EndMeeting(m, fought: true);
@@ -874,7 +876,12 @@ public sealed partial class GameWorld
         TellMeetingEnded(m, fought, gone, chased);
         if (!m.Returned)
             ReturnToFlight(m);
-        if (m.World is not null)
+        if (m.Fwiffo)
+        {
+            if (!m.LeftBattleEarly)
+                AfterFwiffo(m);   // one who left his battle early was back in orbit as they left (AfterMeetingBattles)
+        }
+        else if (m.World is not null)
             AfterWorldTalk(m, m.Infinite || left.Count > 0);
     }
 

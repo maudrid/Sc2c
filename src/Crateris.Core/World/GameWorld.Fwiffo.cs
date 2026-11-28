@@ -126,6 +126,19 @@ public sealed partial class GameWorld
         MeetFwiffo(player);
     }
 
+    // After his meeting (and his battle): UQM's fake load comes back into the
+    // system with the ship in orbit (enterOrbital, the world's generateOrbital
+    // again), so what the orbit's start does is done afresh for a ship still
+    // in orbit there (InOrbit: the ship's place in the world's report made
+    // again from the story, a site's cycle starting over; review round 1).
+    private void AfterFwiffo(Meeting m)
+    {
+        var ship = m.Player.Ship;
+        if (m.Player.Present && !ship.Destroyed && ship.Battle is null && m.World is var (planet, moon)
+            && ship.OrbitedWorld is { } at && at.Star == m.Star && at.Planet == planet && at.Moon == moon)
+            InOrbit(ship);
+    }
+
     // Fwiffo's talk no longer coming: the lock let go if it's held for it.
     private void DropFwiffo()
     {
