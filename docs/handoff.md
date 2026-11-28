@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-28. Stage 3c items 1 to 5 built, reviewed and reported; items 6 and 7 started at the owner's go-ahead ("do 6 and 7", 2026-11-27): item 6 built and reviewed in three rounds (its Progress row); item 7 (Fwiffo on Pluto) built (`c70cd26`..`301c022`), review rounds 1 and 2 fixed (`d47814b`, `6f39356`); round 3's findings (the landing refusal too wide for a player who left his battle early; docs and test nits) being fixed.
+**Last updated:** 2026-11-28. Stage 3c items 1 to 5 built, reviewed and reported; items 6 and 7 started at the owner's go-ahead ("do 6 and 7", 2026-11-27): item 6 built and reviewed in three rounds (its Progress row); item 7 (Fwiffo on Pluto) built (`c70cd26`..`301c022`), review rounds 1 to 3 fixed (`d47814b`, `6f39356`, `328a5d6`), round 4 running.
 
 ## Where things are
 
