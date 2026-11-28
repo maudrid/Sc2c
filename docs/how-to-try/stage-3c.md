@@ -190,6 +190,8 @@ Item 7's tests: `FwiffoTests` (topic `story`, new: the crew loss against UQM's o
 
 The recordings are remade with `python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 --only story-nodes,lander-killcrew` (a few seconds; code only, no content).
 
+Item 8's tests: `DeviceUseTests` (topic `story`, new: every device's use replayed against UQM's own `InvokeDevice`, `tests/golden/device-uses.json`, by where the ship is), `DeviceUsesInGameTests` (topic `story`, new: the holder alone, the bomb only aboard the host's ship and its game over, the Ultron mended aboard the ship holding both, the broadcaster's call and its Ilwrath talks in flight and in orbit, under their lock, the Sun Device's flash, the later items' halves writing nothing), `FlightMenuTests` (topic `systems`, new: the hyperspace and system menus, the Manifest from them, a guest's device asked of the host and the list waiting, the flashes), `OrbitMenuTests`, `DevicesTests` (the list's select asking the host) and `MeetingWireTests` (protocol 39). The recording is remade with `python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 --only device-uses` (a second; code only).
+
 ## Item 5, part 1: devices held by ships
 
 Devices are each ship's own now, as the owner answered the plan's question 5: the portal spawner is everyone's once anyone has it, and the Lunar base the opening's; every other device is held by one ship at a time. The pickups that give them on the story worlds are part 2's and item 6's, their uses item 8's.
@@ -314,3 +316,32 @@ Row 91 (the crew lost while the world goes on, his talk from orbit as the finder
 
 - **His node stays on the surface it was found on** while that surface lasts (other landers there can still see it; touching it does nothing), as UQM keeps it while the lander takes off; it's gone from the scan and from every surface made after.
 - **A ship in his talk or battle** is drawn by the other players as a ship in a talk or battle at the world's place in its planet's inner view, not as an orbiting ship, until it's over (its activity is the talk's; it's still in orbit).
+
+## Item 8: the menus and the devices
+
+1. **The hyperspace and system menus.** In flight, Esc opens UQM's PC menu where the radar would be: Starmap, Manifest, Game menu, Navigate, the cursor on Starmap. Navigate goes back to flight; the star map and the game menu say they come later. The Manifest is orbit's: Cargo (drop a unit), Devices, the host's Roster, Exit. While the menu is open the ship gets no keys (the world goes on: it coasts); it closes if the ship leaves flight.
+2. **Using a device.** In the Devices list (from any of the three menus), Enter uses the device lit: the host decides, the list waiting for its answer. Used, the list closes back at the Manifest; otherwise it stays open and the menu says why ("Nothing happens.", "The bomb can be set off only aboard the host's ship.", "Another player is talking to the Ilwrath.", "Using it here comes with a later item of stage 3c.").
+3. **What each does** (as UQM's `InvokeDevice`): the Rosy Sphere, the Aqua Helix and the Clear Spindle mend one more piece of the Ultron aboard the same ship; a broadcaster in hyperspace calls the Melnorme (your own), and in a system starts the Ilwrath's talk: their "gods" in their home system (Alpha Tauri, star 220) while they live, or the ship first among the system's groups, with no battle after; the Sun Device in orbit flashes your screen white for three seconds and fades back over two; the Utwig bomb, only aboard the host's ship, ends the game for everyone, every screen going white, then black, then the game over's words. The Talking Pet (item 10), the portal spawner (item 9) and the Chmmr's halves of the broadcaster and the Sun Device (item 11) say they come later.
+
+Tried headless, each host with `--host --no-upnp --id host --name Host --save FILE` (a scratch file):
+
+- The Melnorme called: `--start-at 5000:5000 --start-devices UMGAH_HYPERWAVE_DEVICE --script "none:10,cancel:1,none:5,down:1,none:5,select:1,none:5,down:1,none:5,select:1,none:5,select:1,none:10,cancel:1,none:5,down:1,none:5,down:1,none:5,select:1,none:10,thrust:20" --quit-after 110`: "The hyperspace menu", "host used the UMGAH_HYPERWAVE_DEVICE: Used", "Back to flight", the ship thrusting after; the save's `"used_broadcaster": true`.
+- The Ilwrath's gods: `--start-orbit 220:1 --start-devices BURVIX_HYPERWAVE_DEVICE --script "none:10,up:1,none:3,select:1,none:40,cancel:1,none:5,down:1,none:5,select:1,none:5,down:1,none:5,select:1,none:5,select:1,none:60,select:1,none:150" --quit-after 400` (Navigate out of orbit, then the system menu): "Leaving orbit", "The system menu", "host talks to the Ilwrath" ("Listen! It Is The Hideous And Inspiring Voices Of Our Gods, Dogar And Kazon! ..."), the gods sending them against the Thraddash; the save's `ILWRATH_DECEIVED` 1, `ILWRATH_GODS_SPOKEN` 1.
+- The Ultron: `--start-at 5000:5000 --start-devices ULTRON_0_DEVICE,ROSY_SPHERE_DEVICE`, the menu's Devices and Enter: "host used the ROSY_SPHERE_DEVICE: Used"; the save's hold devices `[8]` (the Ultron at 2) and `ULTRON_CONDITION` 2.
+- The Sun Device: `--start-orbit 82:3 --start-devices SUN_EFFICIENCY_DEVICE`, the orbit menu's Manifest, Devices and Enter: "host used the SUN_EFFICIENCY_DEVICE: Flash".
+- The bomb: `--start-at 5000:5000 --start-devices UTWIG_BOMB_DEVICE`, the menu's Devices and Enter: "host used the UTWIG_BOMB_DEVICE: Used", "Game over: the flagship set off the Utwig bomb"; nothing saved.
+- A guest: the host with `--start-at 5000:5000 --start-devices LUNAR_BASE_DEVICE --quit-after-join 700`, a guest joining with `--join 127.0.0.1 --id guest --name Guest --script "none:150,cancel:1,none:5,down:1,none:5,select:1,none:5,down:1,none:5,select:1,none:5,select:1,none:30"`: the guest's "The hyperspace menu", "Device used: Failed" (the Lunar base, everyone's, does nothing), the host's "guest used the LUNAR_BASE_DEVICE: Failed".
+
+Tried windowed, with `--screenshot`: the hyperspace menu's Devices list (`docs/screenshots/stage3c-hyperspace-devices.png`: the Rosy Sphere and the Umgah caster, the Manifest below) and the system menu (`docs/screenshots/stage3c-system-menu.png`: "(later)" beside Starmap and Game, "Starmap comes in a later stage.").
+
+Not tried by hand: the flashes on a screen (the tests time them), a guest holding a device of its own (no option gives a guest one; the tests run it), the Ilwrath's lock held by another player.
+
+### What's different from UQM
+
+Row 92 (the menus the player's own screen, the uses by the holder through the host, the broadcaster's talks with no group, the flash the user's, the bomb the host's ship's), row 10 (devices used) and row 50 (the bomb's game over).
+
+### Known limits of item 8
+
+- **The menus don't hold the ship still**: it coasts while one is open (UQM's game stops).
+- **The star map and the game menu** say they come later; saving stays at the starbase.
+- **The Pet, the spawner and the Chmmr's halves** come with items 10, 9 and 11.

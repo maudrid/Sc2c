@@ -27,7 +27,7 @@ namespace Crateris.Game;
 /// --script "thrust:40,right:10,none:20" (scripted input instead of keys; left, right, thrust, action, fire, takeoff
 /// (Escape: in a battle, a retreat), special (a battle's special) and none are held for their frames;
 /// up, down, select, cancel, pageup, pagedown, menuleft and menuright press a menu key once as their step starts (the orbit
-/// menu's and its Manifest's roster's, the starbase's and its shipyard's, the host's pick screen's in a battle with fleet
+/// menu's and its Manifest's roster's, the hyperspace and system menus' (cancel opens them in flight; stage 3c item 8), the starbase's and its shipyard's, the host's pick screen's in a battle with fleet
 /// ships; menuleft and menuright are the menus' left and right), give opens or closes the giving screen,
 /// pause is the host's pause key),
 /// --first-run-use FILE (the first-run screen acts as if the player chose
