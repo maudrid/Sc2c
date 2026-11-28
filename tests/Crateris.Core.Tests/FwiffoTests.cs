@@ -877,6 +877,24 @@ public class FwiffoTests
     }
 
     [ContentFact]
+    public void AFinderGoneFromHisBattleAloneFindsTheOrbitsStartDoneOnRejoining()
+    {
+        // Review round 5: alone in his battle, the guest leaving the game ends it; the battle's end does the
+        // orbit's start afresh for its ship, kept in orbit, so it has the world's report place on rejoining.
+        var world = NewGame();
+        var (at, m) = AtRuinsWithHisTalkFor(world, "guest");
+        var guest = world.Find("guest")!;
+        world.Leave("guest");
+        Frames(world, 2);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.False(m.LeftBattleEarly);
+        Assert.Equal(at, guest.Ship.OrbitedWorld);
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), guest.Ship.Discovery);
+        Assert.Equal(JoinResult.Rejoined, world.Join("guest", "Guest"));
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), guest.Ship.Discovery);
+    }
+
+    [ContentFact]
     public void AFinderGoneFromHisBattleWhileAnotherFightsOnFindsTheOrbitsStartDoneOnRejoining()
     {
         // Review round 4: the guest's talk, the host joining his battle; the guest leaves the game, the host
