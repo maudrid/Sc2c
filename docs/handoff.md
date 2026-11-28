@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-28. Stage 3c items 1 to 5 built, reviewed and reported; items 6 and 7 started at the owner's go-ahead ("do 6 and 7", 2026-11-27): item 6 built and reviewed in three rounds (its Progress row); item 7 (Fwiffo on Pluto) built (`c70cd26`..`301c022`), its review round 1 running.
+**Last updated:** 2026-11-28. Stage 3c items 1 to 5 built, reviewed and reported; items 6 and 7 started at the owner's go-ahead ("do 6 and 7", 2026-11-27): item 6 built and reviewed in three rounds (its Progress row); item 7 (Fwiffo on Pluto) built (`c70cd26`..`301c022`), review round 1's findings fixed (`d47814b`), round 2 running.
 
 ## Where things are
 
@@ -13,7 +13,7 @@ Where the work stands, so the next session (on any computer) can pick it up. Kee
 - **Before it:** `docs/plans/escort-upgrades.md`, the escorts' upgrades (the owner's decision of 2026-11-13, go-ahead 2026-11-16 for this item alone): escorts buy crew pods, fuel tanks, thrusters and turning jets up to host settings (`GameSettings.EscortCaps`, placeholders 8, 6, 4 and 2, the kit's counted), by the flagship's rules and prices. Built and reviewed; its readings of what the decision left open are in the plan (the owner's answers of 2026-11-17 to its two questions with them), its try-out in `docs/how-to-try/escort-upgrades.md`.
 - **Stage 4b is built** (`docs/plans/stage-4b.md`, `docs/how-to-try/stage-4b.md`); stage 4a's too (`docs/plans/stage-4.md`).
 - **Debugging aid:** a UQM run of one recorded battle with every frame whole can be had with a small script on `tools/extract/golden_uqm.py`'s `BattleProgram` (build `battle`, `strings` and `images` with its `build`, then `run_race_battles` on the recorded input).
-- **Last checks** (3c item 7 built, 2026-11-28): `run_tests.py` ran all 16 topics, 2,827 passed, 0 failed, 0 skipped with the content set; the game build (the two long-standing warnings, `Main.cs`'s CS8602 and `ReportView.cs`'s CS0108). Protocol 37, save version 15. Not run: `tools/test_network.py` and the data checks.
+- **Last checks** (3c item 7, review round 1's fixes, 2026-11-28): `run_tests.py` ran all 16 topics, 2,836 passed, 0 failed, 0 skipped with the content set; the game build (the two long-standing warnings, `Main.cs`'s CS8602 and `ReportView.cs`'s CS0108). Protocol 37, save version 15. Not run: `tools/test_network.py` and the data checks.
 - **Headless runs:** always give the host a `--save` file in a scratch folder. `--load` without `--save` goes on saving to the default `host-save.json`, and `--start-fleet`, `--start-allied`, `--start-units` and the like without a `--start-*` place change the default game.
 
 ## Open items
