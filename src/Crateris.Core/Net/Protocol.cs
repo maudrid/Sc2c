@@ -237,6 +237,7 @@ public static class Protocol
         {
             GameLoss.Surrendered => "The game is over: the flagship surrendered.",
             GameLoss.KohrAhVictorious => "The game is over: the Kohr-Ah have destroyed every race.",
+            GameLoss.UtwigBomb => "The game is over: the flagship set off the Utwig bomb.",
             _ => "The game is over: the flagship was lost.",
         },
         _ => result.ToString(),

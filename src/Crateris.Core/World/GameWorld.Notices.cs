@@ -177,7 +177,7 @@ public sealed partial class GameWorld
     // meanwhile, decision 5).
     private void TellMeetingBegun(Meeting m)
     {
-        bool standDown = m.Star is not null && m.WorldTalk is not { StandDown: false } && !m.Fwiffo;
+        bool standDown = m.Star is not null && m.WorldTalk is not { StandDown: false } && !m.NoGroup;
         foreach (var p in Others(m.Player.Id))
             Notice(p, standDown && NearMeeting(m, p) ? NoticeEvent.HoldOff : NoticeEvent.Meeting,
                 m.Player.Id, RaceNameOf(m.Race));

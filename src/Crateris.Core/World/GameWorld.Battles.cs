@@ -903,4 +903,7 @@ public enum GameLoss
 
     /// <summary>The Kohr-Ah destroyed every race (stage 3c item 4, <see cref="GameWorld.KohrAhVictorious"/>).</summary>
     KohrAhVictorious,
+
+    /// <summary>The host's ship set off the Utwig bomb (stage 3c item 8, <see cref="GameWorld.BombSetOff"/>).</summary>
+    UtwigBomb,
 }

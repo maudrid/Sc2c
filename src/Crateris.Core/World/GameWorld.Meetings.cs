@@ -388,7 +388,9 @@ public sealed partial class GameWorld
             seed = unchecked(seed * 31 + ch);
         // The talk's own random seed (decision 12), as a visit's talks have.
         // Every meeting has its talk: one begins only where it can be made (HasTalk, WorldScript).
-        var talk = (m.WorldTalk is { } w ? WorldTalk(m.Player, w, seed) : MeetingTalks(m.Player, m.Race, seed))
+        var talk = (m.WorldTalk is { } w ? WorldTalk(m.Player, w, seed)
+                       : m.CasterFlags != 0 ? RaceTalk(m.Player, m.Race, seed, m.CasterFlags)
+                       : MeetingTalks(m.Player, m.Race, seed))
                    ?? throw new InvalidOperationException($"a meeting with the {m.RaceId} has no talk");
         // BuildBattle's centrepiece, loaded as the encounter screen comes up (its gravity well drawn in its middle):
         // in a system BATTLE_PLANET's world, in hyperspace a random type; the battle's arena then has it.
@@ -881,6 +883,8 @@ public sealed partial class GameWorld
             if (!m.LeftBattleEarly)
                 AfterFwiffo(m);   // one who left his battle early was back in orbit as they left (AfterMeetingBattles)
         }
+        else if (m.CasterFlags != 0)
+            AfterCaster(m);
         else if (m.World is not null)
             AfterWorldTalk(m, m.Infinite || left.Count > 0);
     }

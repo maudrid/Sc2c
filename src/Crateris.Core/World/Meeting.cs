@@ -222,6 +222,17 @@ public sealed class Meeting
     /// </summary>
     public bool Fwiffo { get; internal init; }
 
+    /// <summary>
+    /// A broadcaster's talk with the Ilwrath (stage 3c item 8): its
+    /// GLOBAL_FLAGS_AND_DATA (bit 4 their home system's "gods", bit 5 a ship
+    /// of theirs in the system), 0 for any other meeting. No group and no
+    /// ships: no battle follows; a ship in orbit stays in orbit through it.
+    /// </summary>
+    public int CasterFlags { get; internal init; }
+
+    /// <summary>Whether the meeting has no group of the system's (Fwiffo's, a broadcaster's): none stands down for it.</summary>
+    internal bool NoGroup => Fwiffo || CasterFlags != 0;
+
     // How a saved copy's stand-in for a meeting at its closing lines ended its talk (no Talk there: question 13).
     internal Segue? EndedAs;
 

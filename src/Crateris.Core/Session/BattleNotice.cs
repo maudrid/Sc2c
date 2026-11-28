@@ -84,11 +84,15 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
     /// <summary>The game over's <see cref="Text"/> when the Kohr-Ah destroyed every race (GameWorld.KohrAhVictorious, stage 3c item 4).</summary>
     public const string KilledAll = "killed all";
 
+    /// <summary>The game over's <see cref="Text"/> when the host's ship set off the Utwig bomb (GameWorld.BombSetOff, stage 3c item 8).</summary>
+    public const string Bomb = "bomb";
+
     /// <summary>The game over's <see cref="Text"/> for how the game was lost ("" for the flagship lost in a battle).</summary>
     public static string GameOverText(GameLoss loss) => loss switch
     {
         GameLoss.Surrendered => Surrender,
         GameLoss.KohrAhVictorious => KilledAll,
+        GameLoss.UtwigBomb => Bomb,
         _ => "",
     };
 
@@ -97,6 +101,7 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
     {
         Surrender => GameLoss.Surrendered,
         KilledAll => GameLoss.KohrAhVictorious,
+        Bomb => GameLoss.UtwigBomb,
         _ => GameLoss.FlagshipLost,
     };
 
@@ -160,6 +165,7 @@ public sealed record BattleNotice(BattleNoticeKind Kind, int Battle = 0, string 
         {
             GameLoss.Surrendered => "Game over: the flagship surrendered.",
             GameLoss.KohrAhVictorious => "Game over: the Kohr-Ah have destroyed every race.",
+            GameLoss.UtwigBomb => "Game over: the flagship set off the Utwig bomb.",
             _ => "Game over: the flagship was lost.",
         },
         _ => "",

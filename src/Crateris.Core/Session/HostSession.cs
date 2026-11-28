@@ -640,6 +640,23 @@ public sealed class HostSession
         return refusal;
     }
 
+    /// <summary>
+    /// A guest uses a device from its Devices list (stage 3c item 8): what
+    /// came of it, for its client (the list closes on a use, stays open
+    /// otherwise). A peer not in the game gets <see cref="DeviceOutcome.NotNow"/>.
+    /// </summary>
+    public DeviceOutcome GuestUseDevice(long peer, int device) =>
+        _peers.TryGetValue(peer, out var id) ? UseDevice(id, device) : DeviceOutcome.NotNow;
+
+    /// <summary>A player uses a device (the host's own through here too), logged.</summary>
+    public DeviceOutcome UseDevice(string id, int device)
+    {
+        var outcome = World.UseDevice(id, device);
+        string name = World.Story?.Rules.Devices.All.ElementAtOrDefault(device)?.Name ?? $"device {device}";
+        Logged?.Invoke($"{id} used the {name}: {outcome}");
+        return outcome;
+    }
+
     /// <summary>A guest drops a unit of cargo overboard (anything wrong is ignored).</summary>
     public void GuestDiscard(long peer, int category)
     {
@@ -1246,6 +1263,7 @@ public sealed class HostSession
             {
                 GameLoss.Surrendered => "Game over: the flagship surrendered",
                 GameLoss.KohrAhVictorious => "Game over: the Kohr-Ah have destroyed every race",
+                GameLoss.UtwigBomb => "Game over: the flagship set off the Utwig bomb",
                 _ => "Game over: the flagship was lost",
             });
             foreach (var p in World.Players)
