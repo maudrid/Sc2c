@@ -42,9 +42,11 @@ public enum DispatchRefusal
     HostPaused,
 
     /// <summary>
-    /// The ship is in a meeting or a battle while in orbit (Fwiffo's talk
-    /// and battle, stage 3c item 7, review round 2): a request that came as
-    /// it began.
+    /// The ship is in orbit but in a meeting it hasn't returned from (its
+    /// talk, closing lines or the wait before its battle) or in a battle:
+    /// Fwiffo's talk and battle, stage 3c item 7 (review rounds 2 and 3); a
+    /// request that came as they began. A ship that left his battle early,
+    /// others fighting on, is back in orbit and isn't refused.
     /// </summary>
     InTalk,
 }

@@ -751,6 +751,7 @@ public class FwiffoTests
             Frames(world, 1, "host", ShipInput.TakeOff);
         }
         Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Equal(BattleExit.Retreated, m.Battle!.Fighters[0].Exit);
         Assert.Equal(crew, world.Host.Ship.Hold.Crew);   // no crew made twice by a lander out meanwhile
         Assert.Equal("Not now: the ship is in a talk or a battle.", PlayerSession.RefusalMessage(DispatchRefusal.InTalk));
         Assert.Equal(DispatchRefusal.None, world.Dispatch("host", 10, 10));   // over: the lander goes
@@ -846,10 +847,25 @@ public class FwiffoTests
         Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
         Assert.Equal(escape, world.Host.Ship.Ip!.EscapeCounter);
         Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), world.Host.Ship.Discovery);
-        // The battle's end later doesn't make it again (the host's place moved on meanwhile stays).
-        world.Host.Ship.Discovery = null;
+        // Back in orbit, it can land while the guest fights on (review round 3), the lander touching the ruins
+        // (the place moved on: the report shown) and coming back with its crew.
+        int crew = world.Host.Ship.Hold.Crew;
+        var site = world.Host.Ship.Orbit!.Nodes!.Energy[5];
+        // (Land asserts the dispatch is accepted: DispatchRefusal.None, not InTalk.)
+        var lander = Land(world, "host", site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        StayOn(world, lander, world.SurfaceOf(at)!.Elements.Single(e => e.Kind == SurfaceElementKind.Energy && e.Node == 5), 5);
+        Assert.Null(world.Host.Ship.Discovery);
+        Frames(world, 1, "host", ShipInput.TakeOff);
+        Back(world, "host");
+        Assert.Equal(crew, world.Host.Ship.Hold.Crew);
+        Assert.Null(world.Host.Ship.Meeting is { } still && still != m ? still : null);   // no new talk brought (the field is 2)
+        // The battle's end later doesn't make the place again, nor change the crew.
         WorldTalkTests.WinTheBattle(world, m);
         Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Null(world.Host.Ship.Meeting);
         Assert.Null(world.Host.Ship.Discovery);
+        Assert.Equal(crew, world.Host.Ship.Hold.Crew);
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
     }
 }
