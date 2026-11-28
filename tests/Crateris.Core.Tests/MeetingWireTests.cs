@@ -646,10 +646,11 @@ public class MeetingWireTests
         // intro fades (stage 3c item 2), 34 the spheres the players know (item 3), 35 the story's held closing lines
         // and the Kohr-Ah's game over (item 4), 36 the devices held by ships, the containers and the devices given (item 5),
         // 37 the reports' entries and the story worlds' node sheets (item 5, part 2), 38 a landing refused while
-        // the ship is in a talk or a battle in orbit (item 7).
-        Assert.Equal(38, Protocol.Version);
+        // the ship is in a talk or a battle in orbit (item 7), 39 a device's use asked and answered, and the bomb's
+        // game over (item 8).
+        Assert.Equal(39, Protocol.Version);
         var game = NewGame(guests: 0);
-        var refused = game.Host.Hello(9, "old", "Old", 37);
+        var refused = game.Host.Hello(9, "old", "Old", 38);
         Assert.False(Protocol.Accepted(refused.Result));
         Assert.Contains("Version mismatch", refused.Message);
     }

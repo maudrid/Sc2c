@@ -18,7 +18,8 @@ namespace Crateris.Game;
 
 /// <summary>
 /// The Manifest's Devices list (stage 3a, items 10 and 11), while it's
-/// open: the box <see cref="DevicesDisplay"/> draws as UQM's DrawDevices
+/// open, in orbit or from the hyperspace and system menus (stage 3c item
+/// 8): the box <see cref="DevicesDisplay"/> draws as UQM's DrawDevices
 /// does, each device's icon and its name a word a line, the cursor's row
 /// lit, painted by <see cref="ScreenRaster"/> into the status area's part
 /// for it, where the Manifest's cargo display goes, at the space screen's
@@ -74,7 +75,7 @@ public partial class DevicesView : Node2D
     /// </summary>
     public bool Show(PlayerSession player)
     {
-        if (player.OrbitMenu is not { DeviceList: { } list } menu || player.StoryPaused || _sheets is null)
+        if (player.OpenMenu is not { DeviceList: { } list } menu || player.StoryPaused || _sheets is null)
         {
             if (_drawn is not null)
             {

@@ -170,7 +170,7 @@ public class SessionTests
         Assert.Contains("You: hyperspace 175.2 : 145.0", lines);
         Assert.Contains("Crew 10, landers 1, minerals 0 / 500, bio 0, 0 RU, 0 Cr", lines);
         Assert.Contains(lines, l => l.StartsWith("  Host (host, flagship)"));
-        Assert.Contains("Arrows: turn and thrust", lines);
+        Assert.Contains("Arrows: turn and thrust; Esc: the menu", lines);
         player.Notify("Hello", seconds: 1);
         Assert.Contains("Hello", player.StatusLines());
         player.Advance(1.5);
@@ -321,7 +321,7 @@ public class SessionTests
         Assert.Equal(ShipInput.None, player.NextInput(ShipInput.Thrust | ShipInput.Left));
         var lines = player.StatusLines();
         Assert.Contains(lines, l => l.StartsWith("You: entering star 82"));
-        Assert.DoesNotContain("Arrows: turn and thrust", lines);
+        Assert.DoesNotContain("Arrows: turn and thrust; Esc: the menu", lines);
         // Held keys during the entry don't carry into the system after it.
         while (player.Entering)
             player.Observe(host.Step(player.NextInput(ShipInput.Thrust | ShipInput.Left)));

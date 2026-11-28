@@ -697,7 +697,7 @@ public partial class OrbitView : Control
         float width = Position.X - 24;
         DrawString(font, new Vector2(areaAt.X, below + 22), _message, HorizontalAlignment.Left, width, 14, Colors.Khaki);
         DrawString(font, new Vector2(areaAt.X, below + 44), _menu.DeviceList is not null
-                ? "Arrows, PgUp, PgDn: choose. Esc: back"
+                ? "Arrows, PgUp, PgDn: choose. Enter: use. Esc: back"
                 : "Arrows: choose. Enter: select. Esc: back",
             HorizontalAlignment.Left, width, 13, Colors.Gray);
     }

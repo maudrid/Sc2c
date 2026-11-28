@@ -74,6 +74,8 @@ public partial class Main : Node2D
     private SellingView _sellingView = null!;
     private GivingView _givingView = null!;
     private DevicesView _devicesView = null!;
+    private FlightMenuView _flightMenuView = null!;   // the hyperspace and system menus (stage 3c item 8)
+    private ColorRect _flashRect = null!;   // the Sun Device's white flash (stage 3c item 8)
     private StarbaseScreenView _starbaseView = null!;
     private BattleScreenView _battleView = null!;
     private RescueView _rescueView = null!;
@@ -131,6 +133,9 @@ public partial class Main : Node2D
         AddChild(_orbitView);
         _planetsideView = new PlanetsideView(_systems) { Position = systemScreenAt, Visible = false };
         AddChild(_planetsideView);
+        // The hyperspace and system menus, over those views (stage 3c item 8).
+        _flightMenuView = new FlightMenuView { Position = systemScreenAt, Visible = false };
+        AddChild(_flightMenuView);
         // The lander report, typed into the scan map's area of the planet-side and orbit views (and of the system
         // view, Procyon's starbase's).
         _reportView = new ReportView
@@ -236,6 +241,10 @@ public partial class Main : Node2D
         _fadeRect = new ColorRect { Color = new Color(0, 0, 0, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
         _fadeRect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         fadeLayer.AddChild(_fadeRect);
+        // The Sun Device's flash (stage 3c item 8), over the fade: the user's screen alone.
+        _flashRect = new ColorRect { Color = new Color(1, 1, 1, 0), MouseFilter = Control.MouseFilterEnum.Ignore };
+        _flashRect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        fadeLayer.AddChild(_flashRect);
         // The game over (stage 4a item 12), over every screen but the pause's.
         var gameOverLayer = new CanvasLayer { Layer = 50 };
         AddChild(gameOverLayer);
@@ -380,6 +389,9 @@ public partial class Main : Node2D
                 _orbitView.Text = _planetsideView.Text = OrbitScreenText.Load(content);
                 _orbitView.Surfaces = _planetsideView.Surfaces = new PlanetSurfaces(content);
                 _orbitView.Sprites = _planetsideView.Sprites = new PlanetsideSprites(content, sheets);
+                _flightMenuView.Text = _orbitView.Text;
+                _flightMenuView.Sprites = _orbitView.Sprites;
+                _flightMenuView.CategoryWorth = _systems.Generator.Types.CategoryWorth;
                 _commView.UseContent(content, sheets, scripts, _names);
                 _starbaseView.UseContent(content, sheets);
                 _reportView.UseContent(content, sheets);
@@ -393,6 +405,8 @@ public partial class Main : Node2D
                     ? _battleView.GroupIcon(r.RaceShips[race].Ship) : null;
                 _starbaseView.Races = YardRace;
                 _orbitView.Roster = new RosterPanel(() => _starbaseView.NewStatusArea(YardRace), YardRace,
+                    race => _systems.StoryRules?.RaceIndex(race) ?? -1);
+                _flightMenuView.Roster = new RosterPanel(() => _starbaseView.NewStatusArea(YardRace), YardRace,
                     race => _systems.StoryRules?.RaceIndex(race) ?? -1);
                 _rescueView.UseContent(content);
             }
@@ -633,6 +647,27 @@ public partial class Main : Node2D
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void LandingRefused(int refusal) => _player?.LandingRefused((DispatchRefusal)refusal);
+
+    // A guest uses a device from its Devices list (stage 3c item 8): the host answers with what came of it.
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void UseDevice(int device)
+    {
+        if (_host == null)
+            return;
+        long peer = Multiplayer.GetRemoteSenderId();
+        var outcome = _host.GuestUseDevice(peer, device);
+        if (_host.InGame(peer))
+            RpcId(peer, MethodName.DeviceUsed, (int)outcome);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void DeviceUsed(int outcome)
+    {
+        if (System.Enum.IsDefined((DeviceOutcome)outcome))
+            _player?.DeviceUsed((DeviceOutcome)outcome);
+        else
+            Log($"Bad device outcome from the host: {outcome}");
+    }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ChooseReply(int round, int index) => _host?.GuestChooseReply(Multiplayer.GetRemoteSenderId(), round, index);
@@ -897,6 +932,8 @@ public partial class Main : Node2D
             {
                 foreach (int category in discards)
                     _host.World.DiscardCargo(_host.HostId, category);
+                if (inGame && _player.TakeDeviceUse() is int device)
+                    _player.DeviceUsed(_host.UseDevice(_host.HostId, device));
                 if (landing is { } site && _host.Dispatch(_host.HostId, site.X, site.Y) is var refusal
                         && refusal != DispatchRefusal.None)
                     _player.LandingRefused(refusal);
@@ -976,6 +1013,8 @@ public partial class Main : Node2D
                     RpcId(1, MethodName.RequestLanding, site.X, site.Y);
                 foreach (int category in discards)
                     RpcId(1, MethodName.DiscardCargo, category);
+                if (_player.TakeDeviceUse() is int device)
+                    RpcId(1, MethodName.UseDevice, device);
                 if (_player.TakeReply() is var (round, reply))
                     RpcId(1, MethodName.ChooseReply, round, reply);
                 if (_player.TakeEncounterChoice() is var (meeting, action))
@@ -1341,13 +1380,17 @@ public partial class Main : Node2D
         // The time skip's fade and a talk's fade-in, over every screen.
         _fade.Follow(player.Talk, player.StoryPaused, player.TalkShown, (long)(Time.GetTicksMsec() * 840 / 1000));
         _fadeRect.Color = new Color(0, 0, 0, (float)_fade.Black((long)(Time.GetTicksMsec() * 840 / 1000)));
+        // The Sun Device's flash on this player's screen (stage 3c item 8).
+        _flashRect.Color = new Color(1, 1, 1, (float)DeviceFlashes.SunWhite(player.Flash));
         // The game over, over everything, fading in.
         _gameOverView.Why = player.Loss switch
         {
             GameLoss.Surrendered => GameOverView.Surrendered,
             GameLoss.KohrAhVictorious => GameOverView.KilledAll,
+            GameLoss.UtwigBomb => GameOverView.Bomb,
             _ => GameOverView.Lost,
         };
+        _gameOverView.BombFlash = player.Loss == GameLoss.UtwigBomb;
         _gameOverView.Follow(screen == PlayerScreen.GameOver, 1.0 / Engine.PhysicsTicksPerSecond);
         if (_planetsideView.Visible)
             _planetsideView.Show(player);
@@ -1360,9 +1403,13 @@ public partial class Main : Node2D
         _givingView.MostLines = gauges ? 3 : 12;
         _givingView.Visible = !Headless && _givingView.Show(player);
         _orbitView.MenuCovered = _givingView.Visible;
-        // The Manifest's Devices list, while it's open in orbit. One that can't be drawn is closed.
-        _devicesView.Visible = !Headless && screen == PlayerScreen.Orbit && _devicesView.Show(player);
-        if (_devicesView.Broken && player.OrbitMenu?.DeviceList is not null)
+        // The hyperspace and system menus, while one is open (stage 3c item 8).
+        bool flight = screen is PlayerScreen.Hyperspace or PlayerScreen.System && player.FlightMenu is not null;
+        _flightMenuView.MenuCovered = _givingView.Visible;
+        _flightMenuView.Visible = !Headless && _flightMenuView.Show(player, _systems.StoryRules) && flight;
+        // The Manifest's Devices list, while it's open in orbit or from those menus. One that can't be drawn is closed.
+        _devicesView.Visible = !Headless && (screen == PlayerScreen.Orbit || flight) && _devicesView.Show(player);
+        if (_devicesView.Broken && player.OpenMenu?.DeviceList is not null)
         {
             player.CloseDevices();   // not a key: in a story pause the keys are the talk's
             player.Notify("The Devices list couldn't be drawn.");
@@ -1402,6 +1449,7 @@ public partial class Main : Node2D
         // (the cargo display only on the orbit screen: a story talk leaves it open, under the communication screen)
         // The roster's status area too (stage 4b item 10), over the orbit screen's status area.
         bool box = (_player?.Screen == PlayerScreen.Orbit && (_player.OrbitMenu?.CargoOpen == true || _player.OrbitMenu?.Roster is not null))
+            || (_flightMenuView.Visible && (_player?.FlightMenu?.CargoOpen == true || _player?.FlightMenu?.Roster is not null))
             || _devicesView.Visible;
         _hud.Visible = _firstRun == null && _contentError == null && !box && !_sellingView.Visible && !_givingView.Visible
             && !_rescueView.Visible;

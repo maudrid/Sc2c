@@ -744,7 +744,7 @@ public class WreckTests
         wreck.ToggleTrade();
         Assert.Equal((null, Gift.Why(TradeRefusal.Wrecked)), (wreck.Trade, wreck.Notice));
         Assert.DoesNotContain("T: give another player something", wreck.StatusLines());
-        Assert.DoesNotContain("Arrows: turn and thrust", wreck.StatusLines());
+        Assert.DoesNotContain("Arrows: turn and thrust; Esc: the menu", wreck.StatusLines());
         // Revived, both may give again, and g1 fly.
         Assert.Equal(RescueRefusal.None, world.Revive("host", "g1", 2));
         Run(world, 1);
@@ -752,7 +752,7 @@ public class WreckTests
         wreck.Observe(world.Snapshot());
         Assert.Contains("T: give another player something", host.StatusLines());
         Assert.Contains("T: give another player something", wreck.StatusLines());
-        Assert.Contains("Arrows: turn and thrust", wreck.StatusLines());
+        Assert.Contains("Arrows: turn and thrust; Esc: the menu", wreck.StatusLines());
         wreck.ToggleTrade();
         Assert.NotNull(wreck.Trade);
     }

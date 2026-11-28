@@ -38,7 +38,7 @@ public enum MenuOutcome
     Moved,
     /// <summary>UQM refuses this here (MENU_SOUND_FAILURE): scanning a shielded world, landing on a gas giant.</summary>
     Refused,
-    /// <summary>The entry works in a later stage (the starmap, the manifest's entries, the game menu, the lander).</summary>
+    /// <summary>The entry works in a later stage (the starmap, the game menu, a guest's roster).</summary>
     NotYet,
     /// <summary>A scan started (see <see cref="OrbitMenu.Scan"/>).</summary>
     ScanStarted,
@@ -50,8 +50,14 @@ public enum MenuOutcome
     PickingSite,
     /// <summary>A landing site was picked: the lander goes down at <see cref="OrbitMenu.Site"/>. The client tells the host.</summary>
     Dispatch,
-    /// <summary>In the cargo display, select: a unit of the selected category goes overboard (<see cref="OrbitMenu.CargoSelected"/>). The client tells the host.</summary>
+    /// <summary>In the cargo display, select: a unit of the selected category goes overboard (<see cref="ShipMenu.CargoSelected"/>). The client tells the host.</summary>
     DiscardCargo,
+
+    /// <summary>In the Devices list, select: the device lit is used (<see cref="ShipMenu.DeviceList"/>, <see cref="ShipMenu.DeviceCursor"/>; stage 3c item 8). The client asks the host, which says what came of it.</summary>
+    UseDevice,
+
+    /// <summary>The hyperspace or system menu's Navigate: the menu closes, back to flight (<see cref="FlightMenu"/>).</summary>
+    CloseMenu,
 }
 
 /// <summary>
@@ -59,21 +65,19 @@ public enum MenuOutcome
 /// PC menus work them: the orbit menu (Scan, Starmap, Manifest, Game menu,
 /// Navigate), the manifest (Cargo, Devices, Roster, Exit) and the scan menu
 /// (Mineral, Energy, Biological, Auto, Dispatch lander, Exit). The cursor
-/// wraps round. Entries for later stages are there and say so.
+/// wraps round. Entries for later stages are there and say so. The
+/// Manifest is <see cref="ShipMenu"/>'s, shared with the hyperspace and
+/// system menus (<see cref="FlightMenu"/>, stage 3c item 8).
 ///
 /// This is the player's own screen: nothing here goes to the host except
 /// leaving orbit. Scans aren't stored (as in UQM): a scan shows the nodes
 /// left at that moment, given by the host's taken-node masks, and shown
 /// nodes another player takes disappear (<see cref="Dots"/>).
 /// </summary>
-public sealed class OrbitMenu
+public sealed class OrbitMenu : ShipMenu
 {
-    public enum MenuPage { Orbit, Manifest, Scan }
-
     private static readonly OrbitMenuItem[] OrbitPage =
         { OrbitMenuItem.Scan, OrbitMenuItem.Starmap, OrbitMenuItem.Manifest, OrbitMenuItem.GameMenu, OrbitMenuItem.Navigate };
-    private static readonly OrbitMenuItem[] ManifestPage =
-        { OrbitMenuItem.Cargo, OrbitMenuItem.Devices, OrbitMenuItem.Roster, OrbitMenuItem.ExitManifest };
     private static readonly OrbitMenuItem[] ScanPage =
     {
         OrbitMenuItem.MineralScan, OrbitMenuItem.EnergyScan, OrbitMenuItem.BiologicalScan,
@@ -81,7 +85,6 @@ public sealed class OrbitMenu
     };
 
     private readonly OrbitData _orbit;
-    private int _cursor;
     private LandingSite? _site;
 
     public OrbitMenu(WorldId world, OrbitData orbit)
@@ -102,18 +105,13 @@ public sealed class OrbitMenu
     /// <summary>What entering orbit gave: the planet report and the nodes.</summary>
     public OrbitData Orbit => _orbit;
 
-    public MenuPage Page { get; private set; } = MenuPage.Orbit;
-
     /// <summary>The entries of the open menu, in order.</summary>
-    public IReadOnlyList<OrbitMenuItem> Items => Page switch
+    public override IReadOnlyList<OrbitMenuItem> Items => Page switch
     {
         MenuPage.Orbit => OrbitPage,
         MenuPage.Manifest => ManifestPage,
         _ => ScanPage,
     };
-
-    /// <summary>The highlighted entry.</summary>
-    public OrbitMenuItem Selected => Items[_cursor];
 
     /// <summary>The scan display (shown while the scan menu is open).</summary>
     public OrbitScan Scan { get; }
@@ -141,102 +139,6 @@ public sealed class OrbitMenu
     public DispatchRefusal LastRefusal { get; private set; }
 
     /// <summary>
-    /// Whether an entry does something in this stage for anyone. The others
-    /// are shown but say they come later (<see cref="MenuOutcome.NotYet"/>).
-    /// The Roster is the host's (<see cref="Offers"/>).
-    /// </summary>
-    public static bool Available(OrbitMenuItem item) => item is not
-        (OrbitMenuItem.Starmap or OrbitMenuItem.GameMenu or OrbitMenuItem.Roster);
-
-    /// <summary>
-    /// Whether an entry does something for this player: those
-    /// <see cref="Available"/>, and the Roster for the host (with
-    /// <see cref="Fleet"/>: worked since stage 4b item 7, drawn since item
-    /// 10); a guest's Roster still says it comes later (their own escorts
-    /// aren't a fleet).
-    /// </summary>
-    public bool Offers(OrbitMenuItem item) => Available(item) || item == OrbitMenuItem.Roster && Fleet is not null;
-
-    /// <summary>
-    /// The devices the group carries now (InventoryDevices, by the story
-    /// as the host last sent it), for the Manifest's Devices list; none if
-    /// not given.
-    /// </summary>
-    public Func<IReadOnlyList<int>>? Inventory { get; set; }
-
-    /// <summary>
-    /// The host's fleet, for the Manifest's Roster (stage 4b item 7); null
-    /// for a guest, who has none (stage 4b, decision 3): their Roster says
-    /// it comes later, as before.
-    /// </summary>
-    public IRosterFleet? Fleet { get; set; }
-
-    // The fleet ships the open roster was opened on: each one's race, slot and captain, in the queue's order.
-    private IReadOnlyList<(string Race, int Slot, byte Captain)> _rosterShips = Array.Empty<(string, int, byte)>();
-
-    private List<(string Race, int Slot, byte Captain)> RosterShips() =>
-        Fleet!.Ships.Take(RosterMenu.ShipPoints.Count).Select(s => (s.Race, s.Slot, s.Captain)).ToList();
-
-    // RosterMenu on the fleet as it is (none, closed, with no ships), the cursor on the first.
-    private void OpenRoster()
-    {
-        _rosterShips = RosterShips();
-        Roster = _rosterShips.Count == 0 ? null : new RosterMenu(_rosterShips.Count);
-    }
-
-    /// <summary>
-    /// The Manifest's Roster, while it's open (RosterMenu); null when closed. It opens afresh on the next key
-    /// when the fleet's ships have changed (a talk's), so between that change and the key it's the fleet's as
-    /// it was: whatever draws it (stage 4b item 10) reads its ships by <see cref="RosterMenu.Selected"/> with care.
-    /// </summary>
-    public RosterMenu? Roster { get; private set; }
-
-    /// <summary>The Manifest's Devices list, while it's open (DevicesMenu); null when closed.</summary>
-    public DevicesMenu? Devices { get; private set; }
-
-    /// <summary>The devices listed, while the list is open.</summary>
-    public IReadOnlyList<int>? DeviceList => Devices?.List;
-
-    /// <summary>The device lit, while the list is open.</summary>
-    public int DeviceCursor => Devices?.Cursor ?? 0;
-
-    /// <summary>The first row shown, while the list is open.</summary>
-    public int DeviceTop => Devices?.Top ?? 0;
-
-    /// <summary>
-    /// The devices the group carries now, while the list is open: the list
-    /// follows them, the cursor staying on its device if it's still there
-    /// (else where it was, within the list), and closes if none are left.
-    /// </summary>
-    public void RefreshDevices(IReadOnlyList<int> list)
-    {
-        if (Devices is null || Devices.List.SequenceEqual(list))
-            return;
-        Devices = list.Count == 0 ? null : Devices.With(list);
-    }
-
-    /// <summary>Closes the Devices list, back at the Manifest (the game unable to draw it).</summary>
-    public void CloseDevices() => Devices = null;
-
-    private MenuOutcome PressDevices(MenuKey key)
-    {
-        var outcome = Devices!.Press(key);
-        if (outcome == MenuOutcome.Moved && Devices.Left)
-            Devices = null;
-        return outcome;
-    }
-
-    /// <summary>
-    /// Whether the Manifest's cargo display is open (CargoMenu): the
-    /// direction keys choose an element category, select drops a unit of
-    /// it, cancel goes back to the Manifest.
-    /// </summary>
-    public bool CargoOpen { get; private set; }
-
-    /// <summary>The element category the cargo display has lit, 0 to 7 (it opens on the first).</summary>
-    public int CargoSelected { get; private set; }
-
-    /// <summary>
     /// One key press. <paramref name="taken"/> gives the host's current
     /// taken-node mask for a scan type of this world; it's read when a scan
     /// starts. <paramref name="kit"/> gives the ship's fuel, landers and
@@ -257,44 +159,8 @@ public sealed class OrbitMenu
             }
             return MenuOutcome.None;
         }
-        if (Devices is not null)
-            return PressDevices(key);
-        if (Roster is not null)
-        {
-            // A talk (a guest's, in co-op) may add or take fleet ships while the roster is open, which UQM's can't:
-            // the roster opens afresh on the fleet as it is (closing if none are left), the key taken by it. The
-            // ships are told by race, slot and captain (their crew is the roster's to change), so one taken and
-            // another given in its place between two keys counts too.
-            if (!RosterShips().SequenceEqual(_rosterShips))
-            {
-                OpenRoster();
-                return MenuOutcome.Moved;
-            }
-            var outcome = Roster.Press(key, Fleet!);
-            if (Roster.Left)
-                Roster = null;   // RosterMenu returns: back at the Manifest
-            return outcome;
-        }
-        if (CargoOpen)
-        {
-            // DoDiscardCargo: the categories wrap round; bio data can't be chosen.
-            switch (key)
-            {
-                case MenuKey.Up:
-                case MenuKey.Left:
-                    CargoSelected = (CargoSelected + 7) % 8;
-                    return MenuOutcome.Moved;
-                case MenuKey.Down:
-                case MenuKey.Right:
-                    CargoSelected = (CargoSelected + 1) % 8;
-                    return MenuOutcome.Moved;
-                case MenuKey.Select:
-                    return MenuOutcome.DiscardCargo;
-                default:
-                    CargoOpen = false;
-                    return MenuOutcome.Moved;
-            }
-        }
+        if (PressManifest(key) is { } manifest)
+            return manifest;
         if (Scan.Sweeping)
         {
             // WaitForAnyButtonUntil: any key finishes the scan being drawn.
@@ -306,12 +172,9 @@ public sealed class OrbitMenu
         {
             case MenuKey.Up:
             case MenuKey.Left:
-                _cursor = (_cursor + Items.Count - 1) % Items.Count;
-                return MenuOutcome.Moved;
             case MenuKey.Down:
             case MenuKey.Right:
-                _cursor = (_cursor + 1) % Items.Count;
-                return MenuOutcome.Moved;
+                return Step(key);
             case MenuKey.Cancel:
                 return Cancel();
             case MenuKey.Select:
@@ -336,7 +199,7 @@ public sealed class OrbitMenu
             return;
         Scan.AutoFinished = false;
         if (Page == MenuPage.Scan)
-            _cursor = IndexOf(ScanPage, OrbitMenuItem.DispatchLander);
+            Cursor = IndexOf(ScanPage, OrbitMenuItem.DispatchLander);
     }
 
     private MenuOutcome Cancel()
@@ -357,6 +220,8 @@ public sealed class OrbitMenu
     private MenuOutcome Choose(Func<ScanType, uint> taken, Func<(uint Fuel, int Landers, int Crew)?>? kit)
     {
         OrbitMenuItem item = Selected;
+        if (ChooseManifest(item) is { } manifest)
+            return manifest;
         switch (item)
         {
             case OrbitMenuItem.Scan:
@@ -365,31 +230,6 @@ public sealed class OrbitMenu
                 Open(MenuPage.Scan, OrbitMenuItem.AutoScan);
                 Scan.ShowFound();
                 _site = Landing.World(_orbit) == DispatchRefusal.None ? new LandingSite(SiteStart) : null;
-                return MenuOutcome.Moved;
-            case OrbitMenuItem.Manifest:
-                Open(MenuPage.Manifest, OrbitMenuItem.Cargo);
-                return MenuOutcome.Moved;
-            case OrbitMenuItem.Cargo:
-                CargoOpen = true;
-                CargoSelected = 0;
-                return MenuOutcome.Moved;
-            case OrbitMenuItem.Devices:
-            {
-                // DevicesMenu: with nothing aboard, nothing opens.
-                var list = Inventory?.Invoke() ?? Array.Empty<int>();
-                if (list.Count == 0)
-                    return MenuOutcome.None;
-                Devices = new DevicesMenu(list);
-                return MenuOutcome.Moved;
-            }
-            case OrbitMenuItem.Roster when Fleet is not null:
-                // RosterMenu: with no fleet ships, nothing opens.
-                if (Fleet.Count == 0)
-                    return MenuOutcome.None;
-                OpenRoster();
-                return MenuOutcome.Moved;
-            case OrbitMenuItem.ExitManifest:
-                Open(MenuPage.Orbit, OrbitMenuItem.Manifest);
                 return MenuOutcome.Moved;
             case OrbitMenuItem.Navigate:
                 return MenuOutcome.LeaveOrbit;
@@ -426,22 +266,6 @@ public sealed class OrbitMenu
         Scan.Hide();
         _site = null;
         Open(MenuPage.Orbit, OrbitMenuItem.Scan);
-    }
-
-    private void Open(MenuPage page, OrbitMenuItem at)
-    {
-        Page = page;
-        _cursor = Math.Max(0, IndexOf(Items, at));
-    }
-
-    private static int IndexOf(IReadOnlyList<OrbitMenuItem> items, OrbitMenuItem item)
-    {
-        for (int i = 0; i < items.Count; ++i)
-        {
-            if (items[i] == item)
-                return i;
-        }
-        return -1;
     }
 }
 
@@ -683,7 +507,8 @@ public sealed class OrbitScan
 /// (CurState) and the first of the five rows shown (topIndex). Up and
 /// left go back one, down and right on one, page up and down by a screen,
 /// within the list; the rows shown follow the cursor a page at a time.
-/// Select would use the device (stage 3c); cancel closes it.
+/// Select uses the device lit (<see cref="MenuOutcome.UseDevice"/>: the
+/// host says what came of it, stage 3c item 8); cancel closes it.
 /// </summary>
 public sealed class DevicesMenu
 {
@@ -719,7 +544,7 @@ public sealed class DevicesMenu
                 Left = true;
                 return MenuOutcome.Moved;
             case MenuKey.Select:
-                return MenuOutcome.NotYet;
+                return MenuOutcome.UseDevice;
         }
         int state = Cursor + key switch
         {

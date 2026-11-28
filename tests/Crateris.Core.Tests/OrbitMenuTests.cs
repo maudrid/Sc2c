@@ -279,7 +279,7 @@ public class OrbitMenuTests
         Assert.Equal(aboard, menu.DeviceList);
         menu.Press(MenuKey.PageDown, NothingTaken);
         Assert.Equal((5, 5), (menu.DeviceCursor, menu.DeviceTop));
-        Assert.Equal(MenuOutcome.NotYet, menu.Press(MenuKey.Select, NothingTaken));   // using them: 3c
+        Assert.Equal(MenuOutcome.UseDevice, menu.Press(MenuKey.Select, NothingTaken));   // used through the host (3c item 8)
         // Another player's talk takes device 3 away: the cursor stays on its device (22).
         menu.RefreshDevices(new[] { 1, 4, 9, 19, 22, 27 });
         Assert.Equal((4, 0), (menu.DeviceCursor, menu.DeviceTop));

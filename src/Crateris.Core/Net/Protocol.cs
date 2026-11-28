@@ -200,7 +200,11 @@ public static class Protocol
     /// 38: Fwiffo on Pluto (stage 3c item 7, review round 2): a landing
     /// can be refused as the ship is in a talk or a battle in orbit
     /// (DispatchRefusal.InTalk, numbered last, in LandingRefused).
-    public const int Version = 38;
+    /// 39: the menus and the devices (stage 3c item 8): a client asks the
+    /// host to use a device (UseDevice, its number), and the host answers what
+    /// came of it (DeviceUsed, a DeviceOutcome); a game over's notice may say
+    /// the host's ship set off the Utwig bomb (BattleNotice.Bomb).
+    public const int Version = 39;
     public const int DefaultPort = 24642;
 
     /// <summary>

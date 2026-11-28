@@ -108,7 +108,7 @@ public class DevicesTests
         Assert.Equal(new[] { 9 }, Rules.Devices.WithValue(held, "ROSY_SPHERE_ON_SHIP", 0));
         Assert.Equal(new[] { 14, 15, 16, 23 }, Rules.Devices.All.Where(d => !d.Listed).Select(d => d.Id));
         Assert.Throws<ArgumentException>(() => new DevicesMenu(Array.Empty<int>()));
-        Assert.Equal(MenuOutcome.NotYet, new DevicesMenu(new[] { 3 }).Press(MenuKey.Select));   // using them is 3c
+        Assert.Equal(MenuOutcome.UseDevice, new DevicesMenu(new[] { 3 }).Press(MenuKey.Select));   // used through the host (3c item 8)
     }
 
     [ContentFact]
@@ -145,14 +145,18 @@ public class DevicesTests
         Assert.Equal(new[] { 4, 27 }, me.OrbitMenu.DeviceList);
         // Drawn in the status area (DevicesDisplay), which hides the status panel: its lines don't list them.
         Assert.DoesNotContain(me.StatusLines(), l => l.Contains("Rosy Sphere") || l.Contains("Moon Base"));
+        // Select asks the host to use the sphere (stage 3c item 8); without the Ultron nothing happens, the list open.
         me.PressMenu(MenuKey.Select);
-        Assert.Contains("later stage", me.OrbitMessage);
+        Assert.Equal(4, me.TakeDeviceUse());
+        me.DeviceUsed(world.UseDevice("guest", 4));
+        Assert.Equal("Nothing happens.", me.OrbitMessage);
         me.PressMenu(MenuKey.Cancel);
         Assert.Null(me.OrbitMenu.DeviceList);
         // The game unable to draw it closes it as Esc does, not by a key: back at the Manifest, the message gone.
         me.PressMenu(MenuKey.Select);
         me.PressMenu(MenuKey.Select);
-        Assert.Contains("later stage", me.OrbitMessage);
+        me.DeviceUsed(world.UseDevice("guest", me.TakeDeviceUse()!.Value));
+        Assert.Equal("Nothing happens.", me.OrbitMessage);
         me.CloseDevices();
         Assert.Null(me.OrbitMenu.DeviceList);
         Assert.Equal(OrbitMenu.MenuPage.Manifest, me.OrbitMenu.Page);

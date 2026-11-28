@@ -136,6 +136,93 @@ public sealed class PlayerSession
     /// <summary>What the orbit screen last said (an item that comes later, a refusal, leaving).</summary>
     public string OrbitMessage { get; private set; } = "";
 
+    /// <summary>
+    /// The hyperspace or system menu while it's open (stage 3c item 8; the
+    /// plan's question 4): opened by Esc in flight, closed by its Navigate,
+    /// or as the ship leaves flight (a talk, a battle, orbit, docking, a
+    /// star entered or left, a wreck). Null otherwise. While it's open the
+    /// ship gets no keys.
+    /// </summary>
+    public FlightMenu? FlightMenu { get; private set; }
+
+    /// <summary>What the hyperspace or system menu last said.</summary>
+    public string FlightMessage { get; private set; } = "";
+
+    // Where the flight menu was opened: the system's star, or -1 in hyperspace.
+    private int _flightPlace;
+
+    /// <summary>The menu open now with a Manifest: the orbit menu, or the hyperspace or system menu; null if neither.</summary>
+    public ShipMenu? OpenMenu => (ShipMenu?)OrbitMenu ?? FlightMenu;
+
+    /// <summary>Whether the ship is flying in hyperspace or a system (not entering a star, nor a wreck), where Esc opens the menu.</summary>
+    private bool InFlight => Me is { Wrecked: false } me && me.Activity is Activity.Hyperspace or Activity.OuterSystem or Activity.InnerSystem
+        && !Entering;
+
+    // The device whose use is to be asked of the host (once), and whether an answer is awaited: the list takes no keys till then.
+    private int? _deviceToUse;
+    private bool _deviceAsked;
+
+    /// <summary>Whether a device's use has been asked of the host and its answer hasn't come: the Devices list waits.</summary>
+    public bool DeviceAsked => _deviceAsked;
+
+    /// <summary>The device the player chose to use, to ask the host once (it answers with <see cref="DeviceUsed"/>); null if none is waiting.</summary>
+    public int? TakeDeviceUse()
+    {
+        var device = _deviceToUse;
+        _deviceToUse = null;
+        return device;
+    }
+
+    /// <summary>
+    /// The host's answer to a device's use: a use closes the Devices list,
+    /// back at the Manifest (DoManipulateDevices leaves the list on a
+    /// success; a talk begun takes the ship out of flight, which closes the
+    /// hyperspace or system menu); the Sun Device's flash plays on this
+    /// screen (<see cref="Flash"/>); anything else is said, the list staying open.
+    /// </summary>
+    public void DeviceUsed(DeviceOutcome outcome)
+    {
+        _deviceAsked = false;
+        Log($"Device used: {outcome}");
+        string message = DeviceMessage(outcome);
+        if (outcome is DeviceOutcome.Used or DeviceOutcome.Flash or DeviceOutcome.FlashChmmrLater)
+            OpenMenu?.CloseDevices();
+        if (outcome is DeviceOutcome.Flash or DeviceOutcome.FlashChmmrLater)
+            _flashFrom = _time;
+        if (OrbitMenu is not null)
+            OrbitMessage = message;
+        else
+            FlightMessage = message;
+    }
+
+    /// <summary>What a device's use came to, in words.</summary>
+    public static string DeviceMessage(DeviceOutcome outcome) => outcome switch
+    {
+        DeviceOutcome.Used => "",
+        DeviceOutcome.Flash => "",
+        DeviceOutcome.FlashChmmrLater => "The Chmmr's freeing comes with a later item (3c item 11).",
+        DeviceOutcome.Failed => "Nothing happens.",
+        DeviceOutcome.NotHeld => "The ship doesn't hold that device.",
+        DeviceOutcome.HostShipOnly => "The bomb can be set off only aboard the host's ship.",
+        DeviceOutcome.Later => "Using it here comes with a later item of stage 3c.",
+        DeviceOutcome.Talking => "Another player is talking to the Ilwrath.",
+        _ => "Not now.",
+    };
+
+    /// <summary>How long the Sun Device's flash holds the screen (FadeScreen (FadeAllToWhite, ONE_SECOND), then two seconds' sleep): no keys meanwhile.</summary>
+    public const double FlashHoldSeconds = 3;
+
+    /// <summary>The flash's whole length: the hold, then FadeAllToColor over two seconds.</summary>
+    public const double FlashSeconds = FlashHoldSeconds + 2;
+
+    private double? _flashFrom;
+
+    /// <summary>The seconds since the Sun Device's flash began on this screen (stage 3c item 8), while it plays; null otherwise.</summary>
+    public double? Flash => _flashFrom is double t && _time - t < FlashSeconds ? _time - t : null;
+
+    // Whether the flash holds the screen: the menus take no keys.
+    private bool FlashHolding => Flash is < FlashHoldSeconds;
+
     /// <summary>Whether input comes from a script rather than keys.</summary>
     public bool Scripted => _script != null;
 
@@ -324,10 +411,11 @@ public sealed class PlayerSession
             RescueOffer = null;   // revived (by anyone), or gone
         FollowRescue();
         UpdateOrbitMenu();
+        UpdateFlightMenu();
         // The Devices list follows the story the host sends while it's
         // open (another player's talk or lander can change what the group
         // carries; in UQM only using a device could, which leaves the list).
-        OrbitMenu?.RefreshDevices(Devices());
+        OpenMenu?.RefreshDevices(Devices());
         NoteLander();
         FollowTalk();
     }
@@ -407,6 +495,7 @@ public sealed class PlayerSession
     public ShipInput NextInput(ShipInput keys)
     {
         UpdateOrbitMenu();   // so a key on the first frame in orbit reaches the menu
+        UpdateFlightMenu();
         ShipInput input;
         if (_script != null)
         {
@@ -416,8 +505,8 @@ public sealed class PlayerSession
                 ToggleTrade();
             if (press is MenuKey key)
                 PressMenu(key);
-            if (Trade is not null || Rescue is not null)
-                input = ShipInput.None;   // the ship waits while the giving or rescue screen is open, as with keys
+            if (Trade is not null || Rescue is not null || FlightMenu is not null)
+                input = ShipInput.None;   // the ship waits while the giving or rescue screen or the menu is open, as with keys
         }
         else
         {
@@ -426,7 +515,7 @@ public sealed class PlayerSession
             if (_waitForRelease && keys == ShipInput.None)
                 _waitForRelease = false;
             input = Me?.Activity is Activity.Orbit or Activity.Talk or Activity.Starbase || StoryPaused || Trade is not null
-                    || Screen == PlayerScreen.BattleWon
+                    || Screen == PlayerScreen.BattleWon || FlightMenu is not null
                     || Rescue is not null || _waitForRelease
                 ? ShipInput.None : keys;   // on the surface, the lander's keys
         }
@@ -949,6 +1038,8 @@ public sealed class PlayerSession
             Notify(Gift.Why(TradeRefusal.Paused));
         else if (TalkShown)
             Notify("Not during a talk.");
+        else if (FlightMenu is not null)
+            Notify("Close the menu first.");
         else if (OrbitMenu?.CargoOpen == true)
             Notify("Close the cargo display first.");
         else if (OrbitMenu?.DeviceList is not null)
@@ -975,10 +1066,11 @@ public sealed class PlayerSession
     /// </summary>
     public void CloseDevices()
     {
-        if (OrbitMenu?.DeviceList is null)
+        if (OpenMenu is not { DeviceList: not null } menu)
             return;
-        OrbitMenu.CloseDevices();
+        menu.CloseDevices();
         OrbitMessage = "";
+        FlightMessage = "";
     }
 
     private void CloseTrade()
@@ -1225,10 +1317,17 @@ public sealed class PlayerSession
                 PressTalk(key);
             return;   // a watcher's keys do nothing while the story waits
         }
+        if (FlashHolding)
+            return;   // the Sun Device's flash holds the screen (SleepThreadUntil)
+        if (OrbitMenu is null && (FlightMenu is not null || InFlight))
+        {
+            PressFlight(key);
+            return;
+        }
         if (OrbitMenu == null || Me?.Activity == Activity.Planetside || _landingAsked)
             return;   // the keys drive the lander then (or will soon); the menu waits for its return
-        if (HostPaused)
-            return;   // the menu waits for the host's pause to lift, as the world does
+        if (HostPaused || _deviceAsked)
+            return;   // the menu waits for the host's pause to lift, as the world does, and for a device's answer
         OrbitMenuItem item = OrbitMenu.Selected;
         bool roster = OrbitMenu.Roster is not null;
         MenuOutcome outcome = OrbitMenu.Press(key, Taken, Kit);
@@ -1236,8 +1335,8 @@ public sealed class PlayerSession
         {
             _ when OrbitMenu.Roster is { } open => RosterMessage(open, outcome),
             _ when roster => "",   // the roster left
-            MenuOutcome.NotYet when OrbitMenu.DeviceList is not null => "Using devices comes in a later stage (3c).",
             MenuOutcome.NotYet => $"{MenuLabel(item)} comes in a later stage.",
+            MenuOutcome.UseDevice => "",
             MenuOutcome.Refused when item == OrbitMenuItem.DispatchLander => RefusalMessage(OrbitMenu.LastRefusal),
             MenuOutcome.Refused => "The world is shielded.",
             MenuOutcome.LeaveOrbit => "Leaving orbit...",
@@ -1255,6 +1354,8 @@ public sealed class PlayerSession
                 Log($"Discarding a unit of category {category}");
             }
         }
+        if (outcome == MenuOutcome.UseDevice)
+            AskDevice(OrbitMenu);
         if (outcome == MenuOutcome.ScanStarted)
             Log($"Scan started: {item}");
         if (outcome == MenuOutcome.PickingSite)
@@ -1272,6 +1373,80 @@ public sealed class PlayerSession
         }
         // A key can finish the last scan type: log it as when it runs out.
         NoteScanEnd();
+    }
+
+    // A key for the hyperspace or system menu (stage 3c item 8): Esc in
+    // flight opens it (HyperspaceMenu, SolarSysMenu: the cursor on Starmap);
+    // open, it takes the keys, as orbit's does.
+    private void PressFlight(MenuKey key)
+    {
+        if (HostPaused || _deviceAsked)
+            return;   // the menu waits for the host's pause to lift, and for a device's answer
+        if (FlightMenu is null)
+        {
+            if (key != MenuKey.Cancel || !InFlight)
+                return;
+            _flightPlace = Me!.SystemStar ?? -1;
+            FlightMenu = new FlightMenu(Me.SystemStar is not null) { Inventory = Devices, Fleet = Fleet };
+            FlightMessage = "";
+            Log(FlightMenu.InSystem ? "The system menu" : "The hyperspace menu");
+            return;
+        }
+        var menu = FlightMenu;
+        OrbitMenuItem item = menu.Selected;
+        bool roster = menu.Roster is not null;
+        MenuOutcome outcome = menu.Press(key);
+        FlightMessage = outcome switch
+        {
+            _ when menu.Roster is { } open => RosterMessage(open, outcome),
+            _ when roster => "",
+            MenuOutcome.NotYet => $"{MenuLabel(item)} comes in a later stage.",
+            _ => "",
+        };
+        switch (outcome)
+        {
+            case MenuOutcome.CloseMenu:
+                FlightMenu = null;
+                _waitForRelease = true;   // the key that chose Navigate isn't the ship's
+                Log("Back to flight");
+                break;
+            case MenuOutcome.DiscardCargo:
+                if (Me?.Hold is { } hold && hold.Minerals[menu.CargoSelected] > 0)
+                {
+                    _discards.Enqueue(menu.CargoSelected);
+                    Log($"Discarding a unit of category {menu.CargoSelected}");
+                }
+                break;
+            case MenuOutcome.UseDevice:
+                AskDevice(menu);
+                break;
+        }
+    }
+
+    // The Devices list's select: the device lit, asked of the host once; the list waits for the answer.
+    private void AskDevice(ShipMenu menu)
+    {
+        if (menu.DeviceList is not { } list)
+            return;
+        int device = list[menu.DeviceCursor];
+        _deviceToUse = device;
+        _deviceAsked = true;
+        Log($"Using device {device}");
+    }
+
+    // Keeps the hyperspace or system menu while the ship flies where it was
+    // opened (UQM's menu holds the ship still, so it never sees it leave):
+    // closed as it leaves flight, or comes into a system or out of one.
+    private void UpdateFlightMenu()
+    {
+        if (FlightMenu is null)
+            return;
+        if (!InFlight || (Me!.SystemStar ?? -1) != _flightPlace)
+        {
+            FlightMenu = null;
+            FlightMessage = "";
+            _deviceAsked = false;
+        }
     }
 
     /// <summary>
@@ -1598,8 +1773,10 @@ public sealed class PlayerSession
                 lines.Add($"{Snapshot?.Ships.FirstOrDefault(s => s.Id == chooser.PlayerId)?.Name ?? chooser.PlayerId} is choosing their next ship.");
             lines.Add("Arrows: turn and thrust; Space: fire; Shift: special; Esc: retreat, where allowed");
         }
+        else if (FlightMenu is not null)
+            lines.Add(FlightMenu.InSystem ? "The system menu: arrows choose, Enter selects, Esc goes back" : "The hyperspace menu: arrows choose, Enter selects, Esc goes back");
         else if (Me?.Activity != Activity.Orbit && !Entering && Me?.Wrecked != true)
-            lines.Add("Arrows: turn and thrust");
+            lines.Add("Arrows: turn and thrust; Esc: the menu");
         // The Manifest's Devices list is drawn in the status area (DevicesDisplay), which hides this panel while it's open.
         // The giving screen is drawn in the status area, which hides this panel while it's open.
         if (Trade is null && Me?.Wrecked != true && TradeScreen.Others(Snapshot, PlayerId).Count > 0 && !StoryPaused && !HostPaused && !TalkShown)   // giving waits while a talk goes on
@@ -1777,9 +1954,13 @@ public sealed class PlayerSession
                 };
                 OrbitMessage = "";
                 _wasSweeping = false;
+                _deviceAsked = false;   // an answer still on its way finds no list of this visit's to wait
             }
         }
-        else
+        else if (OrbitMenu is not null)
+        {
             OrbitMenu = null;
+            _deviceAsked = false;
+        }
     }
 }

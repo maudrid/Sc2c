@@ -6,6 +6,7 @@
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 
+using Crateris.Presentation;
 using Godot;
 
 namespace Crateris.Game;
@@ -17,7 +18,8 @@ namespace Crateris.Game;
 /// last talk), leaves the game and
 /// fades back to its start (starcon.c leaves its loop with
 /// <c>CrewEnlisted</c> ~0); here every player's screen fades to black over
-/// a second, then says the game is over, which of the three ended it
+/// a second (the Utwig bomb's, stage 3c item 8: white, then black, as
+/// RestartMenu's flash), then says the game is over, which of the four ended it
 /// (<c>Why</c>) and the key that ends it. The host's game then ends, its
 /// save as it was before (nothing is saved once the game is lost), and the
 /// guests are let go.
@@ -28,7 +30,7 @@ public partial class GameOverView : Node2D
     public const double FadeSeconds = 1.0;
 
     public const string Title = "GAME OVER", Lost = "The flagship was lost.", Surrendered = "The flagship surrendered.",
-        KilledAll = "The Kohr-Ah have destroyed every race.", Again = "The host's save is kept as it was: the loss isn't saved.",
+        KilledAll = "The Kohr-Ah have destroyed every race.", Bomb = "The flagship set off the Utwig bomb.", Again = "The host's save is kept as it was: the loss isn't saved.",
         KeyLine = "Press Enter or Esc to leave.";
 
     private double _shown = -1;
@@ -36,11 +38,18 @@ public partial class GameOverView : Node2D
     /// <summary>Why the game is over: the flagship lost, its surrender, or the Kohr-Ah's victory (PlayerSession.Loss).</summary>
     public string Why { get; set; } = Lost;
 
+    /// <summary>
+    /// Whether the game over is the Utwig bomb's (stage 3c item 8): the
+    /// screen goes white and then black as RestartMenu has it
+    /// (<see cref="DeviceFlashes.Bomb"/>) before the words, not the second's fade.
+    /// </summary>
+    public bool BombFlash { get; set; }
+
     /// <summary>The window's size, which the fade covers.</summary>
     public Vector2 Size { get; set; } = new(1024, 768);
 
     /// <summary>Whether the fade is over and the words are up: a key now ends the game.</summary>
-    public bool Shown => _shown >= FadeSeconds;
+    public bool Shown => _shown >= (BombFlash ? DeviceFlashes.BombSeconds : FadeSeconds);
 
     /// <summary>Shown (the game is over) or not, as time passes.</summary>
     public void Follow(bool over, double seconds)
@@ -53,14 +62,23 @@ public partial class GameOverView : Node2D
         }
         bool wasReady = Shown;
         _shown = _shown < 0 ? 0 : _shown + seconds;
-        if (_shown < FadeSeconds || !wasReady)
+        if (!Shown || !wasReady)
             QueueRedraw();
     }
 
     public override void _Draw()
     {
-        float fade = (float)System.Math.Clamp(_shown / FadeSeconds, 0, 1);
-        DrawRect(new Rect2(Vector2.Zero, Size), new Color(0, 0, 0, fade));
+        if (BombFlash)
+        {
+            var (white, black, _) = DeviceFlashes.Bomb(_shown);
+            DrawRect(new Rect2(Vector2.Zero, Size), new Color(1, 1, 1, (float)white));
+            DrawRect(new Rect2(Vector2.Zero, Size), new Color(0, 0, 0, (float)black));
+        }
+        else
+        {
+            float fade = (float)System.Math.Clamp(_shown / FadeSeconds, 0, 1);
+            DrawRect(new Rect2(Vector2.Zero, Size), new Color(0, 0, 0, fade));
+        }
         if (!Shown)
             return;
         var font = ThemeDB.FallbackFont;
