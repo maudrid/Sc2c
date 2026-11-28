@@ -759,7 +759,11 @@ public class FwiffoTests
 
     // A ship orbiting the Ilwrath's ruins (their race extinct), its one report of the visit used up, with his talk
     // coming to it (the field 1, its lander back aboard): returns the world and the meeting.
-    private static (WorldId At, Meeting M) AtRuinsWithHisTalk(GameWorld world, params string[] alsoOrbiting)
+    private static (WorldId At, Meeting M) AtRuinsWithHisTalk(GameWorld world, params string[] alsoOrbiting) =>
+        AtRuinsWithHisTalkFor(world, "host", alsoOrbiting);
+
+    // As AtRuinsWithHisTalk, his talk come to the finder named.
+    private static (WorldId At, Meeting M) AtRuinsWithHisTalkFor(GameWorld world, string finder, params string[] alsoOrbiting)
     {
         var story = world.Story!;
         Extinct(story, "ILWRATH_SHIP");
@@ -768,20 +772,21 @@ public class FwiffoTests
         var at = new WorldId(Star(world, "ILWRATH_DEFINED"), 0, null);
         foreach (string id in alsoOrbiting)
             world.PutInOrbit(id, at.Star, at.Planet, at.Moon);
-        world.Host.Ship.Hold.SetCrew(30);
-        world.PutInOrbit("host", at.Star, at.Planet, at.Moon);
-        var site = world.Host.Ship.Orbit!.Nodes!.Energy[3];
-        var lander = Land(world, "host", site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
+        var ship = world.Find(finder)!.Ship;
+        ship.Hold.SetCrew(30);
+        world.PutInOrbit(finder, at.Star, at.Planet, at.Moon);
+        var site = ship.Orbit!.Nodes!.Energy[3];
+        var lander = Land(world, finder, site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
         StayOn(world, lander, world.SurfaceOf(at)!.Elements.Single(e => e.Kind == SurfaceElementKind.Energy && e.Node == 3), 5);
-        Assert.Null(world.Host.Ship.Discovery);
-        Frames(world, 1, "host", ShipInput.TakeOff);
-        Back(world, "host");
-        var m = Assert.IsType<Meeting>(world.MeetingOf("host"));
+        Assert.Null(ship.Discovery);
+        Frames(world, 1, finder, ShipInput.TakeOff);
+        Back(world, finder);
+        var m = Assert.IsType<Meeting>(world.MeetingOf(finder));
         Assert.True(m.Fwiffo);
-        Assert.True(world.ChooseReply("host", Reply(m.Talk!, "we_fight_1")));
-        Assert.True(world.ClosingDone("host"));
+        Assert.True(world.ChooseReply(finder, Reply(m.Talk!, "we_fight_1")));
+        Assert.True(world.ClosingDone(finder));
         Assert.Equal(MeetingStep.Battle, m.Step);
-        Assert.Null(world.Host.Ship.Discovery);
+        Assert.Null(ship.Discovery);
         return (at, m);
     }
 
@@ -859,7 +864,9 @@ public class FwiffoTests
         Frames(world, 1, "host", ShipInput.TakeOff);
         Back(world, "host");
         Assert.Equal(crew, world.Host.Ship.Hold.Crew);
-        Assert.Null(world.Host.Ship.Meeting is { } still && still != m ? still : null);   // no new talk brought (the field is 2)
+        Assert.Equal(MeetingStep.Battle, m.Step);   // still during the guest's battle
+        Assert.Equal(2, world.Story!.Get("FOUND_PLUTO_SPATHI"));
+        Assert.Null(world.FwiffoFor);   // no new talk brought (the field is 2)
         // The battle's end later doesn't make the place again, nor change the crew.
         WorldTalkTests.WinTheBattle(world, m);
         Assert.Equal(MeetingStep.Done, m.Step);
@@ -867,5 +874,35 @@ public class FwiffoTests
         Assert.Null(world.Host.Ship.Discovery);
         Assert.Equal(crew, world.Host.Ship.Hold.Crew);
         Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+    }
+
+    [ContentFact]
+    public void AFinderGoneFromHisBattleWhileAnotherFightsOnFindsTheOrbitsStartDoneOnRejoining()
+    {
+        // Review round 4: the guest's talk, the host joining his battle; the guest leaves the game, the host
+        // fighting on. Its ship stays in orbit there, the orbit's start done afresh as it leaves (UQM's reload in
+        // orbit), so it has the world's report place on rejoining; the battle's end doesn't do it again.
+        var world = NewGame();
+        var (at, m) = AtRuinsWithHisTalkFor(world, "guest", "host");
+        var wb = m.Battle!;
+        var guest = world.Find("guest")!;
+        Frames(world, 3, "host", ShipInput.Action);
+        Assert.Null(world.Host.Ship.Orbit);
+        Assert.True(world.LetIntoBattle("host"));
+        for (int i = 0; i < 20 && world.Host.Ship.Battle != wb; ++i)
+            Frames(world, 1);
+        Assert.Equal(wb, world.Host.Ship.Battle);
+        world.Leave("guest");
+        Frames(world, 2);
+        Assert.Null(wb.Outcome);   // still going, the host in it
+        Assert.True(m.LeftBattleEarly);
+        Assert.Null(guest.Ship.Battle);
+        Assert.Equal(at, guest.Ship.OrbitedWorld);
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), guest.Ship.Discovery);
+        WorldTalkTests.WinTheBattle(world, m);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Equal(JoinResult.Rejoined, world.Join("guest", "Guest"));
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), guest.Ship.Discovery);
+        Assert.Equal(Activity.Orbit, guest.Ship.Activity);
     }
 }

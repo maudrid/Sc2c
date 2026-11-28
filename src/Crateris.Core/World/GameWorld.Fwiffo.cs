@@ -130,11 +130,13 @@ public sealed partial class GameWorld
     // system with the ship in orbit (enterOrbital, the world's generateOrbital
     // again), so what the orbit's start does is done afresh for a ship still
     // in orbit there (InOrbit: the ship's place in the world's report made
-    // again from the story, a site's cycle starting over; review round 1).
+    // again from the story, a site's cycle starting over; review round 1),
+    // a player gone from the game too, as it leaves his battle (its ship
+    // stays in orbit for its return; review round 4).
     private void AfterFwiffo(Meeting m)
     {
         var ship = m.Player.Ship;
-        if (m.Player.Present && !ship.Destroyed && ship.Battle is null && ship.Lander is null && ship.Hold.LanderOut is null
+        if (!ship.Destroyed && ship.Battle is null && ship.Lander is null && ship.Hold.LanderOut is null
             && m.World is var (planet, moon)
             && ship.OrbitedWorld is { } at && at.Star == m.Star && at.Planet == planet && at.Moon == moon)
             InOrbit(ship);
