@@ -7763,6 +7763,152 @@ def record_devices(uqm, exe):
     return data
 
 
+
+def device_use_scenarios():
+    """Where a device is used and what's around (stage 3c item 8): every
+    device in hyperspace, QuasiSpace, an ordinary system's flight and
+    orbit; the broadcasters, the Sun Device, the Pet and the spawner where
+    their uses differ: the Chmmr's world (planet 1, a moon of it, another
+    planet; freed or not), the Ilwrath's home system (alive or not, in
+    flight and in orbit), a system whose first group is the Ilwrath's or
+    another's, the Sa-Matra's, a group near in hyperspace, the fuel for the
+    portal; the Ultron's pieces with the Ultron at each repair and with
+    none."""
+    with open(os.path.join(REPO, "data", "devices.json")) as f:
+        devices = [d["device"] for d in json.load(f)["devices"]]
+    # (name, activity, orbit, star, planet, moon, ilwrath alive, first group, encounter near, fuel, state)
+    places = [
+        ("hyperspace", "h", 0, None, 0, -1, 0, None, 0, 5000, {}),
+        ("quasispace", "h", 0, None, 0, -1, 0, None, 0, 5000, {"ARILOU_SPACE_SIDE": 2}),
+        ("system", "i", 0, "SOL_DEFINED", 2, -1, 0, None, 0, 5000, {}),
+        ("orbit", "i", 1, "SOL_DEFINED", 2, -1, 0, None, 0, 5000, {}),
+    ]
+    out = []
+    for name, act, orbit, star, planet, moon, ilw, group, enc, fuel, state in places:
+        for d in devices:
+            out.append((f"{d.lower()}-{name}", act, orbit, star, planet, moon, ilw, group, enc, fuel, state, d))
+    casters = ["UMGAH_HYPERWAVE_DEVICE", "BURVIX_HYPERWAVE_DEVICE"]
+    special = [
+        ("chmmr-system", "i", 0, "CHMMR_DEFINED", 1, -1, 0, None, 0, 5000, {}),
+        ("chmmr-orbit", "i", 1, "CHMMR_DEFINED", 1, -1, 0, None, 0, 5000, {}),
+        ("chmmr-orbit-freed", "i", 1, "CHMMR_DEFINED", 1, -1, 0, None, 0, 5000, {"CHMMR_UNLEASHED": 1}),
+        ("chmmr-moon", "i", 1, "CHMMR_DEFINED", 1, 0, 0, None, 0, 5000, {}),
+        ("chmmr-other-planet", "i", 1, "CHMMR_DEFINED", 0, -1, 0, None, 0, 5000, {}),
+        ("ilwrath-home", "i", 0, "ILWRATH_DEFINED", 0, -1, 1, None, 0, 5000, {}),
+        ("ilwrath-home-orbit", "i", 1, "ILWRATH_DEFINED", 0, -1, 1, None, 0, 5000, {}),
+        ("ilwrath-home-dead", "i", 0, "ILWRATH_DEFINED", 0, -1, 0, None, 0, 5000, {}),
+        ("ilwrath-home-dead-group", "i", 0, "ILWRATH_DEFINED", 0, -1, 0, "ILWRATH_SHIP", 0, 5000, {}),
+        ("ilwrath-group", "i", 0, "SOL_DEFINED", 2, -1, 0, "ILWRATH_SHIP", 0, 5000, {}),
+        ("ilwrath-group-orbit", "i", 1, "SOL_DEFINED", 2, -1, 0, "ILWRATH_SHIP", 0, 5000, {}),
+        ("other-group", "i", 0, "SOL_DEFINED", 2, -1, 0, "SPATHI_SHIP", 0, 5000, {}),
+        ("samatra", "i", 0, "SAMATRA_DEFINED", 0, -1, 0, None, 0, 5000, {}),
+        ("samatra-group", "i", 0, "SAMATRA_DEFINED", 0, -1, 0, "URQUAN_SHIP", 0, 5000, {}),
+        ("system-group", "i", 1, "SOL_DEFINED", 2, -1, 0, "SPATHI_SHIP", 0, 5000, {}),
+        ("hyperspace-group", "h", 0, None, 0, -1, 0, None, 1, 5000, {}),
+        ("hyperspace-low-fuel", "h", 0, None, 0, -1, 0, None, 0, 999, {}),
+        ("hyperspace-fuel", "h", 0, None, 0, -1, 0, None, 0, 1000, {}),
+        ("arilou-side-1", "h", 0, None, 0, -1, 0, None, 0, 5000, {"ARILOU_SPACE_SIDE": 1}),
+        ("arilou-side-3", "h", 0, None, 0, -1, 0, None, 0, 5000, {"ARILOU_SPACE_SIDE": 3}),
+    ]
+    for name, act, orbit, star, planet, moon, ilw, group, enc, fuel, state in special:
+        for d in casters + ["SUN_EFFICIENCY_DEVICE", "TALKING_PET_DEVICE", "PORTAL_SPAWNER_DEVICE",
+                            "UTWIG_BOMB_DEVICE"]:
+            out.append((f"{d.lower()}-{name}", act, orbit, star, planet, moon, ilw, group, enc, fuel, state, d))
+    for piece in ["ROSY_SPHERE_DEVICE", "AQUA_HELIX_DEVICE", "CLEAR_SPINDLE_DEVICE"]:
+        for v in range(0, 6):
+            out.append((f"{piece.lower()}-ultron-{v}", "h", 0, None, 0, -1, 0, None, 0, 5000,
+                        {"ULTRON_CONDITION": v, "DISCUSSED_ULTRON": 1, "SUPOX_ULTRON_HELP": 1,
+                         piece.replace("_DEVICE", "_ON_SHIP"): 1}, piece))
+    out.append(("utwig_bomb_device-aboard", "i", 0, "SOL_DEFINED", 2, -1, 0, None, 0, 5000,
+                {"UTWIG_BOMB": 1, "UTWIG_BOMB_ON_SHIP": 1}, "UTWIG_BOMB_DEVICE"))
+    return out
+
+
+def record_device_uses(uqm, exe):
+    """What using each device does (InvokeDevice, planets/devices.c), by
+    where the ship is: golden/devices.c's use mode. Code only."""
+    with open(os.path.join(REPO, "data", "game-state.json")) as f:
+        game_state = json.load(f)
+    fields = {s["name"]: s for s in game_state["states"]}
+    sc_list = device_use_scenarios()
+    stars = sorted({sc[3] for sc in sc_list if sc[3]})
+    races = sorted({sc[7] for sc in sc_list if sc[7]} | {"ILWRATH_SHIP", "CHMMR_SHIP"})
+    with open(os.path.join(REPO, "data", "devices.json")) as f:
+        device_ids = {d["device"]: d["id"] for d in json.load(f)["devices"]}
+    star_values = extract_uqm.named_values(uqm, stars, ["uqm/gendef.h"])
+    race_values = extract_uqm.named_values(uqm, races, ["uqm/races.h"])
+    names_of_race = {v: k for k, v in race_values.items()}
+
+    def encode(values):
+        b = bytearray((game_state["total_bits"] + 7) >> 3)
+        for name, value in values.items():
+            f = fields[name]
+            for i in range(f["bits"]):
+                if value >> i & 1:
+                    b[(f["start_bit"] + i) >> 3] |= 1 << ((f["start_bit"] + i) & 7)
+        return b
+
+    def decode(b):
+        values = {}
+        for s in game_state["states"]:
+            v = 0
+            for i in range(s["bits"]):
+                bit = s["start_bit"] + i
+                if b[bit >> 3] >> (bit & 7) & 1:
+                    v |= 1 << i
+            values[s["name"]] = v
+        return values
+
+    scenarios = []
+    for name, act, orbit, star, planet, moon, ilw, group, enc, fuel, state, device in sc_list:
+        before = encode(state)
+        line = (f"{act} {orbit} {star_values[star] if star else -1} {planet} {moon} {ilw} "
+                f"{race_values[group] if group else -1} {enc} {fuel} {device_ids[device]}")
+        out = subprocess.run([exe, "use"], input=before.hex() + "\n" + line + "\n", capture_output=True, text=True)
+        if out.returncode:
+            raise RuntimeError(f"device use {name}: {out.stdout[-300:]}{out.stderr}")
+        r = json.loads(out.stdout)
+        old, new = decode(before), decode(bytes.fromhex(r["state"]))
+        writes = {k: new[k] for k in new if new[k] != old[k]}
+        calls = []
+        for c in r["calls"]:
+            if c[0] in ("sphere", "clone"):
+                c = [c[0], names_of_race.get(c[1], c[1])]
+            calls.append(c)
+        scenarios.append({"name": name, "device": device_ids[device],
+                          "place": {"activity": "hyperspace" if act == "h" else "interplanetary", "orbit": orbit,
+                                    "star": star, "planet": planet, "moon": moon, "ilwrath_alive": ilw,
+                                    "first_group": group, "encounter": enc, "fuel": fuel},
+                          "state": state, "status": r["status"], "writes": writes,
+                          "encounter": r["encounter"], "load": r["load"], "battle": r["battle"],
+                          "crew": r["crew"], "fuel": r["fuel"], "calls": calls})
+    data = header(uqm, ["tools/extract/golden/devices.c", "src/uqm/planets/devices.c"], [
+        "Each device's use, recorded by running UQM 0.8.0's own InvokeDevice "
+        "(planets/devices.c, as DoManipulateDevices calls it on select) in "
+        "tools/extract/golden/devices.c's use mode. Code only.",
+        "Each scenario: the device (globdata.h's number), where the ship is "
+        "(the activity, in a world's orbit, the system's generator, the "
+        "world orbited by planet and moon (-1: the planet), what "
+        "StartSphereTracking (ILWRATH_SHIP) answers, the race of the "
+        "system's first group, a hyperspace group near, the fuel in 1/100 "
+        "units), the story fields set before (the rest 0), and what came of "
+        "it: the status (0 DEVICE_FAILURE, 1 DEVICE_SUCCESS, 2 "
+        "DEVICE_SUCCESS_NO_SOUND), the story fields it changed, START_"
+        "ENCOUNTER set (encounter), CHECK_LOAD in NextActivity (load: the "
+        "fake load of a device's talk), IN_BATTLE left (battle; it starts "
+        "set), CrewEnlisted (65535: (COUNT)~0, the game over) and the fuel "
+        "after, and the calls made in order: [\"sound\", n] PlayMenuSound, "
+        "[\"fade\", kind, time] FadeScreen (ScreenFadeType's number, ticks "
+        "of ONE_SECOND 840), [\"sleep\"] SleepThreadUntil, [\"sphere\", "
+        "race] StartSphereTracking, [\"put\", offset, mode] PutGroupInfo, "
+        "[\"reinit\"] ReinitQueue of the system's groups, [\"clone\", race] "
+        "CloneShipFragment, [\"savesys\"] SaveSolarSysLocation, "
+        "[\"savehyper\"] SaveSisHyperState.",
+    ])
+    data["scenarios"] = scenarios
+    return data
+
+
 # ------------------------------------------------------------ the alien's animations
 
 COMMANIM_PROGRAM = os.path.join(HERE, "golden", "commanim.c")
@@ -9952,6 +10098,7 @@ def main():
                 ("landing", lambda: record_landing(uqm, systems)),
                 ("outfit", lambda: record_outfit(uqm, outfit)),
                 ("devices", lambda: record_devices(uqm, devices)),
+                ("device-uses", lambda: record_device_uses(uqm, devices)),
                 ("commanim", lambda: record_commanim(uqm, commanim)),
                 ("cmap", lambda: record_cmap(uqm, cmap)),
                 ("clock-events", lambda: record_clock(uqm, clock)),
