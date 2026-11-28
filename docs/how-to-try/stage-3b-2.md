@@ -64,7 +64,7 @@ Tried headless in `docs/how-to-try/stage-3b-1.md` (its `--start-state` run at Pr
 
 Orbiting Spathiwa's moon (star 222, Spathiwa planet 0, its moon 0), while the Spathi haven't shielded themselves, meets the Spathi at home against their endless fleet instead of an orbit: the encounter screen (unless they're at peace with you), then the Safe Ones' council on the communication screen. The ship is never put in orbit there. Spathiwa itself is orbited as any world.
 
-1. **The password.** They ask for the Secret Cypher. Without it (sold by the Melnorme, item 4, or from Fwiffo on Pluto, stage 3c) every answer is wrong and they fight; after a fight they're angry with you.
+1. **The password.** They ask for the Secret Cypher. Without it (sold by the Melnorme, item 4, or from Fwiffo on Pluto, stage 3c item 7) every answer is wrong and they fight; after a fight they're angry with you.
 2. **The council.** With the password: their council, the alliance offered and refused, and a test, the quest: wipe the Evil Ones off Spathiwa.
 3. **The Evil Ones.** Spathiwa has 32 of them. A lander bringing up a stunned one marks them examined (`SPATHI_CREATURES_EXAMINED`); the last of the 32 brought up eliminates them (`SPATHI_CREATURES_ELIMINATED`), whichever players brought them up. Saying you killed them all when you haven't is a lie they find out; the second time they hate you for good.
 4. **The party and the alliance.** With the Evil Ones gone, they party; then the alliance: the Spathi's ships go on sale at the starbase, every other player is told ("Host made an alliance with the Spathi: their ships are for sale at the starbase."), and the shield event is queued six months on (set aside when it fell due until stage 3c item 1, which runs it: `docs/how-to-try/stage-3c.md`).
@@ -95,7 +95,7 @@ Each is a row of `docs/differences.md`: Spathiwa's moon's talk with several play
 
 ### Known limits of item 2
 
-- **The password** is bought from the Melnorme (item 4) or had from Fwiffo (stage 3c); `--start-state` reaches the council without it.
+- **The password** is bought from the Melnorme (item 4) or had from Fwiffo (stage 3c item 7); `--start-state` reaches the council without it.
 - **The Spathi never shield themselves** (their event is stage 3c's, run since its item 1), so Spathiwa's moon keeps talking after the alliance.
 - **The alternate "Safe Ones" song** is chosen but nothing plays music yet.
 

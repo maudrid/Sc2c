@@ -186,6 +186,10 @@ The recording is remade with `python3 tools/extract/golden_uqm.py --uqm ../uqm-0
 
 Item 6's tests: `StoryPickupsTests` (its recording now 52 cases: each homeworld's ruins, the three artifact ruins found and not, the Androsynth's chapters with none, two and all three read, the wreck with its key and without, the vault locked, known, with the shuttle and opened, Procyon's starbase; each case's further touches in the same orbit; the cycling tables' entry counts, the content's), `StoryRuinsTests` (topic `story`, new: the ruins there only once their race is extinct, the finder's alone, one a visit, the other players' own; `--start-extinct` turning a homeworld's talk into its ruins; the Ultron the first finder's, the next player reading it found; the Androsynth's chapters in order at new ruins, told to every player, the ruins visited kept through a save; the wreck's key once; the vault read by each ship's shuttle as it goes into orbit and by the finder's as it's touched; Procyon's report as a ship comes to it; review round 1: a shuttle handed over after the locked text opening the vault with its text, a ship flying into Procyon's starbase, away and back, only Procyon's report shown on the system screen).
 
+Item 7's tests: `FwiffoTests` (topic `story`, new: the crew loss against UQM's own `KillLanderCrewSeq`, `tests/golden/lander-killcrew.json`, each loss's surface frame, no shield helping and nothing drawn at random, the lander held; in the game, the finder's lander losing 8 crew one by one, held while the world goes on, then the report, the take-off and word to the other landers, the Spathi's lock the finder's from the touch, the talk as the lander comes back aboard: a meeting with no group, his one ship of crew 1 with his name, the ship in orbit; a lander of 8 dying with nothing found and the lock let go; his joining the host's fleet when a guest finds him, flying off with no room, his battle fought from orbit and the ship still in orbit after; the lander passing over him while another player holds the Spathi's lock; the finder leaving and the next lander back aboard elsewhere bringing his talk; a waiting talk held by the lock, dropped once the field passes 1 or its ship leaves orbit; saves before his talk ends keeping the field at 1), `StoryPickupsTests` (its recording now 54 cases: Fwiffo found by a lander of 12 and the lander of 8 lost, with the `KillLanderCrewSeq` each asked for; Pluto's sheet now on the surface).
+
+The recordings are remade with `python3 tools/extract/golden_uqm.py --uqm ../uqm-0.8.0/sc2 --only story-nodes,lander-killcrew` (a few seconds; code only, no content).
+
 ## Item 5, part 1: devices held by ships
 
 Devices are each ship's own now, as the owner answered the plan's question 5: the portal spawner is everyone's once anyone has it, and the Lunar base the opening's; every other device is held by one ship at a time. The pickups that give them on the story worlds are part 2's and item 6's, their uses item 8's.
@@ -246,7 +250,7 @@ Row 38 (every pickup's: the other landers stay and are told, each ship's own pla
 
 ### Known limits of item 5, part 2
 
-- **The ruins, the wreck, the vault and Procyon's starbase report** came with item 6 (below); Fwiffo is item 7's: his node shows on the scan but isn't on the surface yet (his sheet is loaded).
+- **The ruins, the wreck, the vault and Procyon's starbase report** came with item 6 (below); Fwiffo came with item 7 (below).
 - **No device is used yet** (item 8).
 - **A report's read-out sound** waits for the game's sound, as the Lunar base's.
 
@@ -283,3 +287,30 @@ Row 38 (the nodes that stay, their text read from the story as a node is touched
 - **The Umgah's ruins** wait for item 10: their world is never entered until its Talking Pet half is ported.
 - **Under a report the world goes on**, as with every report since stage 3a: on the system screen at Procyon a ship held on the arrow keys keeps flying while the report is typed.
 - **No device is used yet** (item 8): the Ultron, the Sphere and the Spindle mend nothing yet; the portal key is read only by the Arilou's talk.
+
+## Item 7: Fwiffo on Pluto
+
+Fwiffo is on Pluto (star 82, planet 8), his node at the south-west of its map, drawn with his own sheet while he isn't found:
+
+1. **The crew loss.** A lander that touches him loses 8 crew one by one, a twentieth of a second apart, as UQM's `KillLanderCrewSeq` (no shield helps). Only that lander is held, its keys not read, while the world goes on: the other landers, the hazards and the creatures round it. A lander with 8 or fewer dies, and nothing is found.
+2. **Found.** Living through it, he's found for everyone (`FOUND_PLUTO_SPATHI` 1, which takes his node off the scan and every later surface), his report is typed for the finder and the lander goes up by itself; the other landers on Pluto stay and are told, as with every pickup.
+3. **The Spathi's lock** is the finder's from the touch until his talk is over, so nobody else's Spathi talk (which would be his while the field is 1) starts meanwhile. While another player is talking to the Spathi, a lander passes over him and its player is told who's talking.
+4. **His talk** starts when the finder's lander is back aboard: no group in the system, his one Eluder with a crew of 1 and his own name, the ship staying in orbit. He can join the host's fleet, alone in his Eluder, whoever found him; with no room in the fleet he flies off ("too scary"); or he fights at Pluto, the battle fought from orbit, the ship still in orbit after. His ship is never saved.
+5. **When his talk can't come to the finder** (they leave first, the game is loaded from a save made before it ended, or it's dropped), the field stays 1: the next lander back aboard any player's ship, anywhere, brings his talk to that ship once it's in orbit with nothing else going on, taking the Spathi's lock or waiting for it. It's dropped if the field passes 1 meanwhile (another player's Spathi talk was his) or that ship leaves orbit (the next lander back brings it then).
+
+Tried headless, each host with `--host --no-upnp --id host --name Host --save FILE` (a scratch file), `--start-orbit 82:8 --start-site 20:67` and the script `none:10,select:1,none:10,select:1,none:250,select:1,none:5,select:1,none:60` (Scan, Auto scan, Dispatch), then `right:10,thrust:16,right:4,thrust:6` (a drive onto his node from where the lander came down, found from a `--report FILE` run quitting at frame 400):
+
+- With `none:400` after and `--quit-after 900`: "Lander report text.fwiffo", "host talks to the Spathi" with his greeting ("Attention big, mean, hostile alien vessel hovering overhead ... This is Spathi Captain Fwiffo ... Sorry about that little mistake with your landing vehicle!") and the four replies, "Saw host Talk at frame 393", "Back in orbit: crew 42" (50 less his 8); the save has `FOUND_PLUTO_SPATHI` 1 (saved during his talk).
+- Joining: then `none:150,down:1,select:1`, three `select:1` and six `down:1,select:1` each after `none:150` (hi there, what he's doing on Pluto three times, the Moon base, the other Spathi, how many crew, really thousands, full of monsters), then `none:150,down:1,down:1,down:1,select:1,none:300,select:1,none:300` (join us), `--quit-after 2800`: "Happy days and jubilation!", "The talk with the Spathi ends: peace", "host's meeting with the Spathi is over", "Saw host Orbit at frame 1967"; the save's fleet `[{"race": "SPATHI_SHIP", "crew": 1, "captain": 21, "slot": 0}]` and `FOUND_PLUTO_SPATHI` 2.
+- Fighting: then `none:150,down:1,down:1,down:1,select:1,none:200,select:1,none:200` (prepare to die), `--quit-after 1500`: "The talk with the Spathi ends: hostile", "Saw host Battle at frame 602", "Battle 1 against the spathi won", "The spathi is destroyed: 225 RU of salvage", "Saw host Orbit at frame 1174"; the `--report` has the host in orbit around planet 8, the save `FOUND_PLUTO_SPATHI` 2.
+
+Not tried by hand: a lander of 8 or fewer, the lock held by another player, the finder leaving and his talk coming to the next lander back, a guest's lander on Pluto told of the find (no option sets a ship's crew; the tests run them). Not run windowed.
+
+### What's different from UQM
+
+Row 91 (the crew lost while the world goes on, his talk from orbit as the finder's lander comes back aboard, the waiting talk), row 17 (the Spathi's lock from the touch) and row 38 (his report and take-off as every pickup's).
+
+### Known limits of item 7
+
+- **His node stays on the surface it was found on** while that surface lasts (other landers there can still see it; touching it does nothing), as UQM keeps it while the lander takes off; it's gone from the scan and from every surface made after.
+- **A ship in his talk or battle** is drawn by the other players as a ship in a talk or battle at the world's place in its planet's inner view, not as an orbiting ship, until it's over (its activity is the talk's; it's still in orbit).
