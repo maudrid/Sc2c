@@ -1333,6 +1333,7 @@ public sealed class PlayerSession
         DispatchRefusal.StoryPause => "The game waits while the story's talk goes on.",
         DispatchRefusal.HostPaused => "The host has paused the game.",
         DispatchRefusal.OffTheMap => "That site is off the map.",
+        DispatchRefusal.InTalk => "Not now: the ship is in a talk or a battle.",
         _ => "",
     };
 

@@ -178,7 +178,8 @@ public class FleetTests
         Refused(new FleetShip(Arilou, -1, 5, 0));
         Refused(new FleetShip(Arilou, 7, 5, 0));
         Refused(new FleetShip(Arilou, 6, 4, 0));
-        Refused(new FleetShip(Arilou, 6, 21, 0));
+        Refused(new FleetShip(Arilou, 6, 21, 0));   // the name after the 16 is only Fwiffo's, a Spathi's
+        Refused(new FleetShip(Spathi, 1, 22, 0));
         Refused(new FleetShip(Arilou, 6, 5, -1));
         Refused(new FleetShip(Arilou, 6, 5, 12));
         Refused(new FleetShip(Arilou, 6, 5, 3), new FleetShip(Spathi, 6, 5, 3));
@@ -187,6 +188,9 @@ public class FleetTests
         fleet.Restore(Rules, new[] { new FleetShip(Spathi, 30, 20, 11), new FleetShip(Arilou, 0, 5, 4) });
         Assert.Equal(new[] { 4, 11 }, fleet.Ships.Select(s => s.Slot));
         Assert.Equal(0, fleet.InSlot(4)!.Crew);   // a ship whose crew the shipyard sent away stays
+        // Fwiffo alone in his Eluder (spathic.c's SetEscortCrewComplement: NAME_OFFSET + NUM_CAPTAINS_NAMES).
+        fleet.Restore(Rules, new[] { new FleetShip(Spathi, 1, 21, 0) });
+        Assert.True(HostFleet.IsFwiffo(fleet.Ships.Single()));
     }
 
     // A world of hyperspace only with a story (the fleet's rules), the host and guests g1, ...

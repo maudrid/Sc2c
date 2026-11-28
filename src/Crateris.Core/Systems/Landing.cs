@@ -40,6 +40,13 @@ public enum DispatchRefusal
 
     /// <summary>The host has paused the game (stage 4a item 10).</summary>
     HostPaused,
+
+    /// <summary>
+    /// The ship is in a meeting or a battle while in orbit (Fwiffo's talk
+    /// and battle, stage 3c item 7, review round 2): a request that came as
+    /// it began.
+    /// </summary>
+    InTalk,
 }
 
 /// <summary>

@@ -197,7 +197,10 @@ public static class Protocol
     /// RPC's entry, between the table and who found it), and a surface
     /// element the story worlds' energy node sheets (SurfaceSheet's values
     /// after Moonbase).
-    public const int Version = 37;
+    /// 38: Fwiffo on Pluto (stage 3c item 7, review round 2): a landing
+    /// can be refused as the ship is in a talk or a battle in orbit
+    /// (DispatchRefusal.InTalk, numbered last, in LandingRefused).
+    public const int Version = 38;
     public const int DefaultPort = 24642;
 
     /// <summary>

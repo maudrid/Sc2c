@@ -134,7 +134,8 @@ public sealed partial class GameWorld
     private void AfterFwiffo(Meeting m)
     {
         var ship = m.Player.Ship;
-        if (m.Player.Present && !ship.Destroyed && ship.Battle is null && m.World is var (planet, moon)
+        if (m.Player.Present && !ship.Destroyed && ship.Battle is null && ship.Lander is null && ship.Hold.LanderOut is null
+            && m.World is var (planet, moon)
             && ship.OrbitedWorld is { } at && at.Star == m.Star && at.Planet == planet && at.Moon == moon)
             InOrbit(ship);
     }

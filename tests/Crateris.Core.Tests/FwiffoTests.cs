@@ -11,6 +11,7 @@ using Crateris.Core.Comm.Scripts;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
 using Crateris.Core.Planetside;
+using Crateris.Core.Session;
 using Crateris.Core.Story;
 using Crateris.Core.Systems;
 using Crateris.Core.Uqm;
@@ -352,7 +353,8 @@ public class FwiffoTests
         Assert.Equal(escape, world.Host.Ship.Ip!.EscapeCounter);
         Frames(world, 3, "host", ShipInput.Action);
         Assert.Null(world.Host.Ship.Orbit);
-        Assert.True(world.Host.Ship.Ip!.EscapeCounter <= escape);
+        Assert.Equal(0, escape);
+        Assert.Equal(0, world.Host.Ship.Ip!.EscapeCounter);   // no escape counter to wait out: it touches things at once
     }
 
     [ContentFact]
@@ -375,7 +377,8 @@ public class FwiffoTests
             Frames(world, 1, "host", ShipInput.TakeOff);
         }
         Assert.Equal(MeetingStep.Done, m.Step);
-        Assert.True(m.LeftBattleEarly || m.Battle!.Outcome is not BattleOutcome.Won);
+        Assert.Equal(BattleExit.Retreated, m.Battle!.Fighters[0].Exit);
+        Assert.False(world.GameOver);
         Assert.NotNull(world.Host.Ship.Orbit);
         Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
         Assert.Equal(escape, world.Host.Ship.Ip!.EscapeCounter);
@@ -660,7 +663,7 @@ public class FwiffoTests
         Assert.NotNull(loaded.Host.Ship.Orbit);
         Assert.Equal(new WorldId(Pluto(world).Star, 8, null), loaded.Host.Ship.OrbitedWorld);
         Assert.Equal(2, loaded.Story!.Get("FOUND_PLUTO_SPATHI"));
-        Assert.Contains(loaded.Fleet.Ships, s => s.Race == "SPATHI_SHIP" && s.Crew == 1);
+        Assert.Contains(loaded.Fleet.Ships, s => s.Race == "SPATHI_SHIP" && s.Crew == 1 && s.Captain == 21);
         Assert.Null(loaded.FwiffoFor);
         // The live meeting goes on waiting for its player.
         Assert.Equal(MeetingStep.Closing, m.Step);
@@ -717,5 +720,136 @@ public class FwiffoTests
         JoinHim(world, "host");
         Assert.True(world.ClosingDone("host"));
         Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), world.Host.Ship.Discovery);
+    }
+
+    // ------------------------------------------------------------ review round 2
+
+    [ContentFact]
+    public void NoLanderGoesDownDuringHisTalkOrHisBattle()
+    {
+        // His talk and battle keep the ship in orbit, the orbit entered: a landing asked for then is refused
+        // (a request that came as they began), so no crew is aboard a lander while the battle keeps the ship's.
+        var world = NewGame();
+        world.Story!.Set("STARBASE_AVAILABLE", 1);
+        OrbitPluto(world, "host");
+        FindHim(world, "host");
+        Back(world, "host");
+        var m = world.MeetingOf("host")!;
+        Assert.Equal(DispatchRefusal.InTalk, world.Dispatch("host", 10, 10));
+        Assert.Null(world.Host.Ship.Lander);
+        int crew = world.Host.Ship.Hold.Crew;
+        Assert.True(world.ChooseReply("host", Reply(m.Talk!, "we_fight_1")));
+        Assert.Equal(DispatchRefusal.InTalk, world.Dispatch("host", 10, 10));   // at the closing lines
+        Assert.True(world.ClosingDone("host"));
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        Assert.Equal(DispatchRefusal.InTalk, world.Dispatch("host", 10, 10));
+        Assert.Null(world.Host.Ship.Lander);
+        for (int i = 0; i < 300 && m.Step == MeetingStep.Battle; ++i)
+        {
+            if (m.Battle!.Enemy.RaceDesc is { } rd)
+                rd.CrewLevel = rd.MaxCrew;
+            Frames(world, 1, "host", ShipInput.TakeOff);
+        }
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Equal(crew, world.Host.Ship.Hold.Crew);   // no crew made twice by a lander out meanwhile
+        Assert.Equal("Not now: the ship is in a talk or a battle.", PlayerSession.RefusalMessage(DispatchRefusal.InTalk));
+        Assert.Equal(DispatchRefusal.None, world.Dispatch("host", 10, 10));   // over: the lander goes
+    }
+
+    // A ship orbiting the Ilwrath's ruins (their race extinct), its one report of the visit used up, with his talk
+    // coming to it (the field 1, its lander back aboard): returns the world and the meeting.
+    private static (WorldId At, Meeting M) AtRuinsWithHisTalk(GameWorld world, params string[] alsoOrbiting)
+    {
+        var story = world.Story!;
+        Extinct(story, "ILWRATH_SHIP");
+        story.Set("STARBASE_AVAILABLE", 1);   // a retreat allowed
+        story.Set("FOUND_PLUTO_SPATHI", 1);
+        var at = new WorldId(Star(world, "ILWRATH_DEFINED"), 0, null);
+        foreach (string id in alsoOrbiting)
+            world.PutInOrbit(id, at.Star, at.Planet, at.Moon);
+        world.Host.Ship.Hold.SetCrew(30);
+        world.PutInOrbit("host", at.Star, at.Planet, at.Moon);
+        var site = world.Host.Ship.Orbit!.Nodes!.Energy[3];
+        var lander = Land(world, "host", site.X << PlanetsideMap.MagShift, site.Y << PlanetsideMap.MagShift);
+        StayOn(world, lander, world.SurfaceOf(at)!.Elements.Single(e => e.Kind == SurfaceElementKind.Energy && e.Node == 3), 5);
+        Assert.Null(world.Host.Ship.Discovery);
+        Frames(world, 1, "host", ShipInput.TakeOff);
+        Back(world, "host");
+        var m = Assert.IsType<Meeting>(world.MeetingOf("host"));
+        Assert.True(m.Fwiffo);
+        Assert.True(world.ChooseReply("host", Reply(m.Talk!, "we_fight_1")));
+        Assert.True(world.ClosingDone("host"));
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        Assert.Null(world.Host.Ship.Discovery);
+        return (at, m);
+    }
+
+    [ContentFact]
+    public void AfterHisBattleWonOrRetreatedFromTheOrbitsStartIsDoneAfresh()
+    {
+        // Won.
+        var world = NewGame();
+        var (at, m) = AtRuinsWithHisTalk(world);
+        byte escape = world.Host.Ship.Ip!.EscapeCounter;
+        WorldTalkTests.WinTheBattle(world, m);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), world.Host.Ship.Discovery);
+        Assert.Equal(escape, world.Host.Ship.Ip!.EscapeCounter);
+
+        // Retreated from.
+        world = NewGame();
+        (at, m) = AtRuinsWithHisTalk(world);
+        escape = world.Host.Ship.Ip!.EscapeCounter;
+        for (int i = 0; i < 300 && m.Step == MeetingStep.Battle; ++i)
+        {
+            if (m.Battle!.Enemy.RaceDesc is { } rd)
+                rd.CrewLevel = rd.MaxCrew;
+            Frames(world, 1, "host", ShipInput.TakeOff);
+        }
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Equal(BattleExit.Retreated, m.Battle!.Fighters[0].Exit);
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), world.Host.Ship.Discovery);
+        Assert.Equal(escape, world.Host.Ship.Ip!.EscapeCounter);
+    }
+
+    [ContentFact]
+    public void LeavingHisBattleEarlyWhileAnotherFightsOnLeavesTheShipInOrbitAsItLeaves()
+    {
+        var world = NewGame();
+        var (at, m) = AtRuinsWithHisTalk(world, "guest");
+        var wb = m.Battle!;
+        byte escape = world.Host.Ship.Ip!.EscapeCounter;
+        // The guest leaves orbit there and joins his battle, at the world's place in the planet's inner view.
+        Frames(world, 3, "guest", ShipInput.Action);
+        Assert.Null(world.Find("guest")!.Ship.Orbit);
+        Assert.True(world.LetIntoBattle("guest"));
+        for (int i = 0; i < 20 && world.Find("guest")!.Ship.Battle != wb; ++i)
+            Frames(world, 1);
+        Assert.Equal(wb, world.Find("guest")!.Ship.Battle);
+        // The host runs away; the guest fights on, everyone kept alive.
+        for (int i = 0; i < 300 && world.Host.Ship.Battle == wb; ++i)
+        {
+            foreach (var f in wb.Fighters)
+                if (f.Starship.RaceDesc is { } own)
+                    own.CrewLevel = own.MaxCrew;
+            if (wb.Enemy.RaceDesc is { } rd)
+                rd.CrewLevel = rd.MaxCrew;
+            Frames(world, 1, "host", ShipInput.TakeOff);
+        }
+        Assert.Null(world.Host.Ship.Battle);
+        Assert.Null(wb.Outcome);   // still going, the guest in it
+        Assert.True(m.LeftBattleEarly);
+        Assert.Equal(MeetingStep.Battle, m.Step);
+        // Back in orbit as it leaves: its escape counter as it was, the orbit's start done afresh then.
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Assert.Equal(escape, world.Host.Ship.Ip!.EscapeCounter);
+        Assert.Equal(new ReportPlace(at, StoryWorlds.RuinsReport, 0), world.Host.Ship.Discovery);
+        // The battle's end later doesn't make it again (the host's place moved on meanwhile stays).
+        world.Host.Ship.Discovery = null;
+        WorldTalkTests.WinTheBattle(world, m);
+        Assert.Equal(MeetingStep.Done, m.Step);
+        Assert.Null(world.Host.Ship.Discovery);
     }
 }

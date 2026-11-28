@@ -1526,7 +1526,8 @@ public sealed partial class GameWorld
     /// lander is there, with the nodes not yet taken and the world's hazards.
     /// It starts with the next surface frame. Returns why not, changing
     /// nothing, if it can't go (a request can come after the ship has left
-    /// orbit, or while its lander is down).
+    /// orbit, or while its lander is down, or as a meeting or a battle begins
+    /// with the ship in orbit: Fwiffo's, stage 3c item 7).
     /// </summary>
     public DispatchRefusal Dispatch(string id, int siteX, int siteY)
     {
@@ -1540,6 +1541,8 @@ public sealed partial class GameWorld
             return DispatchRefusal.StoryPause;
         if (GameOver || !player.Present || ship.Orbit is not { Entered: true } orbit || ship.Entry is not null)
             return DispatchRefusal.NotInOrbit;
+        if (ship.Meeting is not null || ship.Battle is not null)
+            return DispatchRefusal.InTalk;   // Fwiffo's talk and battle keep the ship in orbit (stage 3c item 7)
         if (ship.Lander is not null || ship.Hold.LanderOut is not null)
             return DispatchRefusal.LanderOut;
         var refusal = Landing.Check(orbit, ship);
