@@ -2,7 +2,7 @@
 
 Where the work stands, so the next session (on any computer) can pick it up. Keep it current: see the rule in `CLAUDE.md`. This is not a history; the plans' Progress sections and git hold that.
 
-**Last updated:** 2026-11-28. Stage 3c items 1 to 7 built, reviewed and reported (items 6 and 7 at the owner's go-ahead of 2026-11-27, "do 6 and 7"); waiting on the owner for item 8.
+**Last updated:** 2026-11-28. Stage 3c item 8 (the menus and the devices) started (the owner's go-ahead 2026-11-28, for this item alone); the owner kept items 1's, 2's, 3's, 6's and 7's readings as built (Decided, below). Items 1 to 7 built, reviewed and reported.
 
 ## Where things are
 
@@ -45,6 +45,8 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Decided
 
+- **Stage 3c items 1's, 2's, 3's, 6's and 7's readings put to the owner (the owner, 2026-11-28): kept as built.** Item 1's (b): the calendar's events told to every present player, a lone player too; item 3's (e): `--start-state` sets a mission's field but not its fleet, no set-up option added; item 6's (t) to (y) and its set-up option (`--start-extinct`); item 7's (z) to (af), Fwiffo on Pluto. Each in its Progress row in `docs/plans/stage-3c.md`.
+- **Stage 3c's plan's questions (the owner, 2026-11-27):** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone).
 - **Items 4's and 5's readings put to the owner (the owner, 2026-11-27): kept as built.** Item 4: any way `KOHR_AH_KILLED_ALL` is set, `--start-state` included, loses the game; only the host's player goes through the last talk's closing lines. Item 5: the Supox read an Ultron aboard another ship as given back; a talk's write too big for its field can give or take a device on the answering ship; the Chmmr see no bomb aboard a guest's ship until item 11; the bomb's pickup turning the Druuge hostile isn't told to every player (as UQM tells nobody; only the other landers on that world are told of the pickup).
 - **Item 11's readings put to the owner (the owner, 2026-11-26): kept as built.** The Chmmr's bomb branch, reached only by set-up until 3c, rebuilds the answering ship (a guest's too) and zeroes the landers' and storage bays' prices for everyone, but doesn't move the ship or pass the 14 days (question 8 leaves the bomb ship to 3c); the rest as item 11's Progress row and `differences.md` row 87 have them.
 - **Items 8's, 9's and 10's questions and readings put to the owner (the owner, 2026-11-26): kept as built.** Item 10: the Aqua Helix's world stays guarded and the Umgah's world held until 3c (`differences.md` rows 66 and 27), and its readings (row 86). Item 9: the allied Utwig and Supox give 4 ships at every visit home until 3c's event (row 66), and its readings (row 85). Item 8's readings (row 84). Each item's Progress row in `docs/plans/stage-3b-2.md` holds them.
@@ -71,19 +73,11 @@ Smaller items left for later stages are notes under the items that own them in t
 
 ## Next step
 
-Wait for the owner's go-ahead for stage 3c item 8 (the devices' uses), and their word on items 6's and 7's readings (below).
+Build stage 3c item 8 (the menus and the devices; the owner's go-ahead 2026-11-28, for this item alone), then review it round by round and report; then wait for the go-ahead for item 9.
 
 ## Decisions waiting on the owner
 
-**Stage 3c's plan:** every question answered (2026-11-27): 1 to 4 and 7 to 11 as recommended; 12 (finding players, wrecks and containers: edge markers in 3c, the star map later); 5 and 6 as the owner put them (devices held by ships: the spawner everyone's, every other device one ship's and handed over close by, the bomb usable only aboard the host's ship, a leaver's devices left in a container; only the host can set the bomb off, the game over for everyone). Items 1 to 5 built, reviewed and reported (2026-11-27); items 6 and 7 too (2026-11-28).
-
-**Item 6's readings and set-up option, to look over** (its Progress row): (t) every site whose text depends on the story reads it as touched (the wreck, the vault too: a shuttle handed over in orbit opens the vault, its opening's text shown even after the locked text used up the visit's); (u) the Androsynth's chapters told to every present player, wherever they are; (w) Procyon's report shows on the system screen while the world goes on (only it there; other waiting reports are notices there as before). `--start-extinct SHIP,...` added to reach the homeworlds' ruins headless: keep it as a permanent set-up option?
-
-**Item 7's readings, to look over** (its Progress row, (z) to (af)): those likeliest to matter in play are (aa) only the finder's lander held during its crew loss (the world going on, hazards still able to hurt it), (ab) a lander lost counts as "back" for bringing his waiting talk (as UQM's), and (ac) a waiting talk dropped once its ship leaves orbit (brought again by the next lander back while `FOUND_PLUTO_SPATHI` is 1). Also: no lander can be sent down while a ship is in his talk or battle (protocol 38).
-
-**Item 1's reading (b), to confirm:** the calendar's events (the Shofixti's return, the Spathi's shield, the Zoq-Fot-Pik's distress and death, the Yehat's civil war) are told to every present player, a lone player too, since no player set them off; 3b-1's rule was that a player alone sees nothing new. The other readings, (a) and (c) to (h), are in item 1's Progress row.
-
-**Items 2's and 3's readings** are in their Progress rows, for the owner to look over. One offers a choice: item 3's (e), `--start-state` sets a mission's field but not its fleet; a set-up option that also moves the fleet could be added if wanted.
+None.
 
 ## Left for later (the owner, 2026-11-13: visual fidelity is fixed later)
 
