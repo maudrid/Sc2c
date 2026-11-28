@@ -172,7 +172,7 @@ Each is a row of `docs/differences.md`:
 
 - **Nothing in space starts these battles** before stage 3b (ships in space, the races' talks, their alliances and the ships they give and take): only the Ilwrath at Earth, and the testing shortcuts. Only the Earthlings are allied without `--start-allied`.
 - **The Arilou's gift has no shortcut** to try it by hand (above); its test runs it.
-- **The roster** is only in the orbit menu's Manifest, as the hyperspace and system menus come later; the flight screens show the status in words otherwise (row 64).
+- **The roster** is in the Manifest of the orbit menu and, since stage 3c item 8, of the hyperspace and system menus; the flight screens show the status in words otherwise (row 64).
 - **Infinite fleets** (3b's homeworlds) and the enemy's crews left after a battle lost are built for 3b, with no shortcut.
 - **The Shofixti** is the recruited one; Tanaka's damaged scout comes with 3b's encounter.
 - **No sound:** no battle sounds, music, victory ditties or the Pkunk's insults.

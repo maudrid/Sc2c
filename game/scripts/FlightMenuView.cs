@@ -118,7 +118,9 @@ public partial class FlightMenuView : Control
         DrawString(font, new Vector2(areaAt.X, below + 22), _message, HorizontalAlignment.Left, width, 14, Colors.Khaki);
         DrawString(font, new Vector2(areaAt.X, below + 44), menu.DeviceList is not null
                 ? "Arrows, PgUp, PgDn: choose. Enter: use. Esc: back"
-                : "Arrows: choose. Enter: select. Esc: back",
+                : menu.Page == ShipMenu.MenuPage.Orbit
+                    ? "Arrows: choose. Enter: select. Navigate: back to flight"   // Esc does nothing on the first page
+                    : "Arrows: choose. Enter: select. Esc: back",
             HorizontalAlignment.Left, width, 13, Colors.Gray);
     }
 }

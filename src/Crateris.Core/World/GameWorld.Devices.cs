@@ -114,7 +114,7 @@ public sealed partial class GameWorld
             case DeviceAction.SunFlash:
                 return DeviceOutcome.Flash;
             case DeviceAction.IlwrathHomeTalk or DeviceAction.IlwrathShipTalk:
-                return MeetIlwrathByCaster(player, writes["GLOBAL_FLAGS_AND_DATA"]) ? DeviceOutcome.Used : DeviceOutcome.Talking;
+                return MeetIlwrathByCaster(player, writes["GLOBAL_FLAGS_AND_DATA"]);
             case DeviceAction.CalledMelnorme:
                 ship.UsedBroadcaster = true;
                 return DeviceOutcome.Used;
@@ -159,22 +159,22 @@ public sealed partial class GameWorld
     /// ILWRATH_CONVERSATION by GLOBAL_FLAGS_AND_DATA bits 4 and 5): a meeting
     /// with no group and no ships (npc_built_ship_q is empty: no battle
     /// follows, whatever the talk says), in the system where the ship is (in
-    /// flight, or in orbit, where it stays), under the Ilwrath's lock (false,
-    /// nothing begun, the user told who holds it, while another player talks
-    /// to them), the system's groups put aside for it (PutGroupInfo
-    /// GROUP_SAVE_IP, ReinitQueue) and none standing down. Without the
-    /// content's talk, nothing begins (false).
+    /// flight, or in orbit, where it stays), under the Ilwrath's lock, the system's groups put aside for it (PutGroupInfo
+    /// GROUP_SAVE_IP, ReinitQueue) and none standing down: Used once begun;
+    /// Talking (nothing begun, the user told who holds it) while another
+    /// player talks to them; Failed (nothing begun) without the content's
+    /// talk, as no one is talking then.
     /// </summary>
-    private bool MeetIlwrathByCaster(Player player, int flags)
+    private DeviceOutcome MeetIlwrathByCaster(Player player, int flags)
     {
         var rules = Story!.Rules;
         int race = rules.RaceIndex("ILWRATH_SHIP");
         if (!HasTalk(race) || ConversationOf(race) is not { } conversation || player.Ship.SystemStar is not int star)
-            return false;
+            return DeviceOutcome.Failed;
         if (!DialogueLocks!.TryTake(conversation, player.Id, out _))
         {
             TellWhoIsTalking(player, conversation, race);
-            return false;
+            return DeviceOutcome.Talking;
         }
         if (SystemGroups is { } sg && sg.Systems.TryGetValue(star, out var d))
             sg.StartWorldMeeting(d, -1);
@@ -191,7 +191,7 @@ public sealed partial class GameWorld
         _newMeetings.Add(m);
         TellMeetingBegun(m);
         BeginTalk(m);
-        return true;
+        return DeviceOutcome.Used;
     }
 
     /// <summary>The host's ship set off the Utwig bomb (for the game over's look: the flash, everyone's).</summary>
@@ -214,6 +214,12 @@ public sealed partial class GameWorld
     // After a broadcaster's talk with the Ilwrath: a ship still in orbit
     // there has the orbit's start done afresh (UQM's fake load comes back
     // through the world's generateOrbital, SaveSolarSysLocation having kept
-    // it in orbit), as after Fwiffo's (AfterFwiffo).
+    // it in orbit), as after Fwiffo's (AfterFwiffo). UQM's fake load would
+    // rerun the world's whole orbit code, a talk it starts included; the port
+    // redoes only the report's place and StoryWorlds.Orbited. They differ
+    // only at a world whose orbit starts a talk with the Ilwrath's ship first
+    // among its system's groups (UQM's would start that world's talk again
+    // after the Ilwrath's); not known to be reachable (the Ilwrath's own home
+    // gives the gods' talk, bit 4), and not looked into further.
     private void AfterCaster(Meeting m) => AfterFwiffo(m);
 }

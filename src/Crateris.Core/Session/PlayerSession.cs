@@ -1038,6 +1038,8 @@ public sealed class PlayerSession
             Notify(Gift.Why(TradeRefusal.Paused));
         else if (TalkShown)
             Notify("Not during a talk.");
+        else if (FlashHolding)
+            return;   // the Sun Device's flash holds the screen (SleepThreadUntil), its keys too
         else if (FlightMenu is not null)
             Notify("Close the menu first.");
         else if (OrbitMenu?.CargoOpen == true)
@@ -1270,8 +1272,14 @@ public sealed class PlayerSession
     public string? DeviceName(int device) =>
         _names is { } names && _systems.StoryRules?.Devices.All.ElementAtOrDefault(device) is { Listed: true } ? names.Device(device) : null;
 
-    /// <summary>A key for the orbit screen's menus (in a talk, for its replies; docked, for the starbase's screens; on the giving screen, for it).</summary>
-    public void PressMenu(MenuKey key)
+    /// <summary>
+    /// A key for the orbit screen's menus (in a talk, for its replies; docked,
+    /// for the starbase's screens; on the giving screen, for it). A
+    /// <paramref name="repeat"/> is a held key's repeat: it doesn't open the
+    /// hyperspace or system menu, so an Esc held on from the rescue screen,
+    /// a retreat, the communication screen or the battle-won screen doesn't.
+    /// </summary>
+    public void PressMenu(MenuKey key, bool repeat = false)
     {
         if (Rescue is { } rescue)
         {
@@ -1321,7 +1329,7 @@ public sealed class PlayerSession
             return;   // the Sun Device's flash holds the screen (SleepThreadUntil)
         if (OrbitMenu is null && (FlightMenu is not null || InFlight))
         {
-            PressFlight(key);
+            PressFlight(key, repeat);
             return;
         }
         if (OrbitMenu == null || Me?.Activity == Activity.Planetside || _landingAsked)
@@ -1378,13 +1386,14 @@ public sealed class PlayerSession
     // A key for the hyperspace or system menu (stage 3c item 8): Esc in
     // flight opens it (HyperspaceMenu, SolarSysMenu: the cursor on Starmap);
     // open, it takes the keys, as orbit's does.
-    private void PressFlight(MenuKey key)
+    private void PressFlight(MenuKey key, bool repeat)
     {
         if (HostPaused || _deviceAsked)
             return;   // the menu waits for the host's pause to lift, and for a device's answer
         if (FlightMenu is null)
         {
-            if (key != MenuKey.Cancel || !InFlight)
+            // Only a fresh Esc opens it, and not over the battle-won screen, whose Esc ends its tally.
+            if (key != MenuKey.Cancel || repeat || !InFlight || Tally is not null || Screen == PlayerScreen.BattleWon)
                 return;
             _flightPlace = Me!.SystemStar ?? -1;
             FlightMenu = new FlightMenu(Me.SystemStar is not null) { Inventory = Devices, Fleet = Fleet };
@@ -1774,7 +1783,8 @@ public sealed class PlayerSession
             lines.Add("Arrows: turn and thrust; Space: fire; Shift: special; Esc: retreat, where allowed");
         }
         else if (FlightMenu is not null)
-            lines.Add(FlightMenu.InSystem ? "The system menu: arrows choose, Enter selects, Esc goes back" : "The hyperspace menu: arrows choose, Enter selects, Esc goes back");
+            lines.Add((FlightMenu.InSystem ? "The system menu" : "The hyperspace menu") + ": arrows choose, Enter selects, "
+                + (FlightMenu.Page == ShipMenu.MenuPage.Orbit ? "Navigate goes back to flight" : "Esc goes back"));
         else if (Me?.Activity != Activity.Orbit && !Entering && Me?.Wrecked != true)
             lines.Add("Arrows: turn and thrust; Esc: the menu");
         // The Manifest's Devices list is drawn in the status area (DevicesDisplay), which hides this panel while it's open.

@@ -144,6 +144,44 @@ public class FlightMenuTests
         Assert.Equal(ShipInput.Thrust, me.NextInput(ShipInput.Thrust));
     }
 
+    [Fact]
+    public void OnlyAFreshEscOpensTheMenuNotAHeldOnesRepeats()
+    {
+        var world = NewGame();
+        var me = Session(world, "guest");
+        // Esc held on (from the rescue screen, a retreat, the communication screen): its repeats open nothing.
+        me.PressMenu(MenuKey.Cancel, repeat: true);
+        Assert.Null(me.FlightMenu);
+        me.PressMenu(MenuKey.Cancel);
+        Assert.NotNull(me.FlightMenu);
+        // Open, a repeat is the menu's as any key (a held arrow moves on).
+        me.PressMenu(MenuKey.Down, repeat: true);
+        Assert.Equal(OrbitMenuItem.Manifest, me.FlightMenu!.Selected);
+        // The first page's hint names Navigate (Esc does nothing there); the Manifest's, Esc.
+        Assert.Contains("The hyperspace menu: arrows choose, Enter selects, Navigate goes back to flight", me.StatusLines());
+        me.PressMenu(MenuKey.Select);
+        Assert.Contains("The hyperspace menu: arrows choose, Enter selects, Esc goes back", me.StatusLines());
+    }
+
+    [Fact]
+    public void EscOnTheBattleWonScreenEndsItsTallyAndOpensNoMenu()
+    {
+        var world = NewGame();
+        var me = Session(world, "guest");
+        me.ShowBattleNotice(new BattleNotice(BattleNoticeKind.Ended, 1, WorldBattleTests.Ilwrath, BattleOutcome.Won, BattleExit.Fought,
+            Salvage: 30, Destroyed: 2, Bounty: 30));
+        Observe(world, me);
+        Assert.NotNull(me.Tally);
+        Assert.Equal(PlayerScreen.BattleWon, me.Screen);
+        me.PressMenu(MenuKey.Cancel);   // the Esc that ends the tally (the client's battle-won screen reads it)
+        Assert.Null(me.FlightMenu);
+        me.CloseTally();
+        me.PressMenu(MenuKey.Cancel, repeat: true);   // still held after it
+        Assert.Null(me.FlightMenu);
+        me.PressMenu(MenuKey.Cancel);
+        Assert.NotNull(me.FlightMenu);
+    }
+
     [ContentFact]
     public void InASystemItsTheSystemMenuWhichClosesAsTheShipLeavesFlight()
     {
@@ -218,8 +256,13 @@ public class FlightMenuTests
         Assert.Equal(1, me.Flash);
         me.PressMenu(MenuKey.Cancel);   // held: no keys
         Assert.Null(me.FlightMenu);
+        me.ToggleTrade();   // nor the giving screen (the guest to give to)
+        Assert.Null(me.Trade);
         me.Advance(2.5);
-        me.PressMenu(MenuKey.Cancel);   // fading back: the keys are the menus' again
+        me.ToggleTrade();   // fading back: the giving screen opens again
+        Assert.NotNull(me.Trade);
+        me.ToggleTrade();
+        me.PressMenu(MenuKey.Cancel);   // and the keys are the menus' again
         Assert.NotNull(me.FlightMenu);
         me.Advance(1.5);
         Assert.Null(me.Flash);

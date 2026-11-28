@@ -655,9 +655,8 @@ public partial class Main : Node2D
         if (_host == null)
             return;
         long peer = Multiplayer.GetRemoteSenderId();
-        var outcome = _host.GuestUseDevice(peer, device);
-        if (_host.InGame(peer))
-            RpcId(peer, MethodName.DeviceUsed, (int)outcome);
+        // Answered always (NotNow to a peer not in the game), so the asker's list never waits on for an answer.
+        RpcId(peer, MethodName.DeviceUsed, (int)_host.GuestUseDevice(peer, device));
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -1236,7 +1235,7 @@ public partial class Main : Node2D
             // The pick screen's keys are its own: held on, they mustn't fly the ship picked (Enter fires).
             if (_player.Picking)
                 _taken.Take((long)k.Keycode);
-            _player.PressMenu(mk);
+            _player.PressMenu(mk, k.Echo);   // a held key's repeat doesn't open the hyperspace or system menu
         }
     }
 
@@ -1402,20 +1401,21 @@ public partial class Main : Node2D
         bool gauges = screen == PlayerScreen.Planetside || (screen == PlayerScreen.Orbit && player.OrbitMenu is { Picking: true });
         _givingView.MostLines = gauges ? 3 : 12;
         _givingView.Visible = !Headless && _givingView.Show(player);
-        _orbitView.MenuCovered = _givingView.Visible;
+        // The rescue screen, over the menus as the giving screen is: they aren't drawn under it, nor the Devices list,
+        // which would be drawn above it.
+        _rescueView.Visible = !Headless && _rescueView.Show(player);
+        _orbitView.MenuCovered = _givingView.Visible || _rescueView.Visible;
         // The hyperspace and system menus, while one is open (stage 3c item 8).
         bool flight = screen is PlayerScreen.Hyperspace or PlayerScreen.System && player.FlightMenu is not null;
-        _flightMenuView.MenuCovered = _givingView.Visible;
+        _flightMenuView.MenuCovered = _givingView.Visible || _rescueView.Visible;
         _flightMenuView.Visible = !Headless && _flightMenuView.Show(player, _systems.StoryRules) && flight;
         // The Manifest's Devices list, while it's open in orbit or from those menus. One that can't be drawn is closed.
-        _devicesView.Visible = !Headless && (screen == PlayerScreen.Orbit || flight) && _devicesView.Show(player);
+        _devicesView.Visible = !Headless && !_rescueView.Visible && (screen == PlayerScreen.Orbit || flight) && _devicesView.Show(player);
         if (_devicesView.Broken && player.OpenMenu?.DeviceList is not null)
         {
             player.CloseDevices();   // not a key: in a story pause the keys are the talk's
             player.Notify("The Devices list couldn't be drawn.");
         }
-        _rescueView.Visible = !Headless && _rescueView.Show(player);
-        _orbitView.MenuCovered |= _rescueView.Visible;
         if (_rescueView.Broken && player.Rescue is not null)
         {
             player.PressMenu(MenuKey.Cancel);

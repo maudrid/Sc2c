@@ -10,6 +10,7 @@ using Crateris.Core.Comm;
 using Crateris.Core.Comm.Scripts;
 using Crateris.Core.Data;
 using Crateris.Core.Hyperspace;
+using Crateris.Core.Net;
 using Crateris.Core.Session;
 using Crateris.Core.Story;
 using Crateris.Core.Systems;
@@ -90,6 +91,45 @@ public class DeviceUsesInGameTests
         world.PutInOrbit("host", sol, 3);   // Mars
         Land(world, "host", 100, 100);
         Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("host", Id("SUN_EFFICIENCY_DEVICE")));
+    }
+
+    [ContentFact]
+    public void NoDeviceIsUsedInAMeetingABattleAVisitAStarEntryOrAsAWreck()
+    {
+        int sun = Id("SUN_EFFICIENCY_DEVICE");
+        // In a meeting with a hyperspace group (its spin past).
+        var world = NewGame();
+        world.SetDevice("host", "SUN_DEVICE_ON_SHIP");
+        MeetingTests.GroupBy(world, "host", "SPATHI_SHIP");
+        Assert.NotNull(MeetingTests.Meet(world, "host").Encounter);
+        Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("host", sun));
+        // In a battle.
+        world = NewGame();
+        world.SetDevice("host", "SUN_DEVICE_ON_SHIP");
+        world.StartBattle("host", WorldBattleTests.Ilwrath);
+        Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("host", sun));
+        // Docked at the starbase.
+        world = NewGame();
+        world.SetDevice("host", "SUN_DEVICE_ON_SHIP");
+        int sol = Star(world, "SOL_DEFINED");
+        foreach (var f in new[] { "STARBASE_AVAILABLE", "RADIOACTIVES_PROVIDED", "MOONBASE_DESTROYED" })
+            world.Story!.Set(f, 1);   // allied long since: a visit, not the opening's story talk
+        world.CommanderMet = true;
+        world.PutInOrbit("host", sol, 2, 1);
+        world.VisitStarbase(world.Host);
+        Assert.Equal(Activity.Starbase, world.Host.Ship.Activity);
+        Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("host", sun));
+        // Entering a star.
+        world = NewGame();
+        world.SetDevice("host", "SUN_DEVICE_ON_SHIP");
+        world.Host.Ship.Entry = new StarEntryState(world.Frame, 0, 0, 0, 0, 0, sol, 10);
+        Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("host", sun));
+        world.Host.Ship.Entry = null;
+        Assert.Equal(DeviceOutcome.Failed, world.UseDevice("host", sun));   // in hyperspace: UQM's failure
+        // A wreck.
+        world.SetDevice("guest", "SUN_DEVICE_ON_SHIP");
+        world.Find("guest")!.Ship.Destroyed = true;
+        Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("guest", sun));
     }
 
     // ------------------------------------------------------------ the Ultron
@@ -192,12 +232,17 @@ public class DeviceUsesInGameTests
         Assert.Equal(MeetingStep.Talk, m.Step);
         Assert.True(Said(talk, "ILWRATH_BELIEVE"));
         Assert.Equal(1, world.Story.Get("ILWRATH_GODS_SPOKEN"));
-        // Sent against the Thraddash: their mission starts at once (stage 3c item 3).
+        // Sent against the Thraddash: their mission starts at once (stage 3c item 3), its event run as it's added.
         Assert.True(world.ChooseReply("guest", Reply(talk, "go_kill_thraddash"), m.Round));
         Assert.Equal(1, world.Story.Get("ILWRATH_DECEIVED"));
+        Assert.Contains(new EventAdded(true, 0, 0, 0, "ADVANCE_ILWRATH_MISSION"), talk.Events);
+        Assert.Equal("ADVANCE_ILWRATH_MISSION", world.Story.Fleet("ILWRATH_SHIP").Arrival);
         Assert.True(world.ChooseReply("guest", Reply(talk, "bye_gods"), m.Round));
-        // "Goodbye, gods" ends it at peace; nor would a hostile end fight: there are no ships to (UQM's empty
-        // npc_built_ship_q).
+        // "Goodbye, gods" goes through CombatIsInevitable, which sets the hostile segue and then, for bye_gods
+        // alone, peace again (ilwrathc.c:123-128); no battle follows either way: there are no ships to fight
+        // (UQM's empty npc_built_ship_q).
+        Assert.Equal(Segue.Peace, talk.Segue);
+        Assert.True(Said(talk, "GOODBYE_GODS"));
         MeetingTests.HearClosing(world, "guest");
         Assert.Null(world.MeetingOf("guest"));
         Assert.Null(m.Battle);
@@ -265,6 +310,58 @@ public class DeviceUsesInGameTests
     }
 
     [ContentFact]
+    public void AfterABroadcastersTalkInOrbitTheOrbitsStartIsDoneAfresh()
+    {
+        // Pluto, whose report place is Fwiffo's while he isn't found (GenerateSol_generateOrbital), the Ilwrath's
+        // ship first among Sol's groups.
+        var world = NewGame();
+        int sol = Star(world, "SOL_DEFINED");
+        world.SetDevice("host", "UMGAH_BROADCASTERS_ON_SHIP");
+        world.PutInSystem("host", sol);
+        Frames(world, 1);   // in the system: its draw made (Arrive)
+        var pluto = new WorldId(sol, 8, null);
+        world.PutInOrbit("host", sol, pluto.Planet);
+        var ship = world.Host.Ship;
+        var report = new ReportPlace(pluto, StoryWorlds.FwiffoReport, 0);
+        Assert.Equal(report, ship.Discovery);
+        world.SystemGroups!.Systems[sol].Groups.Insert(0, new IpGroup { GroupId = 91, Race = Rules.RaceIndex("ILWRATH_SHIP") });
+        ship.Discovery = null;   // as if the report had been shown
+        Assert.Equal(DeviceOutcome.Used, world.UseDevice("host", Id("UMGAH_HYPERWAVE_DEVICE")));
+        var m = world.MeetingOf("host")!;
+        Assert.Equal(32, m.CasterFlags);
+        Assert.Null(ship.Discovery);
+        MeetingTests.HearClosing(world, "host");
+        Assert.Null(world.MeetingOf("host"));
+        Assert.Equal(Activity.Orbit, ship.Activity);
+        // Made afresh, as UQM's fake load comes back through generateOrbital.
+        Assert.Equal(report, ship.Discovery);
+    }
+
+    [ContentFact]
+    public void AfterABroadcastersTalkInOrbitTheWorldIsOrbitedAfresh()
+    {
+        // A rainbow world (StoryWorlds.Orbited), the Ilwrath's ship first among its system's groups: the bit
+        // cleared meanwhile is set again after the talk.
+        var world = NewGame();
+        var map = world.Systems!.Map;
+        int star = Enumerable.Range(0, map.Stars.Count).First(i => map.Stars[i].Special == "RAINBOW_DEFINED");
+        world.SetDevice("host", "UMGAH_BROADCASTERS_ON_SHIP");
+        world.PutInSystem("host", star);
+        Frames(world, 1);
+        world.PutInOrbit("host", star, 0);
+        var story = world.Story!;
+        Assert.NotEqual(0, story.Get("RAINBOW_WORLD0") | story.Get("RAINBOW_WORLD1"));
+        story.Set("RAINBOW_WORLD0", 0);
+        story.Set("RAINBOW_WORLD1", 0);
+        world.SystemGroups!.Systems[star].Groups.Insert(0, new IpGroup { GroupId = 91, Race = Rules.RaceIndex("ILWRATH_SHIP") });
+        Assert.Equal(DeviceOutcome.Used, world.UseDevice("host", Id("UMGAH_HYPERWAVE_DEVICE")));
+        Assert.Equal(0, story.Get("RAINBOW_WORLD0") | story.Get("RAINBOW_WORLD1"));
+        MeetingTests.HearClosing(world, "host");
+        Assert.Equal(Activity.Orbit, world.Host.Ship.Activity);
+        Assert.NotEqual(0, story.Get("RAINBOW_WORLD0") | story.Get("RAINBOW_WORLD1"));
+    }
+
+    [ContentFact]
     public void ABroadcastersIlwrathTalkWaitsForTheirLock()
     {
         var world = NewGame();
@@ -280,6 +377,21 @@ public class DeviceUsesInGameTests
         Assert.Equal(DeviceOutcome.Used, world.UseDevice("host", Id("UMGAH_HYPERWAVE_DEVICE")));
         // Not while it's in that talk.
         Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("host", Id("UMGAH_HYPERWAVE_DEVICE")));
+    }
+
+    [ContentFact]
+    public void WithoutTheIlwrathsTalkABroadcasterDoesNothingAndNoOneIsSaidToTalk()
+    {
+        var world = NewGame();
+        world.TalkLibrary = null;   // the content's talks not loaded
+        int star = Star(world, "ILWRATH_DEFINED");
+        world.SetDevice("host", "UMGAH_BROADCASTERS_ON_SHIP");
+        world.PutInSystem("host", star);
+        world.TakeNotices();
+        Assert.Equal(DeviceOutcome.Failed, world.UseDevice("host", Id("UMGAH_HYPERWAVE_DEVICE")));
+        Assert.Null(world.MeetingOf("host"));
+        Assert.DoesNotContain(world.TakeNotices(), n => n.Event == NoticeEvent.Talking);
+        Assert.Null(world.DialogueLocks!.Holder("ILWRATH_CONVERSATION"));
     }
 
     [ContentFact]
@@ -336,6 +448,8 @@ public class DeviceUsesInGameTests
         var host = HostSession.New(new GameSettings(), NewGameData.Load(DataDir, SystemGroupTests.Systems.Value.Map), "host", "Host", SystemGroupTests.Systems.Value,
             TestContent.Shapes);
         var world = host.World;
+        world.EncounterRaces = new HashSet<string>();   // no groups to meet meanwhile
+        host.Hello(1, "g1", "Guest 1", Protocol.Version);
         world.SetDevice("host", "UTWIG_BOMB_ON_SHIP");
         world.Story!.Set("UTWIG_BOMB", 1);
         Assert.Equal(DeviceOutcome.Used, host.UseDevice("host", Id("UTWIG_BOMB_DEVICE")));
@@ -352,6 +466,9 @@ public class DeviceUsesInGameTests
         Assert.Contains(own, n => n.Kind == BattleNoticeKind.GameOver && BattleNotice.LossOf(n.Text) == GameLoss.UtwigBomb);
         Assert.Equal("Game over: the flagship set off the Utwig bomb.",
             own.First(n => n.Kind == BattleNoticeKind.GameOver).Describe());
+        Assert.Contains(guests, g => g.Peer == 1 && g.Notice.Kind == BattleNoticeKind.GameOver
+            && BattleNotice.LossOf(g.Notice.Text) == GameLoss.UtwigBomb);
+        Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("g1", Id("UTWIG_BOMB_DEVICE")));
         Assert.Equal(DeviceOutcome.NotNow, world.UseDevice("host", Id("UTWIG_BOMB_DEVICE")));
     }
 

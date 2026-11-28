@@ -177,7 +177,7 @@ public class MeetingTests
     private static int Race(GameWorld world, string race) => world.Story!.Rules.RaceIndex(race);
 
     // A group of a race right by a player (as one kept from before, its element made on the next frame).
-    private static HyperEncounter GroupBy(GameWorld world, string id, string race, int ships = 2, short dx = 10)
+    internal static HyperEncounter GroupBy(GameWorld world, string id, string race, int ships = 2, short dx = 10)
     {
         var f = world.Find(id)!.Ship.Flight;
         var fleet = world.Story!.Fleet(race);
@@ -205,7 +205,7 @@ public class MeetingTests
     }
 
     // Steps until the player's meeting is past its spin (or 200 frames).
-    private static Meeting Meet(GameWorld world, string id)
+    internal static Meeting Meet(GameWorld world, string id)
     {
         for (int i = 0; i < 200 && world.MeetingOf(id) is not { Step: not MeetingStep.Spin }; ++i)
             Frames(world, 1);
